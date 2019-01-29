@@ -1,0 +1,51 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "0.1.0",
+    "command": "sh",
+    "isShellCommand": true,
+    "args": ["-c"],
+    "showOutput": "always",
+    "tasks": [
+        {
+            "taskName": "Build",
+            "suppressTaskName": true,
+            "isBuildCommand": true,
+            "args": [
+                "make all"
+            ],
+            "problemMatcher": {
+                "owner": "cpp",               
+                "fileLocation": [ "relative", "${workspaceRoot}" ],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+               }
+            }
+        },
+        {
+            "taskName": "Build test",
+            "suppressTaskName": true,
+            "isBuildCommand": true,
+            "args": [
+                "make test"
+            ],
+            "problemMatcher": {
+                "owner": "cpp",               
+                "fileLocation": [ "relative", "${workspaceRoot}" ],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+               }
+            }
+        }
+    ]
+}
