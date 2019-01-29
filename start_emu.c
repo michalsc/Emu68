@@ -1,23 +1,62 @@
 #include <stdio.h>
 
 #include "RegisterAllocator.h"
+#include "M68k.h"
+#include "ARM.h"
+
+uint16_t m68kcode[] = {
+    0x32fc, 0xdead,
+    0x32fc, 0xbeef,
+    0x22c0,
+    0xffff,
+};
+uint32_t armcode[1024];
+uint32_t *armcodeptr = armcode;
+uint16_t *m68kcodeptr = m68kcode;
+
+uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
+{
+    uint32_t *ptr = arm_ptr;
+    uint16_t opcode = (*m68k_ptr)[0];
+    uint8_t group = opcode >> 12;
+
+    if ((group & 0xc) == 0 && (group & 3))
+    {
+        ptr = EMIT_move(arm_ptr, m68k_ptr);
+    }
+    else if (group == 7)
+    {
+        ptr = EMIT_moveq(arm_ptr, m68k_ptr);
+    }
+
+    /* No progress? Assume undefined instruction and emit udf to trigger exception */
+    if (ptr == arm_ptr)
+    {
+        ptr = arm_ptr;
+        *ptr++ = udf(opcode);
+        (*m68k_ptr)++;
+    }
+
+    return ptr;
+}
 
 int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    printf("Test\n");
+    fprintf(stderr, "Test\n");
+    uint32_t *p = armcodeptr;
+    uint32_t *end = armcodeptr;
 
-    for (int i=0; i < 16; i++)
+    while (*m68kcodeptr != 0xffff)
     {
-        if (i == 8)
-            RA_UpdateSlot(0);
-        
-        if (i == 12)
-            RA_UpdateSlot(0);
-            
-        printf("%02d: %d\n", i, RA_SelectNewSlot());
+        end = EmitINSN(end, &m68kcodeptr);
     }
+    RA_FlushM68kRegs(&end);
+    *end++ = bx_lr();
+
+    while (p != end)
+        printf("    %08x\n", *p++);
 
     return 0;
 }
