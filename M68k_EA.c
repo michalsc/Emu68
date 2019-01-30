@@ -490,7 +490,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 }
                 RA_FreeARMRegister(&ptr, reg_d16);
             }
-            if (src_reg == 0)
+            else if (src_reg == 0)
             {
                 (*ext_words)++;
                 if (size == 0)
@@ -572,9 +572,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
 
     Inputs:
         ptr     pointer to ARM instruction stream
-        size    size of data for load operation, can be 4 (long), 2 (short) or 1 (byte).
-                If size of 0 is specified the function does not load a value from EA into
-                register but rather loads the EA into that register.
+        size    size of data for store operation, can be 4 (long), 2 (short) or 1 (byte).
+                If size of 0 is specified the function does not store a value from register into
+                EA but rather loads the EA into that register.
                 If postincrement or predecrement modes are used and size 0 is specified, then
                 the instruction translator is reponsible for increasing/decreasing the address
                 register, otherwise it is done in this function!
@@ -1041,7 +1041,34 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         }
         else if (mode == 7)
         {
-            if (src_reg == 0)
+            if (src_reg == 2) /* (d16, PC) mode */
+            {
+                uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
+                *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
+                *ptr++ = add_immed(reg_d16, reg_d16, 2);
+                (*ext_words)++;
+
+                switch (size)
+                {
+                    case 4:
+                        *ptr++ = str_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        break;
+                    case 2:
+                        *ptr++ = strh_regoffset(REG_PC, *arm_reg, reg_d16);
+                        break;
+                    case 1:
+                        *ptr++ = strb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        break;
+                    case 0:
+                        *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
+                        break;
+                    default:
+                        printf("Unknown size opcode\n");
+                        break;
+                }
+                RA_FreeARMRegister(&ptr, reg_d16);
+            }
+            else if (src_reg == 0)
             {
                 ext_words++;
                 if (size == 0)
