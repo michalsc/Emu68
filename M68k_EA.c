@@ -492,7 +492,6 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             }
             else if (src_reg == 3)
             {
-
                 uint16_t brief = m68k_ptr[(*ext_words)++];
                 uint8_t extra_reg = (brief >> 12) & 7;
 
@@ -1342,6 +1341,280 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         break;
                 }
                 RA_FreeARMRegister(&ptr, reg_d16);
+            }
+            else if (src_reg == 3)
+            {
+                uint16_t brief = m68k_ptr[(*ext_words)++];
+                uint8_t extra_reg = (brief >> 12) & 7;
+
+                if ((brief & 0x0100) == 0)
+                {
+                    uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                    uint8_t tmp2 = 0xff;
+                    int8_t displ = brief & 0xff;
+
+                    *ptr++ = add_immed(tmp1, REG_PC, 2);
+
+                    if (displ > 0)
+                    {
+                        *ptr++ = add_immed(tmp1, tmp1, displ);
+                    }
+                    else
+                    {
+                        *ptr++ = sub_immed(tmp1, tmp1, -displ);
+                    }
+
+                    if (brief & (1 << 11))
+                    {
+                        if (brief & 0x8000)
+                            tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg);
+                        else
+                            tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
+                    }
+                    else
+                    {
+                        tmp2 = RA_AllocARMRegister(&ptr);
+                        if (brief & 0x8000)
+                            *ptr++ = ldrsh_offset(REG_CTX, tmp2, 2 + __builtin_offsetof(struct M68KState, A[extra_reg]));
+                        else
+                            *ptr++ = ldrsh_offset(REG_CTX, tmp2, 2 + __builtin_offsetof(struct M68KState, D[extra_reg]));
+                    }
+
+                    switch (size)
+                    {
+                        case 4:
+                            *ptr++ = str_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
+                            break;
+                        case 2:
+                            *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
+                            *ptr++ = strh_regoffset(tmp1, *arm_reg, tmp2);
+                            break;
+                        case 1:
+                            *ptr++ = strb_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
+                            break;
+                        case 0:
+                            *ptr++ = add_reg(*arm_reg, tmp1, tmp2, (brief >> 9) & 3);
+                            break;
+                        default:
+                            printf("Unknown size opcode\n");
+                            break;
+                    }
+                    RA_FreeARMRegister(&ptr, tmp1);
+                    RA_FreeARMRegister(&ptr, tmp2);
+                }
+                else
+                {
+                    uint8_t bd_reg = 0xff;
+                    uint8_t outer_reg = 0xff;
+                    uint8_t base_reg = 0xff;
+                    uint8_t index_reg = 0xff;
+
+                    /* Check if base register is suppressed */
+                    if (!(brief & M68K_EA_BS))
+                    {
+                        /* Base register in use. Alloc it and load its contents */
+                        base_reg = RA_AllocARMRegister(&ptr);
+                        *ptr++ = add_immed(base_reg, REG_PC, 2);
+                    }
+
+                    /* Check if index register is in use */
+                    if (!(brief & M68K_EA_IS))
+                    {
+                        /* Index register in use. Alloc it and load its contents */
+                        if (brief & (1 << 11))
+                        {
+                            if (brief & 0x8000)
+                                index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg);
+                            else
+                                index_reg = RA_MapM68kRegister(&ptr, extra_reg);
+                        }
+                        else
+                        {
+                            index_reg = RA_AllocARMRegister(&ptr);
+                            if (brief & 0x8000)
+                                *ptr++ = ldrsh_offset(REG_CTX, index_reg, 2 + __builtin_offsetof(struct M68KState, A[extra_reg]));
+                            else
+                                *ptr++ = ldrsh_offset(REG_CTX, index_reg, 2 + __builtin_offsetof(struct M68KState, D[extra_reg]));
+                        }
+                    }
+
+                    /* Check if base displacement needs to be fetched */
+                    switch ((brief & M68K_EA_BD_SIZE) >> 4)
+                    {
+                        case 2: /* Word displacement */
+                            bd_reg = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ldrsh_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                            (*ext_words)++;
+                            break;
+                        case 3: /* Long displacement */
+                            bd_reg = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ldr_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                            (*ext_words) += 2;
+                            break;
+                    }
+
+                    /* Check if outer displacement needs to be fetched */
+                    switch ((brief & M68K_EA_IIS) & 3)
+                    {
+                        case 2: /* Word outer displacement */
+                            outer_reg = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ldrsh_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                            (*ext_words)++;
+                            break;
+                        case 3: /* Long outer displacement */
+                            outer_reg = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ldr_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                            (*ext_words) += 2;
+                            break;
+                    }
+
+                    if ((brief & 0x0f) == 0)
+                    {
+                        /* Address register indirect with index mode */
+                        if (base_reg != 0xff && bd_reg != 0xff)
+                        {
+                            *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
+                        }
+                        else if (bd_reg == 0xff && base_reg != 0xff)
+                        {
+                            bd_reg = base_reg;
+                        }
+                        /*
+                            Now, either base register or base displacement were given, if
+                            index register was specified, use it.
+                        */
+                        switch (size)
+                        {
+                            case 4:
+                                if (index_reg != 0xff)
+                                    *ptr++ = str_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
+                                else
+                                    *ptr++ = str_offset(bd_reg, *arm_reg, 0);
+                                break;
+                            case 2:
+                                if (index_reg != 0xff)
+                                {
+                                    uint8_t t = RA_AllocARMRegister(&ptr);
+                                    *ptr++ = lsl_immed(t, index_reg, (brief >> 9) & 3);
+                                    *ptr++ = strh_regoffset(bd_reg, *arm_reg, t);
+                                    RA_FreeARMRegister(&ptr, t);
+                                }
+                                else
+                                    *ptr++ = strh_offset(bd_reg, *arm_reg, 0);
+                                break;
+                            case 1:
+                                if (index_reg != 0xff)
+                                    *ptr++ = strb_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
+                                else
+                                    *ptr++ = strb_offset(bd_reg, *arm_reg, 0);
+                                break;
+                            case 0:
+                                if (index_reg != 0xff)
+                                    *ptr++ = add_reg(*arm_reg, bd_reg, index_reg, (brief >> 9) & 3);
+                                else
+                                    *ptr++ = mov_reg(*arm_reg, bd_reg);
+                                break;
+                            default:
+                                printf("Unknown size opcode\n");
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        if (bd_reg == 0xff)
+                        {
+                            bd_reg = RA_AllocARMRegister(&ptr);
+                            *ptr++ = mov_reg(bd_reg, base_reg);
+                            base_reg = 0xff;
+                        }
+
+                        /* Postindexed mode */
+                        if (brief & 0x04)
+                        {
+                            /* Fetch data from base reg */
+                            if (base_reg == 0xff)
+                                *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
+                            else
+                                *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, 0);
+                            if (outer_reg != 0xff)
+                                *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
+
+                            switch (size)
+                            {
+                                case 4:
+                                    *ptr++ = str_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
+                                    break;
+                                case 2:
+                                {
+                                    uint8_t t = RA_AllocARMRegister(&ptr);
+                                    *ptr++ = lsl_immed(t, index_reg, (brief >> 9) & 3);
+                                    *ptr++ = strh_regoffset(base_reg, *arm_reg, t);
+                                    RA_FreeARMRegister(&ptr, t);
+                                    break;
+                                }
+                                case 1:
+                                    *ptr++ = strb_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
+                                    break;
+                                case 0:
+                                    *ptr++ = add_reg(*arm_reg, bd_reg, index_reg, (brief >> 9) & 3);
+                                    break;
+                                default:
+                                    printf("Unknown size opcode\n");
+                                    break;
+                            }
+                        }
+                        else /* Preindexed mode */
+                        {
+                            /* Fetch data from base reg with eventually applied index */
+                            if (brief & M68K_EA_IS)
+                            {
+                                if (bd_reg == 0xff) {
+                                    bd_reg = RA_AllocARMRegister(&ptr);
+                                    *ptr++ = ldr_offset(base_reg, bd_reg, 0);
+                                }
+                                else
+                                    *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, 0);
+                            }
+                            else
+                            {
+                                if (bd_reg != 0xff)
+                                    *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
+                                *ptr++ = ldr_regoffset(bd_reg, bd_reg, index_reg, (brief >> 9) & 3);
+                            }
+
+                            if (outer_reg != 0xff)
+                                *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
+
+                            switch (size)
+                            {
+                                case 4:
+                                    *ptr++ = str_offset(bd_reg, *arm_reg, 0);
+                                    break;
+                                case 2:
+                                    *ptr++ = strh_offset(bd_reg, *arm_reg, 0);
+                                    break;
+                                case 1:
+                                    *ptr++ = strb_offset(bd_reg, *arm_reg, 0);
+                                    break;
+                                case 0:
+                                    *ptr++ = mov_reg(*arm_reg, bd_reg);
+                                    break;
+                                default:
+                                    printf("Unknown size opcode\n");
+                                    break;
+                            }
+                        }
+                    }
+
+                    if (bd_reg != 0xff)
+                        RA_FreeARMRegister(&ptr, bd_reg);
+                    if (outer_reg != 0xff)
+                        RA_FreeARMRegister(&ptr, outer_reg);
+                    if (base_reg != 0xff)
+                        RA_FreeARMRegister(&ptr, base_reg);
+                    if (index_reg != 0xff)
+                        RA_FreeARMRegister(&ptr, index_reg);
+                }
             }
             else if (src_reg == 0)
             {
