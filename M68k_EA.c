@@ -166,17 +166,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
             uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            int16_t offset = m68k_ptr[(*ext_words)++];
-            if (offset >= 0)
-            {
-                *ptr++ = mov_immed_u8_shift(reg_d16, offset >> 8, (32 - 8) / 2);
-                *ptr++ = add_immed(reg_d16, reg_d16, offset);
-            }
-            else
-            {
-                *ptr++ = mvn_immed_u8_shift(reg_d16, -(offset >> 8), (32 - 8) / 2);
-                *ptr++ = add_immed(reg_d16, reg_d16, offset + 1);
-            }
+            *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
+            (*ext_words)++;
 
             switch (size)
             {
@@ -748,17 +739,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
             uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            int16_t offset = m68k_ptr[(*ext_words)++];
-            if (offset >= 0)
-            {
-                *ptr++ = mov_immed_u8_shift(reg_d16, offset >> 8, (32 - 8) / 2);
-                *ptr++ = add_immed(reg_d16, reg_d16, offset);
-            }
-            else
-            {
-                *ptr++ = mvn_immed_u8_shift(reg_d16, -(offset >> 8), (32 - 8) / 2);
-                *ptr++ = add_immed(reg_d16, reg_d16, offset + 1);
-            }
+            *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
+            (*ext_words)++;
 
             switch (size)
             {
