@@ -13,23 +13,22 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
 
     (*m68k_ptr)++;
-    
-    fprintf(stderr, "# moveq #%d, d%d:\n", value, reg);
 
     *ptr++ = movs_immed_s8(tmp_reg, value);
     *ptr++ = add_immed(REG_PC, REG_PC, 2);
-    
-    fprintf(stderr, "    0x%08x\n", ptr[-2]);
-    fprintf(stderr, "    0x%08x\n", ptr[-1]);
 
-#if 1
-    *ptr++ = bic_immed(REG_SR, REG_SR, SR_C | SR_V | SR_Z | SR_N);
-    *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-    *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-#endif
-    fprintf(stderr, "    0x%08x\n", ptr[-3]);
-    fprintf(stderr, "    0x%08x\n", ptr[-2]);
-    fprintf(stderr, "    0x%08x\n", ptr[-1]);
+    /* If next instruction is MOVE, do not calculate flags */
+    opcode = (*m68k_ptr)[0];
+    if (!(
+        ((opcode & 0xc000) == 0 && (opcode & 0x3000) != 0) |
+        ((opcode & 0xf000) == 0x7000)
+    ))
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, SR_C | SR_V | SR_Z | SR_N);
+        *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+    }
+
 
     return ptr;
 }
@@ -62,6 +61,19 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
 
     (*m68k_ptr) += ext_count;
+
+    /* If next instruction is MOVE, do not calculate flags */
+    opcode = (*m68k_ptr)[0];
+    if (!(
+        ((opcode & 0xc000) == 0 && (opcode & 0x3000) != 0) |
+        ((opcode & 0xf000) == 0x7000)
+    ))
+    {
+        *ptr++ = cmp_immed(tmp_reg, 0);
+        *ptr++ = bic_immed(REG_SR, REG_SR, SR_C | SR_V | SR_Z | SR_N);
+        *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+    }
 
     RA_FreeARMRegister(&ptr, tmp_reg);
     return ptr;
