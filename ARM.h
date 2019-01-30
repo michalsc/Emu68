@@ -1,7 +1,7 @@
 #ifndef _ARM_H
 #define _ARM_H
 
-/* 
+/*
     Global registers:
 
     r0 - r9 - Free for emulator use
@@ -132,6 +132,18 @@ static inline uint32_t bic_immed(uint8_t dest, uint8_t src, uint8_t mask)
     src = src & 15;
 
     return INSN_TO_LE(0xe3c00000 | mask | (dest << 12) | (src << 16));
+}
+
+static inline uint32_t cmp_cc_immed(uint8_t cc, uint8_t src, uint8_t value)
+{
+    src = src & 15;
+
+    return INSN_TO_LE(0x03500000 | (cc << 28) | (src << 16) | value);
+}
+
+static inline uint32_t cmp_immed(uint8_t src, uint8_t value)
+{
+    return cmp_cc_immed(ARM_CC_AL, src, value);
 }
 
 static inline uint32_t add_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value)
