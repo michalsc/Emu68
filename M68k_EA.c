@@ -31,7 +31,7 @@
         ea      EA encoded field.
         m68k_ptr pointer to m68k instruction stream past the instruction opcode itself. It may
                 be increased if further bytes from m68k side are read
-    
+
     Output:
         ptr     pointer to ARM instruction stream after the newly generated code
 */
@@ -333,7 +333,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     {
                         bd_reg = base_reg;
                     }
-                    /* 
+                    /*
                         Now, either base register or base displacement were given, if
                         index register was specified, use it.
                     */
@@ -472,9 +472,36 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         }
         else if (mode == 7)
         {
+            if (src_reg == 2) /* (d16, PC) mode */
+            {
+                uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
+                *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
+                *ptr++ = add_immed(reg_d16, reg_d16, 2);
+                (*ext_words)++;
+
+                switch (size)
+                {
+                    case 4:
+                        *ptr++ = ldr_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        break;
+                    case 2:
+                        *ptr++ = ldrh_regoffset(REG_PC, *arm_reg, reg_d16);
+                        break;
+                    case 1:
+                        *ptr++ = ldrb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        break;
+                    case 0:
+                        *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
+                        break;
+                    default:
+                        printf("Unknown size opcode\n");
+                        break;
+                }
+                RA_FreeARMRegister(&ptr, reg_d16);
+            }
             if (src_reg == 0)
             {
-                ext_words++;
+                (*ext_words)++;
                 if (size == 0)
                     *ptr++ = ldrsh_offset(REG_PC, *arm_reg, 2);
                 else
@@ -498,7 +525,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             }
             else if (src_reg == 1)
             {
-                ext_words += 2;
+                (*ext_words) += 2;
 
                 if (size == 0)
                     *ptr++ = ldr_offset(REG_PC, *arm_reg, 2);
@@ -564,7 +591,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         ea      EA encoded field.
         m68k_ptr pointer to m68k instruction stream past the instruction opcode itself. It may
                 be increased if further bytes from m68k side are read
-    
+
     Output:
         ptr     pointer to ARM instruction stream after the newly generated code
 */
@@ -892,7 +919,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         bd_reg = base_reg;
                     }
-                    /* 
+                    /*
                         Now, either base register or base displacement were given, if
                         index register was specified, use it.
                     */
