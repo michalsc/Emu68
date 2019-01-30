@@ -1,6 +1,6 @@
 CC := gcc
 CXX := g++
-CFLAGS  := -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror -c
+CFLAGS  := -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror -c -Wno-extended-offsetof
 CXXFLAGS:= -std=c++0x -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror -c
 LDFLAGS :=
 
