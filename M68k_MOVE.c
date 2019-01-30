@@ -40,6 +40,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t tmp_reg = 0xff;
     uint8_t size = 0;
     uint8_t tmp = 0;
+    uint8_t movea_insn = (opcode & 0x01c0) == 0x0040;
 
     (*m68k_ptr)++;
 
@@ -64,8 +65,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
     /* If next instruction is MOVE, do not calculate flags */
     opcode = (*m68k_ptr)[0];
-    if (!(
-        ((opcode & 0xc000) == 0 && (opcode & 0x3000) != 0) |
+    if (!movea_insn && !(
+        ((opcode & 0xc000) == 0 && (opcode & 0x3000) != 0 && (opcode & 0x01c0) != 0x0040) |
         ((opcode & 0xf000) == 0x7000)
     ))
     {
