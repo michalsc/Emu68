@@ -6,6 +6,7 @@
 uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 
+uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
 
