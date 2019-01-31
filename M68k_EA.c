@@ -909,7 +909,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 break;
             case 2:
                 reg_dest = RA_MapM68kRegister(&ptr, 8 + src_reg);
-                RA_SetDirtyM68kRegister(&ptr, src_reg);
+                RA_SetDirtyM68kRegister(&ptr, src_reg + 8);
                 *ptr++ = lsr_immed(reg_dest, reg_dest, 16);
                 *ptr++ = lsl_immed(reg_dest, reg_dest, 16);
                 *ptr++ = uxtah(reg_dest, reg_dest, *arm_reg);
