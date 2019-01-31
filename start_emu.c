@@ -20,7 +20,11 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     uint16_t opcode = (*m68k_ptr)[0];
     uint8_t group = opcode >> 12;
 
-    if ((group & 0xc) == 0 && (group & 3))
+    if (group == 0)
+    {
+        ptr = EMIT_line0(arm_ptr, m68k_ptr);
+    }
+    else if ((group & 0xc) == 0 && (group & 3))
     {
         ptr = EMIT_move(arm_ptr, m68k_ptr);
     }
