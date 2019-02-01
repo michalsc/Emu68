@@ -68,11 +68,21 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        *ptr++ = bic_immed(REG_SR, REG_SR, SR_X | SR_C | SR_V | SR_Z | SR_N);
-        *ptr++ = or_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
-        *ptr++ = or_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
-        *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        uint8_t mask = M68K_GetSRMask((*m68k_ptr)[0]);
+        uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+        if (update_mask)
+        {
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            if (update_mask & SR_V)
+                *ptr++ = or_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
+            if (update_mask & (SR_X | SR_C))
+                *ptr++ = or_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
+        }
     }
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {

@@ -7,6 +7,7 @@
 uint16_t m68kcode[] = {
     0x0601, 0xef,
     0x0601, 0x05,
+    0x7070,
     0xffff,
 };
 uint32_t armcode[1024];
@@ -58,8 +59,11 @@ int main(int argc, char **argv)
     RA_FlushM68kRegs(&end);
     *end++ = bx_lr();
 
-    while (p != end)
-        printf("    %08x\n", *p++);
+    while (p != end) {
+        uint32_t insn = *p++;
+        printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+    }
+        
 
     return 0;
 }

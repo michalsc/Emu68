@@ -17,16 +17,16 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
     *ptr++ = movs_immed_s8(tmp_reg, value);
     *ptr++ = add_immed(REG_PC, REG_PC, 2);
 
-    /* If next instruction is MOVE, do not calculate flags */
-    opcode = (*m68k_ptr)[0];
-    if (!(
-        ((opcode & 0xc000) == 0 && (opcode & 0x3000) != 0) |
-        ((opcode & 0xf000) == 0x7000)
-    ))
+    uint8_t mask = M68K_GetSRMask((*m68k_ptr)[0]);
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    if (update_mask)
     {
-        *ptr++ = bic_immed(REG_SR, REG_SR, SR_C | SR_V | SR_Z | SR_N);
-        *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_N)
+            *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        if (update_mask & SR_Z)
+            *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
     }
 
 
@@ -40,7 +40,6 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t tmp_reg = 0xff;
     uint8_t size = 0;
     uint8_t tmp = 0;
-    uint8_t movea_insn = (opcode & 0x01c0) == 0x0040;
 
     (*m68k_ptr)++;
 
@@ -63,17 +62,16 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
     (*m68k_ptr) += ext_count;
 
-    /* If next instruction is MOVE, do not calculate flags */
-    opcode = (*m68k_ptr)[0];
-    if (!movea_insn && !(
-        ((opcode & 0xc000) == 0 && (opcode & 0x3000) != 0 && (opcode & 0x01c0) != 0x0040) |
-        ((opcode & 0xf000) == 0x7000)
-    ))
+    uint8_t mask = M68K_GetSRMask((*m68k_ptr)[0]);
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    if (update_mask)
     {
-        *ptr++ = cmp_immed(tmp_reg, 0);
-        *ptr++ = bic_immed(REG_SR, REG_SR, SR_C | SR_V | SR_Z | SR_N);
-        *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_N)
+            *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        if (update_mask & SR_Z)
+            *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
     }
 
     RA_FreeARMRegister(&ptr, tmp_reg);
