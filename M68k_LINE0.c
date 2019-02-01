@@ -60,6 +60,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_StoreToEffectiveAddress(ptr, size, &immed, opcode & 0x3f, *m68k_ptr, &tmp_count);
 
         RA_FreeARMRegister(&ptr, immed);
+        RA_FreeARMRegister(&ptr, dest);
 
         *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -122,6 +123,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_StoreToEffectiveAddress(ptr, size, &immed, opcode & 0x3f, *m68k_ptr, &tmp_count);
 
         RA_FreeARMRegister(&ptr, immed);
+        RA_FreeARMRegister(&ptr, dest);
 
         *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
