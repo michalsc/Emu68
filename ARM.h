@@ -202,6 +202,66 @@ static inline uint32_t sub_immed(uint8_t dest, uint8_t src, uint8_t value)
     return sub_cc_immed(ARM_CC_AL, dest, src, value);
 }
 
+static inline uint32_t sub_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    dest = dest & 15;
+    src = src & 15;
+    reg = reg & 15;
+    lsl = lsl & 31;
+
+    return INSN_TO_LE(0x00400000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));
+}
+
+static inline uint32_t sub_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    return sub_cc_reg(ARM_CC_AL, dest, src, reg, lsl);
+}
+
+static inline uint32_t subs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    dest = dest & 15;
+    src = src & 15;
+    reg = reg & 15;
+    lsl = lsl & 31;
+
+    return INSN_TO_LE(0x00400000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));
+}
+
+static inline uint32_t subs_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    return subs_cc_reg(ARM_CC_AL, dest, src, reg, lsl);
+}
+
+static inline uint32_t rsb_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    dest = dest & 15;
+    src = src & 15;
+    reg = reg & 15;
+    lsl = lsl & 31;
+
+    return INSN_TO_LE(0x00600000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));
+}
+
+static inline uint32_t rsb_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    return rsb_cc_reg(ARM_CC_AL, dest, src, reg, lsl);
+}
+
+static inline uint32_t rsbs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    dest = dest & 15;
+    src = src & 15;
+    reg = reg & 15;
+    lsl = lsl & 31;
+
+    return INSN_TO_LE(0x00600000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));
+}
+
+static inline uint32_t rsbs_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl)
+{
+    return rsbs_cc_reg(ARM_CC_AL, dest, src, reg, lsl);
+}
+
 static inline uint32_t or_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value)
 {
     return INSN_TO_LE(0x03800000 | (cc << 28) | (dest << 12) | (src << 16) | value);
