@@ -3,39 +3,44 @@
 
 #include <stdint.h>
 
-uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
-uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
+#include "nodes.h"
 
-uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
-
-uint8_t M68K_GetSRMask(uint16_t opcode);
+struct M68KTranslationUnit {
+    struct Node     mt_HashNode;
+    struct Node     mt_LRUNode;
+    uint16_t *      mt_M68kAddress;
+    uint32_t        mt_M68kInsnCnt;
+    uint32_t        mt_ARMInsnCnt;
+    uint32_t        mt_ARMEntryPoint[] __attribute__((aligned(32)));
+};
 
 struct M68KState
 {
     union {
-        unsigned char u8[4];
-        signed char s8[4];
-        unsigned short u16[2];
-        signed short s16[2];
-        unsigned int u32;
-        signed int s32;
+        uint8_t u8[4];
+        int8_t s8[4];
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
     } D[8];
     union {
-        unsigned short u16[2];
-        signed short s16[2];
-        unsigned int u32;
-        signed int s32;
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
         void *p32;
     } A[8];
     union {
-        unsigned short u16[2];
-        signed short s16[2];
-        unsigned int u32;
-        signed int s32;
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
         void *p32;
     } USP, MSP, ISP;
+
+    uint16_t *PC;
+    uint16_t SR;
 };
 
 #define SR_C    0x0001
@@ -48,5 +53,16 @@ struct M68KState
 #define SR_S    0x2000
 #define SR_T0   0x4000
 #define SR_T1   0x8000
+
+uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
+uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
+
+uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
+
+uint8_t M68K_GetSRMask(uint16_t opcode);
+void M68K_InitializeCache();
+struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 
 #endif /* _M68K_H */
