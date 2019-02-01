@@ -10,6 +10,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
 
+uint8_t M68K_GetSRMask(uint16_t opcode);
 
 struct M68KState
 {

@@ -8,10 +8,10 @@ HOST_CXX := g++
 HOST_CXXFLAGS := -O2 -std=c++0x
 HOST_LDFLAGS :=
 
-OBJS := start_emu.o RegisterAllocator.o M68k_MOVE.o M68k_EA.o M68k_LINE0.o
+OBJS := start_emu.o RegisterAllocator.o M68k_EA.o M68k_SR.o M68k_MOVE.o M68k_LINE0.o
 OBJDIR := Build
 
-TESTOBJS := 
+TESTOBJS :=
 
 TESTOBJDIR := BuildTest
 
