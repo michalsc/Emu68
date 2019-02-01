@@ -64,14 +64,14 @@ void RA_DiscardM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     if (LRU_M68kRegisters[m68k_reg].rs_Dirty)
     {
         if (m68k_reg < 8) {
-            //printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX, 
-            //                          (int)__builtin_offsetof(struct M68KState, D[m68k_reg]));
-            **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg, 
+ //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+ //                                     (int)__builtin_offsetof(struct M68KState, D[m68k_reg]));
+            **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
                                 __builtin_offsetof(struct M68KState, D[m68k_reg]));
         }
         else {
-            //printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX, 
-            //                          (int)__builtin_offsetof(struct M68KState, A[m68k_reg-8]));
+ //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+ //                                     (int)__builtin_offsetof(struct M68KState, A[m68k_reg-8]));
             **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
                                       __builtin_offsetof(struct M68KState, A[m68k_reg-8]));
         }
@@ -89,8 +89,8 @@ void RA_FlushM68kRegs(uint32_t **arm_stream)
         RA_DiscardM68kRegister(arm_stream, i);
 }
 
-    /* Insert new register into LRU table */
-    void RA_InsertM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+/* Insert new register into LRU table */
+void RA_InsertM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 {
     (void)arm_stream;
     if (LRU_Table[7] != -1)
@@ -129,7 +129,7 @@ void RA_RemoveM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 */
 uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 {
-    /* 
+    /*
         Check if register is already mapped, if yes, update slot in order to delay
         reassignment.
     */
@@ -172,12 +172,13 @@ uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 */
 uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg)
 {
-    /* 
+    /*
         Check if register is already mapped, if yes, update slot in order to delay
         reassignment.
     */
     if (LRU_M68kRegisters[m68k_reg].rs_ARMReg != 0xff)
     {
+        RA_SetDirtyM68kRegister(arm_stream, m68k_reg);
         RA_TouchM68kRegister(arm_stream, m68k_reg);
         return LRU_M68kRegisters[m68k_reg].rs_ARMReg;
     }
@@ -224,7 +225,7 @@ uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
             break;
         }
     }
-    
+
     return __int_arm_alloc_reg();
 }
 
