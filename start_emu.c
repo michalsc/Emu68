@@ -12,6 +12,9 @@ uint8_t m68kcode[] = {
     0x21,0x40,0x00,0x08,
     0x06,0x98,0x01,0x02,0x03,0x04,
     0x06,0x98,0x04,0x03,0x02,0x01,
+    0x02,0x98,0xff,0x00,0xff,0x00,
+    0x00,0x98,0xaa,0x55,0xaa,0x55,
+    0x08,0x20,0x00,0x02,
     0xff,0xff
 
 };
@@ -78,7 +81,7 @@ int main(int argc, char **argv)
 
     struct M68KTranslationUnit * unit = M68K_GetTranslationUnit(m68kcodeptr);
     struct M68KState m68k;
-    register struct M68KState *m68k_ptr asm("r11") = &m68k;
+    register struct M68KState *m68k_ptr = &m68k;
 
     bzero(&m68k, sizeof(m68k));
     m68k.A[0].u32 = BE32((uint32_t)data);
@@ -98,7 +101,7 @@ int main(int argc, char **argv)
     print_context(&m68k);
     printf("\nCalling translated code\n");
 
-    asm volatile("setend be\n\tblx %0\n\tsetend le"::"r"(unit->mt_ARMEntryPoint),"r"(m68k_ptr));
+    asm volatile("setend be\n\tmov %%r0,%1\n\tblx %0\n\tsetend le"::"r"(unit->mt_ARMEntryPoint),"r"(m68k_ptr));
 
     printf("Back from translated code\n");
     print_context(&m68k);
