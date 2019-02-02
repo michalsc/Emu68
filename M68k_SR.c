@@ -18,13 +18,45 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     {
         mask = SR_C | SR_Z | SR_N | SR_V;
     }
-    /* ANDI / SUBI change NVZCX */
+    /* ADDI / SUBI change NVZCX */
     else if (
         ((opcode & 0xff00) == 0x0600 && (opcode & 0x00c0) != 0x00c0) |
         ((opcode & 0xff00) == 0x0400 && (opcode & 0x00c0) != 0x00c0)
     )
     {
         mask = SR_X | SR_C | SR_Z | SR_N | SR_V;
+    }
+    /* ORI / ORI to CR / ORI to SSR */
+    else if ((opcode & 0xff00) == 0x0000 && (opcode & 0x00c0) != 0x00c0)
+    {
+        if ((opcode & 0x00ff) == 0x003c || (opcode & 0x00ff) == 0x007c)
+            mask = SR_X | SR_C | SR_Z | SR_N | SR_V;
+        else
+            mask = SR_C | SR_Z | SR_N | SR_V;
+    }
+    /* ANDI / ANDI to CR / ANDI to SSR */
+    else if ((opcode & 0xff00) == 0x0200)
+    {
+        if ((opcode & 0x00ff) == 0x003c || (opcode & 0x00ff) == 0x007c)
+            mask = SR_X | SR_C | SR_Z | SR_N | SR_V;
+        else
+            mask = SR_C | SR_Z | SR_N | SR_V;
+    }
+    /* EORI / EORI to CR / EORI to SSR */
+    else if ((opcode & 0xff00) == 0x0a00)
+    {
+        if ((opcode & 0x00ff) == 0x003c || (opcode & 0x00ff) == 0x007c)
+            mask = SR_X | SR_C | SR_Z | SR_N | SR_V;
+        else
+            mask = SR_C | SR_Z | SR_N | SR_V;
+    }
+    /* BTST */
+    else if (
+        ((opcode & 0xf1c0) == 0x0100) |
+        ((opcode & 0xffc0) == 0x0800)
+    )
+    {
+        mask = SR_Z;
     }
 
 
