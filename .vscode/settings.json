@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "registerallocator.h": "c"
+        "registerallocator.h": "c",
+        "m68k.h": "c"
     }
 }
