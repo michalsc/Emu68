@@ -10,6 +10,9 @@ void RA_RemoveM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 void RA_DiscardM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 void RA_FlushM68kRegs(uint32_t **arm_stream);
 
+uint16_t RA_GetChangedMask();
+void RA_ClearChangedMask();
+
 uint8_t RA_AllocARMRegister(uint32_t **arm_stream);
 void RA_FreeARMRegister(uint32_t **arm_stream, uint8_t arm_reg);
 

@@ -29,6 +29,17 @@ static struct {
 };
 static int8_t LRU_Table[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 static uint16_t register_pool = 0;
+static uint16_t changed_mask = 0;
+
+uint16_t RA_GetChangedMask()
+{
+    return changed_mask;
+}
+
+void RA_ClearChangedMask()
+{
+    changed_mask = 0;
+}
 
 /* Touch given register in order to move it to the front */
 void RA_TouchM68kRegister(uint32_t **arm_stream, uint8_t index)
@@ -204,6 +215,7 @@ static uint8_t __int_arm_alloc_reg()
         if ((register_pool & (1 << i)) == 0)
         {
             register_pool |= 1 << i;
+            changed_mask |= 1 << i;
             return i;
         }
     }
