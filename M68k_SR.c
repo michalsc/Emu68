@@ -50,10 +50,16 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
         else
             mask = SR_C | SR_Z | SR_N | SR_V;
     }
-    /* BTST */
+    /* BTST / BCHG / BCLR / BCHG / BSET */
     else if (
         ((opcode & 0xf1c0) == 0x0100) |
-        ((opcode & 0xffc0) == 0x0800)
+        ((opcode & 0xffc0) == 0x0800) |
+        ((opcode & 0xf1c0) == 0x0140) |
+        ((opcode & 0xffc0) == 0x0840) |
+        ((opcode & 0xf1c0) == 0x0180) |
+        ((opcode & 0xffc0) == 0x0880) |
+        ((opcode & 0xf1c0) == 0x01c0) |
+        ((opcode & 0xffc0) == 0x08c0)
     )
     {
         mask = SR_Z;

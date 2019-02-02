@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <stdio.h>
 #include "ARM.h"
@@ -97,7 +98,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = str_offset(dest, immed, 0);
             break;
         case 2:
-            if (mode == 6)
+            if (mode == 4)
             {
                 *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -117,7 +118,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = strh_offset(dest, immed, 0);
             break;
         case 1:
-            if (mode == 6)
+            if (mode == 4)
             {
                 *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -257,7 +258,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = str_offset(dest, immed, 0);
                 break;
             case 2:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -277,7 +278,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = strh_offset(dest, immed, 0);
                 break;
             case 1:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -446,7 +447,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = str_offset(dest, immed, 0);
                 break;
             case 2:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -466,7 +467,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = strh_offset(dest, immed, 0);
                 break;
             case 1:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -632,7 +633,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = str_offset(dest, immed, 0);
                 break;
             case 2:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -652,7 +653,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = strh_offset(dest, immed, 0);
                 break;
             case 1:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -818,7 +819,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = str_offset(dest, immed, 0);
                 break;
             case 2:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -838,7 +839,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = strh_offset(dest, immed, 0);
                 break;
             case 1:
-                if (mode == 6)
+                if (mode == 4)
                 {
                     *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
                     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -947,6 +948,289 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t ext_count = 0;
+    uint8_t bit_number = RA_AllocARMRegister(&ptr);
+    uint8_t dest = 0;
+    uint8_t bit_mask = RA_AllocARMRegister(&ptr);
+
+    /* Load 1 into mask */
+    *ptr++ = mov_immed_u8(bit_mask, 1);
+
+    /* Get the bit number either as immediate or from register */
+    if ((opcode & 0xffc0) == 0x0840)
+    {
+        *ptr++ = ldrb_offset(REG_PC, bit_number, 3);
+        ext_count++;
+    }
+    else
+    {
+        uint8_t reg = RA_MapM68kRegister(&ptr, (opcode >> 9) & 3);
+        *ptr++ = mov_reg(bit_number, reg);
+    }
+
+    /* handle direct register more here */
+    if ((opcode & 0x0038) == 0)
+    {
+        /* Fetch m68k register and mark it dirty - one bit will change */
+        dest = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        *ptr++ = and_immed(bit_number, bit_number, 31);
+        *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
+
+        /* Get old bit state, waste bit_number register (not used anymore) */
+        *ptr++ = ands_reg(bit_number, dest, bit_mask, 0);
+        /* Switch bit */
+        *ptr++ = eor_reg(dest, dest, bit_mask, 0);
+    }
+    else
+    {
+        /* Load effective address */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t mode = (opcode & 0x0038) >> 3;
+
+        *ptr++ = and_immed(bit_number, bit_number, 7);
+        *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
+
+        /* Fetch data into temporary register, perform bit flip, store it back */
+        if (mode == 4)
+        {
+            *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+            *ptr++ = ldrb_offset(dest, tmp, 0);
+
+        /* Perform calcualtion */
+        /* Get old bit state, waste bit_number register (not used anymore) */
+        *ptr++ = ands_reg(bit_number, tmp, bit_mask, 0);
+        /* Switch bit */
+        *ptr++ = eor_reg(tmp, tmp, bit_mask, 0);
+
+        /* Store back */
+        if (mode == 3)
+        {
+            *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+            *ptr++ = strb_offset(dest, tmp, 0);
+
+        RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    RA_FreeARMRegister(&ptr, bit_number);
+    RA_FreeARMRegister(&ptr, bit_mask);
+    RA_FreeARMRegister(&ptr, dest);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    (*m68k_ptr) += ext_count;
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = SR_Z & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_Z)
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t ext_count = 0;
+    uint8_t bit_number = RA_AllocARMRegister(&ptr);
+    uint8_t dest = 0;
+    uint8_t bit_mask = RA_AllocARMRegister(&ptr);
+
+    /* Load 1 into mask */
+    *ptr++ = mov_immed_u8(bit_mask, 1);
+
+    /* Get the bit number either as immediate or from register */
+    if ((opcode & 0xffc0) == 0x0880)
+    {
+        *ptr++ = ldrb_offset(REG_PC, bit_number, 3);
+        ext_count++;
+    }
+    else
+    {
+        uint8_t reg = RA_MapM68kRegister(&ptr, (opcode >> 9) & 3);
+        *ptr++ = mov_reg(bit_number, reg);
+    }
+
+    /* handle direct register more here */
+    if ((opcode & 0x0038) == 0)
+    {
+        /* Fetch m68k register and mark it dirty - one bit will change */
+        dest = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        *ptr++ = and_immed(bit_number, bit_number, 31);
+        *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
+
+        /* Get old bit state, waste bit_number register (not used anymore) */
+        *ptr++ = ands_reg(bit_number, dest, bit_mask, 0);
+        /*  Clear bit using eor - if bit mask & dest != 0, then eor with result will reverse (clear) the bit.
+            otherwise result was zero and zero xor zero results in zero anyway */
+        *ptr++ = eor_reg(dest, dest, bit_number, 0);
+    }
+    else
+    {
+        /* Load effective address */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t mode = (opcode & 0x0038) >> 3;
+
+        *ptr++ = and_immed(bit_number, bit_number, 7);
+        *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
+
+        /* Fetch data into temporary register, perform bit flip, store it back */
+        if (mode == 4)
+        {
+            *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+            *ptr++ = ldrb_offset(dest, tmp, 0);
+
+        /* Perform calcualtion */
+        /* Get old bit state, waste bit_number register (not used anymore) */
+        *ptr++ = ands_reg(bit_number, tmp, bit_mask, 0);
+        /* Switch bit */
+        *ptr++ = eor_reg(tmp, tmp, bit_number, 0);
+
+        /* Store back */
+        if (mode == 3)
+        {
+            *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+            *ptr++ = strb_offset(dest, tmp, 0);
+
+        RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    RA_FreeARMRegister(&ptr, bit_number);
+    RA_FreeARMRegister(&ptr, bit_mask);
+    RA_FreeARMRegister(&ptr, dest);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    (*m68k_ptr) += ext_count;
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = SR_Z & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_Z)
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t ext_count = 0;
+    uint8_t bit_number = RA_AllocARMRegister(&ptr);
+    uint8_t dest = 0;
+    uint8_t bit_mask = RA_AllocARMRegister(&ptr);
+
+    /* Load 1 into mask */
+    *ptr++ = mov_immed_u8(bit_mask, 1);
+
+    /* Get the bit number either as immediate or from register */
+    if ((opcode & 0xffc0) == 0x08c0)
+    {
+        *ptr++ = ldrb_offset(REG_PC, bit_number, 3);
+        ext_count++;
+    }
+    else
+    {
+        uint8_t reg = RA_MapM68kRegister(&ptr, (opcode >> 9) & 3);
+        *ptr++ = mov_reg(bit_number, reg);
+    }
+
+    /* handle direct register more here */
+    if ((opcode & 0x0038) == 0)
+    {
+        /* Fetch m68k register and mark it dirty - one bit will change */
+        dest = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        *ptr++ = and_immed(bit_number, bit_number, 31);
+        *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
+
+        /* Get old bit state, waste bit_number register (not used anymore) */
+        *ptr++ = ands_reg(bit_number, dest, bit_mask, 0);
+        /*  Set bit */
+        *ptr++ = orr_reg(dest, dest, bit_mask, 0);
+    }
+    else
+    {
+        /* Load effective address */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t mode = (opcode & 0x0038) >> 3;
+
+        *ptr++ = and_immed(bit_number, bit_number, 7);
+        *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
+
+        /* Fetch data into temporary register, perform bit flip, store it back */
+        if (mode == 4)
+        {
+            *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+            *ptr++ = ldrb_offset(dest, tmp, 0);
+
+        /* Perform calcualtion */
+        /* Get old bit state, waste bit_number register (not used anymore) */
+        *ptr++ = ands_reg(bit_number, tmp, bit_mask, 0);
+        /* Switch bit */
+        *ptr++ = orr_reg(tmp, tmp, bit_mask, 0);
+
+        /* Store back */
+        if (mode == 3)
+        {
+            *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+            *ptr++ = strb_offset(dest, tmp, 0);
+
+        RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    RA_FreeARMRegister(&ptr, bit_number);
+    RA_FreeARMRegister(&ptr, bit_mask);
+    RA_FreeARMRegister(&ptr, dest);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    (*m68k_ptr) += ext_count;
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = SR_Z & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_Z)
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+    }
+
+    return ptr;
+}
+
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -1001,15 +1285,15 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xffc0) == 0x0840)   /* 0000100001xxxxxx - BCHG */
     {
-
+        ptr = EMIT_BCHG(ptr, opcode, m68k_ptr);
     }
     else if ((opcode & 0xffc0) == 0x0880)   /* 0000100010xxxxxx - BCLR */
     {
-
+        ptr = EMIT_BCLR(ptr, opcode, m68k_ptr);
     }
     else if ((opcode & 0xffc0) == 0x08c0)   /* 0000100011xxxxxx - BSET */
     {
-
+        ptr = EMIT_BSET(ptr, opcode, m68k_ptr);
     }
     else if ((opcode & 0xff00) == 0x0e00)   /* 00001110xxxxxxxx - MOVES */
     {
@@ -1025,15 +1309,15 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf1c0) == 0x0140)   /* 0000xxx101xxxxxx - BCHG */
     {
-
+        ptr = EMIT_BCHG(ptr, opcode, m68k_ptr);
     }
     else if ((opcode & 0xf1c0) == 0x0180)   /* 0000xxx110xxxxxx - BCLR */
     {
-
+        ptr = EMIT_BCLR(ptr, opcode, m68k_ptr);
     }
     else if ((opcode & 0xf1c0) == 0x01c0)   /* 0000xxx111xxxxxx - BSET */
     {
-
+        ptr = EMIT_BSET(ptr, opcode, m68k_ptr);
     }
     else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
     {
