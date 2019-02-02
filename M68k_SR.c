@@ -64,6 +64,11 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     {
         mask = SR_Z;
     }
+    /* CMPI */
+    else if ((opcode & 0xff00) == 0x0c00)
+    {
+        mask = SR_C | SR_Z | SR_N | SR_V;
+    }
 
 
     return mask;
