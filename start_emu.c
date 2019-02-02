@@ -5,40 +5,21 @@
 #include "M68k.h"
 #include "ARM.h"
 
-uint16_t m68kcode[] = {
-    0x7000,
-    0x72c9,
-    0x2440,
-    0xffff,
-    0xffff,
+uint8_t m68kcode[] = {
+    0x20,0x3c,0xde,0xad,0xbe,0xef,  // move.l # - 559038737,d0
+    0x20,0x80,
+    0x21,0x40,0x00,0x04,
+    0x21,0x40,0x00,0x08,
+    0x06,0x98,0x01,0x02,0x03,0x04,
+    0x06,0x98,0x04,0x03,0x02,0x01,
+    0xff,0xff
+
 };
 uint32_t armcode[1024];
 uint32_t *armcodeptr = armcode;
-uint16_t *m68kcodeptr = m68kcode;
+void *m68kcodeptr = m68kcode;
 
-static inline uint32_t BE32(uint32_t x)
-{
-    union {
-        uint32_t v;
-        uint8_t u[4];
-    } tmp;
-
-    tmp.v = x;
-
-    return (tmp.u[0] << 24) | (tmp.u[1] << 16) | (tmp.u[2] << 8) | (tmp.u[3]);
-}
-
-static inline uint16_t BE16(uint16_t x)
-{
-    union {
-        uint16_t v;
-        uint8_t u[2];
-    } tmp;
-
-    tmp.v = x;
-
-    return (tmp.u[0] << 8) | (tmp.u[1]);
-}
+uint32_t data[128];
 
 void print_context(struct M68KState *m68k)
 {
@@ -100,6 +81,7 @@ int main(int argc, char **argv)
     register struct M68KState *m68k_ptr asm("r11") = &m68k;
 
     bzero(&m68k, sizeof(m68k));
+    m68k.A[0].u32 = BE32((uint32_t)data);
 
     if (unit)
     {
@@ -120,6 +102,14 @@ int main(int argc, char **argv)
 
     printf("Back from translated code\n");
     print_context(&m68k);
+
+    for (int i=0; i < 64; i++)
+    {
+        if (i % 8 == 0)
+            printf("\n");
+        printf("%08x ", BE32(data[i]));
+    }
+    printf("\n");
 
     return 0;
 }
