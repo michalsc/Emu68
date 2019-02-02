@@ -25,6 +25,30 @@
 #define ARM_CC_VC 0x07 /* V=0 */
 #define ARM_CC_AL 0x0e /* Always */
 
+static inline uint32_t BE32(uint32_t x)
+{
+    union {
+        uint32_t v;
+        uint8_t u[4];
+    } tmp;
+
+    tmp.v = x;
+
+    return (tmp.u[0] << 24) | (tmp.u[1] << 16) | (tmp.u[2] << 8) | (tmp.u[3]);
+}
+
+static inline uint16_t BE16(uint16_t x)
+{
+    union {
+        uint16_t v;
+        uint8_t u[2];
+    } tmp;
+
+    tmp.v = x;
+
+    return (tmp.u[0] << 8) | (tmp.u[1]);
+}
+
 /* Converts generated ARM instruction to little-endian */
 static inline uint32_t INSN_TO_LE(uint32_t insn)
 {
