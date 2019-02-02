@@ -6,16 +6,15 @@
 #include "ARM.h"
 
 uint16_t m68kcode[] = {
-    0x7090,
+    0x7000,
+    0x72c9,
+    0x2440,
     0xffff,
-    0x23b0,0x0d22,0x3039,   // 	move.l ([12345,a0,d0.l*4],6789),([2345,a1],d2.w*2,999)
-    0x1a85,0x2326,0x0929,0x03e7,
     0xffff,
 };
 uint32_t armcode[1024];
 uint32_t *armcodeptr = armcode;
 uint16_t *m68kcodeptr = m68kcode;
-
 
 static inline uint32_t BE32(uint32_t x)
 {
@@ -66,13 +65,13 @@ void print_context(struct M68KState *m68k)
     else
         printf(".");
 
-    if (sr & SR_Z)
-        printf("Z");
+    if (sr & SR_N)
+        printf("N");
     else
         printf(".");
 
-    if (sr & SR_N)
-        printf("N");
+    if (sr & SR_Z)
+        printf("Z");
     else
         printf(".");
 
@@ -86,7 +85,7 @@ void print_context(struct M68KState *m68k)
     else
         printf(".");
 
-    printf("    %04x\n", sr);
+    printf("\n    USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
 }
 
 int main(int argc, char **argv)
@@ -121,20 +120,6 @@ int main(int argc, char **argv)
 
     printf("Back from translated code\n");
     print_context(&m68k);
-/*
-    uint32_t v1, v2;
-
-    v1 = 0xdeadbeef;
-*/
-//    asm volatile("setend be\n\tstr %1, [%0]\n\t setend le"::"r"(&v2),"r"(v1));
-
-//    printf("%08x %08x\n", v1, v2);
-/*
-    while (p != end) {
-        uint32_t insn = *p++;
-        printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
-    }
-*/
 
     return 0;
 }
