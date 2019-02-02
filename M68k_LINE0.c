@@ -1264,7 +1264,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {
-
+        printf("[LINE0] Not implemented CMP2/CHK2");
     }
     else if ((opcode & 0xff00) == 0x0a00)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
     {
@@ -1277,7 +1277,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xff00) == 0x0c00)   /* 00001100xxxxxxxx - CMPI */
     {
-
+        printf("[LINE0] Not implemented CMPI");
     }
     else if ((opcode & 0xffc0) == 0x0800)   /* 0000100000xxxxxx - BTST */
     {
@@ -1301,7 +1301,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
     {
-
+        printf("[LINE0] Not implemented CAS/CAS2");
     }
     else if ((opcode & 0xf1c0) == 0x0100)   /* 0000xxx100xxxxxx - BTST */
     {
@@ -1321,7 +1321,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
     {
-
+        printf("[LINE0] Not implemented MOVEP");
     }
 
     return ptr;
