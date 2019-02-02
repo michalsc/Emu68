@@ -40,6 +40,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t tmp_reg = 0xff;
     uint8_t size = 0;
     uint8_t tmp = 0;
+    uint8_t is_movea = (opcode & 0x01c0) == 0x0040;
 
     (*m68k_ptr)++;
 
@@ -62,16 +63,20 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask((*m68k_ptr)[0]);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
-
-    if (update_mask)
+    if (!is_movea)
     {
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_N)
-            *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-        if (update_mask & SR_Z)
-            *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        uint8_t mask = M68K_GetSRMask((*m68k_ptr)[0]);
+        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+        if (update_mask)
+        {
+            *ptr++ = cmp_immed(tmp_reg, 0);
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = or_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = or_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        }
     }
 
     RA_FreeARMRegister(&ptr, tmp_reg);
