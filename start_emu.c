@@ -79,9 +79,10 @@ int main(int argc, char **argv)
 
     M68K_InitializeCache();
 
+    void (*arm_code)(struct M68KState *ctx);
+
     struct M68KTranslationUnit * unit = M68K_GetTranslationUnit(m68kcodeptr);
     struct M68KState m68k;
-    register struct M68KState *m68k_ptr = &m68k;
 
     bzero(&m68k, sizeof(m68k));
     m68k.A[0].u32 = BE32((uint32_t)data);
@@ -90,7 +91,7 @@ int main(int argc, char **argv)
     {
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
-            uint32_t insn = unit->mt_ARMEntryPoint[i];
+            uint32_t insn = unit->mt_ARMCode[i];
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
         }
     }
@@ -101,7 +102,8 @@ int main(int argc, char **argv)
     print_context(&m68k);
     printf("\nCalling translated code\n");
 
-    asm volatile("setend be\n\tmov %%r0,%1\n\tblx %0\n\tsetend le"::"r"(unit->mt_ARMEntryPoint),"r"(m68k_ptr));
+    *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+    arm_code(&m68k);
 
     printf("Back from translated code\n");
     print_context(&m68k);

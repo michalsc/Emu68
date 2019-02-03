@@ -11,7 +11,8 @@ struct M68KTranslationUnit {
     uint16_t *      mt_M68kAddress;
     uint32_t        mt_M68kInsnCnt;
     uint32_t        mt_ARMInsnCnt;
-    uint32_t        mt_ARMEntryPoint[] __attribute__((aligned(32)));
+    void *          mt_ARMEntryPoint;
+    uint32_t        mt_ARMCode[] __attribute__((aligned(32)));
 };
 
 struct M68KState

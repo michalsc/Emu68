@@ -88,16 +88,17 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_M68kAddress = m68kcodeptr;
 
         uint32_t insn_count = 0;
-        uint32_t *arm_code = &unit->mt_ARMEntryPoint[0];
+        uint32_t *arm_code = &unit->mt_ARMCode[0];
+        unit->mt_ARMEntryPoint = arm_code;
         uint32_t *end = arm_code;
 
         printf("[ICache] ARM code entry at %p\n", (void*)arm_code);
 
         RA_ClearChangedMask();
+        *end++ = push((1 << REG_SR) | (1 << REG_CTX));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_be();
 #endif
-        *end++ = push((1 << REG_SR) | (1 << REG_CTX));
         *end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         *end++ = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
@@ -109,12 +110,12 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
         *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         uint16_t mask = RA_GetChangedMask() & 0xfff0;
-        *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
-        if (mask)
-            arm_code[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_le();
 #endif
+        *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
+        if (mask)
+            arm_code[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
         *end++ = bx_lr();
 
         printf("[ICache] Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
