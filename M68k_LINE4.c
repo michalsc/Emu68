@@ -820,7 +820,22 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100001xxxxxx - PEA */
     else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
     {
-        printf("[LINE4] Not implemented PEA\n");
+        uint8_t sp;
+        uint8_t ea;
+        uint8_t ext_words = 0;
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        (*m68k_ptr) += ext_words;
+
+        sp = RA_MapM68kRegister(&ptr, 15);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+
+        *ptr++ = str_offset_preindex(sp, ea, -4);
+
+        RA_FreeARMRegister(&ptr, sp);
+        RA_FreeARMRegister(&ptr, ea);
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
     }
     /* 0100101011111100 - ILLEGAL */
     else if (opcode == 0x4afc)
@@ -934,6 +949,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_words;
 
         *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+        RA_FreeARMRegister(&ptr, ea);
     }
     /* 0100xxx1x0xxxxxx - CHK */
     else if ((opcode & 0xf140) == 0x4100)
