@@ -946,12 +946,32 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110100 - RTD */
     else if (opcode == 0x4e74)
     {
-        printf("[LINE4] Not implemented RTD\n");
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+        uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+
+        /* Fetch return address from stack */
+        *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
+        *ptr++ = ldrsh_offset(REG_PC, tmp, 2);
+        *ptr++ = add_reg(sp, sp, tmp, 0);
+        *ptr++ = mov_reg(REG_PC, tmp2);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, tmp2);
     }
     /* 0100111001110101 - RTS */
     else if (opcode == 0x4e75)
     {
-        printf("[LINE4] Not implemented RTS\n");
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+
+        /* Fetch return address from stack */
+        *ptr++ = ldr_offset_postindex(sp, tmp, 4);
+        *ptr++ = mov_reg(REG_PC, tmp);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 0100111001110110 - TRAPV */
     else if (opcode == 0x4e76)
@@ -961,7 +981,20 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110111 - RTR */
     else if (opcode == 0x4e77)
     {
-        printf("[LINE4] Not implemented RTR\n");
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+
+        /* Fetch status byte from stack */
+        *ptr++ = ldrh_offset_postindex(sp, tmp, 2);
+        *ptr++ = bic_immed(REG_SR, REG_SR, 0x1f);
+        *ptr++ = bic_immed(tmp, tmp, 0x1f);
+        *ptr++ = orr_reg(REG_SR, REG_SR, tmp, 0);
+        /* Fetch return address from stack */
+        *ptr++ = ldr_offset_postindex(sp, tmp, 4);
+        *ptr++ = mov_reg(REG_PC, tmp);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 010011100111101x - MOVEC */
     else if ((opcode & 0xfffe) == 0x4e7a)
