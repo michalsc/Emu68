@@ -781,10 +781,27 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
         }
     }
-    /* 0100100000001xxx - LINK */
+    /* 0100100000001xxx - LINK - 32 bit offset */
     else if ((opcode & 0xfff8) == 0x4808)
     {
-        printf("[LINE4] Not implemented LINK\n");
+        uint8_t sp;
+        uint8_t displ;
+        uint8_t reg;
+
+        displ = RA_AllocARMRegister(&ptr);
+        *ptr++ = ldr_offset(REG_PC, displ, 2);
+        sp = RA_MapM68kRegister(&ptr, 15);
+        reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
+        *ptr++ = mov_reg(reg, sp);
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = add_reg(sp, sp, displ, 0);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+
+        (*m68k_ptr)+=2;
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 6);
+        RA_FreeARMRegister(&ptr, displ);
     }
     /* 0100100000xxxxxx - NBCD */
     else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
@@ -865,12 +882,41 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001010xxx - LINK */
     else if ((opcode & 0xfff8) == 0x4e50)
     {
-        printf("[LINE4] Not implemented LINK\n");
+        uint8_t sp;
+        uint8_t displ;
+        uint8_t reg;
+
+        displ = RA_AllocARMRegister(&ptr);
+        *ptr++ = ldrsh_offset(REG_PC, displ, 2);
+        sp = RA_MapM68kRegister(&ptr, 15);
+        reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
+        *ptr++ = mov_reg(reg, sp);
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = add_reg(sp, sp, displ, 0);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+
+        (*m68k_ptr)++;
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 4);
+        RA_FreeARMRegister(&ptr, displ);
     }
     /* 0100111001011xxx - UNLK */
     else if ((opcode & 0xfff8) == 0x4e58)
     {
-        printf("[LINE4] Not implemented UNLK\n");
+        uint8_t sp;
+        uint8_t reg;
+
+        sp = RA_MapM68kRegisterForWrite(&ptr, 15);
+        reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+
+        *ptr++ = mov_reg(sp, reg);
+        *ptr++ = ldr_offset_postindex(sp, reg, 4);
+
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        RA_SetDirtyM68kRegister(&ptr, 15);
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2);
     }
     /* 010011100110xxxx - MOVE USP */
     else if ((opcode & 0xfff0) == 0x4e60)
