@@ -36,6 +36,8 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     {
         ptr = EMIT_moveq(arm_ptr, m68k_ptr);
     }
+    else
+        (*m68k_ptr)++;
 
     /* No progress? Assume undefined instruction and emit udf to trigger exception */
     if (ptr == arm_ptr)
