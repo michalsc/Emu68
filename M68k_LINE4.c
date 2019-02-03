@@ -6,6 +6,131 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t ext_count = 0;
+    uint8_t dest;
+    uint8_t size = 0;
+
+    /* Determine the size of operation */
+    switch (opcode & 0x00c0)
+    {
+        case 0x0000: /* Byte operation */
+            size = 1;
+            break;
+        case 0x0040: /* Short operation */
+            size = 2;
+            break;
+        case 0x0080: /* Long operation */
+            size = 4;
+            break;
+    }
+
+    /* handle clearing D register here */
+    if ((opcode & 0x0038) == 0)
+    {
+        /* If size = 4 then just clear the register witout fetching it */
+        if (size == 4)
+        {
+            dest = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
+            *ptr++ = mov_immed_u8(dest, 0);
+        }
+        else
+        {
+            /* Fetch m68k register for write */
+            dest = RA_MapM68kRegister(&ptr, opcode & 7);
+
+            /* Mark register dirty */
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+            switch(size)
+            {
+                case 2:
+                    *ptr++ = lsr_immed(dest, dest, 16);
+                    *ptr++ = lsl_immed(dest, dest, 16);
+                    break;
+                case 1:
+                    *ptr++ = lsr_immed(dest, dest, 8);
+                    *ptr++ = lsl_immed(dest, dest, 8);
+                    break;
+            }
+        }
+    }
+    else
+    {
+        /* Load effective address */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t mode = (opcode & 0x0038) >> 3;
+        *ptr++ = mov_immed_u8(tmp, 0);
+
+        /* Fetch data into temporary register, perform add, store it back */
+        switch (size)
+        {
+        case 4:
+            if (mode == 4)
+            {
+                *ptr++ = sub_immed(dest, dest, 4);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            if (mode == 3)
+            {
+                *ptr++ = str_offset_postindex(dest, tmp, 4);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = str_offset(dest, tmp, 0);
+            break;
+        case 2:
+            if (mode == 4)
+            {
+                *ptr++ = sub_immed(dest, dest, 2);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            if (mode == 3)
+            {
+                *ptr++ = strh_offset_postindex(dest, tmp, 2);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = strh_offset(dest, tmp, 0);
+            break;
+        case 1:
+            if (mode == 4)
+            {
+                *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            if (mode == 3)
+            {
+                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = strb_offset(dest, tmp, 0);
+            break;
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    RA_FreeARMRegister(&ptr, dest);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    (*m68k_ptr) += ext_count;
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_Z)
+            *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
+    }
+    return ptr;
+}
+
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -29,7 +154,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 01000010ssxxxxxx - CLR */
     else if ((opcode & 0xff00) == 0x4200 && (opcode & 0xc0) != 0xc0)
     {
-        printf("[LINE4] Not implemented CLR\n");
+        ptr = EMIT_CLR(ptr, opcode, m68k_ptr);
     }
     /* 0100010011xxxxxx - MOVE to CCR */
     else if ((opcode &0xffc0) == 0x44c0)

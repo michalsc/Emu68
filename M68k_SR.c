@@ -84,6 +84,7 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     /* CLR */
     else if ((opcode & 0xff00) == 0x4200 && (opcode & 0xc0) != 0xc0)
     {
+        mask = SR_N | SR_Z | SR_C | SR_V;
     }
     /* MOVE to CCR */
     else if ((opcode & 0xffc0) == 0x44c0)
