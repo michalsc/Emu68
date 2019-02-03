@@ -56,11 +56,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         printf("[LINE4] Not implemented EXT/EXTB\n");
     }
-    /* 0100100xxx000xxx - EXT, EXTB */
-    else if ((opcode & 0xfe38) == 0x4808)
-    {
-        printf("[LINE4] Not implemented EXT/EXTB\n");
-    }
     /* 0100100000001xxx - LINK */
     else if ((opcode & 0xfff8) == 0x4808)
     {
@@ -74,7 +69,23 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100001000xxx - SWAP */
     else if ((opcode & 0xfff8) == 0x4840)
     {
-        printf("[LINE4] Not implemented SWAP\n");
+        uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+        *ptr++ = rors_immed(reg, reg, 16);
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+
+        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+        if (update_mask)
+        {
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        }
     }
     /* 0100100001001xxx - BKPT */
     else if ((opcode & 0xfff8) == 0x4848)
@@ -189,7 +200,15 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100xxx111xxxxxx - LEA */
     else if ((opcode & 0xf1c0) == 0x41c0)
     {
-        printf("[LINE4] Not implemented LEA\n");
+        uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
+        uint8_t ea;
+        uint8_t ext_words = 0;
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        *ptr++ = mov_reg(dest, ea);
+        (*m68k_ptr) += ext_words;
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
     }
     /* 0100xxx1x0xxxxxx - CHK */
     else if ((opcode & 0xf140) == 0x4100)
