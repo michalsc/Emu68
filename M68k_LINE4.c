@@ -6,6 +6,8 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
+
 uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
@@ -870,9 +872,9 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_TST(ptr, opcode, m68k_ptr);
     }
     /* 0100110000xxxxxx - MULU, MULS, DIVU, DIVUL, DIVS, DIVSL */
-    else if ((opcode & 0xff80) == 0x4a00)
+    else if ((opcode & 0xff80) == 0x4c00 || (opcode == 0x83c0))
     {
-        printf("[LINE4] Not implemented MULU/MULS/DIVU/DIVUL/DIVS/DIVSL\n");
+        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
     }
     /* 010011100100xxxx - TRAP */
     else if ((opcode & 0xfff0) == 0x4e40)

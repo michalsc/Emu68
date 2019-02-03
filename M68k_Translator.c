@@ -29,7 +29,7 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     {
         ptr = EMIT_move(arm_ptr, m68k_ptr);
     }
-    else if (group == 4)
+    else if (group == 4 || group == 8)
     {
         ptr = EMIT_line4(arm_ptr, m68k_ptr);
     }
