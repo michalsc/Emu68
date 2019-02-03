@@ -105,6 +105,12 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         while (*m68kcodeptr != 0xffff && insn_count++ < m68k_translation_depth)
         {
             end = EmitINSN(end, &m68kcodeptr);
+            if (end[-1] == INSN_TO_LE(0xffffffff))
+            {
+                printf("[ICache] Unconditional PC change. End of translation block after %d M68K instructions\n", insn_count);
+                end--;
+                break;
+            }
         }
         RA_FlushM68kRegs(&end);
         *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
