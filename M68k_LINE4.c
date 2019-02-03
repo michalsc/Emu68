@@ -162,9 +162,10 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
         else
         {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
             /* Fetch m68k register for write */
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
-
 
             /* Mark register dirty */
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
@@ -172,14 +173,22 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 2:
-                    *ptr++ = lsr_immed(dest, dest, 16);
+                    *ptr++ = sxth(tmp, dest, 0);        /* Extract lower 16 bits */
+                    *ptr++ = mvns_reg(tmp, tmp, 0);     /* Negate */
+                    *ptr++ = lsr_immed(dest, dest, 16); /* Clear destination register */
                     *ptr++ = lsl_immed(dest, dest, 16);
+                    *ptr++ = uxtah(dest, dest, tmp, 0);
                     break;
                 case 1:
+                    *ptr++ = sxtb(tmp, dest, 0);
+                    *ptr++ = mvns_reg(tmp, tmp, 0);
                     *ptr++ = lsr_immed(dest, dest, 8);
                     *ptr++ = lsl_immed(dest, dest, 8);
+                    *ptr++ = uxtab(dest, dest, tmp, 0);
                     break;
             }
+
+            RA_FreeARMRegister(&ptr, tmp);
         }
     }
     else
@@ -188,7 +197,6 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
-        *ptr++ = mov_immed_u8(tmp, 0);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -196,9 +204,14 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 4:
             if (mode == 4)
             {
-                *ptr++ = sub_immed(dest, dest, 4);
+                *ptr++ = ldr_offset_preindex(dest, tmp, -4);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
+            else
+                *ptr++ = ldr_offset(dest, tmp, 0);
+
+            *ptr++ = mvns_reg(tmp, tmp, 0);
+
             if (mode == 3)
             {
                 *ptr++ = str_offset_postindex(dest, tmp, 4);
@@ -210,9 +223,15 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 2:
             if (mode == 4)
             {
-                *ptr++ = sub_immed(dest, dest, 2);
+                *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
+            else
+                *ptr++ = ldrh_offset(dest, tmp, 0);
+
+            *ptr++ = sxth(tmp, tmp, 0);
+            *ptr++ = mvns_reg(tmp, tmp, 0);
+
             if (mode == 3)
             {
                 *ptr++ = strh_offset_postindex(dest, tmp, 2);
@@ -224,9 +243,167 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 1:
             if (mode == 4)
             {
-                *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
+                *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
+            else
+                *ptr++ = ldrb_offset(dest, tmp, 0);
+
+            *ptr++ = sxtb(tmp, tmp, 0);
+            *ptr++ = mvns_reg(tmp, tmp, 0);
+
+            if (mode == 3)
+            {
+                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = strb_offset(dest, tmp, 0);
+            break;
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    RA_FreeARMRegister(&ptr, dest);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    (*m68k_ptr) += ext_count;
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_Z)
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        if (update_mask & SR_N)
+            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t ext_count = 0;
+    uint8_t dest;
+    uint8_t size = 0;
+
+    /* Determine the size of operation */
+    switch (opcode & 0x00c0)
+    {
+        case 0x0000: /* Byte operation */
+            size = 1;
+            break;
+        case 0x0040: /* Short operation */
+            size = 2;
+            break;
+        case 0x0080: /* Long operation */
+            size = 4;
+            break;
+    }
+
+    /* handle clearing D register here */
+    if ((opcode & 0x0038) == 0)
+    {
+        if (size == 4)
+        {
+            dest = RA_MapM68kRegister(&ptr, opcode & 7);
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            *ptr++ = rsbs_immed(dest, dest, 0);
+        }
+        else
+        {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            /* Fetch m68k register for write */
+            dest = RA_MapM68kRegister(&ptr, opcode & 7);
+
+            /* Mark register dirty */
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+            switch(size)
+            {
+                case 2:
+                    *ptr++ = rsbs_immed(tmp, dest, 0);
+                    *ptr++ = lsr_immed(dest, dest, 16);
+                    *ptr++ = lsl_immed(dest, dest, 16);
+                    *ptr++ = uxtah(dest, dest, tmp, 2);
+                    break;
+                case 1:
+                    *ptr++ = rsbs_immed(tmp, dest, 0);
+                    *ptr++ = lsr_immed(dest, dest, 8);
+                    *ptr++ = lsl_immed(dest, dest, 8);
+                    *ptr++ = uxtab(dest, dest, tmp, 3);
+                    break;
+            }
+
+            RA_FreeARMRegister(&ptr, tmp);
+        }
+    }
+    else
+    {
+        /* Load effective address */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Fetch data into temporary register, perform add, store it back */
+        switch (size)
+        {
+        case 4:
+            if (mode == 4)
+            {
+                *ptr++ = ldr_offset_preindex(dest, tmp, -4);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = ldr_offset(dest, tmp, 0);
+
+            *ptr++ = rsbs_immed(tmp, tmp, 0);
+
+            if (mode == 3)
+            {
+                *ptr++ = str_offset_postindex(dest, tmp, 4);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = str_offset(dest, tmp, 0);
+            break;
+        case 2:
+            if (mode == 4)
+            {
+                *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = ldrh_offset(dest, tmp, 0);
+
+            *ptr++ = sxth(tmp, tmp, 0);
+            *ptr++ = rsbs_immed(tmp, tmp, 0);
+
+            if (mode == 3)
+            {
+                *ptr++ = strh_offset_postindex(dest, tmp, 2);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = strh_offset(dest, tmp, 0);
+            break;
+        case 1:
+            if (mode == 4)
+            {
+                *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = ldrb_offset(dest, tmp, 0);
+
+            *ptr++ = sxtb(tmp, tmp, 0);
+            *ptr++ = rsbs_immed(tmp, tmp, 0);
+
             if (mode == 3)
             {
                 *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
@@ -252,8 +429,15 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
-            *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        if (update_mask & SR_N)
+            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        if (update_mask & SR_V)
+            *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
+        if (update_mask & (SR_C | SR_X))
+            *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_C | SR_X);
     }
+
     return ptr;
 }
 
@@ -290,7 +474,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 01000100ssxxxxxx - NEG */
     else if ((opcode &0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
     {
-        printf("[LINE4] Not implemented NEG\n");
+        ptr = EMIT_NEG(ptr, opcode, m68k_ptr);
     }
     /* 0100011011xxxxxx - MOVE to SR */
     else if ((opcode &0xffc0) == 0x46c0)
