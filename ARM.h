@@ -156,6 +156,10 @@ static inline uint32_t rors_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint
 static inline uint32_t rors_immed(uint8_t dest, uint8_t src, uint8_t value){return rors_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t rors_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x01a00070 | (cc << 28) | (1 << 20) | (dest << 12) | src | ((value & 0xf) << 8));}
 static inline uint32_t rors_reg(uint8_t dest, uint8_t src, uint8_t value){return rors_cc_reg(ARM_CC_AL, dest, src, value);}
+static inline uint32_t rsb_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x02600000 | (cc << 28) | (dest << 12) | (src << 16) | value);}
+static inline uint32_t rsb_immed(uint8_t dest, uint8_t src, uint8_t value){return rsb_cc_immed(ARM_CC_AL, dest, src, value);}
+static inline uint32_t rsbs_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x02600000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | value);}
+static inline uint32_t rsbs_immed(uint8_t dest, uint8_t src, uint8_t value){return rsbs_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t rsb_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00600000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t rsb_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return rsb_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t rsbs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00600000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
@@ -192,18 +196,18 @@ static inline uint32_t sub_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t
 static inline uint32_t sub_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return sub_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t subs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00400000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t subs_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return subs_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
-static inline uint32_t sxtb_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06af0070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
-static inline uint32_t sxtb(uint8_t dest, uint8_t second, uint8_t third){return sxtb_cc(ARM_CC_AL, dest, second, third);}
-static inline uint32_t sxth_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06bf0070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
-static inline uint32_t sxth(uint8_t dest, uint8_t second, uint8_t third) {return sxth_cc(ARM_CC_AL, dest, second, third);}
+static inline uint32_t sxtb_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06af0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
+static inline uint32_t sxtb(uint8_t dest, uint8_t src, uint8_t rot){return sxtb_cc(ARM_CC_AL, dest, src, rot);}
+static inline uint32_t sxth_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06bf0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
+static inline uint32_t sxth(uint8_t dest, uint8_t src, uint8_t rot) {return sxth_cc(ARM_CC_AL, dest, src, rot);}
 static inline uint32_t udf(uint16_t immed) { return INSN_TO_LE(0xe7f000f0 | (immed & 0x0f) | ((immed & 0xfff0) << 4)); }
-static inline uint32_t uxtab_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06e00070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
-static inline uint32_t uxtab(uint8_t dest, uint8_t second, uint8_t third){return uxtab_cc(ARM_CC_AL, dest, second, third);}
-static inline uint32_t uxtah_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06f00070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
-static inline uint32_t uxtah(uint8_t dest, uint8_t second, uint8_t third) {return uxtah_cc(ARM_CC_AL, dest, second, third);}
-static inline uint32_t uxtb_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06ef0070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
-static inline uint32_t uxtb(uint8_t dest, uint8_t second, uint8_t third){return uxtb_cc(ARM_CC_AL, dest, second, third);}
-static inline uint32_t uxth_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06ff0070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
-static inline uint32_t uxth(uint8_t dest, uint8_t second, uint8_t third) {return uxth_cc(ARM_CC_AL, dest, second, third);}
+static inline uint32_t uxtab_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third, uint8_t rot){return INSN_TO_LE(0x06e00070 | (cc << 28) | (dest << 12) | (second << 16) | (third) | (rot << 10));}
+static inline uint32_t uxtab(uint8_t dest, uint8_t second, uint8_t third, uint8_t rot){return uxtab_cc(ARM_CC_AL, dest, second, third, rot);}
+static inline uint32_t uxtah_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third, uint8_t rot){return INSN_TO_LE(0x06f00070 | (cc << 28) | (dest << 12) | (second << 16) | (third) | (rot << 10));}
+static inline uint32_t uxtah(uint8_t dest, uint8_t second, uint8_t third, uint8_t rot) {return uxtah_cc(ARM_CC_AL, dest, second, third, rot);}
+static inline uint32_t uxtb_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06ef0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
+static inline uint32_t uxtb(uint8_t dest, uint8_t src, uint8_t rot){return uxtb_cc(ARM_CC_AL, dest, src, rot);}
+static inline uint32_t uxth_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06ff0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
+static inline uint32_t uxth(uint8_t dest, uint8_t src, uint8_t rot) {return uxth_cc(ARM_CC_AL, dest, src, rot);}
 
 #endif /* _ARM_H */
