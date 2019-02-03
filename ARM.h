@@ -200,6 +200,10 @@ static inline uint32_t sxtb_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t ro
 static inline uint32_t sxtb(uint8_t dest, uint8_t src, uint8_t rot){return sxtb_cc(ARM_CC_AL, dest, src, rot);}
 static inline uint32_t sxth_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06bf0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
 static inline uint32_t sxth(uint8_t dest, uint8_t src, uint8_t rot) {return sxth_cc(ARM_CC_AL, dest, src, rot);}
+static inline uint32_t tst_cc_immed(uint8_t cc, uint8_t src, uint8_t value){src = src & 15;return INSN_TO_LE(0x03880000 | (cc << 28) | (src << 16) | value);}
+static inline uint32_t tst_immed(uint8_t src, uint8_t value){return tst_cc_immed(ARM_CC_AL, src, value);}
+static inline uint32_t tst_cc_reg(uint8_t cc, uint8_t src, uint8_t reg, uint8_t lsl){src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x01880000 | (cc << 28) | (src << 16) | reg | (lsl << 7));}
+static inline uint32_t tst_reg(uint8_t src, uint8_t reg, uint8_t lsl){return tst_cc_reg(ARM_CC_AL, src, reg, lsl);}
 static inline uint32_t udf(uint16_t immed) { return INSN_TO_LE(0xe7f000f0 | (immed & 0x0f) | ((immed & 0xfff0) << 4)); }
 static inline uint32_t uxtab_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third, uint8_t rot){return INSN_TO_LE(0x06e00070 | (cc << 28) | (dest << 12) | (second << 16) | (third) | (rot << 10));}
 static inline uint32_t uxtab(uint8_t dest, uint8_t second, uint8_t third, uint8_t rot){return uxtab_cc(ARM_CC_AL, dest, second, third, rot);}
