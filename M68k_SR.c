@@ -196,6 +196,7 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     /* 0100111001110111 - RTR */
     else if (opcode == 0x4e77)
     {
+        mask = SR_X | SR_Z | SR_N | SR_C | SR_V;
     }
     /* 010011100111101x - MOVEC */
     else if ((opcode & 0xfffe) == 0x4e7a)
