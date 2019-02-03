@@ -6,12 +6,13 @@
 #include "RegisterAllocator.h"
 #include "lists.h"
 #include "tlsf.h"
+#include "config.h"
 
 static struct List ICache[65536];
 static struct List LRU;
 static uint32_t *arm_cache;
-static const uint32_t arm_cache_size = 4*1024*1024;
-static const uint32_t m68k_translation_depth = 32;  /* Translate up to 32 m68k instructions into one translation unit */
+static const uint32_t arm_cache_size = EMU68_ARM_CACHE_SIZE;
+static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
 uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
@@ -93,6 +94,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         printf("[ICache] ARM code entry at %p\n", (void*)arm_code);
 
         RA_ClearChangedMask();
+#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+        *end++ = setend_be();
+#endif
         *end++ = push((1 << REG_SR) | (1 << REG_CTX));
         *end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
@@ -108,6 +112,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
         if (mask)
             arm_code[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
+#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+        *end++ = setend_le();
+#endif
         *end++ = bx_lr();
 
         printf("[ICache] Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
