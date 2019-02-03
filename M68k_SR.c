@@ -138,10 +138,12 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     /* 0100101011xxxxxx - TAS */
     else if ((opcode & 0xffc0) == 0x4ac0)
     {
+        mask = SR_C | SR_Z | SR_N | SR_V;
     }
     /* 0100101011xxxxxx - TST */
     else if ((opcode & 0xff00) == 0x4a00 && (opcode & 0xc0) != 0xc0)
     {
+        mask = SR_C | SR_Z | SR_N | SR_V;
     }
     /* 0100110000xxxxxx - MULU, MULS, DIVU, DIVUL, DIVS, DIVSL */
     else if ((opcode & 0xff80) == 0x4a00)
