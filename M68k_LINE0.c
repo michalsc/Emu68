@@ -41,9 +41,6 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         /* Fetch m68k register */
         dest = RA_MapM68kRegister(&ptr, opcode & 7);
 
-        /* Mark register dirty */
-        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-
         /* Perform add operation */
         switch (size)
         {
