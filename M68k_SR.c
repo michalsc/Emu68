@@ -80,6 +80,7 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     /* NEGX */
     else if ((opcode & 0xff00) == 0x4000 && (opcode & 0xc0) != 0xc0)
     {
+        mask = SR_X | SR_C | SR_Z | SR_N | SR_V;
     }
     /* CLR */
     else if ((opcode & 0xff00) == 0x4200 && (opcode & 0xc0) != 0xc0)
@@ -93,6 +94,7 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     /* NEG */
     else if ((opcode & 0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
     {
+        mask = SR_X | SR_C | SR_Z | SR_N | SR_V;
     }
     /* MOVE to SR */
     else if ((opcode & 0xffc0) == 0x46c0)
@@ -101,6 +103,7 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     /* NOT */
     else if ((opcode & 0xff00) == 0x4600 && (opcode & 0xc0) != 0xc0)
     {
+        mask = SR_C | SR_Z | SR_N | SR_V;
     }
     /* EXT, EXTB */
     else if ((opcode & 0xfe38) == 0x4808)
