@@ -888,13 +888,13 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 RA_SetDirtyM68kRegister(&ptr, src_reg);
                 *ptr++ = lsr_immed(reg_dest, reg_dest, 16);
                 *ptr++ = lsl_immed(reg_dest, reg_dest, 16);
-                *ptr++ = uxtah(reg_dest, reg_dest, *arm_reg);
+                *ptr++ = uxtah(reg_dest, reg_dest, *arm_reg, 0);
                 break;
             case 1:
                 reg_dest = RA_MapM68kRegister(&ptr, src_reg);
                 RA_SetDirtyM68kRegister(&ptr, src_reg);
                 *ptr++ = bic_immed(reg_dest, reg_dest, 0xff);
-                *ptr++ = uxtab(reg_dest, reg_dest, *arm_reg);
+                *ptr++ = uxtab(reg_dest, reg_dest, *arm_reg, 0);
                 break;
             case 0:
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, D[src_reg]));
@@ -918,7 +918,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 RA_SetDirtyM68kRegister(&ptr, src_reg + 8);
                 *ptr++ = lsr_immed(reg_dest, reg_dest, 16);
                 *ptr++ = lsl_immed(reg_dest, reg_dest, 16);
-                *ptr++ = uxtah(reg_dest, reg_dest, *arm_reg);
+                *ptr++ = uxtah(reg_dest, reg_dest, *arm_reg, 0);
                 break;
                 ;
             case 0:
