@@ -106,8 +106,9 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
         mask = SR_C | SR_Z | SR_N | SR_V;
     }
     /* EXT, EXTB */
-    else if ((opcode & 0xfe38) == 0x4808)
+    else if ((opcode & 0xfeb8) == 0x4880)
     {
+        mask = SR_C | SR_Z | SR_N | SR_V;
     }
     /* LINK */
     else if ((opcode & 0xfff8) == 0x4808)

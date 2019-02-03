@@ -655,9 +655,44 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_NOT(ptr, opcode, m68k_ptr);
     }
     /* 0100100xxx000xxx - EXT, EXTB */
-    else if ((opcode & 0xfe38) == 0x4808)
+    else if ((opcode & 0xfeb8) == 0x4880)
     {
-        printf("[LINE4] Not implemented EXT/EXTB\n");
+        uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
+        uint8_t tmp = reg;
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+        uint8_t mode = (opcode >> 6) & 7;
+
+        switch (mode)
+        {
+            case 2: /* Byte to Word */
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = sxtb(tmp, reg, 0);
+                *ptr++ = lsr_immed(reg, reg, 16);
+                *ptr++ = lsl_immed(reg, reg, 16);
+                *ptr++ = uxtah(reg, reg, tmp, 0);
+                break;
+            case 3: /* Word to Long */
+                *ptr++ = sxth(reg, reg, 0);
+                break;
+            case 7: /* Byte to Long */
+                *ptr++ = sxtb(reg, reg, 0);
+                break;
+        }
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+
+        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+        if (update_mask)
+        {
+            *ptr++ = cmp_immed(tmp, 0);
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        }
     }
     /* 0100100000001xxx - LINK */
     else if ((opcode & 0xfff8) == 0x4808)
