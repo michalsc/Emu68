@@ -201,5 +201,9 @@ static inline uint32_t uxtab_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_
 static inline uint32_t uxtab(uint8_t dest, uint8_t second, uint8_t third){return uxtab_cc(ARM_CC_AL, dest, second, third);}
 static inline uint32_t uxtah_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06f00070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
 static inline uint32_t uxtah(uint8_t dest, uint8_t second, uint8_t third) {return uxtah_cc(ARM_CC_AL, dest, second, third);}
+static inline uint32_t uxtb_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06ef0070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
+static inline uint32_t uxtb(uint8_t dest, uint8_t second, uint8_t third){return uxtb_cc(ARM_CC_AL, dest, second, third);}
+static inline uint32_t uxth_cc(uint8_t cc, uint8_t dest, uint8_t second, uint8_t third){return INSN_TO_LE(0x06ff0070 | (cc << 28) | (dest << 12) | (second << 16) | (third));}
+static inline uint32_t uxth(uint8_t dest, uint8_t second, uint8_t third) {return uxth_cc(ARM_CC_AL, dest, second, third);}
 
 #endif /* _ARM_H */
