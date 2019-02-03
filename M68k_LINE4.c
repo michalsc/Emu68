@@ -145,7 +145,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110000 - NOP */
     else if (opcode == 0x4e71)
     {
-        *ptr++ = and_reg(0, 0, 0, 0);
+        *ptr++ = add_immed(REG_PC, REG_PC, 2);
     }
     /* 0100111001110010 - STOP */
     else if (opcode == 0x4e72)
