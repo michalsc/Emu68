@@ -971,12 +971,31 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111010xxxxxx - JSR */
     else if ((opcode & 0xffc0) == 0x4e80)
     {
-        printf("[LINE4] Not implemented JSR\n");
+        uint8_t ext_words = 0;
+        uint8_t ea;
+        uint8_t sp;
+
+        sp = RA_MapM68kRegister(&ptr, 15);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+        *ptr++ = str_offset_preindex(sp, REG_PC, -4);
+        RA_SetDirtyM68kRegister(&ptr, 15);
+        *ptr++ = mov_reg(REG_PC, ea);
+        (*m68k_ptr) += ext_words;
+        RA_FreeARMRegister(&ptr, ea);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     /* 0100111011xxxxxx - JMP */
     else if ((opcode & 0xffc0) == 0x4ec0)
     {
-        printf("[LINE4] Not implemented JMP\n");
+        uint8_t ext_words = 0;
+        uint8_t ea;
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        *ptr++ = mov_reg(REG_PC, ea);
+        (*m68k_ptr) += ext_words;
+        RA_FreeARMRegister(&ptr, ea);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     /* 01001x001xxxxxxx - MOVEM */
     else if ((opcode & 0xfb80) == 0x4880)
