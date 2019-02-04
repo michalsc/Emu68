@@ -6,6 +6,8 @@
 #include "ARM.h"
 
 uint8_t m68kcode[] = {
+    0x22,0x3c,0x00,0x00,0xb1,0xe1,
+    0x70,-10,
     0x83,0xc0,
     0xff,0xff
 
@@ -87,7 +89,7 @@ int main(int argc, char **argv)
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
         }
     }
-return(0);
+//return(0);
     m68k.PC = (uint16_t *)BE32((uint32_t)unit->mt_M68kAddress);
     m68k.SR = 0;
 

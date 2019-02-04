@@ -174,61 +174,186 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t reg_a = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t reg_q;
+    uint8_t reg_quot = RA_AllocARMRegister(&ptr);
+    uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
+
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words);
 
-    uint8_t tmp0 = reg_a;
-    uint8_t tmp1 = reg_q;
-    uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-    uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-    uint8_t tmp4 = RA_AllocARMRegister(&ptr);
-    uint8_t tmp5 = RA_AllocARMRegister(&ptr);
-    uint8_t tmp6 = RA_AllocARMRegister(&ptr);
-    uint8_t tmp7 = RA_AllocARMRegister(&ptr);
-
-    /* At this point reg_a is divident, reg_b is divisor */
-    *ptr++ = subs_immed(tmp6, reg_a, 0);
-    *ptr++ = rsb_cc_immed(ARM_CC_LT, tmp4, tmp6, 0);
-    *ptr++ = mov_cc_immed_u8(ARM_CC_LT, tmp7, 1);
-    *ptr++ = mov_cc_reg(ARM_CC_GE, tmp4, tmp6);
-    *ptr++ = mov_cc_immed_u8(ARM_CC_GE, tmp7, 0);
     *ptr++ = cmp_immed(reg_q, 0);
-    *ptr++ = mov_reg(tmp5, reg_q);
-    *ptr++ = rsb_cc_immed(ARM_CC_LT, tmp3, reg_q, 0);
-    *ptr++ = sxth_cc(ARM_CC_LT, tmp3, tmp3, 0);
-    *ptr++ = b_cc(ARM_CC_LT, 2);
     *ptr++ = b_cc(ARM_CC_NE, 0);
+    /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
-    *ptr++ = mov_reg(tmp3, tmp5);
-    *ptr++ = cmp_reg(tmp3, tmp4);
-    *ptr++ = b_cc(ARM_CC_LE, 1);   /* Exit */
-    *ptr++ = lsl_immed(reg_a, tmp4, 16);
-    *ptr++ = b_cc(ARM_CC_AL, 22);
-    *ptr++ = clz(tmp2, tmp3);
-    *ptr++ = mov_immed_u8(tmp0, 0);
-    *ptr++ = clz(tmp1, tmp4);
-    *ptr++ = sub_reg(tmp1, tmp2, tmp1, 0);
-    *ptr++ = mov_immed_u8(tmp2, 1);
-    *ptr++ = lsl_reg(tmp3, tmp3, tmp1);
-    *ptr++ = lsl_reg(tmp2, tmp2, tmp1);
-    *ptr++ = sxth(tmp3, tmp3, 0);
 
-    *ptr++ = cmp_reg(tmp3, tmp4);
-    *ptr++ = sub_cc_reg(ARM_CC_LE, tmp4, tmp4, tmp3, 0);
-    *ptr++ = orr_cc_reg(ARM_CC_LE, tmp0, tmp0, tmp2, 0);
-    *ptr++ = lsrs_immed(tmp2, tmp2, 1);
-    *ptr++ = asr_immed(tmp3, tmp3, 1);
-    *ptr++ = b_cc(ARM_CC_NE, -7);
+    /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
+    *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
-    *ptr++ = cmp_immed(tmp7, 0);
-    *ptr++ = rsb_cc_immed(ARM_CC_NE, tmp4, tmp4, 0);
-    *ptr++ = eors_reg(tmp3, tmp6, tmp5, 16);
-    *ptr++ = rsb_cc_immed(ARM_CC_MI, tmp0, tmp0, 0);
-    *ptr++ = cmp_immed(tmp0, 0xa10);    // 65536
-    *ptr++ = b_cc(ARM_CC_LT, 0);
-    *ptr++ = udf(1);
-    *ptr++ = uxth(tmp0, tmp0, 0);
-    *ptr++ = orr_reg(tmp0, tmp0, tmp4, 16);
+    /* Push a and q on the stack and pop them back into r0 and r1 */
+    *ptr++ = push(1 << reg_a);
+    *ptr++ = push(1 << reg_q);
+    *ptr++ = pop(0x2);
+    *ptr++ = pop(0x1);
+
+    *ptr++ = ldr_offset(15, 12, 4);
+    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+    *ptr++ = b_cc(ARM_CC_AL, 0);
+    *ptr++ = BE32((uint32_t)&__aeabi_idivmod);
+
+    /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
+    *ptr++ = push(0x1);
+    *ptr++ = push(0x2);
+    *ptr++ = pop(1 << reg_rem);
+    *ptr++ = pop(1 << reg_quot);
+
+    /* Restore registers from the stack */
+    *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+
+    /* Test bit 15 of quotient */
+    *ptr++ = tst_immed(reg_quot, 0x902);
+
+    /* Sign-extract upper 16 bits of quotient into temporary register */
+    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    *ptr++ = sxth(tmp, reg_quot, 2);
+    /* If bit 15 of quotient was set, increase extracted 16 bits, should advance to 0 */
+    *ptr++ = add_cc_immed(ARM_CC_NE, tmp, tmp, 1);
+    *ptr++ = cmp_immed(tmp, 0);
+    RA_FreeARMRegister(&ptr, tmp);
+
+    (*m68k_ptr) += ext_words;
+
+    RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    /* if temporary register was 0 the division was successful, otherwise overflow occured! */
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_V)
+        {
+            *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_V);
+        }
+        int cnt = 0;
+        if (update_mask & SR_N)
+            cnt++;
+        if (update_mask & SR_Z)
+            cnt++;
+        if (cnt)
+        {
+            *ptr++ = b_cc(ARM_CC_NE, cnt+3);
+            *ptr++ = cmp_immed(reg_quot, 0);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        }
+    }
+
+    /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
+    *ptr++ = uxth(reg_quot, reg_quot, 0);
+    *ptr++ = uxth(reg_rem, reg_rem, 0);
+    *ptr++ = orr_reg(reg_a, reg_quot, reg_rem, 16);
+
+    /* Advance PC */
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+    RA_FreeARMRegister(&ptr, reg_a);
+    RA_FreeARMRegister(&ptr, reg_q);
+    RA_FreeARMRegister(&ptr, reg_quot);
+    RA_FreeARMRegister(&ptr, reg_rem);
+
+    return ptr;
+}
+
+uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t reg_a = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+    uint8_t reg_q;
+    uint8_t reg_quot = RA_AllocARMRegister(&ptr);
+    uint8_t reg_rem = RA_AllocARMRegister(&ptr);
+    uint8_t ext_words = 0;
+
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+    *ptr++ = cmp_immed(reg_q, 0);
+    *ptr++ = b_cc(ARM_CC_NE, 0);
+    /* At this place handle exception - division by zero! */
+    *ptr++ = udf(0);
+
+    /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
+    *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+
+    /* Push a and q on the stack and pop them back into r0 and r1 */
+    *ptr++ = push(1 << reg_a);
+    *ptr++ = push(1 << reg_q);
+    *ptr++ = pop(0x2);
+    *ptr++ = pop(0x1);
+
+    *ptr++ = ldr_offset(15, 12, 4);
+    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+    *ptr++ = b_cc(ARM_CC_AL, 0);
+    *ptr++ = BE32((uint32_t)&__aeabi_uidivmod);
+
+    /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
+    *ptr++ = push(0x1);
+    *ptr++ = push(0x2);
+    *ptr++ = pop(1 << reg_rem);
+    *ptr++ = pop(1 << reg_quot);
+
+    /* Restore registers from the stack */
+    *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+
+    /* Extract upper 16 bits of quotient into temporary register */
+    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    *ptr++ = uxth(tmp, reg_quot, 2);
+    *ptr++ = cmp_immed(tmp, 0);
+    RA_FreeARMRegister(&ptr, tmp);
+
+    (*m68k_ptr) += ext_words;
+
+    RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    /* if temporary register was 0 the division was successful, otherwise overflow occured! */
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_V)
+        {
+            *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_V);
+        }
+        int cnt = 0;
+        if (update_mask & SR_N)
+            cnt+=2;
+        if (update_mask & SR_Z)
+            cnt++;
+        if (cnt)
+        {
+            *ptr++ = b_cc(ARM_CC_NE, cnt+3);
+            *ptr++ = cmp_immed(reg_quot, 0);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            if (update_mask & SR_N) {
+                /* When setting N flag do not test 32-bit quotient but rather 16 bit. Therefore test bit 15 here */
+                *ptr++ = tst_immed(reg_quot, 0x902);
+                *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_N);
+            }
+        }
+    }
+
+    /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
+    *ptr++ = uxth(reg_quot, reg_quot, 0);
+    *ptr++ = uxth(reg_rem, reg_rem, 0);
+    *ptr++ = orr_reg(reg_a, reg_quot, reg_rem, 16);
+
+    /* Advance PC */
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+    RA_FreeARMRegister(&ptr, reg_a);
+    RA_FreeARMRegister(&ptr, reg_q);
+    RA_FreeARMRegister(&ptr, reg_quot);
+    RA_FreeARMRegister(&ptr, reg_rem);
 
     return ptr;
 }
