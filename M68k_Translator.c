@@ -23,19 +23,54 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 
     if (group == 0)
     {
+        /* Bit manipulation/MOVEP/Immediate */
         ptr = EMIT_line0(arm_ptr, m68k_ptr);
     }
     else if ((group & 0xc) == 0 && (group & 3))
     {
+        /* MOVE .B .W .L */
         ptr = EMIT_move(arm_ptr, m68k_ptr);
     }
-    else if (group == 4 || group == 8)
+    else if (group == 4)
     {
+        /* Miscellaneous instructions */
         ptr = EMIT_line4(arm_ptr, m68k_ptr);
+    }
+    else if (group == 5)
+    {
+        /* ADDQ/SUBQ/Scc/DBcc/TRAPcc */
+    }
+    else if (group == 6)
+    {
+        /* Bcc/BSR/BRA */
     }
     else if (group == 7)
     {
         ptr = EMIT_moveq(arm_ptr, m68k_ptr);
+    }
+    else if (group == 8)
+    {
+        /* OR/DIV/SBCD */
+    }
+    else if (group == 9)
+    {
+        /* SUB/SUBX */
+    }
+    else if (group == 11)
+    {
+        /* CMP/EOR */
+    }
+    else if (group == 12)
+    {
+        /* AND/MUL/ABCD/EXG */
+    }
+    else if (group == 13)
+    {
+        /* ADD/ADDX */
+    }
+    else if (group == 14)
+    {
+        /* Shift/Rotate/Bitfield */
     }
     else
         (*m68k_ptr)++;
