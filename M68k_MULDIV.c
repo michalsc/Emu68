@@ -189,21 +189,54 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
     /* Push a and q on the stack and pop them back into r0 and r1 */
-    *ptr++ = push(1 << reg_a);
-    *ptr++ = push(1 << reg_q);
-    *ptr++ = pop(0x2);
-    *ptr++ = pop(0x1);
+    if (reg_a == 0 && reg_q == 1)
+    {
+        /* Registers are at correct positions. Do nothing */
+    }
+    else if (reg_a == 1 && reg_q == 0)
+    {
+        /*
+            Registers need to be swapped. Use ip as temporaray register (it's contents is on the stack anyway )
+            NOTE: Usually this would destroy the destination register, but luckily for us this one is saved on
+            the stack.
+        */
+        *ptr++ = mov_reg(12, reg_a);
+        *ptr++ = mov_reg(reg_a, reg_q);
+        *ptr++ = mov_reg(reg_q, 12);
+    }
+    else
+    {
+        /* Use stack, the registers are totally wrong */
+        *ptr++ = push(1 << reg_a);
+        *ptr++ = push(1 << reg_q);
+        *ptr++ = pop(0x2);
+        *ptr++ = pop(0x1);
+    }
 
     *ptr++ = ldr_offset(15, 12, 4);
     *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
     *ptr++ = b_cc(ARM_CC_AL, 0);
     *ptr++ = BE32((uint32_t)&__aeabi_idivmod);
 
-    /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
-    *ptr++ = push(0x1);
-    *ptr++ = push(0x2);
-    *ptr++ = pop(1 << reg_rem);
-    *ptr++ = pop(1 << reg_quot);
+    /* Get back results. Use same technique as before */
+    if (reg_quot == 0 && reg_rem == 1)
+    {
+        /* Output registers are already correctly placed, do nothing here */
+    }
+    else if (reg_quot == 1 && reg_rem == 0)
+    {
+        *ptr++ = mov_reg(12, reg_a);
+        *ptr++ = mov_reg(reg_a, reg_q);
+        *ptr++ = mov_reg(reg_q, 12);
+    }
+    else
+    {
+        /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
+        *ptr++ = push(0x1);
+        *ptr++ = push(0x2);
+        *ptr++ = pop(1 << reg_rem);
+        *ptr++ = pop(1 << reg_quot);
+    }
 
     /* Restore registers from the stack */
     *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
@@ -284,21 +317,50 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
     /* Push a and q on the stack and pop them back into r0 and r1 */
-    *ptr++ = push(1 << reg_a);
-    *ptr++ = push(1 << reg_q);
-    *ptr++ = pop(0x2);
-    *ptr++ = pop(0x1);
+    if (reg_a == 0 && reg_q == 1)
+    {
+        /* Registers are at correct positions. Do nothing */
+    }
+    else if (reg_a == 1 && reg_q == 0)
+    {
+        /* Registers need to be swapped. Use ip as temporaray register (it's contents is on the stack anyway ) */
+        *ptr++ = mov_reg(12, reg_a);
+        *ptr++ = mov_reg(reg_a, reg_q);
+        *ptr++ = mov_reg(reg_q, 12);
+    }
+    else
+    {
+        /* Use stack, the registers are totally wrong */
+        *ptr++ = push(1 << reg_a);
+        *ptr++ = push(1 << reg_q);
+        *ptr++ = pop(0x2);
+        *ptr++ = pop(0x1);
+    }
 
     *ptr++ = ldr_offset(15, 12, 4);
     *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
     *ptr++ = b_cc(ARM_CC_AL, 0);
     *ptr++ = BE32((uint32_t)&__aeabi_uidivmod);
 
-    /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
-    *ptr++ = push(0x1);
-    *ptr++ = push(0x2);
-    *ptr++ = pop(1 << reg_rem);
-    *ptr++ = pop(1 << reg_quot);
+    /* Get back results. Use same technique as before */
+    if (reg_quot == 0 && reg_rem == 1)
+    {
+        /* Output registers are already correctly placed, do nothing here */
+    }
+    else if (reg_quot == 1 && reg_rem == 0)
+    {
+        *ptr++ = mov_reg(12, reg_a);
+        *ptr++ = mov_reg(reg_a, reg_q);
+        *ptr++ = mov_reg(reg_q, 12);
+    }
+    else
+    {
+        /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
+        *ptr++ = push(0x1);
+        *ptr++ = push(0x2);
+        *ptr++ = pop(1 << reg_rem);
+        *ptr++ = pop(1 << reg_quot);
+    }
 
     /* Restore registers from the stack */
     *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
