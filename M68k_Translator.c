@@ -43,6 +43,7 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     else if (group == 6)
     {
         /* Bcc/BSR/BRA */
+        ptr = EMIT_line6(arm_ptr, m68k_ptr);
     }
     else if (group == 7)
     {
@@ -51,10 +52,12 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     else if (group == 8)
     {
         /* OR/DIV/SBCD */
+        ptr = EMIT_line8(arm_ptr, m68k_ptr);
     }
     else if (group == 9)
     {
         /* SUB/SUBX */
+        ptr = EMIT_line9(arm_ptr, m68k_ptr);
     }
     else if (group == 11)
     {
@@ -67,6 +70,7 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     else if (group == 13)
     {
         /* ADD/ADDX */
+        ptr = EMIT_lineD(arm_ptr, m68k_ptr);
     }
     else if (group == 14)
     {
