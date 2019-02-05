@@ -55,6 +55,23 @@ struct M68KState
 #define SR_T0   0x4000
 #define SR_T1   0x8000
 
+#define M_CC_T  0x00
+#define M_CC_F  0x01
+#define M_CC_HI 0x02
+#define M_CC_LS 0x03
+#define M_CC_CC 0x04
+#define M_CC_CS 0x05
+#define M_CC_NE 0x06
+#define M_CC_EQ 0x07
+#define M_CC_VC 0x08
+#define M_CC_VS 0x09
+#define M_CC_PL 0x0a
+#define M_CC_MI 0x0b
+#define M_CC_GE 0x0c
+#define M_CC_LT 0x0d
+#define M_CC_GT 0x0e
+#define M_CC_LE 0x0f
+
 uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 
