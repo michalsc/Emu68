@@ -122,6 +122,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     }
     else
     {
+        uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
+        uint32_t pop_cnt=0;
+        for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
+            pop_update_loc[i] = (uint32_t *)0;
+        
         unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
         printf("[ICache] Creating new translation unit at %p\n", (void*)unit);
         unit->mt_M68kAddress = m68kcodeptr;
@@ -134,6 +139,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         printf("[ICache] ARM code entry at %p\n", (void*)arm_code);
 
         RA_ClearChangedMask();
+
+        pop_update_loc[pop_cnt++] = end;
         *end++ = push((1 << REG_SR) | (1 << REG_CTX));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_be();
@@ -150,6 +157,28 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 end--;
                 break;
             }
+            else if (end[-1] == INSN_TO_LE(0xfffffffe))
+            {
+                uint32_t *tmpptr;
+                uint32_t *branch_mod;
+                printf("[ICache] Conditional PC change.\n");
+                end-=2;
+                branch_mod = *(uint32_t **)end;
+                tmpptr = end;
+
+                RA_StoreDirtyM68kRegs(&end);
+                *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+                *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
+#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+                *end++ = setend_le();
+#endif
+                pop_update_loc[pop_cnt++] = end;
+                *end++ = push((1 << REG_SR) | (1 << REG_CTX));
+                *end++ = bx_lr();
+                int distance = end - tmpptr;
+                printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
+                *branch_mod = INSN_TO_LE((INSN_TO_LE(*branch_mod) + distance));
+            }
         }
         RA_FlushM68kRegs(&end);
         *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
@@ -159,8 +188,13 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         *end++ = setend_le();
 #endif
         *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
-        if (mask)
-            arm_code[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
+        if (mask) {
+            int i=1;
+            *pop_update_loc[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
+            while (pop_update_loc[i]) {
+                *pop_update_loc[i++] = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
+            }
+        }
         *end++ = bx_lr();
 
         printf("[ICache] Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
