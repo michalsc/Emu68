@@ -94,6 +94,34 @@ void RA_DiscardM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     RA_FreeARMRegister(arm_stream, arm_reg);
 }
 
+void RA_StoreDirtyM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    if (LRU_M68kRegisters[m68k_reg].rs_Dirty)
+    {
+        if (m68k_reg < 8)
+        {
+            //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+            //                                     (int)__builtin_offsetof(struct M68KState, D[m68k_reg]));
+            **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
+                                      __builtin_offsetof(struct M68KState, D[m68k_reg]));
+        }
+        else
+        {
+            //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+            //                                     (int)__builtin_offsetof(struct M68KState, A[m68k_reg-8]));
+            **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
+                                      __builtin_offsetof(struct M68KState, A[m68k_reg - 8]));
+        }
+        (*arm_stream)++;
+    }
+}
+
+void RA_StoreDirtyM68kRegs(uint32_t **arm_stream)
+{
+    for (int i = 0; i < 16; i++)
+        RA_StoreDirtyM68kRegister(arm_stream, i);
+}
+
 void RA_FlushM68kRegs(uint32_t **arm_stream)
 {
     for (int i=0; i < 16; i++)
