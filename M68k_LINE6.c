@@ -6,7 +6,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint8_t M68K_ccTo_ARM[] = {
+static uint8_t M68K_ccTo_ARM[] = {
     ARM_CC_AL,      // M_CC_T
     0x0f,           // M_CC_F
     ARM_CC_HI,      // M_CC_HI
@@ -25,7 +25,7 @@ uint8_t M68K_ccTo_ARM[] = {
     ARM_CC_LE       // M_CC_LE
 };
 
-uint32_t *EMIT_LoadARMCC(uint32_t *ptr, uint8_t m68k_cc)
+static uint32_t *EMIT_LoadARMCC(uint32_t *ptr, uint8_t m68k_cc)
 {
     uint8_t tmp = RA_AllocARMRegister(&ptr);
 
@@ -151,6 +151,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
         RA_FreeARMRegister(&ptr, reg);
         *ptr++ = (uint32_t)tmpptr;
+        *ptr++ = 1;
         *ptr++ = INSN_TO_LE(0xfffffffe);
     }
 
