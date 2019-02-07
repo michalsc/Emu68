@@ -9,7 +9,7 @@ HOST_CXXFLAGS := -O2 -std=c++0x
 HOST_LDFLAGS :=
 
 OBJS := start_emu.o tlsf.o M68k_Translator.o RegisterAllocator.o M68k_EA.o M68k_SR.o M68k_MOVE.o M68k_LINE0.o \
-        M68k_LINE4.o M68k_LINE6.o M68k_LINE8.o M68k_LINE9.o M68k_LINED.o M68k_MULDIV.o
+        M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o M68k_LINE9.o M68k_LINED.o M68k_MULDIV.o
 OBJDIR := Build
 
 TESTOBJS :=
