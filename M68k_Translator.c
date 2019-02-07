@@ -1,6 +1,7 @@
 #include <sys/mman.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "M68k.h"
 #include "ARM.h"
 #include "RegisterAllocator.h"
@@ -39,6 +40,7 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     else if (group == 5)
     {
         /* ADDQ/SUBQ/Scc/DBcc/TRAPcc */
+        ptr = EMIT_line5(arm_ptr, m68k_ptr);
     }
     else if (group == 6)
     {
@@ -165,10 +167,18 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             else if (end[-1] == INSN_TO_LE(0xfffffffe))
             {
                 uint32_t *tmpptr;
-                uint32_t *branch_mod;
+                uint32_t *branch_mod[10];
+                uint32_t branch_cnt;
                 printf("[ICache] Conditional PC change.\n");
-                end-=2;
-                branch_mod = *(uint32_t **)end;
+                end--;
+                branch_cnt = *--end;
+                printf("[ICache] Need to adjust %d branches\n", branch_cnt);
+                for (unsigned i=0; i < branch_cnt; i++)
+                {
+                    branch_mod[i] = *(uint32_t **)--end;
+                    printf("[ICache] Loc %d: %p\n", i, (void*)branch_mod[i]);
+                }
+                
                 tmpptr = end;
                 conditionals_count++;
 
@@ -183,7 +193,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 *end++ = bx_lr();
                 int distance = end - tmpptr;
                 printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
-                *branch_mod = INSN_TO_LE((INSN_TO_LE(*branch_mod) + distance));
+                for (unsigned i=0; i < branch_cnt; i++)
+                    *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + distance));
                 epilogue_size += distance;
             }
         }
