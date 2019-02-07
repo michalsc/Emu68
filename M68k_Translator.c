@@ -189,7 +189,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 *end++ = setend_le();
 #endif
                 pop_update_loc[pop_cnt++] = end;
-                *end++ = push((1 << REG_SR) | (1 << REG_CTX));
+                *end++ = pop((1 << REG_SR) | (1 << REG_CTX));
                 *end++ = bx_lr();
                 int distance = end - tmpptr;
                 printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
