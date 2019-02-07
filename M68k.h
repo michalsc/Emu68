@@ -77,6 +77,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
 
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr);
