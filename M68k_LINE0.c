@@ -148,14 +148,12 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = rsbs_reg(immed, immed, dest, 16);
-                *ptr++ = lsr_immed(dest, dest, 16);
-                *ptr++ = lsl_immed(dest, dest, 16);
+                *ptr++ = bfc(dest, 0, 16);
                 *ptr++ = uxtah(dest, dest, immed, 2);
                 break;
             case 1:
                 *ptr++ = rsbs_reg(immed, immed, dest, 24);
-                *ptr++ = lsr_immed(dest, dest, 8);
-                *ptr++ = lsl_immed(dest, dest, 8);
+                *ptr++ = bfc(dest, 0, 8);
                 *ptr++ = uxtab(dest, dest, immed, 3);
                 break;
         }
@@ -313,14 +311,12 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = adds_reg(immed, immed, dest, 16);
-                *ptr++ = lsr_immed(dest, dest, 16);
-                *ptr++ = lsl_immed(dest, dest, 16);
+                *ptr++ = bfc(dest, 0, 16);
                 *ptr++ = uxtah(dest, dest, immed, 2);
                 break;
             case 1:
                 *ptr++ = adds_reg(immed, immed, dest, 24);
-                *ptr++ = lsr_immed(dest, dest, 8);
-                *ptr++ = lsl_immed(dest, dest, 8);
+                *ptr++ = bfc(dest, 0, 8);
                 *ptr++ = uxtab(dest, dest, immed, 3);
                 break;
         }
@@ -510,14 +506,12 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = orrs_reg(immed, immed, dest, 16);
-                *ptr++ = lsr_immed(dest, dest, 16);
-                *ptr++ = lsl_immed(dest, dest, 16);
+                *ptr++ = bfc(dest, 0, 16);
                 *ptr++ = uxtah(dest, dest, immed, 2);
                 break;
             case 1:
                 *ptr++ = orrs_reg(immed, immed, dest, 24);
-                *ptr++ = lsr_immed(dest, dest, 8);
-                *ptr++ = lsl_immed(dest, dest, 8);
+                *ptr++ = bfc(dest, 0, 8);
                 *ptr++ = uxtab(dest, dest, immed, 3);
                 break;
         }
@@ -703,14 +697,12 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = ands_reg(immed, immed, dest, 16);
-                *ptr++ = lsr_immed(dest, dest, 16);
-                *ptr++ = lsl_immed(dest, dest, 16);
+                *ptr++ = bfc(dest, 0, 16);
                 *ptr++ = uxtah(dest, dest, immed, 2);
                 break;
             case 1:
                 *ptr++ = ands_reg(immed, immed, dest, 24);
-                *ptr++ = lsr_immed(dest, dest, 8);
-                *ptr++ = lsl_immed(dest, dest, 8);
+                *ptr++ = bfc(dest, 0, 8);
                 *ptr++ = uxtab(dest, dest, immed, 3);
                 break;
         }
@@ -896,14 +888,12 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = eors_reg(immed, immed, dest, 16);
-                *ptr++ = lsr_immed(dest, dest, 16);
-                *ptr++ = lsl_immed(dest, dest, 16);
+                *ptr++ = bfc(dest, 0, 16);
                 *ptr++ = uxtah(dest, dest, immed, 2);
                 break;
             case 1:
                 *ptr++ = eors_reg(immed, immed, dest, 24);
-                *ptr++ = lsr_immed(dest, dest, 8);
-                *ptr++ = lsl_immed(dest, dest, 8);
+                *ptr++ = bfc(dest, 0, 8);
                 *ptr++ = uxtab(dest, dest, immed, 3);
                 break;
         }

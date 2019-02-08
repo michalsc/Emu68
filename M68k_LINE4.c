@@ -48,12 +48,10 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 2:
-                    *ptr++ = lsr_immed(dest, dest, 16);
-                    *ptr++ = lsl_immed(dest, dest, 16);
+                    *ptr++ = bfc(dest, 0, 16);
                     break;
                 case 1:
-                    *ptr++ = lsr_immed(dest, dest, 8);
-                    *ptr++ = lsl_immed(dest, dest, 8);
+                    *ptr++ = bfc(dest, 0, 8);
                     break;
             }
         }
@@ -177,16 +175,12 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 case 2:
                     *ptr++ = sxth(tmp, dest, 0);        /* Extract lower 16 bits */
                     *ptr++ = mvns_reg(tmp, tmp, 0);     /* Negate */
-                    *ptr++ = lsr_immed(dest, dest, 16); /* Clear destination register */
-                    *ptr++ = lsl_immed(dest, dest, 16);
-                    *ptr++ = uxtah(dest, dest, tmp, 0);
+                    *ptr++ = bfi(dest, tmp, 0, 16);     /* Insert result bitfield into register */
                     break;
                 case 1:
                     *ptr++ = sxtb(tmp, dest, 0);
                     *ptr++ = mvns_reg(tmp, tmp, 0);
-                    *ptr++ = lsr_immed(dest, dest, 8);
-                    *ptr++ = lsl_immed(dest, dest, 8);
-                    *ptr++ = uxtab(dest, dest, tmp, 0);
+                    *ptr++ = bfi(dest, tmp, 0, 8);
                     break;
             }
 
@@ -329,15 +323,15 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 2:
-                    *ptr++ = rsbs_immed(tmp, dest, 0);
-                    *ptr++ = lsr_immed(dest, dest, 16);
-                    *ptr++ = lsl_immed(dest, dest, 16);
+                    *ptr++ = lsl_immed(tmp, dest, 16);
+                    *ptr++ = rsbs_immed(tmp, tmp, 0);
+                    *ptr++ = bfc(dest, 0, 16);
                     *ptr++ = uxtah(dest, dest, tmp, 2);
                     break;
                 case 1:
-                    *ptr++ = rsbs_immed(tmp, dest, 0);
-                    *ptr++ = lsr_immed(dest, dest, 8);
-                    *ptr++ = lsl_immed(dest, dest, 8);
+                    *ptr++ = lsl_immed(tmp, dest, 24);
+                    *ptr++ = rsbs_immed(tmp, tmp, 0);
+                    *ptr++ = bfc(dest, 0, 8);
                     *ptr++ = uxtab(dest, dest, tmp, 3);
                     break;
             }
@@ -492,14 +486,12 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
                 case 2:
                     *ptr++ = rsbs_reg(tmp, dest, tmp, 0);
-                    *ptr++ = lsr_immed(dest, dest, 16);
-                    *ptr++ = lsl_immed(dest, dest, 16);
+                    *ptr++ = bfc(dest, 0, 16);
                     *ptr++ = uxtah(dest, dest, tmp, 2);
                     break;
                 case 1:
                     *ptr++ = rsbs_reg(tmp, dest, tmp, 0);
-                    *ptr++ = lsr_immed(dest, dest, 8);
-                    *ptr++ = lsl_immed(dest, dest, 8);
+                    *ptr++ = bfc(dest, 0, 8);
                     *ptr++ = uxtab(dest, dest, tmp, 3);
                     break;
             }
@@ -756,9 +748,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
             case 2: /* Byte to Word */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = sxtb(tmp, reg, 0);
-                *ptr++ = lsr_immed(reg, reg, 16);
-                *ptr++ = lsl_immed(reg, reg, 16);
-                *ptr++ = uxtah(reg, reg, tmp, 0);
+                *ptr++ = bfi(reg, tmp, 0, 16);
+                RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 3: /* Word to Long */
                 *ptr++ = sxth(reg, reg, 0);

@@ -283,9 +283,8 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
-    *ptr++ = uxth(reg_quot, reg_quot, 0);
-    *ptr++ = uxth(reg_rem, reg_rem, 0);
-    *ptr++ = orr_reg(reg_a, reg_quot, reg_rem, 16);
+    *ptr++ = mov_reg(reg_a, reg_quot);
+    *ptr++ = bfi(reg_a, reg_rem, 16, 16);
 
     /* Advance PC */
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
@@ -405,9 +404,8 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
-    *ptr++ = uxth(reg_quot, reg_quot, 0);
-    *ptr++ = uxth(reg_rem, reg_rem, 0);
-    *ptr++ = orr_reg(reg_a, reg_quot, reg_rem, 16);
+    *ptr++ = mov_reg(reg_a, reg_quot);
+    *ptr++ = bfi(reg_a, reg_rem, 16, 16);
 
     /* Advance PC */
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
