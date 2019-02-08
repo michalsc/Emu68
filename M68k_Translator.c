@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 1
 #include <sys/mman.h>
 #include <stdio.h>
 #include <stdint.h>
