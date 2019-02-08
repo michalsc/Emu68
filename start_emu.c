@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <string.h>
+#include <strings.h>
 
 #include "RegisterAllocator.h"
 #include "M68k.h"
