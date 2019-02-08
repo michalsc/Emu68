@@ -10,9 +10,27 @@
 #include "ARM.h"
 
 uint8_t m68kcode[] = {
-    0x22,0x3c,0x00,0x00,0xb1,0xe1,
-    0x70,-10,
-    0x83,0xc0,
+    0x7c,0x20,
+    0x7e,0xff,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x06,0x80,0x00,0x00,0x00,0x01,
+    0x51,0xcf,0xff,0x9e,
+    0x51,0xce,0xff,0x98,
+    0x4e,0x75,
     0xff,0xff
 
 };
@@ -79,45 +97,73 @@ int main(int argc, char **argv)
 
     void (*arm_code)(struct M68KState *ctx);
 
-    struct M68KTranslationUnit * unit;
+    struct M68KTranslationUnit * unit = NULL;
     struct M68KState m68k;
     struct timespec t1, t2;
 
     bzero(&m68k, sizeof(m68k));
     memset(&stack, 0xaa, sizeof(stack));
     m68k.A[0].u32 = BE32((uint32_t)data);
-    m68k.A[7].u32 = BE32((uint32_t)&stack[512]);
+    m68k.A[7].u32 = BE32((uint32_t)&stack[511]);
+    m68k.PC = (uint16_t *)BE32((uint32_t)m68kcodeptr);
 
-    clock_gettime(CLOCK_MONOTONIC, &t1);
-    unit = M68K_GetTranslationUnit(m68kcodeptr);
-    clock_gettime(CLOCK_MONOTONIC, &t2);
-
-    printf("[JIT] Getting translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
-
-    if (unit)
-    {
-        for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
-        {
-            uint32_t insn = unit->mt_ARMCode[i];
-            printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
-        }
-    }
-//return(0);
-    m68k.PC = (uint16_t *)BE32((uint32_t)unit->mt_M68kAddress);
-    m68k.SR = 0;
+    stack[511] = 0;
 
     print_context(&m68k);
-    printf("\nCalling translated code\n");
 
-    *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+    printf("[JIT] Let it go...\n");
+
     clock_gettime(CLOCK_MONOTONIC, &t1);
-    arm_code(&m68k);
+
+    uint32_t last_PC = 0xffffffff;
+
+    do {
+        if (last_PC != (uint32_t)m68k.PC)
+        {
+  //      clock_gettime(CLOCK_MONOTONIC, &t1);
+            unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k.PC)));
+            last_PC = (uint32_t)m68k.PC;
+        }
+  //      clock_gettime(CLOCK_MONOTONIC, &t2);
+
+  //      printf("[JIT] Getting translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
+/*printf("-----\n");
+        if (unit)
+        {
+            for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
+            {
+                uint32_t insn = unit->mt_ARMCode[i];
+                printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+            }
+        }
+*/
+//return(0);
+        //m68k.PC = (uint16_t *)BE32((uint32_t)unit->mt_M68kAddress);
+        //m68k.SR = 0;
+
+
+//        printf("\nCalling translated code\n");
+
+        *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+//        clock_gettime(CLOCK_MONOTONIC, &t1);
+        arm_code(&m68k);
+//        clock_gettime(CLOCK_MONOTONIC, &t2);
+
+//        print_context(&m68k);
+
+//        printf("[JIT] Executing translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
+
+    } while(m68k.PC != NULL);
+
     clock_gettime(CLOCK_MONOTONIC, &t2);
 
-    printf("[JIT] Executing translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
+    printf("[JIT] Time in m68k mode %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
 
     printf("Back from translated code\n");
     print_context(&m68k);
+
+    for (unsigned i=0; i < sizeof(m68kcode); i++)
+        printf("%02x ", m68kcode[i]);
 
     for (int i=0; i < 64; i++)
     {
