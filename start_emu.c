@@ -1,5 +1,9 @@
+#define _GNU_SOURCE 1
+
 #include <stdio.h>
 #include <strings.h>
+#include <string.h>
+#include <time.h>
 
 #include "RegisterAllocator.h"
 #include "M68k.h"
@@ -12,11 +16,11 @@ uint8_t m68kcode[] = {
     0xff,0xff
 
 };
-uint32_t armcode[1024];
-uint32_t *armcodeptr = armcode;
+
 void *m68kcodeptr = m68kcode;
 
 uint32_t data[128];
+uint32_t stack[512];
 
 void print_context(struct M68KState *m68k)
 {
@@ -75,11 +79,20 @@ int main(int argc, char **argv)
 
     void (*arm_code)(struct M68KState *ctx);
 
-    struct M68KTranslationUnit * unit = M68K_GetTranslationUnit(m68kcodeptr);
+    struct M68KTranslationUnit * unit;
     struct M68KState m68k;
+    struct timespec t1, t2;
 
     bzero(&m68k, sizeof(m68k));
+    memset(&stack, 0xaa, sizeof(stack));
     m68k.A[0].u32 = BE32((uint32_t)data);
+    m68k.A[7].u32 = BE32((uint32_t)&stack[512]);
+
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    unit = M68K_GetTranslationUnit(m68kcodeptr);
+    clock_gettime(CLOCK_MONOTONIC, &t2);
+
+    printf("[JIT] Getting translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
 
     if (unit)
     {
@@ -97,7 +110,11 @@ int main(int argc, char **argv)
     printf("\nCalling translated code\n");
 
     *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+    clock_gettime(CLOCK_MONOTONIC, &t1);
     arm_code(&m68k);
+    clock_gettime(CLOCK_MONOTONIC, &t2);
+
+    printf("[JIT] Executing translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
 
     printf("Back from translated code\n");
     print_context(&m68k);
@@ -109,6 +126,12 @@ int main(int argc, char **argv)
         printf("%08x ", BE32(data[i]));
     }
     printf("\n");
+
+    for (int i=0; i < 512; i++)
+    {
+        if (stack[511-i] != 0xaaaaaaaa)
+            printf("%08x\n", stack[511-i]);
+    }
 
     return 0;
 }
