@@ -72,6 +72,10 @@ struct M68KState
 #define M_CC_GT 0x0e
 #define M_CC_LE 0x0f
 
+
+uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
+uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
+uint32_t *EMIT_FlushPC(uint32_t *ptr);
 uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 

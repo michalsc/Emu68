@@ -17,6 +17,62 @@ static const uint32_t arm_cache_size = EMU68_ARM_CACHE_SIZE;
 static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
+int32_t _pc_rel = 0;
+
+uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
+{
+    // Calculate new PC relative offset
+    int new_offset = _pc_rel + *offset;
+
+    // If overflow would occur then compute PC and get new offset
+    if (new_offset > 127 && new_offset < -128)
+    {
+        if (_pc_rel > 0)
+            *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
+        else
+            *ptr++ = sub_immed(REG_PC, REG_PC, -_pc_rel);
+        
+        _pc_rel = 0;
+    }
+    else
+    {
+        (*offset) = (*offset) + _pc_rel;
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset)
+{
+    // Calculate new PC relative offset
+    _pc_rel += offset;
+
+    // If overflow would occur then compute PC and get new offset
+    if (_pc_rel > 127 && _pc_rel < -128)
+    {
+        if (_pc_rel > 0)
+            *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
+        else
+            *ptr++ = sub_immed(REG_PC, REG_PC, -_pc_rel);
+
+        _pc_rel = 0;
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_FlushPC(uint32_t *ptr)
+{
+    if (_pc_rel > 0)
+        *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
+    else
+        *ptr++ = sub_immed(REG_PC, REG_PC, -_pc_rel);
+
+    _pc_rel = 0;
+
+    return ptr;
+}
+
 uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     uint32_t *ptr = arm_ptr;
