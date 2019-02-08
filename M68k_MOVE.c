@@ -15,7 +15,7 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
     (*m68k_ptr)++;
 
     *ptr++ = movs_immed_s8(tmp_reg, value);
-    *ptr++ = add_immed(REG_PC, REG_PC, 2);
+    ptr = EMIT_AdvancePC(ptr, 2);
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
@@ -59,7 +59,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
     ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
 
     (*m68k_ptr) += ext_count;
 

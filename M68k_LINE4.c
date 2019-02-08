@@ -118,7 +118,7 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -269,7 +269,7 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -421,7 +421,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -589,7 +589,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -680,7 +680,7 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, immed);
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -768,7 +768,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                 break;
         }
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        ptr = EMIT_AdvancePC(ptr, 2);
 
         uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
         uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
@@ -789,9 +789,11 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t sp;
         uint8_t displ;
         uint8_t reg;
-
+        int8_t pc_off;
         displ = RA_AllocARMRegister(&ptr);
-        *ptr++ = ldr_offset(REG_PC, displ, 2);
+        pc_off = 2;
+        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+        *ptr++ = ldr_offset(REG_PC, displ, pc_off);
         sp = RA_MapM68kRegister(&ptr, 15);
         reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
@@ -802,7 +804,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         (*m68k_ptr)+=2;
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 6);
+        ptr = EMIT_AdvancePC(ptr, 6);
         RA_FreeARMRegister(&ptr, displ);
     }
     /* 0100100000xxxxxx - NBCD */
@@ -817,7 +819,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_SetDirtyM68kRegister(&ptr, opcode & 7);
         *ptr++ = rors_immed(reg, reg, 16);
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        ptr = EMIT_AdvancePC(ptr, 2);
 
         uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
         uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
@@ -854,7 +856,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, sp);
         RA_FreeARMRegister(&ptr, ea);
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     }
     /* 0100101011111100 - ILLEGAL */
     else if (opcode == 0x4afc)
@@ -887,9 +889,12 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t sp;
         uint8_t displ;
         uint8_t reg;
+        int8_t pc_off;
 
         displ = RA_AllocARMRegister(&ptr);
-        *ptr++ = ldrsh_offset(REG_PC, displ, 2);
+        pc_off = 2;
+        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+        *ptr++ = ldrsh_offset(REG_PC, displ, pc_off);
         sp = RA_MapM68kRegister(&ptr, 15);
         reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
@@ -900,7 +905,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         (*m68k_ptr)++;
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 4);
+        ptr = EMIT_AdvancePC(ptr, 4);
         RA_FreeARMRegister(&ptr, displ);
     }
     /* 0100111001011xxx - UNLK */
@@ -918,7 +923,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 15);
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        ptr = EMIT_AdvancePC(ptr, 2);
     }
     /* 010011100110xxxx - MOVE USP */
     else if ((opcode & 0xfff0) == 0x4e60)
@@ -933,7 +938,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110000 - NOP */
     else if (opcode == 0x4e71)
     {
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        ptr = EMIT_AdvancePC(ptr, 2);
+        ptr = EMIT_FlushPC(ptr);
     }
     /* 0100111001110010 - STOP */
     else if (opcode == 0x4e72)
@@ -951,11 +957,15 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
         uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+        int8_t pc_off;
 
         /* Fetch return address from stack */
         *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
-        *ptr++ = ldrsh_offset(REG_PC, tmp, 2);
+        pc_off = 2;
+        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+        *ptr++ = ldrsh_offset(REG_PC, tmp, pc_off);
         *ptr++ = add_reg(sp, sp, tmp, 0);
+        ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, tmp2);
         RA_SetDirtyM68kRegister(&ptr, 15);
         *ptr++ = INSN_TO_LE(0xffffffff);
@@ -970,6 +980,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         /* Fetch return address from stack */
         *ptr++ = ldr_offset_postindex(sp, tmp, 4);
+        ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, tmp);
         RA_SetDirtyM68kRegister(&ptr, 15);
         *ptr++ = INSN_TO_LE(0xffffffff);
@@ -993,6 +1004,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = orr_reg(REG_SR, REG_SR, tmp, 0);
         /* Fetch return address from stack */
         *ptr++ = ldr_offset_postindex(sp, tmp, 4);
+        ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, tmp);
         RA_SetDirtyM68kRegister(&ptr, 15);
         *ptr++ = INSN_TO_LE(0xffffffff);
@@ -1012,9 +1024,11 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         sp = RA_MapM68kRegister(&ptr, 15);
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
-        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        ptr = EMIT_FlushPC(ptr);
         *ptr++ = str_offset_preindex(sp, REG_PC, -4);
         RA_SetDirtyM68kRegister(&ptr, 15);
+        ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, ea);
         (*m68k_ptr) += ext_words;
         RA_FreeARMRegister(&ptr, ea);
@@ -1027,6 +1041,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ea;
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, ea);
         (*m68k_ptr) += ext_words;
         RA_FreeARMRegister(&ptr, ea);
@@ -1048,7 +1063,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = mov_reg(dest, ea);
         (*m68k_ptr) += ext_words;
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         RA_FreeARMRegister(&ptr, ea);
     }
     /* 0100xxx1x0xxxxxx - CHK */

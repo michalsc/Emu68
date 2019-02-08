@@ -65,10 +65,12 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             /* Selcom case of DBT which does nothing */
             if (m68k_condition == M_CC_T)
             {
-                *ptr++ = add_immed(REG_PC, REG_PC, 4);
+                ptr = EMIT_AdvancePC(ptr, 4);
             }
             else
             {
+                ptr = EMIT_FlushPC(ptr);
+
                 /* If condition was not false check the condition and eventually break the loop */
                 if (m68k_condition != M_CC_F)
                 {

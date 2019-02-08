@@ -45,7 +45,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset)
 {
     // Calculate new PC relative offset
-    _pc_rel += offset;
+    _pc_rel += (int)offset;
 
     // If overflow would occur then compute PC and get new offset
     if (_pc_rel > 127 && _pc_rel < -128)
@@ -65,11 +65,17 @@ uint32_t *EMIT_FlushPC(uint32_t *ptr)
 {
     if (_pc_rel > 0)
         *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
-    else
+    else if (_pc_rel < 0)
         *ptr++ = sub_immed(REG_PC, REG_PC, -_pc_rel);
 
     _pc_rel = 0;
 
+    return ptr;
+}
+
+uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr)
+{
+    _pc_rel = 0;
     return ptr;
 }
 
@@ -241,6 +247,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 conditionals_count++;
 
                 RA_StoreDirtyM68kRegs(&end);
+                end = EMIT_FlushPC(end);
                 *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
                 *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
@@ -258,6 +265,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
         tmpptr = end;
         RA_FlushM68kRegs(&end);
+        end = EMIT_FlushPC(end);
         *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
         *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         uint16_t mask = RA_GetChangedMask() & 0xfff0;
@@ -294,12 +302,13 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 //        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
-/*
+    /*
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
             uint32_t insn = unit->mt_ARMCode[i];
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
         }
+        exit(0);
 */
     }
 

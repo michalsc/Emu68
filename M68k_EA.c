@@ -172,7 +172,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
             uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
+            int8_t pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
             (*ext_words)++;
 
             switch (size)
@@ -289,32 +291,38 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     }
                 }
 
+                int8_t pc_off = 2 + (*ext_words) * 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+
                 /* Check if base displacement needs to be fetched */
                 switch ((brief & M68K_EA_BD_SIZE) >> 4)
                 {
                     case 2: /* Word displacement */
                         bd_reg = RA_AllocARMRegister(&ptr);
-                        *ptr++ = ldrsh_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                        *ptr++ = ldrsh_offset(REG_PC, bd_reg, pc_off);
                         (*ext_words)++;
                         break;
                     case 3: /* Long displacement */
                         bd_reg = RA_AllocARMRegister(&ptr);
-                        *ptr++ = ldr_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                        *ptr++ = ldr_offset(REG_PC, bd_reg, pc_off);
                         (*ext_words) += 2;
                         break;
                 }
+
+                pc_off = 2 + (*ext_words) * 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
 
                 /* Check if outer displacement needs to be fetched */
                 switch ((brief & M68K_EA_IIS) & 3)
                 {
                     case 2: /* Word outer displacement */
                         outer_reg = RA_AllocARMRegister(&ptr);
-                        *ptr++ = ldrsh_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                        *ptr++ = ldrsh_offset(REG_PC, outer_reg, pc_off);
                         (*ext_words)++;
                         break;
                     case 3: /* Long outer displacement */
                         outer_reg = RA_AllocARMRegister(&ptr);
-                        *ptr++ = ldr_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                        *ptr++ = ldr_offset(REG_PC, outer_reg, pc_off);
                         (*ext_words) += 2;
                         break;
                 }
@@ -472,6 +480,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             if (src_reg == 2) /* (d16, PC) mode */
             {
                 uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
+
+                ptr = EMIT_FlushPC(ptr);
                 *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
                 *ptr++ = add_immed(reg_d16, reg_d16, 2);
                 (*ext_words)++;
@@ -507,7 +517,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     uint8_t tmp2 = 0xff;
                     int8_t displ = brief & 0xff;
 
-                    *ptr++ = add_immed(tmp1, REG_PC, 2);
+                    ptr = EMIT_AdvancePC(ptr, 2);
 
                     if (displ > 0)
                     {
@@ -568,6 +578,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     {
                         /* Base register in use. Alloc it and load its contents */
                         base_reg = RA_AllocARMRegister(&ptr);
+                        ptr = EMIT_FlushPC(ptr);
                         *ptr++ = add_immed(base_reg, REG_PC, 2);
                     }
 
@@ -592,32 +603,37 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         }
                     }
 
+                    int8_t pc_off = 2 + (*ext_words) * 2;
+                    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
                     /* Check if base displacement needs to be fetched */
                     switch ((brief & M68K_EA_BD_SIZE) >> 4)
                     {
                         case 2: /* Word displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldrsh_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldrsh_offset(REG_PC, bd_reg, pc_off);
                             (*ext_words)++;
                             break;
                         case 3: /* Long displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldr_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldr_offset(REG_PC, bd_reg, pc_off);
                             (*ext_words) += 2;
                             break;
                     }
+
+                    pc_off = 2 + (*ext_words) * 2;
+                    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
 
                     /* Check if outer displacement needs to be fetched */
                     switch ((brief & M68K_EA_IIS) & 3)
                     {
                         case 2: /* Word outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldrsh_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldrsh_offset(REG_PC, outer_reg, pc_off);
                             (*ext_words)++;
                             break;
                         case 3: /* Long outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldr_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldr_offset(REG_PC, outer_reg, pc_off);
                             (*ext_words) += 2;
                             break;
                     }
@@ -773,12 +789,15 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             else if (src_reg == 0)
             {
                 (*ext_words)++;
+                int8_t pc_off = 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+
                 if (size == 0)
-                    *ptr++ = ldrsh_offset(REG_PC, *arm_reg, 2);
+                    *ptr++ = ldrsh_offset(REG_PC, *arm_reg, pc_off);
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldrsh_offset(REG_PC, tmp_reg, 2);
+                    *ptr++ = ldrsh_offset(REG_PC, tmp_reg, pc_off);
                     switch (size)
                     {
                         case 4:
@@ -797,13 +816,16 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             else if (src_reg == 1)
             {
                 (*ext_words) += 2;
+                int8_t pc_off = 2;
+
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
 
                 if (size == 0)
-                    *ptr++ = ldr_offset(REG_PC, *arm_reg, 2);
+                    *ptr++ = ldr_offset(REG_PC, *arm_reg, pc_off);
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldr_offset(REG_PC, tmp_reg, 2);
+                    *ptr++ = ldr_offset(REG_PC, tmp_reg, pc_off);
 
                     switch (size)
                     {
@@ -822,22 +844,31 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             }
             else if (src_reg == 4)
             {
+                int8_t pc_off;
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = ldr_offset(REG_PC, *arm_reg, 2);
+                        pc_off = 2;
+                        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                        *ptr++ = ldr_offset(REG_PC, *arm_reg, pc_off);
                         (*ext_words) += 2;
                         break;
                     case 2:
-                        *ptr++ = ldrh_offset(REG_PC, *arm_reg, 2);
+                        pc_off = 2;
+                        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                        *ptr++ = ldrh_offset(REG_PC, *arm_reg, pc_off);
                         (*ext_words)++;
                         break;
                     case 1:
-                        *ptr++ = ldrb_offset(REG_PC, *arm_reg, 3);
+                        pc_off = 3;
+                        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                        *ptr++ = ldrb_offset(REG_PC, *arm_reg, pc_off);
                         (*ext_words)++;
                         break;
                     case 0:
-                        *ptr++ = add_immed(*arm_reg, REG_PC, 2);
+                        pc_off = 2;
+                        ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                        *ptr++ = add_immed(*arm_reg, REG_PC, pc_off);
                         break;
                 }
             }
@@ -1019,7 +1050,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
             uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
+            int8_t pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
             (*ext_words)++;
 
             switch (size)
@@ -1140,32 +1173,37 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     }
                 }
 
+                int8_t pc_off = 2 + (*ext_words) * 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
                 /* Check if base displacement needs to be fetched */
                 switch ((brief & M68K_EA_BD_SIZE) >> 4)
                 {
                 case 2: /* Word displacement */
                     bd_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldrsh_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                    *ptr++ = ldrsh_offset(REG_PC, bd_reg, pc_off);
                     (*ext_words)++;
                     break;
                 case 3: /* Long displacement */
                     bd_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldr_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                    *ptr++ = ldr_offset(REG_PC, bd_reg, pc_off);
                     (*ext_words) += 2;
                     break;
                 }
+
+                pc_off = 2 + (*ext_words) * 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
 
                 /* Check if outer displacement needs to be fetched */
                 switch ((brief & M68K_EA_IIS) & 3)
                 {
                 case 2: /* Word outer displacement */
                     outer_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldrsh_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                    *ptr++ = ldrsh_offset(REG_PC, outer_reg, pc_off);
                     (*ext_words)++;
                     break;
                 case 3: /* Long outer displacement */
                     outer_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldr_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                    *ptr++ = ldr_offset(REG_PC, outer_reg, pc_off);
                     (*ext_words) += 2;
                     break;
                 }
@@ -1324,6 +1362,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             if (src_reg == 2) /* (d16, PC) mode */
             {
                 uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
+                ptr = EMIT_FlushPC(ptr);
                 *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
                 *ptr++ = add_immed(reg_d16, reg_d16, 2);
                 (*ext_words)++;
@@ -1359,7 +1398,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     uint8_t tmp2 = 0xff;
                     int8_t displ = brief & 0xff;
 
-                    *ptr++ = add_immed(tmp1, REG_PC, 2);
+                    ptr = EMIT_AdvancePC(ptr, 2);
 
                     if (displ > 0)
                     {
@@ -1420,6 +1459,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         /* Base register in use. Alloc it and load its contents */
                         base_reg = RA_AllocARMRegister(&ptr);
+                        ptr = EMIT_FlushPC(ptr);
                         *ptr++ = add_immed(base_reg, REG_PC, 2);
                     }
 
@@ -1444,32 +1484,38 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         }
                     }
 
+                    int8_t pc_off = 2 + (*ext_words) * 2;
+                    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+
                     /* Check if base displacement needs to be fetched */
                     switch ((brief & M68K_EA_BD_SIZE) >> 4)
                     {
                         case 2: /* Word displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldrsh_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldrsh_offset(REG_PC, bd_reg, pc_off);
                             (*ext_words)++;
                             break;
                         case 3: /* Long displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldr_offset(REG_PC, bd_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldr_offset(REG_PC, bd_reg, pc_off);
                             (*ext_words) += 2;
                             break;
                     }
+
+                    pc_off = 2 + (*ext_words) * 2;
+                    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
 
                     /* Check if outer displacement needs to be fetched */
                     switch ((brief & M68K_EA_IIS) & 3)
                     {
                         case 2: /* Word outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldrsh_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldrsh_offset(REG_PC, outer_reg, pc_off);
                             (*ext_words)++;
                             break;
                         case 3: /* Long outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldr_offset(REG_PC, outer_reg, 2 + *ext_words * 2);
+                            *ptr++ = ldr_offset(REG_PC, outer_reg, pc_off);
                             (*ext_words) += 2;
                             break;
                     }
@@ -1625,12 +1671,15 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             else if (src_reg == 0)
             {
                 ext_words++;
+                int8_t pc_off = 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+
                 if (size == 0)
-                    *ptr++ = ldrsh_offset(REG_PC, *arm_reg, 2);
+                    *ptr++ = ldrsh_offset(REG_PC, *arm_reg, pc_off);
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldrsh_offset(REG_PC, tmp_reg, 2);
+                    *ptr++ = ldrsh_offset(REG_PC, tmp_reg, pc_off);
                     switch (size)
                     {
                     case 4:
@@ -1649,13 +1698,15 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             else if (src_reg == 1)
             {
                 ext_words += 2;
+                int8_t pc_off = 2;
+                ptr = EMIT_GetOffsetPC(ptr, &pc_off);
 
                 if (size == 0)
-                    *ptr++ = ldr_offset(REG_PC, *arm_reg, 2);
+                    *ptr++ = ldr_offset(REG_PC, *arm_reg, pc_off);
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldr_offset(REG_PC, tmp_reg, 2);
+                    *ptr++ = ldr_offset(REG_PC, tmp_reg, pc_off);
 
                     switch (size)
                     {

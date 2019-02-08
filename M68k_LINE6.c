@@ -53,19 +53,23 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t reg = RA_AllocARMRegister(&ptr);
         uint8_t addend = 0;
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        ptr = EMIT_AdvancePC(ptr, 2);
 
         /* use 16-bit offset */
         if ((opcode & 0x00ff) == 0x00)
         {
-            *ptr++ = ldrsh_offset(REG_PC, reg, 2);
+            int8_t pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrsh_offset(REG_PC, reg, pc_off);
             addend = 2;
             (*m68k_ptr)++;
         }
         /* use 32-bit offset */
         else if ((opcode & 0x00ff) == 0xff)
         {
-            *ptr++ = ldr_offset(REG_PC, reg, 2);
+            int8_t pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldr_offset(REG_PC, reg, pc_off);
             addend = 4;
             (*m68k_ptr) += 2;
         }
@@ -74,6 +78,8 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             *ptr++ = mov_immed_s8(reg, opcode & 0xff);
         }
+        
+        ptr = EMIT_FlushPC(ptr);
 
         /* Check if INSN is BSR */
         if (opcode & 0x0100)
@@ -105,6 +111,8 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t arm_condition = M68K_ccTo_ARM[m68k_condition];
         /* First convert m68k condition code to ARM */
         ptr = EMIT_LoadARMCC(ptr, REG_SR);
+
+        ptr = EMIT_FlushPC(ptr);
 
         /* Adjust PC accordingly */
         if ((opcode & 0x00ff) == 0x00)

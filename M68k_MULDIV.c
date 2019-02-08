@@ -29,7 +29,7 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, src);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -70,7 +70,7 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, src);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -119,7 +119,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     RA_FreeARMRegister(&ptr, src);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -288,7 +288,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = orr_reg(reg_a, reg_quot, reg_rem, 16);
 
     /* Advance PC */
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
     RA_FreeARMRegister(&ptr, reg_a);
     RA_FreeARMRegister(&ptr, reg_q);
@@ -410,7 +410,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = orr_reg(reg_a, reg_quot, reg_rem, 16);
 
     /* Advance PC */
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
     RA_FreeARMRegister(&ptr, reg_a);
     RA_FreeARMRegister(&ptr, reg_q);
