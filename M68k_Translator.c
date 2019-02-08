@@ -106,7 +106,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash ^ (hash >> 16)) & 0xffff;
 
-    printf("[ICache] GetTranslationUnit(%p)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
+//    printf("[ICache] GetTranslationUnit(%p)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
     /* Find entry with correct address */
     ForeachNode(&ICache[hash], n)
@@ -129,20 +129,21 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         uint32_t pop_cnt=0;
         for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
             pop_update_loc[i] = (uint32_t *)0;
-        
+
         unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
-        printf("[ICache] Creating new translation unit at %p\n", (void*)unit);
+//        printf("[ICache] Creating new translation unit at %p\n", (void*)unit);
         unit->mt_M68kAddress = m68kcodeptr;
 
-        uint32_t prologue_size = 0;
+//        uint32_t prologue_size = 0;
         uint32_t epilogue_size = 0;
         uint32_t conditionals_count = 0;
+
         uint32_t insn_count = 0;
         uint32_t *arm_code = &unit->mt_ARMCode[0];
         unit->mt_ARMEntryPoint = arm_code;
         uint32_t *end = arm_code;
 
-        printf("[ICache] ARM code entry at %p\n", (void*)arm_code);
+//        printf("[ICache] ARM code entry at %p\n", (void*)arm_code);
 
         RA_ClearChangedMask();
 
@@ -155,13 +156,13 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         *end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         *end++ = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
-        prologue_size = end - tmpptr;
+  //      prologue_size = end - tmpptr;
         while (*m68kcodeptr != 0xffff && insn_count++ < m68k_translation_depth)
         {
             end = EmitINSN(end, &m68kcodeptr);
             if (end[-1] == INSN_TO_LE(0xffffffff))
             {
-                printf("[ICache] Unconditional PC change. End of translation block after %d M68K instructions\n", insn_count);
+//                printf("[ICache] Unconditional PC change. End of translation block after %d M68K instructions\n", insn_count);
                 end--;
                 break;
             }
@@ -170,16 +171,16 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 uint32_t *tmpptr;
                 uint32_t *branch_mod[10];
                 uint32_t branch_cnt;
-                printf("[ICache] Conditional PC change.\n");
+//                printf("[ICache] Conditional PC change.\n");
                 end--;
                 branch_cnt = *--end;
-                printf("[ICache] Need to adjust %d branches\n", branch_cnt);
+//                printf("[ICache] Need to adjust %d branches\n", branch_cnt);
                 for (unsigned i=0; i < branch_cnt; i++)
                 {
                     branch_mod[i] = *(uint32_t **)--end;
-                    printf("[ICache] Loc %d: %p\n", i, (void*)branch_mod[i]);
+//                    printf("[ICache] Loc %d: %p\n", i, (void*)branch_mod[i]);
                 }
-                
+
                 tmpptr = end;
                 conditionals_count++;
 
@@ -193,7 +194,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 *end++ = pop((1 << REG_SR) | (1 << REG_CTX));
                 *end++ = bx_lr();
                 int distance = end - tmpptr;
-                printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
+//                printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
                 for (unsigned i=0; i < branch_cnt; i++)
                     *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + distance));
                 epilogue_size += distance;
@@ -217,26 +218,33 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
         *end++ = bx_lr();
         epilogue_size += end - tmpptr;
-
+/*
         printf("[ICache] Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
         printf("[ICache] Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
             prologue_size, epilogue_size, conditionals_count);
         printf("[ICache] Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
         printf("[ICache] Mean ARM instructions per m68k instruction: %f\n", (double)((end - arm_code) - prologue_size - epilogue_size)/(float)insn_count);
-
+*/
         unit->mt_M68kInsnCnt = insn_count;
         unit->mt_ARMInsnCnt = (uint32_t)(end - arm_code);
 
         uintptr_t line_length = (uintptr_t)end - (uintptr_t)unit;
         line_length = (line_length + 31) & ~31;
 
-        printf("[ICache] Trimming translation unit length to %d bytes\n", (int)line_length);
+//        printf("[ICache] Trimming translation unit length to %d bytes\n", (int)line_length);
 
         unit = tlsf_realloc(handle, unit, line_length);
 
-        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
+//        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
+/*
+        for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
+        {
+            uint32_t insn = unit->mt_ARMCode[i];
+            printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+        }
+*/
     }
 
     return unit;
