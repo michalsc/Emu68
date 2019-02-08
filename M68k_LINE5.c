@@ -96,13 +96,14 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = bfi(counter_reg, reg, 0, 16);
                 RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
+                /* If counter was 0xffff (temprary reg 0xffff0000) break the loop */
+                *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 4);
+                branch_2 = ptr;
+                *ptr++ = b_cc(ARM_CC_EQ, 2);
+
+                *ptr++ = add_immed(REG_PC, REG_PC, 2);
                 /* Load PC-relative offset */
                 *ptr++ = ldrsh_offset(REG_PC, reg, 0);
-
-                /* If counter was 0xffff (temprary reg 0xffff0000) break the loop */
-                *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 2);
-                branch_2 = ptr;
-                *ptr++ = b_cc(ARM_CC_EQ, 0);
 
                 *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
                 RA_FreeARMRegister(&ptr, reg);
@@ -121,7 +122,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             /* TRAPcc */
         }
-        else 
+        else
         {
             /* Scc */
         }
