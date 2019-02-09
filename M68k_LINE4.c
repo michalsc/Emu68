@@ -325,14 +325,14 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 case 2:
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = rsbs_immed(tmp, tmp, 0);
-                    *ptr++ = bfc(dest, 0, 16);
-                    *ptr++ = uxtah(dest, dest, tmp, 2);
+                    *ptr++ = lsr_immed(tmp, tmp, 16);
+                    *ptr++ = bfi(dest, tmp, 0, 16);
                     break;
                 case 1:
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = rsbs_immed(tmp, tmp, 0);
-                    *ptr++ = bfc(dest, 0, 8);
-                    *ptr++ = uxtab(dest, dest, tmp, 3);
+                    *ptr++ = lsr_immed(tmp, tmp, 24);
+                    *ptr++ = bfi(dest, tmp, 0, 8);
                     break;
             }
 
@@ -486,13 +486,13 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
                 case 2:
                     *ptr++ = rsbs_reg(tmp, dest, tmp, 0);
-                    *ptr++ = bfc(dest, 0, 16);
-                    *ptr++ = uxtah(dest, dest, tmp, 2);
+                    *ptr++ = lsr_immed(tmp, tmp, 16);
+                    *ptr++ = bfi(dest, tmp, 0, 16);
                     break;
                 case 1:
                     *ptr++ = rsbs_reg(tmp, dest, tmp, 0);
-                    *ptr++ = bfc(dest, 0, 8);
-                    *ptr++ = uxtab(dest, dest, tmp, 3);
+                    *ptr++ = lsr_immed(tmp, tmp, 24);
+                    *ptr++ = bfi(dest, tmp, 0, 8);
                     break;
             }
 
