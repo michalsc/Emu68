@@ -71,12 +71,14 @@ static inline uint32_t INSN_TO_LE(uint32_t insn)
     return val.u32;
 }
 
-static inline uint32_t add_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){ dest = dest & 15; src = src & 15; return INSN_TO_LE(0x02800000 | (cc << 28) | (dest << 12) | (src << 16) | value);}
-static inline uint32_t add_immed(uint8_t dest, uint8_t src, uint8_t value) { return add_cc_immed(ARM_CC_AL, dest, src, value); }
+static inline uint32_t add_cc_immed(uint8_t cc, uint8_t dest, uint16_t src, uint8_t value){ dest = dest & 15; src = src & 15; return INSN_TO_LE(0x02800000 | (cc << 28) | (dest << 12) | (src << 16) | value);}
+static inline uint32_t add_immed(uint8_t dest, uint8_t src, uint16_t value) { return add_cc_immed(ARM_CC_AL, dest, src, value); }
 static inline uint32_t add_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00800000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t add_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return add_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t adds_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00800000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t adds_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return adds_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
+static inline uint32_t adds_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint16_t value){dest = dest & 15;src = src & 15;return INSN_TO_LE(0x02800000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | value);}
+static inline uint32_t adds_immed(uint8_t dest, uint8_t src, uint16_t value){return adds_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t and_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x02000000 | (cc << 28) | (dest << 12) | (src << 16) | value);}
 static inline uint32_t and_immed(uint8_t dest, uint8_t src, uint8_t value){return and_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t and_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x00000000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
