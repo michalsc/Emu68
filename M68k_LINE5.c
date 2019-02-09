@@ -207,10 +207,321 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xf100) == 0x5100)
     {
         /* SUBQ */
+        uint8_t update_cc = 1;
+        uint8_t ext_count = 0;
+        uint8_t data = (opcode >> 9) & 7;
+        if (data == 0)
+            data = 8;
+
+        if ((opcode & 0x30) == 0)
+        {
+            /* Dx or Ax case */
+            uint8_t dx = (opcode & 0x38) == 0;
+            uint8_t tmp;
+
+            if (dx)
+            {
+                /* Fetch m68k register */
+                uint8_t dest = RA_MapM68kRegister(&ptr, (opcode & 7));
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7));
+
+                switch ((opcode >> 6) & 3)
+                {
+                case 0:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = lsl_immed(tmp, dest, 24);
+                    *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
+                    *ptr++ = lsr_immed(tmp, tmp, 24);
+                    *ptr++ = bfi(dest, tmp, 0, 8);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+
+                case 1:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = lsl_immed(tmp, dest, 16);
+                    *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
+                    *ptr++ = lsr_immed(tmp, tmp, 16);
+                    *ptr++ = bfi(dest, tmp, 0, 16);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+
+                case 2:
+                    *ptr++ = subs_immed(dest, dest, data);
+                    break;
+                }
+            }
+            else
+            {
+                /* Fetch m68k register */
+                uint8_t dest = RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
+
+                update_cc = 0;
+                
+                *ptr++ = subs_immed(dest, dest, data);
+            }
+        }
+        else
+        {
+            /* Load effective address */
+            uint8_t dest;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            uint8_t mode = (opcode & 0x0038) >> 3;
+
+            switch ((opcode >> 6) & 3)
+            {
+            case 0: /* 8-bit */
+                if (mode == 4)
+                {
+                    *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = ldrb_offset(dest, tmp, 0);
+                /* Perform calcualtion */
+                *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
+                *ptr++ = lsr_immed(tmp, tmp, 24);
+                /* Store back */
+                if (mode == 3)
+                {
+                    *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = strb_offset(dest, tmp, 0);
+                break;
+            case 1: /* 16-bit */
+                if (mode == 4)
+                {
+                    *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = ldrh_offset(dest, tmp, 0);
+
+                /* Perform calcualtion */
+                *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
+                *ptr++ = lsr_immed(tmp, tmp, 16);
+
+                /* Store back */
+                if (mode == 3)
+                {
+                    *ptr++ = strh_offset_postindex(dest, tmp, 2);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = strh_offset(dest, tmp, 0);
+                break;
+
+            case 2: /* 32-bit */
+                if (mode == 4)
+                {
+                    *ptr++ = ldr_offset_preindex(dest, tmp, -4);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = ldr_offset(dest, tmp, 0);
+
+                /* Perform calcualtion */
+                *ptr++ = subs_immed(tmp, tmp, data);
+
+                /* Store back */
+                if (mode == 3)
+                {
+                    *ptr++ = str_offset_postindex(dest, tmp, 4);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = str_offset(dest, tmp, 0);
+                break;
+            }
+
+            RA_FreeARMRegister(&ptr, dest);
+            RA_FreeARMRegister(&ptr, tmp);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+
+        (*m68k_ptr) += ext_count;
+
+        if (update_cc)
+        {
+            uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+            uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+            if (update_mask)
+            {
+                *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+                if (update_mask & SR_N)
+                    *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+                if (update_mask & SR_Z)
+                    *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+                if (update_mask & SR_V)
+                    *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
+                if (update_mask & (SR_X | SR_C))
+                    *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
+            }
+        }
     }
     else if ((opcode & 0xf100) == 0x5000)
     {
         /* ADDQ */
+        uint8_t update_cc = 1;
+        uint8_t ext_count = 0;
+        uint8_t data = (opcode >> 9) & 7;
+        if (data == 0) data = 8;
+
+        if ((opcode & 0x30) == 0)
+        {
+            /* Dx or Ax case */
+            uint8_t dx = (opcode & 0x38) == 0;
+            uint8_t tmp;
+
+            if (dx) 
+            {
+                /* Fetch m68k register */
+                uint8_t dest = RA_MapM68kRegister(&ptr, (opcode & 7) + (dx ? 0 : 8));
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + (dx ? 0 : 8));
+
+                switch ((opcode >> 6) & 3)
+                {
+                case 0:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = lsl_immed(tmp, dest, 24);
+                    *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
+                    *ptr++ = lsr_immed(tmp, tmp, 24);
+                    *ptr++ = bfi(dest, tmp, 0, 8);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+
+                case 1:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = lsl_immed(tmp, dest, 16);
+                    *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
+                    *ptr++ = lsr_immed(tmp, tmp, 16);
+                    *ptr++ = bfi(dest, tmp, 0, 16);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+
+                case 2:
+                    *ptr++ = adds_immed(dest, dest, data);
+                    break;
+                }
+            }
+            else
+            {
+                /* Fetch m68k register */
+                uint8_t dest = RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
+
+                update_cc = 0;
+
+                *ptr++ = adds_immed(dest, dest, data);
+            }
+        }
+        else
+        {
+            /* Load effective address */
+            uint8_t dest;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            uint8_t mode = (opcode & 0x0038) >> 3;
+
+            switch ((opcode >> 6) & 3)
+            {
+                case 0: /* 8-bit */
+                    if (mode == 4)
+                    {
+                        *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+                        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                    }
+                    else
+                        *ptr++ = ldrb_offset(dest, tmp, 0);
+                    /* Perform calcualtion */
+                    *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
+                    *ptr++ = lsr_immed(tmp, tmp, 24);
+                    /* Store back */
+                    if (mode == 3)
+                    {
+                        *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+                        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                    }
+                    else
+                        *ptr++ = strb_offset(dest, tmp, 0);
+                    break;
+                case 1: /* 16-bit */
+                    if (mode == 4)
+                    {
+                        *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+                        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                    }
+                    else
+                        *ptr++ = ldrh_offset(dest, tmp, 0);
+                    
+                    /* Perform calcualtion */
+                    *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
+                    *ptr++ = lsr_immed(tmp, tmp, 16);
+
+                    /* Store back */
+                    if (mode == 3)
+                    {
+                        *ptr++ = strh_offset_postindex(dest, tmp, 2);
+                        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                    }
+                    else
+                        *ptr++ = strh_offset(dest, tmp, 0);
+                    break;
+
+                case 2: /* 32-bit */
+                    if (mode == 4)
+                    {
+                        *ptr++ = ldr_offset_preindex(dest, tmp, -4);
+                        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                    }
+                    else
+                        *ptr++ = ldr_offset(dest, tmp, 0);
+
+                    /* Perform calcualtion */
+                    *ptr++ = adds_immed(tmp, tmp, data);
+
+                    /* Store back */
+                    if (mode == 3)
+                    {
+                        *ptr++ = str_offset_postindex(dest, tmp, 4);
+                        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                    }
+                    else
+                        *ptr++ = str_offset(dest, tmp, 0);
+                    break;
+            }
+
+            RA_FreeARMRegister(&ptr, dest);
+            RA_FreeARMRegister(&ptr, tmp);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+
+        (*m68k_ptr) += ext_count;
+
+        if (update_cc)
+        {
+            uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+            uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+            if (update_mask)
+            {
+                *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+                if (update_mask & SR_N)
+                    *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+                if (update_mask & SR_Z)
+                    *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+                if (update_mask & SR_V)
+                    *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
+                if (update_mask & (SR_X | SR_C))
+                    *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
+            }
+        }
     }
 
     return ptr;
