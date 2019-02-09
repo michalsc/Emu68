@@ -127,6 +127,80 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         {
             /* Scc */
+            uint8_t m68k_condition = (opcode >> 8) & 0x0f;
+            uint8_t arm_condition = M68K_ccTo_ARM[m68k_condition];
+            uint8_t ext_count = 0;
+
+            if ((opcode & 0x38) == 0)
+            {
+                /* Scc Dx case */
+                uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
+                RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+                /* T condition always sets lowest 8 bis, F condition always clears them */
+                if ((opcode & 0x0f00) == 0x0100)
+                {
+                    *ptr++ = bfc(dest, 0, 8);
+                }
+                else if ((opcode & 0x0f00) == 0x0000)
+                {
+                    *ptr++ = orr_immed(dest, dest, 0xff);
+                }
+                else
+                {
+                    /* Load m68k flags to arm flags and perform either bit clear or bit set */
+                    ptr = EMIT_LoadARMCC(ptr, REG_SR);
+                    *ptr++ = orr_cc_immed(arm_condition, dest, dest, 0xff);
+                    *ptr++ = bfc_cc(arm_condition^1, dest, 0, 8);
+                }
+            }
+            else
+            {
+                /* Load effective address */
+                uint8_t dest = 0;
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+                uint8_t mode = (opcode & 0x0038) >> 3;
+
+                /* Fetch data into temporary register, perform add, store it back */
+                if (mode == 4)
+                {
+                    *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = ldrb_offset(dest, tmp, 0);
+
+                /* T condition always sets lowest 8 bis, F condition always clears them */
+                if ((opcode & 0x0f00) == 0)
+                {
+                    *ptr++ = bfc(tmp, 0, 8);
+                }
+                else if ((opcode & 0x0f00) == 0x0100)
+                {
+                    *ptr++ = orr_immed(tmp, tmp, 0xff);
+                }
+                else
+                {
+                    /* Load m68k flags to arm flags and perform either bit clear or bit set */
+                    ptr = EMIT_LoadARMCC(ptr, REG_SR);
+                    *ptr++ = orr_cc_immed(arm_condition, tmp, tmp, 0xff);
+                    *ptr++ = bfc_cc(arm_condition^1, tmp, 0, 8);
+                }
+
+                if (mode == 3)
+                {
+                    *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                }
+                else
+                    *ptr++ = strb_offset(dest, tmp, 0);
+
+                RA_FreeARMRegister(&ptr, tmp);
+
+            }
+
+            ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         }
 
     }
