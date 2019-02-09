@@ -225,6 +225,20 @@ uint8_t M68K_GetSRMask(uint16_t opcode)
     else if ((opcode & 0xf140) == 0x4100)
     {
     }
+    else if ((opcode & 0xf0c0) == 0x50c0)
+    {
+        /* Scc/TRAPcc/DBcc */
+    }
+    else if ((opcode & 0xf100) == 0x5100)
+    {
+        /* SUBQ */
+        mask = (SR_X | SR_C | SR_V | SR_Z | SR_N);
+    }
+    else if ((opcode & 0xf100) == 0x5000)
+    {
+        /* ADDQ */
+        mask = (SR_X | SR_C | SR_V | SR_Z | SR_N);
+    }
 
     return mask;
 }
