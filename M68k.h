@@ -87,6 +87,8 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
 

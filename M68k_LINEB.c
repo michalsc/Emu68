@@ -6,40 +6,13 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
-
-uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
 
-    /* 1000xxx011xxxxxx - DIVU */
-    if ((opcode & 0xf1c0) == 0x80c0)
-    {
-        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
-    }
-    /* 1000xxx10000xxxx - SBCD */
-    else if ((opcode & 0xf1f0) == 0x8100)
-    {
-
-    }
-    /* 1000xxx10100xxxx - PACK */
-    else if ((opcode & 0xf1f0) == 0x8140)
-    {
-
-    }
-    /* 1000xxx11000xxxx - UNPK */
-    else if ((opcode & 0xf1f0) == 0x8180)
-    {
-
-    }
-    /* 1000xxx111xxxxxx - DIVS */
-    else if ((opcode & 0xf1c0) == 0x81c0)
-    {
-        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
-    }
-    /* 1000xxxxxxxxxxxx - OR */
-    else if ((opcode & 0xf000) == 0x8000)
+    /* 1011xxxxxxxxxxxx - EOR */
+    if ((opcode & 0xf000) == 0xb000)
     {
         uint8_t size = 1 << ((opcode >> 6) & 3);
         uint8_t direction = (opcode >> 8) & 1; // 0: Ea+Dn->Dn, 1: Ea+Dn->Ea
@@ -56,17 +29,17 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
             switch (size)
             {
             case 4:
-                *ptr++ = orrs_reg(dest, dest, src, 0);
+                *ptr++ = eors_reg(dest, dest, src, 0);
                 break;
             case 2:
                 *ptr++ = lsl_immed(src, src, 16);
-                *ptr++ = orrs_reg(src, src, dest, 16);
+                *ptr++ = eors_reg(src, src, dest, 16);
                 *ptr++ = lsr_immed(src, src, 16);
                 *ptr++ = bfi(dest, src, 0, 16);
                 break;
             case 1:
                 *ptr++ = lsl_immed(src, src, 24);
-                *ptr++ = orrs_reg(src, src, dest, 24);
+                *ptr++ = eors_reg(src, src, dest, 24);
                 *ptr++ = lsr_immed(src, src, 24);
                 *ptr++ = bfi(dest, src, 0, 8);
                 break;
@@ -96,7 +69,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldr_offset(dest, tmp, 0);
 
                 /* Perform calcualtion */
-                *ptr++ = orrs_reg(tmp, tmp, src, 0);
+                *ptr++ = eors_reg(tmp, tmp, src, 0);
 
                 /* Store back */
                 if (mode == 3)
@@ -117,7 +90,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldrh_offset(dest, tmp, 0);
                 /* Perform calcualtion */
                 *ptr++ = lsl_immed(tmp, tmp, 16);
-                *ptr++ = orrs_reg(tmp, tmp, src, 16);
+                *ptr++ = eors_reg(tmp, tmp, src, 16);
                 *ptr++ = lsr_immed(tmp, tmp, 16);
                 /* Store back */
                 if (mode == 3)
@@ -139,7 +112,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
 
                 /* Perform calcualtion */
                 *ptr++ = lsl_immed(tmp, tmp, 24);
-                *ptr++ = orrs_reg(tmp, tmp, src, 24);
+                *ptr++ = eors_reg(tmp, tmp, src, 24);
                 *ptr++ = lsr_immed(tmp, tmp, 24);
 
                 /* Store back */

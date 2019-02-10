@@ -127,10 +127,12 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     else if (group == 11)
     {
         /* CMP/EOR */
+        ptr = EMIT_lineB(arm_ptr, m68k_ptr);
     }
     else if (group == 12)
     {
         /* AND/MUL/ABCD/EXG */
+        ptr = EMIT_lineC(arm_ptr, m68k_ptr);
     }
     else if (group == 13)
     {
