@@ -20,8 +20,52 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
 
+    /* 1011xxxx11xxxxxx - CMPA */
+    if ((opcode & 0xf0c0) == 0xb0c0)
+    {
+        uint8_t size = ((opcode >> 8) & 1) ? 4 : 2;
+        uint8_t src = 0xff;
+        uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+        uint8_t ext_words = 0;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+        switch (size)
+        {
+        case 4:
+            *ptr++ = rsbs_reg(tmp, src, dst, 0);
+            break;
+        case 2:
+            *ptr++ = lsl_immed(tmp, src, 16);
+            *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
+            break;
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+
+        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+        if (update_mask)
+        {
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            if (update_mask & SR_V)
+                *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
+            if (update_mask & SR_C) /* Note - after sub/rsb C flag on ARM is inverted! */
+                *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_C);
+        }
+    }
     /* 1011xxx1xx001xxx - CMPM */
-    if ((opcode & 0xf138) == 0xb108)
+    else if ((opcode & 0xf138) == 0xb108)
     {
         uint8_t size = 1 << ((opcode >> 6) & 3);
         uint8_t src = 0xff;
@@ -50,54 +94,6 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, tmp);
         RA_FreeARMRegister(&ptr, src);
         RA_FreeARMRegister(&ptr, dst);
-
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
-        (*m68k_ptr) += ext_words;
-
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
-        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
-
-        if (update_mask)
-        {
-            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-            if (update_mask & SR_V)
-                *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
-            if (update_mask & SR_C) /* Note - after sub/rsb C flag on ARM is inverted! */
-                *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_C);
-        }
-    }
-    /* 1011xxxx11xxxxxx - CMPA */
-    else if ((opcode & 0xf0c0) == 0xb0c0)
-    {
-        uint8_t size = ((opcode >> 8) & 1) ? 4 : 2;
-        uint8_t src = 0xff;
-        uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-        uint8_t ext_words = 0;
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
-
-        switch (size)
-        {
-        case 4:
-            *ptr++ = rsbs_reg(tmp, src, dst, 0);
-            break;
-        case 2:
-            *ptr++ = lsl_immed(tmp, src, 16);
-            *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
-            break;
-        case 1:
-            *ptr++ = lsl_immed(tmp, src, 24);
-            *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
-            break;
-        }
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         (*m68k_ptr) += ext_words;
@@ -170,16 +166,15 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xf000) == 0xb000)
     {
         uint8_t size = 1 << ((opcode >> 6) & 3);
-        uint8_t direction = (opcode >> 8) & 1; // 0: Ea+Dn->Dn, 1: Ea+Dn->Ea
         uint8_t ext_words = 0;
 
-        if (direction == 0)
+        if ((opcode & 0x38) == 0)
         {
-            uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-            uint8_t src = 0;
+            uint8_t src = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+            uint8_t dest = RA_MapM68kRegister(&ptr, (opcode) & 7);
+            uint8_t tmp = 0xff;
 
-            RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
             switch (size)
             {
@@ -187,16 +182,20 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = eors_reg(dest, dest, src, 0);
                 break;
             case 2:
-                *ptr++ = lsl_immed(src, src, 16);
-                *ptr++ = eors_reg(src, src, dest, 16);
-                *ptr++ = lsr_immed(src, src, 16);
-                *ptr++ = bfi(dest, src, 0, 16);
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl_immed(tmp, src, 16);
+                *ptr++ = eors_reg(tmp, tmp, dest, 16);
+                *ptr++ = lsr_immed(tmp, tmp, 16);
+                *ptr++ = bfi(dest, tmp, 0, 16);
+                RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 1:
-                *ptr++ = lsl_immed(src, src, 24);
-                *ptr++ = eors_reg(src, src, dest, 24);
-                *ptr++ = lsr_immed(src, src, 24);
-                *ptr++ = bfi(dest, src, 0, 8);
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl_immed(tmp, src, 24);
+                *ptr++ = eors_reg(tmp, tmp, dest, 24);
+                *ptr++ = lsr_immed(tmp, tmp, 24);
+                *ptr++ = bfi(dest, tmp, 0, 8);
+                RA_FreeARMRegister(&ptr, tmp);
                 break;
             }
 
