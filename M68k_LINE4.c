@@ -1041,7 +1041,126 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 01001x001xxxxxxx - MOVEM */
     else if ((opcode & 0xfb80) == 0x4880)
     {
-        printf("[LINE4] Not implemented MOVEM\n");
+        uint8_t dir = (opcode >> 10) & 1;
+        uint8_t size = (opcode >> 6) & 1;
+        uint16_t mask = BE16((*m68k_ptr)[0]);
+        uint8_t block_size = 0;
+        uint8_t ext_words = 0;
+
+        (*m68k_ptr)++;
+
+        printf("MOVEM\n");
+
+        for (int i=0; i < 16; i++)
+        {
+            if (mask & (1 << i))
+                block_size += size ? 4:2;
+        }
+
+        printf("BLock size: %d (%d registers)\n", block_size, block_size / (size ? 4:2));
+
+        if (dir == 0)
+        {
+            uint8_t base;
+            printf("Register to memory\n");
+
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+            /* Pre-decrement mode? Decrease the base now */
+            if ((opcode & 0x38) == 0x20)
+            {
+                *ptr++ = sub_immed(base, base, block_size);
+                uint8_t offset = 0;
+
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
+
+                /* In pre-decrement the register order is reversed */
+                for (int i=0; i < 16; i++)
+                {
+                    /* Keep base register high in LRU */
+                    RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+                    if (mask & (0x8000 >> i))
+                    {
+                        printf("Register %d\n", i);
+                        uint8_t reg = RA_MapM68kRegister(&ptr, i);
+                        if (size) {
+                            *ptr++ = str_offset(base, reg, offset);
+                            offset += 4;
+                        }
+                        else
+                        {
+                            *ptr++ = strh_offset(base, reg, offset);
+                            offset += 2;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                uint8_t offset = 0;
+
+                for (int i=0; i < 16; i++)
+                {
+                    if (mask & (1 << i))
+                    {
+                        uint8_t reg = RA_MapM68kRegister(&ptr, i);
+                        if (size) {
+                            *ptr++ = str_offset(base, reg, offset);
+                            offset += 4;
+                        }
+                        else
+                        {
+                            *ptr++ = strh_offset(base, reg, offset);
+                            offset += 2;
+                        }
+                    }
+                }
+            }
+
+            RA_FreeARMRegister(&ptr, base);
+        }
+        else
+        {
+            uint8_t base;
+            uint8_t offset = 0;
+
+            printf("Memory to register\n");
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+            for (int i=0; i < 16; i++)
+            {
+                if (mask & (1 << i))
+                {
+                    /* Keep base register high in LRU */
+                    if (((opcode & 0x38) == 0x18)) RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+
+                    uint8_t reg = RA_MapM68kRegisterForWrite(&ptr, i);
+                    if (size) {
+                        if (!(((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8)))
+                            *ptr++ = ldr_offset(base, reg, offset);
+                        offset += 4;
+                    }
+                    else
+                    {
+                        if (!(((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8)))
+                            *ptr++ = ldrsh_offset(base, reg, offset);
+                        offset += 2;
+                    }
+                }
+            }
+
+            /* Post-increment mode? Increase the base now */
+            if ((opcode & 0x38) == 0x18)
+            {
+                *ptr++ = add_immed(base, base, block_size);
+                RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
+            }
+
+            RA_FreeARMRegister(&ptr, base);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 2));
+        (*m68k_ptr) += ext_words;
     }
     /* 0100xxx111xxxxxx - LEA */
     else if ((opcode & 0xf1c0) == 0x41c0)
