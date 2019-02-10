@@ -12,24 +12,31 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
+    int8_t pc_off;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            *ptr++ = ldrb_offset(REG_PC, immed, 3);
+            pc_off = 3;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
             *ptr++ = lsl_immed(immed, immed, 24);
             ext_count++;
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            *ptr++ = ldrh_offset(REG_PC, immed, 2);
+            pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
             *ptr++ = lsl_immed(immed, immed, 16);
             ext_count++;
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            *ptr++ = ldr_offset(REG_PC, immed, 2);
+            pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldr_offset(REG_PC, immed, pc_off);
             ext_count+=2;
             size = 4;
             break;
@@ -81,7 +88,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, immed);
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -108,18 +115,23 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
+    int8_t pc_off;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            *ptr++ = ldrb_offset(REG_PC, immed, 3);
+            pc_off = 3;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
             *ptr++ = lsl_immed(immed, immed, 24);
             ext_count++;
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            *ptr++ = ldrh_offset(REG_PC, immed, 2);
+            pc_off = 2;
+            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
             *ptr++ = lsl_immed(immed, immed, 16);
             ext_count++;
             size = 2;
@@ -237,7 +249,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, immed);
     RA_FreeARMRegister(&ptr, dest);
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
