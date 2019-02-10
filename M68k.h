@@ -90,6 +90,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
 
 uint8_t M68K_GetSRMask(uint16_t opcode);

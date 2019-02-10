@@ -142,6 +142,7 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     else if (group == 14)
     {
         /* Shift/Rotate/Bitfield */
+        ptr = EMIT_lineE(arm_ptr, m68k_ptr);
     }
     else
         (*m68k_ptr)++;
@@ -304,13 +305,13 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 //        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
-    /*
+    
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
             uint32_t insn = unit->mt_ARMCode[i];
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
         }
-        exit(0);
+    /*    exit(0);
 */
     }
 
