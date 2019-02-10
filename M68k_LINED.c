@@ -13,7 +13,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
 
-    /* SUBA */
+    /* ADDA */
     if ((opcode & 0xf1c0) == 0xd0c0)
     {
         uint8_t ext_words = 0;
