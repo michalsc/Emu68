@@ -193,6 +193,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
 
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
         if (regshift)
         {
             shift = RA_MapM68kRegister(&ptr, shift);
@@ -311,6 +313,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t regshift = (opcode >> 5) & 1;
         uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
         if (regshift)
         {
@@ -435,6 +439,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t regshift = (opcode >> 5) & 1;
         uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
         if (regshift)
         {
