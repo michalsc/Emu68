@@ -82,8 +82,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         if (mode == 2) /* Mode 002: (An) */
         {
             if (size == 0) {
-                RA_FreeARMRegister(&ptr, *arm_reg);
-                *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
+                uint8_t tmp = RA_MapM68kRegister(&ptr, src_reg + 8);
+                *ptr++ = mov_reg(*arm_reg, tmp);
             }
             else
             {
@@ -959,8 +959,10 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
     {
         if (mode == 2) /* Mode 002: (An) */
         {
-            if (size == 0)
-                *ptr++ = ldr_offset(REG_CTX, *arm_reg, __builtin_offsetof(struct M68KState, A[src_reg]));
+            if (size == 0) {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, src_reg + 8);
+                *ptr++ = mov_reg(*arm_reg, tmp);
+            }
             else
             {
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
@@ -983,8 +985,10 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         }
         else if (mode == 3) /* Mode 003: (An)+ */
         {
-            if (size == 0)
-                *ptr++ = ldr_offset(REG_CTX, *arm_reg, __builtin_offsetof(struct M68KState, A[src_reg]));
+            if (size == 0) {
+                RA_FreeARMRegister(&ptr, *arm_reg);
+                *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
+            }
             else
             {
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
@@ -1013,8 +1017,10 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         }
         else if (mode == 4) /* Mode 004: -(An) */
         {
-            if (size == 0)
-                *ptr++ = ldr_offset(REG_CTX, *arm_reg, __builtin_offsetof(struct M68KState, A[src_reg]));
+            if (size == 0) {
+                RA_FreeARMRegister(&ptr, *arm_reg);
+                *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
+            }
             else
             {
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
