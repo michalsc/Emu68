@@ -34,7 +34,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
     int new_offset = _pc_rel + *offset;
 
     // If overflow would occur then compute PC and get new offset
-    if (new_offset > 127 && new_offset < -128)
+    if (new_offset > 127 || new_offset < -128)
     {
         if (_pc_rel > 0)
             *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
@@ -57,7 +57,7 @@ uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset)
     _pc_rel += (int)offset;
 
     // If overflow would occur then compute PC and get new offset
-    if (_pc_rel > 127 && _pc_rel < -128)
+    if (_pc_rel > 127 || _pc_rel < -128)
     {
         if (_pc_rel > 0)
             *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
@@ -208,7 +208,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 //        printf("[ICache] Creating new translation unit at %p\n", (void*)unit);
         unit->mt_M68kAddress = m68kcodeptr;
 
-//        uint32_t prologue_size = 0;
+        //uint32_t prologue_size = 0;
         uint32_t epilogue_size = 0;
         uint32_t conditionals_count = 0;
 
@@ -230,7 +230,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         *end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         *end++ = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
-  //      prologue_size = end - tmpptr;
+        //prologue_size = end - tmpptr;
         while (*m68kcodeptr != 0xffff && insn_count++ < m68k_translation_depth)
         {
             end = EmitINSN(end, &m68kcodeptr);
@@ -294,6 +294,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
         *end++ = bx_lr();
         epilogue_size += end - tmpptr;
+
 /*
         printf("[ICache] Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
         printf("[ICache] Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
@@ -314,13 +315,14 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 //        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
-    
+        /*
+        printf("-----\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
             uint32_t insn = unit->mt_ARMCode[i];
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
         }
-    /*    exit(0);
+        exit(0);
 */
     }
 
