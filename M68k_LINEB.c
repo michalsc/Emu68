@@ -18,6 +18,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
         uint8_t dst = 0xff;
         uint8_t ext_words = 0;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, 0x18 | (opcode & 7), *m68k_ptr, &ext_words);
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dst, 0x18 | ((opcode >> 9) & 7), *m68k_ptr, &ext_words);
@@ -25,18 +26,19 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         switch (size)
         {
         case 4:
-            *ptr++ = rsbs_reg(src, src, dst, 0);
+            *ptr++ = rsbs_reg(tmp, src, dst, 0);
             break;
         case 2:
-            *ptr++ = lsl_immed(src, src, 16);
-            *ptr++ = rsbs_reg(src, src, dst, 16);
+            *ptr++ = lsl_immed(tmp, src, 16);
+            *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
             break;
         case 1:
-            *ptr++ = lsl_immed(src, src, 24);
-            *ptr++ = rsbs_reg(src, src, dst, 24);
+            *ptr++ = lsl_immed(tmp, src, 24);
+            *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
             break;
         }
 
+        RA_FreeARMRegister(&ptr, tmp);
         RA_FreeARMRegister(&ptr, src);
         RA_FreeARMRegister(&ptr, dst);
 
@@ -66,24 +68,26 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
         uint8_t ext_words = 0;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
 
         switch (size)
         {
         case 4:
-            *ptr++ = rsbs_reg(src, src, dst, 0);
+            *ptr++ = rsbs_reg(tmp, src, dst, 0);
             break;
         case 2:
-            *ptr++ = lsl_immed(src, src, 16);
-            *ptr++ = rsbs_reg(src, src, dst, 16);
+            *ptr++ = lsl_immed(tmp, src, 16);
+            *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
             break;
         case 1:
-            *ptr++ = lsl_immed(src, src, 24);
-            *ptr++ = rsbs_reg(src, src, dst, 24);
+            *ptr++ = lsl_immed(tmp, src, 24);
+            *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
             break;
         }
 
+        RA_FreeARMRegister(&ptr, tmp);
         RA_FreeARMRegister(&ptr, src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
@@ -112,24 +116,26 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
         uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
         uint8_t ext_words = 0;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
 
         switch(size)
         {
             case 4:
-                *ptr++ = rsbs_reg(src, src, dst, 0);
+                *ptr++ = rsbs_reg(tmp, src, dst, 0);
                 break;
             case 2:
-                *ptr++ = lsl_immed(src, src, 16);
-                *ptr++ = rsbs_reg(src, src, dst, 16);
+                *ptr++ = lsl_immed(tmp, src, 16);
+                *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
                 break;
             case 1:
-                *ptr++ = lsl_immed(src, src, 24);
-                *ptr++ = rsbs_reg(src, src, dst, 24);
+                *ptr++ = lsl_immed(tmp, src, 24);
+                *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
                 break;
         }
 
+        RA_FreeARMRegister(&ptr, tmp);
         RA_FreeARMRegister(&ptr, src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
