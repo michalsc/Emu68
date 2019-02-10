@@ -6,13 +6,75 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+
+uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
+
 uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
 
+    /* 1100xxx011xxxxxx - MULU */
+    if ((opcode & 0xf1c0) == 0xc0c0)
+    {
+        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
+    }
+    /* 1100xxx10000xxxx - ABCD */
+    else if ((opcode & 0xf1f0) == 0xc100)
+    {
+
+    }
+    /* 1100xxx111xxxxxx - MULS */
+    else if ((opcode & 0xf1c0) == 0xc1c0)
+    {
+        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
+    }
+    /* 1100xxx1xx00xxxx - EXG */
+    else if ((opcode & 0xf130) == 0xf100)
+    {
+        uint8_t reg1 = 0xff;
+        uint8_t reg2 = 0xff;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        switch ((opcode >> 3) & 0x1f)
+        {
+            case 0x08: /* Data registers */
+                reg1 = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+                reg2 = RA_MapM68kRegister(&ptr, opcode & 7);
+                *ptr++ = mov_reg(tmp, reg1);
+                *ptr++ = mov_reg(reg1, reg2);
+                *ptr++ = mov_reg(reg2, tmp);
+                RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+                RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+                break;
+
+            case 0x09:
+                reg1 = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+                reg2 = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = mov_reg(tmp, reg1);
+                *ptr++ = mov_reg(reg1, reg2);
+                *ptr++ = mov_reg(reg2, tmp);
+                RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                break;
+
+            case 0x11:
+                reg1 = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7));
+                reg2 = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = mov_reg(tmp, reg1);
+                *ptr++ = mov_reg(reg1, reg2);
+                *ptr++ = mov_reg(reg2, tmp);
+                RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7));
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                break;
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2);
+
+        RA_FreeARMRegister(&ptr, tmp);
+    }
     /* 1100xxxxxxxxxxxx - AND */
-    if ((opcode & 0xf000) == 0xc000)
+    else if ((opcode & 0xf000) == 0xc000)
     {
         uint8_t size = 1 << ((opcode >> 6) & 3);
         uint8_t direction = (opcode >> 8) & 1;
