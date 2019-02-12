@@ -19,6 +19,7 @@
 #include "ARM.h"
 
 uint8_t m68kcode[] = {
+/*
     0x7c, 0x20,
     0x7e, 0xff,
     0x52, 0x80, 0x52, 0x80, 0x52, 0x80,
@@ -41,7 +42,13 @@ uint8_t m68kcode[] = {
     0x51, 0xce, 0xff, 0x98,
     0x4e, 0x75,
     0xff, 0xff
-
+*/
+    /*0x74,0x08,
+    0x20,0x3c,0xaa,0x55,0xaa,0x55,
+    0x22,0x3c,0x87,0x65,0x43,0x21,
+    0xe5,0xb8,
+    0xe4,0xb9,
+    0x4e,0x75,*/
     /*
     0x20,0x3c,0xde,0xad,0xbe,0xef,
     0x22,0x3c,0x12,0x34,0x56,0x78,
@@ -49,6 +56,115 @@ uint8_t m68kcode[] = {
     0x16,0x3c,0x00,0xc7,
     0x4e,0x75,
 */
+    0x2a,0x49,  // movea.l  a1,a5
+    0x2c,0x4a,  // movea.l  a2,a6
+    0x22,0x5e,  //           	movea.l (a6)+,a1
+    0x24,0x5e,  //           	movea.l (a6)+,a2
+    0x26,0x5e,  //           	movea.l (a6)+,a3
+    0x28,0x56,  //           	movea.l (a6),a4
+    0x2c,0x3c,0x55,0x55 ,0x55,0x55, // 	move.l #1431655765,d6
+    0x2e,0x3c ,0x33,0x33,0x33,0x33, // 	move.l #858993459,d7
+    0x28,0x3c ,0x0f,0x0f ,0x0f,0x0f,// 	loop: move.l #252645135,d4 
+    0x2a,0x3c ,0x00,0xff ,0x00,0xff, //	move.l #16711935,d5
+    0x20,0x18, // move.l (a0)+, d0
+    0xc0,0x84, //           	and.l d4,d0
+    0x22,0x18, // 	move.l (a0)+,d1
+    0xe9,0x88, //           	lsl.l #4,d0
+    0xc2,0x84, //           	and.l d4,d1
+    0x80,0x81, //           	or.l d1,d0
+    0x22,0x18, // 	move.l (a0)+,d1
+    0xc2,0x84, //           	and.l d4,d1
+    0x24,0x18, // 	move.l (a0)+,d2
+    0xe9,0x89, //           	lsl.l #4,d1
+    0xc4,0x84, //           	and.l d4,d2
+    0x82,0x82, //           	or.l d2,d1
+    0x24,0x00, //           	move.l d0,d2
+    0x26,0x01, //           	move.l d1,d3
+    0xc0,0x85, //           	and.l d5,d0
+    0xc6,0x85, //           	and.l d5,d3
+    0xb1,0x82, //           	eor.l d0,d2
+    0xb7,0x81, //           	eor.l d3,d1
+    0xe1,0x88, //           	lsl.l #8,d0
+    0xe0,0x89, //           	lsr.l #8,d1
+    0x80,0x83, //           	or.l d3,d0
+    0x82,0x82, //           	or.l d2,d1
+    0x24,0x00, //           	move.l d0,d2
+    0x26,0x01, //           	move.l d1,d3
+    0xc0,0x86, //           	and.l d6,d0
+    0xc6,0x86, //           	and.l d6,d3
+    0xb1,0x82, //           	eor.l d0,d2
+    0xb7, 0x81,//           	eor.l d3,d1
+    0xd6,0x83, //           	add.l d3,d3
+    0xe2,0x8a, //           	lsr.l #1,d2
+    0x80,0x83, //           	or.l d3,d0
+    0x82,0x82, //           	or.l d2,d1
+    0x24,0x18, // 	move.l (a0)+,d2
+    0xc4,0x84, //           	and.l d4,d2
+    0x26,0x18, // 	move.l (a0)+,d3
+    0xe9,0x8a, //           	lsl.l #4,d2
+    0xc6,0x84, //           	and.l d4,d3
+    0x84,0x83, //           	or.l d3,d2
+    0x26,0x18, // 	move.l (a0)+,d3
+    0xc6,0x84, //           	and.l d4,d3
+    0x28,0x18, // 	move.l (a0)+,d4
+    0xe9,0x8b, //           	lsl.l #4,d3
+    0x86,0x84, //           	or.l d4,d3
+    0x28,0x02, //           	move.l d2,d4
+    0xc4,0x85, //           	and.l d5,d2
+    0xca,0x83, //           	and.l d3,d5
+    0xb5,0x84, //           	eor.l d2,d4
+    0xbb,0x83, //           	eor.l d5,d3
+    0xe1,0x8a, //           	lsl.l #8,d2
+    0xe0,0x8b, //           	lsr.l #8,d3
+    0x84,0x85, //           	or.l d5,d2
+    0x86,0x84, //           	or.l d4,d3
+    0x28,0x02, //           	move.l d2,d4
+    0x2a,0x03, //           	move.l d3,d5
+    0xc4,0x86, //           	and.l d6,d2
+    0xca,0x86, //           	and.l d6,d5
+    0xb5,0x84, //           	eor.l d2,d4
+    0xbb,0x83, //           	eor.l d5,d3
+    0xda,0x85, //           	add.l d5,d5
+    0xe2,0x8c, //           	lsr.l #1,d4
+    0x84,0x85, //           	or.l d5,d2
+    0x86,0x84, //           	or.l d4,d3
+    0x48,0x42, //           	swap d2
+    0x48,0x43, //           	swap d3
+    0xb1,0x42, //           	eor.w d0,d2
+    0xb3,0x43, //           	eor.w d1,d3
+    0xb5,0x40, //           	eor.w d2,d0
+    0xb7,0x41, //           	eor.w d3,d1
+    0xb1,0x42, //           	eor.w d0,d2
+    0xb3,0x43, //           	eor.w d1,d3
+    0x48,0x42, //           	swap d2
+    0x48,0x43, //           	swap d3
+    0x28,0x00, //           	move.l d0,d4
+    0x2a,0x02, //           	move.l d2,d5
+    0xc0,0x87, //           	and.l d7,d0
+    0xca,0x87, //           	and.l d7,d5
+    0xb1,0x84, //           	eor.l d0,d4
+    0xbb,0x82, //           	eor.l d5,d2
+    0xe5,0x88, //           	lsl.l #2,d0
+    0xe4,0x8a, //           	lsr.l #2,d2
+    0x80,0x85, //           	or.l d5,d0
+    0x22,0xc0, //           	move.l d0,(a1)+
+    0x84,0x84, //           	or.l d4,d2
+    0x26,0xc2, //           	move.l d2,(a3)+
+    0x28,0x01, //           	move.l d1,d4
+    0x2a,0x03, //           	move.l d3,d5
+    0xc2,0x87, //           	and.l d7,d1
+    0xca,0x87, //           	and.l d7,d5
+    0xb3,0x84, //           	eor.l d1,d4
+    0xbb,0x83, //           	eor.l d5,d3
+    0xe5,0x89, //           	lsl.l #2,d1
+    0xe4,0x8b, //           	lsr.l #2,d3
+    0x82,0x85, //           	or.l d5,d1
+    0x24,0xc1, //           	move.l d1,(a2)+
+    0x86,0x84, //           	or.l d4,d3
+    0x28,0xc3, //           	move.l d3,(a4)+
+    0xb1,0xcd, //       cmpa.l a5,a0
+    0x6d,0x00,0xff,0x30, // blt.w loop
+    0x4e,0x75,  
 };
 
 void *m68kcodeptr = m68kcode;
@@ -104,6 +220,18 @@ void print_context(struct M68KState *m68k)
     printf("\n    USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
 }
 
+#define DATA_SIZE 6400*4800
+
+uint8_t chunky[DATA_SIZE];
+uint8_t plane0[DATA_SIZE ];
+uint8_t plane1[DATA_SIZE ];
+uint8_t plane2[DATA_SIZE ];
+uint8_t plane3[DATA_SIZE ];
+
+uint8_t *bitmap[4] = {
+    plane0, plane1, plane2, plane3
+};
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -117,12 +245,21 @@ int main(int argc, char **argv)
     struct M68KState m68k;
     struct timespec t1, t2;
 
+    bitmap[0] = (uint8_t *)BE32((uintptr_t)bitmap[0]);
+    bitmap[1] = (uint8_t *)BE32((uintptr_t)bitmap[1]);
+    bitmap[2] = (uint8_t *)BE32((uintptr_t)bitmap[2]);
+    bitmap[3] = (uint8_t *)BE32((uintptr_t)bitmap[3]);
+
     bzero(&m68k, sizeof(m68k));
     memset(&stack, 0xaa, sizeof(stack));
-    m68k.A[0].u32 = BE32((uint32_t)data);
+    m68k.A[0].u32 = BE32((uint32_t)chunky);
+    m68k.A[1].u32 = BE32((uint32_t)chunky + DATA_SIZE);
+    m68k.A[2].u32 = BE32((uint32_t)bitmap);
     m68k.A[7].u32 = BE32((uint32_t)&stack[511]);
     m68k.PC = (uint16_t *)BE32((uint32_t)m68kcodeptr);
 
+    data[0] = BE32(3);
+    data[1] = BE32(100);
     stack[511] = 0;
 
     print_context(&m68k);
