@@ -106,7 +106,7 @@ uint8_t m68kcode[] = {
     0x84,0x83, //           	or.l d3,d2
     0x26,0x18, // 	move.l (a0)+,d3
     0xc6,0x84, //           	and.l d4,d3
-    0x28,0x18, // 	move.l (a0)+,d4
+    0xc8,0x98, // 	move.l (a0)+,d4
     0xe9,0x8b, //           	lsl.l #4,d3
     0x86,0x84, //           	or.l d4,d3
     0x28,0x02, //           	move.l d2,d4
