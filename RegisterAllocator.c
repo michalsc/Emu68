@@ -135,6 +135,9 @@ void RA_FlushM68kRegs(uint32_t **arm_stream)
 {
     for (int i=0; i < 16; i++)
         RA_DiscardM68kRegister(arm_stream, i);
+
+    for (int i=0; i < 8; i++)
+        LRU_Table[i] = -1;
 }
 
 /* Insert new register into LRU table */
