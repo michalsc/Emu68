@@ -40,7 +40,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
             *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
         else
             *ptr++ = sub_immed(REG_PC, REG_PC, -_pc_rel);
-        
+
         _pc_rel = 0;
     }
     else
@@ -166,6 +166,8 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     return ptr;
 }
 
+void __clear_cache(void *begin, void *end);
+
 /*
     Get M68K code unit from the instruction cache. Return NULL if code was not found and needs to be
     translated first.
@@ -194,7 +196,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     /* Unit found? Move it to the front of LRU list */
     if (unit != NULL)
     {
-        REMOVE(&(unit->mt_LRUNode));
+        REMOVE(&unit->mt_LRUNode);
         ADDHEAD(&LRU, &unit->mt_LRUNode);
     }
     else
@@ -315,6 +317,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 //        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
+
+        __clear_cache(arm_code, end);
+
         /*
         printf("-----\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
