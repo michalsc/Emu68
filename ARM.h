@@ -140,6 +140,12 @@ static inline uint32_t eors_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint
 static inline uint32_t eors_immed(uint8_t dest, uint8_t src, uint8_t value){return eors_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t eors_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x00200000 | (cc << 28) | (1 << 20) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t eors_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return eors_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
+static inline uint32_t ldrex_cc(uint8_t cc, uint8_t rn, uint8_t rd)  { return INSN_TO_LE(0x01900f9f | (cc << 28) | (rn << 16) | (rd << 12)); }
+static inline uint32_t ldrex(uint8_t rn, uint8_t rd) { return ldrex_cc(ARM_CC_AL, rn, rd); }
+static inline uint32_t ldrexb_cc(uint8_t cc, uint8_t rn, uint8_t rd) { return INSN_TO_LE(0x01d00f9f | (cc << 28) | (rn << 16) | (rd << 12)); }
+static inline uint32_t ldrexb(uint8_t rn, uint8_t rd) { return ldrexb_cc(ARM_CC_AL, rn, rd); }
+static inline uint32_t ldrexh_cc(uint8_t cc, uint8_t rn, uint8_t rd) { return INSN_TO_LE(0x01f00f9f | (cc << 28) | (rn << 16) | (rd << 12)); }
+static inline uint32_t ldrexh(uint8_t rn, uint8_t rd) { return ldrexh_cc(ARM_CC_AL, rn, rd); }
 static inline uint32_t ldr_cc_offset(uint8_t cc, uint8_t dest, uint8_t src, int16_t offset){return (offset >= 0) ? INSN_TO_LE(0x05900000 | (cc << 28) | (dest << 16) | (src << 12) | offset) : INSN_TO_LE(0x05100000 | (cc << 28) | (dest << 16) | (src << 12) | -offset);}
 static inline uint32_t ldr_offset(uint8_t dest, uint8_t src, int16_t offset){return ldr_cc_offset(ARM_CC_AL, dest, src, offset);}
 static inline uint32_t ldr_cc_offset_preindex(uint8_t cc, uint8_t dest, uint8_t src, int16_t offset){return (offset >= 0) ? INSN_TO_LE(0x05b00000 | (cc << 28) | (dest << 16) | (src << 12) | offset) : INSN_TO_LE(0x05300000 | (cc << 28) | (dest << 16) | (src << 12) | -offset);}
@@ -256,6 +262,12 @@ static inline uint32_t strb_cc_offset_postindex(uint8_t cc, uint8_t dest, uint8_
 static inline uint32_t strb_offset_postindex(uint8_t dest, uint8_t src, int16_t offset){return strb_cc_offset_postindex(ARM_CC_AL, dest, src, offset);}
 static inline uint32_t strb_cc_regoffset(uint8_t cc, uint8_t dest, uint8_t src, uint8_t offset, uint8_t shift){return INSN_TO_LE(0x07c00000 | (cc << 28) | (dest << 16) | (src << 12) | offset | ((shift & 0x1f) << 7));}
 static inline uint32_t strb_regoffset(uint8_t dest, uint8_t src, uint8_t offset, uint8_t shift){return strb_cc_regoffset(ARM_CC_AL, dest, src, offset, shift);}
+static inline uint32_t strex_cc(uint8_t cc, uint8_t rn, uint8_t rm, uint8_t rd) { return INSN_TO_LE(0x01800f90 | (cc << 28) | (rn << 16) | (rd << 12) | rm); }
+static inline uint32_t strex(uint8_t rn, uint8_t rm, uint8_t rd) { return strex_cc(ARM_CC_AL, rn, rm, rd); }
+static inline uint32_t strexb_cc(uint8_t cc, uint8_t rn, uint8_t rm, uint8_t rd) { return INSN_TO_LE(0x01c00f90 | (cc << 28) | (rn << 16) | (rd << 12) | rm); }
+static inline uint32_t strexb(uint8_t rn, uint8_t rm, uint8_t rd) { return strexb_cc(ARM_CC_AL, rn, rm, rd); }
+static inline uint32_t strexh_cc(uint8_t cc, uint8_t rn, uint8_t rm, uint8_t rd) { return INSN_TO_LE(0x01e00f90 | (cc << 28) | (rn << 16) | (rd << 12) | rm); }
+static inline uint32_t strexh(uint8_t rn, uint8_t rm, uint8_t rd) { return strexh_cc(ARM_CC_AL, rn, rm, rd); }
 static inline uint32_t strh_cc_offset(uint8_t cc, uint8_t dest, uint8_t src, int8_t offset){return (offset >= 0) ? INSN_TO_LE(0x01c000b0 | (cc << 28) | (dest << 16) | (src << 12) | (offset & 0x0f) | ((offset << 4) & 0xf00)) : INSN_TO_LE(0x014000b0 | (cc << 28) | (dest << 16) | (src << 12) | (-offset & 0x0f) | ((-offset << 4) & 0xf00));}
 static inline uint32_t strh_offset(uint8_t dest, uint8_t src, int8_t offset){return strh_cc_offset(ARM_CC_AL, dest, src, offset);}
 static inline uint32_t strh_cc_offset_preindex(uint8_t cc, uint8_t dest, uint8_t src, int8_t offset){return (offset >= 0) ? INSN_TO_LE(0x01e000b0 | (cc << 28) | (dest << 16) | (src << 12) | (offset & 0x0f) | ((offset << 4) & 0xf00)) : INSN_TO_LE(0x016000b0 | (cc << 28) | (dest << 16) | (src << 12) | (-offset & 0x0f) | ((-offset << 4) & 0xf00));}
@@ -284,6 +296,10 @@ static inline uint32_t sxtb_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t ro
 static inline uint32_t sxtb(uint8_t dest, uint8_t src, uint8_t rot){return sxtb_cc(ARM_CC_AL, dest, src, rot);}
 static inline uint32_t sxth_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06bf0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
 static inline uint32_t sxth(uint8_t dest, uint8_t src, uint8_t rot) {return sxth_cc(ARM_CC_AL, dest, src, rot);}
+static inline uint32_t teq_cc_immed(uint8_t cc, uint8_t src, uint16_t value){src = src & 15;return INSN_TO_LE(0x03300000 | (cc << 28) | (src << 16) | value);}
+static inline uint32_t teq_immed(uint8_t src, uint16_t value){return teq_cc_immed(ARM_CC_AL, src, value);}
+static inline uint32_t teq_cc_reg(uint8_t cc, uint8_t src, uint8_t reg, uint8_t lsl){src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x01300000 | (cc << 28) | (src << 16) | reg | (lsl << 7));}
+static inline uint32_t teq_reg(uint8_t src, uint8_t reg, uint8_t lsl){return teq_cc_reg(ARM_CC_AL, src, reg, lsl);}
 static inline uint32_t tst_cc_immed(uint8_t cc, uint8_t src, uint16_t value){src = src & 15;return INSN_TO_LE(0x03100000 | (cc << 28) | (src << 16) | value);}
 static inline uint32_t tst_immed(uint8_t src, uint16_t value){return tst_cc_immed(ARM_CC_AL, src, value);}
 static inline uint32_t tst_cc_reg(uint8_t cc, uint8_t src, uint8_t reg, uint8_t lsl){src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x01100000 | (cc << 28) | (src << 16) | reg | (lsl << 7));}
