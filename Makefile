@@ -2,7 +2,7 @@ CC := arm-linux-gnueabihf-gcc
 CXX := arm-linux-gnueabihf-g++
 CFLAGS  := -std=c11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
 CXXFLAGS:= -std=c++11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
-LDFLAGS := -static -lrt
+LDFLAGS := -static -lrt -s
 
 HOST_CXX := g++
 HOST_CXXFLAGS := -O2 -std=c++11
