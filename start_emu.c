@@ -244,6 +244,9 @@ int main(int argc, char **argv)
     struct M68KTranslationUnit * unit = NULL;
     struct M68KState m68k;
     struct timespec t1, t2;
+    struct timespec t3, t4;
+
+    double translation_time = 0.0;
 
     bitmap[0] = (uint8_t *)BE32((uintptr_t)bitmap[0]);
     bitmap[1] = (uint8_t *)BE32((uintptr_t)bitmap[1]);
@@ -273,11 +276,13 @@ int main(int argc, char **argv)
     do {
         if (last_PC != (uint32_t)m68k.PC)
         {
-  //      clock_gettime(CLOCK_MONOTONIC, &t1);
+        clock_gettime(CLOCK_MONOTONIC, &t3);
             unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k.PC)));
+            clock_gettime(CLOCK_MONOTONIC, &t4);
+            translation_time += (double)(t4.tv_sec - t3.tv_sec) * 1000.0 + (double)(t4.tv_nsec - t3.tv_nsec)/1000000.0;
             last_PC = (uint32_t)m68k.PC;
         }
-  //      clock_gettime(CLOCK_MONOTONIC, &t2);
+
 
   //      printf("[JIT] Getting translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
 /*printf("-----\n");
@@ -311,6 +316,7 @@ int main(int argc, char **argv)
     clock_gettime(CLOCK_MONOTONIC, &t2);
 
     printf("[JIT] Time in m68k mode %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
+    printf("[JIT] Time spent translating m68k mode %f ms\n", translation_time);
 
     printf("Back from translated code\n");
     print_context(&m68k);
