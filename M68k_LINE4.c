@@ -698,6 +698,62 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t ext_count = 0;
+    uint8_t dest;
+    uint8_t mode = (opcode & 0x0038) >> 3;
+    uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+    uint8_t tmpresult = RA_AllocARMRegister(&ptr);
+    uint8_t tmpstate = RA_AllocARMRegister(&ptr);
+
+    /* Load effective address */
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+
+    if (mode == 4)
+    {
+        *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+    }
+
+    *ptr++ = ldrexb(dest, tmpresult);
+    *ptr++ = orr_immed(tmpreg, tmpresult, 0x80);
+    *ptr++ = strexb(dest, tmpreg, tmpstate);
+    *ptr++ = teq_immed(tmpstate, 0);
+    *ptr++ = b_cc(ARM_CC_NE, -6);
+
+    if (mode == 3)
+    {
+        *ptr++ = add_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+    }
+
+    RA_FreeARMRegister(&ptr, dest);
+    RA_FreeARMRegister(&ptr, tmpreg);
+    RA_FreeARMRegister(&ptr, tmpstate);
+
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+    (*m68k_ptr) += ext_count;
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = lsl_immed(tmpresult, tmpresult, 24);
+        *ptr++ = teq_immed(tmpresult, 0);
+
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_N)
+            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+        if (update_mask & SR_Z)
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+    }
+
+    RA_FreeARMRegister(&ptr, tmpresult);
+
+    return ptr;
+}
 
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 {
@@ -866,7 +922,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100101011xxxxxx - TAS */
     else if ((opcode & 0xffc0) == 0x4ac0)
     {
-        printf("[LINE4] Not implemented TAS\n");
+        ptr = EMIT_TAS(ptr, opcode, m68k_ptr);
     }
     /* 0100101011xxxxxx - TST */
     else if ((opcode & 0xff00) == 0x4a00 && (opcode & 0xc0) != 0xc0)
