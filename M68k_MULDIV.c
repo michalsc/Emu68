@@ -322,7 +322,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = udf(0);
 
     /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
-    *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+    *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
     /* Push a and q on the stack and pop them back into r0 and r1 */
     if (reg_a == 0 && reg_q == 1)
@@ -371,7 +371,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     /* Restore registers from the stack */
-    *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+    *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
     /* Extract upper 16 bits of quotient into temporary register */
     uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -423,6 +423,8 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, reg_q);
     RA_FreeARMRegister(&ptr, reg_quot);
     RA_FreeARMRegister(&ptr, reg_rem);
+
+    *ptr++ = INSN_TO_LE(0xfffffff0);
 
     return ptr;
 }
