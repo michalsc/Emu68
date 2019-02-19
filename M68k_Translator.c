@@ -213,6 +213,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         uint32_t prologue_size = 0;
         uint32_t epilogue_size = 0;
         uint32_t conditionals_count = 0;
+        int lr_is_saved = 0;
 
         uint32_t insn_count = 0;
         uint32_t *arm_code = &unit->mt_ARMCode[0];
@@ -237,6 +238,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         {
             end = EmitINSN(end, &m68kcodeptr);
             insn_count++;
+            if (end[-1] == INSN_TO_LE(0xfffffff0))
+            {
+                lr_is_saved = 1;
+                end--;
+            }
             if (end[-1] == INSN_TO_LE(0xffffffff))
             {
 //                printf("[ICache] Unconditional PC change. End of translation block after %d M68K instructions\n", insn_count);
@@ -270,7 +276,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 #endif
                 pop_update_loc[pop_cnt++] = end;
                 *end++ = pop((1 << REG_SR) | (1 << REG_CTX));
-                *end++ = bx_lr();
+                if (!lr_is_saved)
+                    *end++ = bx_lr();
                 int distance = end - tmpptr;
 //                printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
                 for (unsigned i=0; i < branch_cnt; i++)
@@ -287,15 +294,25 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_le();
 #endif
-        *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
-        if (mask) {
+        if (lr_is_saved)
+            *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX) | (1 << 15));
+        else
+            *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
+        if (mask || lr_is_saved) {
             int i=1;
-            *pop_update_loc[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
+            if (lr_is_saved)
+                *pop_update_loc[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX) | (1 << 14));
+            else
+                *pop_update_loc[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
             while (pop_update_loc[i]) {
-                *pop_update_loc[i++] = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
+                if (lr_is_saved)
+                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) | (1 << REG_CTX) | (1 << 15));
+                else
+                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
             }
         }
-        *end++ = bx_lr();
+        if (!lr_is_saved)
+            *end++ = bx_lr();
         epilogue_size += end - tmpptr;
 
 
