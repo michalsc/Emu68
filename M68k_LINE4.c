@@ -710,22 +710,35 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* Load effective address */
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
 
-    if (mode == 4)
+    /* handle TAS on register, just make a copy and then orr 0x80 on register */
+    if ((opcode & 0x0038) == 0)
     {
-        *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
-        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        /* Fetch m68k register */
+        dest = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        *ptr++ = mov_reg(tmpresult, dest);
+        *ptr++ = orr_immed(dest, dest, 0x80);
     }
-
-    *ptr++ = ldrexb(dest, tmpresult);
-    *ptr++ = orr_immed(tmpreg, tmpresult, 0x80);
-    *ptr++ = strexb(dest, tmpreg, tmpstate);
-    *ptr++ = teq_immed(tmpstate, 0);
-    *ptr++ = b_cc(ARM_CC_NE, -6);
-
-    if (mode == 3)
+    else
     {
-        *ptr++ = add_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
-        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        if (mode == 4)
+        {
+            *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+
+        *ptr++ = ldrexb(dest, tmpresult);
+        *ptr++ = orr_immed(tmpreg, tmpresult, 0x80);
+        *ptr++ = strexb(dest, tmpreg, tmpstate);
+        *ptr++ = teq_immed(tmpstate, 0);
+        *ptr++ = b_cc(ARM_CC_NE, -6);
+
+        if (mode == 3)
+        {
+            *ptr++ = add_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
     }
 
     RA_FreeARMRegister(&ptr, dest);
