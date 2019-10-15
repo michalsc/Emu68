@@ -181,7 +181,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
             uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            int8_t pc_off = 2;
+            int8_t pc_off = 2 + 2*(*ext_words);
             ptr = EMIT_GetOffsetPC(ptr, &pc_off);
             *ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
             (*ext_words)++;
@@ -1060,7 +1060,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
             uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            int8_t pc_off = 2;
+            int8_t pc_off = 2 + 2*(*ext_words);
             ptr = EMIT_GetOffsetPC(ptr, &pc_off);
             *ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
             (*ext_words)++;
