@@ -67,7 +67,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         /* use 16-bit offset */
         if ((opcode & 0x00ff) == 0x00)
         {
-            int8_t pc_off = 2;
+            int8_t pc_off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &pc_off);
             *ptr++ = ldrsh_offset(REG_PC, reg, pc_off);
             addend = 2;
@@ -76,7 +76,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         /* use 32-bit offset */
         else if ((opcode & 0x00ff) == 0xff)
         {
-            int8_t pc_off = 2;
+            int8_t pc_off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &pc_off);
             *ptr++ = ldr_offset(REG_PC, reg, pc_off);
             addend = 4;
@@ -87,7 +87,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             *ptr++ = mov_immed_s8(reg, opcode & 0xff);
         }
-        
+
         ptr = EMIT_FlushPC(ptr);
 
         /* Check if INSN is BSR */
@@ -140,7 +140,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         }
 
         /* Next jump to skip the condition - invert bit 0 of the condition code here! */
-        tmpptr = ptr;        
+        tmpptr = ptr;
         *ptr++ = b_cc(arm_condition ^ 1, 2);
 
         uint8_t reg = RA_AllocARMRegister(&ptr);
@@ -171,7 +171,6 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = 1;
         *ptr++ = INSN_TO_LE(0xfffffffe);
     }
-
 
     return ptr;
 }
