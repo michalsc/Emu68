@@ -1243,11 +1243,11 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100xxx111xxxxxx - LEA */
     else if ((opcode & 0xf1c0) == 0x41c0)
     {
-        uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
+        uint8_t dest;
         uint8_t ea;
         uint8_t ext_words = 0;
-
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
         *ptr++ = mov_reg(dest, ea);
         (*m68k_ptr) += ext_words;
 
