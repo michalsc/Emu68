@@ -23,21 +23,22 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
     (*m68k_ptr)++;
 
     /* ADDA */
-    if ((opcode & 0xf1c0) == 0xd0c0)
+    if ((opcode & 0xf0c0) == 0xd0c0)
     {
         uint8_t ext_words = 0;
         uint8_t size = (opcode & 0x0100) == 0x0100 ? 4 : 2;
         uint8_t reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
         uint8_t tmp;
-        RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
 
         *ptr++ = add_reg(reg, reg, tmp, 0);
+        RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
         RA_FreeARMRegister(&ptr, tmp);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
     }
     /* ADDX */
     else if ((opcode & 0xf130) == 0xd100)
