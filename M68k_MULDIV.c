@@ -174,10 +174,16 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 extern void * __aeabi_uidivmod;
 extern void * __aeabi_idivmod;
+extern void * __aeabi_uldivmod;
+extern void * __aeabi_ldivmod;
 
 /* Used for 16-bit divisions */
 void * ptr_uidivmod = &__aeabi_uidivmod;    /* In: r0, r1. Out: r0 = r0 / r1, r1 = r0 % r1 */
 void * ptr_idivmod  = &__aeabi_idivmod;     /* In: r0, r1. Out: r0 = r0 / r1, r1 = r0 % r1 */
+
+/* Used for 32-bit divisions */
+void * ptr_uldivmod  = &__aeabi_uldivmod;     /* In: r0:r1, r2:r3. Out: r0:r1 = quotient, r2:r3 = reminder */
+void * ptr_ldivmod  = &__aeabi_ldivmod;     /* In: r0:r1, r2:r3. Out: r0:r1 = quotient, r2:r3 = reminder */
 
 uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -223,7 +229,13 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     *ptr++ = ldr_offset(15, 12, 4);
+    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+    *end++ = setend_le();
+    #endif
     *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+    *end++ = setend_be();
+    #endif
     *ptr++ = b_cc(ARM_CC_AL, 0);
     *ptr++ = BE32((uint32_t)&__aeabi_idivmod);
 
@@ -346,7 +358,13 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     *ptr++ = ldr_offset(15, 12, 4);
+    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+    *end++ = setend_le();
+    #endif
     *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+    *end++ = setend_be();
+    #endif
     *ptr++ = b_cc(ARM_CC_AL, 0);
     *ptr++ = BE32((uint32_t)&__aeabi_uidivmod);
 
@@ -429,6 +447,129 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint8_t sig = (opcode2 & (1 << 11)) != 0;
+    uint8_t div64 = (opcode2 & (1 << 10)) != 0;
+    uint8_t reg_q = 0xff;
+    uint8_t reg_dq = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
+    uint8_t reg_dr = 0xff;
+    uint8_t ext_words = 1;
+
+    /* If Dr != Dq use remainder and alloc it */
+    if ((opcode2 & 7) != ((opcode2 >> 12) & 7))
+        reg_dr = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+    // Load divisor
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+    // Check if division by 0
+    *ptr++ = cmp_immed(reg_q, 0);
+    *ptr++ = b_cc(ARM_CC_NE, 0);
+    /* At this place handle exception - division by zero! */
+    *ptr++ = udf(0);
+
+    /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_dr and reg_dq in case they were allocated in r0..r4 range */
+    *ptr++ = push(((1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_dr) | (1 << reg_dq)));
+
+    /* In case of 64-bit division use (u)ldivmod, otherwise use (u)idivmod */
+    if (div64)
+    {
+
+    }
+    else
+    {
+        /* Use stack to put divisor and divident into registers */
+        if (reg_dq != 0)
+            *ptr++ = push(1 << reg_dq);
+        if (reg_q != 1) {
+            *ptr++ = push(1 << reg_q);
+            *ptr++ = pop(2);
+        }
+        if (reg_dq != 0)
+            *ptr++ = pop(1);
+
+        /* Call (u)idivmod */
+        *ptr++ = ldr_offset(15, 12, 4);
+        #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+        *end++ = setend_le();
+        #endif
+        *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+        #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+            *end++ = setend_be();
+        #endif
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        if (sig)
+            *ptr++ = BE32((uint32_t)&__aeabi_idivmod);
+        else
+            *ptr++ = BE32((uint32_t)&__aeabi_uidivmod);
+
+        /* Use stack to put quotient and (if requested) reminder into proper registers */
+        if (reg_dq != 0)
+            *ptr++ = push(1);
+        if ((reg_dr != 0xff) && (reg_dr != 1)) {
+            *ptr++ = push(2);
+            *ptr++ = pop(1 << reg_dr);
+        }
+        if (reg_dq != 0)
+            *ptr++ = pop(1 << reg_dq);
+    }
+
+    /* Restore registers from the stack */
+    *ptr++ = pop(((1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_dr) | (1 << reg_dq)));
+
+    (*m68k_ptr) += ext_words;
+
+    /* Set Dq dirty */
+    RA_SetDirtyM68kRegister(&ptr, (opcode2 >> 12) & 7);
+    /* Set Dr dirty if it was used/changed */
+    if (reg_dr != 0xff)
+        RA_SetDirtyM68kRegister(&ptr, opcode2 & 7);
+
+    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+    if (update_mask)
+    {
+        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+        if (update_mask & SR_V)
+        {
+            /* V bit can be set only with 64-bit division was used. Otherwise no overflow can occur */
+            if (div64) {
+
+            }
+        }
+        int cnt = 0;
+        if (update_mask & SR_N)
+            cnt++;
+        if (update_mask & SR_Z)
+            cnt++;
+        if (cnt)
+        {
+            *ptr++ = cmp_immed(reg_dq, 0);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            if (update_mask & SR_N) {
+                /* When setting N flag do not test 32-bit quotient but rather 16 bit. Therefore test bit 15 here */
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            }
+        }
+    }
+
+    /* Advance PC */
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+
+    RA_FreeARMRegister(&ptr, reg_q);
+    RA_FreeARMRegister(&ptr, reg_dq);
+    if (reg_dr != 0xff)
+        RA_FreeARMRegister(&ptr, reg_dr);
+
+    *ptr++ = INSN_TO_LE(0xfffffff0);
+
+    return ptr;
+}
+
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)m68k_ptr;
@@ -445,11 +586,19 @@ uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         ptr = EMIT_MULS_L(ptr, opcode, m68k_ptr);
     }
+    if ((opcode & 0xffc0) == 0x4c40)
+    {
+        ptr = EMIT_DIVUS_L(ptr, opcode, m68k_ptr);
+    }
     if ((opcode & 0xf1c0) == 0x81c0)
     {
         ptr = EMIT_DIVS_W(ptr, opcode, m68k_ptr);
     }
-
+/*    if ((opcode & 0xf1c0) == 0x80c0)
+    {
+        ptr = EMIT_DIVU_W(ptr, opcode, m68k_ptr);
+    }
+*/
 
     return ptr;
 }
