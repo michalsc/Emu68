@@ -19,14 +19,39 @@
 #include "tlsf.h"
 #include "config.h"
 
+#ifdef RASPI
+#include "support_rpi.h"
+static struct List *ICache;
+#else
 static struct List ICache[65536];
+#endif
 static struct List LRU;
+#ifndef RASPI
 static uint32_t *arm_cache;
 static const uint32_t arm_cache_size = EMU68_ARM_CACHE_SIZE;
+#endif
 static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
+static uint32_t temporary_arm_code[EMU68_M68K_INSN_DEPTH * 4 * 64];
+
 int32_t _pc_rel = 0;
+
+static inline void DuffCopy(uint32_t * restrict to, uint32_t * restrict from, uint32_t count)
+{
+    register uint32_t n = (count + 7) / 8;
+    switch (count % 8) {
+    case 0: do { *to++ = *from++; // Fallthrough
+    case 7:      *to++ = *from++; // Fallthrough
+    case 6:      *to++ = *from++; // Fallthrough
+    case 5:      *to++ = *from++; // Fallthrough
+    case 4:      *to++ = *from++; // Fallthrough
+    case 3:      *to++ = *from++; // Fallthrough
+    case 2:      *to++ = *from++; // Fallthrough
+    case 1:      *to++ = *from++; // Fallthrough
+            } while (--n != 0);
+    }
+}
 
 uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
 {
@@ -161,12 +186,23 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     {
         ptr = arm_ptr;
         *ptr++ = udf(opcode);
+        printf("[ICache] undefined instruction with opcode %04x!\n",opcode);
     }
 
     return ptr;
 }
 
+#ifdef RASPI
+
+void __clear_cache(void *begin, void *end)
+{
+    arm_flush_cache((uintptr_t)begin, (uintptr_t)end - (uintptr_t)begin);
+    arm_icache_invalidate((uintptr_t)begin, (uintptr_t)end - (uintptr_t)begin);
+}
+
+#else
 void __clear_cache(void *begin, void *end);
+#endif
 
 /*
     Get M68K code unit from the instruction cache. Return NULL if code was not found and needs to be
@@ -178,11 +214,12 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 {
     struct M68KTranslationUnit *unit = NULL, *n;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
+    uint16_t *orig_m68kcodeptr = m68kcodeptr;
 
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash ^ (hash >> 16)) & 0xffff;
 
-//    printf("[ICache] GetTranslationUnit(%p)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
+//    printf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
     /* Find entry with correct address */
     ForeachNode(&ICache[hash], n)
@@ -206,9 +243,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
             pop_update_loc[i] = (uint32_t *)0;
 
-        unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
-        printf("[ICache] Creating new translation unit at %p with hash %04x\n", (void*)unit, hash);
-        unit->mt_M68kAddress = m68kcodeptr;
+//        unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
+//        printf("[ICache] Creating new translation unit at %08x with hash %04x (m68k code @ %08x)\n", (void*)unit, hash, m68kcodeptr);
+//        unit->mt_M68kAddress = m68kcodeptr;
 
         uint32_t prologue_size = 0;
         uint32_t epilogue_size = 0;
@@ -216,10 +253,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         int lr_is_saved = 0;
 
         uint32_t insn_count = 0;
-        uint32_t *arm_code = &unit->mt_ARMCode[0];
-        unit->mt_ARMEntryPoint = arm_code;
+        uint32_t *arm_code = temporary_arm_code; //&unit->mt_ARMCode[0];
+        //unit->mt_ARMEntryPoint = arm_code;
         uint32_t *end = arm_code;
 
+        (void)prologue_size;
 //        printf("[ICache] ARM code entry at %p\n", (void*)arm_code);
 
         RA_ClearChangedMask();
@@ -316,35 +354,57 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         epilogue_size += end - tmpptr;
 
 
+    if (0)      {
+
         printf("[ICache]   Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
         printf("[ICache]   Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
             prologue_size, epilogue_size, conditionals_count);
         printf("[ICache]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
-        printf("[ICache]   Mean ARM instructions per m68k instruction: %f\n", (double)((end - arm_code) - prologue_size - epilogue_size)/(float)insn_count);
+            uint32_t mean = 100 * (end - arm_code - (prologue_size + epilogue_size));
+            mean = mean / insn_count;
+            uint32_t mean_n = mean / 100;
+            uint32_t mean_f = mean % 100;
+            printf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+        }
 
+        uintptr_t line_length = (uintptr_t)end - (uintptr_t)arm_code;
+        line_length = (line_length + 31 + sizeof(struct M68KTranslationUnit)) & ~31;
+
+        do {
+            unit = tlsf_malloc_aligned(handle, line_length, 32);
+            if (unit == NULL)
+            {
+                struct Node *n = REMTAIL(&LRU);
+                void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
+                printf("[ICache] Run out of cache. Removing least recently used cache line node @ %08x\n", ptr);
+                tlsf_free(handle, ptr);
+            }
+        } while(unit == NULL);
+
+        unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
         unit->mt_M68kInsnCnt = insn_count;
         unit->mt_ARMInsnCnt = (uint32_t)(end - arm_code);
-
-        uintptr_t line_length = (uintptr_t)end - (uintptr_t)unit;
-        line_length = (line_length + 31) & ~31;
+        unit->mt_UseCount = 0;
+        unit->mt_M68kAddress = orig_m68kcodeptr;
+        DuffCopy(unit->mt_ARMEntryPoint, arm_code, end - arm_code);
 
 //        printf("[ICache] Trimming translation unit length to %d bytes\n", (int)line_length);
 
-        unit = tlsf_realloc(handle, unit, line_length);
+//        unit = tlsf_realloc(handle, unit, line_length);
 
 //        printf("[ICache] Adding translation unit to LRU and Hashtable\n");
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
-        __clear_cache(arm_code, end);
+        __clear_cache(&unit->mt_ARMCode[0], &unit->mt_ARMCode[unit->mt_ARMInsnCnt]);
 
-        
+if (0) {
         printf("-----\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
             uint32_t insn = unit->mt_ARMCode[i];
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
-        }
+        }}
 /*                exit(0);
 */
     }
@@ -354,19 +414,58 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
 void M68K_InitializeCache()
 {
-    handle = tlsf_init();
     printf("[ICache] Initializing caches\n");
 
+#ifdef RASPI
+    handle = tlsf;
+#else
+    handle = tlsf_init();
     arm_cache = (uint32_t *)mmap(NULL, arm_cache_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 
     printf("[ICache] ARM insn cache at %p\n", (void*)arm_cache);
 
     tlsf_add_memory(handle, arm_cache, arm_cache_size);
+#endif
 
     printf("[ICache] Setting up LRU\n");
     NEWLIST(&LRU);
 
     printf("[ICache] Setting up ICache\n");
+#ifdef RASPI
+    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
+    printf("[ICache] ICache array at %08x\n", ICache);
+#endif
     for (int i=0; i < 65536; i++)
         NEWLIST(&ICache[i]);
+}
+
+void M68K_DumpStats()
+{
+    struct M68KTranslationUnit *unit = NULL;
+    struct Node *n;
+    unsigned cnt = 0;
+    unsigned size = 0;
+    unsigned m68k_count = 0;
+    unsigned arm_count = 0;
+
+    printf("[ICache] Listing translation units:\n");
+    ForeachNode(&LRU, n)
+    {
+        struct Node *n = REMTAIL(&LRU);
+        cnt++;
+        unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+        printf("[ICache]   Unit %08x, mt_UseCount=%lld, M68K address %08x, M68K insn count=%d, ARM insn count=%d\n", unit, unit->mt_UseCount,
+            unit->mt_M68kAddress, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
+        size = size + (unsigned)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (unsigned)unit;
+        m68k_count += unit->mt_M68kInsnCnt;
+        arm_count += unit->mt_ARMInsnCnt;
+    }
+    printf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
+
+    uint32_t mean = 100 * (arm_count);
+    mean = mean / m68k_count;
+    uint32_t mean_n = mean / 100;
+    uint32_t mean_f = mean % 100;
+    printf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+
 }
