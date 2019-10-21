@@ -23,7 +23,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
     (*m68k_ptr)++;
 
     /* SUBA */
-    if ((opcode & 0xf1c0) == 0x90c0)
+    if ((opcode & 0xf0c0) == 0x90c0)
     {
         uint8_t ext_words = 0;
         uint8_t size = (opcode & 0x0100) == 0x0100 ? 4 : 2;
@@ -38,6 +38,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, tmp);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
     }
     /* SUBX */
     else if ((opcode & 0xf130) == 0x9100)
@@ -242,7 +243,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
                 }
                 else
                     *ptr++ = ldrb_offset(dest, tmp, 0);
-                
+
                 /* Perform calcualtion */
                 *ptr++ = lsl_immed(tmp, tmp, 24);
                 *ptr++ = subs_reg(tmp, tmp, src, 24);
