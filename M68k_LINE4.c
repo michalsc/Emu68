@@ -606,7 +606,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (update_mask & SR_V)
             *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
         if (update_mask & (SR_C | SR_X))
-            *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C | SR_X);
+            *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_C | SR_X);
     }
 
     return ptr;
@@ -1127,20 +1127,15 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         (*m68k_ptr)++;
 
-        printf("MOVEM\n");
-
         for (int i=0; i < 16; i++)
         {
             if (mask & (1 << i))
                 block_size += size ? 4:2;
         }
 
-        printf("BLock size: %d (%d registers)\n", block_size, block_size / (size ? 4:2));
-
         if (dir == 0)
         {
             uint8_t base;
-            printf("Register to memory\n");
 
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words);
 
@@ -1159,7 +1154,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                     RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
                     if (mask & (0x8000 >> i))
                     {
-                        printf("Register %d\n", i);
                         uint8_t reg = RA_MapM68kRegister(&ptr, i);
                         if (size) {
                             *ptr++ = str_offset(base, reg, offset);
@@ -1202,7 +1196,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t base;
             uint8_t offset = 0;
 
-            printf("Memory to register\n");
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words);
 
             for (int i=0; i < 16; i++)
