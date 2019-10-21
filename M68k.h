@@ -20,6 +20,7 @@ struct M68KTranslationUnit {
     uint16_t *      mt_M68kAddress;
     uint32_t        mt_M68kInsnCnt;
     uint32_t        mt_ARMInsnCnt;
+    uint64_t        mt_UseCount;
     void *          mt_ARMEntryPoint;
     uint32_t        mt_ARMCode[] __attribute__((aligned(32)));
 };
@@ -105,5 +106,6 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
 uint8_t M68K_GetSRMask(uint16_t opcode);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
+void M68K_DumpStats();
 
 #endif /* _M68K_H */
