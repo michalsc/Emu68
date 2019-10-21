@@ -20,6 +20,9 @@ struct M68KTranslationUnit {
     uint16_t *      mt_M68kAddress;
     uint16_t *      mt_M68kLow;
     uint16_t *      mt_M68kHigh;
+    uint32_t        mt_PrologueSize;
+    uint32_t        mt_EpilogueSize;
+    uint32_t        mt_Conditionals;
     uint32_t        mt_M68kInsnCnt;
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;

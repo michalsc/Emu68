@@ -395,6 +395,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_M68kAddress = orig_m68kcodeptr;
         unit->mt_M68kLow = m68k_low;
         unit->mt_M68kHigh = m68k_high;
+        unit->mt_PrologueSize = prologue_size;
+        unit->mt_EpilogueSize = epilogue_size;
+        unit->mt_Conditionals = conditionals_count;
         DuffCopy(unit->mt_ARMEntryPoint, arm_code, end - arm_code);
 
 //        printf("[ICache] Trimming translation unit length to %d bytes\n", (int)line_length);
@@ -456,17 +459,20 @@ void M68K_DumpStats()
     unsigned size = 0;
     unsigned m68k_count = 0;
     unsigned arm_count = 0;
+    unsigned total_arm_count = 0;
 
     printf("[ICache] Listing translation units:\n");
     ForeachNode(&LRU, n)
     {
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-        printf("[ICache]   Unit %08x, mt_UseCount=%lld, M68K address %08x (range %08x-%08x), M68K insn count=%d, ARM insn count=%d\n", unit, unit->mt_UseCount,
+        printf("[ICache]   Unit %08x, mt_UseCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", unit, unit->mt_UseCount,
             unit->mt_M68kAddress, unit->mt_M68kLow, unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
+
         size = size + (unsigned)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (unsigned)unit;
         m68k_count += unit->mt_M68kInsnCnt;
-        arm_count += unit->mt_ARMInsnCnt;
+        total_arm_count += unit->mt_ARMInsnCnt;
+        arm_count += unit->mt_ARMInsnCnt - (unit->mt_PrologueSize + unit->mt_EpilogueSize);
     }
     printf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
 
@@ -475,5 +481,11 @@ void M68K_DumpStats()
     uint32_t mean_n = mean / 100;
     uint32_t mean_f = mean % 100;
     printf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+
+    mean = 100 * (total_arm_count);
+    mean = mean / m68k_count;
+    mean_n = mean / 100;
+    mean_f = mean % 100;
+    printf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
 
 }
