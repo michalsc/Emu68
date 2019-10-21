@@ -290,6 +290,8 @@ static inline uint32_t rsb_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t
 static inline uint32_t rsb_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return rsb_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t rsbs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00600000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t rsbs_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return rsbs_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
+static inline uint32_t sbfx_cc(uint8_t cc, uint8_t reg, uint8_t src, uint8_t lsb, uint8_t width) { return INSN_TO_LE(0x07a00050 | (cc << 28) | (reg << 12) | (lsb << 7) | ((width - 1) << 16) | src); }
+static inline uint32_t sbfx(uint8_t reg, uint8_t src, uint8_t lsb, uint8_t width) { return sbfx_cc(ARM_CC_AL, reg, src, lsb, width); }
 static inline uint32_t setend_be() { return INSN_TO_LE(0xf1010200); }
 static inline uint32_t setend_le() { return INSN_TO_LE(0xf1010000); }
 static inline uint32_t smull_cc(uint8_t cc, uint8_t rdhi, uint8_t rdlo, uint8_t rm, uint8_t rs) { return INSN_TO_LE(0x00c00090 | (cc << 28) | (rdhi << 16) | (rdlo << 12) | (rs << 8) | rm );}
@@ -354,6 +356,8 @@ static inline uint32_t tst_cc_immed(uint8_t cc, uint8_t src, uint16_t value){src
 static inline uint32_t tst_immed(uint8_t src, uint16_t value){return tst_cc_immed(ARM_CC_AL, src, value);}
 static inline uint32_t tst_cc_reg(uint8_t cc, uint8_t src, uint8_t reg, uint8_t lsl){src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x01100000 | (cc << 28) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t tst_reg(uint8_t src, uint8_t reg, uint8_t lsl){return tst_cc_reg(ARM_CC_AL, src, reg, lsl);}
+static inline uint32_t ubfx_cc(uint8_t cc, uint8_t reg, uint8_t src, uint8_t lsb, uint8_t width) { return INSN_TO_LE(0x07e00050 | (cc << 28) | (reg << 12) | (lsb << 7) | ((width - 1) << 16) | src); }
+static inline uint32_t ubfx(uint8_t reg, uint8_t src, uint8_t lsb, uint8_t width) { return ubfx_cc(ARM_CC_AL, reg, src, lsb, width); }
 static inline uint32_t udf(uint16_t immed) { return INSN_TO_LE(0xe7f000f0 | (immed & 0x0f) | ((immed & 0xfff0) << 4)); }
 static inline uint32_t umull_cc(uint8_t cc, uint8_t rdhi, uint8_t rdlo, uint8_t rm, uint8_t rs) { return INSN_TO_LE(0x00800090 | (cc << 28) | (rdhi << 16) | (rdlo << 12) | (rs << 8) | rm );}
 static inline uint32_t umull(uint8_t rdhi, uint8_t rdlo, uint8_t rm, uint8_t rs) { return umull_cc(ARM_CC_AL, rdhi, rdlo, rm, rs);}
