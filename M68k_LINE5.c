@@ -44,7 +44,7 @@ static uint32_t *EMIT_LoadARMCC(uint32_t *ptr, uint8_t m68k_cc)
     *ptr++ = tst_immed(tmp, 2);
     *ptr++ = orr_cc_immed(ARM_CC_NE, tmp, tmp, 0x201);
     *ptr++ = tst_immed(tmp, 1);
-    *ptr++ = orr_cc_immed(ARM_CC_NE, tmp, tmp, 0x202);
+    *ptr++ = orr_cc_immed(ARM_CC_EQ, tmp, tmp, 0x202);
     *ptr++ = msr(tmp, 8);
 
     RA_FreeARMRegister(&ptr, tmp);
@@ -266,7 +266,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
 
                 update_cc = 0;
-                
+
                 *ptr++ = subs_immed(dest, dest, data);
             }
         }
@@ -369,7 +369,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 if (update_mask & SR_V)
                     *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
                 if (update_mask & (SR_X | SR_C))
-                    *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
+                    *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_X | SR_C);
             }
         }
     }
@@ -387,7 +387,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t dx = (opcode & 0x38) == 0;
             uint8_t tmp;
 
-            if (dx) 
+            if (dx)
             {
                 /* Fetch m68k register */
                 uint8_t dest = RA_MapM68kRegister(&ptr, (opcode & 7) + (dx ? 0 : 8));
@@ -467,7 +467,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     }
                     else
                         *ptr++ = ldrh_offset(dest, tmp, 0);
-                    
+
                     /* Perform calcualtion */
                     *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
