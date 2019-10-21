@@ -1,7 +1,8 @@
 CC := arm-linux-gnueabihf-gcc
 CXX := arm-linux-gnueabihf-g++
-CFLAGS  := -std=c11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
-CXXFLAGS:= -std=c++11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
+OBJCOPY := arm-linux-gnueabihf-objcopy
+CFLAGS  := $(EXTRA_FLAGS) -std=gnu11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
+CXXFLAGS:= $(EXTRA_FLAGS) -std=c++11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
 LDFLAGS := -static -lrt -s
 
 HOST_CXX := g++
@@ -11,16 +12,26 @@ HOST_LDFLAGS :=
 OBJS := start_emu.o tlsf.o M68k_Translator.o RegisterAllocator.o M68k_EA.o M68k_SR.o \
         M68k_MOVE.o M68k_LINE0.o M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o \
         M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_MULDIV.o
+
+RPI_OBJS := start_rpi.o support_rpi.o devicetree.o tlsf.o M68k_Translator.o RegisterAllocator.o M68k_EA.o M68k_SR.o \
+        M68k_MOVE.o M68k_LINE0.o M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o \
+        M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_MULDIV.o
+
 OBJDIR := Build
 
 TESTOBJS :=
 
 TESTOBJDIR := BuildTest
 
+raspi: pre-build raspi-build
+
 all: pre-build main-build
 
 pre-build:
 	@mkdir -p $(OBJDIR) >/dev/null
+
+raspi-build:
+	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel.img
 
 main-build: pre-build
 	@make --no-print-directory $(OBJDIR)/Emu68
@@ -36,6 +47,12 @@ $(TESTOBJDIR)/Emu68Test: $(addprefix $(TESTOBJDIR)/, $(TESTOBJS))
 $(OBJDIR)/Emu68: $(addprefix $(OBJDIR)/, $(OBJS))
 	@echo "Building target: $@"
 	@$(CC) $(foreach f,$(OBJS),$(OBJDIR)/$(f)) $(LDFLAGS) -o $@
+	@echo "Build completed"
+
+$(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
+	@echo "Building target: $@"
+	@$(CC) $(foreach f,$(RPI_OBJS),$(OBJDIR)/$(f)) -nostdlib -nostartfiles -lgcc -static -T ldscript-le.lds -o $@.elf
+	@$(OBJCOPY) -O binary $@.elf $@
 	@echo "Build completed"
 
 .PHONY: all clean
@@ -93,4 +110,5 @@ clean:
 	rm -rf *.o *.d $(OBJDIR) $(TESTOBJDIR)
 
 -include $(foreach f,$(OBJS:.o=.d),$(OBJDIR)/$(f))
+-include $(foreach f,$(RPI_OBJS:.o=.d),$(OBJDIR)/$(f))
 -include $(foreach f,$(TESTOBJS:.o=.d),$(TESTOBJDIR)/$(f))
