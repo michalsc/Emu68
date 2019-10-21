@@ -15,7 +15,27 @@
                 "make all"
             ],
             "problemMatcher": {
-                "owner": "cpp",               
+                "owner": "cpp",
+                "fileLocation": [ "relative", "${workspaceRoot}" ],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+               }
+            }
+        },
+        {
+            "taskName": "Build RasPi",
+            "suppressTaskName": true,
+            "isBuildCommand": true,
+            "args": [
+                "make raspi"
+            ],
+            "problemMatcher": {
+                "owner": "cpp",
                 "fileLocation": [ "relative", "${workspaceRoot}" ],
                 "pattern": {
                     "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
@@ -35,7 +55,7 @@
                 "make test"
             ],
             "problemMatcher": {
-                "owner": "cpp",               
+                "owner": "cpp",
                 "fileLocation": [ "relative", "${workspaceRoot}" ],
                 "pattern": {
                     "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
