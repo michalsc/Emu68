@@ -40,10 +40,10 @@ static uint32_t *EMIT_LoadARMCC(uint32_t *ptr, uint8_t m68k_cc)
 
     *ptr++ = mov_reg_shift(tmp, m68k_cc, 28);     /* Copy m68k_cc */
     *ptr++ = bic_immed(tmp, tmp, 0x203); /* Clear bits 0 and 1 */
-    *ptr++ = tst_immed(tmp, 2);
+    *ptr++ = tst_immed(m68k_cc, 2);
     *ptr++ = orr_cc_immed(ARM_CC_NE, tmp, tmp, 0x201);
-    *ptr++ = tst_immed(tmp, 1);
-    *ptr++ = orr_cc_immed(ARM_CC_NE, tmp, tmp, 0x202);
+    *ptr++ = tst_immed(m68k_cc, 1);
+    *ptr++ = orr_cc_immed(ARM_CC_EQ, tmp, tmp, 0x202);
     *ptr++ = msr(tmp, 8);
 
     RA_FreeARMRegister(&ptr, tmp);
