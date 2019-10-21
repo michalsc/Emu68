@@ -66,7 +66,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 0: /* Byte */
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl_immed(tmp, regx, 24);
-                    *ptr++ = add_cc_immed(ARM_CC_CC, tmp, tmp, 0x401);
+                    *ptr++ = add_cc_immed(ARM_CC_CS, tmp, tmp, 0x401);
                     *ptr++ = adds_reg(tmp, tmp, regy, 24);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
                     *ptr++ = bfi(regy, tmp, 0, 8);
@@ -75,7 +75,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 1: /* Word */
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl_immed(tmp, regx, 16);
-                    *ptr++ = add_cc_immed(ARM_CC_CC, tmp, tmp, 0x801);
+                    *ptr++ = add_cc_immed(ARM_CC_CS, tmp, tmp, 0x801);
                     *ptr++ = adds_reg(tmp, tmp, regy, 16);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
                     *ptr++ = bfi(regy, tmp, 0, 16);
@@ -104,7 +104,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldrb_offset_preindex(regx, src, (opcode & 7) == 7 ? -2 : -1);
                     *ptr++ = ldrb_offset_preindex(regy, dest, ((opcode >> 9) & 7) == 7 ? -2 : -1);
                     *ptr++ = lsl_immed(src, src, 24);
-                    *ptr++ = add_cc_immed(ARM_CC_CC, src, src, 0x401);
+                    *ptr++ = add_cc_immed(ARM_CC_CS, src, src, 0x401);
                     *ptr++ = adds_reg(dest, src, dest, 24);
                     *ptr++ = lsr_immed(dest, dest, 24);
                     *ptr++ = strb_offset(regy, dest, 0);
@@ -113,7 +113,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldrh_offset_preindex(regx, src, -2);
                     *ptr++ = ldrh_offset_preindex(regy, dest, -2);
                     *ptr++ = lsl_immed(src, src, 16);
-                    *ptr++ = add_cc_immed(ARM_CC_CC, src, src, 0x801);
+                    *ptr++ = add_cc_immed(ARM_CC_CS, src, src, 0x801);
                     *ptr++ = adds_reg(dest, src, dest, 16);
                     *ptr++ = lsr_immed(dest, dest, 16);
                     *ptr++ = strh_offset(regy, dest, 0);
