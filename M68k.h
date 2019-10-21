@@ -18,6 +18,8 @@ struct M68KTranslationUnit {
     struct Node     mt_HashNode;
     struct Node     mt_LRUNode;
     uint16_t *      mt_M68kAddress;
+    uint16_t *      mt_M68kLow;
+    uint16_t *      mt_M68kHigh;
     uint32_t        mt_M68kInsnCnt;
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;

@@ -215,6 +215,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     struct M68KTranslationUnit *unit = NULL, *n;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
+    uint16_t *m68k_low = m68kcodeptr;
+    uint16_t *m68k_high = m68kcodeptr;
 
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash ^ (hash >> 16)) & 0xffff;
@@ -274,6 +276,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         prologue_size = end - tmpptr;
         while (*m68kcodeptr != 0xffff && insn_count < m68k_translation_depth)
         {
+            if (m68kcodeptr < m68k_low)
+                m68k_low = m68kcodeptr;
+            if (m68kcodeptr + 16 > m68k_high)
+                m68k_high = m68kcodeptr + 16;
+
             end = EmitINSN(end, &m68kcodeptr);
             insn_count++;
             if (end[-1] == INSN_TO_LE(0xfffffff0))
@@ -386,6 +393,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_ARMInsnCnt = (uint32_t)(end - arm_code);
         unit->mt_UseCount = 0;
         unit->mt_M68kAddress = orig_m68kcodeptr;
+        unit->mt_M68kLow = m68k_low;
+        unit->mt_M68kHigh = m68k_high;
         DuffCopy(unit->mt_ARMEntryPoint, arm_code, end - arm_code);
 
 //        printf("[ICache] Trimming translation unit length to %d bytes\n", (int)line_length);
@@ -451,11 +460,10 @@ void M68K_DumpStats()
     printf("[ICache] Listing translation units:\n");
     ForeachNode(&LRU, n)
     {
-        struct Node *n = REMTAIL(&LRU);
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-        printf("[ICache]   Unit %08x, mt_UseCount=%lld, M68K address %08x, M68K insn count=%d, ARM insn count=%d\n", unit, unit->mt_UseCount,
-            unit->mt_M68kAddress, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
+        printf("[ICache]   Unit %08x, mt_UseCount=%lld, M68K address %08x (range %08x-%08x), M68K insn count=%d, ARM insn count=%d\n", unit, unit->mt_UseCount,
+            unit->mt_M68kAddress, unit->mt_M68kLow, unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
         size = size + (unsigned)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (unsigned)unit;
         m68k_count += unit->mt_M68kInsnCnt;
         arm_count += unit->mt_ARMInsnCnt;
