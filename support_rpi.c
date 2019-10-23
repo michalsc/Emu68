@@ -196,6 +196,16 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     putc_f(putc_data, '%');
                     break;
 
+                case 'p':
+                    value = va_arg(args, uintptr_t);
+                    int_itoa(tmpbuf, 16, value, 1, precision, 2*sizeof(uintptr_t), big, 1, 0, sign);
+                    str = tmpbuf;
+                    size_mod -= int_strlen(str);
+                    do {
+                        putc_f(putc_data, *str);
+                    } while(*str++);
+                    break;
+
                 case 'X':
                     big = 1;
                     /* fallthrough */
@@ -229,7 +239,6 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     if (leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
-
                     break;
 
                 case 'u':
