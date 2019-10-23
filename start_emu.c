@@ -14,6 +14,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "HunkLoader.h"
 #include "RegisterAllocator.h"
 #include "M68k.h"
 #include "ARM.h"
@@ -220,22 +221,32 @@ void print_context(struct M68KState *m68k)
     printf("\n    USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
 }
 
-#define DATA_SIZE 6400*4800
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
 
-uint8_t chunky[DATA_SIZE];
-uint8_t plane0[DATA_SIZE ];
-uint8_t plane1[DATA_SIZE ];
-uint8_t plane2[DATA_SIZE ];
-uint8_t plane3[DATA_SIZE ];
-
-uint8_t *bitmap[4] = {
-    plane0, plane1, plane2, plane3
-};
+char out_data[1024];
 
 int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
+    void *hunk = (void*)0xfffffffc;
+
+    if (argc > 1)
+    {
+        struct stat64 s;
+        printf("opening file %s\n", argv[1]);
+        int fd = open(argv[1], O_RDONLY);
+        fstat64(fd, &s);
+        printf("fd=%d, size=%d\n", fd, (int)s.st_size);
+        void *buff = malloc(s.st_size);
+        read(fd, buff, s.st_size);
+        close(fd);
+
+        hunk = LoadHunkFile(buff);
+    }
 
     M68K_InitializeCache();
 
@@ -248,21 +259,12 @@ int main(int argc, char **argv)
 
     double translation_time = 0.0;
 
-    bitmap[0] = (uint8_t *)BE32((uintptr_t)bitmap[0]);
-    bitmap[1] = (uint8_t *)BE32((uintptr_t)bitmap[1]);
-    bitmap[2] = (uint8_t *)BE32((uintptr_t)bitmap[2]);
-    bitmap[3] = (uint8_t *)BE32((uintptr_t)bitmap[3]);
-
     bzero(&m68k, sizeof(m68k));
     memset(&stack, 0xaa, sizeof(stack));
-    m68k.A[0].u32 = BE32((uint32_t)chunky);
-    m68k.A[1].u32 = BE32((uint32_t)chunky + DATA_SIZE);
-    m68k.A[2].u32 = BE32((uint32_t)bitmap);
+    m68k.A[0].u32 = BE32((uint32_t)out_data);
     m68k.A[7].u32 = BE32((uint32_t)&stack[511]);
-    m68k.PC = (uint16_t *)BE32((uint32_t)m68kcodeptr);
+    m68k.PC = (uint16_t *)BE32((uint32_t)hunk + 4);
 
-    data[0] = BE32(3);
-    data[1] = BE32(100);
     stack[511] = 0;
 
     print_context(&m68k);
@@ -276,40 +278,16 @@ int main(int argc, char **argv)
     do {
         if (last_PC != (uint32_t)m68k.PC)
         {
-        clock_gettime(CLOCK_MONOTONIC, &t3);
+            clock_gettime(CLOCK_MONOTONIC, &t3);
             unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k.PC)));
             clock_gettime(CLOCK_MONOTONIC, &t4);
             translation_time += (double)(t4.tv_sec - t3.tv_sec) * 1000.0 + (double)(t4.tv_nsec - t3.tv_nsec)/1000000.0;
             last_PC = (uint32_t)m68k.PC;
         }
 
-
-  //      printf("[JIT] Getting translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
-/*printf("-----\n");
-        if (unit)
-        {
-            for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
-            {
-                uint32_t insn = unit->mt_ARMCode[i];
-                printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
-            }
-        }
-*/
-//return(0);
-        //m68k.PC = (uint16_t *)BE32((uint32_t)unit->mt_M68kAddress);
-        //m68k.SR = 0;
-
-
-//        printf("\nCalling translated code\n");
-
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-//        clock_gettime(CLOCK_MONOTONIC, &t1);
+        unit->mt_UseCount++;
         arm_code(&m68k);
-//        clock_gettime(CLOCK_MONOTONIC, &t2);
-
-//        print_context(&m68k);
-
-//        printf("[JIT] Executing translation unit took %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
 
     } while(m68k.PC != NULL);
 
@@ -318,25 +296,10 @@ int main(int argc, char **argv)
     printf("[JIT] Time in m68k mode %f ms\n", (double)(t2.tv_sec - t1.tv_sec) * 1000.0 + (double)(t2.tv_nsec - t1.tv_nsec)/1000000.0);
     printf("[JIT] Time spent translating m68k mode %f ms\n", translation_time);
 
+    printf("%s", out_data);
+
     printf("Back from translated code\n");
     print_context(&m68k);
-
-    for (unsigned i=0; i < sizeof(m68kcode); i++)
-        printf("%02x ", m68kcode[i]);
-
-    for (int i=0; i < 64; i++)
-    {
-        if (i % 8 == 0)
-            printf("\n");
-        printf("%08x ", BE32(data[i]));
-    }
-    printf("\n");
-
-    for (int i=0; i < 512; i++)
-    {
-        if (stack[511-i] != 0xaaaaaaaa)
-            printf("%08x\n", stack[511-i]);
-    }
 
     return 0;
 }
