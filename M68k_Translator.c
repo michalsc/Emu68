@@ -383,7 +383,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             {
                 struct Node *n = REMTAIL(&LRU);
                 void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
-                printf("[ICache] Run out of cache. Removing least recently used cache line node @ %08x\n", ptr);
+                printf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 tlsf_free(handle, ptr);
             }
         } while(unit == NULL);
@@ -466,8 +466,8 @@ void M68K_DumpStats()
     {
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-        printf("[ICache]   Unit %08x, mt_UseCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", unit, unit->mt_UseCount,
-            unit->mt_M68kAddress, unit->mt_M68kLow, unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
+        printf("[ICache]   Unit %p, mt_UseCount=%lld, M68K address %p (range %p-%p)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", (void*)unit, unit->mt_UseCount,
+            (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
 
         size = size + (unsigned)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (unsigned)unit;
         m68k_count += unit->mt_M68kInsnCnt;
