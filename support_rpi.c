@@ -198,7 +198,7 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
 
                 case 'p':
                     value = va_arg(args, uintptr_t);
-                    int_itoa(tmpbuf, 16, value, 1, precision, 2*sizeof(uintptr_t), big, 1, 0, sign);
+                    int_itoa(tmpbuf, 16, value, 1, 2*sizeof(uintptr_t), 2*sizeof(uintptr_t), big, 1, 0, sign);
                     str = tmpbuf;
                     size_mod -= int_strlen(str);
                     do {
