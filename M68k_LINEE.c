@@ -160,16 +160,16 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         /* Special case: Source is Dn */
         if ((opcode & 0x0038) == 0)
         {
+            uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
+            *ptr++ = mov_reg(tmp, src);
+            RA_FreeARMRegister(&ptr, src);
+
             /* Direct offset and width */
             if ((opcode2 & 0x0820) == 0)
             {
-                uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
                 uint8_t offset = (opcode2 >> 6) & 0x1f;
                 uint8_t width = (opcode2) & 0x1f;
 
-                *ptr++ = mov_reg(tmp, src);
-
-                RA_FreeARMRegister(&ptr, src);
                 /*
                     If offset == 0 and width == 0 the register value from Dn is already extracted bitfield,
                     otherwise extract bitfield
@@ -181,6 +181,56 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     offset = 31 - (offset + width);
                     *ptr++ = sbfx(tmp, tmp, offset, width+1);
                 }
+            }
+            /* Direct offset, width in reg */
+            else if ((opcode2 & 0x0820) == 0x0020)
+            {
+                uint8_t offset = (opcode2 >> 6) & 0x1f;
+                uint8_t width_reg_t = RA_MapM68kRegister(&ptr, opcode2 & 7);
+                uint8_t width_reg = RA_AllocARMRegister(&ptr);
+
+                *ptr++ = rsb_immed(width_reg, width_reg_t, 32);
+                *ptr++ = and_immed(width_reg, width_reg, 31);
+
+                RA_FreeARMRegister(&ptr, width_reg_t);
+
+                if (offset > 0)
+                {
+                    *ptr++ = lsl_immed(tmp, tmp, offset);
+                }
+                *ptr++ = asr_reg(tmp, tmp, width_reg);
+
+                RA_FreeARMRegister(&ptr, width_reg);
+            }
+            /* Offset in reg, direct width */
+            else if ((opcode2 & 0x0820) == 0x0800)
+            {
+                uint8_t width = (opcode2) & 0x1f;
+                uint8_t offset_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+
+                width = 32 - width;
+
+                *ptr++ = lsr_reg(tmp, tmp, offset_reg);
+                *ptr++ = sbfx(tmp, tmp, 0, width);
+
+                RA_FreeARMRegister(&ptr, offset_reg);
+            }
+            /* Both offset and width in regs */
+            else
+            {
+                uint8_t width_reg_t = RA_MapM68kRegister(&ptr, opcode2 & 7);
+                uint8_t width_reg = RA_AllocARMRegister(&ptr);
+                uint8_t offset_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+
+                *ptr++ = rsb_immed(width_reg, width_reg_t, 32);
+                *ptr++ = and_immed(width_reg, width_reg, 31);
+                RA_FreeARMRegister(&ptr, width_reg_t);
+
+                *ptr++ = lsl_reg(tmp, tmp, offset_reg);
+                *ptr++ = asr_reg(tmp, tmp, width_reg);
+
+                RA_FreeARMRegister(&ptr, width_reg);
+                RA_FreeARMRegister(&ptr, offset_reg);
             }
         }
         else
