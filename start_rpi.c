@@ -14,6 +14,7 @@
 #include "tlsf.h"
 #include "devicetree.h"
 #include "M68k.h"
+#include "DuffCopy.h"
 
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE (__arm_periiobase)
@@ -130,8 +131,11 @@ void printf(const char * restrict format, ...)
 }
 
 /*
-    Initial MMU map covers first 8 MB of RAM and shadows this RAM at topmost 8 MB of address space. Peripherals mapped
-    at 0xf2000000 - 0xf2ffffff
+    Initial MMU map covers first 8 MB of RAM and shadows this RAM at topmost 8 MB of address space. Peripherals will be mapped
+    at 0xf2000000 - 0xf2ffffff.
+
+    After successfull start the topmost 8MB of memory will be used for emulation and the code will be moved there. Once ready,
+    the MMU map will be updated accordingly
 */
 static __attribute__((used, section(".mmu"))) uint32_t mmu_table[4096] = {
     [0x000] = 0x00001c0e,   /* caches write-through, write allocate, access for all */
@@ -143,23 +147,6 @@ static __attribute__((used, section(".mmu"))) uint32_t mmu_table[4096] = {
     [0x006] = 0x00601c0e,
     [0x007] = 0x00701c0e,
 
-//    [0xf20] = 0x3f000c06,   /* Strongly-ordered device, uncached, 16MB region */
-/*    [0xf21] = 0x3f100c06,
-    [0xf22] = 0x3f200c06,
-    [0xf23] = 0x3f300c06,
-    [0xf24] = 0x3f400c06,
-    [0xf25] = 0x3f500c06,
-    [0xf26] = 0x3f600c06,
-    [0xf27] = 0x3f700c06,
-    [0xf28] = 0x3f800c06,
-    [0xf29] = 0x3f900c06,
-    [0xf2a] = 0x3fa00c06,
-    [0xf2b] = 0x3fb00c06,
-    [0xf2c] = 0x3fc00c06,
-    [0xf2d] = 0x3fd00c06,
-    [0xf2e] = 0x3fe00c06,
-    [0xf2f] = 0x3ff00c06,
-*/
     [0xff8] = 0x00001c0e,   /* shadow of first 8 MB with the same attributes */
     [0xff9] = 0x00101c0e,
     [0xffa] = 0x00201c0e,
@@ -256,16 +243,40 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     kprintf("[BOOT] Boot address is %08x\n", _start);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
     kprintf("[BOOT] Args=%08x,%08x,%08x,%08x\n", dummy, arch, atags, dummy2);
-    kprintf("[BOOT] Memory ranges:\n");
+    kprintf("[BOOT] Local memory pool:\n");
     kprintf("[BOOT]    %08x - %08x (size=%d)\n", &__bootstrap_end, 0xffff0000, 0xffff0000 - (uintptr_t)&__bootstrap_end);
 
-    kprintf("[BOOT] ARM clock=%d (min=%d, max=%d)\n", get_clock_rate(3), get_min_clock_rate(3), get_max_clock_rate(3));
-    kprintf("[BOOT] Core clock=%d (min=%d, max=%d)\n", get_clock_rate(4), get_min_clock_rate(4), get_max_clock_rate(4));
-    kprintf("[BOOT] V3D clock=%d (min=%d, max=%d)\n", get_clock_rate(5), get_min_clock_rate(5), get_max_clock_rate(5));
+    e = dt_find_node("/memory");
+    if (e)
+    {
+        of_property_t *p = dt_find_property(e, "reg");
+        uint32_t *range = p->op_value;
 
-    set_clock_rate(3, get_max_clock_rate(3));
+        uint32_t top_of_ram = BE32(range[0]) + BE32(range[1]);
+        uint32_t kernel_new_loc = top_of_ram - 0x00800000;
 
-    kprintf("[BOOT] ARM clock=%d (min=%d, max=%d)\n", get_clock_rate(3), get_min_clock_rate(3), get_max_clock_rate(3));
+        range[1] = BE32(BE32(range[1])-0x00800000);
+
+        kprintf("[BOOT] System memory: %p-%p\n", BE32(range[0]), BE32(range[0]) + BE32(range[1]) - 1);
+
+        kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
+        DuffCopy((void*)(kernel_new_loc+4), (void*)4, 0x00800000 / 4 - 1);
+        arm_flush_cache(kernel_new_loc, 0x00800000);
+        kprintf("[BOOT] Adjusting MMU map\n");
+
+        for (int i=0; i < 8; i++)
+        {
+            /* Caches write-through, write allocate, access for all */
+            mmu_table[4088 + i] = ((kernel_new_loc & 0xfff00000) + (i << 20)) | 0x1c0e;
+        }
+        arm_flush_cache((uint32_t)mmu_table, 16384);
+        asm volatile("dsb; mcr p15, 0, %0, c8, c7, 0; dsb"::"r"(0));
+    }
+
+    if (get_max_clock_rate(3) != get_clock_rate(3)) {
+        kprintf("[BOOT] Changing ARM clock rate from %d MHz to %d MHz\n", get_clock_rate(3)/1000000, get_max_clock_rate(3)/1000000);
+        set_clock_rate(3, get_max_clock_rate(3));
+    }
 
     start_emu();
 
