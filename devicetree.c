@@ -14,6 +14,7 @@
 #include "support_rpi.h"
 #include "devicetree.h"
 #include "tlsf.h"
+#include "DuffCopy.h"
 
 #define D(x)
 
@@ -107,6 +108,13 @@ of_node_t * dt_parse(void *dt)
         D(kprintf("[BOOT] off_dt_struct=%d\n", BE32(hdr->off_dt_struct)));
         D(kprintf("[BOOT] off_dt_strings=%d\n", BE32(hdr->off_dt_strings)));
         D(kprintf("[BOOT] off_mem_rsvmap=%d\n", BE32(hdr->off_mem_rsvmap)));
+
+        /* Device tree is assumed to be valid. Move it into our own memory */
+        dt = tlsf_malloc(tlsf, (BE32(hdr->totalsize) + 3) & ~3);
+        DuffCopy(dt, (void *)hdr, (BE32(hdr->totalsize) + 3) >> 2);
+        hdr = dt;
+
+        D(kprintf("[BOOT] Moved device tree to %p\n", dt));
 
         strings = (char*)dt + BE32(hdr->off_dt_strings);
         data = (uint32_t*)((char*)dt + BE32(hdr->off_dt_struct));
