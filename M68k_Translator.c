@@ -18,6 +18,7 @@
 #include "lists.h"
 #include "tlsf.h"
 #include "config.h"
+#include "DuffCopy.h"
 
 #ifdef RASPI
 #include "support_rpi.h"
@@ -36,22 +37,6 @@ void *handle;
 static uint32_t temporary_arm_code[EMU68_M68K_INSN_DEPTH * 4 * 64];
 
 int32_t _pc_rel = 0;
-
-static inline void DuffCopy(uint32_t * restrict to, uint32_t * restrict from, uint32_t count)
-{
-    register uint32_t n = (count + 7) / 8;
-    switch (count % 8) {
-    case 0: do { *to++ = *from++; // Fallthrough
-    case 7:      *to++ = *from++; // Fallthrough
-    case 6:      *to++ = *from++; // Fallthrough
-    case 5:      *to++ = *from++; // Fallthrough
-    case 4:      *to++ = *from++; // Fallthrough
-    case 3:      *to++ = *from++; // Fallthrough
-    case 2:      *to++ = *from++; // Fallthrough
-    case 1:      *to++ = *from++; // Fallthrough
-            } while (--n != 0);
-    }
-}
 
 uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
 {
