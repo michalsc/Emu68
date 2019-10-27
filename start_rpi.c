@@ -14,6 +14,7 @@
 #include "tlsf.h"
 #include "devicetree.h"
 #include "M68k.h"
+#include "HunkLoader.h"
 #include "DuffCopy.h"
 
 #undef ARM_PERIIOBASE
@@ -112,9 +113,6 @@ void memset(void *ptr, uint8_t fill, long sz)
 void memcpy(void *dst, const void *src, long sz)
 {
     kprintf("[BOOT] called memcpy(%08x, %08x, %08x)\n", dst, src, sz);
-    (void)dst;
-    (void)src;
-    (void)sz;
 }
 
 void mmap()
@@ -161,7 +159,7 @@ static __attribute__((used)) void * mmu_table_ptr __attribute__((used, section("
 
 void *tlsf;
 
-void start_emu();
+void start_emu(void *);
 
 void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 {
@@ -278,7 +276,19 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         set_clock_rate(3, get_max_clock_rate(3));
     }
 
-    start_emu();
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        void *image_start, *image_end;
+        of_property_t *p = dt_find_property(e, "linux,initrd-start");
+        image_start = (void*)BE32(*(uint32_t*)p->op_value);
+        p = dt_find_property(e, "linux,initrd-end");
+        image_end = (void*)BE32(*(uint32_t*)p->op_value);
+
+        kprintf("[BOOT] Loading executable from %p-%p\n", image_start, image_end);
+        void *hunks = LoadHunkFile(image_start);
+        start_emu((void *)((uint32_t)hunks + 4));
+    }
 
     while(1);
 }
@@ -501,8 +511,9 @@ uint8_t *bitmap[4];// = {
 //};
 
 
-void start_emu()
+void start_emu(void *addr)
 {
+    register struct M68KState * m68k asm("fp");
     M68K_InitializeCache();
     uint64_t t1=0, t2=0;
     uint8_t *ptr = (uint8_t *)0x800000;
@@ -521,53 +532,59 @@ void start_emu()
     bitmap[2] = plane2;
     bitmap[3] = plane3;
 
-    void (*arm_code)(struct M68KState *ctx);
+    void (*arm_code)(); //(struct M68KState *ctx);
 
     struct M68KTranslationUnit * unit = (void*)0;
-    struct M68KState m68k;
+    struct M68KState __m68k;
+
+    bzero(&__m68k, sizeof(__m68k));
+    asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
+    //m68k = &__m68k;
+
+
 
     bitmap[0] = (uint8_t *)BE32((uintptr_t)bitmap[0]);
     bitmap[1] = (uint8_t *)BE32((uintptr_t)bitmap[1]);
     bitmap[2] = (uint8_t *)BE32((uintptr_t)bitmap[2]);
     bitmap[3] = (uint8_t *)BE32((uintptr_t)bitmap[3]);
 
-    bzero(&m68k, sizeof(m68k));
     memset(&stack, 0xaa, sizeof(stack));
-    m68k.A[0].u32 = BE32((uint32_t)chunky);
-    m68k.A[1].u32 = BE32((uint32_t)chunky + DATA_SIZE);
-    m68k.A[2].u32 = BE32((uint32_t)bitmap);
-    m68k.A[7].u32 = BE32((uint32_t)&stack[511]);
-    m68k.PC = (uint16_t *)BE32(0x00800000); //m68k.PC = (uint16_t *)BE32((uint32_t)m68kcodeptr);
+    m68k->D[0].u32 = BE32(10);
+    m68k->A[0].u32 = BE32((uint32_t)chunky);
+    m68k->A[1].u32 = BE32((uint32_t)chunky + DATA_SIZE);
+    m68k->A[2].u32 = BE32((uint32_t)bitmap);
+    m68k->A[7].u32 = BE32((uint32_t)&stack[511]);
+    m68k->PC = (uint16_t *)BE32((uint32_t)addr); //m68k.PC = (uint16_t *)BE32((uint32_t)m68kcodeptr);
 
     data[0] = BE32(3);
     data[1] = BE32(100);
     stack[511] = 0;
 
-    print_context(&m68k);
+    print_context(m68k);
 
     printf("[JIT] Let it go...\n");
-
+    uint64_t ctx_count = 0;
     uint32_t last_PC = 0xffffffff;
     t1 = *(volatile uint32_t*)0xf2003004 | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
 
     do {
-        if (last_PC != (uint32_t)m68k.PC)
+        if (last_PC != (uint32_t)m68k->PC)
         {
-            unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k.PC)));
-            last_PC = (uint32_t)m68k.PC;
+            unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k->PC)));
+            last_PC = (uint32_t)m68k->PC;
         }
 
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-        unit->mt_UseCount++;
-        arm_code(&m68k);
-    } while(m68k.PC != (void*)0);
+        arm_code(m68k);
+    } while(m68k->PC != (void*)0);
 
     t2 = *(volatile uint32_t*)0xf2003004 | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
 
     printf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
+    printf("[JIT] Number of ARM-M68k switches: %lld\n", ctx_count);
 
     printf("Back from translated code\n");
-    print_context(&m68k);
+    print_context(m68k);
 
     M68K_DumpStats();
 }
