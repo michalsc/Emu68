@@ -1,8 +1,8 @@
 CC := arm-linux-gnueabihf-gcc
 CXX := arm-linux-gnueabihf-g++
 OBJCOPY := arm-linux-gnueabihf-objcopy
-CFLAGS  := $(EXTRA_FLAGS) -std=gnu11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
-CXXFLAGS:= $(EXTRA_FLAGS) -std=c++11 -O2 -pedantic -pedantic-errors -Wall -Wextra -Werror
+CFLAGS  := $(EXTRA_FLAGS) -std=gnu11 -O2 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror
+CXXFLAGS:= $(EXTRA_FLAGS) -std=c++11 -O2 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror
 LDFLAGS := -static -lrt -s
 
 HOST_CXX := g++
