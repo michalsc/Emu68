@@ -476,7 +476,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* In case of 64-bit division use (u)ldivmod, otherwise use (u)idivmod */
     if (div64)
     {
-
+printf("64 bit division not done yet!\n");
     }
     else
     {
