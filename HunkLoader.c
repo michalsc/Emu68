@@ -12,8 +12,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "DuffCopy.h"
 #include "HunkLoader.h"
 #include "ARM.h"
+
+#ifdef RASPI
+
+char * pool = (char *)0x007ffff8;
+void * _my_malloc(size_t size)
+{
+    void *ptr = pool;
+    pool += (size + 31) & ~31;
+    return ptr;
+}
+#define malloc(s) _my_malloc(s)
+
+#endif
 
 void * LoadHunkFile(void *buffer)
 {
@@ -80,9 +94,9 @@ void * LoadHunkFile(void *buffer)
             case 0x3e9:
                 if (current_block >= first_to_load)
                 {
-                    printf("[HUNK] Loading block %d (code hunk) with size of %d words\n", 
+                    printf("[HUNK] Loading block %d (code hunk) with size of %d words\n",
                         current_block, BE32(words[1]));
-                    memcpy(&h->h_Data, &words[2], 4*BE32(words[1]));
+                    DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else
                     printf("[HUNK] Skipping block %d\n", current_block);
@@ -92,9 +106,9 @@ void * LoadHunkFile(void *buffer)
             case 0x3ea:
                 if (current_block >= first_to_load)
                 {
-                    printf("[HUNK] Loading block %d (data hunk) with size of %d words\n", 
+                    printf("[HUNK] Loading block %d (data hunk) with size of %d words\n",
                         current_block, BE32(words[1]));
-                    memcpy(&h->h_Data, &words[2], 4*BE32(words[1]));
+                    DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else
                     printf("[HUNK] Skipping block %d\n", current_block);
@@ -104,14 +118,14 @@ void * LoadHunkFile(void *buffer)
             case 0x3eb:
                 if (current_block >= first_to_load)
                 {
-                    printf("[HUNK] Block %d (bss hunk) with size of %d words\n", 
+                    printf("[HUNK] Block %d (bss hunk) with size of %d words\n",
                         current_block, BE32(words[1]));
                 }
                 else
                     printf("[HUNK] Skipping block %d\n", current_block);
                 words += 2;
                 break;
-            
+
             case 0x3ec:
                 if (current_block >= first_to_load)
                     printf("[HUNK] Applying relocations to previous section\n");
@@ -158,7 +172,7 @@ void * LoadHunkFile(void *buffer)
                 }
                 words++;
                 break;
-            
+
             case 0x3f2:
                 printf("[HUNK] End of block\n");
                 words++;
@@ -173,7 +187,7 @@ void * LoadHunkFile(void *buffer)
         }
     } while(current_block <= last_to_load);
 
-    
+
 
 
     return &hunks->h_Next;
