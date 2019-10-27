@@ -42,7 +42,7 @@ static struct SRMaskEntry Line0_Map[] = {
 };
 
 static struct SRMaskEntry Line1_Map[] = {
-    { 0xc040, 0x0040, SME_MASK, 0 },                                /* MOVEA case - destination is An */
+    { 0xc1c0, 0x0040, SME_MASK, 0 },                                /* MOVEA case - destination is An */
     { 0xc000, 0x0000, SME_MASK, SR_C | SR_V | SR_Z | SR_N },        /* All other moves change CC */
     { 0x0000, 0x0000, SME_END,  0 }
 };
