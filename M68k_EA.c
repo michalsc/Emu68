@@ -214,18 +214,25 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             if ((brief & 0x0100) == 0)
             {
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
-                uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                uint8_t tmp1 = 0xff;
                 uint8_t tmp2 = 0xff;
                 int8_t displ = brief & 0xff;
 
                 if (displ > 0)
                 {
+                    tmp1 = RA_AllocARMRegister(&ptr);
                     *ptr++ = add_immed(tmp1, reg_An, displ);
+                }
+                else if (displ < 0)
+                {
+                    tmp1 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sub_immed(tmp1, reg_An, -displ);
                 }
                 else
                 {
-                    *ptr++ = sub_immed(tmp1, reg_An, -displ);
+                    //*ptr++ = mov_reg(tmp1, reg_An);
                 }
+
 
                 if (brief & (1 << 11))
                 {
@@ -246,23 +253,24 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = ldr_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
+                        *ptr++ = ldr_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
                         break;
                     case 2:
                         *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
-                        *ptr++ = ldrh_regoffset(tmp1, *arm_reg, tmp2);
+                        *ptr++ = ldrh_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2);
                         break;
                     case 1:
-                        *ptr++ = ldrb_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
+                        *ptr++ = ldrb_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
                         break;
                     case 0:
-                        *ptr++ = add_reg(*arm_reg, tmp1, tmp2, (brief >> 9) & 3);
+                        *ptr++ = add_reg(*arm_reg, displ ? tmp1 : reg_An, tmp2, (brief >> 9) & 3);
                         break;
                     default:
                         printf("Unknown size opcode\n");
                         break;
                 }
-                RA_FreeARMRegister(&ptr, tmp1);
+                if (displ)
+                    RA_FreeARMRegister(&ptr, tmp1);
                 RA_FreeARMRegister(&ptr, tmp2);
             }
             else
@@ -489,10 +497,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             if (src_reg == 2) /* (d16, PC) mode */
             {
                 uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-
-                ptr = EMIT_FlushPC(ptr);
-                *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
-                *ptr++ = add_immed(reg_d16, reg_d16, 2);
+                int8_t off = 2;
+                ptr = EMIT_GetOffsetPC(ptr, &off);
+                *ptr++ = ldrsh_offset(REG_PC, reg_d16, off);
+                *ptr++ = add_immed(reg_d16, reg_d16, off);
                 (*ext_words)++;
 
                 switch (size)
@@ -587,8 +595,13 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     {
                         /* Base register in use. Alloc it and load its contents */
                         base_reg = RA_AllocARMRegister(&ptr);
-                        ptr = EMIT_FlushPC(ptr);
-                        *ptr++ = add_immed(base_reg, REG_PC, 2);
+                        int8_t off = 2;
+                        //ptr = EMIT_FlushPC(ptr);
+                        ptr = EMIT_GetOffsetPC(ptr, &off);
+                        if (off > 0)
+                            *ptr++ = add_immed(base_reg, REG_PC, off);
+                        else
+                            *ptr++ = sub_immed(base_reg, REG_PC, -off);
                     }
 
                     /* Check if index register is in use */
@@ -1093,18 +1106,25 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             if ((brief & 0x0100) == 0)
             {
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
-                uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                uint8_t tmp1 = 0xff;
                 uint8_t tmp2 = 0xff;
                 int8_t displ = brief & 0xff;
 
                 if (displ > 0)
                 {
+                    tmp1 = RA_AllocARMRegister(&ptr);
                     *ptr++ = add_immed(tmp1, reg_An, displ);
+                }
+                else if (displ < 0)
+                {
+                    tmp1 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sub_immed(tmp1, reg_An, -displ);
                 }
                 else
                 {
-                    *ptr++ = sub_immed(tmp1, reg_An, -displ);
+
                 }
+
 
                 if (brief & (1 << 11))
                 {
@@ -1125,27 +1145,27 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 switch (size)
                 {
                 case 4:
-                    *ptr++ = str_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
+                    *ptr++ = str_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
                     break;
                 case 2:
                 {
                     uint8_t t = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl_immed(t, tmp2, (brief >> 9) & 3);
-                    *ptr++ = strh_regoffset(tmp1, *arm_reg, t);
+                    *ptr++ = strh_regoffset(displ ? tmp1 : reg_An, *arm_reg, t);
                     RA_FreeARMRegister(&ptr, t);
                     break;
                 }
                 case 1:
-                    *ptr++ = strb_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
+                    *ptr++ = strb_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
                     break;
                 case 0:
-                    *ptr++ = add_reg(*arm_reg, tmp1, tmp2, (brief >> 9) & 3);
+                    *ptr++ = add_reg(*arm_reg, displ ? tmp1 : reg_An, tmp2, (brief >> 9) & 3);
                     break;
                 default:
                     printf("Unknown size opcode\n");
                     break;
                 }
-                RA_FreeARMRegister(&ptr, tmp1);
+                if (displ) RA_FreeARMRegister(&ptr, tmp1);
                 RA_FreeARMRegister(&ptr, tmp2);
             }
             else
@@ -1372,9 +1392,10 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             if (src_reg == 2) /* (d16, PC) mode */
             {
                 uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-                ptr = EMIT_FlushPC(ptr);
-                *ptr++ = ldrsh_offset(REG_PC, reg_d16, 2);
-                *ptr++ = add_immed(reg_d16, reg_d16, 2);
+                int8_t off = 2;
+                ptr = EMIT_GetOffsetPC(ptr, &off);
+                *ptr++ = ldrsh_offset(REG_PC, reg_d16, off);
+                *ptr++ = add_immed(reg_d16, reg_d16, off);
                 (*ext_words)++;
 
                 switch (size)
@@ -1469,8 +1490,15 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         /* Base register in use. Alloc it and load its contents */
                         base_reg = RA_AllocARMRegister(&ptr);
-                        ptr = EMIT_FlushPC(ptr);
-                        *ptr++ = add_immed(base_reg, REG_PC, 2);
+                        int8_t off = 2;
+                        //ptr = EMIT_FlushPC(ptr);
+                        ptr = EMIT_GetOffsetPC(ptr, &off);
+                        if (off > 0)
+                            *ptr++ = add_immed(base_reg, REG_PC, off);
+                        else
+                            *ptr++ = sub_immed(base_reg, REG_PC, -off);
+
+                        //*ptr++ = add_immed(base_reg, REG_PC, 2);
                     }
 
                     /* Check if index register is in use */
@@ -1680,9 +1708,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             }
             else if (src_reg == 0)
             {
-                ext_words++;
-                int8_t pc_off = 2;
+                int8_t pc_off = 2 + 2*(*ext_words);
                 ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                (*ext_words)++;
 
                 if (size == 0)
                     *ptr++ = ldrsh_offset(REG_PC, *arm_reg, pc_off);
@@ -1707,9 +1735,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             }
             else if (src_reg == 1)
             {
-                ext_words += 2;
-                int8_t pc_off = 2;
+                int8_t pc_off = 2 + 2*(*ext_words);
                 ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                (*ext_words) += 2;
 
                 if (size == 0)
                     *ptr++ = ldr_offset(REG_PC, *arm_reg, pc_off);
