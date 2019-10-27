@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-static inline __attribute__((always_inline)) void DuffCopy(uint32_t * restrict to, uint32_t * restrict from, uint32_t count)
+static inline __attribute__((always_inline)) void DuffCopy(uint32_t * restrict to, const uint32_t * restrict from, uint32_t count)
 {
     register uint32_t n = (count + 7) / 8;
     switch (count % 8) {
