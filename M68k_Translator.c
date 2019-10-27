@@ -20,6 +20,8 @@
 #include "config.h"
 #include "DuffCopy.h"
 
+const int debug = 0;
+
 #ifdef RASPI
 #include "support_rpi.h"
 static struct List *ICache;
@@ -44,7 +46,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
     int new_offset = _pc_rel + *offset;
 
     // If overflow would occur then compute PC and get new offset
-    if (new_offset > 127 || new_offset < -128)
+    while (new_offset > 127 || new_offset < -127)
     {
         if (_pc_rel > 0)
             *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
@@ -53,21 +55,20 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
 
         _pc_rel = 0;
     }
-    else
-    {
-        (*offset) = (*offset) + _pc_rel;
-    }
+
+    *offset = new_offset;
 
     return ptr;
 }
 
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset)
 {
+if (debug)    printf("Emit_AdvancePC(pc_rel=%d, off=%d)\n", _pc_rel, (int)offset);
     // Calculate new PC relative offset
     _pc_rel += (int)offset;
 
     // If overflow would occur then compute PC and get new offset
-    if (_pc_rel > 127 || _pc_rel < -128)
+    if (_pc_rel > 120 || _pc_rel < -120)
     {
         if (_pc_rel > 0)
             *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
@@ -211,19 +212,17 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     /* Find entry with correct address */
     ForeachNode(&ICache[hash], n)
     {
-        if (n->mt_M68kAddress == m68kcodeptr) {
+        if (n->mt_M68kAddress == m68kcodeptr)
+        {
+            /* Unit found? Move it to the front of LRU list */
             unit = n;
-            break;
+            REMOVE(&unit->mt_LRUNode);
+            ADDHEAD(&LRU, &unit->mt_LRUNode);
+            return unit;
         }
     }
 
-    /* Unit found? Move it to the front of LRU list */
-    if (unit != NULL)
-    {
-        REMOVE(&unit->mt_LRUNode);
-        ADDHEAD(&LRU, &unit->mt_LRUNode);
-    }
-    else
+    if (unit == NULL)
     {
         uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
         uint32_t pop_cnt=0;
@@ -231,7 +230,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             pop_update_loc[i] = (uint32_t *)0;
 
 //        unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
-//        printf("[ICache] Creating new translation unit at %08x with hash %04x (m68k code @ %08x)\n", (void*)unit, hash, m68kcodeptr);
+if (debug)        printf("[ICache] Creating new translation unit with hash %04x (m68k code @ %08x)\n", hash, m68kcodeptr);
 //        unit->mt_M68kAddress = m68kcodeptr;
 
         uint32_t prologue_size = 0;
@@ -251,11 +250,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
         uint32_t *tmpptr = end;
         pop_update_loc[pop_cnt++] = end;
-        *end++ = push((1 << REG_SR) | (1 << REG_CTX));
+        *end++ = push((1 << REG_SR));// | (1 << REG_CTX));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_be();
 #endif
-        *end++ = mov_reg(REG_CTX, 0);
+        //*end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         *end++ = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
         prologue_size = end - tmpptr;
@@ -305,7 +304,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 *end++ = setend_le();
 #endif
                 pop_update_loc[pop_cnt++] = end;
-                *end++ = pop((1 << REG_SR) | (1 << REG_CTX));
+                *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
                 if (!lr_is_saved)
                     *end++ = bx_lr();
                 int distance = end - tmpptr;
@@ -325,20 +324,20 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         *end++ = setend_le();
 #endif
         if (lr_is_saved)
-            *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX) | (1 << 15));
+            *end++ = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/ | (1 << 15));
         else
-            *end++ = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
+            *end++ = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/);
         if (mask || lr_is_saved) {
             int i=1;
             if (lr_is_saved)
-                *pop_update_loc[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX) | (1 << 14));
+                *pop_update_loc[0] = push(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/ | (1 << 14));
             else
-                *pop_update_loc[0] = push(mask | (1 << REG_SR) | (1 << REG_CTX));
+                *pop_update_loc[0] = push(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/);
             while (pop_update_loc[i]) {
                 if (lr_is_saved)
-                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) | (1 << REG_CTX) | (1 << 15));
+                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/ | (1 << 15));
                 else
-                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) | (1 << REG_CTX));
+                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/);
             }
         }
         if (!lr_is_saved)
@@ -346,7 +345,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         epilogue_size += end - tmpptr;
 
 
-    if (0)      {
+    if (debug)      {
 
         printf("[ICache]   Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
         printf("[ICache]   Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
@@ -395,7 +394,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
         __clear_cache(&unit->mt_ARMCode[0], &unit->mt_ARMCode[unit->mt_ARMInsnCnt]);
 
-if (0) {
+if (debug) {
         printf("-----\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
