@@ -15,43 +15,6 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-
-static uint8_t M68K_ccTo_ARM[] = {
-    ARM_CC_AL,      // M_CC_T
-    0x0f,           // M_CC_F
-    ARM_CC_HI,      // M_CC_HI
-    ARM_CC_LS,      // M_CC_LS
-    ARM_CC_CC,      // M_CC_CC
-    ARM_CC_CS,      // M_CC_CS
-    ARM_CC_NE,      // M_CC_NE
-    ARM_CC_EQ,      // M_CC_EQ
-    ARM_CC_VC,      // M_CC_VC
-    ARM_CC_VS,      // M_CC_VS
-    ARM_CC_PL,      // M_CC_PL
-    ARM_CC_MI,      // M_CC_MI
-    ARM_CC_GE,      // M_CC_GE
-    ARM_CC_LT,      // M_CC_LT
-    ARM_CC_GT,      // M_CC_GT
-    ARM_CC_LE       // M_CC_LE
-};
-
-static uint32_t *EMIT_LoadARMCC(uint32_t *ptr, uint8_t m68k_cc)
-{
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
-
-    *ptr++ = mov_reg_shift(tmp, m68k_cc, 28);     /* Copy m68k_cc */
-    *ptr++ = bic_immed(tmp, tmp, 0x203); /* Clear bits 0 and 1 */
-    *ptr++ = tst_immed(tmp, 2);
-    *ptr++ = orr_cc_immed(ARM_CC_NE, tmp, tmp, 0x201);
-    *ptr++ = tst_immed(tmp, 1);
-    *ptr++ = orr_cc_immed(ARM_CC_EQ, tmp, tmp, 0x202);
-    *ptr++ = msr(tmp, 8);
-
-    RA_FreeARMRegister(&ptr, tmp);
-
-    return ptr;
-}
-
 uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -65,7 +28,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             /* DBcc */
             uint8_t counter_reg = RA_MapM68kRegister(&ptr, opcode & 7);
             uint8_t m68k_condition = (opcode >> 8) & 0x0f;
-            uint8_t arm_condition = M68K_ccTo_ARM[m68k_condition];
+            uint8_t arm_condition = 0;
             uint32_t *branch_1 = NULL;
             uint32_t *branch_2 = NULL;
 
@@ -83,7 +46,102 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 /* If condition was not false check the condition and eventually break the loop */
                 if (m68k_condition != M_CC_F)
                 {
-                    ptr = EMIT_LoadARMCC(ptr, REG_SR);
+                    uint8_t cond_tmp = 0xff;
+
+                    switch (m68k_condition)
+                    {
+                        case M_CC_EQ:
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_NE:
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_CS:
+                            *ptr++ = tst_immed(REG_SR, SR_C);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_CC:
+                            *ptr++ = tst_immed(REG_SR, SR_C);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_PL:
+                            *ptr++ = tst_immed(REG_SR, SR_N);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_MI:
+                            *ptr++ = tst_immed(REG_SR, SR_N);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_VS:
+                            *ptr++ = tst_immed(REG_SR, SR_V);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_VC:
+                            *ptr++ = tst_immed(REG_SR, SR_V);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_LS:   /* C == 1 || Z == 1 */
+                            *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_HI:   /* C == 0 && Z == 0 */
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_GE:   /* (N==0 && V==0) || (N==1 && V==1) */
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_LT:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
+                            *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_GT:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_LE:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
+                            *ptr++ = and_cc_immed(ARM_CC_NE, cond_tmp, REG_SR, SR_Z); /* If failed, extract Z flag */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_Z); /* Check if Z is set */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        default:
+                            printf("Default CC called! Can't be!\n");
+                            *ptr++ = udf(0x0bcc);
+                            break;
+                    }
 
                     /* Adjust PC, negated CC is loop condition, CC is loop break condition */
                     *ptr++ = add_cc_immed(arm_condition^1, REG_PC, REG_PC, 2);
@@ -137,7 +195,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             /* Scc */
             uint8_t m68k_condition = (opcode >> 8) & 0x0f;
-            uint8_t arm_condition = M68K_ccTo_ARM[m68k_condition];
+            uint8_t arm_condition = 0;
             uint8_t ext_count = 0;
 
             if ((opcode & 0x38) == 0)
@@ -157,8 +215,103 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 }
                 else
                 {
-                    /* Load m68k flags to arm flags and perform either bit clear or bit set */
-                    ptr = EMIT_LoadARMCC(ptr, REG_SR);
+                    uint8_t cond_tmp = 0xff;
+
+                    switch (m68k_condition)
+                    {
+                        case M_CC_EQ:
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_NE:
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_CS:
+                            *ptr++ = tst_immed(REG_SR, SR_C);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_CC:
+                            *ptr++ = tst_immed(REG_SR, SR_C);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_PL:
+                            *ptr++ = tst_immed(REG_SR, SR_N);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_MI:
+                            *ptr++ = tst_immed(REG_SR, SR_N);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_VS:
+                            *ptr++ = tst_immed(REG_SR, SR_V);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_VC:
+                            *ptr++ = tst_immed(REG_SR, SR_V);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_LS:   /* C == 1 || Z == 1 */
+                            *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_HI:   /* C == 0 && Z == 0 */
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_GE:   /* (N==0 && V==0) || (N==1 && V==1) */
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_LT:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
+                            *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_GT:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_LE:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
+                            *ptr++ = and_cc_immed(ARM_CC_NE, cond_tmp, REG_SR, SR_Z); /* If failed, extract Z flag */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_Z); /* Check if Z is set */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        default:
+                            printf("Default CC called! Can't be!\n");
+                            *ptr++ = udf(0x0bcc);
+                            break;
+                    }
+
                     *ptr++ = orr_cc_immed(arm_condition, dest, dest, 0xff);
                     *ptr++ = bfc_cc(arm_condition^1, dest, 0, 8);
                 }
@@ -191,8 +344,103 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 }
                 else
                 {
-                    /* Load m68k flags to arm flags and perform either bit clear or bit set */
-                    ptr = EMIT_LoadARMCC(ptr, REG_SR);
+                    uint8_t cond_tmp = 0xff;
+
+                    switch (m68k_condition)
+                    {
+                        case M_CC_EQ:
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_NE:
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_CS:
+                            *ptr++ = tst_immed(REG_SR, SR_C);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_CC:
+                            *ptr++ = tst_immed(REG_SR, SR_C);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_PL:
+                            *ptr++ = tst_immed(REG_SR, SR_N);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_MI:
+                            *ptr++ = tst_immed(REG_SR, SR_N);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_VS:
+                            *ptr++ = tst_immed(REG_SR, SR_V);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_VC:
+                            *ptr++ = tst_immed(REG_SR, SR_V);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_LS:   /* C == 1 || Z == 1 */
+                            *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
+                            arm_condition = ARM_CC_NE;
+                            break;
+
+                        case M_CC_HI:   /* C == 0 && Z == 0 */
+                            *ptr++ = tst_immed(REG_SR, SR_Z);
+                            *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
+                            arm_condition = ARM_CC_EQ;
+                            break;
+
+                        case M_CC_GE:   /* (N==0 && V==0) || (N==1 && V==1) */
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_LT:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
+                            *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_GT:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        case M_CC_LE:
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
+                            *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
+                            *ptr++ = and_cc_immed(ARM_CC_NE, cond_tmp, REG_SR, SR_Z); /* If failed, extract Z flag */
+                            *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_Z); /* Check if Z is set */
+                            arm_condition = ARM_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+                            break;
+
+                        default:
+                            printf("Default CC called! Can't be!\n");
+                            *ptr++ = udf(0x0bcc);
+                            break;
+                    }
+
                     *ptr++ = orr_cc_immed(arm_condition, tmp, tmp, 0xff);
                     *ptr++ = bfc_cc(arm_condition^1, tmp, 0, 8);
                 }
