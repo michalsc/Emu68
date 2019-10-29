@@ -248,6 +248,10 @@ static inline uint32_t mov_immed_u8(uint8_t reg, uint8_t val) { return mov_cc_im
 static inline uint32_t movs_immed_u8(uint8_t reg, uint8_t val) { return movs_cc_immed_u8(ARM_CC_AL, reg, val); }
 static inline uint32_t mov_immed_u8_shift(uint8_t reg, uint8_t val, uint8_t shift) { reg = reg & 0x0f; shift &= 0x0f; return INSN_TO_LE(0xe3a00000 | val | (reg << 12) | (shift << 8)); }
 static inline uint32_t movs_immed_u8_shift(uint8_t reg, uint8_t val, uint8_t shift) { reg = reg & 0x0f; shift &= 0x0f; return INSN_TO_LE(0xe3a00000 | val | (reg << 12) | (1 << 20) | (shift << 8)); }
+static inline uint32_t movt_cc_immed_u16(uint8_t cc, uint8_t reg, uint16_t val) { reg = reg & 0x0f; uint8_t imm4 = val >> 12; uint16_t imm12 = val &0xfff; return INSN_TO_LE(0x03400000 | (cc << 28) | (imm4 << 16) | (imm12) | (reg << 12)); }
+static inline uint32_t movt_immed_u16(uint8_t reg, uint16_t val) { return movt_cc_immed_u16(ARM_CC_AL, reg, val); }
+static inline uint32_t movw_cc_immed_u16(uint8_t cc, uint8_t reg, uint16_t val) { reg = reg & 0x0f; uint8_t imm4 = val >> 12; uint16_t imm12 = val &0xfff; return INSN_TO_LE(0x03000000 | (cc << 28) | (imm4 << 16) | (imm12) | (reg << 12)); }
+static inline uint32_t movw_immed_u16(uint8_t reg, uint16_t val) { return movw_cc_immed_u16(ARM_CC_AL, reg, val); }
 static inline uint32_t mrs(uint8_t reg) { return INSN_TO_LE(0xe10f0000 | (reg << 12)); }
 static inline uint32_t msr(uint8_t reg, uint8_t mask) { return INSN_TO_LE(0xe120f000 | (reg) | (mask << 16)); }
 static inline uint32_t mul_cc(uint8_t cc, uint8_t rd, uint8_t rm, uint8_t rs) { return INSN_TO_LE(0x00000090 | (cc << 28) | (rd << 16) | (rs << 8) | rm);}
