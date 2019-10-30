@@ -23,7 +23,7 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
 
     (*m68k_ptr)++;
 
-    *ptr++ = movs_immed_s8(tmp_reg, value);
+    *ptr++ = mov_immed_s8(tmp_reg, value);
     ptr = EMIT_AdvancePC(ptr, 2);
 
     uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
@@ -31,13 +31,13 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-        if (update_mask & SR_Z)
+        if (value == 0)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        else if (value & 0x80)
+            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
     }
-
 
     return ptr;
 }
@@ -60,7 +60,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     else
         size = 2;
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 
     /* Reverse destination mode, since this one is reversed in MOVE instruction */
     tmp = (opcode >> 6) & 0x3f;
@@ -79,6 +79,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = cmp_immed(tmp_reg, 0);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)

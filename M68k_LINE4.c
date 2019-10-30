@@ -67,11 +67,15 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
         *ptr++ = mov_immed_u8(tmp, 0);
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -133,6 +137,7 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
@@ -198,10 +203,14 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -280,6 +289,7 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -350,10 +360,14 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -432,6 +446,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -473,6 +488,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            M68K_GetCC(&ptr);
             *ptr++ = tst_immed(REG_SR, SR_X);                   /* If X was set perform 0 - (dest + 1), otherwise 0 - dest */
             *ptr++ = add_cc_immed(ARM_CC_NE, dest, dest, 1);
             *ptr++ = rsbs_immed(dest, dest, 0);
@@ -481,6 +497,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
+            M68K_GetCC(&ptr);
             *ptr++ = tst_immed(REG_SR, SR_X);
             *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, tmp, 0);
             *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, tmp, 0);
@@ -510,12 +527,17 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
         uint8_t tmp_zero = RA_AllocARMRegister(&ptr);
 
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
+
+        M68K_GetCC(&ptr);
         *ptr++ = tst_immed(REG_SR, SR_X);
         *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, tmp_zero, 0);
         *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, tmp_zero, 0);
@@ -598,6 +620,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask & ~SR_Z);
         if (update_mask & SR_Z)
             *ptr++ = bic_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_Z);
@@ -658,7 +681,7 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -689,6 +712,7 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -707,9 +731,6 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t tmpresult = RA_AllocARMRegister(&ptr);
     uint8_t tmpstate = RA_AllocARMRegister(&ptr);
 
-    /* Load effective address */
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
-
     /* handle TAS on register, just make a copy and then orr 0x80 on register */
     if ((opcode & 0x0038) == 0)
     {
@@ -722,6 +743,12 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
+
         if (mode == 4)
         {
             *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
@@ -756,6 +783,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = lsl_immed(tmpresult, tmpresult, 24);
         *ptr++ = teq_immed(tmpresult, 0);
 
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -777,11 +805,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     if ((opcode & 0xffc0) == 0x40c0)
     {
         printf("[LINE4] Not implemented MOVE from SR\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100001011xxxxxx - MOVE from CCR */
     else if ((opcode &0xffc0) == 0x42c0)
     {
         printf("[LINE4] Not implemented MOVE from CCR\n");
+        *ptr++ = udf(opcode);
     }
     /* 01000000ssxxxxxx - NEGX */
     else if ((opcode & 0xff00) == 0x4000 && (opcode & 0xc0) != 0xc0)
@@ -797,6 +827,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode &0xffc0) == 0x44c0)
     {
         printf("[LINE4] Not implemented MOVE to CCR\n");
+        *ptr++ = udf(opcode);
     }
     /* 01000100ssxxxxxx - NEG */
     else if ((opcode &0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
@@ -807,6 +838,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode &0xffc0) == 0x46c0)
     {
         printf("[LINE4] Not implemented MOVE to CCR\n");
+        *ptr++ = udf(opcode);
     }
     /* 01000110ssxxxxxx - NOT */
     else if ((opcode &0xff00) == 0x4600 && (opcode & 0xc0) != 0xc0)
@@ -844,6 +876,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = cmp_immed(tmp, 0);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -880,6 +913,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
     {
         printf("[LINE4] Not implemented NBCD\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100100001000xxx - SWAP */
     else if ((opcode & 0xfff8) == 0x4840)
@@ -895,6 +929,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -906,6 +941,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xfff8) == 0x4848)
     {
         printf("[LINE4] Not implemented BKPT\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100100001xxxxxx - PEA */
     else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
@@ -914,7 +950,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ea;
         uint8_t ext_words = 0;
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1);
         (*m68k_ptr) += ext_words;
 
         sp = RA_MapM68kRegister(&ptr, 15);
@@ -951,6 +987,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xfff0) == 0x4e40)
     {
         printf("[LINE4] Not implemented TRAP\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111001010xxx - LINK */
     else if ((opcode & 0xfff8) == 0x4e50)
@@ -998,11 +1035,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xfff0) == 0x4e60)
     {
         printf("[LINE4] Not implemented MOVE USP\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111001110000 - RESET */
     else if (opcode == 0x4e70)
     {
         printf("[LINE4] Not implemented RESET\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111001110000 - NOP */
     else if (opcode == 0x4e71)
@@ -1014,11 +1053,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if (opcode == 0x4e72)
     {
         printf("[LINE4] Not implemented STOP\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111001110011 - RTE */
     else if (opcode == 0x4e73)
     {
         printf("[LINE4] Not implemented RTE\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111001110100 - RTD */
     else if (opcode == 0x4e74)
@@ -1059,6 +1100,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if (opcode == 0x4e76)
     {
         printf("[LINE4] Not implemented TRAPV\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111001110111 - RTR */
     else if (opcode == 0x4e77)
@@ -1067,6 +1109,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t sp = RA_MapM68kRegister(&ptr, 15);
 
         /* Fetch status byte from stack */
+        M68K_ModifyCC(&ptr);
         *ptr++ = ldrh_offset_postindex(sp, tmp, 2);
         *ptr++ = bic_immed(REG_SR, REG_SR, 0x1f);
         *ptr++ = bic_immed(tmp, tmp, 0x1f);
@@ -1083,6 +1126,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xfffe) == 0x4e7a)
     {
         printf("[LINE4] Not implemented MOVEC\n");
+        *ptr++ = udf(opcode);
     }
     /* 0100111010xxxxxx - JSR */
     else if ((opcode & 0xffc0) == 0x4e80)
@@ -1092,7 +1136,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t sp;
 
         sp = RA_MapM68kRegister(&ptr, 15);
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1);
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         ptr = EMIT_FlushPC(ptr);
         *ptr++ = str_offset_preindex(sp, REG_PC, -4);
@@ -1109,7 +1153,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ext_words = 0;
         uint8_t ea;
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1);
         ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, ea);
         (*m68k_ptr) += ext_words;
@@ -1137,7 +1181,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             uint8_t base;
 
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             /* Pre-decrement mode? Decrease the base now */
             if ((opcode & 0x38) == 0x20)
@@ -1196,7 +1240,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t base;
             uint8_t offset = 0;
 
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             for (int i=0; i < 16; i++)
             {
@@ -1239,7 +1283,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t dest;
         uint8_t ea;
         uint8_t ext_words = 0;
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1);
         dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
         *ptr++ = mov_reg(dest, ea);
         (*m68k_ptr) += ext_words;
@@ -1251,7 +1295,10 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xf140) == 0x4100)
     {
         printf("[LINE4] Not implemented CHK\n");
+        *ptr++ = udf(opcode);
     }
+    else
+        *ptr++ = udf(opcode);
 
     return ptr;
 }

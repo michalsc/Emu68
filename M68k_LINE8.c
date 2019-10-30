@@ -30,17 +30,17 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1000xxx10000xxxx - SBCD */
     else if ((opcode & 0xf1f0) == 0x8100)
     {
-
+        *ptr++ = udf(opcode);
     }
     /* 1000xxx10100xxxx - PACK */
     else if ((opcode & 0xf1f0) == 0x8140)
     {
-
+        *ptr++ = udf(opcode);
     }
     /* 1000xxx11000xxxx - UNPK */
     else if ((opcode & 0xf1f0) == 0x8180)
     {
-
+        *ptr++ = udf(opcode);
     }
     /* 1000xxx111xxxxxx - DIVS */
     else if ((opcode & 0xf1c0) == 0x81c0)
@@ -60,7 +60,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t src = 0;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             switch (size)
             {
@@ -90,7 +90,10 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
 
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
 
             /* Fetch data into temporary register, perform add, store it back */
             switch (size)
@@ -174,6 +177,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -181,6 +185,8 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
         }
     }
+    else
+        *ptr++ = udf(opcode);
 
     return ptr;
 }

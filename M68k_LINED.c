@@ -30,7 +30,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
         uint8_t tmp;
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
         *ptr++ = add_reg(reg, reg, tmp, 0);
         RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
@@ -45,6 +45,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         /* Move C flag to ARM flags */
         uint8_t tmp = RA_AllocARMRegister(&ptr);
+        M68K_GetCC(&ptr);
         *ptr++ = mov_immed_u8(tmp, 0);
         *ptr++ = tst_immed(REG_SR, SR_X);
         *ptr++ = orr_cc_immed(ARM_CC_NE, tmp, tmp, 0x202);  /* Set bit 29: 0x20000000 */
@@ -134,6 +135,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -158,7 +160,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t src = 0;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             switch (size)
             {
@@ -188,7 +190,10 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
 
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
 
             /* Fetch data into temporary register, perform add, store it back */
             switch (size)
@@ -272,6 +277,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -283,6 +289,8 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
         }
     }
+    else
+        *ptr++ = udf(opcode);
 
     return ptr;
 }

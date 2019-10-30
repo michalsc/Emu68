@@ -96,6 +96,8 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t success_condition = 0;
         uint8_t cond_tmp = 0xff;
 
+        M68K_GetCC(&ptr);
+
         switch (m68k_condition)
         {
             case M_CC_EQ:

@@ -27,7 +27,7 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
     // Fetch 16-bit multiplicant
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     // Sign-extend 16-bit multiplicants
     *ptr++ = sxth(reg, reg, 0);
@@ -46,6 +46,7 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -68,7 +69,7 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
     // Fetch 16-bit multiplicant
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     // Sign-extend 16-bit multiplicants
     *ptr++ = uxth(reg, reg, 0);
@@ -87,6 +88,7 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -110,7 +112,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, (opcode2 >> 12) & 7);
 
     // Fetch 32-bit multiplicant
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     if (opcode2 & (1 << 10))
     {
@@ -136,6 +138,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -193,7 +196,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
@@ -282,6 +285,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_V)
         {
@@ -326,7 +330,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
@@ -406,6 +410,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_V)
         {
@@ -462,7 +467,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         reg_dr = RA_MapM68kRegister(&ptr, opcode2 & 7);
 
     // Load divisor
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     // Check if division by 0
     *ptr++ = cmp_immed(reg_q, 0);
@@ -532,6 +537,7 @@ printf("64 bit division not done yet!\n");
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_V)
         {

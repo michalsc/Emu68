@@ -21,32 +21,32 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
-    int8_t pc_off;
+    uint16_t lo16, hi16;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            pc_off = 3;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 24);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 16);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            if (lo16 <= 0xff)
+                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
+            else {
+                *ptr++ = sub_reg(immed, immed, immed, 0);
+                *ptr++ = movt_immed_u16(immed, lo16);
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldr_offset(REG_PC, immed, pc_off);
-            ext_count+=2;
+            hi16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = movw_immed_u16(immed, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(immed, hi16);
             size = 4;
             break;
     }
@@ -74,7 +74,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -105,6 +105,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -124,30 +125,32 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
-    int8_t pc_off;
+    uint16_t lo16, hi16;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            pc_off = 3;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 24);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 16);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            if (lo16 <= 0xff)
+                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
+            else {
+                *ptr++ = sub_reg(immed, immed, immed, 0);
+                *ptr++ = movt_immed_u16(immed, lo16);
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            *ptr++ = ldr_offset(REG_PC, immed, 2);
-            ext_count+=2;
+            hi16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = movw_immed_u16(immed, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(immed, hi16);
             size = 4;
             break;
     }
@@ -181,10 +184,14 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -266,6 +273,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -285,32 +293,32 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
-    int8_t pc_off;
+    uint16_t lo16, hi16;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            pc_off = 3;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 24);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 16);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            if (lo16 <= 0xff)
+                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
+            else {
+                *ptr++ = sub_reg(immed, immed, immed, 0);
+                *ptr++ = movt_immed_u16(immed, lo16);
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldr_offset(REG_PC, immed, pc_off);
-            ext_count+=2;
+            hi16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = movw_immed_u16(immed, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(immed, hi16);
             size = 4;
             break;
     }
@@ -344,10 +352,14 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch(size)
@@ -430,6 +442,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -447,12 +460,12 @@ uint32_t *EMIT_ORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    int8_t pc_off = 3;
+    uint16_t val8 = BE16(*m68k_ptr[0]);
 
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
     /* Load immediate into the register */
-    *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
+    *ptr++ = mov_immed_u8(immed, val8 & 0xff);
     /* OR with status register, no need to check mask, ARM sequence way too short! */
+    M68K_ModifyCC(&ptr);
     *ptr++ = orr_reg(REG_SR, REG_SR, immed, 0);
 
     RA_FreeARMRegister(&ptr, immed);
@@ -480,32 +493,32 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
-    int8_t pc_off = 0;
+    uint16_t lo16, hi16;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            pc_off = 3;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 24);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 16);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            if (lo16 <= 0xff)
+                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
+            else {
+                *ptr++ = sub_reg(immed, immed, immed, 0);
+                *ptr++ = movt_immed_u16(immed, lo16);
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldr_offset(REG_PC, immed, pc_off);
-            ext_count+=2;
+            hi16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = movw_immed_u16(immed, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(immed, hi16);
             size = 4;
             break;
     }
@@ -539,10 +552,14 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch(size)
@@ -624,6 +641,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -638,12 +656,12 @@ uint32_t *EMIT_ANDI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    int8_t pc_off = 3;
+    uint16_t val = BE16(*m68k_ptr[0]);
 
     /* Load immediate into the register */
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-    *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
+    *ptr++ = mov_immed_u8(immed, val & 0xff);
     /* OR with status register, no need to check mask, ARM sequence way too short! */
+    M68K_ModifyCC(&ptr);
     *ptr++ = and_reg(REG_SR, REG_SR, immed, 0);
 
     RA_FreeARMRegister(&ptr, immed);
@@ -671,32 +689,32 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
-    int8_t pc_off = 0;
+    int16_t lo16, hi16;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            pc_off = 3;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 24);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 16);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            if (lo16 <= 0xff)
+                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
+            else {
+                *ptr++ = sub_reg(immed, immed, immed, 0);
+                *ptr++ = movt_immed_u16(immed, lo16);
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldr_offset(REG_PC, immed, pc_off);
-            ext_count+=2;
+            hi16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = movw_immed_u16(immed, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(immed, hi16);
             size = 4;
             break;
     }
@@ -730,10 +748,14 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch(size)
@@ -815,6 +837,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -829,12 +852,12 @@ uint32_t *EMIT_EORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    int8_t pc_off = 3;
+    int16_t val = BE16((*m68k_ptr)[0]);
 
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
     /* Load immediate into the register */
-    *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
+    *ptr++ = mov_immed_u8(immed, val & 0xff);
     /* OR with status register, no need to check mask, ARM sequence way too short! */
+    M68K_ModifyCC(&ptr);
     *ptr++ = eor_reg(REG_SR, REG_SR, immed, 0);
 
     RA_FreeARMRegister(&ptr, immed);
@@ -862,32 +885,32 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest;
     uint8_t size = 0;
-    int8_t pc_off = 0;
+    int16_t lo16, hi16;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            pc_off = 3;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrb_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 24);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrh_offset(REG_PC, immed, pc_off);
-            *ptr++ = lsl_immed(immed, immed, 16);
-            ext_count++;
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            if (lo16 <= 0xff)
+                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
+            else {
+                *ptr++ = sub_reg(immed, immed, immed, 0);
+                *ptr++ = movt_immed_u16(immed, lo16);
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            pc_off = 2;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldr_offset(REG_PC, immed, pc_off);
-            ext_count+=2;
+            hi16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            *ptr++ = movw_immed_u16(immed, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(immed, hi16);
             size = 4;
             break;
     }
@@ -921,10 +944,14 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
+
+        /* Load effective address */
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch(size)
@@ -1006,6 +1033,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_N)
             *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -1054,7 +1082,7 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         /* Load byte from effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 
         *ptr++ = and_immed(bit_number, bit_number, 7);
         *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
@@ -1074,6 +1102,7 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -1124,7 +1153,7 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -1170,6 +1199,7 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -1221,7 +1251,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -1267,6 +1297,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -1317,7 +1348,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -1363,6 +1394,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+        M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (update_mask & SR_Z)
             *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
@@ -1405,6 +1437,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {
         printf("[LINE0] Not implemented CMP2/CHK2");
+        *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xff00) == 0x0a00)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
     {
@@ -1438,10 +1471,12 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xff00) == 0x0e00)   /* 00001110xxxxxxxx - MOVES */
     {
         printf("[LINE0] Supervisor MOVES\n");
+        *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
     {
         printf("[LINE0] Not implemented CAS/CAS2");
+        *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xf1c0) == 0x0100)   /* 0000xxx100xxxxxx - BTST */
     {
@@ -1462,7 +1497,13 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
     {
         printf("[LINE0] Not implemented MOVEP");
+        *ptr++ = udf(opcode);
     }
+    else
+    {
+        *ptr++ = udf(opcode);
+    }
+
 
     return ptr;
 }

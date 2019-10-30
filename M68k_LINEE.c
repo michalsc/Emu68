@@ -27,7 +27,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t dest = 0xff;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t ext_words = 0;
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
 
         *ptr++ = ldrh_offset(dest, tmp, 0);
 
@@ -53,6 +53,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -69,7 +70,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t dest = 0xff;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t ext_words = 0;
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
 
         *ptr++ = ldrh_offset(dest, tmp, 0);
 
@@ -95,6 +96,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -107,6 +109,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110010x11xxxxxx - ROXL, ROXR - memory */
     else if ((opcode & 0xfec0) == 0xe4c0)
     {
+        printf("Not implemented: ROXL, ROXR\n");
+        *ptr++ = udf(opcode);
     }
     /* 1110011x11xxxxxx - ROL, ROR - memory */
     else if ((opcode & 0xfec0) == 0xe6c0)
@@ -115,7 +119,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t dest = 0xff;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t ext_words = 0;
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
 
         *ptr++ = ldrh_offset(dest, tmp, 0);
         *ptr++ = bfi(tmp, tmp, 16, 16);
@@ -141,6 +145,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -236,7 +241,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         {
             uint8_t dest;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             RA_FreeARMRegister(&ptr, dest);
         }
@@ -249,6 +254,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = cmp_immed(tmp, 0);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -295,7 +301,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         {
             uint8_t dest;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             RA_FreeARMRegister(&ptr, dest);
         }
@@ -308,6 +314,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = cmp_immed(tmp, 0);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -321,6 +328,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110101011xxxxxx - BFCHG */
     else if ((opcode & 0xffc0) == 0xeac0)
     {
+        *ptr++ = udf(opcode);
     }
     /* 1110101111xxxxxx - BFEXTS */
     else if ((opcode & 0xffc0) == 0xebc0)
@@ -358,7 +366,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         {
             uint8_t dest;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
             RA_FreeARMRegister(&ptr, dest);
         }
@@ -371,6 +379,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = cmp_immed(tmp, 0);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -384,18 +393,22 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110110011xxxxxx - BFCLR */
     else if ((opcode & 0xffc0) == 0xecc0)
     {
+        *ptr++ = udf(opcode);
     }
     /* 1110110111xxxxxx - BFFFO */
     else if ((opcode & 0xffc0) == 0xedc0)
     {
+        *ptr++ = udf(opcode);
     }
     /* 1110111011xxxxxx - BFSET */
     else if ((opcode & 0xffc0) == 0xeec0)
     {
+        *ptr++ = udf(opcode);
     }
     /* 1110111111xxxxxx - BFINS */
     else if ((opcode & 0xffc0) == 0xefc0)
     {
+        *ptr++ = udf(opcode);
     }
     /* 1110xxxxxxx00xxx - ASL, ASR */
     else if ((opcode & 0xf018) == 0xe000)
@@ -509,6 +522,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -631,6 +645,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -643,6 +658,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110xxxxxxx10xxx - ROXL, ROXR */
     else if ((opcode & 0xf018) == 0xe010)
     {
+        *ptr++ = udf(opcode);
     }
     /* 1110xxxxxxx11xxx - ROL, ROR */
     else if ((opcode & 0xf018) == 0xe018)
@@ -771,6 +787,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+            M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -780,6 +797,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
         }
     }
+    else
+        *ptr++ = udf(opcode);
 
     return ptr;
 }

@@ -48,6 +48,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 {
                     uint8_t cond_tmp = 0xff;
 
+                    M68K_GetCC(&ptr);
+
                     switch (m68k_condition)
                     {
                         case M_CC_EQ:
@@ -217,6 +219,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 {
                     uint8_t cond_tmp = 0xff;
 
+                    M68K_GetCC(&ptr);
+
                     switch (m68k_condition)
                     {
                         case M_CC_EQ:
@@ -319,10 +323,14 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             else
             {
                 /* Load effective address */
-                uint8_t dest = 0;
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+                uint8_t dest = 0xff;
                 uint8_t tmp = RA_AllocARMRegister(&ptr);
                 uint8_t mode = (opcode & 0x0038) >> 3;
+
+                if (mode == 4 || mode == 3)
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+                else
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
                 /* Fetch data into temporary register, perform add, store it back */
                 if (mode == 4)
@@ -345,6 +353,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 else
                 {
                     uint8_t cond_tmp = 0xff;
+
+                    M68K_GetCC(&ptr);
 
                     switch (m68k_condition)
                     {
@@ -522,9 +532,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             /* Load effective address */
             uint8_t dest;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
+
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
             switch ((opcode >> 6) & 3)
             {
@@ -609,6 +623,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
             if (update_mask)
             {
+                M68K_ModifyCC(&ptr);
                 *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
                 if (update_mask & SR_N)
                     *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -681,9 +696,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             /* Load effective address */
             uint8_t dest;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
+
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
 
             switch ((opcode >> 6) & 3)
             {
@@ -768,6 +787,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
             if (update_mask)
             {
+                M68K_ModifyCC(&ptr);
                 *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
                 if (update_mask & SR_N)
                     *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
@@ -780,6 +800,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             }
         }
     }
+    else
+        *ptr++ = udf(opcode);
 
     return ptr;
 }
