@@ -14,6 +14,12 @@
 
 #include "nodes.h"
 
+struct M68KLocalState {
+    void *          mls_M68kPtr;
+    uint32_t        mls_ARMOffset;
+    uint8_t         mls_RegMap[16];
+};
+
 struct M68KTranslationUnit {
     struct Node     mt_HashNode;
     struct Node     mt_LRUNode;
@@ -27,6 +33,7 @@ struct M68KTranslationUnit {
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;
     void *          mt_ARMEntryPoint;
+    struct M68KLocalState *  mt_LocalState;
     uint32_t        mt_ARMCode[] __attribute__((aligned(32)));
 };
 
@@ -92,7 +99,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
 uint32_t *EMIT_FlushPC(uint32_t *ptr);
 uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr);
-uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
+uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only);
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
@@ -112,5 +119,8 @@ uint8_t M68K_GetSRMask(uint16_t opcode);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void M68K_DumpStats();
+void M68K_GetCC(uint32_t **ptr);
+void M68K_ModifyCC(uint32_t **ptr);
+void M68K_FlushCC(uint32_t **ptr);
 
 #endif /* _M68K_H */
