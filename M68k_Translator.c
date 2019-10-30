@@ -37,6 +37,7 @@ static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
 static uint32_t temporary_arm_code[EMU68_M68K_INSN_DEPTH * 4 * 64];
+static struct M68KLocalState local_state[EMU68_M68K_INSN_DEPTH];
 
 int32_t _pc_rel = 0;
 
@@ -164,16 +165,10 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
         /* Shift/Rotate/Bitfield */
         ptr = EMIT_lineE(arm_ptr, m68k_ptr);
     }
+    else if (group == 15)
+        *ptr++ = udf(opcode);
     else
         (*m68k_ptr)++;
-
-    /* No progress? Assume undefined instruction and emit udf to trigger exception */
-    if (ptr == arm_ptr)
-    {
-        ptr = arm_ptr;
-        *ptr++ = udf(opcode);
-        printf("[ICache] undefined instruction with opcode %04x!\n",opcode);
-    }
 
     return ptr;
 }
@@ -189,6 +184,36 @@ void __clear_cache(void *begin, void *end)
 #else
 void __clear_cache(void *begin, void *end);
 #endif
+
+static uint8_t got_CC = 0;
+static uint8_t mod_CC = 0;
+
+void M68K_GetCC(uint32_t **ptr)
+{
+    if (got_CC == 0)
+    {
+        **ptr = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        (*ptr)++;
+        got_CC = 1;
+        mod_CC = 0;
+    }
+}
+
+void M68K_ModifyCC(uint32_t **ptr)
+{
+    M68K_GetCC(ptr);
+    mod_CC = 1;
+}
+
+void M68K_FlushCC(uint32_t **ptr)
+{
+    if (got_CC && mod_CC)
+    {
+        **ptr = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        (*ptr)++;
+    }
+    got_CC = 0;
+}
 
 /*
     Get M68K code unit from the instruction cache. Return NULL if code was not found and needs to be
@@ -229,6 +254,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
             pop_update_loc[i] = (uint32_t *)0;
 
+        got_CC = 0;
+        mod_CC = 0;
+
 //        unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
 if (debug)        printf("[ICache] Creating new translation unit with hash %04x (m68k code @ %08x)\n", hash, m68kcodeptr);
 //        unit->mt_M68kAddress = m68kcodeptr;
@@ -250,13 +278,12 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
 
         uint32_t *tmpptr = end;
         pop_update_loc[pop_cnt++] = end;
-        *end++ = push((1 << REG_SR));// | (1 << REG_CTX));
+        *end++ = push(0); //(1 << REG_SR));// | (1 << REG_CTX));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_be();
 #endif
         //*end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
-        *end++ = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
         prologue_size = end - tmpptr;
         while (*m68kcodeptr != 0xffff && insn_count < m68k_translation_depth)
         {
@@ -265,6 +292,10 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
             if (m68kcodeptr + 16 > m68k_high)
                 m68k_high = m68kcodeptr + 16;
 
+            local_state[insn_count].mls_ARMOffset = end - arm_code;
+            local_state[insn_count].mls_M68kPtr = m68kcodeptr;
+            for (int r=0; r < 16; r++)
+                local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
             end = EmitINSN(end, &m68kcodeptr);
             insn_count++;
             if (end[-1] == INSN_TO_LE(0xfffffff0))
@@ -317,27 +348,39 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
         tmpptr = end;
         RA_FlushM68kRegs(&end);
         end = EMIT_FlushPC(end);
-        *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        M68K_FlushCC(&end);
         *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         uint16_t mask = RA_GetChangedMask() & 0xfff0;
+        if (mod_CC)
+            mask |= 1 << REG_SR;
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_le();
 #endif
+        if (!mask && !lr_is_saved) {
+            arm_code++;
+            int i=1;
+
+            while (pop_update_loc[i]) {
+                *pop_update_loc[i++] = bx_lr();
+            }
+        }
+
         if (lr_is_saved)
-            *end++ = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/ | (1 << 15));
-        else
-            *end++ = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/);
+            *end++ = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 15));
+        else if (mask)
+            *end++ = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
+
         if (mask || lr_is_saved) {
             int i=1;
             if (lr_is_saved)
-                *pop_update_loc[0] = push(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/ | (1 << 14));
+                *pop_update_loc[0] = push(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 14));
             else
-                *pop_update_loc[0] = push(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/);
+                *pop_update_loc[0] = push(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
             while (pop_update_loc[i]) {
                 if (lr_is_saved)
-                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/ | (1 << 15));
+                    *pop_update_loc[i++] = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 15));
                 else
-                    *pop_update_loc[i++] = pop(mask | (1 << REG_SR) /*| (1 << REG_CTX)*/);
+                    *pop_update_loc[i++] = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
             }
         }
         if (!lr_is_saved)
@@ -395,12 +438,25 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
         __clear_cache(&unit->mt_ARMCode[0], &unit->mt_ARMCode[unit->mt_ARMInsnCnt]);
 
 if (debug) {
-        printf("-----\n");
+        printf("-- ARM Code dump --\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
             uint32_t insn = unit->mt_ARMCode[i];
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
-        }}
+        }
+
+        printf("-- Local State --\n");
+        for (unsigned i=0; i < insn_count; i++)
+        {
+            printf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
+            for (int r=0; r < 16; r++) {
+                if (local_state[i].mls_RegMap[r] != 0xff) {
+                    printf(" %c%d=r%d", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r]);
+                }
+            }
+            printf("\n");
+        }
+        }
 /*                exit(0);
 */
     }
