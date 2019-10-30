@@ -247,6 +247,41 @@ uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg)
     return arm_reg;
 }
 
+uint8_t RA_IsARMRegisterMapped(uint8_t arm_reg)
+{
+    arm_reg &= 0xf;
+    for (int i=0; i < 16; i++)
+        if (LRU_M68kRegisters[i].rs_ARMReg == arm_reg)
+            return 1;
+    return 0;
+}
+
+uint8_t RA_GetMappedARMRegister(uint8_t m68k_reg)
+{
+    m68k_reg &= 0xf;
+    return LRU_M68kRegisters[m68k_reg].rs_ARMReg;
+}
+
+void RA_AssignM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg, uint8_t arm_reg)
+{
+    arm_reg &= 0x0f;
+    uint8_t old_reg = LRU_M68kRegisters[m68k_reg].rs_ARMReg;
+
+    LRU_M68kRegisters[m68k_reg].rs_ARMReg = arm_reg;
+    LRU_M68kRegisters[m68k_reg].rs_Dirty = 1;
+
+    RA_FreeARMRegister(arm_stream, old_reg);
+
+    for (int i=0; i < 8; i++) {
+        if (LRU_Table[i] == m68k_reg) {
+            RA_TouchM68kRegister(arm_stream, m68k_reg);
+            return;
+        }
+    }
+
+    RA_InsertM68kRegister(arm_stream, m68k_reg);
+}
+
 /* Allocate register R0-R9 for JIT */
 static uint8_t __int_arm_alloc_reg()
 {

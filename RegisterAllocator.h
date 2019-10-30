@@ -26,6 +26,9 @@ void RA_ClearChangedMask();
 uint8_t RA_AllocARMRegister(uint32_t **arm_stream);
 void RA_FreeARMRegister(uint32_t **arm_stream, uint8_t arm_reg);
 
+uint8_t RA_GetMappedARMRegister(uint8_t m68k_reg);
+uint8_t RA_IsARMRegisterMapped(uint8_t arm_reg);
+void RA_AssignM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg, uint8_t arm_reg);
 uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg);
 void RA_UnmapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
