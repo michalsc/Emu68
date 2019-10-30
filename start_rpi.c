@@ -542,6 +542,7 @@ void start_emu(void *addr)
     //m68k = &__m68k;
 
 
+for (int i=0; i < 3; i++) {
 
     bitmap[0] = (uint8_t *)BE32((uintptr_t)bitmap[0]);
     bitmap[1] = (uint8_t *)BE32((uintptr_t)bitmap[1]);
@@ -584,7 +585,8 @@ void start_emu(void *addr)
     printf("[JIT] Number of ARM-M68k switches: %lld\n", ctx_count);
 
     printf("Back from translated code\n");
-    print_context(m68k);
 
+    print_context(m68k);
+}
     M68K_DumpStats();
 }
