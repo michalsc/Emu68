@@ -32,5 +32,6 @@ void RA_AssignM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg, uint8_t arm_
 uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg);
 void RA_UnmapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
+uint8_t RA_CopyFromM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 
 #endif /* _REGISTER_ALLOCATOR_H */

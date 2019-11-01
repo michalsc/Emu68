@@ -176,6 +176,34 @@ void RA_RemoveM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
 }
 
 /*
+    Make a discardable copy of m68k register (e.g. temporary value from reg which can be later worked on)
+*/
+uint8_t RA_CopyFromM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    uint8_t arm_reg = RA_AllocARMRegister(arm_stream);
+
+    /* If the register is already mapped, move it's value to temporary without touching mapped reg */
+    if (LRU_M68kRegisters[m68k_reg].rs_ARMReg != 0xff) {
+        **arm_stream = mov_reg(arm_reg, LRU_M68kRegisters[m68k_reg].rs_ARMReg);
+    }
+    else
+    {
+        /* The register was not mapped. Fetch it from m68k state instead */
+        if (m68k_reg < 8) {
+            **arm_stream = ldr_offset(REG_CTX, arm_reg,
+                                  __builtin_offsetof(struct M68KState, D[m68k_reg]));
+        } else {
+            **arm_stream = ldr_offset(REG_CTX, arm_reg,
+                                  __builtin_offsetof(struct M68KState, A[m68k_reg - 8]));
+        }
+    }
+
+    (*arm_stream)++;
+
+    return arm_reg;
+}
+
+/*
     Map m68k register to ARM register
 */
 uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
@@ -259,7 +287,7 @@ uint8_t RA_IsARMRegisterMapped(uint8_t arm_reg)
 uint8_t RA_GetMappedARMRegister(uint8_t m68k_reg)
 {
     m68k_reg &= 0xf;
-    return LRU_M68kRegisters[m68k_reg].rs_ARMReg;
+    return (LRU_M68kRegisters[m68k_reg].rs_ARMReg) | (LRU_M68kRegisters[m68k_reg].rs_Dirty ? 0x80 : 0);
 }
 
 void RA_AssignM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg, uint8_t arm_reg)
