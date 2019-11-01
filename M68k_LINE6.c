@@ -194,30 +194,9 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         ptr = EMIT_FlushPC(ptr);
 
-        /* Adjust PC accordingly */
-        if ((opcode & 0x00ff) == 0x00)
-        {
-            *ptr++ = add_cc_immed(success_condition ^ 1, REG_PC, REG_PC, 4);
-        }
-        /* use 32-bit offset */
-        else if ((opcode & 0x00ff) == 0xff)
-        {
-            *ptr++ = add_cc_immed(success_condition ^ 1, REG_PC, REG_PC, 6);
-        }
-        else
-        /* otherwise use 8-bit offset */
-        {
-            *ptr++ = add_cc_immed(success_condition ^ 1, REG_PC, REG_PC, 2);
-        }
-
         uint8_t reg = RA_AllocARMRegister(&ptr);
 
-        /* Next jump to skip the condition - invert bit 0 of the condition code here! */
-        tmpptr = ptr;
-
-        *ptr++ = 0; //b_cc(success_condition ^ 1, 2);
-
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        *ptr++ = add_cc_immed(success_condition, REG_PC, REG_PC, 2);
 
         intptr_t branch_target = (intptr_t)(*m68k_ptr);
         intptr_t branch_offset = 0;
@@ -226,9 +205,9 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         if ((opcode & 0x00ff) == 0x00)
         {
             branch_offset = (int16_t)BE16(*(*m68k_ptr)++);
-            *ptr++ = movw_immed_u16(reg, branch_offset & 0xffff);
+            *ptr++ = movw_cc_immed_u16(success_condition, reg, branch_offset & 0xffff);
             if (((branch_offset >> 16) & 0xffff) != 0)
-                *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
+                *ptr++ = movt_cc_immed_u16(success_condition, reg, (branch_offset >> 16) & 0xffff);
 
         }
         /* use 32-bit offset */
@@ -238,25 +217,45 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
             hi16 = BE16(*(*m68k_ptr)++);
             lo16 = BE16(*(*m68k_ptr)++);
             branch_offset = lo16 | (hi16 << 16);
-            *ptr++ = movw_immed_u16(reg, lo16);
+            *ptr++ = movw_cc_immed_u16(success_condition, reg, lo16);
             if (hi16 != 0)
-                *ptr++ = movt_immed_u16(reg, hi16);
+                *ptr++ = movt_cc_immed_u16(success_condition, reg, hi16);
         }
         else
         /* otherwise use 8-bit offset */
         {
             branch_offset = (int8_t)(opcode & 0xff);
-            *ptr++ = mov_immed_s8(reg, opcode & 0xff);
+            *ptr++ = mov_cc_immed_s8(success_condition, reg, opcode & 0xff);
         }
 
         branch_target += branch_offset;
 
-        printf("Branching by offset %d to %p\n", branch_offset, (void*)branch_target);
+        *ptr++ = add_cc_reg(success_condition, REG_PC, REG_PC, reg, 0);
 
-        *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+        /* Next jump to skip the condition - invert bit 0 of the condition code here! */
+        tmpptr = ptr;
+
+        *ptr++ = 0; //b_cc(success_condition ^ 1, 2);
+
+        /* Adjust PC accordingly */
+        if ((opcode & 0x00ff) == 0x00)
+        {
+            *ptr++ = add_immed(REG_PC, REG_PC, 4);
+        }
+        /* use 32-bit offset */
+        else if ((opcode & 0x00ff) == 0xff)
+        {
+            *ptr++ = add_immed(REG_PC, REG_PC, 6);
+        }
+        else
+        /* otherwise use 8-bit offset */
+        {
+            *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        }
 
         /* Now we now how far we jump. put the branch in place */
-        *tmpptr = b_cc(success_condition ^ 1, ptr-tmpptr-2);
+        *tmpptr = b_cc(success_condition /*^ 1*/, ptr-tmpptr-2);
+        *m68k_ptr = (uint16_t *)branch_target;
 
         RA_FreeARMRegister(&ptr, reg);
         *ptr++ = (uint32_t)tmpptr;
