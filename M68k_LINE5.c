@@ -184,6 +184,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 }
                 *ptr++ = (uint32_t)branch_2;
                 *ptr++ = branch_1 == NULL ? 1 : 2;
+                *ptr++ = 0;
                 *ptr++ = INSN_TO_LE(0xfffffffe);
 
                 RA_FreeARMRegister(&ptr, reg);

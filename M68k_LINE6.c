@@ -210,37 +210,58 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = add_cc_immed(success_condition ^ 1, REG_PC, REG_PC, 2);
         }
 
+        uint8_t reg = RA_AllocARMRegister(&ptr);
+
         /* Next jump to skip the condition - invert bit 0 of the condition code here! */
         tmpptr = ptr;
 
-        uint8_t reg = RA_AllocARMRegister(&ptr);
-
-        *ptr++ = b_cc(success_condition ^ 1, 2);
+        *ptr++ = 0; //b_cc(success_condition ^ 1, 2);
 
         *ptr++ = add_immed(REG_PC, REG_PC, 2);
+
+        intptr_t branch_target = (intptr_t)(*m68k_ptr);
+        intptr_t branch_offset = 0;
 
         /* use 16-bit offset */
         if ((opcode & 0x00ff) == 0x00)
         {
-            *ptr++ = ldrsh_offset(REG_PC, reg, 0);
-            (*m68k_ptr)++;
+            branch_offset = (int16_t)BE16(*(*m68k_ptr)++);
+            *ptr++ = movw_immed_u16(reg, branch_offset & 0xffff);
+            if (((branch_offset >> 16) & 0xffff) != 0)
+                *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
+
         }
         /* use 32-bit offset */
         else if ((opcode & 0x00ff) == 0xff)
         {
-            *ptr++ = ldr_offset(REG_PC, reg, 0);
-            (*m68k_ptr) += 2;
+            uint16_t lo16, hi16;
+            hi16 = BE16(*(*m68k_ptr)++);
+            lo16 = BE16(*(*m68k_ptr)++);
+            branch_offset = lo16 | (hi16 << 16);
+            *ptr++ = movw_immed_u16(reg, lo16);
+            if (hi16 != 0)
+                *ptr++ = movt_immed_u16(reg, hi16);
         }
         else
         /* otherwise use 8-bit offset */
         {
+            branch_offset = (int8_t)(opcode & 0xff);
             *ptr++ = mov_immed_s8(reg, opcode & 0xff);
         }
 
+        branch_target += branch_offset;
+
+        printf("Branching by offset %d to %p\n", branch_offset, (void*)branch_target);
+
         *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+
+        /* Now we now how far we jump. put the branch in place */
+        *tmpptr = b_cc(success_condition ^ 1, ptr-tmpptr-2);
+
         RA_FreeARMRegister(&ptr, reg);
         *ptr++ = (uint32_t)tmpptr;
         *ptr++ = 1;
+        *ptr++ = branch_target;
         *ptr++ = INSN_TO_LE(0xfffffffe);
     }
 
