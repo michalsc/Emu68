@@ -40,6 +40,8 @@
 #define ARM_CC_LE 0x0d /* Z == 1 || N != V */
 #define ARM_CC_AL 0x0e /* Always */
 
+extern int ARM_SUPPORTS_DIV;
+
 static inline uint64_t BE64(uint64_t x)
 {
     union {
@@ -142,6 +144,8 @@ static inline uint32_t add_cc_immed(uint8_t cc, uint8_t dest, uint16_t src, uint
 static inline uint32_t add_immed(uint8_t dest, uint8_t src, uint16_t value) { return add_cc_immed(ARM_CC_AL, dest, src, value); }
 static inline uint32_t add_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00800000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t add_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return add_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
+static inline uint32_t add_cc_reg_lsr_imm(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsr){dest = dest & 15;src = src & 15;reg = reg & 15;lsr = lsr & 31;return INSN_TO_LE(0x00800020 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsr << 7));}
+static inline uint32_t add_reg_lsr_imm(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsr){return add_cc_reg_lsr_imm(ARM_CC_AL, dest, src, reg, lsr);}
 static inline uint32_t adds_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){dest = dest & 15;src = src & 15;reg = reg & 15;lsl = lsl & 31;return INSN_TO_LE(0x00800000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t adds_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return adds_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t adds_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint16_t value){dest = dest & 15;src = src & 15;return INSN_TO_LE(0x02800000 | (1 << 20) | (cc << 28) | (dest << 12) | (src << 16) | value);}
@@ -272,6 +276,10 @@ static inline uint32_t orr_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint1
 static inline uint32_t orr_immed(uint8_t dest, uint8_t src, uint16_t value){return orr_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t orr_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x01800000 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t orr_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return orr_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
+static inline uint32_t orr_cc_reg_lsl_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x01800010 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 8));}
+static inline uint32_t orr_reg_lsl_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return orr_cc_reg_lsl_reg(ARM_CC_AL, dest, src, reg, lsl);}
+static inline uint32_t orr_cc_reg_lsr_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x01800030 | (cc << 28) | (dest << 12) | (src << 16) | reg | (lsl << 8));}
+static inline uint32_t orr_reg_lsr_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return orr_cc_reg_lsr_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t orrs_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x03800000 | (cc << 28) | (1 << 20) | (dest << 12) | (src << 16) | value);}
 static inline uint32_t orrs_immed(uint8_t dest, uint8_t src, uint8_t value){return orrs_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t orrs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x01800000 | (cc << 28) | (1 << 20) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
@@ -375,5 +383,19 @@ static inline uint32_t uxtb_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t ro
 static inline uint32_t uxtb(uint8_t dest, uint8_t src, uint8_t rot){return uxtb_cc(ARM_CC_AL, dest, src, rot);}
 static inline uint32_t uxth_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t rot){return INSN_TO_LE(0x06ff0070 | (cc << 28) | (dest << 12) | (src) | (rot << 10));}
 static inline uint32_t uxth(uint8_t dest, uint8_t src, uint8_t rot) {return uxth_cc(ARM_CC_AL, dest, src, rot);}
+
+
+static inline uint32_t smlal_cc(uint8_t cc, uint8_t rdhi, uint8_t rdlo, uint8_t factor1, uint8_t factor2) { return INSN_TO_LE(0x00e00090 | (cc << 28) | (rdhi << 16) | (rdlo << 12) | (factor1 << 8) | factor2); }
+static inline uint32_t smlal(uint8_t rdhi, uint8_t rdlo, uint8_t factor1, uint8_t factor2) { return smlal_cc(ARM_CC_AL, rdhi, rdlo, factor1, factor2); }
+static inline uint32_t umlal_cc(uint8_t cc, uint8_t rdhi, uint8_t rdlo, uint8_t factor1, uint8_t factor2) { return INSN_TO_LE(0x00a00090 | (cc << 28) | (rdhi << 16) | (rdlo << 12) | (factor1 << 8) | factor2); }
+static inline uint32_t umlal(uint8_t rdhi, uint8_t rdlo, uint8_t factor1, uint8_t factor2) { return umlal_cc(ARM_CC_AL, rdhi, rdlo, factor1, factor2); }
+static inline uint32_t mla_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t factor1, uint8_t factor2) { return INSN_TO_LE(0x00200090 | (cc << 28) | (dest << 16) | (src << 12) | (factor1 << 8) | factor2); }
+static inline uint32_t mla(uint8_t dest, uint8_t src, uint8_t factor1, uint8_t factor2) { return mla_cc(ARM_CC_AL, dest, src, factor1, factor2); }
+static inline uint32_t mls_cc(uint8_t cc, uint8_t dest, uint8_t src, uint8_t factor1, uint8_t factor2) { return INSN_TO_LE(0x00600090 | (cc << 28) | (dest << 16) | (src << 12) | (factor1 << 8) | factor2); }
+static inline uint32_t mls(uint8_t dest, uint8_t src, uint8_t factor1, uint8_t factor2) { return mls_cc(ARM_CC_AL, dest, src, factor1, factor2); }
+static inline uint32_t sdiv_cc(uint8_t cc, uint8_t dest, uint8_t dividend, uint8_t divisor) { return INSN_TO_LE(0x0710f010 | (cc << 28) | (dest << 16) | (divisor << 8) | dividend); }
+static inline uint32_t sdiv(uint8_t dest, uint8_t dividend, uint8_t divisor) { return sdiv_cc(ARM_CC_AL, dest, dividend, divisor); }
+static inline uint32_t udiv_cc(uint8_t cc, uint8_t dest, uint8_t dividend, uint8_t divisor) { return INSN_TO_LE(0x0730f010 | (cc << 28) | (dest << 16) | (divisor << 8) | dividend); }
+static inline uint32_t udiv(uint8_t dest, uint8_t dividend, uint8_t divisor) { return udiv_cc(ARM_CC_AL, dest, dividend, divisor); }
 
 #endif /* _ARM_H */
