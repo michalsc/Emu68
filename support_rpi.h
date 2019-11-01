@@ -123,4 +123,19 @@ uint32_t get_max_clock_rate(uint32_t clock_id);
 uint32_t get_clock_rate(uint32_t clock_id);
 void setup_serial();
 
+struct Result32 {
+    uint32_t q;
+    uint32_t r;
+};
+
+struct Result64 {
+    uint64_t q;
+    uint64_t r;
+};
+
+struct Result32 uidiv(uint32_t n, uint32_t d);
+struct Result32 sidiv(int32_t n, int32_t d);
+struct Result64 uldiv(uint64_t n, uint64_t d);
+struct Result64 sldiv(int64_t n, int64_t d);
+
 #endif // _SUPPORT_RPI_H

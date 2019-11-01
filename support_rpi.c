@@ -4,6 +4,35 @@
 
 #include "support_rpi.h"
 
+asm(
+"       .globl __aeabi_uidiv                \n"
+"       .type _start,%function              \n"
+"__aeabi_uidiv:                             \n"
+"       push {%lr}                          \n"
+"       sub %sp, %sp, #8                    \n"
+"       push {%r0, %r1}                     \n"
+"       pop  {%r1, %r2}                     \n"
+"       mov %r0, %sp                        \n"
+"       bl uidiv                            \n"
+"       pop {%r0}                           \n"
+"       add %sp, %sp, #4                    \n"
+"       pop {%pc}                           \n"
+
+
+"       .globl __aeabi_uidivmod             \n"
+"       .type _start,%function              \n"
+"__aeabi_uidivmod:                          \n"
+"       push {%lr}                          \n"
+"       sub %sp, %sp, #8                    \n"
+"       push {%r0, %r1}                     \n"
+"       pop  {%r1, %r2}                     \n"
+"       mov %r0, %sp                        \n"
+"       bl uidiv                            \n"
+"       pop {%r0}                           \n"
+"       pop {%r1}                           \n"
+"       pop {%pc}                           \n"
+);
+
 static int serial_up = 0;
 
 static int int_strlen(char *buf)
@@ -558,7 +587,7 @@ uint32_t get_clock_rate(uint32_t clock_id)
     mbox_send(8, 0x000fffff & (uint32_t)FBReq);
     mbox_recv(8);
 
-    return FBReq[6];
+    return LE32(FBReq[6]);
 }
 
 uint32_t get_max_clock_rate(uint32_t clock_id)
@@ -576,7 +605,7 @@ uint32_t get_max_clock_rate(uint32_t clock_id)
     mbox_send(8, 0x000fffff & (uint32_t)FBReq);
     mbox_recv(8);
 
-    return FBReq[6];
+    return LE32(FBReq[6]);
 }
 
 uint32_t get_min_clock_rate(uint32_t clock_id)
@@ -594,7 +623,7 @@ uint32_t get_min_clock_rate(uint32_t clock_id)
     mbox_send(8, 0x000fffff & (uint32_t)FBReq);
     mbox_recv(8);
 
-    return FBReq[6];
+    return LE32(FBReq[6]);
 }
 
 uint32_t set_clock_rate(uint32_t clock_id, uint32_t speed)
@@ -613,7 +642,7 @@ uint32_t set_clock_rate(uint32_t clock_id, uint32_t speed)
     mbox_send(8, 0x000fffff & (uint32_t)FBReq);
     mbox_recv(8);
 
-    return FBReq[6];
+    return LE32(FBReq[6]);
 }
 
 #define PL011_ICR_FLAGS (PL011_ICR_RXIC|PL011_ICR_TXIC|PL011_ICR_RTIC|PL011_ICR_FEIC|PL011_ICR_PEIC|PL011_ICR_BEIC|PL011_ICR_OEIC|PL011_ICR_RIMIC|PL011_ICR_CTSMIC|PL011_ICR_DSRMIC|PL011_ICR_DCDMIC)
