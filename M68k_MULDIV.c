@@ -15,6 +15,112 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+struct Result32 {
+    uint32_t q;
+    uint32_t r;
+};
+
+struct Result64 {
+    uint64_t q;
+    uint64_t r;
+};
+
+struct Result32 uidiv(uint32_t n, uint32_t d)
+{
+    struct Result32 res = { 0, 0 };
+
+    if (n == 0)
+        return res;
+
+    for (int i = 31 - __builtin_clzl(n); i >= 0; --i)
+    {
+        res.r <<= 1;
+        if (n & (1 << i)) res.r |= 1;
+        if (res.r >= d) {
+            res.r -= d;
+            res.q |= 1 << i;
+        }
+    }
+
+    return res;
+}
+
+struct Result32 sidiv(int32_t n, int32_t d)
+{
+    struct Result32 res = { 0, 0 };
+
+    if (d < 0) {
+        res = sidiv(n, -d);
+        res.q = -res.q;
+        return res;
+    }
+
+    if (n < 0) {
+        res = sidiv(-n, d);
+        if (res.r == 0) {
+            res.q = -res.q;
+        }
+        else {
+            res.q = -res.q - 1;
+            res.r = d - res.r;
+        }
+
+        return res;
+    }
+
+    res = uidiv(n, d);
+
+    return res;
+}
+
+struct Result64 uldiv(uint64_t n, uint64_t d)
+{
+    struct Result64 res = { 0, 0 };
+
+    if (n == 0)
+        return res;
+
+    for (int i = 63 - __builtin_clzll(n); i >= 0; --i)
+    {
+        res.r <<= 1;
+        if (n & (1 << i)) res.r |= 1;
+        if (res.r >= d) {
+            res.r -= d;
+            res.q |= 1 << i;
+        }
+    }
+
+    return res;
+}
+
+struct Result64 sldiv(int64_t n, int64_t d)
+{
+    struct Result64 res = { 0, 0 };
+
+    if (d < 0) {
+        res = sldiv(n, -d);
+        res.q = -res.q;
+        return res;
+    }
+
+    if (n < 0) {
+        res = sldiv(-n, d);
+        if (res.r == 0) {
+            res.q = -res.q;
+        }
+        else {
+            res.q = -res.q - 1;
+            res.r = d - res.r;
+        }
+
+        return res;
+    }
+
+    res = uldiv(n, d);
+
+    return res;
+}
+
 uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t reg;
@@ -175,19 +281,6 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-extern void * __aeabi_uidivmod;
-extern void * __aeabi_idivmod;
-extern void * __aeabi_uldivmod;
-extern void * __aeabi_ldivmod;
-
-/* Used for 16-bit divisions */
-void * ptr_uidivmod = &__aeabi_uidivmod;    /* In: r0, r1. Out: r0 = r0 / r1, r1 = r0 % r1 */
-void * ptr_idivmod  = &__aeabi_idivmod;     /* In: r0, r1. Out: r0 = r0 / r1, r1 = r0 % r1 */
-
-/* Used for 32-bit divisions */
-void * ptr_uldivmod  = &__aeabi_uldivmod;     /* In: r0:r1, r2:r3. Out: r0:r1 = quotient, r2:r3 = reminder */
-void * ptr_ldivmod  = &__aeabi_ldivmod;     /* In: r0:r1, r2:r3. Out: r0:r1 = quotient, r2:r3 = reminder */
-
 uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t reg_a = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
@@ -195,6 +288,8 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_quot = RA_AllocARMRegister(&ptr);
     uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
+
+printf("DIVS_W\n");
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
@@ -206,61 +301,26 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
     *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
-    /* Push a and q on the stack and pop them back into r0 and r1 */
-    if (reg_a == 0 && reg_q == 1)
-    {
-        /* Registers are at correct positions. Do nothing */
-    }
-    else if (reg_a == 1 && reg_q == 0)
-    {
-        /*
-            Registers need to be swapped. Use ip as temporaray register (it's contents is on the stack anyway )
-            NOTE: Usually this would destroy the destination register, but luckily for us this one is saved on
-            the stack.
-        */
-        *ptr++ = mov_reg(12, reg_a);
-        *ptr++ = mov_reg(reg_a, reg_q);
-        *ptr++ = mov_reg(reg_q, 12);
-    }
-    else
-    {
-        /* Use stack, the registers are totally wrong */
+   if (reg_a != 1)
         *ptr++ = push(1 << reg_a);
+    if (reg_q != 2) {
         *ptr++ = push(1 << reg_q);
-        *ptr++ = pop(0x2);
-        *ptr++ = pop(0x1);
+        *ptr++ = pop(4);
     }
+    if (reg_a != 1)
+        *ptr++ = pop(2);
 
+    /* Call (u)idivmod */
+    *ptr++ = sub_immed(13, 13, 8);
+    *ptr++ = mov_reg(0, 13);
     *ptr++ = ldr_offset(15, 12, 4);
-    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-    *end++ = setend_le();
-    #endif
     *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-    *end++ = setend_be();
-    #endif
     *ptr++ = b_cc(ARM_CC_AL, 0);
-    *ptr++ = BE32((uint32_t)&__aeabi_idivmod);
+    *ptr++ = BE32((uint32_t)&sidiv);
 
-    /* Get back results. Use same technique as before */
-    if (reg_quot == 0 && reg_rem == 1)
-    {
-        /* Output registers are already correctly placed, do nothing here */
-    }
-    else if (reg_quot == 1 && reg_rem == 0)
-    {
-        *ptr++ = mov_reg(12, reg_a);
-        *ptr++ = mov_reg(reg_a, reg_q);
-        *ptr++ = mov_reg(reg_q, 12);
-    }
-    else
-    {
-        /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
-        *ptr++ = push(0x1);
-        *ptr++ = push(0x2);
-        *ptr++ = pop(1 << reg_rem);
-        *ptr++ = pop(1 << reg_quot);
-    }
+    /* Pop quotient and (eventually) reminder from the stack */
+    *ptr++ = pop(1 << reg_quot);
+    *ptr++ = pop(1 << reg_rem);
 
     /* Restore registers from the stack */
     *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
@@ -330,6 +390,8 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
 
+printf("DIVU_W\n");
+
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     *ptr++ = cmp_immed(reg_q, 0);
@@ -340,57 +402,26 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
     *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
-    /* Push a and q on the stack and pop them back into r0 and r1 */
-    if (reg_a == 0 && reg_q == 1)
-    {
-        /* Registers are at correct positions. Do nothing */
-    }
-    else if (reg_a == 1 && reg_q == 0)
-    {
-        /* Registers need to be swapped. Use ip as temporaray register (it's contents is on the stack anyway ) */
-        *ptr++ = mov_reg(12, reg_a);
-        *ptr++ = mov_reg(reg_a, reg_q);
-        *ptr++ = mov_reg(reg_q, 12);
-    }
-    else
-    {
-        /* Use stack, the registers are totally wrong */
+    if (reg_a != 1)
         *ptr++ = push(1 << reg_a);
+    if (reg_q != 2) {
         *ptr++ = push(1 << reg_q);
-        *ptr++ = pop(0x2);
-        *ptr++ = pop(0x1);
+        *ptr++ = pop(4);
     }
+    if (reg_a != 1)
+        *ptr++ = pop(2);
 
+    /* Call (u)idivmod */
+    *ptr++ = sub_immed(13, 13, 8);
+    *ptr++ = mov_reg(0, 13);
     *ptr++ = ldr_offset(15, 12, 4);
-    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-    *end++ = setend_le();
-    #endif
     *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-    #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-    *end++ = setend_be();
-    #endif
     *ptr++ = b_cc(ARM_CC_AL, 0);
-    *ptr++ = BE32((uint32_t)&__aeabi_uidivmod);
+    *ptr++ = BE32((uint32_t)&uidiv);
 
-    /* Get back results. Use same technique as before */
-    if (reg_quot == 0 && reg_rem == 1)
-    {
-        /* Output registers are already correctly placed, do nothing here */
-    }
-    else if (reg_quot == 1 && reg_rem == 0)
-    {
-        *ptr++ = mov_reg(12, reg_a);
-        *ptr++ = mov_reg(reg_a, reg_q);
-        *ptr++ = mov_reg(reg_q, 12);
-    }
-    else
-    {
-        /* Push r0 and r1 on the stack, pop them back into quotient and reminder */
-        *ptr++ = push(0x1);
-        *ptr++ = push(0x2);
-        *ptr++ = pop(1 << reg_rem);
-        *ptr++ = pop(1 << reg_quot);
-    }
+    /* Pop quotient and (eventually) reminder from the stack */
+    *ptr++ = pop(1 << reg_quot);
+    *ptr++ = pop(1 << reg_rem);
 
     /* Restore registers from the stack */
     *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
@@ -462,6 +493,8 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_dr = 0xff;
     uint8_t ext_words = 1;
 
+printf("DIVUS_L\n");
+
     /* If Dr != Dq use remainder and alloc it */
     if ((opcode2 & 7) != ((opcode2 >> 12) & 7))
         reg_dr = RA_MapM68kRegister(&ptr, opcode2 & 7);
@@ -475,54 +508,158 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
 
-    /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_dr and reg_dq in case they were allocated in r0..r4 range */
-    *ptr++ = push(((1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_dr) | (1 << reg_dq)));
-
-    /* In case of 64-bit division use (u)ldivmod, otherwise use (u)idivmod */
-    if (div64)
+    if (ARM_SUPPORTS_DIV)
     {
-printf("64 bit division not done yet!\n");
+        if (div64)
+        {
+            /* Div64/32 ->32:32 routine based on article: https://gmplib.org/~tege/division-paper.pdf */
+            /* Warning - the routine exhausts all registers from allocator! */
+            uint8_t tmp_r0 = reg_dr; /* High 32 bits of dividend */
+            uint8_t tmp_r1 = reg_dq; /* Low 32 bits of dividend */
+            uint8_t tmp_r2 = reg_q;  /* divisor */
+            uint8_t tmp_r3 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp_r4 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp_r5 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp_r6 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp_r7 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp_r8 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp_r9 = RA_AllocARMRegister(&ptr);
+
+            printf("DUV%s_L 64/32->32:32\n", sig ? 'S':'U');
+
+            if (sig) {
+
+            }
+            else {
+                *ptr++ = clz(tmp_r3, tmp_r2);
+                *ptr++ = cmp_immed(tmp_r3, 0);
+                *ptr++ = mov_cc_reg(ARM_CC_EQ, tmp_r6, tmp_r2);
+                *ptr++ = b_cc(ARM_CC_EQ, 9);
+                *ptr++ = mov_reg(tmp_r4, tmp_r0);
+                *ptr++ = mov_reg(tmp_r5, tmp_r1);
+                *ptr++ = sub_immed(tmp_r1, tmp_r3, 32);
+                *ptr++ = rsb_immed(tmp_r0, tmp_r3, 32);
+                *ptr++ = lsl_reg(tmp_r4, tmp_r4, tmp_r3);
+                *ptr++ = orr_reg_lsl_reg(tmp_r4, tmp_r4, tmp_r5, tmp_r1);
+                *ptr++ = orr_reg_lsr_reg(tmp_r4, tmp_r4, tmp_r5, tmp_r0);
+                *ptr++ = lsl_reg(tmp_r1, tmp_r5, tmp_r3);
+                *ptr++ = mov_reg(tmp_r0, tmp_r4);
+                *ptr++ = lsl_reg(tmp_r6, tmp_r2, tmp_r3);
+                *ptr++ = movw_immed_u16(tmp_r3, 0xc200);
+                *ptr++ = and_immed(tmp_r5, tmp_r6, 1);
+                *ptr++ = lsr_immed(tmp_r4, tmp_r6, 22);
+                *ptr++ = movt_immed_u16(tmp_r3, 0x00ff);
+                *ptr++ = lsr_immed(tmp_r8, tmp_r6, 11);
+                *ptr++ = udiv(tmp_r3, tmp_r3, tmp_r4);
+                *ptr++ = mul(tmp_r4, tmp_r3, tmp_r3);
+                *ptr++ = lsl_immed(tmp_r3, tmp_r3, 4);
+                *ptr++ = add_immed(tmp_r8, tmp_r8, 1);
+                *ptr++ = umull(tmp_r9, tmp_r8, tmp_r8, tmp_r4);
+                *ptr++ = sub_immed(tmp_r4, tmp_r3, 1);
+                *ptr++ = rsb_immed(tmp_r3, tmp_r3, 1);
+                *ptr++ = sub_reg(tmp_r7, tmp_r4, tmp_r8, 0);
+                *ptr++ = mov_reg(tmp_r9, tmp_r1);
+                *ptr++ = add_reg(tmp_r3, tmp_r3, tmp_r8, 0);
+                *ptr++ = lsr_immed(tmp_r4, tmp_r7, 1);
+                *ptr++ = mul(tmp_r4, tmp_r4, tmp_r5);
+                *ptr++ = lsr_immed(tmp_r5, tmp_r6, 1);
+                *ptr++ = mla(tmp_r4, tmp_r4, tmp_r5, tmp_r3);
+                *ptr++ = lsl_immed(tmp_r3, tmp_r7, 15);
+                *ptr++ = umull(tmp_r5, tmp_r4, tmp_r4, tmp_r7);
+                *ptr++ = mov_immed_u8(tmp_r5, 0);
+                *ptr++ = add_reg_lsr_imm(tmp_r4, tmp_r3, tmp_r4, 1);
+                *ptr++ = umlal(tmp_r1, tmp_r0, tmp_r0, tmp_r4);
+                *ptr++ = mov_reg(tmp_r4, tmp_r0);
+                *ptr++ = add_immed(tmp_r0, tmp_r4, 1);
+                *ptr++ = mls(tmp_r3, tmp_r9, tmp_r6, tmp_r0);
+                *ptr++ = cmp_reg(tmp_r3, tmp_r1);
+                *ptr++ = add_cc_reg(ARM_CC_HI, tmp_r3, tmp_r3, tmp_r6, 0);
+                *ptr++ = mov_cc_reg(ARM_CC_HI, tmp_r0, tmp_r4);
+                *ptr++ = cmp_reg(tmp_r3, tmp_r6);
+                *ptr++ = sub_cc_reg(ARM_CC_CS, tmp_r3, tmp_r3, tmp_r6, 0);
+                *ptr++ = add_cc_immed(ARM_CC_CS, tmp_r0, tmp_r0, 1);
+                *ptr++ = orr_reg(tmp_r7, tmp_r5, tmp_r0, 0);
+                *ptr++ = mov_reg(tmp_r0, tmp_r3);
+                *ptr++ = mov_reg(tmp_r1, tmp_r7);
+            }
+
+            RA_FreeARMRegister(&ptr, tmp_r3);
+            RA_FreeARMRegister(&ptr, tmp_r4);
+            RA_FreeARMRegister(&ptr, tmp_r5);
+            RA_FreeARMRegister(&ptr, tmp_r6);
+            RA_FreeARMRegister(&ptr, tmp_r7);
+            RA_FreeARMRegister(&ptr, tmp_r8);
+            RA_FreeARMRegister(&ptr, tmp_r9);
+        }
+        else
+        {
+            if (reg_dr == 0xff)
+            {
+                if (sig)
+                    *ptr++ = sdiv(reg_dq, reg_dq, reg_q);
+                else
+                    *ptr++ = udiv(reg_dq, reg_dq, reg_q);
+            }
+            else
+            {
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+                if (sig)
+                    *ptr++ = sdiv(tmp, reg_dq, reg_q);
+                else
+                    *ptr++ = udiv(tmp, reg_dq, reg_q);
+
+                *ptr++ = mls(reg_dr, reg_dq, tmp, reg_q);
+                *ptr++ = mov_reg(reg_dq, tmp);
+
+                RA_FreeARMRegister(&ptr, tmp);
+            }
+        }
     }
     else
     {
-        /* Use stack to put divisor and divident into registers */
-        if (reg_dq != 0)
-            *ptr++ = push(1 << reg_dq);
-        if (reg_q != 1) {
-            *ptr++ = push(1 << reg_q);
-            *ptr++ = pop(2);
-        }
-        if (reg_dq != 0)
-            *ptr++ = pop(1);
+        /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_dr and reg_dq in case they were allocated in r0..r4 range */
+        *ptr++ = push(((1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_dr) | (1 << reg_dq)));
 
-        /* Call (u)idivmod */
-        *ptr++ = ldr_offset(15, 12, 4);
-        #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-        *end++ = setend_le();
-        #endif
-        *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-        #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-            *end++ = setend_be();
-        #endif
-        *ptr++ = b_cc(ARM_CC_AL, 0);
-        if (sig)
-            *ptr++ = BE32((uint32_t)&__aeabi_idivmod);
+        /* In case of 64-bit division use (u)ldivmod, otherwise use (u)idivmod */
+        if (div64)
+        {
+    printf("64 bit division not done yet!\n");
+        }
         else
-            *ptr++ = BE32((uint32_t)&__aeabi_uidivmod);
+        {
+            /* Use stack to put divisor and divident into registers */
+            if (reg_dq != 1)
+                *ptr++ = push(1 << reg_dq);
+            if (reg_q != 2) {
+                *ptr++ = push(1 << reg_q);
+                *ptr++ = pop(4);
+            }
+            if (reg_dq != 1)
+                *ptr++ = pop(2);
 
-        /* Use stack to put quotient and (if requested) reminder into proper registers */
-        if (reg_dq != 0)
-            *ptr++ = push(1);
-        if ((reg_dr != 0xff) && (reg_dr != 1)) {
-            *ptr++ = push(2);
-            *ptr++ = pop(1 << reg_dr);
-        }
-        if (reg_dq != 0)
+            /* Call (u)idivmod */
+            *ptr++ = sub_immed(13, 13, 8);
+            *ptr++ = mov_reg(0, 13);
+            *ptr++ = ldr_offset(15, 12, 4);
+            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+            *ptr++ = b_cc(ARM_CC_AL, 0);
+            if (sig)
+                *ptr++ = BE32((uint32_t)&sidiv);
+            else
+                *ptr++ = BE32((uint32_t)&uidiv);
+
+            /* Pop quotient and (eventually) reminder from the stack */
             *ptr++ = pop(1 << reg_dq);
-    }
+            if (reg_dr != 0xff)
+                *ptr++ = pop(1 << reg_dr);
+            else
+                *ptr++ = add_immed(13, 13, 4);
+        }
 
-    /* Restore registers from the stack */
-    *ptr++ = pop(((1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_dr) | (1 << reg_dq)));
+        /* Restore registers from the stack */
+        *ptr++ = pop(((1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_dr) | (1 << reg_dq)));
+    }
 
     (*m68k_ptr) += ext_words;
 
@@ -600,11 +737,10 @@ uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         ptr = EMIT_DIVS_W(ptr, opcode, m68k_ptr);
     }
-/*    if ((opcode & 0xf1c0) == 0x80c0)
+    if ((opcode & 0xf1c0) == 0x80c0)
     {
         ptr = EMIT_DIVU_W(ptr, opcode, m68k_ptr);
     }
-*/
 
     return ptr;
 }
