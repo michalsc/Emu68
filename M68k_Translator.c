@@ -20,7 +20,7 @@
 #include "config.h"
 #include "DuffCopy.h"
 
-const int debug = 0;
+const int debug = 1;
 
 #ifdef RASPI
 #include "support_rpi.h"
@@ -37,7 +37,7 @@ static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
 static uint32_t temporary_arm_code[EMU68_M68K_INSN_DEPTH * 4 * 64];
-static struct M68KLocalState local_state[EMU68_M68K_INSN_DEPTH];
+static struct M68KLocalState local_state[EMU68_M68K_INSN_DEPTH*2];
 
 int32_t _pc_rel = 0;
 
@@ -294,6 +294,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
 
             local_state[insn_count].mls_ARMOffset = end - arm_code;
             local_state[insn_count].mls_M68kPtr = m68kcodeptr;
+            local_state[insn_count].mls_PCRel = _pc_rel;
             for (int r=0; r < 16; r++)
                 local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
             end = EmitINSN(end, &m68kcodeptr);
@@ -314,8 +315,11 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                 uint32_t *tmpptr;
                 uint32_t *branch_mod[10];
                 uint32_t branch_cnt;
+                intptr_t branch_target;
+                int local_branch_done = 0;
 //                printf("[ICache] Conditional PC change.\n");
                 end--;
+                branch_target = *--end;
                 branch_cnt = *--end;
 //                printf("[ICache] Need to adjust %d branches\n", branch_cnt);
                 for (unsigned i=0; i < branch_cnt; i++)
@@ -325,19 +329,92 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                 }
 
                 tmpptr = end;
+
+                if (0) //branch_target != 0)
+                {
+                    printf("Check if branching within translation unit...\n");
+                    for (int i=insn_count-1; i >= 0; --i)
+                    {
+                        if (local_state[i].mls_M68kPtr == (void*)branch_target)
+                        {
+                            local_state[insn_count].mls_ARMOffset = end - arm_code;
+                            local_state[insn_count].mls_M68kPtr = m68kcodeptr;
+                            local_state[insn_count].mls_PCRel = _pc_rel;
+                            for (int r=0; r < 16; r++)
+                                local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
+                            printf("Yes, branch within local translation unit.\n");
+                            printf("translator state at point of branch: ");
+                            printf("    %p -> %08x", local_state[insn_count].mls_M68kPtr, local_state[insn_count].mls_ARMOffset);
+                            for (int r=0; r < 16; r++) {
+                                if (local_state[insn_count].mls_RegMap[r] != 0xff) {
+                                    printf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, (local_state[insn_count].mls_RegMap[r]) & 15,
+                                    local_state[insn_count].mls_RegMap[r] & 0x80 ? "!":"");
+                                }
+                            }
+                            printf(" PC_Rel=%d\n", local_state[insn_count-1].mls_PCRel);
+
+                            printf("translator state at target point: ");
+                            printf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
+                            for (int r=0; r < 16; r++) {
+                                if (local_state[i].mls_RegMap[r] != 0xff) {
+                                    printf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
+                                    local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
+                                }
+                            }
+                            printf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
+
+                            int number_of_pushes = 0;
+
+                            for (int r=0; r < 16; r++)
+                            {
+                                if (local_state[i].mls_RegMap[r] == 0xff && local_state[insn_count].mls_RegMap[r] != 0xff && local_state[insn_count].mls_RegMap[r] & 0x80)
+                                {
+                                    printf("Register %c%d unmapped in branch target and now is dirty.\nStoring it for security reasons\n",
+                                        r < 8 ? 'D' : 'A', r & 7
+                                    );
+                                    number_of_pushes++;
+                                    if (r < 8)
+                                    {
+                                        *end++ = str_offset(REG_CTX, local_state[insn_count].mls_RegMap[r] & 15,
+                                                                __builtin_offsetof(struct M68KState, D[r & 7]));
+                                    }
+                                    else
+                                    {
+                                        *end++ = str_offset(REG_CTX, local_state[insn_count].mls_RegMap[r] & 15,
+                                                                __builtin_offsetof(struct M68KState, A[r & 7]));
+                                    }
+                                }
+                            }
+
+                            *end++ = movw_immed_u16(REG_PC, (branch_target) - local_state[i].mls_PCRel);
+                            *end++ = movt_immed_u16(REG_PC, ((branch_target) - local_state[i].mls_PCRel) >> 16);
+
+                            printf("Generating branch...\n");
+                            uint32_t *__endtmp = end;
+                            *end++ = b_cc(ARM_CC_AL, local_state[i].mls_ARMOffset - (__endtmp - arm_code) - 2);
+
+                            local_branch_done = 1;
+                        }
+                    }
+                }
+
+
                 conditionals_count++;
 
-                RA_StoreDirtyM68kRegs(&end);
-                end = EMIT_FlushPC(end);
-                *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
-                *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
+                if (!local_branch_done)
+                {
+                    RA_StoreDirtyM68kRegs(&end);
+                    end = EMIT_FlushPC(end);
+                    *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+                    *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-                *end++ = setend_le();
+                    *end++ = setend_le();
 #endif
-                pop_update_loc[pop_cnt++] = end;
-                *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
-                if (!lr_is_saved)
-                    *end++ = bx_lr();
+                    pop_update_loc[pop_cnt++] = end;
+                    *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
+                    if (!lr_is_saved)
+                        *end++ = bx_lr();
+                }
                 int distance = end - tmpptr;
 //                printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
                 for (unsigned i=0; i < branch_cnt; i++)
@@ -441,7 +518,7 @@ if (debug) {
         printf("-- ARM Code dump --\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
-            uint32_t insn = unit->mt_ARMCode[i];
+            uint32_t insn = LE32(unit->mt_ARMCode[i]);
             printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
         }
 
@@ -451,12 +528,14 @@ if (debug) {
             printf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
             for (int r=0; r < 16; r++) {
                 if (local_state[i].mls_RegMap[r] != 0xff) {
-                    printf(" %c%d=r%d", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r]);
+                    printf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
+                    local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
                 }
             }
-            printf("\n");
+            printf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
         }
         }
+
 /*                exit(0);
 */
     }
