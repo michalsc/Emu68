@@ -642,8 +642,6 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t dest;
     uint8_t size = 0;
 
-    *ptr++ = mov_immed_u8(immed, 0);
-
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
@@ -668,13 +666,13 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         switch (size)
         {
             case 4:
-                *ptr++ = rsbs_reg(immed, immed, dest, 0);
+                *ptr++ = cmp_immed(dest, 0); //rsbs_reg(immed, immed, dest, 0);
                 break;
             case 2:
-                *ptr++ = rsbs_reg(immed, immed, dest, 16);
+                *ptr++ = movs_reg_shift(immed, dest, 16); //rsbs_reg(immed, immed, dest, 16);
                 break;
             case 1:
-                *ptr++ = rsbs_reg(immed, immed, dest, 24);
+                *ptr++ = movs_reg_shift(immed, dest, 24); //rsbs_reg(immed, immed, dest, 24);
                 break;
         }
     }
@@ -688,15 +686,15 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
         case 4:
             /* Perform calcualtion */
-            *ptr++ = rsbs_reg(immed, immed, dest, 0);
+            *ptr++ = cmp_immed(dest, 0); //rsbs_reg(immed, immed, dest, 0);
             break;
         case 2:
             /* Perform calcualtion */
-            *ptr++ = rsbs_reg(immed, immed, dest, 16);
+            *ptr++ = movs_reg_shift(immed, dest, 16); //rsbs_reg(immed, immed, dest, 16);
             break;
         case 1:
             /* Perform calcualtion */
-            *ptr++ = rsbs_reg(immed, immed, dest, 24);
+            *ptr++ = movs_reg_shift(immed, dest, 24); //rsbs_reg(immed, immed, dest, 24);
             break;
         }
     }
