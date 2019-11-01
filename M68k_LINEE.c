@@ -674,35 +674,31 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (regshift)
         {
-            shift = RA_MapM68kRegister(&ptr, shift);
+            shift = RA_CopyFromM68kRegister(&ptr, shift);
 
             if (direction)
             {
-                uint8_t tmpshift = RA_AllocARMRegister(&ptr);
-                *ptr++ = rsb_immed(tmpshift, shift, 32);
+                *ptr++ = rsb_immed(shift, shift, 32);
 
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = rors_reg(reg, reg, tmpshift);
+                        *ptr++ = rors_reg(reg, reg, shift);
                         break;
                     case 2:
-                        *ptr++ = mov_reg_shift(tmp, reg, 0);
-                        *ptr++ = bfi(tmp, reg, 16, 16);
-                        *ptr++ = rors_reg(tmp, tmp, tmpshift);
-                        *ptr++ = lsr_immed(tmp, tmp, 16);
+                        *ptr++ = mov_reg(tmp, reg);
+                        *ptr++ = bfi(tmp, tmp, 16, 16);
+                        *ptr++ = rors_reg(tmp, tmp, shift);
                         *ptr++ = bfi(reg, tmp, 0, 16);
                         break;
                     case 1:
-                        *ptr++ = mov_reg_shift(tmp, reg, 0);
-                        *ptr++ = bfi(tmp, reg, 8, 8);
-                        *ptr++ = bfi(tmp, reg, 16, 16);
-                        *ptr++ = rors_reg(tmp, tmp, tmpshift);
-                        *ptr++ = lsr_immed(tmp, tmp, 24);
+                        *ptr++ = mov_reg(tmp, reg);
+                        *ptr++ = bfi(tmp, tmp, 8, 8);
+                        *ptr++ = bfi(tmp, tmp, 16, 16);
+                        *ptr++ = rors_reg(tmp, tmp, shift);
                         *ptr++ = bfi(reg, tmp, 0, 8);
                         break;
                 }
-                RA_FreeARMRegister(&ptr, tmpshift);
             }
             else
             {
@@ -712,20 +708,22 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                         *ptr++ = rors_reg(reg, reg, shift);
                         break;
                     case 2:
-                        *ptr++ = uxth(tmp, reg, 0);
-                        *ptr++ = bfi(tmp, reg, 16, 16);
+                        *ptr++ = mov_reg(tmp, reg);
+                        *ptr++ = bfi(tmp, tmp, 16, 16);
                         *ptr++ = rors_reg(tmp, tmp, shift);
                         *ptr++ = bfi(reg, tmp, 0, 16);
                         break;
                     case 1:
-                        *ptr++ = uxtb(tmp, reg, 0);
-                        *ptr++ = bfi(tmp, reg, 8, 8);
-                        *ptr++ = bfi(tmp, reg, 16, 16);
+                        *ptr++ = mov_reg(tmp, reg);
+                        *ptr++ = bfi(tmp, tmp, 8, 8);
+                        *ptr++ = bfi(tmp, tmp, 16, 16);
                         *ptr++ = rors_reg(tmp, tmp, shift);
                         *ptr++ = bfi(reg, tmp, 0, 8);
                         break;
                 }
             }
+
+            RA_FreeARMRegister(&ptr, shift);
         }
         else
         {
@@ -740,15 +738,15 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = rors_immed(reg, reg, 32-shift);
                     break;
                 case 2:
-                    *ptr++ = uxth(tmp, reg, 0);
-                    *ptr++ = bfi(tmp, reg, 16, 16);
+                    *ptr++ = mov_reg(tmp, reg);
+                    *ptr++ = bfi(tmp, tmp, 16, 16);
                     *ptr++ = rors_immed(tmp, tmp, 32-shift);
                     *ptr++ = bfi(reg, tmp, 0, 16);
                     break;
                 case 1:
-                    *ptr++ = uxtb(tmp, reg, 0);
-                    *ptr++ = bfi(tmp, reg, 8, 8);
-                    *ptr++ = bfi(tmp, reg, 16, 16);
+                    *ptr++ = mov_reg(tmp, reg);
+                    *ptr++ = bfi(tmp, tmp, 8, 8);
+                    *ptr++ = bfi(tmp, tmp, 16, 16);
                     *ptr++ = rors_immed(tmp, tmp, 32-shift);
                     *ptr++ = bfi(reg, tmp, 0, 8);
                     break;
@@ -762,15 +760,15 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = rors_immed(reg, reg, shift);
                     break;
                 case 2:
-                    *ptr++ = uxth(tmp, reg, 0);
-                    *ptr++ = bfi(tmp, reg, 16, 16);
+                    *ptr++ = mov_reg(tmp, reg);
+                    *ptr++ = bfi(tmp, tmp, 16, 16);
                     *ptr++ = rors_immed(tmp, tmp, shift);
                     *ptr++ = bfi(reg, tmp, 0, 16);
                     break;
                 case 1:
-                    *ptr++ = uxtb(tmp, reg, 0);
-                    *ptr++ = bfi(tmp, reg, 8, 8);
-                    *ptr++ = bfi(tmp, reg, 16, 16);
+                    *ptr++ = mov_reg(tmp, reg);
+                    *ptr++ = bfi(tmp, tmp, 8, 8);
+                    *ptr++ = bfi(tmp, tmp, 16, 16);
                     *ptr++ = rors_immed(tmp, tmp, shift);
                     *ptr++ = bfi(reg, tmp, 0, 8);
                     break;
@@ -783,7 +781,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2);
 
         uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
-        uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
+        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
         {
@@ -793,8 +791,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
             if (update_mask & SR_Z)
                 *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-            if (update_mask & (SR_X | SR_C))
-                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
+            if (update_mask & (SR_C))
+                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C);
         }
     }
     else
