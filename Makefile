@@ -1,8 +1,8 @@
 CC := arm-linux-gnueabihf-gcc
 CXX := arm-linux-gnueabihf-g++
 OBJCOPY := arm-linux-gnueabihf-objcopy
-CFLAGS  := $(EXTRA_FLAGS) -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror
-CXXFLAGS:= $(EXTRA_FLAGS) -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror
+CFLAGS  := $(EXTRA_FLAGS) -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror
+CXXFLAGS:= $(EXTRA_FLAGS) -mbig-endian -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror
 LDFLAGS := -static -lrt -s
 
 HOST_CXX := g++
@@ -51,7 +51,7 @@ $(OBJDIR)/Emu68: $(addprefix $(OBJDIR)/, $(OBJS))
 
 $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 	@echo "Building target: $@"
-	@$(CC) $(foreach f,$(RPI_OBJS),$(OBJDIR)/$(f)) -nostdlib -nostartfiles -lgcc -static -T ldscript-le.lds -o $@.elf
+	@$(CC) $(foreach f,$(RPI_OBJS),$(OBJDIR)/$(f)) -Wl,--be8 -Wl,--format=elf32-bigarm -nostdlib -nostartfiles -static -T ldscript-be.lds -o $@.elf
 	@$(OBJCOPY) -O binary $@.elf $@
 	@echo "Build completed"
 

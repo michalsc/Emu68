@@ -2,7 +2,7 @@ FORCE_COMMON_ALLOCATION
 
 SECTIONS
 {
-    . = 0x8000;
+    . = 0xff808000;
 
     __bootstrap_start = . ;
 
@@ -44,6 +44,11 @@ SECTIONS
         *(.sdata)
         *(.sdata.*)
         *(.gnu.linkonce.s.*)
+    }
+
+    .mmu ALIGN(0x4000) :
+    {
+        *(.mmu)
     }
 
     __bss_start = . ;
