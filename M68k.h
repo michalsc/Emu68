@@ -18,6 +18,7 @@ struct M68KLocalState {
     void *          mls_M68kPtr;
     uint32_t        mls_ARMOffset;
     uint8_t         mls_RegMap[16];
+    int32_t         mls_PCRel;
 };
 
 struct M68KTranslationUnit {
