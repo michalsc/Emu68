@@ -51,6 +51,9 @@ asm("   .section .startup           \n"
 "       mrc     p15,0,r4,c1,c0,0    \n" /* Load control register */
 "       orr     r4,r4,#8388608      \n" /* v6 page tables, subpages disabled */
 "       orr     r4,r4,#1            \n" /* Enable MMU */
+#if EMU68_HOST_BIG_ENDIAN
+"       orr     r4,r4,#1<<25        \n" /* MMU tables in big endian */
+#endif
 "       mcr     p15,0,r8,c7,c10,4   \n" /* DSB */
 "       mcr     p15,0,r4,c1,c0,0    \n" /* Set control register and thus really enable mmu */
 "       ldr     r4, boot_address    \n"
@@ -161,10 +164,13 @@ void *tlsf;
 
 void start_emu(void *);
 
+int ARM_SUPPORTS_DIV = 0;
+
 void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 {
     (void)dummy; (void)arch; (void)atags; (void)dummy2;
     uint32_t tmp, initcr;
+    uint32_t isar;
     of_node_t *e;
 
     /*
@@ -181,6 +187,11 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
                                                 /* This bit sets also endianess of page tables */
 #endif
     asm volatile ("mcr p15, 0, %0, c1, c0, 0" : : "r"(tmp));
+
+
+    asm volatile ("mrc p15, 0, %0, c0, c2, 0" : "=r"(isar));
+    if ((isar & 0x0f000000) == 0x02000000)
+        ARM_SUPPORTS_DIV = 1;
 
     /* Create 1:1 map for whole memory in order to access the device tree, which can reside anywhere in ram */
     for (int i=8; i < 4096-8; i++)
@@ -240,6 +251,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     kprintf("[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %08x\n", _start);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
+    kprintf("[BOOT] ISAR=%08x\n", isar);
     kprintf("[BOOT] Args=%08x,%08x,%08x,%08x\n", dummy, arch, atags, dummy2);
     kprintf("[BOOT] Local memory pool:\n");
     kprintf("[BOOT]    %08x - %08x (size=%d)\n", &__bootstrap_end, 0xffff0000, 0xffff0000 - (uintptr_t)&__bootstrap_end);
