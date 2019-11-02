@@ -64,7 +64,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
 
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset)
 {
-if (debug)    printf("Emit_AdvancePC(pc_rel=%d, off=%d)\n", _pc_rel, (int)offset);
+//if (debug)    printf("Emit_AdvancePC(pc_rel=%d, off=%d)\n", _pc_rel, (int)offset);
     // Calculate new PC relative offset
     _pc_rel += (int)offset;
 
@@ -241,8 +241,30 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         {
             /* Unit found? Move it to the front of LRU list */
             unit = n;
-            REMOVE(&unit->mt_LRUNode);
-            ADDHEAD(&LRU, &unit->mt_LRUNode);
+
+            struct Node *this = &unit->mt_LRUNode;
+
+            if (1)
+            {
+                // Update LRU for least *frequently* used strategy
+                if (this->ln_Pred->ln_Pred) {
+                    struct Node *pred = this->ln_Pred;
+                    struct Node *succ = this->ln_Succ;
+
+                    this->ln_Pred = pred->ln_Pred;
+                    this->ln_Succ = pred;
+                    this->ln_Pred->ln_Succ = this;
+                    pred->ln_Pred = this;
+                    pred->ln_Succ = succ;
+                    succ->ln_Pred = pred;
+                }
+            }
+            else
+            {
+                // Update LRU for least *recently* used strategy
+                REMOVE(&unit->mt_LRUNode);
+                ADDHEAD(&LRU, &unit->mt_LRUNode);
+            }
             return unit;
         }
     }
@@ -518,11 +540,17 @@ if (debug) {
         printf("-- ARM Code dump --\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
+            if ((i % 5) == 0)
+                printf("   ");
             uint32_t insn = LE32(unit->mt_ARMCode[i]);
-            printf("    %02x %02x %02x %02x\n", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+            printf(" %02x %02x %02x %02x", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+            if ((i % 5) == 4)
+                printf("\n");
         }
-
-        printf("-- Local State --\n");
+        if (unit->mt_ARMInsnCnt % 5 != 0)
+            printf("\n");
+if (debug > 1) {
+        printf("\n-- Local State --\n");
         for (unsigned i=0; i < insn_count; i++)
         {
             printf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
@@ -534,6 +562,7 @@ if (debug) {
             }
             printf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
         }
+}
         }
 
 /*                exit(0);
