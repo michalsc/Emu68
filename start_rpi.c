@@ -16,6 +16,7 @@
 #include "M68k.h"
 #include "HunkLoader.h"
 #include "DuffCopy.h"
+#include "EmuLogo.h"
 
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE (__arm_periiobase)
@@ -158,6 +159,19 @@ static __attribute__((used, section(".mmu"))) uint32_t mmu_table[4096] = {
     [0xfff] = 0x00701c0e
 };
 
+/* Trivial virtual to physical translator, fetches data from MMU table and assumes 1M pages */
+uint32_t virt2phys(uint32_t virt_addr)
+{
+    uint32_t page = virt_addr >> 20;
+    uint32_t offset = virt_addr & 0x000fffff;
+
+    offset |= mmu_table[page] & 0xfff00000;
+
+    kprintf("virt2phys(%08x) -> %08x\n", virt_addr, offset);
+
+    return offset;
+}
+
 static __attribute__((used)) void * mmu_table_ptr __attribute__((used, section(".startup"))) = (void *)((uintptr_t)mmu_table - 0xff800000);
 
 void *tlsf;
@@ -248,6 +262,8 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     setup_serial();
 
+    struct Size sz;
+
     kprintf("[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %08x\n", _start);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
@@ -269,17 +285,18 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
         kprintf("[BOOT] System memory: %p-%p\n", BE32(range[0]), BE32(range[0]) + BE32(range[1]) - 1);
 
-        kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
-        DuffCopy((void*)(kernel_new_loc+4), (void*)4, 0x00800000 / 4 - 1);
-        arm_flush_cache(kernel_new_loc, 0x00800000);
         kprintf("[BOOT] Adjusting MMU map\n");
 
         for (int i=0; i < 8; i++)
         {
             /* Caches write-through, write allocate, access for all */
-            mmu_table[4088 + i] = ((kernel_new_loc & 0xfff00000) + (i << 20)) | 0x1c0e;
+            mmu_table[0xff8 + i] = ((kernel_new_loc & 0xfff00000) + (i << 20)) | 0x1c0e;
         }
-        arm_flush_cache((uint32_t)mmu_table, 16384);
+        kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
+        DuffCopy((void*)(kernel_new_loc+4), (void*)4, 0x00800000 / 4 - 1);
+        arm_flush_cache(kernel_new_loc, 0x00800000);
+
+        asm volatile("dsb; mcr p15,0,%0,c2,c0,0; dsb"::"r"(((uint32_t)mmu_table_ptr & 0x000fffff) | (kernel_new_loc & 0xfff00000)));
         asm volatile("dsb; mcr p15, 0, %0, c8, c7, 0; dsb"::"r"(0));
     }
 
@@ -287,6 +304,9 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         kprintf("[BOOT] Changing ARM clock rate from %d MHz to %d MHz\n", get_clock_rate(3)/1000000, get_max_clock_rate(3)/1000000);
         set_clock_rate(3, get_max_clock_rate(3));
     }
+
+    sz = get_display_size();
+    kprintf("[BOOT] Display size is %dx%d\n", sz.widht, sz.height);
 
     e = dt_find_node("/chosen");
     if (e)
