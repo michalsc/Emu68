@@ -192,11 +192,12 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = udf(0x0bcc);
                 break;
         }
-        ptr = EMIT_FlushPC(ptr);
+        int8_t local_pc_off = 2;
+
+        ptr = EMIT_GetOffsetPC(ptr, &local_pc_off);
+        ptr = EMIT_ResetOffsetPC(ptr);
 
         uint8_t reg = RA_AllocARMRegister(&ptr);
-
-        *ptr++ = add_cc_immed(success_condition, REG_PC, REG_PC, 2);
 
         intptr_t branch_target = (intptr_t)(*m68k_ptr);
         intptr_t branch_offset = 0;
@@ -205,10 +206,6 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         if ((opcode & 0x00ff) == 0x00)
         {
             branch_offset = (int16_t)BE16(*(*m68k_ptr)++);
-            *ptr++ = movw_cc_immed_u16(success_condition, reg, branch_offset & 0xffff);
-            if (((branch_offset >> 16) & 0xffff) != 0)
-                *ptr++ = movt_cc_immed_u16(success_condition, reg, (branch_offset >> 16) & 0xffff);
-
         }
         /* use 32-bit offset */
         else if ((opcode & 0x00ff) == 0xff)
@@ -217,44 +214,64 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
             hi16 = BE16(*(*m68k_ptr)++);
             lo16 = BE16(*(*m68k_ptr)++);
             branch_offset = lo16 | (hi16 << 16);
-            *ptr++ = movw_cc_immed_u16(success_condition, reg, lo16);
-            if (hi16 != 0)
-                *ptr++ = movt_cc_immed_u16(success_condition, reg, hi16);
         }
         else
         /* otherwise use 8-bit offset */
         {
             branch_offset = (int8_t)(opcode & 0xff);
-            *ptr++ = mov_cc_immed_s8(success_condition, reg, opcode & 0xff);
         }
 
-        branch_target += branch_offset;
+        branch_offset += local_pc_off;
 
-        *ptr++ = add_cc_reg(success_condition, REG_PC, REG_PC, reg, 0);
+        if (branch_offset > 0 && branch_offset < 255)
+            *ptr++ = add_cc_immed(success_condition, REG_PC, REG_PC, branch_offset);
+        else if (branch_offset > -256 && branch_offset < 0)
+            *ptr++ = sub_cc_immed(success_condition, REG_PC, REG_PC, -branch_offset);
+        else if (branch_offset != 0) {
+            *ptr++ = movw_cc_immed_u16(success_condition, reg, branch_offset);
+            if ((branch_offset >> 16) & 0xffff)
+                *ptr++ = movt_cc_immed_u16(success_condition, reg, (branch_offset >> 16) & 0xffff);
+            *ptr++ = add_cc_reg(success_condition, REG_PC, REG_PC, reg, 0);
+        }
+
+        branch_target += branch_offset - local_pc_off;
 
         /* Next jump to skip the condition - invert bit 0 of the condition code here! */
         tmpptr = ptr;
 
-        *ptr++ = 0; //b_cc(success_condition ^ 1, 2);
+        *ptr++ = 0; // Here a b_cc(success_condition ^ 1, 2); will be put, but with right offset
+
+        int16_t local_pc_off_16 = local_pc_off - 2;
 
         /* Adjust PC accordingly */
         if ((opcode & 0x00ff) == 0x00)
         {
-            *ptr++ = add_immed(REG_PC, REG_PC, 4);
+            local_pc_off_16 += 4;
         }
         /* use 32-bit offset */
         else if ((opcode & 0x00ff) == 0xff)
         {
-            *ptr++ = add_immed(REG_PC, REG_PC, 6);
+            local_pc_off_16 += 6;
         }
         else
         /* otherwise use 8-bit offset */
         {
-            *ptr++ = add_immed(REG_PC, REG_PC, 2);
+            local_pc_off_16 += 2;
+        }
+
+        if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
+            *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
+        else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
+        else if (local_pc_off_16 != 0) {
+            *ptr++ = movw_immed_u16(reg, local_pc_off_16);
+            if ((local_pc_off_16 >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
+            *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
         }
 
         /* Now we now how far we jump. put the branch in place */
-        *tmpptr = b_cc(success_condition /*^ 1*/, ptr-tmpptr-2);
+        *tmpptr = b_cc(success_condition, ptr-tmpptr-2);
         *m68k_ptr = (uint16_t *)branch_target;
 
         RA_FreeARMRegister(&ptr, reg);
