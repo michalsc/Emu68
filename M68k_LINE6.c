@@ -24,18 +24,19 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
     if ((opcode & 0xfe00) == 0x6000)
     {
         uint8_t reg = RA_AllocARMRegister(&ptr);
-        uint8_t addend = 0;
+        int8_t addend = 0;
         uint16_t *bra_rel_ptr = *m68k_ptr;
         int32_t bra_off = 0;
 
-        ptr = EMIT_AdvancePC(ptr, 2);
+        int8_t current_pc_off = 2;
+        int32_t abs_off = 0;
+        ptr = EMIT_GetOffsetPC(ptr, &current_pc_off);
+        ptr = EMIT_ResetOffsetPC(ptr);
+        abs_off = current_pc_off;
 
         /* use 16-bit offset */
         if ((opcode & 0x00ff) == 0x00)
         {
-            int8_t pc_off = 0;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldrsh_offset(REG_PC, reg, pc_off);
             addend = 2;
             bra_off = (int16_t)(BE16((*m68k_ptr)[0]));
             (*m68k_ptr)++;
@@ -43,9 +44,6 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         /* use 32-bit offset */
         else if ((opcode & 0x00ff) == 0xff)
         {
-            int8_t pc_off = 0;
-            ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            *ptr++ = ldr_offset(REG_PC, reg, pc_off);
             addend = 4;
             bra_off = (int32_t)(BE32(*(uint32_t*)*m68k_ptr));
             (*m68k_ptr) += 2;
@@ -53,32 +51,52 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         /* otherwise use 8-bit offset */
         {
-            *ptr++ = mov_immed_s8(reg, opcode & 0xff);
-            bra_rel_ptr = *m68k_ptr;
             bra_off = (int8_t)(opcode & 0xff);
         }
-
-        ptr = EMIT_FlushPC(ptr);
 
         /* Check if INSN is BSR */
         if (opcode & 0x0100)
         {
             uint8_t sp = RA_MapM68kRegister(&ptr, 15);
             RA_SetDirtyM68kRegister(&ptr, 15);
-            if (addend)
-            {
-                uint8_t tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = add_immed(tmp, REG_PC, addend);
+
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            if ((addend + abs_off) > 0 && (addend + abs_off) < 256)
+                *ptr++ = add_immed(tmp, REG_PC, (addend + abs_off));
+            else if ((addend + abs_off) > -256 && (addend + abs_off) < 0)
+                *ptr++ = sub_immed(tmp, REG_PC, -(addend + abs_off));
+            else if ((addend + abs_off) != 0) {
+                int32_t v = addend + abs_off;
+                *ptr++ = movw_immed_u16(tmp, v & 0xffff);
+                if ((v >> 16) & 0xffff)
+                    *ptr++ = movt_immed_u16(tmp, v >> 16);
+                *ptr++ = add_reg(tmp, REG_PC, tmp, 0);
+            }
+
+            if ((addend + abs_off))
                 *ptr++ = str_offset_preindex(sp, tmp, -4);
-                RA_FreeARMRegister(&ptr, tmp);
-            }
             else
-            {
                 *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-            }
+
+            RA_FreeARMRegister(&ptr, tmp);
         }
 
-        *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+        abs_off += bra_off;
+        if (abs_off > -256 && abs_off < 256)
+        {
+            if (abs_off > 0 && abs_off < 256)
+                *ptr++ = add_immed(REG_PC, REG_PC, abs_off);
+            else if (abs_off > -256 && abs_off < 0)
+                *ptr++ = sub_immed(REG_PC, REG_PC, -abs_off);
+        }
+        else
+        {
+            *ptr++ = movw_immed_u16(reg, abs_off & 0xffff);
+            if ((abs_off >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(reg, abs_off >> 16);
+            *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+        }
+
         RA_FreeARMRegister(&ptr, reg);
 
         /* If branch is done within +- 4KB, try to inline it instead of breaking up the translation unit */
