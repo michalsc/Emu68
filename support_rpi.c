@@ -524,6 +524,8 @@ static inline void dmb() {
 
 /*----------------------------------------------------------------------------*/
 
+uint32_t virt2phys(uint32_t virt_addr);
+
 static uint32_t mbox_recv(uint32_t channel)
 {
 	volatile uint32_t *mbox_read = (uint32_t*)0xf200B880;
@@ -570,7 +572,7 @@ static void mbox_send(uint32_t channel, uint32_t data)
 	*mbox_write = LE32(data);
 }
 
-uint32_t FBReq[32] __attribute__((aligned(16)));
+uint32_t FBReq[128] __attribute__((aligned(16)));
 
 uint32_t get_clock_rate(uint32_t clock_id)
 {
@@ -584,7 +586,7 @@ uint32_t get_clock_rate(uint32_t clock_id)
     FBReq[7] = 0;
 
     arm_flush_cache((uint32_t)FBReq, 32);
-    mbox_send(8, 0x000fffff & (uint32_t)FBReq);
+    mbox_send(8, virt2phys((uint32_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -602,7 +604,7 @@ uint32_t get_max_clock_rate(uint32_t clock_id)
     FBReq[7] = 0;
 
     arm_flush_cache((uint32_t)FBReq, 32);
-    mbox_send(8, 0x000fffff & (uint32_t)FBReq);
+    mbox_send(8, virt2phys((uint32_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -620,7 +622,7 @@ uint32_t get_min_clock_rate(uint32_t clock_id)
     FBReq[7] = 0;
 
     arm_flush_cache((uint32_t)FBReq, 32);
-    mbox_send(8, 0x000fffff & (uint32_t)FBReq);
+    mbox_send(8, virt2phys((uint32_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -639,10 +641,34 @@ uint32_t set_clock_rate(uint32_t clock_id, uint32_t speed)
     FBReq[7] = 0;
 
     arm_flush_cache((uint32_t)FBReq, 36);
-    mbox_send(8, 0x000fffff & (uint32_t)FBReq);
+    mbox_send(8, virt2phys((uint32_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
+}
+
+struct Size get_display_size()
+{
+    struct Size sz;
+
+    FBReq[0] = LE32(4*8);
+    FBReq[1] = 0;
+    FBReq[2] = LE32(0x00040003);
+    FBReq[3] = LE32(8);
+    FBReq[4] = 0;
+    FBReq[5] = 0;
+    FBReq[6] = 0;
+    FBReq[7] = 0;
+
+    arm_flush_cache((uint32_t)FBReq, 32);
+    mbox_send(8, virt2phys((uint32_t)FBReq));
+    mbox_recv(8);
+    arm_dcache_invalidate((uint32_t)FBReq, 32);
+
+    sz.widht = LE32(FBReq[5]);
+    sz.height = LE32(FBReq[6]);
+
+    return sz;
 }
 
 #define PL011_ICR_FLAGS (PL011_ICR_RXIC|PL011_ICR_TXIC|PL011_ICR_RTIC|PL011_ICR_FEIC|PL011_ICR_PEIC|PL011_ICR_BEIC|PL011_ICR_OEIC|PL011_ICR_RIMIC|PL011_ICR_CTSMIC|PL011_ICR_DSRMIC|PL011_ICR_DCDMIC)

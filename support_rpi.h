@@ -122,6 +122,8 @@ uint32_t get_min_clock_rate(uint32_t clock_id);
 uint32_t get_max_clock_rate(uint32_t clock_id);
 uint32_t get_clock_rate(uint32_t clock_id);
 void setup_serial();
+struct Size { uint16_t widht; uint16_t height; };
+struct Size get_display_size();
 
 struct Result32 {
     uint32_t q;
