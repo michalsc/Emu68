@@ -289,8 +289,6 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
 
-printf("DIVS_W\n");
-
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     *ptr++ = cmp_immed(reg_q, 0);
@@ -298,32 +296,42 @@ printf("DIVS_W\n");
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
 
-    /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
-    *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
-
-   if (reg_a != 1)
-        *ptr++ = push(1 << reg_a);
-    if (reg_q != 2) {
-        *ptr++ = push(1 << reg_q);
-        *ptr++ = pop(4);
+    if (ARM_SUPPORTS_DIV)
+    {
+        /* Sign extend divisor from 16-bit to 32-bit */
+        *ptr++ = sxth(reg_q, reg_q, 0);
+        *ptr++ = sdiv(reg_quot, reg_a, reg_q);
+        *ptr++ = mls(reg_rem, reg_a, reg_quot, reg_q);
     }
-    if (reg_a != 1)
-        *ptr++ = pop(2);
+    else
+    {
+        /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
+        *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
-    /* Call (u)idivmod */
-    *ptr++ = sub_immed(13, 13, 8);
-    *ptr++ = mov_reg(0, 13);
-    *ptr++ = ldr_offset(15, 12, 4);
-    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-    *ptr++ = b_cc(ARM_CC_AL, 0);
-    *ptr++ = BE32((uint32_t)&sidiv);
+        if (reg_a != 1)
+            *ptr++ = push(1 << reg_a);
+        if (reg_q != 2) {
+            *ptr++ = push(1 << reg_q);
+            *ptr++ = pop(4);
+        }
+        if (reg_a != 1)
+            *ptr++ = pop(2);
 
-    /* Pop quotient and (eventually) reminder from the stack */
-    *ptr++ = pop(1 << reg_quot);
-    *ptr++ = pop(1 << reg_rem);
+        /* Call (u)idivmod */
+        *ptr++ = sub_immed(13, 13, 8);
+        *ptr++ = mov_reg(0, 13);
+        *ptr++ = ldr_offset(15, 12, 4);
+        *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        *ptr++ = BE32((uint32_t)&sidiv);
 
-    /* Restore registers from the stack */
-    *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+        /* Pop quotient and (eventually) reminder from the stack */
+        *ptr++ = pop(1 << reg_quot);
+        *ptr++ = pop(1 << reg_rem);
+
+        /* Restore registers from the stack */
+        *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12) | (1 << 14)) & ~((1 << reg_quot) | (1 << reg_rem)));
+    }
 
     /* Test bit 15 of quotient */
     *ptr++ = tst_immed(reg_quot, 0x902);
@@ -390,8 +398,6 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_rem = RA_AllocARMRegister(&ptr);
     uint8_t ext_words = 0;
 
-printf("DIVU_W\n");
-
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     *ptr++ = cmp_immed(reg_q, 0);
@@ -399,33 +405,42 @@ printf("DIVU_W\n");
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
 
-    /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
-    *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
-
-    if (reg_a != 1)
-        *ptr++ = push(1 << reg_a);
-    if (reg_q != 2) {
-        *ptr++ = push(1 << reg_q);
-        *ptr++ = pop(4);
+    if (ARM_SUPPORTS_DIV)
+    {
+        /* Sign extend divisor from 16-bit to 32-bit */
+        *ptr++ = uxth(reg_q, reg_q, 0);
+        *ptr++ = udiv(reg_quot, reg_a, reg_q);
+        *ptr++ = mls(reg_rem, reg_a, reg_quot, reg_q);
     }
-    if (reg_a != 1)
-        *ptr++ = pop(2);
+    else
+    {
+        /* Keep r0-r3,lr and ip safe on the stack. Exclude reg_quot and reg_rem in case they were allocated in r0..r4 range */
+        *ptr++ = push(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
 
-    /* Call (u)idivmod */
-    *ptr++ = sub_immed(13, 13, 8);
-    *ptr++ = mov_reg(0, 13);
-    *ptr++ = ldr_offset(15, 12, 4);
-    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-    *ptr++ = b_cc(ARM_CC_AL, 0);
-    *ptr++ = BE32((uint32_t)&uidiv);
+        if (reg_a != 1)
+            *ptr++ = push(1 << reg_a);
+        if (reg_q != 2) {
+            *ptr++ = push(1 << reg_q);
+            *ptr++ = pop(4);
+        }
+        if (reg_a != 1)
+            *ptr++ = pop(2);
 
-    /* Pop quotient and (eventually) reminder from the stack */
-    *ptr++ = pop(1 << reg_quot);
-    *ptr++ = pop(1 << reg_rem);
+        /* Call (u)idivmod */
+        *ptr++ = sub_immed(13, 13, 8);
+        *ptr++ = mov_reg(0, 13);
+        *ptr++ = ldr_offset(15, 12, 4);
+        *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        *ptr++ = BE32((uint32_t)&uidiv);
 
-    /* Restore registers from the stack */
-    *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
+        /* Pop quotient and (eventually) reminder from the stack */
+        *ptr++ = pop(1 << reg_quot);
+        *ptr++ = pop(1 << reg_rem);
 
+        /* Restore registers from the stack */
+        *ptr++ = pop(((1 << reg_a) | (1 << reg_q) | 0x0f | (1 << 12)) & ~((1 << reg_quot) | (1 << reg_rem)));
+    }
     /* Extract upper 16 bits of quotient into temporary register */
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     *ptr++ = uxth(tmp, reg_quot, 2);
@@ -492,8 +507,6 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t reg_dq = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
     uint8_t reg_dr = 0xff;
     uint8_t ext_words = 1;
-
-printf("DIVUS_L\n");
 
     /* If Dr != Dq use remainder and alloc it */
     if ((opcode2 & 7) != ((opcode2 >> 12) & 7))
