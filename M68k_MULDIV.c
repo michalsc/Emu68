@@ -299,9 +299,9 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (ARM_SUPPORTS_DIV)
     {
         /* Sign extend divisor from 16-bit to 32-bit */
-        *ptr++ = sxth(reg_q, reg_q, 0);
-        *ptr++ = sdiv(reg_quot, reg_a, reg_q);
-        *ptr++ = mls(reg_rem, reg_a, reg_quot, reg_q);
+        *ptr++ = sxth(reg_rem, reg_q, 0);
+        *ptr++ = sdiv(reg_quot, reg_a, reg_rem);
+        *ptr++ = mls(reg_rem, reg_a, reg_quot, reg_rem);
     }
     else
     {
@@ -387,6 +387,9 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, reg_quot);
     RA_FreeARMRegister(&ptr, reg_rem);
 
+    if (!ARM_SUPPORTS_DIV)
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+
     return ptr;
 }
 
@@ -408,9 +411,9 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (ARM_SUPPORTS_DIV)
     {
         /* Sign extend divisor from 16-bit to 32-bit */
-        *ptr++ = uxth(reg_q, reg_q, 0);
-        *ptr++ = udiv(reg_quot, reg_a, reg_q);
-        *ptr++ = mls(reg_rem, reg_a, reg_quot, reg_q);
+        *ptr++ = uxth(reg_rem, reg_q, 0);
+        *ptr++ = udiv(reg_quot, reg_a, reg_rem);
+        *ptr++ = mls(reg_rem, reg_a, reg_quot, reg_rem);
     }
     else
     {
@@ -493,7 +496,8 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, reg_quot);
     RA_FreeARMRegister(&ptr, reg_rem);
 
-    *ptr++ = INSN_TO_LE(0xfffffff0);
+    if (!ARM_SUPPORTS_DIV)
+        *ptr++ = INSN_TO_LE(0xfffffff0);
 
     return ptr;
 }
@@ -721,7 +725,8 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (reg_dr != 0xff)
         RA_FreeARMRegister(&ptr, reg_dr);
 
-    *ptr++ = INSN_TO_LE(0xfffffff0);
+    if (!ARM_SUPPORTS_DIV)
+        *ptr++ = INSN_TO_LE(0xfffffff0);
 
     return ptr;
 }
