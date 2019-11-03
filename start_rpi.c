@@ -180,6 +180,58 @@ void start_emu(void *);
 
 int ARM_SUPPORTS_DIV = 0;
 
+void display_logo()
+{
+    struct Size sz = get_display_size();
+    uint16_t *framebuffer;
+    uint32_t pitch;
+    uint32_t start_x, start_y;
+    uint16_t *buff;
+    int32_t pix_cnt = (uint32_t)EmuLogo.el_Width * (uint32_t)EmuLogo.el_Height;
+    uint8_t *rle = EmuLogo.el_Data;
+    int x = 0;
+
+    kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
+    init_display(sz, (void**)&framebuffer, &pitch);
+    kprintf("[BOOT] Framebuffer @ %08x\n", framebuffer);
+
+    start_x = (sz.width - EmuLogo.el_Width) / 2;
+    start_y = (sz.height - EmuLogo.el_Height) / 2;
+
+    kprintf("[BOOT] Logo start coordinate: %dx%d, size: %dx%d\n", start_x, start_y, EmuLogo.el_Width, EmuLogo.el_Height);
+
+    /* First clear the screen. Use color in top left corner of RLE image for that */
+    {
+        uint8_t gray = rle[0];
+        uint16_t color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+
+        for (int i=0; i < sz.width * sz.height; i++)
+            framebuffer[i] = LE16(color);
+    }
+
+    /* Now decode RLE and draw it on the screen */
+    buff = (uint16_t *)((uintptr_t)framebuffer + pitch*start_y);
+    buff += start_x;
+
+    while(pix_cnt > 0) {
+        uint8_t gray = *rle++;
+        uint8_t cnt = *rle++;
+        uint16_t color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        pix_cnt -= cnt;
+        while(cnt--) {
+            buff[x++] = LE16(color);
+            /* If new line, advance the buffer by pitch and reset x counter */
+            if (x >= EmuLogo.el_Width) {
+                buff += pitch / 2;
+                x = 0;
+            }
+        }
+    }
+
+    /* Flush cache just in case */
+    arm_flush_cache((uint32_t)framebuffer, sz.width * sz.height * 2);
+}
+
 void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 {
     (void)dummy; (void)arch; (void)atags; (void)dummy2;
@@ -262,8 +314,6 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     setup_serial();
 
-    struct Size sz;
-
     kprintf("[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %08x\n", _start);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
@@ -305,8 +355,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         set_clock_rate(3, get_max_clock_rate(3));
     }
 
-    sz = get_display_size();
-    kprintf("[BOOT] Display size is %dx%d\n", sz.widht, sz.height);
+    display_logo();
 
     e = dt_find_node("/chosen");
     if (e)
