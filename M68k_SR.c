@@ -95,8 +95,13 @@ static struct SRMaskEntry Line5_Map[] = {
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
+static uint8_t SR_TestBranch(uint16_t *insn_stream);
+static uint8_t SR_TestBcc(uint16_t *insn_stream);
+
 static struct SRMaskEntry Line6_Map[] = {
-    { 0x0000, 0x0000, SME_END,  0, NULL }                                 /* BRA/BSR/Bcc */
+    { 0xfe00, 0x6000, SME_FUNC,  0, SR_TestBranch },                      /* BRA/BSR */
+    { 0xf000, 0x6000, SME_FUNC,  0, SR_TestBcc },                         /* Bcc */
+    { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
 static struct SRMaskEntry Line7_Map[] = {
@@ -188,6 +193,18 @@ static struct SRMaskEntry *OpcodeMap[16] = {
     LineF_Map
 };
 
+static uint8_t SR_TestBcc(uint16_t *insn_stream)
+{
+    (void)insn_stream;
+    return 0;
+}
+
+static uint8_t SR_TestBranch(uint16_t *insn_stream)
+{
+    (void)insn_stream;
+    return 0;
+}
+
 /* Get the mask of status flags changed by the instruction specified by the opcode */
 uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 {
@@ -202,7 +219,11 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
     {
         if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
         {
-            mask = e->me_SRMask;
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC) {
+                mask = e->me_TestFunction(insn_stream);
+            }
             break;
         }
         e++;
