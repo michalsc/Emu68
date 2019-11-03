@@ -50,6 +50,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t size = 0;
     uint8_t tmp = 0;
     uint8_t is_movea = (opcode & 0x01c0) == 0x0040;
+    int is_load_immediate = 0;
+    uint32_t immediate_value = 0;
 
     (*m68k_ptr)++;
 
@@ -61,6 +63,23 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         size = 2;
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+
+    if ((opcode & 0x3f) == 0x3c) {
+        is_load_immediate = 1;
+        switch (size) {
+            case 4:
+                immediate_value = BE32(*(uint32_t*)(*m68k_ptr));
+                break;
+            case 2:
+                immediate_value = BE16(**m68k_ptr);
+                break;
+            case 1:
+                immediate_value = ((uint8_t*)*m68k_ptr)[1];
+                break;
+        }
+
+        printf("move loads %d-byte immediate value %08x\n", size, immediate_value);
+    }
 
     /* Reverse destination mode, since this one is reversed in MOVE instruction */
     tmp = (opcode >> 6) & 0x3f;
@@ -80,12 +99,41 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         if (update_mask)
         {
             M68K_ModifyCC(&ptr);
-            *ptr++ = cmp_immed(tmp_reg, 0);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            if (is_load_immediate) {
+                if (update_mask & SR_N) {
+                    switch (size)
+                    {
+                    case 4:
+                        if (immediate_value & 0x80000000)
+                            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
+                        break;
+
+                    case 2:
+                        if (immediate_value & 0x8000)
+                            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
+                        break;
+
+                    case 1:
+                        if (immediate_value & 0x80)
+                            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+
+                if ((update_mask & SR_Z) && (immediate_value == 0))
+                    *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
+            }
+            else {
+                *ptr++ = cmp_immed(tmp_reg, 0);
+                if (update_mask & SR_N)
+                    *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+                if (update_mask & SR_Z)
+                    *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            }
         }
     }
 
