@@ -663,12 +663,79 @@ struct Size get_display_size()
     arm_flush_cache((uint32_t)FBReq, 32);
     mbox_send(8, virt2phys((uint32_t)FBReq));
     mbox_recv(8);
-    arm_dcache_invalidate((uint32_t)FBReq, 32);
 
-    sz.widht = LE32(FBReq[5]);
+    sz.width = LE32(FBReq[5]);
     sz.height = LE32(FBReq[6]);
 
     return sz;
+}
+
+void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
+{
+    int c = 1;
+    int pos_buffer_base = 0;
+//    int pos_buffer_size = 0;
+    int pos_buffer_pitch = 0;
+
+    FBReq[c++] = 0;                 // Request
+    FBReq[c++] = LE32(0x48003);     // SET_RESOLUTION
+    FBReq[c++] = LE32(8);
+    FBReq[c++] = 0;
+    FBReq[c++] = LE32(dimensions.width);
+    FBReq[c++] = LE32(dimensions.height);
+
+    FBReq[c++] = LE32(0x48004);          // Virtual resolution: duplicate physical size...
+    FBReq[c++] = LE32(8);
+    FBReq[c++] = 0;
+    FBReq[c++] = LE32(dimensions.width);
+    FBReq[c++] = LE32(dimensions.height);
+
+    FBReq[c++] = LE32(0x48005);   // Set depth
+    FBReq[c++] = LE32(4);
+    FBReq[c++] = LE32(0);
+    FBReq[c++] = LE32(16);
+
+    FBReq[c++] = LE32(0x40001); // Allocate buffer
+    FBReq[c++] = LE32(8);
+    FBReq[c++] = LE32(0);
+    pos_buffer_base = c;
+    FBReq[c++] = LE32(64);
+//    pos_buffer_size = c;
+    FBReq[c++] = LE32(0);
+
+    FBReq[c++] = LE32(0x40008); // Get pitch
+    FBReq[c++] = LE32(4);
+    FBReq[c++] = LE32(0);
+    pos_buffer_pitch = c;
+    FBReq[c++] = LE32(0);
+
+    FBReq[c++] = 0;
+
+    FBReq[0] = LE32(c << 2);
+
+    arm_flush_cache((uint32_t)FBReq, c * 4);
+    mbox_send(8, virt2phys((uint32_t)FBReq));
+    mbox_recv(8);
+
+    uint32_t _base = LE32(FBReq[pos_buffer_base]);
+//    uint32_t _size = LE32(FBReq[pos_buffer_size]);
+    uint32_t _pitch = LE32(FBReq[pos_buffer_pitch]);
+
+    if ((_base & 0xc0000000) == 0x40000000)
+    {
+        // Cached buffer
+    }
+    else if ((_base & 0xc0000000) == 0xc0000000)
+    {
+        // Uncached buffer
+    }
+    _base &= ~0xc0000000;
+
+    if (framebuffer)
+        *framebuffer = (void*)_base;
+
+    if (pitch)
+        *pitch = _pitch;
 }
 
 #define PL011_ICR_FLAGS (PL011_ICR_RXIC|PL011_ICR_TXIC|PL011_ICR_RTIC|PL011_ICR_FEIC|PL011_ICR_PEIC|PL011_ICR_BEIC|PL011_ICR_OEIC|PL011_ICR_RIMIC|PL011_ICR_CTSMIC|PL011_ICR_DSRMIC|PL011_ICR_DCDMIC)
