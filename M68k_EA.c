@@ -551,9 +551,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 *ptr++ = add_immed(reg_d16, reg_d16, off);
                 (*ext_words)++;*/
                 int32_t off = off8 + (int16_t)(BE16(m68k_ptr[(*ext_words)++]));
-                if (off < 0 && off >= -256)
-                    *ptr++ = mvn_immed_u8(reg_d16, ~off);
-                else {
+                if (size == 0 || (off < -4095 || off > 4095))
+                {
                     *ptr++ = movw_immed_u16(reg_d16, off & 0xffff);
                     if (((off >> 16) & 0xffff) != 0)
                         *ptr++ = movt_immed_u16(reg_d16, (off >> 16) & 0xffff);
@@ -562,13 +561,22 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = ldr_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        if (off > -4096 && off < 4096)
+                            *ptr++ = ldr_offset(REG_PC, *arm_reg, off);
+                        else
+                            *ptr++ = ldr_regoffset(REG_PC, *arm_reg, reg_d16, 0);
                         break;
                     case 2:
-                        *ptr++ = ldrh_regoffset(REG_PC, *arm_reg, reg_d16);
+                        if (off > -4096 && off < 4096)
+                            *ptr++ = ldrh_offset(REG_PC, *arm_reg, off);
+                        else
+                            *ptr++ = ldrh_regoffset(REG_PC, *arm_reg, reg_d16);
                         break;
                     case 1:
-                        *ptr++ = ldrb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        if (off > -4096 && off < 4096)
+                            *ptr++ = ldrb_offset(REG_PC, *arm_reg, off);
+                        else
+                            *ptr++ = ldrb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
                         break;
                     case 0:
                         *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
@@ -1533,12 +1541,11 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 int32_t off32 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
                 ptr = EMIT_GetOffsetPC(ptr, &off);
                 off32 += off;
-                if (off32 < 0 && off32 >= -256)
-                    *ptr++ = mvn_immed_u8(reg_d16, ~off32);
-                else {
-                    *ptr++ = movw_immed_u16(reg_d16, off32 & 0xffff);
-                    if (((off32 >> 16) & 0xffff) != 0)
-                        *ptr++ = movt_immed_u16(reg_d16, (off32 >> 16) & 0xffff);
+                if (size == 0 || (off32 < -4095 || off32 > 4095))
+                {
+                    *ptr++ = movw_immed_u16(reg_d16, off32);
+                    if ((off32 >> 16) & 0xffff)
+                        *ptr++ = movt_immed_u16(reg_d16, (off32 >> 16));
                 }
                 /**ptr++ = ldrsh_offset(REG_PC, reg_d16, off);
                 *ptr++ = add_immed(reg_d16, reg_d16, off);*/
@@ -1547,13 +1554,22 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = str_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        if (off32 > -4096 && off32 < 4096)
+                            *ptr++ = str_offset(REG_PC, *arm_reg, off32);
+                        else
+                            *ptr++ = str_regoffset(REG_PC, *arm_reg, reg_d16, 0);
                         break;
                     case 2:
-                        *ptr++ = strh_regoffset(REG_PC, *arm_reg, reg_d16);
+                        if (off32 > -4096 && off32 < 4096)
+                            *ptr++ = strh_offset(REG_PC, *arm_reg, off32);
+                        else
+                            *ptr++ = strh_regoffset(REG_PC, *arm_reg, reg_d16);
                         break;
                     case 1:
-                        *ptr++ = strb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                        if (off32 > -4096 && off32 < 4096)
+                            *ptr++ = strb_offset(REG_PC, *arm_reg, off32);
+                        else
+                            *ptr++ = strb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
                         break;
                     case 0:
                         *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
