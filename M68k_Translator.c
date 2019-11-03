@@ -36,7 +36,11 @@ static const uint32_t arm_cache_size = EMU68_ARM_CACHE_SIZE;
 static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
+#ifdef RASPI
+static uint32_t *temporary_arm_code;
+#else
 static uint32_t temporary_arm_code[EMU68_M68K_INSN_DEPTH * 4 * 64];
+#endif
 static struct M68KLocalState local_state[EMU68_M68K_INSN_DEPTH*2];
 
 int32_t _pc_rel = 0;
@@ -593,6 +597,7 @@ void M68K_InitializeCache()
     printf("[ICache] Setting up ICache\n");
 #ifdef RASPI
     ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
+    temporary_arm_code = tlsf_malloc(tlsf, EMU68_M68K_INSN_DEPTH * 16 * 64);
     printf("[ICache] ICache array at %08x\n", ICache);
 #endif
     for (int i=0; i < 65536; i++)
