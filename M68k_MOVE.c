@@ -77,8 +77,6 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
                 immediate_value = ((uint8_t*)*m68k_ptr)[1];
                 break;
         }
-
-        printf("move loads %d-byte immediate value %08x\n", size, immediate_value);
     }
 
     /* Reverse destination mode, since this one is reversed in MOVE instruction */
