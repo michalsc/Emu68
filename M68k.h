@@ -116,7 +116,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
 
-uint8_t M68K_GetSRMask(uint16_t opcode);
+uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void M68K_DumpStats();

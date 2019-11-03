@@ -48,7 +48,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
@@ -91,7 +91,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
@@ -140,7 +140,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
@@ -250,7 +250,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_words;
 
         /* At this point extracted bitfield is in tmp register, compare it against 0, set zero and  */
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
         if (update_mask)
         {
@@ -310,7 +310,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_words;
 
         /* At this point extracted bitfield is in tmp register, compare it against 0, set zero and  */
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
         if (update_mask)
         {
@@ -375,7 +375,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_words;
 
         /* At this point extracted bitfield is in tmp register, compare it against 0, set zero and  */
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
         if (update_mask)
         {
@@ -517,7 +517,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2);
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
@@ -640,7 +640,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2);
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
@@ -780,7 +780,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2);
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)

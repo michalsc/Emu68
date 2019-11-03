@@ -147,7 +147,7 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -189,7 +189,7 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -239,7 +239,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -347,7 +347,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (*m68k_ptr) += ext_words;
 
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
@@ -450,7 +450,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (*m68k_ptr) += ext_words;
 
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
@@ -682,7 +682,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (reg_dr != 0xff)
         RA_SetDirtyM68kRegister(&ptr, opcode2 & 7);
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)

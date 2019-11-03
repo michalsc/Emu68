@@ -20,7 +20,7 @@
 #include "config.h"
 #include "DuffCopy.h"
 
-const int debug = 1;
+const int debug = 0;
 
 #ifdef RASPI
 #include "support_rpi.h"

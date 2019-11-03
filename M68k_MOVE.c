@@ -26,7 +26,7 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
     *ptr++ = mov_immed_s8(tmp_reg, value);
     ptr = EMIT_AdvancePC(ptr, 2);
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -74,7 +74,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
     if (!is_movea)
     {
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)

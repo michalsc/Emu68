@@ -172,7 +172,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         (*m68k_ptr) += ext_words;
 
-        uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
         uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)

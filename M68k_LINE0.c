@@ -100,7 +100,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -268,7 +268,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -437,7 +437,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -636,7 +636,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -832,7 +832,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -1028,7 +1028,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
@@ -1097,7 +1097,7 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = SR_Z & ~mask;
 
     if (update_mask)
@@ -1194,7 +1194,7 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = SR_Z & ~mask;
 
     if (update_mask)
@@ -1292,7 +1292,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = SR_Z & ~mask;
 
     if (update_mask)
@@ -1389,7 +1389,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
-    uint8_t mask = M68K_GetSRMask(BE16((*m68k_ptr)[0]));
+    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
     uint8_t update_mask = SR_Z & ~mask;
 
     if (update_mask)
