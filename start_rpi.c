@@ -88,7 +88,9 @@ static const char bootstrapName[] = "Emu68 runtime/ARM v7-a BigEndian";
 static const char bootstrapName[] = "Emu68 runtime/ARM v7-a LittleEndian";
 #endif
 
-static __attribute__((used)) void * tmp_stack_ptr __attribute__((used, section(".startup"))) = (void *)(0xff800000 + 0x1000 - 16);
+static uint32_t arm_stack[10241] __attribute__((aligned(64)));
+
+static __attribute__((used)) void * tmp_stack_ptr __attribute__((used, section(".startup"))) = (void *)(&arm_stack[10240]);
 extern int __bootstrap_end;
 
 int raise(int sig)
@@ -251,8 +253,6 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
                                                 /* This bit sets also endianess of page tables */
 #endif
     asm volatile ("mcr p15, 0, %0, c1, c0, 0" : : "r"(tmp));
-
-
     asm volatile ("mrc p15, 0, %0, c0, c2, 0" : "=r"(isar));
     if ((isar & 0x0f000000) == 0x02000000)
         ARM_SUPPORTS_DIV = 1;
@@ -314,6 +314,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     kprintf("[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %08x\n", _start);
+    kprintf("[BOOT] ARM stack top at %p\n", tmp_stack_ptr);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
     kprintf("[BOOT] ISAR=%08x\n", isar);
     kprintf("[BOOT] Args=%08x,%08x,%08x,%08x\n", dummy, arch, atags, dummy2);
@@ -527,7 +528,7 @@ uint8_t m68kcode[] = {
 void *m68kcodeptr = m68kcode;
 
 uint32_t data[128];
-uint32_t stack[512];
+uint32_t stack[1025] __attribute__((aligned(16)));
 
 void print_context(struct M68KState *m68k)
 {
@@ -577,15 +578,15 @@ void print_context(struct M68KState *m68k)
     printf("\n    USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
 }
 
-#define DATA_SIZE 25600*4800
+//#define DATA_SIZE 25600*4800
 
 uint8_t *chunky; //[DATA_SIZE];
-uint8_t *plane0; //[DATA_SIZE ];
-uint8_t *plane1; //[DATA_SIZE ];
-uint8_t *plane2; //[DATA_SIZE ];
-uint8_t *plane3; //[DATA_SIZE ];
+//uint8_t *plane0; //[DATA_SIZE ];
+//uint8_t *plane1; //[DATA_SIZE ];
+//uint8_t *plane2; //[DATA_SIZE ];
+//uint8_t *plane3; //[DATA_SIZE ];
 
-uint8_t *bitmap[4];// = {
+//uint8_t *bitmap[4];// = {
     //plane0, plane1, plane2, plane3
 //};
 
@@ -595,50 +596,22 @@ void start_emu(void *addr)
     register struct M68KState * m68k asm("fp");
     M68K_InitializeCache();
     uint64_t t1=0, t2=0;
-    uint8_t *ptr = (uint8_t *)0x800000;
-    chunky = ptr;
-    ptr += DATA_SIZE;
-    plane0 = ptr;
-    ptr += DATA_SIZE;
-    plane1 = ptr;
-    ptr += DATA_SIZE;
-    plane2 = ptr;
-    ptr += DATA_SIZE;
-    plane3 = ptr;
-
-    bitmap[0] = plane0;
-    bitmap[1] = plane1;
-    bitmap[2] = plane2;
-    bitmap[3] = plane3;
 
     void (*arm_code)(); //(struct M68KState *ctx);
 
     struct M68KTranslationUnit * unit = (void*)0;
     struct M68KState __m68k;
 
-    bzero(&__m68k, sizeof(__m68k));
     asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
-    //m68k = &__m68k;
-
 
 for (int i=0; i < 3; i++) {
 
-    bitmap[0] = (uint8_t *)BE32((uintptr_t)bitmap[0]);
-    bitmap[1] = (uint8_t *)BE32((uintptr_t)bitmap[1]);
-    bitmap[2] = (uint8_t *)BE32((uintptr_t)bitmap[2]);
-    bitmap[3] = (uint8_t *)BE32((uintptr_t)bitmap[3]);
-
+    bzero(&__m68k, sizeof(__m68k));
     memset(&stack, 0xaa, sizeof(stack));
-    m68k->D[0].u32 = BE32(10);
-    m68k->A[0].u32 = BE32((uint32_t)chunky);
-    m68k->A[1].u32 = BE32((uint32_t)chunky + DATA_SIZE);
-    m68k->A[2].u32 = BE32((uint32_t)bitmap);
-    m68k->A[7].u32 = BE32((uint32_t)&stack[511]);
-    m68k->PC = (uint16_t *)BE32((uint32_t)addr); //m68k.PC = (uint16_t *)BE32((uint32_t)m68kcodeptr);
+    m68k->A[7].u32 = BE32((uint32_t)&stack[1024]);
+    m68k->PC = (uint16_t *)BE32((uint32_t)addr);
 
-    data[0] = BE32(3);
-    data[1] = BE32(100);
-    stack[511] = 0;
+    stack[1024] = 0;
 
     print_context(m68k);
 
@@ -663,9 +636,17 @@ for (int i=0; i < 3; i++) {
     printf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
     printf("[JIT] Number of ARM-M68k switches: %lld\n", ctx_count);
 
-    printf("Back from translated code\n");
+    printf("[JIT] Back from translated code\n");
 
     print_context(m68k);
 }
+
+    printf("[JIT] --- Stack dump ---\n");
+    for (int i=1024; i > 0; --i)
+    {
+        printf("[JIT]   sp[%04d] = %08x\n", i, BE32(stack[i]));
+        if (stack[i] == 0xaaaaaaaa)
+            break;
+    }
     M68K_DumpStats();
 }
