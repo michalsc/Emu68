@@ -96,11 +96,10 @@ static struct SRMaskEntry Line5_Map[] = {
 };
 
 static uint8_t SR_TestBranch(uint16_t *insn_stream);
-static uint8_t SR_TestBcc(uint16_t *insn_stream);
 
 static struct SRMaskEntry Line6_Map[] = {
     { 0xfe00, 0x6000, SME_FUNC,  0, SR_TestBranch },                      /* BRA/BSR */
-    { 0xf000, 0x6000, SME_FUNC,  0, SR_TestBcc },                         /* Bcc */
+    { 0xf000, 0x6000, SME_MASK,  0, NULL },                               /* Bcc */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
@@ -193,16 +192,58 @@ static struct SRMaskEntry *OpcodeMap[16] = {
     LineF_Map
 };
 
-static uint8_t SR_TestBcc(uint16_t *insn_stream)
-{
-    (void)insn_stream;
-    return 0;
-}
-
 static uint8_t SR_TestBranch(uint16_t *insn_stream)
 {
-    (void)insn_stream;
-    return 0;
+    /*
+        At this point insn_stream points to the branch opcode.
+        Check what's at the target of this branch
+    */
+    uint8_t mask = 0;
+    uint16_t opcode = BE16(*insn_stream);
+    int32_t bra_off = 0;
+
+    /* Advance stream 1 word past BRA */
+    insn_stream++;
+
+    /* use 16-bit offset */
+    if ((opcode & 0x00ff) == 0x00)
+    {
+        bra_off = (int16_t)(BE16(insn_stream[0]));
+    }
+    /* use 32-bit offset */
+    else if ((opcode & 0x00ff) == 0xff)
+    {
+        bra_off = (int32_t)(BE32(*(uint32_t*)insn_stream));
+    }
+    else
+    /* otherwise use 8-bit offset */
+    {
+        bra_off = (int8_t)(opcode & 0xff);
+    }
+
+    /* Advance instruction stream accordingly */
+    insn_stream = (uint16_t *)((intptr_t)insn_stream + bra_off);
+
+    /* Fetch new opcode and test it */
+    uint16_t next_opcode = BE16(*insn_stream);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
 }
 
 /* Get the mask of status flags changed by the instruction specified by the opcode */
