@@ -167,8 +167,6 @@ uint32_t virt2phys(uint32_t virt_addr)
 
     offset |= mmu_table[page] & 0xfff00000;
 
-    kprintf("virt2phys(%08x) -> %08x\n", virt_addr, offset);
-
     return offset;
 }
 
