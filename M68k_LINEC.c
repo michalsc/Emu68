@@ -39,7 +39,7 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
     }
     /* 1100xxx1xx00xxxx - EXG */
-    else if ((opcode & 0xf130) == 0xf100)
+    else if ((opcode & 0xf130) == 0xc100)
     {
         uint8_t reg1 = 0xff;
         uint8_t reg2 = 0xff;
