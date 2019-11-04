@@ -9,6 +9,8 @@ SECTIONS
     .text :
     {
         *(.startup)
+        PROVIDE(g_note_build_id = .);
+        *(.note.gnu.build-id)
         *(.text)
         *(.text.*)
         *(.stub)

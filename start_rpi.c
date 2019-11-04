@@ -73,11 +73,7 @@ asm("   .section .startup           \n"
 "       .byte   0x6e,0x00,0x60,0xe1 \n" /* eret                 */
 "       .section .text              \n"
 ".byte 0                            \n"
-#if EMU68_HOST_BIG_ENDIAN
-".string \"$VER: Emu68.img v0.1 (" __DATE__ ") BigEndian\"\n"
-#else
-".string \"$VER: Emu68.img v0.1 (" __DATE__ ")\"\n"
-#endif
+".string \"$VER: Emu68.img " VERSION_STRING_DATE "\"\n"
 ".byte 0                            \n"
 "\n\t\n\t"
 );
@@ -118,7 +114,31 @@ void memset(void *ptr, uint8_t fill, long sz)
 
 void memcpy(void *dst, const void *src, long sz)
 {
-    kprintf("[BOOT] called memcpy(%08x, %08x, %08x)\n", dst, src, sz);
+    uint8_t *d = dst;
+    const uint8_t *s = src;
+    
+    while(sz--)
+	*d++ = *s++;
+}
+
+void *memmove(void *dst, const void *src, long sz)
+{
+    uint8_t *d = dst;
+    const uint8_t *s = src;
+
+    if (d > s)
+    {
+	d += sz;
+	s += sz;
+	
+	while(sz--)
+	    *--d = *--s;
+    }
+    else
+	while(sz--)
+	    *d++ = *s++;
+    
+    return dst;
 }
 
 void mmap()
