@@ -86,8 +86,17 @@ static const char bootstrapName[] = "Emu68 runtime/ARM v7-a LittleEndian";
 
 static uint32_t arm_stack[10241] __attribute__((aligned(64)));
 
-static __attribute__((used)) void * tmp_stack_ptr __attribute__((used, section(".startup"))) = (void *)(&arm_stack[10240]);
+static __attribute__((used)) void * tmp_stack_ptr __attribute__((used, section(".startup @"))) = (void *)(&arm_stack[10240]);
 extern int __bootstrap_end;
+
+typedef struct {
+    uint32_t namesz;
+    uint32_t descsz;
+    uint32_t type;
+    uint8_t data[];
+} ElfNoteSection_t;
+
+extern const ElfNoteSection_t *g_note_build_id;
 
 int raise(int sig)
 {
@@ -192,7 +201,7 @@ uint32_t virt2phys(uint32_t virt_addr)
     return offset;
 }
 
-static __attribute__((used)) void * mmu_table_ptr __attribute__((used, section(".startup"))) = (void *)((uintptr_t)mmu_table - 0xff800000);
+static __attribute__((used)) void * mmu_table_ptr __attribute__((used, section(".startup @"))) = (void *)((uintptr_t)mmu_table - 0xff800000);
 
 void *tlsf;
 
@@ -250,6 +259,17 @@ void display_logo()
 
     /* Flush cache just in case */
     arm_flush_cache((uint32_t)framebuffer, sz.width * sz.height * 2);
+}
+
+void print_build_id()
+{
+    const uint8_t *build_id_data = &g_note_build_id->data[g_note_build_id->namesz];
+
+    kprintf("[BOOT] Build ID: ");
+    for (unsigned i = 0; i < g_note_build_id->descsz; ++i) {
+        kprintf("%02x", build_id_data[i]);
+    }
+    kprintf("\n");
 }
 
 void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
@@ -334,6 +354,9 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     kprintf("[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %08x\n", _start);
+
+    print_build_id();
+
     kprintf("[BOOT] ARM stack top at %p\n", tmp_stack_ptr);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
     kprintf("[BOOT] ISAR=%08x\n", isar);
@@ -393,7 +416,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     while(1);
 }
 
-static __attribute__((used)) void * boot_address __attribute__((used, section(".startup"))) = (void *)((intptr_t)boot);
+static __attribute__((used)) void * boot_address __attribute__((used, section(".startup @"))) = (void *)((intptr_t)boot);
 
 
 uint8_t m68kcode[] = {
