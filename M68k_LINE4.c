@@ -1091,7 +1091,18 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_ResetOffsetPC(ptr);
         *ptr++ = mov_reg(REG_PC, tmp);
         RA_SetDirtyM68kRegister(&ptr, 15);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+
+        /*
+            If Return Stack is not empty, the branch was inlined. Pop instruction counter here,
+            and go back to inlining the code
+        */
+        uint16_t *ret_addr = M68K_PopReturnAddress(NULL);
+        if (ret_addr != (uint16_t *)0xffffffff)
+        {
+            *m68k_ptr = ret_addr;
+        }
+        else
+            *ptr++ = INSN_TO_LE(0xffffffff);
         RA_FreeARMRegister(&ptr, tmp);
     }
     /* 0100111001110110 - TRAPV */
