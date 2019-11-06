@@ -22,7 +22,7 @@ void __start(uint32_t p asm("d0"), uint16_t *fb asm("a0"))
   framebuffer = fb;
   pitch = p;
 
-  _main(800000);
+  _main(2000000);
 }
 
 uint16_t *framebuffer = (void*)0;
@@ -725,7 +725,7 @@ void _main (int n)
     kprintf ("[SysInfo] Please increase number of runs\n");
     kprintf ("\n");
   }
-  else
+
   {
     uint32_t Microseconds = (User_Time * 100) / Number_Of_Runs;
     uint32_t Dhrystones_Per_Second = (uint64_t)(1000 * Number_Of_Runs) / ((User_Time+500) / 1000);
