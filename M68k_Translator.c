@@ -170,9 +170,9 @@ uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
         ptr = EMIT_lineE(arm_ptr, m68k_ptr);
     }
     else if (group == 15)
-        *ptr++ = udf(opcode);
-    else
-        (*m68k_ptr)++;
+    {
+        ptr = EMIT_lineF(arm_ptr, m68k_ptr);
+    }
 
     return ptr;
 }
@@ -217,6 +217,48 @@ void M68K_FlushCC(uint32_t **ptr)
         (*ptr)++;
     }
     got_CC = 0;
+}
+
+#define RTSTACK_SIZE    32
+uint16_t *ReturnStack[RTSTACK_SIZE];
+uint16_t ReturnStackDepth = 0;
+
+void M68K_PushReturnAddress(uint16_t *ret_addr)
+{
+    if (ReturnStackDepth >= RTSTACK_SIZE) {
+        for (int i=1; i < RTSTACK_SIZE; i++) {
+            ReturnStack[i-1] = ReturnStack[i];
+        }
+        ReturnStackDepth--;
+    }
+
+    ReturnStack[ReturnStackDepth++] = ret_addr;
+}
+
+uint16_t *M68K_PopReturnAddress(uint8_t *success)
+{
+    uint16_t *ptr;
+
+    if (ReturnStackDepth > 0) {
+
+        ptr = ReturnStack[--ReturnStackDepth];
+
+        if (success)
+            *success = 1;
+    }
+    else
+    {
+        ptr = (uint16_t *)0xffffffff;
+        if (success)
+            *success = 0;
+    }
+
+    return ptr;
+}
+
+void M68K_ResetReturnStack()
+{
+    ReturnStackDepth = 0;
 }
 
 /*
@@ -280,6 +322,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
             pop_update_loc[i] = (uint32_t *)0;
 
+        M68K_ResetReturnStack();
         got_CC = 0;
         mod_CC = 0;
 
