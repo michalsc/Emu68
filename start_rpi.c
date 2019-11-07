@@ -621,6 +621,21 @@ void print_context(struct M68KState *m68k)
         printf(".");
 
     printf("\n    USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
+
+    for (int i=0; i < 8; i++) {
+        union {
+            double d;
+            uint32_t u[2];
+        } u;
+        if (i==4)
+            printf("\n");
+        u.d = m68k->FP[i];
+        printf("    FP%d = %08x%08x", i, u.u[0], u.u[1]);
+    }
+    printf("\n");
+
+    printf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
+
 }
 
 //#define DATA_SIZE 25600*4800

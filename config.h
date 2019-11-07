@@ -11,7 +11,7 @@
 #define _CONFIG_H
 
 #define EMU68_ARM_CACHE_SIZE    (4*1024*1024)
-#define EMU68_M68K_INSN_DEPTH   256
+#define EMU68_M68K_INSN_DEPTH   255
 #define EMU68_HOST_BIG_ENDIAN   1
 #define EMU68_HAS_SETEND        1
 

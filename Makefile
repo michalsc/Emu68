@@ -4,8 +4,8 @@ include version.mk
 CC := arm-linux-gnueabihf-gcc
 CXX := arm-linux-gnueabihf-g++
 OBJCOPY := arm-linux-gnueabihf-objcopy
-CFLAGS  := $(EXTRA_FLAGS) -mbig-endian -mcpu=cortex-a7 -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
-CXXFLAGS:= $(EXTRA_FLAGS) -mbig-endian -mcpu=cortex-a7 -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CFLAGS  := $(EXTRA_FLAGS) -mbig-endian -mcpu=cortex-a7 -mfpu=vfpv2 -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CXXFLAGS:= $(EXTRA_FLAGS) -mbig-endian -mcpu=cortex-a7 -mfpu=vfpv2 -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 LDFLAGS := -static -lrt -s
 
 HOST_CXX := g++
