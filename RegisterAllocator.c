@@ -40,6 +40,11 @@ static int8_t LRU_Table[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 static uint16_t register_pool = 0;
 static uint16_t changed_mask = 0;
 
+static uint8_t FPU_AllocState;
+static uint8_t FPU_Reg_State[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+#define FPU_LOADED  0x01
+#define FPU_DIRTY   0x02
+
 uint16_t RA_GetChangedMask()
 {
     return changed_mask;
@@ -48,6 +53,89 @@ uint16_t RA_GetChangedMask()
 void RA_ClearChangedMask()
 {
     changed_mask = 0;
+}
+
+void RA_ResetFPUAllocator()
+{
+    FPU_AllocState = 0;
+}
+
+uint8_t RA_AllocFPURegister(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+
+    for (int i=0; i < 8; i++) {
+        if ((FPU_AllocState & (1 << i)) == 0)
+        {
+            FPU_AllocState |= 1 << i;
+            return i;
+        }
+    }
+
+    return 0xff;
+}
+
+void RA_FreeFPURegister(uint32_t **arm_stream, uint8_t arm_reg)
+{
+    (void)arm_stream;
+
+    if (arm_reg < 8) {
+        if (FPU_AllocState & (1 << arm_reg))
+            FPU_AllocState &= ~(1 << arm_reg);
+    }
+}
+
+uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
+{
+    fpu_reg &= 7;
+
+    if (FPU_Reg_State[fpu_reg] & FPU_LOADED)
+        return fpu_reg + 8;
+
+    /* FPU registers are 1:1 allocated to the vfp double registers d8-d15 */
+    FPU_Reg_State[fpu_reg] = FPU_LOADED;
+
+    /* Emit load of register from m68k context to the vfp register */
+    *(*arm_stream++) = INSN_TO_LE(0xed900b00 | ((fpu_reg + 8) << 12) | (REG_CTX << 16) | (__builtin_offsetof(struct M68KState, FP[fpu_reg]) / 4));
+    
+    return fpu_reg + 8;
+}
+
+uint8_t RA_MapFPURegisterForWrite(uint32_t **arm_stream, uint8_t fpu_reg)
+{
+    (void)arm_stream;
+    /*
+        Map for write means, we do not load the contents at all. Instead, just mark
+        the register as loaded and dirty
+    */
+   fpu_reg &= 7;
+   FPU_Reg_State[fpu_reg] = FPU_DIRTY | FPU_LOADED;
+   
+   return fpu_reg + 8;
+}
+
+void RA_SetDirtyFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
+{
+    fpu_reg &= 7;
+
+    /*
+        If register was previously unmapped, map it first. This should never happen though
+    */
+    RA_MapFPURegister(arm_stream, fpu_reg);
+    FPU_Reg_State[fpu_reg] |= FPU_DIRTY;
+}
+
+void RA_FlushFPURegs(uint32_t **arm_stream)
+{
+    for (int i=0; i < 8; i++)
+    {
+        if (FPU_Reg_State[i] & FPU_DIRTY)
+        {
+            *(*arm_stream++) = INSN_TO_LE(0xed800b00 | ((i + 8) << 12) | (REG_CTX << 16) | (__builtin_offsetof(struct M68KState, FP[i]) / 4));
+        }
+
+        FPU_Reg_State[i] = 0;
+    }
 }
 
 /* Touch given register in order to move it to the front */

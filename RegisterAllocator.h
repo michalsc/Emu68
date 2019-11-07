@@ -34,4 +34,13 @@ uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg);
 void RA_UnmapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 uint8_t RA_CopyFromM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 
+void RA_ResetFPUAllocator();
+uint8_t RA_AllocFPURegister(uint32_t **arm_stream);
+void RA_FreeFPURegister(uint32_t **arm_stream, uint8_t arm_reg);
+uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg);
+uint8_t RA_MapFPURegisterForWrite(uint32_t **arm_stream, uint8_t fpu_reg);
+void RA_SetDirtyFPURegister(uint32_t **arm_stream, uint8_t fpu_reg);
+void RA_FlushFPURegs(uint32_t **arm_stream);
+
+
 #endif /* _REGISTER_ALLOCATOR_H */
