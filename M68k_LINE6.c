@@ -23,6 +23,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 01100000xxxxxxxx - BRA */
     if ((opcode & 0xfe00) == 0x6000)
     {
+        uint8_t bsr = 0;
         uint8_t reg = RA_AllocARMRegister(&ptr);
         int8_t addend = 0;
         uint16_t *bra_rel_ptr = *m68k_ptr;
@@ -78,6 +79,8 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
             else
                 *ptr++ = str_offset_preindex(sp, REG_PC, -4);
 
+            bsr = 1;
+
             RA_FreeARMRegister(&ptr, tmp);
         }
 
@@ -101,6 +104,10 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
 
         /* If branch is done within +- 4KB, try to inline it instead of breaking up the translation unit */
         if (bra_off >= -4096 && bra_off <= 4096) {
+            if (bsr) {
+                M68K_PushReturnAddress(*m68k_ptr);
+            }
+
             *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + bra_off);
         }
         else

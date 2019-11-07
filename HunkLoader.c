@@ -60,6 +60,7 @@ void * LoadHunkFile(void *buffer)
     {
         uint32_t size = 4 * (BE32(*words++) & 0x3fffffff);
         struct SegList *h = malloc(size + sizeof(struct SegList));
+        bzero(h, size + sizeof(struct SegList));
         h->h_Next = NULL;
         h->h_Size = size;
         if (hunks == NULL)

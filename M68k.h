@@ -122,7 +122,12 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
+
+void M68K_PushReturnAddress(uint16_t *ret_addr);
+uint16_t *M68K_PopReturnAddress(uint8_t *success);
+void M68K_ResetReturnStack();
 
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();

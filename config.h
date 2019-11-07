@@ -15,4 +15,8 @@
 #define EMU68_HOST_BIG_ENDIAN   1
 #define EMU68_HAS_SETEND        1
 
+#ifndef VERSION_STRING_DATE
+#define VERSION_STRING_DATE ""
+#endif
+
 #endif /* _CONFIG_H */

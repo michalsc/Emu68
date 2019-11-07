@@ -89,14 +89,12 @@ static uint32_t arm_stack[10241] __attribute__((aligned(64)));
 static __attribute__((used)) void * tmp_stack_ptr __attribute__((used, section(".startup @"))) = (void *)(&arm_stack[10240]);
 extern int __bootstrap_end;
 
-typedef struct {
-    uint32_t namesz;
-    uint32_t descsz;
-    uint32_t type;
-    uint8_t data[];
-} ElfNoteSection_t;
-
-extern const ElfNoteSection_t *g_note_build_id;
+extern const struct BuildID {
+    uint32_t bid_NameLen;
+    uint32_t bid_DescLen;
+    uint32_t bid_Type;
+    uint8_t bid_Data[];
+} g_note_build_id;
 
 int raise(int sig)
 {
@@ -125,7 +123,7 @@ void memcpy(void *dst, const void *src, long sz)
 {
     uint8_t *d = dst;
     const uint8_t *s = src;
-    
+
     while(sz--)
 	*d++ = *s++;
 }
@@ -139,14 +137,14 @@ void *memmove(void *dst, const void *src, long sz)
     {
 	d += sz;
 	s += sz;
-	
+
 	while(sz--)
 	    *--d = *--s;
     }
     else
 	while(sz--)
 	    *d++ = *s++;
-    
+
     return dst;
 }
 
@@ -209,11 +207,12 @@ void start_emu(void *);
 
 int ARM_SUPPORTS_DIV = 0;
 
+uint16_t *framebuffer;
+uint32_t pitch;
+
 void display_logo()
 {
     struct Size sz = get_display_size();
-    uint16_t *framebuffer;
-    uint32_t pitch;
     uint32_t start_x, start_y;
     uint16_t *buff;
     int32_t pix_cnt = (uint32_t)EmuLogo.el_Width * (uint32_t)EmuLogo.el_Height;
@@ -256,17 +255,14 @@ void display_logo()
             }
         }
     }
-
-    /* Flush cache just in case */
-    arm_flush_cache((uint32_t)framebuffer, sz.width * sz.height * 2);
 }
 
 void print_build_id()
 {
-    const uint8_t *build_id_data = &g_note_build_id->data[g_note_build_id->namesz];
+    const uint8_t *build_id_data = &g_note_build_id.bid_Data[g_note_build_id.bid_NameLen];
 
     kprintf("[BOOT] Build ID: ");
-    for (unsigned i = 0; i < g_note_build_id->descsz; ++i) {
+    for (unsigned i = 0; i < g_note_build_id.bid_DescLen; ++i) {
         kprintf("%02x", build_id_data[i]);
     }
     kprintf("\n");
@@ -301,7 +297,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     for (int i=8; i < 4096-8; i++)
     {
         /* Caches write-through, write allocate, access for all */
-        mmu_table[i] = (i << 20) | 0x1c0e;
+        mmu_table[i] = (i << 20) | 0x0c06; //0x1c0e;
     }
 
     arm_flush_cache((uint32_t)mmu_table, sizeof(mmu_table));
@@ -376,6 +372,12 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         range[1] = BE32(BE32(range[1])-0x00800000);
 
         kprintf("[BOOT] System memory: %p-%p\n", BE32(range[0]), BE32(range[0]) + BE32(range[1]) - 1);
+
+        for (uint32_t i=BE32(range[0]) >> 20; i < (BE32(range[0]) + BE32(range[1])) >> 20; i++)
+        {
+            /* Caches write-through, write allocate, access for all */
+            mmu_table[i] = (i << 20) | 0x1c0e;
+        }
 
         kprintf("[BOOT] Adjusting MMU map\n");
 
@@ -647,10 +649,14 @@ void start_emu(void *addr)
 
     asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
 
-for (int i=0; i < 3; i++) {
+for (int i=0; i < 2; i++) {
 
     bzero(&__m68k, sizeof(__m68k));
     memset(&stack, 0xaa, sizeof(stack));
+    if (i > 0) {
+        m68k->D[0].u32 = BE32((uint32_t)pitch);
+        m68k->A[0].u32 = BE32((uint32_t)framebuffer);
+    }
     m68k->A[7].u32 = BE32((uint32_t)&stack[1024]);
     m68k->PC = (uint16_t *)BE32((uint32_t)addr);
 
@@ -683,7 +689,6 @@ for (int i=0; i < 3; i++) {
 
     print_context(m68k);
 }
-
     printf("[JIT] --- Stack dump ---\n");
     for (int i=1024; i > 0; --i)
     {
