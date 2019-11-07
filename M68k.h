@@ -40,6 +40,8 @@ struct M68KTranslationUnit {
 
 struct M68KState
 {
+    /* Integer part */
+
     union {
         uint8_t u8[4];
         int8_t s8[4];
@@ -65,6 +67,12 @@ struct M68KState
 
     uint16_t *PC;
     uint16_t SR;
+
+    /* FPU Part */
+    double FP[8];   // Double precision! Extended is "emulated" in load/store only
+    uint32_t FPSR;  
+    uint32_t FPIAR;
+    uint16_t FPCR;
 };
 
 #define SR_C    0x0001
