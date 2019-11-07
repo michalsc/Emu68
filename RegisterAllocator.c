@@ -96,8 +96,8 @@ uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
     FPU_Reg_State[fpu_reg] = FPU_LOADED;
 
     /* Emit load of register from m68k context to the vfp register */
-    *(*arm_stream++) = INSN_TO_LE(0xed900b00 | ((fpu_reg + 8) << 12) | (REG_CTX << 16) | (__builtin_offsetof(struct M68KState, FP[fpu_reg]) / 4));
-    
+    *(*arm_stream++) = fldd(fpu_reg + 8, REG_CTX, __builtin_offsetof(struct M68KState, FP[fpu_reg]) / 4);
+
     return fpu_reg + 8;
 }
 
@@ -110,7 +110,7 @@ uint8_t RA_MapFPURegisterForWrite(uint32_t **arm_stream, uint8_t fpu_reg)
     */
    fpu_reg &= 7;
    FPU_Reg_State[fpu_reg] = FPU_DIRTY | FPU_LOADED;
-   
+
    return fpu_reg + 8;
 }
 
@@ -131,10 +131,22 @@ void RA_FlushFPURegs(uint32_t **arm_stream)
     {
         if (FPU_Reg_State[i] & FPU_DIRTY)
         {
-            *(*arm_stream++) = INSN_TO_LE(0xed800b00 | ((i + 8) << 12) | (REG_CTX << 16) | (__builtin_offsetof(struct M68KState, FP[i]) / 4));
+            **arm_stream = fstd(i + 8, REG_CTX, __builtin_offsetof(struct M68KState, FP[i]) / 4);
+            (*arm_stream)++;
         }
-
         FPU_Reg_State[i] = 0;
+    }
+}
+
+void RA_StoreDirtyFPURegs(uint32_t **arm_stream)
+{
+    for (int i=0; i < 8; i++)
+    {
+        if (FPU_Reg_State[i] & FPU_DIRTY)
+        {
+            **arm_stream = fstd(i + 8, REG_CTX, __builtin_offsetof(struct M68KState, FP[i]) / 4);
+            (*arm_stream)++;
+        }
     }
 }
 

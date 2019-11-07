@@ -70,7 +70,7 @@ struct M68KState
 
     /* FPU Part */
     double FP[8];   // Double precision! Extended is "emulated" in load/store only
-    uint32_t FPSR;  
+    uint32_t FPSR;
     uint32_t FPIAR;
     uint16_t FPCR;
 };

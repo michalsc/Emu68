@@ -472,6 +472,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
 
                 if (!local_branch_done)
                 {
+                    RA_StoreDirtyFPURegs(&end);
                     RA_StoreDirtyM68kRegs(&end);
                     end = EMIT_FlushPC(end);
                     *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
@@ -492,6 +493,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
             }
         }
         tmpptr = end;
+        RA_FlushFPURegs(&end);
         RA_FlushM68kRegs(&end);
         end = EMIT_FlushPC(end);
         M68K_FlushCC(&end);

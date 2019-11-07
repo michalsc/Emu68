@@ -17,28 +17,35 @@
 #include "RegisterAllocator.h"
 
 long double constants[128] = {
-    [0x00] = M_PI,
-    [0x0b] = 0.3010299956639812, //Log10(2)
-    [0x0c] = M_E,
-    [0x0d] = M_LOG2E,
-    [0x0e] = M_LOG10E,
-    [0x0f] = 0.0,
-    [0x30] = M_LN2,
-    [0x31] = M_LN10,
-    [0x32] = 1.0,
-    [0x33] = 1E1,
-    [0x34] = 1E2,
-    [0x35] = 1E4,
-    [0x36] = 1E8,
-    [0x37] = 1E16,
-    [0x38] = 1E32,
-    [0x39] = 1E64,
-    [0x3a] = 1E128,
-    [0x3b] = 1E256,
-    [0x3c] = HUGE_VAL,  //  1E512 - too large for double!
-    [0x3d] = HUGE_VAL,  // 1E1024 - too large for double!
-    [0x3e] = HUGE_VAL,  // 1E2048 - too large for double!
-    [0x3f] = HUGE_VAL,  // 1E4096 - too large for double!
+    [0x00] = M_PI,                  /* Official */
+    [0x01] = M_PI_2,
+    [0x02] = M_PI_4,
+    [0x03] = M_1_PI,
+    [0x04] = M_2_PI,
+    [0x05] = M_2_SQRTPI,
+    [0x06] = M_SQRT2,
+    [0x07] = M_SQRT1_2,
+    [0x0b] = 0.3010299956639812,    /* Official - Log10(2) */
+    [0x0c] = M_E,                   /* Official */
+    [0x0d] = M_LOG2E,               /* Official */
+    [0x0e] = M_LOG10E,              /* Official */
+    [0x0f] = 0.0,                   /* Official */
+    [0x30] = M_LN2,                 /* Official */
+    [0x31] = M_LN10,                /* Official */
+    [0x32] = 1.0,                   /* Official */
+    [0x33] = 1E1,                   /* Official */
+    [0x34] = 1E2,                   /* Official */
+    [0x35] = 1E4,                   /* Official */
+    [0x36] = 1E8,                   /* Official */
+    [0x37] = 1E16,                  /* Official */
+    [0x38] = 1E32,                  /* Official */
+    [0x39] = 1E64,                  /* Official */
+    [0x3a] = 1E128,                 /* Official */
+    [0x3b] = 1E256,                 /* Official */
+    [0x3c] = HUGE_VAL,              /* Official 1E512 - too large for double! */
+    [0x3d] = HUGE_VAL,              /* Official 1E1024 - too large for double! */
+    [0x3e] = HUGE_VAL,              /* Official 1E2048 - too large for double! */
+    [0x3f] = HUGE_VAL,              /* Official 1E4096 - too large for double! */
 };
 
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
@@ -52,7 +59,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         uint8_t fp_src = (opcode2 >> 10) & 7;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        *ptr++ = INSN_TO_LE(0xeeb00bc0 | (fp_dst << 12) | (fp_src));
+        *ptr++ = fabsd(fp_dst, fp_src);
         ptr = EMIT_AdvancePC(ptr, 4);
     }
     /* FMOVECR reg */
@@ -65,12 +72,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         /* Alloc destination FP register for write */
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        /* 
+        /*
             Load pointer to constants into base register, then load the value from table into
             destination VFP register, finally skip the base address (which is not an ARM INSN)
         */
         *ptr++ = ldr_offset(15, base_reg, 4);
-        *ptr++ = INSN_TO_LE(0xed900b00 | ((fp_dst) << 12) | (base_reg << 16) | (offset * 2));
+        *ptr++ = fldd(fp_dst, base_reg, offset * 2);
         *ptr++ = b_cc(ARM_CC_AL, 0);
         *ptr++ = BE32((uint32_t)&constants);
 
