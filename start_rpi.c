@@ -57,6 +57,18 @@ asm("   .section .startup           \n"
 #endif
 "       mcr     p15,0,r8,c7,c10,4   \n" /* DSB */
 "       mcr     p15,0,r4,c1,c0,0    \n" /* Set control register and thus really enable mmu */
+"       ldr r4, =__bss_start        \n" /* Clear .bss */
+"       ldr r9, =__bss_end          \n"
+"       mov r5, #0                  \n"
+"       mov r6, #0                  \n"
+"       mov r7, #0                  \n"
+"       mov r8, #0                  \n"
+"       b       2f                  \n"
+"1:                                 \n"
+"       stmia r4!, {r5-r8}          \n"
+"2:                                 \n"
+"       cmp r4, r9                  \n"
+"       blo 1b                      \n"
 "       ldr     r4, boot_address    \n"
 "       mcr     p15,0,r8,c7,c5,4    \n" /* ISB */
 "       bx      r4                  \n"
@@ -306,6 +318,20 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     tlsf_add_memory(tlsf, &__bootstrap_end, 0xffff0000 - (uintptr_t)&__bootstrap_end);
     dt_parse((void*)atags);
 
+    e = dt_find_node("/");
+    char *compatible = (char*)0;
+    int raspi4 = 0;
+    if (e)
+    {
+        of_property_t *p = dt_find_property(e, "compatible");
+        if (p)
+        {
+            compatible = p->op_value;
+            if (compatible[12] >= '4')
+                raspi4 = 1;
+        }
+    }
+
     /* Prepare mapping for peripherals. Use the data from device tree here */
     e = dt_find_node("/soc");
     if (e)
@@ -315,12 +341,14 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         int32_t len = p->op_length;
         uint32_t start_map = 0xf20;
 
-        while(len > 0)
+        while (len > 0)
         {
             uint32_t addr_bus, addr_cpu;
             uint32_t addr_len;
 
             addr_bus = BE32(*ranges++);
+            if (raspi4)
+                ranges++;
             addr_cpu = BE32(*ranges++);
             addr_len = BE32(*ranges++);
 
@@ -340,7 +368,10 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
             start_map += addr_len >> 20;
 
-            len -= 12;
+            if (raspi4)
+                len -= 16;
+            else
+                len -= 12;
         }
     }
 
@@ -365,6 +396,9 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     {
         of_property_t *p = dt_find_property(e, "reg");
         uint32_t *range = p->op_value;
+
+        if (raspi4)
+            range[1] = range[2];
 
         uint32_t top_of_ram = BE32(range[0]) + BE32(range[1]);
         uint32_t kernel_new_loc = top_of_ram - 0x00800000;
