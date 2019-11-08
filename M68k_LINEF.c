@@ -34,7 +34,7 @@ enum {
     C_ZERO,
     C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
     C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
- 
+
     C_LN2 = 0x30,
     C_LN10,
     C_10P0,
@@ -81,7 +81,7 @@ long double constants[128] = {
                     8.33333333333168248238E-3,
                     -1.66666666666665944649E-1,
                     9.99999999999999907365E-1,
-    
+
     [C_COS_COEFF] = 3.57574533982325995917E-19,
                     -1.54745332630529127915E-16,
                     4.77724279405039943569E-14,
@@ -101,7 +101,7 @@ long double constants[128] = {
                     8.33255814755188010464E-03,
                     -1.66665772196961623983E-01,
                     9.99999707044156546685E-01,
-    
+
     [C_COS_COEFF] = -2.21941782786353727022E-07,
                     2.42532401381033027481E-05,
                     -1.38627507062573673756E-03,
@@ -211,7 +211,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c8 -> tmp2 */
         *ptr++ = fldd(fp_dst, base_reg, 18);        /* c9 -> dst */
         *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c9 -> dst */
-        *ptr++ = fldd(fp_tmp2, base_reg, 16);        /* c10 -> tmp2 */
+        *ptr++ = fldd(fp_tmp2, base_reg, 20);        /* c10 -> tmp2 */
         *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c10 -> tmp2 */
         *ptr++ = fmuld(fp_dst, fp_tmp2, fp_src);     /* tmp2 * x -> dst */
 #else
@@ -257,28 +257,28 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = BE32((uint32_t)(&constants[C_COS_COEFF]));
 
 #if USE_POLY_21
-        *ptr++ = fldd(fp_tmp2, base_reg, 0);        /* c0 -> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 0);        /* c0 -> tmp2 */
         *ptr++ = fmuld(fp_tmp1, fp_src, fp_src);    /* Get tmp1 = x^2 */
-        *ptr++ = fldd(fp_dst, base_reg, 2);         /* c1 -> dst */
-        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* c0 * x^2 + c1 -> dst */
-        *ptr++ = fldd(fp_tmp2, base_reg, 4);        /* c2 -> tmp2 */
-        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c2-> tmp2 */
-        *ptr++ = fldd(fp_dst, base_reg, 6);         /* c3 -> dst */
-        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c3 -> dst */
-        *ptr++ = fldd(fp_tmp2, base_reg, 8);        /* c4 -> tmp2 */
-        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c4 -> tmp2 */
-        *ptr++ = fldd(fp_dst, base_reg, 10);        /* c5 -> dst */
-        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c5 -> dst */
-        *ptr++ = fldd(fp_tmp2, base_reg, 12);       /* c6 -> tmp2 */
-        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c6 -> tmp2 */
-        *ptr++ = fldd(fp_dst, base_reg, 14);        /* c7 -> dst */
-        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c7 -> dst */
-        *ptr++ = fldd(fp_tmp2, base_reg, 16);       /* c8 -> tmp2 */
-        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c8 -> tmp2 */
-        *ptr++ = fldd(fp_dst, base_reg, 18);        /* c9 -> dst */
-        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c9 -> dst */
-        *ptr++ = fldd(fp_tmp2, base_reg, 16);       /* c10 -> tmp2 */
-        *ptr++ = fmacd(fp_dst, fp_dst, fp_tmp1);    /* dst * x^2 + c10 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 2);         /* c1 -> dst */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* c0 * x^2 + c1 -> dst */
+        *ptr++ = fldd(fp_dst, base_reg, 4);        /* c2 -> tmp2 */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* dst * x^2 + c2-> tmp2 */
+        *ptr++ = fldd(fp_tmp2, base_reg, 6);         /* c3 -> dst */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* tmp2 * x^2 + c3 -> dst */
+        *ptr++ = fldd(fp_dst, base_reg, 8);        /* c4 -> tmp2 */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* dst * x^2 + c4 -> tmp2 */
+        *ptr++ = fldd(fp_tmp2, base_reg, 10);        /* c5 -> dst */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* tmp2 * x^2 + c5 -> dst */
+        *ptr++ = fldd(fp_dst, base_reg, 12);       /* c6 -> tmp2 */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* dst * x^2 + c6 -> tmp2 */
+        *ptr++ = fldd(fp_tmp2, base_reg, 14);        /* c7 -> dst */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* tmp2 * x^2 + c7 -> dst */
+        *ptr++ = fldd(fp_dst, base_reg, 16);       /* c8 -> tmp2 */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* dst * x^2 + c8 -> tmp2 */
+        *ptr++ = fldd(fp_tmp2, base_reg, 18);        /* c9 -> dst */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* tmp2 * x^2 + c9 -> dst */
+        *ptr++ = fldd(fp_dst, base_reg, 20);       /* c10 -> tmp2 */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);    /* dst * x^2 + c10 -> dst */
 #else
         *ptr++ = fldd(fp_tmp2, base_reg, 0);        /* c0 -> tmp2 */
         *ptr++ = fmuld(fp_tmp1, fp_src, fp_src);    /* Get tmp1 = x^2 */
