@@ -70,6 +70,9 @@ SECTIONS
         *(.gnu.linkonce.b.*)
         *(COMMON)
     }
+    . = ALIGN(0x1000);
+
+    __bss_end = . ;
 
     _end = . ;
 
