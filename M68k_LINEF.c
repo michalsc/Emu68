@@ -236,6 +236,70 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
+    /* FCOS.X reg, reg */
+    else if (opcode == 0xf200 && (opcode2 & 0xe07f) == 0x001d)
+    {
+        uint8_t fp_dst = RA_MapFPURegister(&ptr, (opcode2 >> 7) & 7);
+        uint8_t fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+        uint8_t base_reg = RA_AllocARMRegister(&ptr);
+        uint8_t fp_tmp1 = RA_AllocFPURegister(&ptr);
+        uint8_t fp_tmp2 = RA_AllocFPURegister(&ptr);
+
+        /* Alloc destination FP register for write */
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        /*
+            Load pointer to constants into base register, then load the value from table into
+            destination VFP register, finally skip the base address (which is not an ARM INSN)
+        */
+        *ptr++ = ldr_offset(15, base_reg, 0);
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        *ptr++ = BE32((uint32_t)(&constants[C_COS_COEFF]));
+
+#if USE_POLY_21
+        *ptr++ = fldd(fp_tmp2, base_reg, 0);        /* c0 -> tmp2 */
+        *ptr++ = fmuld(fp_tmp1, fp_src, fp_src);    /* Get tmp1 = x^2 */
+        *ptr++ = fldd(fp_dst, base_reg, 2);         /* c1 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* c0 * x^2 + c1 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 4);        /* c2 -> tmp2 */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c2-> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 6);         /* c3 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c3 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 8);        /* c4 -> tmp2 */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c4 -> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 10);        /* c5 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c5 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 12);       /* c6 -> tmp2 */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c6 -> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 14);        /* c7 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c7 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 16);       /* c8 -> tmp2 */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c8 -> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 18);        /* c9 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c9 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 16);       /* c10 -> tmp2 */
+        *ptr++ = fmacd(fp_dst, fp_dst, fp_tmp1);    /* dst * x^2 + c10 -> dst */
+#else
+        *ptr++ = fldd(fp_tmp2, base_reg, 0);        /* c0 -> tmp2 */
+        *ptr++ = fmuld(fp_tmp1, fp_src, fp_src);    /* Get tmp1 = x^2 */
+        *ptr++ = fldd(fp_dst, base_reg, 2);         /* c1 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* c0 * x^2 + c1 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 4);        /* c2 -> tmp2 */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c2-> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 6);         /* c3 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c3 -> dst */
+        *ptr++ = fldd(fp_tmp2, base_reg, 8);        /* c4 -> tmp2 */
+        *ptr++ = fmacd(fp_tmp2, fp_dst, fp_tmp1);   /* dst * x^2 + c4 -> tmp2 */
+        *ptr++ = fldd(fp_dst, base_reg, 10);        /* c5 -> dst */
+        *ptr++ = fmacd(fp_dst, fp_tmp2, fp_tmp1);   /* tmp2 * x^2 + c5 -> dst */
+#endif
+
+        RA_FreeFPURegister(&ptr, fp_tmp1);
+        RA_FreeFPURegister(&ptr, fp_tmp2);
+        RA_FreeARMRegister(&ptr, base_reg);
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
     /* FNOP */
     else if (opcode == 0xf280 && opcode2 == 0)
     {
