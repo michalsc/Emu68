@@ -185,10 +185,25 @@ of_node_t * dt_find_node_by_phandle(uint32_t phandle)
 #define MAX_KEY_SIZE    64
 char ptrbuf[64];
 
+int _dt_strcmp(const char *s1, const char *s2)
+{
+    while (*s1 == *s2++)
+        if (*s1++ == '\0')
+            return (0);
+
+    if (*s1 == 0 && s2[-1] == '@') {
+        return 0;
+    }
+    return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
+}
+
 of_node_t * dt_find_node(char *key)
 {
     int i;
     of_node_t *node, *ret = NULL;
+
+    if (key[0] == '/' && key[1] == 0)
+        return root;
 
     if (*key == '/')
     {
@@ -209,16 +224,15 @@ of_node_t * dt_find_node(char *key)
 
             for (node = ret->on_children; node; node = node->on_next)
             {
-                if (!strcmp(node->on_name, ptrbuf))
+                if (!_dt_strcmp(ptrbuf, node->on_name))
                 {
-                    ret = node;
-                    break;
+                    return node;
                 }
             }
         }
     }
 
-    return ret;
+    return NULL;
 }
 
 of_property_t *dt_find_property(void *key, char *propname)
