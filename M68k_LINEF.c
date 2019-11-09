@@ -130,6 +130,47 @@ long double constants[128] = {
     [C_10P4096] =   HUGE_VAL,           /* Official 1E4096 - too large for double! */
 };
 
+/*
+    Returns reminder of double number divided by 2, i.e. for any number it calculates result
+    of number mod 2. Used by trigonometric functions
+*/
+double TrimDoubleRange(double a)
+{
+    union {
+        uint64_t i;
+        uint32_t i32[2];
+        double d;
+    } n, out;
+
+    int sign = 0;
+    n.d = a;
+
+    sign = n.i32[0] & 0x80000000;
+
+    uint32_t exp = (n.i32[0] >> 20) & 0x7ff;
+    uint64_t man = n.i & 0x000fffffffffffffULL;
+
+    if (exp > 0x3ff && exp < (0x3ff + 52))
+    {
+        man = (man << (exp - 0x3ff)) & 0x001fffffffffffffULL;
+        exp = 0x3ff;
+
+        int d = __builtin_clzll(man) - 11;
+
+        if (d) {
+            man = (man << (d)) & 0x000fffffffffffffULL;
+            exp = exp - d;
+        }
+    }
+
+    out.i = man & ~0x0010000000000000ULL;
+    out.i32[0] |= exp << 20;
+    if (sign)
+        out.i32[0] |= 0x80000000;
+
+    return out.d;
+}
+
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
