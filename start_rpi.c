@@ -41,8 +41,18 @@ asm("   .section .startup           \n"
 "       mrc     p15,0,r4,c1,c0,2    \n" /* Enable signle and double VFP coprocessors */
 "       orr     r4, r4, #0x00f00000 \n" /* This is necessary since gcc might want to use vfp registers  */
 "       mcr     p15,0,r4,c1,c0,2    \n" /* Either as cache for general purpose regs or e.g. for division. This is the case with gcc9 */
-"       mov     r4,#0x40000000      \n"
-"       fmxr    fpexc,r4            \n" /* Enable VFP now */
+"       isb                         \n" /* Synchronize the pipeline */
+"       isb                         \n" /* Synchronize the pipeline */
+"       isb                         \n" /* Synchronize the pipeline */
+"       isb                         \n" /* Synchronize the pipeline */
+"       isb                         \n" /* Synchronize the pipeline */
+"       vmrs    r4,fpexc            \n" /* Fetch fpexc */
+"       orr     r4,r4,#0x40000000   \n" /* Set enable bit */
+"       vmsr    fpexc,r4            \n" /* Enable VFP now */
+"       mov     r0,#0               \n"
+"       dsb                         \n"
+"       mcr     p15,0,r0,c7,c5,0    \n" /* invalidate icache */
+"       isb                         \n"
 "       ldr     r4, mmu_table_ptr   \n" /* Load MMU table pointer */
 "       mcr     p15,0,r4,c2,c0,0    \n" /* Write page_dir address to ttbr0 */
 "       mov     r8, #0              \n"
@@ -55,8 +65,9 @@ asm("   .section .startup           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       orr     r4,r4,#1<<25        \n" /* MMU tables in big endian */
 #endif
-"       mcr     p15,0,r8,c7,c10,4   \n" /* DSB */
+"       dsb                         \n" /* DSB */
 "       mcr     p15,0,r4,c1,c0,0    \n" /* Set control register and thus really enable mmu */
+"       isb                         \n"
 "       ldr r4, =__bss_start        \n" /* Clear .bss */
 "       ldr r9, =__bss_end          \n"
 "       mov r5, #0                  \n"
@@ -70,7 +81,7 @@ asm("   .section .startup           \n"
 "       cmp r4, r9                  \n"
 "       blo 1b                      \n"
 "       ldr     r4, boot_address    \n"
-"       mcr     p15,0,r8,c7,c5,4    \n" /* ISB */
+"       isb                         \n" /* ISB */
 "       bx      r4                  \n"
 "leave_hyper:                       \n"
 #if EMU68_HOST_BIG_ENDIAN
@@ -398,7 +409,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         uint32_t *range = p->op_value;
 
         if (raspi4)
-            range[1] = range[2];
+            range++;
 
         uint32_t top_of_ram = BE32(range[0]) + BE32(range[1]);
         uint32_t kernel_new_loc = top_of_ram - 0x00800000;
@@ -423,9 +434,12 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
         DuffCopy((void*)(kernel_new_loc+4), (void*)4, 0x00800000 / 4 - 1);
         arm_flush_cache(kernel_new_loc, 0x00800000);
+        arm_flush_cache((uint32_t)mmu_table, sizeof(mmu_table));
 
-        asm volatile("dsb; mcr p15,0,%0,c2,c0,0; dsb"::"r"(((uint32_t)mmu_table_ptr & 0x000fffff) | (kernel_new_loc & 0xfff00000)));
-        asm volatile("dsb; mcr p15, 0, %0, c8, c7, 0; dsb"::"r"(0));
+        /* Load new pointer to the mmu table */
+        asm volatile("dsb; mcr p15,0,%0,c2,c0,0; dsb; isb"::"r"(((uint32_t)mmu_table_ptr & 0x000fffff) | (kernel_new_loc & 0xfff00000)));
+        /* Invalidate entire TLB */
+        asm volatile("dsb; mcr p15,0,%0,c8,c7,0; dsb; isb"::"r"(0));
     }
 
     if (get_max_clock_rate(3) != get_clock_rate(3)) {
