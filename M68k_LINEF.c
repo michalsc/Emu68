@@ -131,8 +131,8 @@ long double constants[128] = {
 };
 
 /*
-    Returns reminder of double number divided by 2, i.e. for any number it calculates result
-    of number mod 2. Used by trigonometric functions
+    Returns reminder of double number divided by 1, i.e. for any number it calculates result
+    of number mod 1. Used by trigonometric functions
 */
 double TrimDoubleRange(double a)
 {
@@ -150,17 +150,27 @@ double TrimDoubleRange(double a)
     uint32_t exp = (n.i32[0] >> 20) & 0x7ff;
     uint64_t man = n.i & 0x000fffffffffffffULL;
 
-    if (exp > 0x3ff && exp < (0x3ff + 52))
+    if (man && exp > 0x3fe && exp < (0x3ff + 52))
     {
-        man = (man << (exp - 0x3ff)) & 0x001fffffffffffffULL;
-        exp = 0x3ff;
+        man = (man << (exp - 0x3fe)) & 0x001fffffffffffffULL;
+        exp = 0x3fe;
 
-        int d = __builtin_clzll(man) - 11;
+        if (man) {
+            int d = __builtin_clzll(man) - 11;
 
-        if (d) {
-            man = (man << (d)) & 0x000fffffffffffffULL;
-            exp = exp - d;
+            if (d) {
+                man = (man << (d)) & 0x000fffffffffffffULL;
+                exp = exp - d;
+            }
         }
+        else
+        {
+            exp=0;
+        }
+    }
+    else if (!man && exp > 0x3fe)
+    {
+        exp = 0;
     }
 
     out.i = man & ~0x0010000000000000ULL;
@@ -170,6 +180,7 @@ double TrimDoubleRange(double a)
 
     return out.d;
 }
+
 
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
