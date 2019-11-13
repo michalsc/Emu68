@@ -406,10 +406,16 @@ static inline uint32_t fabsd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { retu
 static inline uint32_t fabsd(uint8_t v_dst, uint8_t v_src) { return fabsd_cc(ARM_CC_AL, v_dst, v_src); }
 static inline uint32_t fabss_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x0eb00ac0 | (cc << 28) | ((v_dst >> 1) << 12) | (v_src >> 1) | ((v_dst & 1) << 22) | ((v_src & 1) << 5)); }
 static inline uint32_t fabss(uint8_t v_dst, uint8_t v_src) { return fabss_cc(ARM_CC_AL, v_dst, v_src); }
+static inline uint32_t faddd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return INSN_TO_LE(0x0e300b00 | (cc << 28) | (v_dst << 12) | (v_first << 16) | (v_second));}
+static inline uint32_t faddd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return faddd_cc(ARM_CC_AL, v_dst, v_first, v_second); }
+static inline uint32_t fcpyd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x0eb00b40 | (cc << 28) | (v_dst << 12) | (v_src)); }
+static inline uint32_t fcpyd(uint8_t v_dst, uint8_t v_src) { return fcpyd_cc(ARM_CC_AL, v_dst, v_src); }
 static inline uint32_t fcvtds_cc(uint8_t cc, uint8_t d_dst, uint8_t s_src) { return INSN_TO_LE(0x0eb70ac0 | (cc << 28) | (d_dst << 12) | (s_src >> 1) | (s_src & 1 ? 0x40:0)); }
 static inline uint32_t fcvtds(uint8_t d_dst, uint8_t s_src) { return fcvtds_cc(ARM_CC_AL, d_dst, s_src); }
 static inline uint32_t fcvtsd_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0eb70bc0 | (cc << 28) | ((s_dst >> 1) << 12) | (d_src) | (s_dst & 1 ? (1 << 22):0)); }
 static inline uint32_t fcvtsd(uint8_t d_dst, uint8_t s_src) { return fcvtsd_cc(ARM_CC_AL, d_dst, s_src); }
+static inline uint32_t fdivd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_dividend, uint8_t v_divisor) { return INSN_TO_LE(0x0e800b00 | (cc << 28) | (v_dst << 12) | (v_dividend << 16) | (v_divisor));}
+static inline uint32_t fdivd(uint8_t v_dst, uint8_t v_dividend, uint8_t v_divisor) { return fdivd_cc(ARM_CC_AL, v_dst, v_dividend, v_divisor); }
 static inline uint32_t fldd_cc(uint8_t cc, uint8_t v_dst, uint8_t base, int8_t offset) { return INSN_TO_LE((offset < 0 ? 0x0d100b00:0x0d900b00) | (cc << 28) | (base << 16) | (v_dst << 12) | ((offset < 0) ? -offset : offset)); }
 static inline uint32_t fldd(uint8_t v_dst, uint8_t base, int8_t offset) { return fldd_cc(ARM_CC_AL, v_dst, base, offset); }
 static inline uint32_t flds_cc(uint8_t cc, uint8_t v_dst, uint8_t base, int8_t offset) { return INSN_TO_LE((offset < 0 ? 0x0d100a00:0x0d900a00) | (cc << 28) | (base << 16) | ((v_dst >> 1) << 12) | ((v_dst & 1) << 22) | ((offset < 0) ? -offset : offset)); }
@@ -418,10 +424,14 @@ static inline uint32_t fmacd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint
 static inline uint32_t fmacd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fmacd_cc(ARM_CC_AL, v_dst, v_first, v_second); }
 static inline uint32_t fmuld_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return INSN_TO_LE(0x0e200b00 | (cc << 28) | (v_dst << 12) | (v_first << 16) | (v_second));}
 static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fmuld_cc(ARM_CC_AL, v_dst, v_first, v_second); }
+static inline uint32_t fnegd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x0eb10b40 | (cc << 28) | (v_dst << 12) | (v_src)); }
+static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return fnegd_cc(ARM_CC_AL, v_dst, v_src); }
 static inline uint32_t fstd_cc(uint8_t cc, uint8_t v_dst, uint8_t base, int8_t offset) { return INSN_TO_LE((offset < 0 ? 0x0d000b00:0x0d800b00) | (cc << 28) | (base << 16) | (v_dst << 12) | ((offset < 0) ? -offset : offset)); }
 static inline uint32_t fstd(uint8_t v_dst, uint8_t base, int8_t offset) { return fstd_cc(ARM_CC_AL, v_dst, base, offset); }
 static inline uint32_t fsts_cc(uint8_t cc, uint8_t v_dst, uint8_t base, int8_t offset) { return INSN_TO_LE((offset < 0 ? 0x0d000a00:0x0d800a00) | (cc << 28) | (base << 16) | ((v_dst >> 1) << 12) | ((v_dst & 1) << 22) | ((offset < 0) ? -offset : offset)); }
 static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int8_t offset) { return fsts_cc(ARM_CC_AL, v_dst, base, offset); }
+static inline uint32_t fsubd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return INSN_TO_LE(0x0e300b40 | (cc << 28) | (v_dst << 12) | (v_first << 16) | (v_second));}
+static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fsubd_cc(ARM_CC_AL, v_dst, v_first, v_second); }
 
 
 #endif /* _ARM_H */
