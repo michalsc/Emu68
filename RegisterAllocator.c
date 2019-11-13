@@ -64,7 +64,7 @@ uint8_t RA_AllocFPURegister(uint32_t **arm_stream)
 {
     (void)arm_stream;
 
-    for (int i=0; i < 8; i++) {
+    for (int i=1; i < 8; i++) {
         if ((FPU_AllocState & (1 << i)) == 0)
         {
             FPU_AllocState |= 1 << i;
