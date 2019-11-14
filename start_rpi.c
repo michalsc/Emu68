@@ -395,9 +395,14 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     print_build_id();
 
+    uint32_t fpsid, MVFR1, MVFR0;
+    asm volatile("VMRS %0, FPSID":"=r"(fpsid));
+    asm volatile("VMRS %0, MVFR1":"=r"(MVFR1));
+    asm volatile("VMRS %0, MVFR0":"=r"(MVFR0));
+
     kprintf("[BOOT] ARM stack top at %p\n", tmp_stack_ptr);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
-    kprintf("[BOOT] ISAR=%08x\n", isar);
+    kprintf("[BOOT] ISAR=%08x, FPSID=%08x, MVFR0=%08x, MVFR1=%08x\n", isar, fpsid, MVFR0, MVFR1);
     kprintf("[BOOT] Args=%08x,%08x,%08x,%08x\n", dummy, arch, atags, dummy2);
     kprintf("[BOOT] Local memory pool:\n");
     kprintf("[BOOT]    %08x - %08x (size=%d)\n", &__bootstrap_end, 0xffff0000, 0xffff0000 - (uintptr_t)&__bootstrap_end);
