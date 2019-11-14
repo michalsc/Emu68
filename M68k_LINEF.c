@@ -287,6 +287,164 @@ void __attribute__((naked)) PolyCosineSingle(void)
     );
 }
 
+enum FPUOpSize {
+    SIZE_L = 0,
+    SIZE_S = 1,
+    SIZE_X = 2,
+    SIZE_P = 3,
+    SIZE_W = 4,
+    SIZE_D = 5,
+    SIZE_B = 6
+};
+
+/* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
+uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode, 
+        uint16_t opcode2, uint8_t *ext_count)
+{
+    printf("[JIT] FPU_FetchData()\n");
+
+    /* IF R/M is zero, then source identifier is FPU reg number. */
+    if ((opcode2 & 0x4000) == 0)
+    {
+        *reg = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+    }
+    else
+    {
+        /* 
+            R/M was set to 1, the source is defined by EA stored in first part of the
+            opcode. Source identifier specifies the data length.
+
+            Get EA, eventually (in case of mode 000 - Dn) perform simple data transfer.
+            Otherwise get address from EA and fetch data here
+        */
+        *reg = RA_AllocFPURegister(&ptr);
+        uint8_t ea = opcode & 0x3f;
+        enum FPUOpSize size = (opcode2 >> 10) & 7;
+
+        /* Case 1: mode 000 - Dn */
+        if ((ea & 0x38) == 0)
+        {
+            uint8_t int_reg = 0xff;
+            uint8_t tmp_reg;
+
+            switch (size)
+            {
+                /* Single - move to single half of the reg, convert to double */
+                case SIZE_S:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fcvtds(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                case SIZE_L:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                case SIZE_W:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    tmp_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sxth(tmp_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, tmp_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, tmp_reg);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                case SIZE_B:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    tmp_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sxtb(tmp_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, tmp_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, tmp_reg);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                default:
+                    printf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
+            }
+        }
+        /* Case 2: mode 111:100 - immediate */
+        else if (ea == 0x3c)
+        {
+            /* Step 1: Fetch data *or* pointer to data into int_reg */
+            uint8_t int_reg = 0xff;
+            int not_yet_done = 0;
+
+            switch (size)
+            {
+                case SIZE_S:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fcvtds(*reg, *reg * 2);
+                    break;
+                case SIZE_L:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                case SIZE_W:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = sxth(int_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                case SIZE_B:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = sxtb(int_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                default:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    not_yet_done = 1;
+                    break;
+            }
+
+            /* Step 2: if data not yet in the reg, use the address to load it into FPU register */
+            if (not_yet_done)
+            {
+                switch(size)
+                {
+                    case SIZE_D:
+                        *ptr++ = fldd(*reg, int_reg, 0);
+                        *ext_count += 4;
+                        break;
+                    
+                    case SIZE_X:
+                        *ext_count += 6;
+                        break;
+
+                    case SIZE_P:
+                        *ext_count += 6;
+                    default:
+                        break;
+                }
+            }
+
+            RA_FreeARMRegister(&ptr, int_reg);
+        }
+        /* Case 3: get pointer to data (EA) and fetch yourself */
+        else
+        {
+            uint8_t int_reg = 0xff;
+            uint8_t val_reg = 0xff;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 1);
+
+
+
+            RA_FreeARMRegister(&ptr, int_reg);
+            RA_FreeARMRegister(&ptr, val_reg);
+        }
+    }
+
+    return ptr;
+}
+
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -294,12 +452,18 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
 
-    /* FABS.X reg-reg */
-    if (opcode == 0xf200 && (opcode2 & 0x407f) == 0x0018) // <- fix second word!
+    /* FABS */
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0018)
     {
-        uint8_t fp_src = (opcode2 >> 10) & 7;
+        uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
         *ptr++ = fabsd(fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -327,11 +491,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
-    /* FSIN.X reg, reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xe07f) == 0x000e)
+    /* FSIN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        uint8_t fp_dst = RA_MapFPURegister(&ptr, (opcode2 >> 7) & 7);
-        uint8_t fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+        uint8_t fp_dst = 0xff;
+        uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
         uint8_t sign    = RA_AllocARMRegister(&ptr);
@@ -346,6 +510,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint32_t *adr_sin;
         uint32_t *adr_cos;
         uint32_t *adr_trim;
+
+        /* Fetch source */
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
 
         /* Alloc destination FP register for write */
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -452,6 +619,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = tst_immed(sign, 0xf80);
         *ptr++ = fnegd_cc(ARM_CC_MI, fp_dst, fp_dst);
 
+        RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
         RA_FreeARMRegister(&ptr, base_reg);
@@ -462,11 +630,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
-    /* FCOS.X reg, reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xe07f) == 0x001d)
+    /* FCOS */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        uint8_t fp_dst = RA_MapFPURegister(&ptr, (opcode2 >> 7) & 7);
-        uint8_t fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+        uint8_t fp_dst = 0xff;
+        uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
         uint8_t cmp_num = RA_AllocARMRegister(&ptr);
@@ -480,6 +648,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint32_t *adr_sin;
         uint32_t *adr_cos;
         uint32_t *adr_trim;
+
+        /* Fetch source */
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
 
         /* Alloc destination FP register for write */
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -580,6 +751,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *exit_2 |= INSN_TO_LE(ptr - exit_2 - 2);
         *exit_3 |= INSN_TO_LE(ptr - exit_3 - 2);
 
+        RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
         RA_FreeARMRegister(&ptr, base_reg);
