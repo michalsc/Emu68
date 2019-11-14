@@ -16,8 +16,6 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-#define USE_POLY_21 1
-
 enum {
     C_PI = 0,
     C_PI_2,
@@ -55,7 +53,18 @@ enum {
     C_10P512,
     C_10P1024,
     C_10P2048,
-    C_10P4096
+    C_10P4096,
+
+    C_TWO54,
+    C_LN2HI,
+    C_LN2LO,
+    C_LG1,
+    C_LG2,
+    C_LG3,
+    C_LG4,
+    C_LG5,
+    C_LG6,
+    C_LG7
 };
 
 static long double const constants[128] = {
@@ -131,7 +140,95 @@ static long double const constants[128] = {
     [C_10P1024] =   HUGE_VAL,           /* Official 1E1024 - too large for double! */
     [C_10P2048] =   HUGE_VAL,           /* Official 1E2048 - too large for double! */
     [C_10P4096] =   HUGE_VAL,           /* Official 1E4096 - too large for double! */
+
+    [C_TWO54] =     1.80143985094819840000e+16,
+    [C_LN2HI] =     6.93147180369123816490e-01,
+    [C_LN2LO] =     1.90821492927058770002e-10,
+
+    [C_LG1] =       6.666666666666735130e-01,
+    [C_LG2] =       3.999999999940941908e-01,
+    [C_LG3] =       2.857142874366239149e-01,
+    [C_LG4] =       2.222219843214978396e-01,
+    [C_LG5] =       1.818357216161805012e-01,
+    [C_LG6] =       1.531383769920937332e-01,
+    [C_LG7] =       1.479819860511658591e-01,
 };
+
+
+/* Parts of this file are copied from libm implementation by Sun Microsystems */
+
+/*
+ * ====================================================
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ *
+ * Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ * ====================================================
+ */
+
+double __ieee754_log(double x)
+{
+    double hfsq,f,s,z,R,w,t1,t2,dk;
+    int32_t k,hx,i,j;
+    uint32_t lx;
+
+    union {
+        uint64_t i;
+        uint32_t i32[2];
+        double d;
+    } n;
+
+    n.d = x;
+    hx = n.i32[0];
+    lx = n.i32[1];
+
+    k=0;
+    if (hx < 0x00100000) {              /* x < 2**-1022  */
+        if (((hx&0x7fffffff)|lx)==0)
+            return -constants[C_TWO54]/constants[C_ZERO];		/* log(+-0)=-inf */
+        if (hx<0) return (x-x)/constants[C_ZERO];	/* log(-#) = NaN */
+        k -= 54; x *= constants[C_TWO54]; /* subnormal number, scale up x */
+        n.d = x;
+        hx = n.i32[0];
+    }
+    if (hx >= 0x7ff00000) return x+x;
+    k += (hx>>20)-1023;
+    hx &= 0x000fffff;
+    i = (hx+0x95f64)&0x100000;
+    n.i32[0] = hx|(i^0x3ff00000);	/* normalize x or x/2 */
+    x = n.d;
+    k += (i>>20);
+    f = x-1.0;
+    if((0x000fffff&(2+hx))<3) {	/* |f| < 2**-20 */
+          if(f==constants[C_ZERO]) { if(k==0) return constants[C_ZERO];  else {dk=(double)k;
+                               return dk*constants[C_LN2HI]+dk*constants[C_LN2LO];}}
+        R = f*f*(0.5-0.33333333333333333*f);
+        if(k==0) return f-R; else {dk=(double)k;
+                 return dk*constants[C_LN2HI]-((R-dk*constants[C_LN2LO])-f);}
+    }
+    s = f/(2.0+f);
+    dk = (double)k;
+    z = s*s;
+	i = hx-0x6147a;
+	w = z*z;
+	j = 0x6b851-hx;
+	t1= w*(constants[C_LG2]+w*(constants[C_LG4]+w*constants[C_LG6]));
+	t2= z*(constants[C_LG1]+w*(constants[C_LG3]+w*(constants[C_LG5]+w*constants[C_LG7])));
+	i |= j;
+	R = t2+t1;
+	if(i>0) {
+	    hfsq=0.5*f*f;
+	    if(k==0) return f-(hfsq-s*(hfsq+R)); else
+		     return dk*constants[C_LN2HI]-((hfsq-(s*(hfsq+R)+dk*constants[C_LN2LO]))-f);
+	} else {
+	    if(k==0) return f-s*(f-R); else
+		     return dk*constants[C_LN2HI]-((s*(f-R)-dk*constants[C_LN2LO])-f);
+	}
+}
+
+/* End of Sun Microsystems part */
 
 /*
     Returns reminder of absolute double number divided by 2, i.e. for any number it calculates result
@@ -641,6 +738,31 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
+    }
+    /* FLOGN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fcpyd(0, fp_src);
+
+        *ptr++ = push(0x0f | (1 << 12));
+        *ptr++ = ldr_offset(15, 12, 12);
+        *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+        *ptr++ = fcpyd(fp_dst, 0);
+        *ptr++ = pop(0x0f | (1 << 12));
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        *ptr++ = BE32((uint32_t)__ieee754_log);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+        *ptr++ = INSN_TO_LE(0xfffffff0);
     }
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)
