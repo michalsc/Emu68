@@ -469,7 +469,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FADD */
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0022)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0022)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -485,7 +485,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FDIV */
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0020)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0020)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -501,7 +501,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FMUL */
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -517,7 +517,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FNEG */
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001a)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001a)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -533,7 +533,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FSUB */
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0028)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0028)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -549,7 +549,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FMOVECR reg */
-    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
