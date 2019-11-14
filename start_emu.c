@@ -9,6 +9,8 @@
 
 #define _GNU_SOURCE 1
 
+int ARM_SUPPORTS_DIV = 1;
+
 #include <stdio.h>
 #include <strings.h>
 #include <string.h>
@@ -219,6 +221,21 @@ void print_context(struct M68KState *m68k)
         printf(".");
 
     printf("\n    USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
+
+    for (int i=0; i < 8; i++) {
+        union {
+            double d;
+            uint32_t u[2];
+        } u;
+        if (i==4)
+            printf("\n");
+        u.d = m68k->FP[i];
+        printf("    FP%d = %08x%08x", i, BE32(u.u[0]), BE32(u.u[1]));
+    }
+    printf("\n");
+
+    printf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
+
 }
 
 #include <sys/stat.h>
@@ -233,6 +250,7 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
     void *hunk = (void*)0xfffffffc;
+    register struct M68KState * m68k asm("fp");
 
     if (argc > 1)
     {
@@ -253,21 +271,23 @@ int main(int argc, char **argv)
     void (*arm_code)(struct M68KState *ctx);
 
     struct M68KTranslationUnit * unit = NULL;
-    struct M68KState m68k;
+    struct M68KState __m68k;
     struct timespec t1, t2;
     struct timespec t3, t4;
 
+    asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
+
     double translation_time = 0.0;
 
-    bzero(&m68k, sizeof(m68k));
+    bzero(m68k, sizeof(__m68k));
     memset(&stack, 0xaa, sizeof(stack));
-    m68k.A[0].u32 = BE32((uint32_t)out_data);
-    m68k.A[7].u32 = BE32((uint32_t)&stack[511]);
-    m68k.PC = (uint16_t *)BE32((uint32_t)hunk + 4);
+    m68k->A[0].u32 = BE32((uint32_t)out_data);
+    m68k->A[7].u32 = BE32((uint32_t)&stack[511]);
+    m68k->PC = (uint16_t *)BE32((uint32_t)hunk + 4);
 
     stack[511] = 0;
 
-    print_context(&m68k);
+    print_context(m68k);
 
     printf("[JIT] Let it go...\n");
 
@@ -276,20 +296,20 @@ int main(int argc, char **argv)
     uint32_t last_PC = 0xffffffff;
 
     do {
-        if (last_PC != (uint32_t)m68k.PC)
+        if (last_PC != (uint32_t)m68k->PC)
         {
             clock_gettime(CLOCK_MONOTONIC, &t3);
-            unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k.PC)));
+            unit = M68K_GetTranslationUnit((uint16_t *)(BE32((uint32_t)m68k->PC)));
             clock_gettime(CLOCK_MONOTONIC, &t4);
             translation_time += (double)(t4.tv_sec - t3.tv_sec) * 1000.0 + (double)(t4.tv_nsec - t3.tv_nsec)/1000000.0;
-            last_PC = (uint32_t)m68k.PC;
+            last_PC = (uint32_t)m68k->PC;
         }
 
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
         unit->mt_UseCount++;
-        arm_code(&m68k);
+        arm_code(m68k);
 
-    } while(m68k.PC != NULL);
+    } while(m68k->PC != NULL);
 
     clock_gettime(CLOCK_MONOTONIC, &t2);
 
@@ -299,7 +319,7 @@ int main(int argc, char **argv)
     printf("%s", out_data);
 
     printf("Back from translated code\n");
-    print_context(&m68k);
+    print_context(m68k);
 
     return 0;
 }

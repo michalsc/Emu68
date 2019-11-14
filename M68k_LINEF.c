@@ -37,6 +37,9 @@ enum {
     C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
     C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
 
+    C_SIN_COEFF_SINGLE = 0x1a,
+    C_COS_COEFF_SINGLE = 0x2a,
+
     C_LN2 = 0x30,
     C_LN10,
     C_10P0,
@@ -72,7 +75,7 @@ static long double const constants[128] = {
     [C_LOG10E] =    M_LOG10E,           /* Official */
     [C_ZERO] =      0.0,                /* Official */
 
-    /* Polynom coefficients for sin(x) */
+    /* Polynom coefficients for sin(x*Pi), x=0..0.5*/
 
     [C_SIN_COEFF] = -2.11100178050346585936E-5,
                     4.65963708473294521719E-4,
@@ -82,6 +85,17 @@ static long double const constants[128] = {
                     2.55016403985097679243,
                     -5.16771278004952168888,
                     3.14159265358979102647,
+    
+    /* Reduced number of polynom coefficients for sin(x*Pi), x=0..0.5 */
+
+    [C_SIN_COEFF_SINGLE] = 
+                    7.74455095806670556524E-2,
+                    -5.98160819620617657839E-1,
+                    2.55005088882843729408,
+                    -5.1677080762924026306,
+                    3.14159259939191476447,
+
+    /* Polynom coefficients for cos(x*Pi), x=0..0.5 */
 
     [C_COS_COEFF] = 4.15383875943350535407E-6,
                     -1.04570624685965272291E-4,
@@ -92,51 +106,14 @@ static long double const constants[128] = {
                     4.05871212641655666324,
                     -4.93480220054467742126,
                     9.99999999999999997244E-1,
-
-#if 0
-#if USE_POLY_21_
-    [C_SIN_COEFF] = 1.71343967861184034706E-20,
-                    -8.15103676569049647059E-18,
-                    2.81031414820239505995E-15,
-                    -7.64704549064188225994E-13,
-                    1.60590358573163197959E-10,
-                    -2.50521080326538396825E-8,
-                    2.75573192139840283187E-6,
-                    -1.98412698410970543592E-4,
-                    8.33333333333168248238E-3,
-                    -1.66666666666665944649E-1,
-                    9.99999999999999907365E-1,
-
-    [C_COS_COEFF] = 3.57574533982325995917E-19,
-                    -1.54745332630529127915E-16,
-                    4.77724279405039943569E-14,
-                    -1.14705306393171244460E-11,
-                    2.08767436959979435384E-9,
-                    -2.75573186964419045529E-7,
-                    2.48015872885505928507E-5,
-                    -1.38888888887012801533E-3,
-                    4.16666666666528513249E-2,
-                    -4.99999999999996043059E-1,
-                    9.99999999999999813877E-1,
-
-#else
-    [C_SIN_COEFF] = -2.05342856289746600727E-08,
-                    2.70405218307799040084E-06,
-                    -1.98125763417806681909E-04,
-                    8.33255814755188010464E-03,
-                    -1.66665772196961623983E-01,
-                    9.99999707044156546685E-01,
-
-    [C_COS_COEFF] = -2.21941782786353727022E-07,
-                    2.42532401381033027481E-05,
-                    -1.38627507062573673756E-03,
-                    4.16610337354021107429E-02,
-                    -4.99995582499065048420E-01,
-                    9.99999443739537210853E-01,
-#endif
-#endif
-
-    /* Polynom coefficients for cos(x) */
+    
+    /* Reduced number of polynom coefficients for cos(x*Pi), x=0..0.5 */
+    [C_COS_COEFF_SINGLE] =
+                    2.20485796302921884119E-1,
+                    -1.33223541188749370639,
+                    4.058461009872062766402,
+                    -4.93479497666537363458,
+                    9.99999967245121125386E-1,
 
     [C_LN2] =       M_LN2,              /* Official */
     [C_LN10] =      M_LN10,             /* Official */
@@ -232,6 +209,30 @@ void __attribute__((naked)) PolySine(void)
     );
 }
 
+void __attribute__((naked)) PolySineSingle(void)
+{
+    asm volatile(
+        "   vpush {d1,d2,d3}        \n"
+        "   push {r0}               \n"
+        "   ldr r0,=constants       \n"
+        "   vldr d1, [r0, %0]       \n"
+        "   vmul.f64 d3, d0, d0     \n"
+        "   vldr d2, [r0, %0+8]     \n"
+        "   vfma.f64 d2, d1, d3     \n"
+        "   vldr d1, [r0, %0+16]    \n"
+        "   vfma.f64 d1, d2, d3     \n"
+        "   vldr d2, [r0, %0+24]    \n"
+        "   vfma.f64 d2, d1, d3     \n"
+        "   vldr d1, [r0, %0+32]    \n"
+        "   vfma.f64 d1, d2, d3     \n"
+        "   vmul.f64 d0, d1, d0     \n"
+        "   pop {r0}                \n"
+        "   vpop {d1,d2,d3}         \n"
+        "   bx lr                   \n"
+        "   .ltorg                  \n"::"i"(C_SIN_COEFF_SINGLE*8)
+    );
+}
+
 void __attribute__((naked)) PolyCosine(void)
 {
     asm volatile(
@@ -263,6 +264,187 @@ void __attribute__((naked)) PolyCosine(void)
     );
 }
 
+void __attribute__((naked)) PolyCosineSingle(void)
+{
+    asm volatile(
+        "   vpush {d1,d2}           \n"
+        "   push {r0}               \n"
+        "   ldr r0,=constants       \n"
+        "   vmul.f64 d2, d0, d0     \n"
+        "   vldr d0, [r0, %0]       \n"
+        "   vldr d1, [r0, %0+8]     \n"
+        "   vfma.f64 d1, d0, d2     \n"
+        "   vldr d0, [r0, %0+16]    \n"
+        "   vfma.f64 d0, d1, d2     \n"
+        "   vldr d1, [r0, %0+24]    \n"
+        "   vfma.f64 d1, d0, d2     \n"
+        "   vldr d0, [r0, %0+32]    \n"
+        "   vfma.f64 d0, d1, d2     \n"
+        "   pop {r0}                \n"
+        "   vpop {d1,d2}            \n"
+        "   bx lr                   \n"
+        "   .ltorg                  \n"::"i"(C_COS_COEFF_SINGLE*8)
+    );
+}
+
+enum FPUOpSize {
+    SIZE_L = 0,
+    SIZE_S = 1,
+    SIZE_X = 2,
+    SIZE_P = 3,
+    SIZE_W = 4,
+    SIZE_D = 5,
+    SIZE_B = 6
+};
+
+/* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
+uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode, 
+        uint16_t opcode2, uint8_t *ext_count)
+{
+    printf("[JIT] FPU_FetchData()\n");
+
+    /* IF R/M is zero, then source identifier is FPU reg number. */
+    if ((opcode2 & 0x4000) == 0)
+    {
+        *reg = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+    }
+    else
+    {
+        /* 
+            R/M was set to 1, the source is defined by EA stored in first part of the
+            opcode. Source identifier specifies the data length.
+
+            Get EA, eventually (in case of mode 000 - Dn) perform simple data transfer.
+            Otherwise get address from EA and fetch data here
+        */
+        *reg = RA_AllocFPURegister(&ptr);
+        uint8_t ea = opcode & 0x3f;
+        enum FPUOpSize size = (opcode2 >> 10) & 7;
+
+        /* Case 1: mode 000 - Dn */
+        if ((ea & 0x38) == 0)
+        {
+            uint8_t int_reg = 0xff;
+            uint8_t tmp_reg;
+
+            switch (size)
+            {
+                /* Single - move to single half of the reg, convert to double */
+                case SIZE_S:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fcvtds(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                case SIZE_L:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                case SIZE_W:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    tmp_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sxth(tmp_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, tmp_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, tmp_reg);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                case SIZE_B:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 1);
+                    tmp_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sxtb(tmp_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, tmp_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    RA_FreeARMRegister(&ptr, tmp_reg);
+                    RA_FreeARMRegister(&ptr, int_reg);
+                    break;
+
+                default:
+                    printf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
+            }
+        }
+        /* Case 2: mode 111:100 - immediate */
+        else if (ea == 0x3c)
+        {
+            /* Step 1: Fetch data *or* pointer to data into int_reg */
+            uint8_t int_reg = 0xff;
+            int not_yet_done = 0;
+
+            switch (size)
+            {
+                case SIZE_S:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fcvtds(*reg, *reg * 2);
+                    break;
+                case SIZE_L:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                case SIZE_W:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = sxth(int_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                case SIZE_B:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    *ptr++ = sxtb(int_reg, int_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                default:
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0);
+                    not_yet_done = 1;
+                    break;
+            }
+
+            /* Step 2: if data not yet in the reg, use the address to load it into FPU register */
+            if (not_yet_done)
+            {
+                switch(size)
+                {
+                    case SIZE_D:
+                        *ptr++ = fldd(*reg, int_reg, 0);
+                        *ext_count += 4;
+                        break;
+                    
+                    case SIZE_X:
+                        *ext_count += 6;
+                        break;
+
+                    case SIZE_P:
+                        *ext_count += 6;
+                    default:
+                        break;
+                }
+            }
+
+            RA_FreeARMRegister(&ptr, int_reg);
+        }
+        /* Case 3: get pointer to data (EA) and fetch yourself */
+        else
+        {
+            uint8_t int_reg = 0xff;
+            uint8_t val_reg = 0xff;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 1);
+
+
+
+            RA_FreeARMRegister(&ptr, int_reg);
+            RA_FreeARMRegister(&ptr, val_reg);
+        }
+    }
+
+    return ptr;
+}
+
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -270,18 +452,104 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
 
-    /* FABS.X reg-reg */
-    if (opcode == 0xf200 && (opcode2 & 0x407f) == 0x0018) // <- fix second word!
+    /* FABS */
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0018)
     {
-        uint8_t fp_src = (opcode2 >> 10) & 7;
+        uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
         *ptr++ = fabsd(fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FADD */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0022)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = faddd(fp_dst, fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FDIV */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0020)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FMUL */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FNEG */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001a)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fnegd(fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FSUB */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0028)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fsubd(fp_dst, fp_dst, fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
     /* FMOVECR reg */
-    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
@@ -303,11 +571,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
-    /* FSIN.X reg, reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xe07f) == 0x000e)
+    /* FSIN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        uint8_t fp_dst = RA_MapFPURegister(&ptr, (opcode2 >> 7) & 7);
-        uint8_t fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+        uint8_t fp_dst = 0xff;
+        uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
         uint8_t sign    = RA_AllocARMRegister(&ptr);
@@ -322,6 +590,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint32_t *adr_sin;
         uint32_t *adr_cos;
         uint32_t *adr_trim;
+
+        /* Fetch source */
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
 
         /* Alloc destination FP register for write */
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -428,6 +699,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = tst_immed(sign, 0xf80);
         *ptr++ = fnegd_cc(ARM_CC_MI, fp_dst, fp_dst);
 
+        RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
         RA_FreeARMRegister(&ptr, base_reg);
@@ -438,11 +710,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
-    /* FCOS.X reg, reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xe07f) == 0x001d)
+    /* FCOS */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        uint8_t fp_dst = RA_MapFPURegister(&ptr, (opcode2 >> 7) & 7);
-        uint8_t fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+        uint8_t fp_dst = 0xff;
+        uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
         uint8_t cmp_num = RA_AllocARMRegister(&ptr);
@@ -456,6 +728,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint32_t *adr_sin;
         uint32_t *adr_cos;
         uint32_t *adr_trim;
+
+        /* Fetch source */
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
 
         /* Alloc destination FP register for write */
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -556,6 +831,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *exit_2 |= INSN_TO_LE(ptr - exit_2 - 2);
         *exit_3 |= INSN_TO_LE(ptr - exit_3 - 2);
 
+        RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
         RA_FreeARMRegister(&ptr, base_reg);

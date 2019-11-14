@@ -327,7 +327,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         mod_CC = 0;
 
 //        unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
-if (debug)        printf("[ICache] Creating new translation unit with hash %04x (m68k code @ %08x)\n", hash, m68kcodeptr);
+if (debug)        printf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash, (void*)m68kcodeptr);
 //        unit->mt_M68kAddress = m68kcodeptr;
 
         uint32_t prologue_size = 0;
