@@ -37,6 +37,9 @@ enum {
     C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
     C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
 
+    C_SIN_COEFF_SINGLE = 0x1a,
+    C_COS_COEFF_SINGLE = 0x2a,
+
     C_LN2 = 0x30,
     C_LN10,
     C_10P0,
@@ -72,7 +75,7 @@ static long double const constants[128] = {
     [C_LOG10E] =    M_LOG10E,           /* Official */
     [C_ZERO] =      0.0,                /* Official */
 
-    /* Polynom coefficients for sin(x) */
+    /* Polynom coefficients for sin(x*Pi), x=0..0.5*/
 
     [C_SIN_COEFF] = -2.11100178050346585936E-5,
                     4.65963708473294521719E-4,
@@ -82,6 +85,17 @@ static long double const constants[128] = {
                     2.55016403985097679243,
                     -5.16771278004952168888,
                     3.14159265358979102647,
+    
+    /* Reduced number of polynom coefficients for sin(x*Pi), x=0..0.5 */
+
+    [C_SIN_COEFF_SINGLE] = 
+                    7.74455095806670556524E-2,
+                    -5.98160819620617657839E-1,
+                    2.55005088882843729408,
+                    -5.1677080762924026306,
+                    3.14159259939191476447,
+
+    /* Polynom coefficients for cos(x*Pi), x=0..0.5 */
 
     [C_COS_COEFF] = 4.15383875943350535407E-6,
                     -1.04570624685965272291E-4,
@@ -92,51 +106,14 @@ static long double const constants[128] = {
                     4.05871212641655666324,
                     -4.93480220054467742126,
                     9.99999999999999997244E-1,
-
-#if 0
-#if USE_POLY_21_
-    [C_SIN_COEFF] = 1.71343967861184034706E-20,
-                    -8.15103676569049647059E-18,
-                    2.81031414820239505995E-15,
-                    -7.64704549064188225994E-13,
-                    1.60590358573163197959E-10,
-                    -2.50521080326538396825E-8,
-                    2.75573192139840283187E-6,
-                    -1.98412698410970543592E-4,
-                    8.33333333333168248238E-3,
-                    -1.66666666666665944649E-1,
-                    9.99999999999999907365E-1,
-
-    [C_COS_COEFF] = 3.57574533982325995917E-19,
-                    -1.54745332630529127915E-16,
-                    4.77724279405039943569E-14,
-                    -1.14705306393171244460E-11,
-                    2.08767436959979435384E-9,
-                    -2.75573186964419045529E-7,
-                    2.48015872885505928507E-5,
-                    -1.38888888887012801533E-3,
-                    4.16666666666528513249E-2,
-                    -4.99999999999996043059E-1,
-                    9.99999999999999813877E-1,
-
-#else
-    [C_SIN_COEFF] = -2.05342856289746600727E-08,
-                    2.70405218307799040084E-06,
-                    -1.98125763417806681909E-04,
-                    8.33255814755188010464E-03,
-                    -1.66665772196961623983E-01,
-                    9.99999707044156546685E-01,
-
-    [C_COS_COEFF] = -2.21941782786353727022E-07,
-                    2.42532401381033027481E-05,
-                    -1.38627507062573673756E-03,
-                    4.16610337354021107429E-02,
-                    -4.99995582499065048420E-01,
-                    9.99999443739537210853E-01,
-#endif
-#endif
-
-    /* Polynom coefficients for cos(x) */
+    
+    /* Reduced number of polynom coefficients for cos(x*Pi), x=0..0.5 */
+    [C_COS_COEFF_SINGLE] =
+                    2.20485796302921884119E-1,
+                    -1.33223541188749370639,
+                    4.058461009872062766402,
+                    -4.93479497666537363458,
+                    9.99999967245121125386E-1,
 
     [C_LN2] =       M_LN2,              /* Official */
     [C_LN10] =      M_LN10,             /* Official */
@@ -232,6 +209,30 @@ void __attribute__((naked)) PolySine(void)
     );
 }
 
+void __attribute__((naked)) PolySineSingle(void)
+{
+    asm volatile(
+        "   vpush {d1,d2,d3}        \n"
+        "   push {r0}               \n"
+        "   ldr r0,=constants       \n"
+        "   vldr d1, [r0, %0]       \n"
+        "   vmul.f64 d3, d0, d0     \n"
+        "   vldr d2, [r0, %0+8]     \n"
+        "   vfma.f64 d2, d1, d3     \n"
+        "   vldr d1, [r0, %0+16]    \n"
+        "   vfma.f64 d1, d2, d3     \n"
+        "   vldr d2, [r0, %0+24]    \n"
+        "   vfma.f64 d2, d1, d3     \n"
+        "   vldr d1, [r0, %0+32]    \n"
+        "   vfma.f64 d1, d2, d3     \n"
+        "   vmul.f64 d0, d1, d0     \n"
+        "   pop {r0}                \n"
+        "   vpop {d1,d2,d3}         \n"
+        "   bx lr                   \n"
+        "   .ltorg                  \n"::"i"(C_SIN_COEFF_SINGLE*8)
+    );
+}
+
 void __attribute__((naked)) PolyCosine(void)
 {
     asm volatile(
@@ -260,6 +261,29 @@ void __attribute__((naked)) PolyCosine(void)
         "   vpop {d1,d2}            \n"
         "   bx lr                   \n"
         "   .ltorg                  \n"::"i"(C_COS_COEFF*8)
+    );
+}
+
+void __attribute__((naked)) PolyCosineSingle(void)
+{
+    asm volatile(
+        "   vpush {d1,d2}           \n"
+        "   push {r0}               \n"
+        "   ldr r0,=constants       \n"
+        "   vmul.f64 d2, d0, d0     \n"
+        "   vldr d0, [r0, %0]       \n"
+        "   vldr d1, [r0, %0+8]     \n"
+        "   vfma.f64 d1, d0, d2     \n"
+        "   vldr d0, [r0, %0+16]    \n"
+        "   vfma.f64 d0, d1, d2     \n"
+        "   vldr d1, [r0, %0+24]    \n"
+        "   vfma.f64 d1, d0, d2     \n"
+        "   vldr d0, [r0, %0+32]    \n"
+        "   vfma.f64 d0, d1, d2     \n"
+        "   pop {r0}                \n"
+        "   vpop {d1,d2}            \n"
+        "   bx lr                   \n"
+        "   .ltorg                  \n"::"i"(C_COS_COEFF_SINGLE*8)
     );
 }
 
