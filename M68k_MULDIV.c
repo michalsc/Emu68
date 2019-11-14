@@ -542,7 +542,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             uint8_t tmp_r8 = RA_AllocARMRegister(&ptr);
             uint8_t tmp_r9 = RA_AllocARMRegister(&ptr);
 
-            printf("DUV%s_L 64/32->32:32\n", sig ? 'S':'U');
+            printf("DIV%c_L 64/32->32:32\n", sig ? 'S':'U');
 
             if (sig) {
 
