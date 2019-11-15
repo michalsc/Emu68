@@ -428,6 +428,8 @@ static inline uint32_t fmdhr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return
 static inline uint32_t fmdhr(uint8_t v_dst, uint8_t src) { return fmdhr_cc(ARM_CC_AL, v_dst, src); }
 static inline uint32_t fmdlr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return INSN_TO_LE(0x0e000b10 | (cc << 28) | (v_dst << 16) | (src << 12)); }
 static inline uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return fmdlr_cc(ARM_CC_AL, v_dst, src); }
+static inline uint32_t fmrs_cc(uint8_t cc, uint8_t dst, uint8_t v_src) { return INSN_TO_LE(0x0e100a10 | (cc << 28) | ((v_src >> 1) << 16) | (dst << 12) | ((v_src & 1) << 7)); }
+static inline uint32_t fmrs(uint8_t dst, uint8_t v_src) { return fmrs_cc(ARM_CC_AL, dst, v_src); }
 static inline uint32_t fmuld_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return INSN_TO_LE(0x0e200b00 | (cc << 28) | (v_dst << 12) | (v_first << 16) | (v_second));}
 static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fmuld_cc(ARM_CC_AL, v_dst, v_first, v_second); }
 static inline uint32_t fnegd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x0eb10b40 | (cc << 28) | (v_dst << 12) | (v_src)); }
@@ -442,7 +444,7 @@ static inline uint32_t fsqrtd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { ret
 static inline uint32_t fsqrtd(uint8_t v_dst, uint8_t v_src) { return fsqrtd_cc(ARM_CC_AL, v_dst, v_src); }
 static inline uint32_t fsubd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return INSN_TO_LE(0x0e300b40 | (cc << 28) | (v_dst << 12) | (v_first << 16) | (v_second));}
 static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fsubd_cc(ARM_CC_AL, v_dst, v_first, v_second); }
-static inline uint32_t ftosid_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0b40 | (cc << 28) | (s_dst << 12) | s_dst | (s_dst & 1 ? (1 << 22):0)); }
+static inline uint32_t ftosid_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0b40 | (cc << 28) | (s_dst << 12) | d_src | (s_dst & 1 ? (1 << 22):0)); }
 static inline uint32_t ftosid(uint8_t s_dst, uint8_t d_src) { return ftosid_cc(ARM_CC_AL, s_dst, d_src); }
 
 
