@@ -421,6 +421,17 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     kprintf("[BOOT] ARM stack top at %p\n", tmp_stack_ptr);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
     kprintf("[BOOT] ISAR=%08x, FPSID=%08x, MVFR0=%08x, MVFR1=%08x\n", isar, fpsid, MVFR0, MVFR1);
+#if SET_FEATURES_AT_RUNTIME
+    kprintf("[BOOT] Detected features:%s%s%s%s%s%s\n",
+#else
+    kprintf("[BOOT] Selected features:%s%s%s%s%s%s\n",
+#endif
+        Features.ARM_SUPPORTS_DIV ? " DIV" : "",
+        Features.ARM_SUPPORTS_BITFLD ? " BITFLD" : "",
+        Features.ARM_SUPPORTS_BITCNT ? " BITCNT" : "",
+        Features.ARM_SUPPORTS_SWP ? " SWP":"",
+        Features.ARM_SUPPORTS_VDIV ? " VDIV":"",
+        Features.ARM_SUPPORTS_SQRT ? " VSQRT":"");
     kprintf("[BOOT] Args=%08x,%08x,%08x,%08x\n", dummy, arch, atags, dummy2);
     kprintf("[BOOT] Local memory pool:\n");
     kprintf("[BOOT]    %08x - %08x (size=%d)\n", &__bootstrap_end, 0xffff0000, 0xffff0000 - (uintptr_t)&__bootstrap_end);
