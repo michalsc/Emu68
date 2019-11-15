@@ -313,6 +313,11 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     asm volatile ("mcr p15, 0, %0, c1, c0, 0" : : "r"(tmp));
     asm volatile ("mrc p15, 0, %0, c0, c2, 0" : "=r"(isar));
 
+    uint32_t fpsid, MVFR1, MVFR0;
+    asm volatile("VMRS %0, FPSID":"=r"(fpsid));
+    asm volatile("VMRS %0, MVFR1":"=r"(MVFR1));
+    asm volatile("VMRS %0, MVFR0":"=r"(MVFR0));
+
 #if SET_FEATURES_AT_RUNTIME
     if ((isar & 0x0f000000) == 0x02000000) {
         Features.ARM_SUPPORTS_DIV = 1;
@@ -325,6 +330,12 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     }
     if ((isar & 0x00000f00) == 0x00000100) {
         Features.ARM_SUPPORTS_BITFLD = 1;
+    }
+    if ((MVFR0 & 0x00f00000) == 0x00100000) {
+        Features.ARM_SUPPORTS_SQRT = 1;
+    }
+    if ((MVFR0 & 0x000f0000) == 0x00010000) {
+        Features.ARM_SUPPORTS_VDIV = 1;
     }
 #endif
 
@@ -406,11 +417,6 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     kprintf("[BOOT] Boot address is %08x\n", _start);
 
     print_build_id();
-
-    uint32_t fpsid, MVFR1, MVFR0;
-    asm volatile("VMRS %0, FPSID":"=r"(fpsid));
-    asm volatile("VMRS %0, MVFR1":"=r"(MVFR1));
-    asm volatile("VMRS %0, MVFR0":"=r"(MVFR0));
 
     kprintf("[BOOT] ARM stack top at %p\n", tmp_stack_ptr);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
