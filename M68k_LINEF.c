@@ -685,6 +685,192 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
     return ptr;
 }
 
+/* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
+uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_t opcode,
+        uint16_t opcode2, uint8_t *ext_count)
+{
+    printf("[JIT] FPU_StoreData()\n");
+
+    /*
+        Store is always to memory, R/M was set to 1, the source is FPU register, target is
+        defined by EA stored in first part of the opcode. Destination identifier specifies
+        the data length.
+
+        Get EA, eventually (in case of mode 000 - Dn) perform simple data transfer.
+        Otherwise get address from EA and store data here
+    */
+
+    uint8_t ea = opcode & 0x3f;
+    enum FPUOpSize size = (opcode2 >> 10) & 7;
+
+    /* Case 1: mode 000 - Dn */
+    if ((ea & 0x38) == 0)
+    {
+        uint8_t int_reg = 0xff;
+        uint8_t tmp_reg = 0xff;
+        uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
+
+        switch (size)
+        {
+            case SIZE_S:
+                int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
+                *ptr++ = fcvtsd(vfp_reg * 2, reg);                  // Convert double to single
+                *ptr++ = fmrs(int_reg, vfp_reg * 2);                // Move single to destination ARM reg
+                RA_FreeARMRegister(&ptr, int_reg);
+                break;
+
+            case SIZE_L:
+                int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
+                *ptr++ = ftosid(vfp_reg * 2, reg);                  // Convert double to signed integer
+                *ptr++ = fmrs(int_reg, vfp_reg * 2);                // Move signed int to destination ARM reg
+                RA_FreeARMRegister(&ptr, int_reg);
+                break;
+
+            case SIZE_W:
+                int_reg = RA_MapM68kRegister(&ptr, ea & 7);
+                tmp_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ftosid(vfp_reg * 2, reg);                  // Convert double to signed integer
+                *ptr++ = fmrs(tmp_reg, vfp_reg * 2);                // Move signed int to temporary ARM reg
+                *ptr++ = bfi(int_reg, tmp_reg, 0, 16);              // Insert lower 16 bits of temporary into target
+                RA_SetDirtyM68kRegister(&ptr, ea & 7);
+                RA_FreeARMRegister(&ptr, tmp_reg);
+                RA_FreeARMRegister(&ptr, int_reg);
+                break;
+
+            case SIZE_B:
+                int_reg = RA_MapM68kRegister(&ptr, ea & 7);
+                tmp_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ftosid(vfp_reg * 2, reg);                  // Convert double to signed integer
+                *ptr++ = fmrs(tmp_reg, vfp_reg * 2);                // Move signed int to temporary ARM reg
+                *ptr++ = bfi(int_reg, tmp_reg, 0, 8);               // Insert lower 16 bits of temporary into target
+                RA_SetDirtyM68kRegister(&ptr, ea & 7);
+                RA_FreeARMRegister(&ptr, tmp_reg);
+                RA_FreeARMRegister(&ptr, int_reg);
+                break;
+
+            default:
+                printf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
+        }
+
+        RA_FreeFPURegister(&ptr, vfp_reg);
+    }
+    /* Case 2: get pointer to data (EA) and fetch yourself */
+    else
+    {
+        uint8_t int_reg = 0xff;
+        uint8_t val_reg = 0xff;
+        uint8_t mode = (opcode & 0x0038) >> 3;
+        uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
+
+        if (mode == 4 || mode == 3)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 1);
+
+        /* Pre index? Adjust base register accordingly */
+        if (mode == 4) {
+            uint8_t pre_sz = FPUDataSize[size];
+
+            if (size == SIZE_B && (opcode & 7) == 7)
+                pre_sz = 2;
+
+            *ptr++ = sub_immed(int_reg, int_reg, pre_sz);
+
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+
+        switch (size)
+        {
+            case SIZE_X:
+                {
+#if 0
+                    uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                    uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+                    /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
+                    *ptr++ = ldr_offset(int_reg, tmp2, 4);
+                    *ptr++ = ldr_offset(int_reg, tmp1, 8);
+
+                    /* Shift right the second word of mantissa */
+                    *ptr++ = lsr_immed(tmp1, tmp1, 11);
+                    /* Insert first 11 bit of first word of mantissa */
+                    *ptr++ = bfi(tmp1, tmp2, 21, 11);
+
+                    /* Load lower half word of destination double type */
+                    *ptr++ = fmdlr(*reg, tmp1);
+
+                    /* Shift right upper part of mantissa, clear explicit bit */
+                    *ptr++ = bic_immed(tmp2, tmp2, 0x102);
+                    *ptr++ = lsr_immed(tmp2, tmp2, 11);
+
+                    /* Get exponent, extract sign bit  */
+                    *ptr++ = ldrh_offset(int_reg, tmp1, 0);
+                    *ptr++ = tst_immed(tmp1, 0xc80);
+
+                    /* Remove bias of exponent (16383) and add bias of double eponent (1023) */
+                    *ptr++ = sub_immed(tmp1, tmp1, 0xc3c);
+
+                    /* Insert exponent into upper part of first double word, insert sign */
+                    *ptr++ = bfi(tmp2, tmp1, 20, 11);
+                    *ptr++ = orr_cc_immed(ARM_CC_NE, tmp2, tmp2, 0x102);
+
+                    /* Load upper half into destination double */
+                    *ptr++ = fmdhr(*reg, tmp2);
+
+                    RA_FreeARMRegister(&ptr, tmp1);
+                    RA_FreeARMRegister(&ptr, tmp2);
+#endif
+                }
+                break;
+            case SIZE_D:
+                *ptr++ = fstd(reg, int_reg, 0);
+                break;
+            case SIZE_S:
+                *ptr++ = fcvtsd(vfp_reg * 2, reg);
+                *ptr++ = fsts(vfp_reg * 2, int_reg, 0);
+                break;
+            case SIZE_L:
+                val_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ftosid(vfp_reg * 2, reg);
+                *ptr++ = fmrs(val_reg, vfp_reg * 2);
+                *ptr++ = str_offset(int_reg, val_reg, 0);
+                break;
+            case SIZE_W:
+                val_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ftosid(vfp_reg * 2, reg);
+                *ptr++ = fmrs(val_reg, vfp_reg * 2);
+                *ptr++ = strh_offset(int_reg, val_reg, 0);
+                break;
+            case SIZE_B:
+                val_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ftosid(vfp_reg * 2, reg);
+                *ptr++ = fmrs(val_reg, vfp_reg * 2);
+                *ptr++ = strb_offset(int_reg, val_reg, 0);
+                break;
+            default:
+                break;
+        }
+
+        /* Post index? Adjust base register accordingly */
+        if (mode == 3) {
+            uint8_t post_sz = FPUDataSize[size];
+
+            if (size == SIZE_B && (opcode & 7) == 7)
+                post_sz = 2;
+
+            *ptr++ = add_immed(int_reg, int_reg, post_sz);
+
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+
+        RA_FreeFPURegister(&ptr, vfp_reg);
+        RA_FreeARMRegister(&ptr, int_reg);
+        RA_FreeARMRegister(&ptr, val_reg);
+    }
+
+    return ptr;
+}
+
+
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -776,6 +962,17 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = fcpyd(fp_dst, fp_src);
 
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FMOVE to MEM */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe07f) == 0x6000)
+    {
+        uint8_t fp_src = (opcode2 >> 7) & 7;
+        fp_src = RA_MapFPURegisterForWrite(&ptr, fp_src);
+        ptr = FPU_StoreData(ptr, m68k_ptr, fp_src, opcode, opcode2, &ext_count);
         RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
