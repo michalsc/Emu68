@@ -34,6 +34,7 @@ pre-build:
 	@mkdir -p $(OBJDIR) >/dev/null
 
 raspi-build:
+	@touch start_rpi.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel.img
 
 main-build: pre-build
