@@ -17,8 +17,6 @@
 #include "RegisterAllocator.h"
 #include "Features.h"
 
-#define USE_POLY_21 1
-
 enum {
     C_PI = 0,
     C_PI_2,
@@ -56,7 +54,18 @@ enum {
     C_10P512,
     C_10P1024,
     C_10P2048,
-    C_10P4096
+    C_10P4096,
+
+    C_TWO54,
+    C_LN2HI,
+    C_LN2LO,
+    C_LG1,
+    C_LG2,
+    C_LG3,
+    C_LG4,
+    C_LG5,
+    C_LG6,
+    C_LG7
 };
 
 static long double const constants[128] = {
@@ -86,10 +95,10 @@ static long double const constants[128] = {
                     2.55016403985097679243,
                     -5.16771278004952168888,
                     3.14159265358979102647,
-    
+
     /* Reduced number of polynom coefficients for sin(x*Pi), x=0..0.5 */
 
-    [C_SIN_COEFF_SINGLE] = 
+    [C_SIN_COEFF_SINGLE] =
                     7.74455095806670556524E-2,
                     -5.98160819620617657839E-1,
                     2.55005088882843729408,
@@ -107,7 +116,7 @@ static long double const constants[128] = {
                     4.05871212641655666324,
                     -4.93480220054467742126,
                     9.99999999999999997244E-1,
-    
+
     /* Reduced number of polynom coefficients for cos(x*Pi), x=0..0.5 */
     [C_COS_COEFF_SINGLE] =
                     2.20485796302921884119E-1,
@@ -132,7 +141,95 @@ static long double const constants[128] = {
     [C_10P1024] =   HUGE_VAL,           /* Official 1E1024 - too large for double! */
     [C_10P2048] =   HUGE_VAL,           /* Official 1E2048 - too large for double! */
     [C_10P4096] =   HUGE_VAL,           /* Official 1E4096 - too large for double! */
+
+    [C_TWO54] =     1.80143985094819840000e+16,
+    [C_LN2HI] =     6.93147180369123816490e-01,
+    [C_LN2LO] =     1.90821492927058770002e-10,
+
+    [C_LG1] =       6.666666666666735130e-01,
+    [C_LG2] =       3.999999999940941908e-01,
+    [C_LG3] =       2.857142874366239149e-01,
+    [C_LG4] =       2.222219843214978396e-01,
+    [C_LG5] =       1.818357216161805012e-01,
+    [C_LG6] =       1.531383769920937332e-01,
+    [C_LG7] =       1.479819860511658591e-01,
 };
+
+
+/* Parts of this file are copied from libm implementation by Sun Microsystems */
+
+/*
+ * ====================================================
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ *
+ * Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ * ====================================================
+ */
+
+double __ieee754_log(double x)
+{
+    double hfsq,f,s,z,R,w,t1,t2,dk;
+    int32_t k,hx,i,j;
+    uint32_t lx;
+
+    union {
+        uint64_t i;
+        uint32_t i32[2];
+        double d;
+    } n;
+
+    n.d = x;
+    hx = n.i32[0];
+    lx = n.i32[1];
+
+    k=0;
+    if (hx < 0x00100000) {              /* x < 2**-1022  */
+        if (((hx&0x7fffffff)|lx)==0)
+            return -constants[C_TWO54]/constants[C_ZERO];		/* log(+-0)=-inf */
+        if (hx<0) return (x-x)/constants[C_ZERO];	/* log(-#) = NaN */
+        k -= 54; x *= constants[C_TWO54]; /* subnormal number, scale up x */
+        n.d = x;
+        hx = n.i32[0];
+    }
+    if (hx >= 0x7ff00000) return x+x;
+    k += (hx>>20)-1023;
+    hx &= 0x000fffff;
+    i = (hx+0x95f64)&0x100000;
+    n.i32[0] = hx|(i^0x3ff00000);	/* normalize x or x/2 */
+    x = n.d;
+    k += (i>>20);
+    f = x-1.0;
+    if((0x000fffff&(2+hx))<3) {	/* |f| < 2**-20 */
+          if(f==constants[C_ZERO]) { if(k==0) return constants[C_ZERO];  else {dk=(double)k;
+                               return dk*constants[C_LN2HI]+dk*constants[C_LN2LO];}}
+        R = f*f*(0.5-0.33333333333333333*f);
+        if(k==0) return f-R; else {dk=(double)k;
+                 return dk*constants[C_LN2HI]-((R-dk*constants[C_LN2LO])-f);}
+    }
+    s = f/(2.0+f);
+    dk = (double)k;
+    z = s*s;
+	i = hx-0x6147a;
+	w = z*z;
+	j = 0x6b851-hx;
+	t1= w*(constants[C_LG2]+w*(constants[C_LG4]+w*constants[C_LG6]));
+	t2= z*(constants[C_LG1]+w*(constants[C_LG3]+w*(constants[C_LG5]+w*constants[C_LG7])));
+	i |= j;
+	R = t2+t1;
+	if(i>0) {
+	    hfsq=0.5*f*f;
+	    if(k==0) return f-(hfsq-s*(hfsq+R)); else
+		     return dk*constants[C_LN2HI]-((hfsq-(s*(hfsq+R)+dk*constants[C_LN2LO]))-f);
+	} else {
+	    if(k==0) return f-s*(f-R); else
+		     return dk*constants[C_LN2HI]-((s*(f-R)-dk*constants[C_LN2LO])-f);
+	}
+}
+
+/* End of Sun Microsystems part */
 
 /*
     Returns reminder of absolute double number divided by 2, i.e. for any number it calculates result
@@ -298,8 +395,18 @@ enum FPUOpSize {
     SIZE_B = 6
 };
 
+uint8_t FPUDataSize[] = {
+    [SIZE_L] = 4,
+    [SIZE_S] = 4,
+    [SIZE_X] = 12,
+    [SIZE_P] = 12,
+    [SIZE_W] = 2,
+    [SIZE_D] = 8,
+    [SIZE_B] = 1
+};
+
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
-uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode, 
+uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count)
 {
     printf("[JIT] FPU_FetchData()\n");
@@ -311,7 +418,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
     }
     else
     {
-        /* 
+        /*
             R/M was set to 1, the source is defined by EA stored in first part of the
             opcode. Source identifier specifies the data length.
 
@@ -372,7 +479,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
         /* Case 2: mode 111:100 - immediate */
         else if (ea == 0x3c)
         {
-            /* Step 1: Fetch data *or* pointer to data into int_reg */
+            /* Fetch data *or* pointer to data into int_reg */
             uint8_t int_reg = 0xff;
             int not_yet_done = 0;
 
@@ -406,7 +513,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
             }
 
-            /* Step 2: if data not yet in the reg, use the address to load it into FPU register */
+            /* if data not yet in the reg, use the address to load it into FPU register */
             if (not_yet_done)
             {
                 switch(size)
@@ -415,8 +522,44 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         *ptr++ = fldd(*reg, int_reg, 0);
                         *ext_count += 4;
                         break;
-                    
+
                     case SIZE_X:
+                        {
+                            uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+                            /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
+                            *ptr++ = ldr_offset(int_reg, tmp2, 4);
+                            *ptr++ = ldr_offset(int_reg, tmp1, 8);
+
+                            /* Shift right the second word of mantissa */
+                            *ptr++ = lsr_immed(tmp1, tmp1, 11);
+                            /* Insert first 11 bit of first word of mantissa */
+                            *ptr++ = bfi(tmp1, tmp2, 21, 11);
+
+                            /* Load lower half word of destination double type */
+                            *ptr++ = fmdlr(*reg, tmp1);
+
+                            /* Shift right upper part of mantissa, clear explicit bit */
+                            *ptr++ = bic_immed(tmp2, tmp2, 0x102);
+                            *ptr++ = lsr_immed(tmp2, tmp2, 11);
+
+                            /* Get exponent, extract sign bit  */
+                            *ptr++ = ldrh_offset(int_reg, tmp1, 0);
+                            *ptr++ = tst_immed(tmp1, 0xc80);
+
+                            /* Remove bias of exponent (16383) and add bias of double eponent (1023) */
+                            *ptr++ = sub_immed(tmp1, tmp1, 0xc3c);
+
+                            /* Insert exponent into upper part of first double word, insert sign */
+                            *ptr++ = bfi(tmp2, tmp1, 20, 11);
+                            *ptr++ = orr_cc_immed(ARM_CC_NE, tmp2, tmp2, 0x102);
+
+                            /* Load upper half into destination double */
+                            *ptr++ = fmdhr(*reg, tmp2);
+
+                            RA_FreeARMRegister(&ptr, tmp1);
+                            RA_FreeARMRegister(&ptr, tmp2);
+                        }
                         *ext_count += 6;
                         break;
 
@@ -434,9 +577,105 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
         {
             uint8_t int_reg = 0xff;
             uint8_t val_reg = 0xff;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 1);
+            uint8_t mode = (opcode & 0x0038) >> 3;
 
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 1);
 
+            /* Pre index? Adjust base register accordingly */
+            if (mode == 4) {
+                uint8_t pre_sz = FPUDataSize[size];
+
+                if (size == SIZE_B && (opcode & 7) == 7)
+                    pre_sz = 2;
+
+                *ptr++ = sub_immed(int_reg, int_reg, pre_sz);
+
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+
+            switch (size)
+            {
+                case SIZE_X:
+                    {
+                        uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+                        /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
+                        *ptr++ = ldr_offset(int_reg, tmp2, 4);
+                        *ptr++ = ldr_offset(int_reg, tmp1, 8);
+
+                        /* Shift right the second word of mantissa */
+                        *ptr++ = lsr_immed(tmp1, tmp1, 11);
+                        /* Insert first 11 bit of first word of mantissa */
+                        *ptr++ = bfi(tmp1, tmp2, 21, 11);
+
+                        /* Load lower half word of destination double type */
+                        *ptr++ = fmdlr(*reg, tmp1);
+
+                        /* Shift right upper part of mantissa, clear explicit bit */
+                        *ptr++ = bic_immed(tmp2, tmp2, 0x102);
+                        *ptr++ = lsr_immed(tmp2, tmp2, 11);
+
+                        /* Get exponent, extract sign bit  */
+                        *ptr++ = ldrh_offset(int_reg, tmp1, 0);
+                        *ptr++ = tst_immed(tmp1, 0xc80);
+
+                        /* Remove bias of exponent (16383) and add bias of double eponent (1023) */
+                        *ptr++ = sub_immed(tmp1, tmp1, 0xc3c);
+
+                        /* Insert exponent into upper part of first double word, insert sign */
+                        *ptr++ = bfi(tmp2, tmp1, 20, 11);
+                        *ptr++ = orr_cc_immed(ARM_CC_NE, tmp2, tmp2, 0x102);
+
+                        /* Load upper half into destination double */
+                        *ptr++ = fmdhr(*reg, tmp2);
+
+                        RA_FreeARMRegister(&ptr, tmp1);
+                        RA_FreeARMRegister(&ptr, tmp2);
+                    }
+                    break;
+                case SIZE_D:
+                    *ptr++ = fldd(*reg, int_reg, 0);
+                    break;
+                case SIZE_S:
+                    *ptr++ = flds(*reg * 2, int_reg, 0);
+                    *ptr++ = fcvtds(*reg, *reg * 2);
+                    break;
+                case SIZE_L:
+                    val_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ldr_offset(int_reg, val_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, val_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                case SIZE_W:
+                    val_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ldrsh_offset(int_reg, val_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, val_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                case SIZE_B:
+                    val_reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ldrsb_offset(int_reg, val_reg, 0);
+                    *ptr++ = fmsr(*reg * 2, int_reg);
+                    *ptr++ = fsitod(*reg, *reg * 2);
+                    break;
+                default:
+                    break;
+            }
+
+            /* Post index? Adjust base register accordingly */
+            if (mode == 3) {
+                uint8_t post_sz = FPUDataSize[size];
+
+                if (size == SIZE_B && (opcode & 7) == 7)
+                    post_sz = 2;
+
+                *ptr++ = add_immed(int_reg, int_reg, post_sz);
+
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
 
             RA_FreeARMRegister(&ptr, int_reg);
             RA_FreeARMRegister(&ptr, val_reg);
@@ -500,6 +739,31 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
+    }
+    /* FLOGN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fcpyd(0, fp_src);
+
+        *ptr++ = push(0x0f | (1 << 12));
+        *ptr++ = ldr_offset(15, 12, 12);
+        *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+        *ptr++ = fcpyd(fp_dst, 0);
+        *ptr++ = pop(0x0f | (1 << 12));
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        *ptr++ = BE32((uint32_t)__ieee754_log);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+        *ptr++ = INSN_TO_LE(0xfffffff0);
     }
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)

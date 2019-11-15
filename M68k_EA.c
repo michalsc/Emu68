@@ -979,7 +979,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         *ptr++ = mov_immed_u8(*arm_reg, off);
                         break;
                     case 0:
-                        pc_off = 2;
+                        pc_off = 2 + 2*(*ext_words);
                         ptr = EMIT_GetOffsetPC(ptr, &pc_off);
                         *ptr++ = add_immed(*arm_reg, REG_PC, pc_off);
                         break;

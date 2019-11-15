@@ -407,9 +407,14 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 
     print_build_id();
 
+    uint32_t fpsid, MVFR1, MVFR0;
+    asm volatile("VMRS %0, FPSID":"=r"(fpsid));
+    asm volatile("VMRS %0, MVFR1":"=r"(MVFR1));
+    asm volatile("VMRS %0, MVFR0":"=r"(MVFR0));
+
     kprintf("[BOOT] ARM stack top at %p\n", tmp_stack_ptr);
     kprintf("[BOOT] Bootstrap ends at %08x\n", &__bootstrap_end);
-    kprintf("[BOOT] ISAR=%08x\n", isar);
+    kprintf("[BOOT] ISAR=%08x, FPSID=%08x, MVFR0=%08x, MVFR1=%08x\n", isar, fpsid, MVFR0, MVFR1);
     kprintf("[BOOT] Args=%08x,%08x,%08x,%08x\n", dummy, arch, atags, dummy2);
     kprintf("[BOOT] Local memory pool:\n");
     kprintf("[BOOT]    %08x - %08x (size=%d)\n", &__bootstrap_end, 0xffff0000, 0xffff0000 - (uintptr_t)&__bootstrap_end);
@@ -724,7 +729,8 @@ void start_emu(void *addr)
 
     asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
 
-for (int i=0; i < 2; i++) {
+for (int i=0; i < 2; i++)
+{
 
     bzero(&__m68k, sizeof(__m68k));
     memset(&stack, 0xaa, sizeof(stack));
@@ -742,7 +748,7 @@ for (int i=0; i < 2; i++) {
     printf("[JIT] Let it go...\n");
     uint64_t ctx_count = 0;
     uint32_t last_PC = 0xffffffff;
-    t1 = *(volatile uint32_t*)0xf2003004 | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
+    t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
     do {
         if (last_PC != (uint32_t)m68k->PC)
@@ -755,7 +761,7 @@ for (int i=0; i < 2; i++) {
         arm_code(m68k);
     } while(m68k->PC != (void*)0);
 
-    t2 = *(volatile uint32_t*)0xf2003004 | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
+    t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
     printf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
     printf("[JIT] Number of ARM-M68k switches: %lld\n", ctx_count);
