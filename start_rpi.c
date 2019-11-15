@@ -17,6 +17,7 @@
 #include "HunkLoader.h"
 #include "DuffCopy.h"
 #include "EmuLogo.h"
+#include "Features.h"
 
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE (__arm_periiobase)
@@ -228,8 +229,6 @@ void *tlsf;
 
 void start_emu(void *);
 
-int ARM_SUPPORTS_DIV = 0;
-
 uint16_t *framebuffer;
 uint32_t pitch;
 
@@ -313,8 +312,21 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
 #endif
     asm volatile ("mcr p15, 0, %0, c1, c0, 0" : : "r"(tmp));
     asm volatile ("mrc p15, 0, %0, c0, c2, 0" : "=r"(isar));
-    if ((isar & 0x0f000000) == 0x02000000)
-        ARM_SUPPORTS_DIV = 1;
+
+#if SET_FEATURES_AT_RUNTIME
+    if ((isar & 0x0f000000) == 0x02000000) {
+        Features.ARM_SUPPORTS_DIV = 1;
+    }
+    if ((isar & 0x0000000f) == 0x00000001) {
+        Features.ARM_SUPPORTS_SWP = 1;
+    }
+    if ((isar & 0x000000f0) == 0x00000010) {
+        Features.ARM_SUPPORTS_BITCNT = 1;
+    }
+    if ((isar & 0x00000f00) == 0x00000100) {
+        Features.ARM_SUPPORTS_BITFLD = 1;
+    }
+#endif
 
     /* Create 1:1 map for whole memory in order to access the device tree, which can reside anywhere in ram */
     for (int i=8; i < 4096-8; i++)

@@ -40,8 +40,6 @@
 #define ARM_CC_LE 0x0d /* Z == 1 || N != V */
 #define ARM_CC_AL 0x0e /* Always */
 
-extern int ARM_SUPPORTS_DIV;
-
 static inline uint64_t BE64(uint64_t x)
 {
     union {
@@ -434,6 +432,8 @@ static inline uint32_t fstd_cc(uint8_t cc, uint8_t v_dst, uint8_t base, int8_t o
 static inline uint32_t fstd(uint8_t v_dst, uint8_t base, int8_t offset) { return fstd_cc(ARM_CC_AL, v_dst, base, offset); }
 static inline uint32_t fsts_cc(uint8_t cc, uint8_t v_dst, uint8_t base, int8_t offset) { return INSN_TO_LE((offset < 0 ? 0x0d000a00:0x0d800a00) | (cc << 28) | (base << 16) | ((v_dst >> 1) << 12) | ((v_dst & 1) << 22) | ((offset < 0) ? -offset : offset)); }
 static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int8_t offset) { return fsts_cc(ARM_CC_AL, v_dst, base, offset); }
+static inline uint32_t fsqrtd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x0eb10ac0 | (cc << 28) | (v_dst << 12) | (v_src)); }
+static inline uint32_t fsqrtd(uint8_t v_dst, uint8_t v_src) { return fsqrtd_cc(ARM_CC_AL, v_dst, v_src); }
 static inline uint32_t fsubd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return INSN_TO_LE(0x0e300b40 | (cc << 28) | (v_dst << 12) | (v_first << 16) | (v_second));}
 static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fsubd_cc(ARM_CC_AL, v_dst, v_first, v_second); }
 

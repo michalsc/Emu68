@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "Features.h"
 #include "M68k.h"
 #include "ARM.h"
 #include "RegisterAllocator.h"
@@ -19,6 +20,11 @@
 #include "tlsf.h"
 #include "config.h"
 #include "DuffCopy.h"
+
+
+#if SET_FEATURES_AT_RUNTIME
+features_t Features;
+#endif
 
 const int debug = 0;
 

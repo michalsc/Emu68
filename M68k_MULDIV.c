@@ -14,6 +14,7 @@
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "Features.h"
 
 struct Result32 {
     uint32_t q;
@@ -296,7 +297,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
 
-    if (ARM_SUPPORTS_DIV)
+    if (Features.ARM_SUPPORTS_DIV)
     {
         /* Sign extend divisor from 16-bit to 32-bit */
         *ptr++ = sxth(reg_rem, reg_q, 0);
@@ -387,7 +388,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, reg_quot);
     RA_FreeARMRegister(&ptr, reg_rem);
 
-    if (!ARM_SUPPORTS_DIV)
+    if (!Features.ARM_SUPPORTS_DIV)
         *ptr++ = INSN_TO_LE(0xfffffff0);
 
     return ptr;
@@ -408,7 +409,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
 
-    if (ARM_SUPPORTS_DIV)
+    if (Features.ARM_SUPPORTS_DIV)
     {
         /* Sign extend divisor from 16-bit to 32-bit */
         *ptr++ = uxth(reg_rem, reg_q, 0);
@@ -496,7 +497,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, reg_quot);
     RA_FreeARMRegister(&ptr, reg_rem);
 
-    if (!ARM_SUPPORTS_DIV)
+    if (!Features.ARM_SUPPORTS_DIV)
         *ptr++ = INSN_TO_LE(0xfffffff0);
 
     return ptr;
@@ -525,7 +526,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
 
-    if (ARM_SUPPORTS_DIV)
+    if (Features.ARM_SUPPORTS_DIV)
     {
         if (div64)
         {
@@ -725,7 +726,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (reg_dr != 0xff)
         RA_FreeARMRegister(&ptr, reg_dr);
 
-    if (!ARM_SUPPORTS_DIV)
+    if (!Features.ARM_SUPPORTS_DIV)
         *ptr++ = INSN_TO_LE(0xfffffff0);
 
     return ptr;
