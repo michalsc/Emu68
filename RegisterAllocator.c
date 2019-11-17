@@ -96,7 +96,8 @@ uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
     FPU_Reg_State[fpu_reg] = FPU_LOADED;
 
     /* Emit load of register from m68k context to the vfp register */
-    *(*arm_stream++) = fldd(fpu_reg + 8, REG_CTX, __builtin_offsetof(struct M68KState, FP[fpu_reg]) / 4);
+    **arm_stream = fldd(fpu_reg + 8, REG_CTX, __builtin_offsetof(struct M68KState, FP[fpu_reg]) / 4);
+    (*arm_stream)++;
 
     return fpu_reg + 8;
 }
