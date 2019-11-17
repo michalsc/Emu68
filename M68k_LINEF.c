@@ -978,6 +978,81 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
+    /* FMOVEM */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000)
+    {
+        char dir = (opcode2 >> 13) & 1;
+        uint8_t base_reg = 0xff;
+
+        if (dir) { /* FPn to memory */
+            uint8_t base_reg;
+            uint8_t mode = (opcode & 0x0038) >> 3;
+
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
+
+            /* Pre index? Note - dynamic mode not supported yet! using double mode instead of extended! */
+            if (mode == 4) {
+                for (int i=7; i >= 0; --i) {
+                    if ((opcode2 & (1 << i)) != 0) {
+                        uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
+                        *ptr++ = sub_immed(base_reg, base_reg, 8);
+                        *ptr++ = fstd(fp_reg, base_reg, 0);
+                        RA_FreeFPURegister(&ptr, fp_reg);
+                    }
+                }
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            } else if (mode == 3) {
+                printf("[JIT] Unsupported FMOVEM operation (REG to MEM postindex)\n");
+            } else {
+                for (int i=0; i < 8; i++) {
+                    if ((opcode2 & (1 << i)) != 0) {
+                        uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
+                        *ptr++ = fstd(fp_reg, base_reg, i*2);
+                        RA_FreeFPURegister(&ptr, fp_reg);
+                    }
+                }
+            }
+        } else { /* memory to FPn */
+            uint8_t base_reg;
+            uint8_t mode = (opcode & 0x0038) >> 3;
+
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
+
+            /* Post index? Note - dynamic mode not supported yet! using double mode instead of extended! */
+            if (mode == 3) {
+                for (int i=7; i >= 0; --i) {
+                    if ((opcode2 & (1 << i)) != 0) {
+                        uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
+                        *ptr++ = fldd(fp_reg, base_reg, 0);
+                        *ptr++ = add_immed(base_reg, base_reg, 8);
+                        RA_FreeFPURegister(&ptr, fp_reg);
+                    }
+                }
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            } else if (mode == 4) {
+                printf("[JIT] Unsupported FMOVEM operation (REG to MEM preindex)\n");
+            } else {
+                for (int i=0; i < 8; i++) {
+                    if ((opcode2 & (1 << i)) != 0) {
+                        uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
+                        *ptr++ = fldd(fp_reg, base_reg, i*2);
+                        RA_FreeFPURegister(&ptr, fp_reg);
+                    }
+                }
+            }
+        }
+
+        RA_FreeARMRegister(&ptr, base_reg);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)
     {
