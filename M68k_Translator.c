@@ -198,6 +198,75 @@ void __clear_cache(void *begin, void *end);
 static uint8_t got_CC = 0;
 static uint8_t mod_CC = 0;
 
+static uint8_t reg_FPCR = 0xff;
+static uint8_t mod_FPCR = 0;
+static uint8_t reg_FPSR = 0xff;
+static uint8_t mod_FPSR = 0;
+
+uint8_t M68K_GetFPCR(uint32_t **ptr)
+{
+    if (reg_FPCR == 0xff)
+    {
+        reg_FPCR = RA_AllocARMRegister(ptr);
+        **ptr = ldrh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+        (*ptr)++;
+        mod_FPCR = 0;
+    }
+
+    return reg_FPCR;
+}
+
+uint8_t M68K_ModifyFPCR(uint32_t **ptr)
+{
+    uint8_t fpcr = M68K_GetFPCR(ptr);
+    mod_FPCR = 1;
+    return fpcr;
+}
+
+void M68K_FlushFPCR(uint32_t **ptr)
+{
+    if (reg_FPCR != 0xff && mod_FPCR)
+    {
+        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+        (*ptr)++;
+        RA_FreeARMRegister(ptr, reg_FPCR);
+    }
+    reg_FPCR = 0xff;
+    mod_FPCR = 0;
+}
+
+uint8_t M68K_GetFPSR(uint32_t **ptr)
+{
+    if (reg_FPSR == 0xff)
+    {
+        reg_FPSR = RA_AllocARMRegister(ptr);
+        **ptr = ldr_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+        (*ptr)++;
+        mod_FPSR = 0;
+    }
+
+    return reg_FPSR;
+}
+
+uint8_t M68K_ModifyFPSR(uint32_t **ptr)
+{
+    uint8_t fpsr = M68K_GetFPSR(ptr);
+    mod_FPSR = 1;
+    return fpsr;
+}
+
+void M68K_FlushFPSR(uint32_t **ptr)
+{
+    if (reg_FPSR != 0xff && mod_FPSR)
+    {
+        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+        (*ptr)++;
+        RA_FreeARMRegister(ptr, reg_FPSR);
+    }
+    reg_FPSR = 0xff;
+    mod_FPSR = 0;
+}
+
 void M68K_GetCC(uint32_t **ptr)
 {
     if (got_CC == 0)
@@ -503,6 +572,8 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
         RA_FlushM68kRegs(&end);
         end = EMIT_FlushPC(end);
         M68K_FlushCC(&end);
+        M68K_FlushFPCR(&end);
+        M68K_FlushFPSR(&end);
         *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         uint16_t mask = RA_GetChangedMask() & 0xfff0;
         if (mod_CC)

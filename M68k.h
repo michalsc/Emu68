@@ -69,10 +69,10 @@ struct M68KState
     uint16_t SR;
 
     /* FPU Part */
-    double FP[8];   // Double precision! Extended is "emulated" in load/store only
     uint32_t FPSR;
     uint32_t FPIAR;
     uint16_t FPCR;
+    double FP[8];   // Double precision! Extended is "emulated" in load/store only
 };
 
 #define SR_C    0x0001
@@ -103,6 +103,38 @@ struct M68KState
 #define M_CC_GT 0x0e
 #define M_CC_LE 0x0f
 
+#define F_CC_EQ     0x01
+#define F_CC_NE     0x0e
+#define F_CC_GT     0x12
+#define F_CC_NGT    0x1d
+#define F_CC_GE     0x13
+#define F_CC_NGE    0x1c
+#define F_CC_LT     0x14
+#define F_CC_NLT    0x1b
+#define F_CC_LE     0x15
+#define F_CC_NLE    0x1a
+#define F_CC_GL     0x16
+#define F_CC_NGL    0x19
+#define F_CC_GLE    0x17
+#define F_CC_NGLE   0x18
+#define F_CC_OGT    0x02
+#define F_CC_ULE    0x0d
+#define F_CC_OGE    0x03
+#define F_CC_ULT    0x0c
+#define F_CC_OLT    0x04
+#define F_CC_UGE    0x0b
+#define F_CC_OLE    0x05
+#define F_CC_UGT    0x0a
+#define F_CC_OGL    0x06
+#define F_CC_UEQ    0x09
+#define F_CC_OR     0x07
+#define F_CC_UN     0x08
+#define F_CC_F      0x00
+#define F_CC_T      0x0f
+#define F_CC_SF     0x10
+#define F_CC_ST     0x1f
+#define F_CC_SEQ    0x11
+#define F_CC_SNE    0x1e
 
 uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
@@ -136,5 +168,12 @@ void M68K_DumpStats();
 void M68K_GetCC(uint32_t **ptr);
 void M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
+
+uint8_t M68K_GetFPCR(uint32_t **ptr);
+uint8_t M68K_ModifyFPCR(uint32_t **ptr);
+void M68K_FlushFPCR(uint32_t **ptr);
+uint8_t M68K_GetFPSR(uint32_t **ptr);
+uint8_t M68K_ModifyFPSR(uint32_t **ptr);
+void M68K_FlushFPSR(uint32_t **ptr);
 
 #endif /* _M68K_H */
