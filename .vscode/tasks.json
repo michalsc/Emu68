@@ -48,11 +48,11 @@
             }
         },
         {
-            "taskName": "Build test",
+            "taskName": "Build Examples",
             "suppressTaskName": true,
             "isBuildCommand": true,
             "args": [
-                "make test"
+                "make examples"
             ],
             "problemMatcher": {
                 "owner": "cpp",
