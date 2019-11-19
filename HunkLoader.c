@@ -95,8 +95,8 @@ void * LoadHunkFile(void *buffer)
             case 0x3e9:
                 if (current_block >= first_to_load)
                 {
-                    printf("[HUNK] Loading block %d (code hunk) with size of %d words\n",
-                        current_block, BE32(words[1]));
+                    printf("[HUNK] Loading block %d (code hunk) to %08x with size of %d words\n",
+                        current_block, (void*)&h->h_Data, BE32(words[1]));
                     DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else
@@ -107,8 +107,8 @@ void * LoadHunkFile(void *buffer)
             case 0x3ea:
                 if (current_block >= first_to_load)
                 {
-                    printf("[HUNK] Loading block %d (data hunk) with size of %d words\n",
-                        current_block, BE32(words[1]));
+                    printf("[HUNK] Loading block %d (data hunk) to %08x with size of %d words\n",
+                        current_block, (void*)h->h_Data, BE32(words[1]));
                     DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else
@@ -141,10 +141,12 @@ void * LoadHunkFile(void *buffer)
                     uint32_t refcnt = BE32(words[1]);
                     if (current_block >= first_to_load)
                     {
-                        struct SegList *tmp = hunks;
+                        void *segments = &hunks->h_Next;
                         for (unsigned i=0; i < refcnt; i++)
-                            tmp = tmp->h_Next;
-                        ref_base = (intptr_t)&tmp->h_Data;
+                        {
+                            segments = *(void**)segments;
+                        }
+                        ref_base = (intptr_t)segments + 4;
                         words += 2;
 
                         printf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base);
@@ -178,7 +180,7 @@ void * LoadHunkFile(void *buffer)
                 printf("[HUNK] End of block\n");
                 words++;
                 current_block++;
-                h = h->h_Next;
+                h = (struct SegList *)((uintptr_t)h->h_Next - __builtin_offsetof(struct SegList, h_Next));
                 break;
 
             default:
