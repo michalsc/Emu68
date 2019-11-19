@@ -223,6 +223,15 @@ uint8_t M68K_ModifyFPCR(uint32_t **ptr)
     return fpcr;
 }
 
+void M68K_StoreFPCR(uint32_t **ptr)
+{
+    if (reg_FPCR != 0xff && mod_FPCR)
+    {
+        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+        (*ptr)++;
+    }
+}
+
 void M68K_FlushFPCR(uint32_t **ptr)
 {
     if (reg_FPCR != 0xff && mod_FPCR)
@@ -255,6 +264,15 @@ uint8_t M68K_ModifyFPSR(uint32_t **ptr)
     return fpsr;
 }
 
+void M68K_StoreFPSR(uint32_t **ptr)
+{
+    if (reg_FPSR != 0xff && mod_FPSR)
+    {
+        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+        (*ptr)++;
+    }
+}
+
 void M68K_FlushFPSR(uint32_t **ptr)
 {
     if (reg_FPSR != 0xff && mod_FPSR)
@@ -282,6 +300,15 @@ void M68K_ModifyCC(uint32_t **ptr)
 {
     M68K_GetCC(ptr);
     mod_CC = 1;
+}
+
+void M68K_StoreCC(uint32_t **ptr)
+{
+    if (got_CC && mod_CC)
+    {
+        **ptr = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        (*ptr)++;
+    }
 }
 
 void M68K_FlushCC(uint32_t **ptr)
@@ -550,7 +577,9 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                     RA_StoreDirtyFPURegs(&end);
                     RA_StoreDirtyM68kRegs(&end);
                     end = EMIT_FlushPC(end);
-                    *end++ = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+                    M68K_StoreCC(&end);
+                    M68K_StoreFPCR(&end);
+                    M68K_StoreFPSR(&end);
                     *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
                     *end++ = setend_le();
