@@ -231,6 +231,8 @@ void start_emu(void *);
 
 uint16_t *framebuffer;
 uint32_t pitch;
+uint32_t fb_width;
+uint32_t fb_height;
 
 void display_logo()
 {
@@ -242,6 +244,8 @@ void display_logo()
     int x = 0;
 
     kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
+    fb_width = sz.width;
+    fb_height = sz.height;
     init_display(sz, (void**)&framebuffer, &pitch);
     kprintf("[BOOT] Framebuffer @ %08x\n", framebuffer);
 
@@ -278,6 +282,8 @@ void display_logo()
         }
     }
 }
+
+uint32_t top_of_ram;
 
 void print_build_id()
 {
@@ -445,8 +451,9 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         if (raspi4)
             range++;
 
-        uint32_t top_of_ram = BE32(range[0]) + BE32(range[1]);
+        top_of_ram = BE32(range[0]) + BE32(range[1]);
         uint32_t kernel_new_loc = top_of_ram - 0x00800000;
+        top_of_ram = kernel_new_loc - 0x1000;
 
         range[1] = BE32(BE32(range[1])-0x00800000);
 
@@ -655,7 +662,6 @@ uint8_t m68kcode[] = {
 void *m68kcodeptr = m68kcode;
 
 uint32_t data[128];
-uint32_t stack[1025] __attribute__((aligned(16)));
 
 void print_context(struct M68KState *m68k)
 {
@@ -746,21 +752,25 @@ void start_emu(void *addr)
 
     asm volatile ("mov %0, %1":"=r"(m68k):"r"(&__m68k));
 
-for (int i=0; i < 2; i++)
+for (int i=1; i < 2; i++)
 {
 
     bzero(&__m68k, sizeof(__m68k));
-    memset(&stack, 0xaa, sizeof(stack));
+    //memset(&stack, 0xaa, sizeof(stack));
     if (i > 0) {
         m68k->D[0].u32 = BE32((uint32_t)pitch);
+        m68k->D[1].u32 = BE32((uint32_t)fb_width);
+        m68k->D[2].u32 = BE32((uint32_t)fb_height);
         m68k->A[0].u32 = BE32((uint32_t)framebuffer);
     }
-    m68k->A[7].u32 = BE32((uint32_t)&stack[1024]);
+    m68k->A[7].u32 = BE32((uint32_t)top_of_ram);
     m68k->PC = (uint16_t *)BE32((uint32_t)addr);
 
-    stack[1024] = 0;
-
     print_context(m68k);
+
+    m68k->A[7].u32 = BE32(BE32(m68k->A[7].u32) - 4);
+
+    *(uint32_t*)(BE32(m68k->A[7].u32)) = 0;
 
     printf("[JIT] Let it go...\n");
     uint64_t ctx_count = 0;
@@ -776,6 +786,12 @@ for (int i=0; i < 2; i++)
 
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
         arm_code(m68k);
+
+        if (BE32((uint32_t)m68k->PC) > top_of_ram)
+        {
+            printf("[JIT] Program counter outside available memory. Abnormal termination\n");
+            break;
+        }
     } while(m68k->PC != (void*)0);
 
     t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
@@ -787,6 +803,7 @@ for (int i=0; i < 2; i++)
 
     print_context(m68k);
 }
+#if 0
     printf("[JIT] --- Stack dump ---\n");
     for (int i=1024; i > 0; --i)
     {
@@ -795,4 +812,5 @@ for (int i=0; i < 2; i++)
             break;
     }
     M68K_DumpStats();
+#endif
 }
