@@ -423,6 +423,7 @@ static uint8_t __int_arm_alloc_reg()
             return i;
         }
     }
+
     return 0xff;
 }
 
@@ -442,7 +443,22 @@ uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
         }
     }
 
-    return __int_arm_alloc_reg();
+    reg = __int_arm_alloc_reg();
+
+    if (reg != 0xff)
+        return reg;
+
+    M68K_FlushFPCR(arm_stream);
+    M68K_FlushFPSR(arm_stream);
+
+    reg = __int_arm_alloc_reg();
+
+    if (reg != 0xff)
+        return reg;
+
+    printf("[JIT] ARM Register allocator exhausted!!!\n");
+
+    return 0xff;
 }
 
 void RA_FreeARMRegister(uint32_t **arm_stream, uint8_t arm_reg)
