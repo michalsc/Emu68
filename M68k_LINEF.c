@@ -1325,7 +1325,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                 for (int i=7; i >= 0; --i) {
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
-                        *ptr++ = sub_immed(base_reg, base_reg, 8);
+                        *ptr++ = sub_immed(base_reg, base_reg, 12);
                         *ptr++ = fstd(fp_reg, base_reg, 0);
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
@@ -1357,7 +1357,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
                         *ptr++ = fldd(fp_reg, base_reg, 0);
-                        *ptr++ = add_immed(base_reg, base_reg, 8);
+                        *ptr++ = add_immed(base_reg, base_reg, 12);
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
                 }
