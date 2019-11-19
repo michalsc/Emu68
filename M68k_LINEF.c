@@ -548,7 +548,19 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 switch(size)
                 {
                     case SIZE_D:
-                        *ptr++ = fldd(*reg, int_reg, 0);
+                        if (((uint32_t)(*m68k_ptr + *ext_count)) & 0x3) {
+                            uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+
+                            *ptr++ = ldr_offset(int_reg, tmp1, 0);
+                            *ptr++ = ldr_offset(int_reg, tmp2, 4);
+                            *ptr++ = fmdrr(*reg, tmp1, tmp2);
+
+                            RA_FreeARMRegister(&ptr, tmp2);
+                            RA_FreeARMRegister(&ptr, tmp1);
+                        }
+                        else
+                            *ptr++ = fldd(*reg, int_reg, 0);
                         *ext_count += 4;
                         break;
 
@@ -666,7 +678,19 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     break;
                 case SIZE_D:
-                    *ptr++ = fldd(*reg, int_reg, 0);
+                    {
+                        uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+
+                        *ptr++ = tst_immed(int_reg, 3);
+                        *ptr++ = fldd_cc(ARM_CC_EQ, *reg, int_reg, 0);
+                        *ptr++ = ldr_cc_offset(ARM_CC_NE, int_reg, tmp1, 0);
+                        *ptr++ = ldr_cc_offset(ARM_CC_NE, int_reg, tmp2, 4);
+                        *ptr++ = fmdrr_cc(ARM_CC_NE, *reg, tmp1, tmp2);
+
+                        RA_FreeARMRegister(&ptr, tmp2);
+                        RA_FreeARMRegister(&ptr, tmp1);
+                    }
                     break;
                 case SIZE_S:
                     *ptr++ = flds(*reg * 2, int_reg, 0);
@@ -849,7 +873,19 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 }
                 break;
             case SIZE_D:
-                *ptr++ = fstd(reg, int_reg, 0);
+                {
+                    uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+                    uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+
+                    *ptr++ = tst_immed(int_reg, 3);
+                    *ptr++ = fstd_cc(ARM_CC_EQ, reg, int_reg, 0);
+                    *ptr++ = fmrrd_cc(ARM_CC_NE, tmp1, tmp2, reg);
+                    *ptr++ = str_cc_offset(ARM_CC_NE, int_reg, tmp1, 0);
+                    *ptr++ = str_cc_offset(ARM_CC_NE, int_reg, tmp2, 4);
+
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    RA_FreeARMRegister(&ptr, tmp1);
+                }
                 break;
             case SIZE_S:
                 *ptr++ = fcvtsd(vfp_reg * 2, reg);
@@ -1518,6 +1554,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint32_t *adr_cos;
         uint32_t *adr_trim;
 
+        *ptr++ = push(1 << 12);
+
         /* Fetch source */
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
 
@@ -1626,6 +1664,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = tst_immed(sign, 0xf80);
         *ptr++ = fnegd_cc(ARM_CC_MI, fp_dst, fp_dst);
 
+        *ptr++ = pop(1 << 12);
+
         RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
@@ -1668,6 +1708,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint32_t *adr_sin;
         uint32_t *adr_cos;
         uint32_t *adr_trim;
+
+        *ptr++ = push(1 << 12);
 
         /* Fetch source */
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
@@ -1770,6 +1812,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *exit_1 |= INSN_TO_LE(ptr - exit_1 - 2);
         *exit_2 |= INSN_TO_LE(ptr - exit_2 - 2);
         *exit_3 |= INSN_TO_LE(ptr - exit_3 - 2);
+
+        *ptr++ = pop(1 << 12);
 
         RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
