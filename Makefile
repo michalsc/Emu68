@@ -1,4 +1,3 @@
-
 include version.mk
 
 CC := arm-linux-gnueabihf-gcc
@@ -30,6 +29,10 @@ raspi: pre-build raspi-build
 
 all: pre-build main-build
 
+examples:
+	@echo "Building Examples"
+	@make -C Examples all
+
 pre-build:
 	@mkdir -p $(OBJDIR) >/dev/null
 
@@ -59,7 +62,7 @@ $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 	@$(OBJCOPY) -O binary $@.elf $@
 	@echo "Build completed"
 
-.PHONY: all clean
+.PHONY: all clean examples
 .SECONDARY: main-build pre-build test
 
 $(OBJDIR)/%.o: %.cpp
