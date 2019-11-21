@@ -38,6 +38,8 @@ void * LoadHunkFile(void *buffer)
     uint32_t first_to_load = 0;
     uint32_t last_to_load = 0;
     uint32_t current_block = 0;
+    intptr_t ref_base = 0;
+    intptr_t base = 0;
 
     printf("[HUNK] Loading Hunk file from address %p\n", buffer);
 
@@ -132,8 +134,8 @@ void * LoadHunkFile(void *buffer)
                     printf("[HUNK] Applying relocations to previous section\n");
                 else
                     printf("[HUNK] Skipping relocations for block %d\n", current_block);
-                intptr_t ref_base = 0;
-                intptr_t base = (intptr_t)&h->h_Data;
+                ref_base = 0;
+                base = (intptr_t)&h->h_Data;
                 words++;
                 while(BE32(words[0]) != 0)
                 {
@@ -147,6 +149,47 @@ void * LoadHunkFile(void *buffer)
                             segments = *(void**)segments;
                         }
                         ref_base = (intptr_t)segments + 4;
+                        words += 2;
+
+                        printf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base);
+
+                        while(count--)
+                        {
+                            uint32_t off = BE32(*words++);
+                            printf("[HUNK]    at offset %08x\n", off);
+                            *(uint32_t*)(base + off) = BE32(
+                                BE32(*(uint32_t*)(base+off)) + ref_base
+                            );
+                        }
+                    }
+                    else
+                        words += 2 + count;
+                }
+                words++;
+                break;
+
+            case 0x3fd:
+                if (current_block >= first_to_load)
+                    printf("[HUNK] Applying PC-relative relocations to previous section\n");
+                else
+                    printf("[HUNK] Skipping relocations for block %d\n", current_block);
+                ref_base = 0;
+                base = (intptr_t)&h->h_Data;
+                words++;
+                while(BE32(words[0]) != 0)
+                {
+                    uint32_t count = BE32(words[0]);
+                    uint32_t refcnt = BE32(words[1]);
+                    if (current_block >= first_to_load)
+                    {
+                        void *segments = &hunks->h_Next;
+                        for (unsigned i=0; i < refcnt; i++)
+                        {
+                            segments = *(void**)segments;
+                        }
+
+                        ref_base = (intptr_t)segments + 4;
+                        ref_base -= (intptr_t)base;
                         words += 2;
 
                         printf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base);
@@ -184,7 +227,7 @@ void * LoadHunkFile(void *buffer)
                 break;
 
             default:
-                printf("[HUNK] Unknown hunk type %08x\n", BE32(*words));
+                printf("[HUNK] Unknown hunk type %08x at %08x\n", BE32(*words), words);
                 words += 2 + BE32(words[1]);
                 break;
         }
