@@ -456,6 +456,7 @@ static inline uint32_t fsubd_cc(uint8_t cc, uint8_t v_dst, uint8_t v_first, uint
 static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return fsubd_cc(ARM_CC_AL, v_dst, v_first, v_second); }
 static inline uint32_t ftosid_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0b40 | (cc << 28) | ((s_dst >> 1) << 12) | d_src | (s_dst & 1 ? (1 << 22):0)); }
 static inline uint32_t ftosid(uint8_t s_dst, uint8_t d_src) { return ftosid_cc(ARM_CC_AL, s_dst, d_src); }
-
+static inline uint32_t ftosidrz_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0bc0 | (cc << 28) | ((s_dst >> 1) << 12) | d_src | (s_dst & 1 ? (1 << 22):0)); }
+static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_cc(ARM_CC_AL, s_dst, d_src); }
 
 #endif /* _ARM_H */
