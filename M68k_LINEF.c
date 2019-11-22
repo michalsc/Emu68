@@ -502,7 +502,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
 
                 default:
-                    printf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
+                    printf("[JIT] LineF: wrong argument size %d for Dn access at %08x\n", (int)size, *m68k_ptr-1);
             }
         }
         /* Case 2: mode 111:100 - immediate */
@@ -941,8 +941,43 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
 
+    /* FMOVECR reg */
+    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    {
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t base_reg = RA_AllocARMRegister(&ptr);
+        uint8_t offset = opcode2 & 0x7f;
+
+        /* Alloc destination FP register for write */
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        /*
+            Load pointer to constants into base register, then load the value from table into
+            destination VFP register, finally skip the base address (which is not an ARM INSN)
+        */
+        *ptr++ = ldr_offset(15, base_reg, 4);
+        *ptr++ = fldd(fp_dst, base_reg, offset * 2);
+        *ptr++ = b_cc(ARM_CC_AL, 0);
+        *ptr++ = BE32((uint32_t)&constants[0]);
+
+        RA_FreeARMRegister(&ptr, base_reg);
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            *ptr++ = fmstat();
+            *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
+            *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
+            *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+        }
+    }
     /* FABS */
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0018)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0018)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -976,9 +1011,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = faddd(fp_dst, fp_dst, fp_src);
+
+        RA_SetDirtyFPURegister(&ptr, fp_dst);
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -996,6 +1033,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
         }
+
+
     }
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
@@ -1196,9 +1235,69 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
+
+        RA_SetDirtyFPURegister(&ptr, fp_dst);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            *ptr++ = fmstat();
+            *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
+            *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
+            *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+        }
+    }
+    /* FINT */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = ftosid(0, fp_src);     /* Convert double to signed integer with rounding defined by FPSCR */
+        *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            *ptr++ = fmstat();
+            *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
+            *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
+            *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+        }
+    }
+    /* FINTRZ */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0003)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = ftosidrz(0, fp_src);     /* Convert double to signed integer with rounding defined by FPSCR */
+        *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -1312,7 +1411,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t base_reg = 0xff;
 
         if (dir) { /* FPn to memory */
-            uint8_t base_reg;
             uint8_t mode = (opcode & 0x0038) >> 3;
 
             if (mode == 4 || mode == 3)
@@ -1334,16 +1432,17 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             } else if (mode == 3) {
                 printf("[JIT] Unsupported FMOVEM operation (REG to MEM postindex)\n");
             } else {
+                int cnt = 0;
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
-                        *ptr++ = fstd(fp_reg, base_reg, i*2);
+                        *ptr++ = fstd(fp_reg, base_reg, cnt*3);
+                        cnt++;
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
                 }
             }
         } else { /* memory to FPn */
-            uint8_t base_reg;
             uint8_t mode = (opcode & 0x0038) >> 3;
 
             if (mode == 4 || mode == 3)
@@ -1365,10 +1464,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             } else if (mode == 4) {
                 printf("[JIT] Unsupported FMOVEM operation (REG to MEM preindex)\n");
             } else {
+                int cnt = 0;
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
-                        *ptr++ = fldd(fp_reg, base_reg, i*2);
+                        *ptr++ = fldd(fp_reg, base_reg, cnt*3);
+                        cnt++;
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
                 }
@@ -1387,9 +1488,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+
+        RA_SetDirtyFPURegister(&ptr, fp_dst);
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -1436,6 +1539,156 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
         }
     }
+    /* FTST */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x003a)
+    {
+        uint8_t fp_src = 0xff;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+
+        *ptr++ = fcmpzd(fp_src);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+
+            *ptr++ = fmstat();
+            *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
+            *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
+            *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
+            *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+        }
+    }
+    /* FScc */
+    else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
+    {
+        uint8_t fpsr = M68K_GetFPSR(&ptr);
+        uint8_t predicate = opcode2 & 0x3f;
+        uint8_t success_condition = 0;
+        uint8_t tmp_cc = 0xff;
+
+        /* Test predicate with masked signalling bit, operations are the same */
+        switch (predicate & 0x0f)
+        {
+            case F_CC_EQ:
+                *ptr++ = tst_immed(fpsr, 0x404);
+                success_condition = ARM_CC_NE;
+                break;
+            case F_CC_NE:
+                *ptr++ = tst_immed(fpsr, 0x404);
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_OGT:
+                *ptr++ = tst_immed(fpsr, 0x40d);
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_ULE:
+                *ptr++ = tst_immed(fpsr, 0x40d);
+                success_condition = ARM_CC_NE;
+                break;
+            case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 0x404);    /* Copy fpsr to temporary reg, invert Z */
+                *ptr++ = tst_immed(tmp_cc, 0x404); // Test Z
+                *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x409); // Z == 1? Test N == 0 && NAN == 0
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 0x409);    /* Copy fpsr to temporary reg, invert N and NAN */
+                *ptr++ = tst_immed(tmp_cc, 0x401);  // Test NAN
+                *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x40c); // !NAN == 1, test !N == 0 && Z == 0
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
+                *ptr++ = tst_immed(tmp_cc, 0x40d);
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
+                *ptr++ = tst_immed(tmp_cc, 0x40d);
+                success_condition = ARM_CC_NE;
+                break;
+            case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 0x40c);    /* Copy fpsr to temporary reg, invert Z and N */
+                *ptr++ = tst_immed(tmp_cc, 0x404);          /* Test if inverted Z == 0 */
+                *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x409);    /* Test if !N == 0 && NAN == 0 */
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 0x401);    /* Copy fpsr to temporary reg, invert NAN */
+                *ptr++ = tst_immed(tmp_cc, 0x401);          /* Test if inverted NAN == 0 */
+                *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x40c);    /* Test if !N == 0 && Z == 0 */
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_OGL:
+                *ptr++ = tst_immed(fpsr, 0x405);
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_UEQ:
+                *ptr++ = tst_immed(fpsr, 0x405);
+                success_condition = ARM_CC_NE;
+                break;
+            case F_CC_OR:
+                *ptr++ = tst_immed(fpsr, 0x401);
+                success_condition = ARM_CC_EQ;
+                break;
+            case F_CC_UN:
+                *ptr++ = tst_immed(fpsr, 0x401);
+                success_condition = ARM_CC_NE;
+                break;
+        }
+        RA_FreeARMRegister(&ptr, tmp_cc);
+
+        if ((opcode & 0x38) == 0)
+        {
+            /* FScc Dx case */
+            uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+            *ptr++ = orr_cc_immed(success_condition, dest, dest, 0xff);
+            *ptr++ = bfc_cc(success_condition ^ 1, dest, 0, 8);
+        }
+        else
+        {
+            /* Load effective address */
+            uint8_t dest = 0xff;
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            uint8_t mode = (opcode & 0x0038) >> 3;
+
+            *ptr++ = mov_cc_immed_u8(success_condition ^ 1, tmp, 0);
+            *ptr++ = mvn_cc_immed_u8(success_condition, tmp, 0);
+
+            if (mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
+
+            if (mode == 3)
+            {
+                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                *ptr++ = strb_offset(dest, tmp, 0);
+
+            RA_FreeARMRegister(&ptr, tmp);
+            RA_FreeARMRegister(&ptr, dest);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0004)
     {
@@ -1478,47 +1731,14 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fsubd(fp_dst, fp_dst, fp_src);
 
+        RA_SetDirtyFPURegister(&ptr, fp_dst);
+
         RA_FreeFPURegister(&ptr, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
-
-        if (FPSR_Update_Needed(m68k_ptr))
-        {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
-
-            *ptr++ = fcmpzd(fp_dst);
-            *ptr++ = fmstat();
-            *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
-            *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
-            *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
-        }
-    }
-    /* FMOVECR reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
-    {
-        uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t base_reg = RA_AllocARMRegister(&ptr);
-        uint8_t offset = opcode2 & 0x7f;
-
-        /* Alloc destination FP register for write */
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-        /*
-            Load pointer to constants into base register, then load the value from table into
-            destination VFP register, finally skip the base address (which is not an ARM INSN)
-        */
-        *ptr++ = ldr_offset(15, base_reg, 4);
-        *ptr++ = fldd(fp_dst, base_reg, offset * 2);
-        *ptr++ = b_cc(ARM_CC_AL, 0);
-        *ptr++ = BE32((uint32_t)&constants[0]);
-
-        RA_FreeARMRegister(&ptr, base_reg);
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
