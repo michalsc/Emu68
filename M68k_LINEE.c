@@ -333,7 +333,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110101111xxxxxx - BFEXTS */
     else if ((opcode & 0xffc0) == 0xebc0)
     {
-                uint8_t ext_words = 1;
+        uint8_t ext_words = 1;
         uint16_t opcode2 = BE16((*m68k_ptr)[0]);
         uint8_t tmp = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
 
@@ -393,7 +393,59 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110110011xxxxxx - BFCLR */
     else if ((opcode & 0xffc0) == 0xecc0)
     {
-        *ptr++ = udf(opcode);
+        uint8_t ext_words = 1;
+        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        /* Special case: Target is Dn */
+        if ((opcode & 0x0038) == 0)
+        {
+            /* Direct offset and width */
+            if ((opcode2 & 0x0820) == 0)
+            {
+                uint8_t dst = RA_MapM68kRegister(&ptr, opcode & 7);
+                uint8_t zero = RA_AllocARMRegister(&ptr);
+                uint8_t offset = (opcode2 >> 6) & 0x1f;
+                uint8_t width = (opcode2) & 0x1f;
+
+                *ptr++ = mov_immed_u8(zero, 0);
+
+                /* Insert bitfield into destination register */
+                width = (width == 0) ? 31 : width-1;
+                offset = 31 - (offset + width);
+                *ptr++ = sbfx(tmp, dst, offset, width+1);
+                *ptr++ = bfi(dst, zero, offset, width + 1);
+
+                RA_FreeARMRegister(&ptr, zero);
+                RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            }
+        }
+        else
+        {
+            uint8_t dest;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+
+            RA_FreeARMRegister(&ptr, dest);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+
+        /* At this point extracted bitfield is in tmp register, compare it against 0, set zero and  */
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
+        uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
+        if (update_mask)
+        {
+            M68K_ModifyCC(&ptr);
+            *ptr++ = cmp_immed(tmp, 0);
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 1110110111xxxxxx - BFFFO */
     else if ((opcode & 0xffc0) == 0xedc0)
@@ -408,7 +460,59 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110111111xxxxxx - BFINS */
     else if ((opcode & 0xffc0) == 0xefc0)
     {
-        *ptr++ = udf(opcode);
+        uint8_t ext_words = 1;
+        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+        uint8_t src = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        /* Special case: Target is Dn */
+        if ((opcode & 0x0038) == 0)
+        {
+            /* Direct offset and width */
+            if ((opcode2 & 0x0820) == 0)
+            {
+                uint8_t dst = RA_MapM68kRegister(&ptr, opcode & 7);
+
+                uint8_t offset = (opcode2 >> 6) & 0x1f;
+                uint8_t width = (opcode2) & 0x1f;
+
+                /* Sign-extract bitfield into temporary register. Will be used later to set condition codes */
+                *ptr++ = sbfx(tmp, src, 0, width);
+
+                /* Insert bitfield into destination register */
+                width = (width == 0) ? 31 : width-1;
+                offset = 31 - (offset + width);
+                *ptr++ = bfi(dst, tmp, offset, width + 1);
+
+                RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            }
+        }
+        else
+        {
+            uint8_t dest;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+
+            RA_FreeARMRegister(&ptr, dest);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+
+        /* At this point extracted bitfield is in tmp register, compare it against 0, set zero and  */
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
+        uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
+        if (update_mask)
+        {
+            M68K_ModifyCC(&ptr);
+            *ptr++ = cmp_immed(tmp, 0);
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 1110xxxxxxx00xxx - ASL, ASR */
     else if ((opcode & 0xf018) == 0xe000)
