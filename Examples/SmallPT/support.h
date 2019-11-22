@@ -145,6 +145,7 @@ uint16_t *get_fb();
 uint32_t get_pitch();
 uint32_t get_width();
 uint32_t get_height();
+void silence(int s);
 
 }
 

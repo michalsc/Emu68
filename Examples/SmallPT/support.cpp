@@ -3,6 +3,13 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+int silent = 0;
+
+void silence(int s)
+{
+    silent = s;
+}
+
 double copysign (double x, double y)
 {
     union {
@@ -111,9 +118,9 @@ double pow(double x, double y)
 {
     double z,ax,z_h,z_l,p_h,p_l;
     double y1,t1,t2,r,s,t,u,v,w;
-    __int32_t i,j,k,yisint,n;
-    __int32_t hx,hy,ix,iy;
-    __uint32_t lx,ly;
+    int32_t i,j,k,yisint,n;
+    int32_t hx,hy,ix,iy;
+    uint32_t lx,ly;
 
     union {
 	uint32_t u32[2];
@@ -196,7 +203,7 @@ double pow(double x, double y)
     if((((hx>>31)+1)|yisint)==0) return (x-x)/(x-x);
        but ANSI C says a right shift of a signed negative quantity is
        implementation defined.  */
-    if(((((__uint32_t)hx>>31)-1)|yisint)==0) return (x-x)/(x-x);
+    if(((((uint32_t)hx>>31)-1)|yisint)==0) return (x-x)/(x-x);
     /* |y| is huge */
     if(iy>0x41e00000) { /* if |y| > 2**31 */
         if(iy>0x43f00000){	/* if |y| > 2**64, must o/uflow */
@@ -279,7 +286,7 @@ double pow(double x, double y)
         t2 = z_l-(((t1-t)-dp_h[k])-z_h);
     }
     s = one; /* s (sign of result -ve**odd) = -1 else = 1 */
-    if(((((__uint32_t)hx>>31)-1)|(yisint-1))==0)
+    if(((((uint32_t)hx>>31)-1)|(yisint-1))==0)
         s = -one;/* (-ve)**(odd int) */
     /* split up y into y1+y2 and compute (y1+y2)*(t1+t2) */
     y1  = y;
@@ -351,12 +358,8 @@ double erand48(unsigned short *Xi)
     union {
         uint16_t x[4];
         uint64_t u64;
-    } n;
-
-    union {
-        uint64_t u64;
         double d;
-    } n1;
+    } n;
 
     n.x[0] = 0;
     n.x[1] = Xi[0];
@@ -370,19 +373,20 @@ double erand48(unsigned short *Xi)
     Xi[1] = n.x[2];
     Xi[2] = n.x[3];
 
-    n1.u64 = (n.u64) << 4;
+    n.u64 = (n.u64) << 4;
 
-    return n1.d;
+    return n.d;
 }
 
 typedef void (*func_ptr) (void);
 
-extern func_ptr __CTOR_LIST__;
+extern func_ptr __CTORS_LIST__;
 
 void do_global_ctors(void)
 {
   func_ptr *p;
-  for (p = (&__CTOR_LIST__) + 1; *p != (func_ptr) 0; p++)
+
+  for (p = (&__CTORS_LIST__)+1 ; *p != (func_ptr) 0; p++)
     (*p) ();
 }
 
@@ -934,7 +938,7 @@ void waitSerOUT(void *io_base)
 {
     while(1)
     {
-       if ((rd32le(PL011_0_BASE + PL011_FR) & PL011_FR_TXFF) == 0) break;
+       if ((rd32be(PL011_0_BASE + PL011_FR) & LE32(PL011_FR_TXFF)) == 0) break;
     }
 }
 
@@ -948,7 +952,8 @@ void putByte(void *io_base, char chr)
         waitSerOUT(io_base);
     }
     wr32le(PL011_0_BASE + PL011_DR, (uint8_t)chr);
-    put_char(chr);
+    if (!silent)
+        put_char(chr);
 }
 
 void kprintf_pc(putc_func putc_f, void *putc_data, const char * format, ...)

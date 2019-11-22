@@ -91,11 +91,11 @@ inline bool intersect(const Ray &r, double &t, int &id)
     for(int i=int(n);i--;) if((d=spheres[i].intersect(r))&&d<t){t=d;id=i;}
     return t<inf;
 }
-int maximal_ray_depth = 1000;
+int maximal_ray_depth = 10;
 
 // ca. 650bytes per ray depth, 650KB stack required for max ray depth of 1000
 
-Vec radiance_expl(struct Task *me, const Ray &r, int depth, unsigned short *Xi,int E=1){
+Vec radiance_expl(const Ray &r, int depth, unsigned short *Xi,int E=1){
   double t;                               // distance to intersection
   int id=0;                               // id of intersected object
   if (!intersect(r, t, id)) return Vec(); // if miss, return black
@@ -135,23 +135,23 @@ Vec radiance_expl(struct Task *me, const Ray &r, int depth, unsigned short *Xi,i
       }
     }
 
-    return obj.e*E+e+f.mult(radiance_expl(me, Ray(x,d),depth,Xi,0));
+    return obj.e*E+e+f.mult(radiance_expl(Ray(x,d),depth,Xi,0));
   } else if (obj.refl == SPEC)              // Ideal SPECULAR reflection
-    return obj.e + f.mult(radiance_expl(me, Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
+    return obj.e + f.mult(radiance_expl(Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
   Ray reflRay(x, r.d-n*2*n.dot(r.d));     // Ideal dielectric REFRACTION
   bool into = n.dot(nl)>0;                // Ray from outside going in?
   double nc=1, nt=1.5, nnt=into?nc/nt:nt/nc, ddn=r.d.dot(nl), cos2t;
   if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0)    // Total internal reflection
-    return obj.e + f.mult(radiance_expl(me, reflRay,depth,Xi));
+    return obj.e + f.mult(radiance_expl(reflRay,depth,Xi));
   Vec tdir = (r.d*nnt - n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
   double a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir.dot(n));
   double Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re,P=.25+.5*Re,RP=Re/P,TP=Tr/(1-P);
   return obj.e + f.mult(depth>2 ? (erand48(Xi)<P ?   // Russian roulette
-    radiance_expl(me, reflRay,depth,Xi)*RP:radiance_expl(me, Ray(x,tdir),depth,Xi)*TP) :
-    radiance_expl(me, reflRay,depth,Xi)*Re+radiance_expl(me, Ray(x,tdir),depth,Xi)*Tr);
+    radiance_expl(reflRay,depth,Xi)*RP:radiance_expl(Ray(x,tdir),depth,Xi)*TP) :
+    radiance_expl(reflRay,depth,Xi)*Re+radiance_expl(Ray(x,tdir),depth,Xi)*Tr);
 }
 
-Vec radiance(struct Task *me, const Ray &r, int depth, unsigned short *Xi)
+Vec radiance(const Ray &r, int depth, unsigned short *Xi)
 {
     double t; // distance to intersection
     int id=0; // id of intersected object
@@ -181,20 +181,20 @@ Vec radiance(struct Task *me, const Ray &r, int depth, unsigned short *Xi)
         double r1=2*M_PI*erand48(Xi), r2=erand48(Xi), r2s=sqrt(r2);
         Vec w=nl, u=((fabs(w.x)>.1?Vec(0,1):Vec(1))%w).norm(), v=w%u;
         Vec d = (u*cos(r1)*r2s + v*sin(r1)*r2s + w*sqrt(1-r2)).norm();
-        return obj.e + f.mult(radiance(me, Ray(x,d),depth,Xi));
+        return obj.e + f.mult(radiance(Ray(x,d),depth,Xi));
     } else if (obj.refl == SPEC)            // Ideal SPECULAR reflection
-        return obj.e + f.mult(radiance(me, Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
+        return obj.e + f.mult(radiance(Ray(x,r.d-n*2*n.dot(r.d)),depth,Xi));
     Ray reflRay(x, r.d-n*2*n.dot(r.d));     // Ideal dielectric REFRACTION
     bool into = n.dot(nl)>0;                // Ray from outside going in?
     double nc=1, nt=1.5, nnt=into?nc/nt:nt/nc, ddn=r.d.dot(nl), cos2t;
     if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0)    // Total internal reflection
-        return obj.e + f.mult(radiance(me, reflRay,depth,Xi));
+        return obj.e + f.mult(radiance(reflRay,depth,Xi));
     Vec tdir = (r.d*nnt - n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
     double a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir.dot(n));
     double Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re,P=.25+.5*Re,RP=Re/P,TP=Tr/(1-P);
     return obj.e + f.mult(depth>2 ? (erand48(Xi)<P ?   // Russian roulette
-        radiance(me, reflRay,depth,Xi)*RP:radiance(me, Ray(x,tdir),depth,Xi)*TP) :
-        radiance(me, reflRay,depth,Xi)*Re+radiance(me, Ray(x,tdir),depth,Xi)*Tr);
+        radiance(reflRay,depth,Xi)*RP:radiance(Ray(x,tdir),depth,Xi)*TP) :
+        radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr);
 }
 
 
@@ -421,6 +421,33 @@ uint32_t Begin_Time;
 uint32_t End_Time;
 
 Vec c[TILE_SIZE * TILE_SIZE];
+uint32_t buffer[render_width * render_height];
+
+void RedrawTile(int tile_x, int tile_y)
+{
+    int start_x = (width - render_width) / 2;
+    int start_y = (height - render_height) / 2;
+
+    int out_offset = start_x + tile_x * TILE_SIZE + ((start_y + tile_y * TILE_SIZE) * pitch) / 2;
+    int in_offset = tile_x * TILE_SIZE + (tile_y * TILE_SIZE) * render_width;
+
+    kprintf("RedrawTile(%d, %d)\n", tile_x, tile_y);
+
+    for (int y=0; y < TILE_SIZE; y++) {
+
+        for (int x=0; x < TILE_SIZE; x++) {
+            uint32_t rgb = buffer[in_offset + x];
+            uint8_t r = (rgb & 0xff) >> 3;
+            uint8_t g = ((rgb >> 8) & 0xff) >> 2;
+            uint8_t b = ((rgb >> 16) & 0xff) >> 3;
+            uint16_t c = r | (g << 5) | (b << 11);
+            fb[out_offset + x] = LE16(c);
+        }
+
+        in_offset += render_width;
+        out_offset += pitch/2;
+    }
+}
 
 void SmallPT()
 {
@@ -434,11 +461,16 @@ void SmallPT()
     kprintf("[SmallPT] Rendering image with size %dx%d in %d tiles\n", render_width, render_height,
         (render_width / TILE_SIZE) * (render_height / TILE_SIZE));
 
+    silence(1);
+
+    for (unsigned i=0; i < render_width*render_height; i++)
+        buffer[i] = 0;
+
     Begin_Time = LE32(*(volatile uint32_t*)0xf2003004);
 
-    for (int tile_y = 0; tile_y < (render_height / TILE_SIZE); tile_y++)
+    for (unsigned tile_y = 0; tile_y < (render_height / TILE_SIZE); tile_y++)
     {
-        for (int tile_x = 0; tile_x < (render_width / TILE_SIZE); tile_x++)
+        for (unsigned tile_x = 0; tile_x < (render_width / TILE_SIZE); tile_x++)
         {
             if (explicit_mode)
                 spheres[0] = Sphere(5, Vec(50,81.6-16.5,81.6),Vec(4,4,4)*20,  Vec(), DIFF);
@@ -450,10 +482,68 @@ void SmallPT()
 
             for (int i=0; i < TILE_SIZE * TILE_SIZE; i++)
                 c[i] = Vec();
+
+            kprintf("tile_y*32 = %d, (tile_y+1)*32=%d\n", tile_y*32, (tile_y+1)*32);
+
+            for (int _y=tile_y * 32; _y < (tile_y + 1) * 32; _y++)
+            {
+                int y = render_height - _y - 1;
+
+                kprintf(" tile_y*32 = %d, (tile_y+1)*32=%d\n", tile_y*32, (tile_y+1)*32);
+                kprintf(" _y=%d, y=%d\n", _y, y);
+
+                unsigned short Xi[3];
+
+                for (int _x=tile_x * 32; _x < (tile_x + 1) * 32; _x++)   // Loop cols
+                {
+                    Xi[0] = 0;
+                    Xi[1] = 0;
+                    Xi[2] = y*y*y;
+                    int x = _x; // w - _x - 1;
+                    for (unsigned sy=0, i=(_y-tile_y*32)*32+_x-tile_x*32; sy<2; sy++)     // 2x2 subpixel rows
+                    {
+                        for (unsigned sx=0; sx<2; sx++, r=Vec())
+                        {        // 2x2 subpixel cols
+//                            for (int s=0; s<samps; s++)
+                            {
+                                double r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1: 1-sqrt(2-r1);
+                                double r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1: 1-sqrt(2-r2);
+                                Vec d = cx*( ( (sx+.5 + dx)/2 + x)/render_width - .5) +
+                                        cy*( ( (sy+.5 + dy)/2 + y)/render_height - .5) + cam.d;
+//*(int*)0x100000 = ~0;
+                                if (explicit_mode)
+                                    r = r + radiance_expl(Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
+                                else
+                                    r = r + radiance(Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
+//*(int*)0x100000 = 0;
+                            } // Camera rays are pushed ^^^^^ forward to start in interior
+                            r.x = 0.001;
+                            r.y = 0.0001;
+                            r.z = 0.001;
+                            c[i] = c[i] + Vec(clamp(r.x),clamp(r.y),clamp(r.z))*.25;
+                        }
+                    }
+                }
+#if 0
+                int start_ptr = tile_y*32*render_width + tile_x*32;
+                for (int yy=0; yy < 32; yy++)
+                {
+                    for (int xx=0; xx < 32; xx++)
+                    {
+                        buffer[start_ptr+xx] = ((toInt(c[(xx+32*yy)].z) & 0xff)) |
+                            ((toInt(c[(xx+32*yy)].y) & 0xff) << 8) | ((toInt(c[(xx + 32*yy)].x) & 0xff) << 16);
+                    }
+                    start_ptr += render_width;
+                }
+#endif
+            }
+            RedrawTile(tile_x, tile_y);
         }
     }
 
     End_Time = LE32(*(volatile uint32_t*)0xf2003004) - Begin_Time;
+
+    silence(0);
 
     kprintf("[SmallPT] Time consumed: %d.%03d seconds\n", End_Time / 1000000, (End_Time % 1000000) / 1000);
 }
