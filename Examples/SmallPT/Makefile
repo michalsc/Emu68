@@ -8,7 +8,8 @@ all: $(TARGETDIR)/SmallPT
 
 $(TARGETDIR)/SmallPT: $(addprefix $(OBJDIR)/, $(OBJS))
 	@echo "Building target: $@"
-	@$(M68K_CC) $(foreach f,$(OBJS),$(OBJDIR)/$(f)) $(M68K_LDFLAGS) -o $@
+	@$(M68K_CC) $(foreach f,$(OBJS),$(OBJDIR)/$(f)) $(M68K_LDFLAGS) -o $@.elf
+	$(TARGETDIR)/elf2hunk $@.elf $@
 	@echo "Build completed"
 
 .PHONY: all
@@ -16,7 +17,7 @@ $(TARGETDIR)/SmallPT: $(addprefix $(OBJDIR)/, $(OBJS))
 $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(@D)
 	@echo "Compiling: $*.cpp"
-	@$(M68K_CXX) -c $(M68K_CXXFLAGS) $< -o $@
+	$(M68K_CXX) -c $(M68K_CXXFLAGS) $< -o $@
 
 $(OBJDIR)/%.d: %.cpp
 	@mkdir -p $(@D)
@@ -28,7 +29,7 @@ $(OBJDIR)/%.d: %.cpp
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(@D)
 	@echo "Compiling: $*.c"
-	@$(M68K_CC) -c $(M68K_CFLAGS) $< -o $@
+	$(M68K_CC) -c $(M68K_CFLAGS) $< -o $@
 
 $(OBJDIR)/%.d: %.c
 	@mkdir -p $(@D)
