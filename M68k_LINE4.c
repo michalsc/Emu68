@@ -20,8 +20,9 @@ uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
-    uint8_t dest;
     uint8_t size = 0;
+    uint8_t zero = RA_AllocARMRegister(&ptr);
+    *ptr++ = mov_immed_u8(zero, 0);
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -37,98 +38,8 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             break;
     }
 
-    /* handle clearing D register here */
-    if ((opcode & 0x0038) == 0)
-    {
-        /* If size = 4 then just clear the register witout fetching it */
-        if (size == 4)
-        {
-            dest = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
-            *ptr++ = mov_immed_u8(dest, 0);
-        }
-        else
-        {
-            /* Fetch m68k register for write */
-            dest = RA_MapM68kRegister(&ptr, opcode & 7);
-
-            /* Mark register dirty */
-            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-
-            switch(size)
-            {
-                case 2:
-                    *ptr++ = bfc(dest, 0, 16);
-                    break;
-                case 1:
-                    *ptr++ = bfc(dest, 0, 8);
-                    break;
-            }
-        }
-    }
-    else
-    {
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        uint8_t mode = (opcode & 0x0038) >> 3;
-        *ptr++ = mov_immed_u8(tmp, 0);
-
-        /* Load effective address */
-        if (mode == 4 || mode == 3)
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
-        else
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1);
-
-        /* Fetch data into temporary register, perform add, store it back */
-        switch (size)
-        {
-        case 4:
-            if (mode == 4)
-            {
-                *ptr++ = sub_immed(dest, dest, 4);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            if (mode == 3)
-            {
-                *ptr++ = str_offset_postindex(dest, tmp, 4);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = str_offset(dest, tmp, 0);
-            break;
-        case 2:
-            if (mode == 4)
-            {
-                *ptr++ = sub_immed(dest, dest, 2);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            if (mode == 3)
-            {
-                *ptr++ = strh_offset_postindex(dest, tmp, 2);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = strh_offset(dest, tmp, 0);
-            break;
-        case 1:
-            if (mode == 4)
-            {
-                *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            if (mode == 3)
-            {
-                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = strb_offset(dest, tmp, 0);
-            break;
-        }
-
-        RA_FreeARMRegister(&ptr, tmp);
-    }
-
-    RA_FreeARMRegister(&ptr, dest);
-
+    ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count);
+    RA_FreeARMRegister(&ptr, zero);
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
