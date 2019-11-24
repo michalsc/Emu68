@@ -1873,7 +1873,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = fsubd(0, 0, fp_tmp1);
 
         ref_ptr = ptr+2;
-        *ptr++ = ldr_offset(15, 12, (intptr_t)adr_sin - (intptr_t)ref_ptr);
+        *ptr++ = ldr_offset(15, 12, (intptr_t)adr_cos - (intptr_t)ref_ptr);
         *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
         *ptr++ = fnegd(fp_dst, 0);
 
