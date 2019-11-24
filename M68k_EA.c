@@ -56,7 +56,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             case 4:
             case 2:
             case 1:
-                *arm_reg = RA_MapM68kRegister(&ptr, src_reg);
+                if (read_only)
+                    *arm_reg = RA_MapM68kRegister(&ptr, src_reg);
+                else
+                    *arm_reg = RA_CopyFromM68kRegister(&ptr, src_reg);
                 break;
             case 0:
                 *arm_reg = RA_AllocARMRegister(&ptr);
@@ -73,7 +76,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         {
             case 4:
             case 2:
-                *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
+                if (read_only)
+                    *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
+                else
+                    *arm_reg = RA_CopyFromM68kRegister(&ptr, src_reg + 8);
                 break;
             case 0:
                 *arm_reg = RA_AllocARMRegister(&ptr);
@@ -190,8 +196,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             //ptr = EMIT_GetOffsetPC(ptr, &pc_off);
             //*ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
             int16_t off16 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
-            if (size == 0 || 
-                (size == 2 && (off16 < -255 || off16 > 255)) || 
+            if (size == 0 ||
+                (size == 2 && (off16 < -255 || off16 > 255)) ||
                 (off16 < -4095 || off16 > 4095))
             {
                 *ptr++ = movw_immed_u16(reg_d16, off16);
@@ -1181,7 +1187,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             //*ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
             //(*ext_words)++;
             int16_t off16 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
-            if (size == 0 || 
+            if (size == 0 ||
                 (size == 2 && (off16 < -255 || off16 > 255)) ||
                 (off16 < -4095 || off16 > 4095))
             {
@@ -1533,7 +1539,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 int32_t off32 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
                 ptr = EMIT_GetOffsetPC(ptr, &off);
                 off32 += off;
-                if (size == 0 || 
+                if (size == 0 ||
                     (size == 2 && (off32 < -255 || off32 > 255)) ||
                     (off32 < -4095 || off32 > 4095))
                 {
