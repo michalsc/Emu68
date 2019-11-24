@@ -1757,7 +1757,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        uint8_t fp_dst = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;;
         uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
@@ -1881,7 +1881,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *exit_2 |= INSN_TO_LE(ptr - exit_2 - 2);
         *exit_3 |= INSN_TO_LE(ptr - exit_3 - 2);
 
-        *ptr++ = tst_immed(sign, 0xf80);
+        *ptr++ = tst_immed(sign, 0x480);
         *ptr++ = fnegd_cc(ARM_CC_MI, fp_dst, fp_dst);
 
         *ptr++ = pop(1 << 12);
@@ -1913,7 +1913,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        uint8_t fp_dst = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;;
         uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
