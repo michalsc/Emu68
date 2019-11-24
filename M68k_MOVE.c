@@ -83,6 +83,12 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     tmp = (opcode >> 6) & 0x3f;
     tmp = ((tmp & 7) << 3) | (tmp >> 3);
 
+    /* In case of movea the value is *always* sign-extended to 32 bits */
+    if (is_movea && size == 2) {
+        *ptr++ = sxth(tmp_reg, tmp_reg, 0);
+        size = 4;
+    }
+
     ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
