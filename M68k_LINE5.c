@@ -552,6 +552,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 else
                     *ptr++ = ldrb_offset(dest, tmp, 0);
                 /* Perform calcualtion */
+                *ptr++ = lsl_immed(tmp, tmp, 24);
                 *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
                 *ptr++ = lsr_immed(tmp, tmp, 24);
                 /* Store back */
@@ -573,6 +574,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldrh_offset(dest, tmp, 0);
 
                 /* Perform calcualtion */
+                *ptr++ = lsl_immed(tmp, tmp, 16);
                 *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
                 *ptr++ = lsr_immed(tmp, tmp, 16);
 
@@ -716,6 +718,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     else
                         *ptr++ = ldrb_offset(dest, tmp, 0);
                     /* Perform calcualtion */
+                    *ptr++ = lsl_immed(tmp, tmp, 24);
                     *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
                     /* Store back */
@@ -737,6 +740,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                         *ptr++ = ldrh_offset(dest, tmp, 0);
 
                     /* Perform calcualtion */
+                    *ptr++ = lsl_immed(tmp, tmp, 16);
                     *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
 
