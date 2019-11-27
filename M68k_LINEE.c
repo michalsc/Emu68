@@ -29,7 +29,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ext_words = 0;
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
 
-        *ptr++ = ldrh_offset(dest, tmp, 0);
+        *ptr++ = ldrsh_offset(dest, tmp, 0);
 
         if (direction)
         {
@@ -404,19 +404,15 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             if ((opcode2 & 0x0820) == 0)
             {
                 uint8_t dst = RA_MapM68kRegister(&ptr, opcode & 7);
-                uint8_t zero = RA_AllocARMRegister(&ptr);
                 uint8_t offset = (opcode2 >> 6) & 0x1f;
                 uint8_t width = (opcode2) & 0x1f;
-
-                *ptr++ = mov_immed_u8(zero, 0);
 
                 /* Insert bitfield into destination register */
                 width = (width == 0) ? 31 : width-1;
                 offset = 31 - (offset + width);
                 *ptr++ = sbfx(tmp, dst, offset, width+1);
-                *ptr++ = bfi(dst, zero, offset, width + 1);
+                *ptr++ = bfc(dst, offset, width + 1);
 
-                RA_FreeARMRegister(&ptr, zero);
                 RA_SetDirtyM68kRegister(&ptr, opcode & 7);
             }
         }
@@ -681,12 +677,12 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = lsrs_reg(reg, reg, shift);
                     break;
                 case 2:
-                    *ptr++ = sxth(tmp, reg, 0);
+                    *ptr++ = uxth(tmp, reg, 0);
                     *ptr++ = lsrs_reg(tmp, tmp, shift);
                     *ptr++ = bfi(reg, tmp, 0, 16);
                     break;
                 case 1:
-                    *ptr++ = sxtb(tmp, reg, 0);
+                    *ptr++ = uxtb(tmp, reg, 0);
                     *ptr++ = lsrs_reg(tmp, tmp, shift);
                     *ptr++ = bfi(reg, tmp, 0, 8);
                     break;
@@ -783,48 +779,26 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             if (direction)
             {
                 *ptr++ = rsb_immed(shift, shift, 32);
-
-                switch (size)
-                {
-                    case 4:
-                        *ptr++ = rors_reg(reg, reg, shift);
-                        break;
-                    case 2:
-                        *ptr++ = mov_reg(tmp, reg);
-                        *ptr++ = bfi(tmp, tmp, 16, 16);
-                        *ptr++ = rors_reg(tmp, tmp, shift);
-                        *ptr++ = bfi(reg, tmp, 0, 16);
-                        break;
-                    case 1:
-                        *ptr++ = mov_reg(tmp, reg);
-                        *ptr++ = bfi(tmp, tmp, 8, 8);
-                        *ptr++ = bfi(tmp, tmp, 16, 16);
-                        *ptr++ = rors_reg(tmp, tmp, shift);
-                        *ptr++ = bfi(reg, tmp, 0, 8);
-                        break;
-                }
             }
-            else
+
+            switch (size)
             {
-                switch (size)
-                {
-                    case 4:
-                        *ptr++ = rors_reg(reg, reg, shift);
-                        break;
-                    case 2:
-                        *ptr++ = mov_reg(tmp, reg);
-                        *ptr++ = bfi(tmp, tmp, 16, 16);
-                        *ptr++ = rors_reg(tmp, tmp, shift);
-                        *ptr++ = bfi(reg, tmp, 0, 16);
-                        break;
-                    case 1:
-                        *ptr++ = mov_reg(tmp, reg);
-                        *ptr++ = bfi(tmp, tmp, 8, 8);
-                        *ptr++ = bfi(tmp, tmp, 16, 16);
-                        *ptr++ = rors_reg(tmp, tmp, shift);
-                        *ptr++ = bfi(reg, tmp, 0, 8);
-                        break;
-                }
+                case 4:
+                    *ptr++ = rors_reg(reg, reg, shift);
+                    break;
+                case 2:
+                    *ptr++ = mov_reg(tmp, reg);
+                    *ptr++ = bfi(tmp, tmp, 16, 16);
+                    *ptr++ = rors_reg(tmp, tmp, shift);
+                    *ptr++ = bfi(reg, tmp, 0, 16);
+                    break;
+                case 1:
+                    *ptr++ = mov_reg(tmp, reg);
+                    *ptr++ = bfi(tmp, tmp, 8, 8);
+                    *ptr++ = bfi(tmp, tmp, 16, 16);
+                    *ptr++ = rors_reg(tmp, tmp, shift);
+                    *ptr++ = bfi(reg, tmp, 0, 8);
+                    break;
             }
 
             RA_FreeARMRegister(&ptr, shift);
@@ -836,47 +810,27 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
             if (direction)
             {
-                switch (size)
-                {
-                case 4:
-                    *ptr++ = rors_immed(reg, reg, 32-shift);
-                    break;
-                case 2:
-                    *ptr++ = mov_reg(tmp, reg);
-                    *ptr++ = bfi(tmp, tmp, 16, 16);
-                    *ptr++ = rors_immed(tmp, tmp, 32-shift);
-                    *ptr++ = bfi(reg, tmp, 0, 16);
-                    break;
-                case 1:
-                    *ptr++ = mov_reg(tmp, reg);
-                    *ptr++ = bfi(tmp, tmp, 8, 8);
-                    *ptr++ = bfi(tmp, tmp, 16, 16);
-                    *ptr++ = rors_immed(tmp, tmp, 32-shift);
-                    *ptr++ = bfi(reg, tmp, 0, 8);
-                    break;
-                }
+                shift = 32 - shift;
             }
-            else
+
+            switch (size)
             {
-                switch (size)
-                {
-                case 4:
-                    *ptr++ = rors_immed(reg, reg, shift);
-                    break;
-                case 2:
-                    *ptr++ = mov_reg(tmp, reg);
-                    *ptr++ = bfi(tmp, tmp, 16, 16);
-                    *ptr++ = rors_immed(tmp, tmp, shift);
-                    *ptr++ = bfi(reg, tmp, 0, 16);
-                    break;
-                case 1:
-                    *ptr++ = mov_reg(tmp, reg);
-                    *ptr++ = bfi(tmp, tmp, 8, 8);
-                    *ptr++ = bfi(tmp, tmp, 16, 16);
-                    *ptr++ = rors_immed(tmp, tmp, shift);
-                    *ptr++ = bfi(reg, tmp, 0, 8);
-                    break;
-                }
+            case 4:
+                *ptr++ = rors_immed(reg, reg, shift);
+                break;
+            case 2:
+                *ptr++ = mov_reg(tmp, reg);
+                *ptr++ = bfi(tmp, tmp, 16, 16);
+                *ptr++ = rors_immed(tmp, tmp, shift);
+                *ptr++ = bfi(reg, tmp, 0, 16);
+                break;
+            case 1:
+                *ptr++ = mov_reg(tmp, reg);
+                *ptr++ = bfi(tmp, tmp, 8, 8);
+                *ptr++ = bfi(tmp, tmp, 16, 16);
+                *ptr++ = rors_immed(tmp, tmp, shift);
+                *ptr++ = bfi(reg, tmp, 0, 8);
+                break;
             }
         }
 
