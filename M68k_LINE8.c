@@ -57,7 +57,7 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
         if (direction == 0)
         {
             uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-            uint8_t src = 0;
+            uint8_t src = 0xff;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
             ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
