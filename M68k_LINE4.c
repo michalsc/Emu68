@@ -44,7 +44,7 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (*m68k_ptr) += ext_count;
 
     uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
+    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
     {
@@ -401,8 +401,8 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
             M68K_GetCC(&ptr);
             *ptr++ = tst_immed(REG_SR, SR_X);                   /* If X was set perform 0 - (dest + 1), otherwise 0 - dest */
-            *ptr++ = add_cc_immed(ARM_CC_NE, dest, dest, 1);
             *ptr++ = rsbs_immed(dest, dest, 0);
+            *ptr++ = subs_cc_immed(ARM_CC_NE, dest, dest, 1);
         }
         else
         {
@@ -422,12 +422,12 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 2:
-                    *ptr++ = rsbs_reg(tmp, dest, tmp, 0);
+                    *ptr++ = subs_reg(tmp, tmp, dest, 16);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
                     *ptr++ = bfi(dest, tmp, 0, 16);
                     break;
                 case 1:
-                    *ptr++ = rsbs_reg(tmp, dest, tmp, 0);
+                    *ptr++ = subs_reg(tmp, tmp, dest, 24);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
                     *ptr++ = bfi(dest, tmp, 0, 8);
                     break;
@@ -465,7 +465,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             else
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
-            *ptr++ = rsbs_reg(tmp, tmp, tmp_zero, 0);
+            *ptr++ = subs_reg(tmp, tmp_zero, tmp, 0);
 
             if (mode == 3)
             {
