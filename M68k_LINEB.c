@@ -27,22 +27,14 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
         uint8_t ext_words = 0;
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
-        switch (size)
-        {
-        case 4:
-            *ptr++ = rsbs_reg(tmp, src, dst, 0);
-            break;
-        case 2:
-            *ptr++ = lsl_immed(tmp, src, 16);
-            *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
-            break;
-        }
+        if (size == 2)
+            *ptr++ = sxth(src, src, 0);
 
-        RA_FreeARMRegister(&ptr, tmp);
+        *ptr++ = cmp_reg(dst, src);
+
         RA_FreeARMRegister(&ptr, src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
