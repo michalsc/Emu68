@@ -122,7 +122,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldr_offset_preindex(regx, src, -4);
                     *ptr++ = ldr_offset_preindex(regy, dest, -4);
                     *ptr++ = sub_cc_immed(ARM_CC_NE, dest, dest, 1);
-                    *ptr++ = subcs_reg(dest, dest, src, 0);
+                    *ptr++ = subs_reg(dest, dest, src, 0);
                     *ptr++ = str_offset(regy, dest, 0);
                     break;
             }
