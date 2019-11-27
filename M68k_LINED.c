@@ -32,6 +32,9 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
+        if (size == 2)
+            *ptr++ = sxth(tmp, tmp, 0);
+
         *ptr++ = add_reg(reg, reg, tmp, 0);
         RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
