@@ -23,6 +23,10 @@ double copysign (double x, double y)
         u.d = x;
         u.u32[0] |= 0x80000000;
         x = u.d;
+    } else {
+        u.d = x;
+        u.u32[0] &= 0x7fffffff;
+        x = u.d;
     }
 
     return x;
@@ -380,19 +384,22 @@ double erand48(unsigned short *Xi)
 
 typedef void (*func_ptr) (void);
 
-extern func_ptr __CTORS_LIST__;
+extern func_ptr __CTOR_LIST__;
 
 void do_global_ctors(void)
 {
   func_ptr *p;
 
-  for (p = (&__CTORS_LIST__)+1 ; *p != (func_ptr) 0; p++)
+  for (p = (&__CTOR_LIST__)+1 ; *p != (func_ptr) 0; p++)
     (*p) ();
 }
 
-void memcpy (char *d, char *s, int l)
+void *memcpy(void *d, const void *s, long unsigned int l)
 {
-        while (l--) *d++ = *s++;
+    char *dst = (char*)d;
+    char *src = (char*)s;
+        while (l--) *dst++ = *src++;
+    return d;
 }
 
 uint16_t *framebuffer;
