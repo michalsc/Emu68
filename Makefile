@@ -31,7 +31,7 @@ all: pre-build main-build
 
 examples:
 	@echo "Building Examples"
-	@make -C Examples all
+	@docker run --rm -v $(shell pwd):/work -i amigadev/crosstools:m68k-amigaos make -C Examples all
 
 pre-build:
 	@mkdir -p $(OBJDIR) >/dev/null
