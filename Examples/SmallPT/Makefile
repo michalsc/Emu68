@@ -8,8 +8,7 @@ all: $(TARGETDIR)/SmallPT
 
 $(TARGETDIR)/SmallPT: $(addprefix $(OBJDIR)/, $(OBJS))
 	@echo "Building target: $@"
-	@$(M68K_CC) $(foreach f,$(OBJS),$(OBJDIR)/$(f)) $(M68K_LDFLAGS) -o $@.elf
-	$(TARGETDIR)/elf2hunk $@.elf $@
+	@$(M68K_CXX) $(foreach f,$(OBJS),$(OBJDIR)/$(f)) $(M68K_LDFLAGS) -o $@
 	@echo "Build completed"
 
 .PHONY: all
