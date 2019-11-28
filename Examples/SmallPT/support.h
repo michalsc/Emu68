@@ -40,16 +40,7 @@ inline double sin(double a)
     return ret;
 }
 
-inline double _M_PI()
-{
-    double ret;
-
-    asm volatile("fmovecr %1,%0":"=f"(ret):"i"(0));
-
-    return ret;
-}
-
-#define M_PI (_M_PI())
+#define M_PI 3.14159265358979323846
 #define M_1_PI 0.31830988618379067154
 
 static inline __attribute__((always_inline)) uint64_t BE64(uint64_t x)
@@ -135,7 +126,7 @@ double pow(double x, double y);
 double erand48(unsigned short *Xi);
 void do_global_ctors(void);
 void do_global_dtors(void);
-void memcpy(char *d, char *s, int l);
+void *memcpy(void *d, const void *s, long unsigned int l);
 void vkprintf(const char * format, va_list args);
 int strcmp(const char *s1, const char *s2);
 char * strcpy(char *s1, const char *s2);
