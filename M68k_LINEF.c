@@ -392,7 +392,7 @@ enum FPUOpSize {
     SIZE_P = 3,
     SIZE_W = 4,
     SIZE_D = 5,
-    SIZE_B = 6
+    SIZE_B = 6,
 };
 
 uint8_t FPUDataSize[] = {
@@ -454,7 +454,11 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             Get EA, eventually (in case of mode 000 - Dn) perform simple data transfer.
             Otherwise get address from EA and fetch data here
         */
-        *reg = RA_AllocFPURegister(&ptr);
+
+        /* The regtister was not yet assigned? assign it to a temporary reg now */
+        if (*reg == 0xff)
+            *reg = RA_AllocFPURegister(&ptr);
+
         uint8_t ea = opcode & 0x3f;
         enum FPUOpSize size = (opcode2 >> 10) & 7;
 
@@ -566,6 +570,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                     case SIZE_X:
                         {
+                            printf("extended precision load!\n");
                             uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                             uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                             /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
@@ -605,7 +610,10 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         break;
 
                     case SIZE_P:
+                        printf("Packed load!\n");
                         *ext_count += 6;
+                        break;
+
                     default:
                         break;
                 }
@@ -629,7 +637,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             if (mode == 4) {
                 uint8_t pre_sz = FPUDataSize[size];
 
-                if (size == SIZE_B && (opcode & 7) == 7)
+                if ((pre_sz == 1) && ((opcode & 7) == 7))
                     pre_sz = 2;
 
                 *ptr++ = sub_immed(int_reg, int_reg, pre_sz);
@@ -641,6 +649,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             {
                 case SIZE_X:
                     {
+                        printf("extended precision load from EA!\n");
                         uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                         /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
@@ -681,13 +690,17 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     {
                         uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-
+#if 0
                         *ptr++ = tst_immed(int_reg, 3);
                         *ptr++ = fldd_cc(ARM_CC_EQ, *reg, int_reg, 0);
                         *ptr++ = ldr_cc_offset(ARM_CC_NE, int_reg, tmp1, 0);
                         *ptr++ = ldr_cc_offset(ARM_CC_NE, int_reg, tmp2, 4);
                         *ptr++ = fmdrr_cc(ARM_CC_NE, *reg, tmp1, tmp2);
-
+#else
+                        *ptr++ = ldr_offset(int_reg, tmp1, 0);
+                        *ptr++ = ldr_offset(int_reg, tmp2, 4);
+                        *ptr++ = fmdrr(*reg, tmp1, tmp2);
+#endif
                         RA_FreeARMRegister(&ptr, tmp2);
                         RA_FreeARMRegister(&ptr, tmp1);
                     }
@@ -722,7 +735,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             if (mode == 3) {
                 uint8_t post_sz = FPUDataSize[size];
 
-                if (size == SIZE_B && (opcode & 7) == 7)
+                if ((post_sz == 1) && ((opcode & 7) == 7))
                     post_sz = 2;
 
                 *ptr++ = add_immed(int_reg, int_reg, post_sz);
@@ -822,7 +835,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         if (mode == 4) {
             uint8_t pre_sz = FPUDataSize[size];
 
-            if (size == SIZE_B && (opcode & 7) == 7)
+            if ((pre_sz == 1) && ((opcode & 7) == 7))
                 pre_sz = 2;
 
             *ptr++ = sub_immed(int_reg, int_reg, pre_sz);
@@ -834,6 +847,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         {
             case SIZE_X:
                 {
+                    printf("extended precision store to EA!\n");
 #if 0
                     uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
@@ -876,13 +890,17 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 {
                     uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-
+#if 0
                     *ptr++ = tst_immed(int_reg, 3);
                     *ptr++ = fstd_cc(ARM_CC_EQ, reg, int_reg, 0);
                     *ptr++ = fmrrd_cc(ARM_CC_NE, tmp1, tmp2, reg);
                     *ptr++ = str_cc_offset(ARM_CC_NE, int_reg, tmp1, 0);
                     *ptr++ = str_cc_offset(ARM_CC_NE, int_reg, tmp2, 4);
-
+#else
+                    *ptr++ = fmrrd(tmp1, tmp2, reg);
+                    *ptr++ = str_offset(int_reg, tmp1, 0);
+                    *ptr++ = str_offset(int_reg, tmp2, 4);
+#endif
                     RA_FreeARMRegister(&ptr, tmp2);
                     RA_FreeARMRegister(&ptr, tmp1);
                 }
@@ -917,7 +935,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         if (mode == 3) {
             uint8_t post_sz = FPUDataSize[size];
 
-            if (size == SIZE_B && (opcode & 7) == 7)
+            if ((post_sz == 1) && ((opcode & 7) == 7))
                 post_sz = 2;
 
             *ptr++ = add_immed(int_reg, int_reg, post_sz);
@@ -944,8 +962,11 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     /* FMOVECR reg */
     if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
+        union {
+            double d;
+            uint32_t u32[2];
+        } u;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t offset = opcode2 & 0x7f;
 
         /* Alloc destination FP register for write */
@@ -955,12 +976,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             Load pointer to constants into base register, then load the value from table into
             destination VFP register, finally skip the base address (which is not an ARM INSN)
         */
-        *ptr++ = ldr_offset(15, base_reg, 4);
-        *ptr++ = fldd(fp_dst, base_reg, offset * 2);
-        *ptr++ = b_cc(ARM_CC_AL, 0);
-        *ptr++ = BE32((uint32_t)&constants[0]);
+        if (offset == C_10P0) {
+            *ptr++ = fmov_imm(fp_dst, 112);
+        }
+        else if (offset == C_ZERO) {
+            *ptr++ = fmov_i64(fp_dst, 0, 0xe);
+        }
+        else {
+            u.d = constants[offset];
 
-        RA_FreeARMRegister(&ptr, base_reg);
+            *ptr++ = fldd(fp_dst, 15, 0);
+            *ptr++ = b_cc(ARM_CC_AL, 1);
+            *ptr++ = BE32(u.u32[0]);
+            *ptr++ = BE32(u.u32[1]);
+        }
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
@@ -1366,7 +1395,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = fcpyd(fp_dst, fp_src);
 
         RA_FreeFPURegister(&ptr, fp_src);
-
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
@@ -1420,11 +1448,18 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
             /* Pre index? Note - dynamic mode not supported yet! using double mode instead of extended! */
             if (mode == 4) {
-                for (int i=7; i >= 0; --i) {
+                int size = 0;
+                int cnt = 0;
+                for (int i=0; i < 8; i++)
+                    if ((opcode2 & (1 << i)))
+                        size++;
+                *ptr++ = sub_immed(base_reg, base_reg, 12*size);
+
+                for (int i=0; i < 8; i++) {
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
-                        *ptr++ = sub_immed(base_reg, base_reg, 12);
-                        *ptr++ = fstd(fp_reg, base_reg, 0);
+                        //*ptr++ = sub_immed(base_reg, base_reg, 12);
+                        *ptr++ = fstd(fp_reg, base_reg, 3*cnt++);
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
                 }
@@ -1452,14 +1487,16 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
             /* Post index? Note - dynamic mode not supported yet! using double mode instead of extended! */
             if (mode == 3) {
+                int cnt = 0;
                 for (int i=7; i >= 0; --i) {
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
-                        *ptr++ = fldd(fp_reg, base_reg, 0);
-                        *ptr++ = add_immed(base_reg, base_reg, 12);
+                        *ptr++ = fldd(fp_reg, base_reg, 3*cnt++);
+                        //*ptr++ = add_immed(base_reg, base_reg, 12);
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
                 }
+                *ptr++ = add_immed(base_reg, base_reg, 12*cnt);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             } else if (mode == 4) {
                 printf("[JIT] Unsupported FMOVEM operation (REG to MEM preindex)\n");
@@ -1757,7 +1794,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        uint8_t fp_dst = (opcode2 >> 7) & 7;;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
@@ -1913,7 +1950,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        uint8_t fp_dst = (opcode2 >> 7) & 7;;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
         uint8_t top_half = RA_AllocARMRegister(&ptr);
