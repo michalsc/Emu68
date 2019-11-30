@@ -760,6 +760,36 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         *ptr++ = udf(opcode);
     }
+    /* Special case: the combination of RO(R/L).W #8, Dn; SWAP Dn; RO(R/L).W, Dn
+       this is replaced by REV instruction */
+    else if (((opcode & 0xfef8) == 0xe058) &&
+             BE16((*m68k_ptr)[0]) == (0x4840 | (opcode & 7)) &&
+             (BE16((*m68k_ptr)[1]) & 0xfeff) == (opcode & 0xfeff))
+    {
+        uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        *ptr++ = rev(reg, reg);
+
+        ptr = EMIT_AdvancePC(ptr, 6);
+        *m68k_ptr += 2;
+
+        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
+        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
+
+        if (update_mask)
+        {
+            M68K_ModifyCC(&ptr);
+            *ptr++ = cmp_immed(reg, 0);
+            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
+            if (update_mask & SR_N)
+                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            if (update_mask & SR_Z)
+                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            if (update_mask & (SR_C))
+                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C);
+        }
+    }
     /* 1110xxxxxxx11xxx - ROL, ROR */
     else if ((opcode & 0xf018) == 0xe018)
     {
