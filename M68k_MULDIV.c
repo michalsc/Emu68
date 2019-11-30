@@ -125,8 +125,7 @@ struct Result64 sldiv(int64_t n, int64_t d)
 uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t reg;
-    uint8_t tmp;
-    uint8_t src = RA_AllocARMRegister(&ptr);
+    uint8_t src = 0xff;
     uint8_t ext_words = 0;
 
     // Fetch 16-bit register: source and destination
@@ -134,12 +133,11 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
     // Fetch 16-bit multiplicant
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     // Sign-extend 16-bit multiplicants
     *ptr++ = sxth(reg, reg, 0);
-    *ptr++ = sxth(src, tmp, 0);
-    RA_FreeARMRegister(&ptr, tmp);
+    *ptr++ = sxth(src, src, 0);
 
     *ptr++ = muls(reg, reg, src);
 
@@ -167,8 +165,7 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t reg;
-    uint8_t tmp;
-    uint8_t src = RA_AllocARMRegister(&ptr);
+    uint8_t src = 0xff;
     uint8_t ext_words = 0;
 
     // Fetch 16-bit register: source and destination
@@ -176,12 +173,11 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
     // Fetch 16-bit multiplicant
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     // Sign-extend 16-bit multiplicants
     *ptr++ = uxth(reg, reg, 0);
-    *ptr++ = uxth(src, tmp, 0);
-    RA_FreeARMRegister(&ptr, tmp);
+    *ptr++ = uxth(src, src, 0);
 
     *ptr++ = muls(reg, reg, src);
 
