@@ -787,11 +787,6 @@ for (int i=1; i < 2; i++)
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
         arm_code(m68k);
 
-        if (BE32((uint32_t)m68k->PC) > top_of_ram)
-        {
-            printf("[JIT] Program counter outside available memory. Abnormal termination\n");
-            break;
-        }
     } while(m68k->PC != (void*)0);
 
     t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
