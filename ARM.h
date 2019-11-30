@@ -288,6 +288,8 @@ static inline uint32_t orrs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_
 static inline uint32_t orrs_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return orrs_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
 static inline uint32_t push(uint16_t registers) {return INSN_TO_LE(0xe92d0000 | registers);}
 static inline uint32_t pop(uint16_t registers) { return INSN_TO_LE(0xe8bd0000 | registers); }
+static inline uint32_t rev_cc(uint8_t cc, uint8_t dest, uint8_t src){return INSN_TO_LE(0x06bf0f30 | (cc << 28) | (dest << 12) | src);}
+static inline uint32_t rev(uint8_t dest, uint8_t src){return rev_cc(ARM_CC_AL, dest, src);}
 static inline uint32_t ror_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x01a00060 | (cc << 28) | (dest << 12) | src | ((value & 0x1f) << 7));}
 static inline uint32_t ror_immed(uint8_t dest, uint8_t src, uint8_t value){return ror_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t ror_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x01a00070 | (cc << 28) | (dest << 12) | src | ((value & 0xf) << 8));}
@@ -434,6 +436,9 @@ static inline uint32_t fmdlr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return
 static inline uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return fmdlr_cc(ARM_CC_AL, v_dst, src); }
 static inline uint32_t fmdrr_cc(uint8_t cc, uint8_t v_dst, uint8_t src_hi, uint8_t src_lo) { return INSN_TO_LE(0x0c400b10 | (cc << 28) | (v_dst) | (src_lo << 12) | (src_hi << 16)); }
 static inline uint32_t fmdrr(uint8_t v_dst, uint8_t src_hi, uint8_t src_lo) { return fmdrr_cc(ARM_CC_AL, v_dst, src_hi, src_lo); }
+static inline uint32_t fmov_cc_imm(uint8_t cc, uint8_t dst, uint8_t imm) { return INSN_TO_LE(0x0eb00b00 | (cc << 28) | ((imm >> 4) << 16) | (dst << 12) | (imm & 0xf)); }
+static inline uint32_t fmov_imm(uint8_t dst, uint8_t imm) { return fmov_cc_imm(ARM_CC_AL, dst, imm); }
+static inline uint32_t fmov_i64(uint8_t dst, uint8_t imm, uint8_t cmode) { return INSN_TO_LE(0xf2800e30 | ((imm >> 7) << 24) | (((imm >> 4) & 7) << 16) | (dst << 12) | (imm & 0xf) | (cmode << 8)); }
 static inline uint32_t fmrrd_cc(uint8_t cc, uint8_t dst_hi, uint8_t dst_lo, uint8_t v_src) { return INSN_TO_LE(0x0c500b10 | (cc << 28) | (v_src) | (dst_lo << 12) | (dst_hi << 16)); }
 static inline uint32_t fmrrd(uint8_t dst_hi, uint8_t dst_lo, uint8_t v_src) { return fmrrd_cc(ARM_CC_AL, dst_hi, dst_lo, v_src); }
 static inline uint32_t fmrs_cc(uint8_t cc, uint8_t dst, uint8_t v_src) { return INSN_TO_LE(0x0e100a10 | (cc << 28) | ((v_src >> 1) << 16) | (dst << 12) | ((v_src & 1) << 7)); }
