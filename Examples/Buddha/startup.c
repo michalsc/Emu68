@@ -8,6 +8,7 @@ asm("   .text\n"
 "       move.l %d0,-(%a7)\n"
 "       lea _c_start,%a5\n"
 "       jsr (%a5)\n"
+"       lea 16(sp),sp\n"
 "       rts"
 );
 
