@@ -118,75 +118,40 @@ uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr)
     return ptr;
 }
 
-uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
+{
+    (*m68k_ptr)++;
+    *arm_ptr++ = udf(0xaaaa);
+
+    return arm_ptr;
+}
+
+static uint32_t * (*line_array[16])(uint32_t *arm_ptr, uint16_t **m68k_ptr) = {
+    EMIT_line0,
+    EMIT_move,
+    EMIT_move,
+    EMIT_move,
+    EMIT_line4,
+    EMIT_line5,
+    EMIT_line6,
+    EMIT_moveq,
+    EMIT_line8,
+    EMIT_line9,
+    EMIT_lineA,
+    EMIT_lineB,
+    EMIT_lineC,
+    EMIT_lineD,
+    EMIT_lineE,
+    EMIT_lineF
+};
+
+static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     uint32_t *ptr = arm_ptr;
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint8_t group = opcode >> 12;
 
-    if (group == 0)
-    {
-        /* Bit manipulation/MOVEP/Immediate */
-        ptr = EMIT_line0(arm_ptr, m68k_ptr);
-    }
-    else if ((group & 0xc) == 0 && (group & 3))
-    {
-        /* MOVE .B .W .L */
-        ptr = EMIT_move(arm_ptr, m68k_ptr);
-    }
-    else if (group == 4)
-    {
-        /* Miscellaneous instructions */
-        ptr = EMIT_line4(arm_ptr, m68k_ptr);
-    }
-    else if (group == 5)
-    {
-        /* ADDQ/SUBQ/Scc/DBcc/TRAPcc */
-        ptr = EMIT_line5(arm_ptr, m68k_ptr);
-    }
-    else if (group == 6)
-    {
-        /* Bcc/BSR/BRA */
-        ptr = EMIT_line6(arm_ptr, m68k_ptr);
-    }
-    else if (group == 7)
-    {
-        ptr = EMIT_moveq(arm_ptr, m68k_ptr);
-    }
-    else if (group == 8)
-    {
-        /* OR/DIV/SBCD */
-        ptr = EMIT_line8(arm_ptr, m68k_ptr);
-    }
-    else if (group == 9)
-    {
-        /* SUB/SUBX */
-        ptr = EMIT_line9(arm_ptr, m68k_ptr);
-    }
-    else if (group == 11)
-    {
-        /* CMP/EOR */
-        ptr = EMIT_lineB(arm_ptr, m68k_ptr);
-    }
-    else if (group == 12)
-    {
-        /* AND/MUL/ABCD/EXG */
-        ptr = EMIT_lineC(arm_ptr, m68k_ptr);
-    }
-    else if (group == 13)
-    {
-        /* ADD/ADDX */
-        ptr = EMIT_lineD(arm_ptr, m68k_ptr);
-    }
-    else if (group == 14)
-    {
-        /* Shift/Rotate/Bitfield */
-        ptr = EMIT_lineE(arm_ptr, m68k_ptr);
-    }
-    else if (group == 15)
-    {
-        ptr = EMIT_lineF(arm_ptr, m68k_ptr);
-    }
+    ptr = line_array[group](arm_ptr, m68k_ptr);
 
     return ptr;
 }
