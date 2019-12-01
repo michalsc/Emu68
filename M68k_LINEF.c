@@ -646,9 +646,6 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
 
-if (imm_offset)
-printf("\nIMM_OFFSET\n");
-
             switch (size)
             {
                 case SIZE_X:
