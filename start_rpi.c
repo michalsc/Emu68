@@ -806,6 +806,6 @@ for (int i=1; i < 2; i++)
         if (stack[i] == 0xaaaaaaaa)
             break;
     }
-    M68K_DumpStats();
 #endif
+    M68K_DumpStats();
 }
