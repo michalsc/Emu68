@@ -1,16 +1,22 @@
 #ifndef __FEATURES_H
 #define __FEATURES_H
 
+#include <stdint.h>
 #include "config.h"
 
 typedef struct {
-    char    ARM_SUPPORTS_DIV;
-    char    ARM_SUPPORTS_BITFLD;
-    char    ARM_SUPPORTS_BITCNT;
-    char    ARM_SUPPORTS_SWP;
-    char    ARM_SUPPORTS_VDIV;
-    char    ARM_SUPPORTS_SQRT;
+    uint8_t ARM_SUPPORTS_DIV;
+    uint8_t ARM_SUPPORTS_BITFLD;
+    uint8_t ARM_SUPPORTS_BITCNT;
+    uint8_t ARM_SUPPORTS_SWP;
+    uint8_t ARM_SUPPORTS_VDIV;
+    uint8_t ARM_SUPPORTS_SQRT;
 } features_t;
+
+typedef struct {
+    uint8_t M68K_TRANSLATION_DEPTH;
+    uint8_t M68K_ALLOW_UNALIGNED_FPU;
+} options_t;
 
 #if SET_FEATURES_AT_RUNTIME
 
@@ -28,5 +34,19 @@ static const features_t Features = {
 };
 
 #endif
+
+#if SET_OPTIONS_AT_RUNTIME
+
+extern options_t Options;
+
+#else
+
+static const options_t Options = {
+    EMU68_M68K_INSN_DEPTH,
+    1,
+};
+
+#endif
+
 
 #endif /* __FEATURES_H */

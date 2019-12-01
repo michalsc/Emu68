@@ -26,6 +26,13 @@
 features_t Features;
 #endif
 
+#if SET_OPTIONS_AT_RUNTIME
+options_t Options = {
+    EMU68_M68K_INSN_DEPTH,
+    1,
+};
+#endif
+
 const int debug = 0;
 
 #ifdef RASPI
@@ -39,15 +46,16 @@ static struct List LRU;
 static uint32_t *arm_cache;
 static const uint32_t arm_cache_size = EMU68_ARM_CACHE_SIZE;
 #endif
-static const uint32_t m68k_translation_depth = EMU68_M68K_INSN_DEPTH;
 void *handle;
 
 #ifdef RASPI
 static uint32_t *temporary_arm_code;
+static struct M68KLocalState *local_state;
 #else
 static uint32_t temporary_arm_code[EMU68_M68K_INSN_DEPTH * 4 * 64];
-#endif
 static struct M68KLocalState local_state[EMU68_M68K_INSN_DEPTH*2];
+#endif
+
 
 int32_t _pc_rel = 0;
 
@@ -456,7 +464,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
         //*end++ = mov_reg(REG_CTX, 0);
         *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         prologue_size = end - tmpptr;
-        while (*m68kcodeptr != 0xffff && insn_count < m68k_translation_depth)
+        while (*m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
         {
             if (m68kcodeptr < m68k_low)
                 m68k_low = m68kcodeptr;
@@ -749,6 +757,7 @@ void M68K_InitializeCache()
 #ifdef RASPI
     ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
     temporary_arm_code = tlsf_malloc(tlsf, EMU68_M68K_INSN_DEPTH * 16 * 64);
+    local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*EMU68_M68K_INSN_DEPTH*2);
     printf("[ICache] ICache array at %08x\n", ICache);
 #endif
     for (int i=0; i < 65536; i++)
