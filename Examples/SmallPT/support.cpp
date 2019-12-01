@@ -371,7 +371,7 @@ double erand48(unsigned short *Xi)
     n.x[3] = Xi[2];
 
     n.u64 = n.u64 * 0x5deece66dUL + 11;
-    n.x[0] = 0x03fe;
+    n.x[0] = 0x03ff;
 
     Xi[0] = n.x[1];
     Xi[1] = n.x[2];
@@ -379,7 +379,7 @@ double erand48(unsigned short *Xi)
 
     n.u64 = (n.u64) << 4;
 
-    return n.d;
+    return n.d - 1.0;
 }
 
 typedef void (*func_ptr) (void);
