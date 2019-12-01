@@ -62,7 +62,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     else
         size = 2;
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
 
     if ((opcode & 0x3f) == 0x3c) {
         is_load_immediate = 1;

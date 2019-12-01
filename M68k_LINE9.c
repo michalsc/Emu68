@@ -31,7 +31,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t tmp;
         RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
         if (size == 2)
             *ptr++ = sxth(tmp, tmp, 0);
@@ -160,7 +160,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t src = 0;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
             switch(size)
             {
@@ -191,9 +191,9 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t mode = (opcode & 0x0038) >> 3;
 
             if (mode == 4 || mode == 3)
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
             else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1);
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
             /* Fetch data into temporary register, perform add, store it back */
             switch (size)

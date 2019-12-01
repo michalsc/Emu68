@@ -44,10 +44,13 @@
     Output:
         ptr     pointer to ARM instruction stream after the newly generated code
 */
-uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only)
+uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset)
 {
     uint8_t mode = ea >> 3;
     uint8_t src_reg = ea & 7;
+
+    if (imm_offset)
+        *imm_offset = 0;
 
     if (mode == 0) /* Mode 000: Dn */
     {
@@ -190,50 +193,59 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         }
         else if (mode == 5) /* Mode 005: (d16, An) */
         {
-            uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
-            uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-            //int8_t pc_off = 2 + 2*(*ext_words);
-            //ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-            //*ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
-            int16_t off16 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
-            if (size == 0 ||
-                (size == 2 && (off16 < -255 || off16 > 255)) ||
-                (off16 < -4095 || off16 > 4095))
+            if (imm_offset && size == 0 && read_only)
             {
-                *ptr++ = movw_immed_u16(reg_d16, off16);
-                if (off16 & 0x8000)
-                    *ptr++ = movt_immed_u16(reg_d16, 0xffff);
+                RA_FreeARMRegister(&ptr, *arm_reg);
+                *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
+                *imm_offset = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
             }
-            //(*ext_words)++;
+            else
+            {
+                uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
+                uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
+                //int8_t pc_off = 2 + 2*(*ext_words);
+                //ptr = EMIT_GetOffsetPC(ptr, &pc_off);
+                //*ptr++ = ldrsh_offset(REG_PC, reg_d16, pc_off);
+                int16_t off16 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
+                if (size == 0 ||
+                    (size == 2 && (off16 < -255 || off16 > 255)) ||
+                    (off16 < -4095 || off16 > 4095))
+                {
+                    *ptr++ = movw_immed_u16(reg_d16, off16);
+                    if (off16 & 0x8000)
+                        *ptr++ = movt_immed_u16(reg_d16, 0xffff);
+                }
+                //(*ext_words)++;
 
-            switch (size)
-            {
-                case 4:
-                    if (off16 > -4096 && off16 < 4096)
-                        *ptr++ = ldr_offset(reg_An, *arm_reg, off16);
-                    else
-                        *ptr++ = ldr_regoffset(reg_An, *arm_reg, reg_d16, 0);
-                    break;
-                case 2:
-                    if (off16 > -256 && off16 < 256)
-                        *ptr++ = ldrh_offset(reg_An, *arm_reg, off16);
-                    else
-                        *ptr++ = ldrh_regoffset(reg_An, *arm_reg, reg_d16);
-                    break;
-                case 1:
-                    if (off16 > -4096 && off16 < 4096)
-                        *ptr++ = ldrb_offset(reg_An, *arm_reg, off16);
-                    else
-                        *ptr++ = ldrb_regoffset(reg_An, *arm_reg, reg_d16, 0);
-                    break;
-                case 0:
-                    *ptr++ = add_reg(*arm_reg, reg_An, reg_d16, 0);
-                    break;
-                default:
-                    printf("Unknown size opcode\n");
-                    break;
+                switch (size)
+                {
+                    case 4:
+                        if (off16 > -4096 && off16 < 4096)
+                            *ptr++ = ldr_offset(reg_An, *arm_reg, off16);
+                        else
+                            *ptr++ = ldr_regoffset(reg_An, *arm_reg, reg_d16, 0);
+                        break;
+                    case 2:
+                        if (off16 > -256 && off16 < 256)
+                            *ptr++ = ldrh_offset(reg_An, *arm_reg, off16);
+                        else
+                            *ptr++ = ldrh_regoffset(reg_An, *arm_reg, reg_d16);
+                        break;
+                    case 1:
+                        if (off16 > -4096 && off16 < 4096)
+                            *ptr++ = ldrb_offset(reg_An, *arm_reg, off16);
+                        else
+                            *ptr++ = ldrb_regoffset(reg_An, *arm_reg, reg_d16, 0);
+                        break;
+                    case 0:
+                        *ptr++ = add_reg(*arm_reg, reg_An, reg_d16, 0);
+                        break;
+                    default:
+                        printf("Unknown size opcode\n");
+                        break;
+                }
+                RA_FreeARMRegister(&ptr, reg_d16);
             }
-            RA_FreeARMRegister(&ptr, reg_d16);
         }
         else if (mode == 6) /* Mode 006: (d8, An, Xn.SIZE*SCALE) */
         {
@@ -553,51 +565,62 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
         {
             if (src_reg == 2) /* (d16, PC) mode */
             {
-                //printf("(d16, PC) mode\n");
-                uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
-                int8_t off8 = 2;
-                ptr = EMIT_GetOffsetPC(ptr, &off8);
-/*                *ptr++ = ldrsh_offset(REG_PC, reg_d16, off);
-                *ptr++ = add_immed(reg_d16, reg_d16, off);
-                (*ext_words)++;*/
-                int32_t off = off8 + (int16_t)(BE16(m68k_ptr[(*ext_words)++]));
-                if (size == 0 ||
-                    (size == 2 && (off < -255 || off > 255)) ||
-                    (off < -4095 || off > 4095))
+                if (imm_offset && size == 0 && read_only)
                 {
-                    *ptr++ = movw_immed_u16(reg_d16, off & 0xffff);
-                    if (((off >> 16) & 0xffff) != 0)
-                        *ptr++ = movt_immed_u16(reg_d16, (off >> 16) & 0xffff);
+                    int8_t off8 = 2;
+                    ptr = EMIT_GetOffsetPC(ptr, &off8);
+                    RA_FreeARMRegister(&ptr, *arm_reg);
+                    *arm_reg = REG_PC;
+                    *imm_offset = off8 + (int16_t)BE16(m68k_ptr[(*ext_words)++]);
                 }
+                else
+                {
+                    //printf("(d16, PC) mode\n");
+                    uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
+                    int8_t off8 = 2;
+                    ptr = EMIT_GetOffsetPC(ptr, &off8);
+    /*                *ptr++ = ldrsh_offset(REG_PC, reg_d16, off);
+                    *ptr++ = add_immed(reg_d16, reg_d16, off);
+                    (*ext_words)++;*/
+                    int32_t off = off8 + (int16_t)(BE16(m68k_ptr[(*ext_words)++]));
+                    if (size == 0 ||
+                        (size == 2 && (off < -255 || off > 255)) ||
+                        (off < -4095 || off > 4095))
+                    {
+                        *ptr++ = movw_immed_u16(reg_d16, off & 0xffff);
+                        if (((off >> 16) & 0xffff) != 0)
+                            *ptr++ = movt_immed_u16(reg_d16, (off >> 16) & 0xffff);
+                    }
 
-                switch (size)
-                {
-                    case 4:
-                        if (off > -4096 && off < 4096)
-                            *ptr++ = ldr_offset(REG_PC, *arm_reg, off);
-                        else
-                            *ptr++ = ldr_regoffset(REG_PC, *arm_reg, reg_d16, 0);
-                        break;
-                    case 2:
-                        if (off > -256 && off < 256)
-                            *ptr++ = ldrh_offset(REG_PC, *arm_reg, off);
-                        else
-                            *ptr++ = ldrh_regoffset(REG_PC, *arm_reg, reg_d16);
-                        break;
-                    case 1:
-                        if (off > -4096 && off < 4096)
-                            *ptr++ = ldrb_offset(REG_PC, *arm_reg, off);
-                        else
-                            *ptr++ = ldrb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
-                        break;
-                    case 0:
-                        *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
-                        break;
-                    default:
-                        printf("Unknown size opcode\n");
-                        break;
+                    switch (size)
+                    {
+                        case 4:
+                            if (off > -4096 && off < 4096)
+                                *ptr++ = ldr_offset(REG_PC, *arm_reg, off);
+                            else
+                                *ptr++ = ldr_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                            break;
+                        case 2:
+                            if (off > -256 && off < 256)
+                                *ptr++ = ldrh_offset(REG_PC, *arm_reg, off);
+                            else
+                                *ptr++ = ldrh_regoffset(REG_PC, *arm_reg, reg_d16);
+                            break;
+                        case 1:
+                            if (off > -4096 && off < 4096)
+                                *ptr++ = ldrb_offset(REG_PC, *arm_reg, off);
+                            else
+                                *ptr++ = ldrb_regoffset(REG_PC, *arm_reg, reg_d16, 0);
+                            break;
+                        case 0:
+                            *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
+                            break;
+                        default:
+                            printf("Unknown size opcode\n");
+                            break;
+                    }
+                    RA_FreeARMRegister(&ptr, reg_d16);
                 }
-                RA_FreeARMRegister(&ptr, reg_d16);
             }
             else if (src_reg == 3)
             {
