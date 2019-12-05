@@ -427,6 +427,31 @@ static uint8_t __int_arm_alloc_reg()
     return 0xff;
 }
 
+uint16_t RA_GetTempAllocMask()
+{
+    uint16_t map = 0;
+
+    for (int i=0; i < 10; i++)
+    {
+        if (register_pool & (1 << i))
+        {
+            int found = 0;
+            for (int j=0; j < 16; j++)
+            {
+                if (LRU_M68kRegisters[j].rs_ARMReg == i)
+                {
+                    found = 1;
+                    break;
+                }
+            }
+
+            if (!found)
+                map |= 1 << i;
+        }
+    }
+    return map;
+}
+
 uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
 {
     uint8_t reg = __int_arm_alloc_reg();

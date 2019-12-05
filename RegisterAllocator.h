@@ -33,6 +33,7 @@ uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg);
 void RA_UnmapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
 uint8_t RA_CopyFromM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg);
+uint16_t RA_GetTempAllocMask();
 
 void RA_ResetFPUAllocator();
 uint8_t RA_AllocFPURegister(uint32_t **arm_stream);
