@@ -178,16 +178,18 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
                 *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
                 RA_FreeARMRegister(&ptr, reg);
+
                 if (branch_1) {
                     *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + (int)(branch_2 - branch_1));
                     *ptr++ = (uint32_t)branch_1;
                 }
+
                 *ptr++ = (uint32_t)branch_2;
                 *ptr++ = branch_1 == NULL ? 1 : 2;
                 *ptr++ = 0;
                 *ptr++ = INSN_TO_LE(0xfffffffe);
 
-                RA_FreeARMRegister(&ptr, reg);
+                RA_FreeARMRegister(&ptr, counter_reg);
             }
         }
         else if ((opcode & 0x38) == 0x38)
@@ -465,7 +467,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = strb_offset(dest, tmp, 0);
 
                 RA_FreeARMRegister(&ptr, tmp);
-
+                RA_FreeARMRegister(&ptr, dest);
             }
 
             ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));

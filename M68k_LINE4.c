@@ -20,7 +20,7 @@ uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
-    uint8_t size = 0;
+    uint8_t size = 1;
     uint8_t zero = RA_AllocARMRegister(&ptr);
     *ptr++ = mov_immed_u8(zero, 0);
 

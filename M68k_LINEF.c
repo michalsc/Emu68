@@ -1236,8 +1236,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
         }
-
-
     }
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)

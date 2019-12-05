@@ -47,7 +47,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint8_t ext_count = 0;
     uint8_t tmp_reg = 0xff;
-    uint8_t size = 0;
+    uint8_t size = 1;
     uint8_t tmp = 0;
     uint8_t is_movea = (opcode & 0x01c0) == 0x0040;
     int is_load_immediate = 0;

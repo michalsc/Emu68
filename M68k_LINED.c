@@ -125,6 +125,9 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = str_offset(regy, dest, 0);
                     break;
             }
+
+            RA_FreeARMRegister(&ptr, dest);
+            RA_FreeARMRegister(&ptr, src);
         }
 
         ptr = EMIT_AdvancePC(ptr, 2);
