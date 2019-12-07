@@ -1660,8 +1660,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             /* Post index? Note - dynamic mode not supported yet! using double mode instead of extended! */
             if (mode == 3) {
                 int cnt = 0;
-                for (int i=7; i >= 0; --i) {
-                    if ((opcode2 & (1 << i)) != 0) {
+                for (int i=0; i < 8; i++) {
+                    if ((opcode2 & (0x80 >> i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
                         *ptr++ = fldd(fp_reg, base_reg, 3*cnt++);
                         //*ptr++ = add_immed(base_reg, base_reg, 12);
@@ -1675,7 +1675,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             } else {
                 int cnt = 0;
                 for (int i=0; i < 8; i++) {
-                    if ((opcode2 & (1 << i)) != 0) {
+                    if ((opcode2 & (0x80 >> i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
                         *ptr++ = fldd(fp_reg, base_reg, cnt*3);
                         cnt++;
