@@ -297,7 +297,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         *ptr++ = ldr_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
                         break;
                     case 2:
-                        *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
+                        if ((brief >> 9) & 3)
+                            *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
                         *ptr++ = ldrh_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2);
                         break;
                     case 1:
@@ -666,7 +667,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = ldr_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
                             break;
                         case 2:
-                            *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
+                            if ((brief >> 9) & 3)
+                                *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
                             *ptr++ = ldrh_regoffset(tmp1, *arm_reg, tmp2);
                             break;
                         case 1:
@@ -785,7 +787,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             case 2:
                                 if (index_reg != 0xff)
                                 {
-                                    *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
+                                    if ((brief > 9) & 3)
+                                        *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
                                     *ptr++ = ldrh_regoffset(bd_reg, *arm_reg, index_reg);
                                 }
                                 else
@@ -834,8 +837,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                     *ptr++ = ldr_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
                                     break;
                                 case 2:
-                                    *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
-                                    *ptr++ = ldrh_regoffset(base_reg, *arm_reg, index_reg);
+                                    if ((brief >> 9) & 3)
+                                        *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
+                                    *ptr++ = ldrh_regoffset(bd_reg, *arm_reg, index_reg);
                                     break;
                                 case 1:
                                     *ptr++ = ldrb_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
@@ -1298,7 +1302,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     *ptr++ = str_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
                     break;
                 case 2:
-                    *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
+                    if ((brief >> 9) & 3)
+                        *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
                     *ptr++ = strh_regoffset(displ ? tmp1 : reg_An, *arm_reg, tmp2);
                     break;
                 case 1:
@@ -1436,7 +1441,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     case 2:
                         if (index_reg != 0xff)
                         {
-                            *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
+                            if ((brief >> 9) & 3)
+                                *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
                             *ptr++ = strh_regoffset(bd_reg, *arm_reg, index_reg);
                         }
                         else
@@ -1485,8 +1491,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = str_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
                             break;
                         case 2:
-                            *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
-                            *ptr++ = strh_regoffset(base_reg, *arm_reg, index_reg);
+                            if ((brief >> 9) & 3)
+                                *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
+                            *ptr++ = strh_regoffset(bd_reg, *arm_reg, index_reg);
                             break;
                         case 1:
                             *ptr++ = strb_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
@@ -1647,7 +1654,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = str_regoffset(tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
                             break;
                         case 2:
-                            *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
+                            if ((brief >> 9) & 3)
+                                *ptr++ = lsl_immed(tmp2, tmp2, (brief >> 9) & 3);
                             *ptr++ = strh_regoffset(tmp1, *arm_reg, tmp2);
                             break;
                         case 1:
@@ -1796,7 +1804,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             case 2:
                                 if (index_reg != 0xff)
                                 {
-                                    *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
+                                    if ((brief >> 9) & 3)
+                                        *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
                                     *ptr++ = strh_regoffset(bd_reg, *arm_reg, index_reg);
                                 }
                                 else
@@ -1845,7 +1854,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                     *ptr++ = str_regoffset(bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
                                     break;
                                 case 2:
-                                    *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
+                                    if ((brief >> 9) & 3)
+                                        *ptr++ = lsl_immed(index_reg, index_reg, (brief >> 9) & 3);
                                     *ptr++ = strh_regoffset(base_reg, *arm_reg, index_reg);
                                     break;
                                 case 1:
