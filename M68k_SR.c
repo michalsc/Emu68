@@ -91,6 +91,7 @@ static struct SRMaskEntry Line4_Map[] = {
 
 static struct SRMaskEntry Line5_Map[] = {
     { 0xf0c0, 0x50c0, SME_MASK, 0, NULL },                                /* TRAP/DBcc/Scc */
+    { 0xf038, 0x5008, SME_MASK, 0, NULL },                                /* SUBQ/ADDQ with An */
     { 0xf000, 0x5000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUBQ/ADDQ */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
