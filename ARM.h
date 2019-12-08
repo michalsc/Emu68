@@ -166,6 +166,8 @@ static inline uint32_t asrs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_
 static inline uint32_t asrs_reg(uint8_t dest, uint8_t src, uint8_t value){return asrs_cc_reg(ARM_CC_AL, dest, src, value);}
 static inline uint32_t bic_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint16_t mask) { dest = dest & 15; src = src & 15; return INSN_TO_LE(0x03c00000 | (cc << 28) | mask | (dest << 12) | (src << 16));}
 static inline uint32_t bic_immed(uint8_t dest, uint8_t src, uint16_t mask) { return bic_cc_immed(ARM_CC_AL, dest, src, mask);}
+static inline uint32_t bic_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg) { dest = dest & 15; src = src & 15; return INSN_TO_LE(0x01c00000 | (cc << 28) | reg | (dest << 12) | (src << 16));}
+static inline uint32_t bic_reg(uint8_t dest, uint8_t src, uint8_t reg) { return bic_cc_reg(ARM_CC_AL, dest, src, reg);}
 static inline uint32_t b_cc(uint8_t cc, int32_t offset) { return INSN_TO_LE(0x0a000000 | (cc << 28) | (offset & 0x00ffffff));}
 static inline uint32_t bl_cc(uint8_t cc, int32_t offset) { return INSN_TO_LE(0x0b000000 | (cc << 28) | (offset & 0x00ffffff));}
 static inline uint32_t bfc_cc(uint8_t cc, uint8_t reg, uint8_t lsb, uint8_t width) { return INSN_TO_LE(0x07c0001f | (cc << 28) | (reg << 12) | (lsb << 7) | ((lsb + width - 1) << 16)); }
