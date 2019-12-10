@@ -4,7 +4,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-inline double sqrt(double a)
+static inline double sqrt(double a)
 {
     double ret;
 
@@ -13,29 +13,29 @@ inline double sqrt(double a)
     return ret;
 }
 
-inline double fabs(double a)
+static inline double fabs(double a)
 {
     double ret;
 
-    asm volatile("fabs.x %1, %0":"=f"(ret):"f"(a));
+    asm volatile("fabs.x %1, %0":"=f"(ret):"f"(a):"cc");
 
     return ret;
 }
 
-inline double cos(double a)
+static inline double cos(double a)
 {
     double ret;
 
-    asm volatile("fcos.x %1, %0":"=f"(ret):"f"(a));
+    asm volatile("fcos.x %1, %0":"=f"(ret):"f"(a):"cc");
 
     return ret;
 }
 
-inline double sin(double a)
+static inline double sin(double a)
 {
     double ret;
 
-    asm volatile("fsin.x %1, %0":"=f"(ret):"f"(a));
+    asm volatile("fsin.x %1, %0":"=f"(ret):"f"(a):"cc");
 
     return ret;
 }
@@ -117,7 +117,6 @@ static inline __attribute__((always_inline)) uint16_t LE16(uint16_t x)
     return (tmp.u[1] << 8) | (tmp.u[0]);
 }
 
-
 extern "C" {
 
 double copysign (double x, double y);
@@ -127,6 +126,7 @@ double erand48(unsigned short *Xi);
 void do_global_ctors(void);
 void do_global_dtors(void);
 void *memcpy(void *d, const void *s, long unsigned int l);
+void *memset(void *d, int c, long unsigned int l);
 void vkprintf(const char * format, va_list args);
 int strcmp(const char *s1, const char *s2);
 char * strcpy(char *s1, const char *s2);

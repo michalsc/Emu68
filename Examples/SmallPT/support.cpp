@@ -402,6 +402,13 @@ void *memcpy(void *d, const void *s, long unsigned int l)
     return d;
 }
 
+void *memset(void *d, int c, long unsigned int l)
+{
+    char *dst = (char *)d;
+    while (l--) *dst++ = c;
+    return d;
+}
+
 uint16_t *framebuffer;
 uint32_t pitch;
 
