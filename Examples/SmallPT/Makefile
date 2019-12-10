@@ -16,7 +16,7 @@ $(TARGETDIR)/SmallPT: $(addprefix $(OBJDIR)/, $(OBJS))
 $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(@D)
 	@echo "Compiling: $*.cpp"
-	$(M68K_CXX) -c $(M68K_CXXFLAGS) $< -o $@
+	$(M68K_CXX) -c $(M68K_CXXFLAGS) -O1 $< -o $@
 
 $(OBJDIR)/%.d: %.cpp
 	@mkdir -p $(@D)
@@ -28,7 +28,7 @@ $(OBJDIR)/%.d: %.cpp
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(@D)
 	@echo "Compiling: $*.c"
-	$(M68K_CC) -c $(M68K_CFLAGS) $< -o $@
+	$(M68K_CC) -c $(M68K_CFLAGS) -O1 $< -o $@
 
 $(OBJDIR)/%.d: %.c
 	@mkdir -p $(@D)
