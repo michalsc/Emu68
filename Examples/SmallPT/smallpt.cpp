@@ -75,23 +75,23 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
 
 const int numSpheres = sizeof(spheres)/sizeof(Sphere);
 
-inline double clamp(double x)
+static inline double clamp(double x)
 {
     return x<0 ? 0 : x>1 ? 1 : x;
 }
 
-inline int toInt(double x)
+static inline int toInt(double x)
 {
     return int(pow(clamp(x),1/2.2)*255+.5);
 }
 
-inline bool intersect(const Ray &r, double &t, int &id)
+static inline bool intersect(const Ray &r, double &t, int &id)
 {
     double n=numSpheres, d, inf=t=1e20;
     for(int i=int(n);i--;) if((d=spheres[i].intersect(r))&&d<t){t=d;id=i;}
     return t<inf;
 }
-int maximal_ray_depth = 10;
+int maximal_ray_depth = 100;
 
 // ca. 650bytes per ray depth, 650KB stack required for max ray depth of 1000
 
@@ -104,8 +104,8 @@ Vec radiance_expl(const Ray &r, int depth, unsigned short *Xi,int E=1){
   double p = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z; // max refl
   depth++;
 
-  if (depth > maximal_ray_depth)
-    return obj.e*E;
+    if (depth > maximal_ray_depth)
+        return obj.e*E;
   else
   if (depth>10||!p) { // From depth 10 start Russian roulette
        if (erand48(Xi)<p) f=f*(1/p); else return obj.e*E;
@@ -198,213 +198,6 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi)
 }
 
 
-
-#if 0
-
-extern "C" void RenderTile(struct ExecBase *SysBase, struct MsgPort *masterPort, struct MsgPort **myPort)
-{
-    Vec *c;
-    struct MyMessage *msg;
-    struct MyMessage *m;
-    struct MsgPort *port = CreateMsgPort();
-    struct MsgPort *syncPort = CreateMsgPort();
-    struct MinList msgPool;
-    struct Task *me = FindTask(NULL);
-
-    c = (Vec *)AllocMem(sizeof(Vec) * TILE_SIZE * TILE_SIZE, MEMF_ANY | MEMF_CLEAR);
-
-    *myPort = port;
-
-    FreeSignal(syncPort->mp_SigBit);
-    syncPort->mp_SigBit = -1;
-    syncPort->mp_Flags = PA_IGNORE;
-
-    NEWLIST(&msgPool);
-
-    D(bug("[SMP-SmallPT-Task] hello, msgport=%p\n", port));
-
-    msg = (struct MyMessage *)AllocMem(sizeof(struct MyMessage) * 20, MEMF_PUBLIC | MEMF_CLEAR);
-    for (int i=0; i < 20; i++)
-        FreeMsg(&msgPool, &msg[i]);
-
-    if (port)
-    {
-        ULONG signals;
-        BOOL doWork = TRUE;
-        BOOL redraw = TRUE;
-
-        m = AllocMsg(&msgPool);
-        if (m)
-        {
-            /* Tell renderer that we are bored and want to do some work */
-            m->mm_Message.mn_ReplyPort = port;
-            m->mm_Type = MSG_HUNGRY;
-            PutMsg(masterPort, &m->mm_Message);
-        }
-
-        D(bug("[SMP-SmallPT-Task] Just told renderer I'm hungry\n"));
-
-        do {
-            signals = Wait(SIGBREAKF_CTRL_C | (1 << port->mp_SigBit));
-
-            if (signals & (1 << port->mp_SigBit))
-            {
-                while ((m = (struct MyMessage *)GetMsg(syncPort)))
-                {
-                    FreeMsg(&msgPool, m);
-                    redraw = TRUE;
-                }
-                while ((m = (struct MyMessage *)GetMsg(port)))
-                {
-                    if (m->mm_Message.mn_Node.ln_Type == NT_REPLYMSG)
-                    {
-                        FreeMsg(&msgPool, m);
-                        continue;
-                    }
-                    else
-                    {
-                        if (m->mm_Type == MSG_DIE)
-                        {
-                            doWork = FALSE;
-                            ReplyMsg(&m->mm_Message);
-                        }
-                        else if (m->mm_Type == MSG_RENDERTILE)
-                        {
-                            struct tileWork *tile = m->mm_Body.RenderTile.tile;
-                            int w = m->mm_Body.RenderTile.width;
-                            int h = m->mm_Body.RenderTile.height;
-                            int samps = m->mm_Body.RenderTile.numberOfSamples;
-                            ULONG *buffer = m->mm_Body.RenderTile.buffer;
-                            int tile_x = m->mm_Body.RenderTile.tile->x;
-                            int tile_y = m->mm_Body.RenderTile.tile->y;
-                            struct MsgPort *guiPort = m->mm_Body.RenderTile.guiPort;
-                            int explicit_mode = m->mm_Body.RenderTile.explicitMode;
-
-                            if (explicit_mode)
-                                spheres[0] = Sphere(5, Vec(50,81.6-16.5,81.6),Vec(4,4,4)*20,  Vec(), DIFF);
-                            else
-                                spheres[0] = Sphere(600, Vec(50,681.6-.27,81.6),Vec(12,12,12),  Vec(), DIFF);
-
-                            ReplyMsg(&m->mm_Message);
-
-//__prepare();
-
-                            Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
-                            Vec cx = Vec(w * .5135 / h), cy = (cx % cam.d).norm() * .5135, r;
-
-                            for (int i=0; i < TILE_SIZE * TILE_SIZE; i++)
-                                c[i] = Vec();
-
-                            for (int _y=tile_y * 32; _y < (tile_y + 1) * 32; _y++)
-                            {
-                                int y = h - _y - 1;
-                                for (unsigned short _x=tile_x * 32, Xi[3]={0,0,(UWORD)(y*y*y)}; _x < (tile_x + 1) * 32; _x++)   // Loop cols
-                                {
-                                    int x = _x; // w - _x - 1;
-                                    for (int sy=0, i=(_y-tile_y*32)*32+_x-tile_x*32; sy<2; sy++)     // 2x2 subpixel rows
-                                    {
-                                        for (int sx=0; sx<2; sx++, r=Vec())
-                                        {        // 2x2 subpixel cols
-                                            for (int s=0; s<samps; s++)
-                                            {
-                                                double r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1: 1-sqrt(2-r1);
-                                                double r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1: 1-sqrt(2-r2);
-                                                Vec d = cx*( ( (sx+.5 + dx)/2 + x)/w - .5) +
-                                                        cy*( ( (sy+.5 + dy)/2 + y)/h - .5) + cam.d;
-                                                if (explicit_mode)
-                                                    r = r + radiance_expl(me, Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
-                                                else
-                                                    r = r + radiance(me, Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
-                                            } // Camera rays are pushed ^^^^^ forward to start in interior
-                                            c[i] = c[i] + Vec(clamp(r.x),clamp(r.y),clamp(r.z))*.25;
-                                        }
-                                    }
-                                }
-                                int start_ptr = tile_y*32*w + tile_x*32;
-                                for (int yy=0; yy < 32; yy++)
-                                {
-                                    for (int xx=0; xx < 32; xx++)
-                                    {
-                                        buffer[start_ptr+xx] = ((toInt(c[(xx+32*yy)].z) & 0xff) << 24) |
-                                            ((toInt(c[(xx+32*yy)].y) & 0xff) << 16) | ((toInt(c[(xx + 32*yy)].x) & 0xff) << 8) | 0xff;
-                                    }
-                                    start_ptr += w;
-                                }
-
-    #if 1
-                                if (redraw)
-                                {
-                                    m = AllocMsg(&msgPool);
-                                    if (m)
-                                    {
-                                        m->mm_Message.mn_ReplyPort = syncPort;
-                                        m->mm_Type = MSG_REDRAWTILE;
-                                        m->mm_Body.RedrawTile.TileX = tile_x;
-                                        m->mm_Body.RedrawTile.TileY = tile_y;
-                                        PutMsg(guiPort, &m->mm_Message);
-                                        redraw = FALSE;
-                                    }
-                                }
-                                else if ((m = (struct MyMessage *)GetMsg(syncPort)))
-                                {
-                                    FreeMsg(&msgPool, m);
-                                    redraw = TRUE;
-                                }
-    #else
-                                (void)syncPort;
-                                Signal((struct Task *)guiPort->mp_SigTask, SIGBREAKF_CTRL_D);
-    #endif
-                            }
-//__test();
-//                            Signal((struct Task *)guiPort->mp_SigTask, SIGBREAKF_CTRL_D);
-
-                            m = AllocMsg(&msgPool);
-                            if (m)
-                            {
-                                m->mm_Message.mn_ReplyPort = port;
-                                m->mm_Type = MSG_REDRAWTILE;
-                                m->mm_Body.RedrawTile.TileX = tile_x;
-                                m->mm_Body.RedrawTile.TileY = tile_y;
-                                PutMsg(guiPort, &m->mm_Message);
-
-                                redraw = TRUE;
-                            }
-
-                            m = AllocMsg(&msgPool);
-                            if (m)
-                            {
-                                m->mm_Message.mn_ReplyPort = port;
-                                m->mm_Type = MSG_RENDERREADY;
-                                m->mm_Body.RenderTile.tile = tile;
-                                PutMsg(masterPort, &m->mm_Message);
-                            }
-
-                            m = AllocMsg(&msgPool);
-                            if (m)
-                            {
-                                m->mm_Message.mn_ReplyPort = port;
-                                m->mm_Type = MSG_HUNGRY;
-                                PutMsg(masterPort, &m->mm_Message);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (signals & SIGBREAKB_CTRL_C)
-                doWork = FALSE;
-
-        } while(doWork);
-    }
-    D(bug("[SMP-SmallPT-Task] cleaning up stuff\n"));
-    FreeMem(msg, sizeof(struct MyMessage) * 20);
-    DeleteMsgPort(port);
-    DeleteMsgPort(syncPort);
-
-    FreeMem(c, sizeof(Vec) * TILE_SIZE * TILE_SIZE);
-}
-#endif
-
 static uint16_t *fb;
 static uint32_t pitch;
 static uint32_t width;
@@ -412,18 +205,17 @@ static uint32_t height;
 
 #define TILE_SIZE   32
 
-static const uint32_t render_width = 640;
-static const uint32_t render_height = 480;
+static const uint32_t render_width = 10*TILE_SIZE;
+static const uint32_t render_height = 8*TILE_SIZE;
 static const int samps = 10;
-static const int explicit_mode = 0;
+static const int explicit_mode = 1;
 
 uint32_t Begin_Time;
 uint32_t End_Time;
 
-Vec c[TILE_SIZE * TILE_SIZE];
 uint32_t buffer[render_width * render_height];
 
-void RedrawTile(int tile_x, int tile_y)
+void RedrawTile(int tile_x, int tile_y, int ylines=TILE_SIZE)
 {
     int start_x = (width - render_width) / 2;
     int start_y = (height - render_height) / 2;
@@ -431,21 +223,62 @@ void RedrawTile(int tile_x, int tile_y)
     int out_offset = start_x + tile_x * TILE_SIZE + ((start_y + tile_y * TILE_SIZE) * pitch) / 2;
     int in_offset = tile_x * TILE_SIZE + (tile_y * TILE_SIZE) * render_width;
 
-    kprintf("RedrawTile(%d, %d)\n", tile_x, tile_y);
-
-    for (int y=0; y < TILE_SIZE; y++) {
+    for (int y=0; y < ylines; y++) {
 
         for (int x=0; x < TILE_SIZE; x++) {
             uint32_t rgb = buffer[in_offset + x];
-            uint8_t r = (rgb & 0xff) >> 3;
+            uint8_t b = (rgb & 0xff) >> 3;
             uint8_t g = ((rgb >> 8) & 0xff) >> 2;
-            uint8_t b = ((rgb >> 16) & 0xff) >> 3;
+            uint8_t r = ((rgb >> 16) & 0xff) >> 3;
             uint16_t c = r | (g << 5) | (b << 11);
             fb[out_offset + x] = LE16(c);
         }
 
         in_offset += render_width;
         out_offset += pitch/2;
+    }
+}
+
+void RenderTile(int tile_x, int tile_y)
+{
+    Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
+    Vec cx = Vec(render_width * .5135 / render_height), cy = (cx % cam.d).norm() * .5135, r;
+
+    for (int _y=tile_y * 32; _y < (tile_y + 1) * 32; _y++)
+    {
+        int y = render_height - _y - 1;
+        int render_pos = _y*render_width + tile_x * 32;
+
+        for (unsigned short _x=tile_x * 32, Xi[3]={0,0,(unsigned short)(y*y*y)}; _x < (tile_x + 1) * 32; _x++)   // Loop cols
+        {
+            int x = _x;
+            Vec c = Vec();
+
+            for (unsigned sy=0; sy<2; sy++)     // 2x2 subpixel rows
+            {
+                for (unsigned sx=0; sx<2; sx++, r=Vec())
+                {        // 2x2 subpixel cols
+                    for (unsigned s=0; s<samps; s++)
+                    {
+                        double r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1: 1-sqrt(2-r1);
+                        double r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1: 1-sqrt(2-r2);
+                        Vec d = cx*( ( (sx+.5 + dx)/2 + x)/render_width - .5) +
+                                cy*( ( (sy+.5 + dy)/2 + y)/render_height - .5) + cam.d;
+
+                        if (explicit_mode)
+                            r = r + radiance_expl(Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
+                        else
+                            r = r + radiance(Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
+                    } // Camera rays are pushed ^^^^^ forward to start in interior
+                    c = c + Vec(clamp(r.x),clamp(r.y),clamp(r.z))*.25;
+                }
+            }
+
+            buffer[render_pos++] = ((toInt(c.x) & 0xff)) |
+                    ((toInt(c.y) & 0xff) << 8) | ((toInt(c.z) & 0xff) << 16);
+        }
+
+        RedrawTile(tile_x, tile_y, _y - tile_y * 32 + 1);
     }
 }
 
@@ -468,76 +301,16 @@ void SmallPT()
 
     Begin_Time = LE32(*(volatile uint32_t*)0xf2003004);
 
+    if (explicit_mode)
+        spheres[0] = Sphere(5, Vec(50,81.6-16.5,81.6),Vec(4,4,4)*20,  Vec(), DIFF);
+    else
+        spheres[0] = Sphere(600, Vec(50,681.6-.27,81.6),Vec(12,12,12),  Vec(), DIFF);
+
     for (unsigned tile_y = 0; tile_y < (render_height / TILE_SIZE); tile_y++)
     {
         for (unsigned tile_x = 0; tile_x < (render_width / TILE_SIZE); tile_x++)
         {
-            if (explicit_mode)
-                spheres[0] = Sphere(5, Vec(50,81.6-16.5,81.6),Vec(4,4,4)*20,  Vec(), DIFF);
-            else
-                spheres[0] = Sphere(600, Vec(50,681.6-.27,81.6),Vec(12,12,12),  Vec(), DIFF);
-
-            Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).norm()); // cam pos, dir
-            Vec cx = Vec(render_width * .5135 / render_height), cy = (cx % cam.d).norm() * .5135, r;
-
-            for (int i=0; i < TILE_SIZE * TILE_SIZE; i++)
-                c[i] = Vec();
-
-            kprintf("tile_y*32 = %d, (tile_y+1)*32=%d\n", tile_y*32, (tile_y+1)*32);
-
-            for (int _y=tile_y * 32; _y < (tile_y + 1) * 32; _y++)
-            {
-                int y = render_height - _y - 1;
-
-                kprintf(" tile_y*32 = %d, (tile_y+1)*32=%d\n", tile_y*32, (tile_y+1)*32);
-                kprintf(" _y=%d, y=%d\n", _y, y);
-
-                unsigned short Xi[3];
-
-                for (int _x=tile_x * 32; _x < (tile_x + 1) * 32; _x++)   // Loop cols
-                {
-                    Xi[0] = 0;
-                    Xi[1] = 0;
-                    Xi[2] = y*y*y;
-                    int x = _x; // w - _x - 1;
-                    for (unsigned sy=0, i=(_y-tile_y*32)*32+_x-tile_x*32; sy<2; sy++)     // 2x2 subpixel rows
-                    {
-                        for (unsigned sx=0; sx<2; sx++, r=Vec())
-                        {        // 2x2 subpixel cols
-//                            for (int s=0; s<samps; s++)
-                            {
-                                double r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1: 1-sqrt(2-r1);
-                                double r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1: 1-sqrt(2-r2);
-                                Vec d = cx*( ( (sx+.5 + dx)/2 + x)/render_width - .5) +
-                                        cy*( ( (sy+.5 + dy)/2 + y)/render_height - .5) + cam.d;
-//*(int*)0x100000 = ~0;
-                                if (explicit_mode)
-                                    r = r + radiance_expl(Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
-                                else
-                                    r = r + radiance(Ray(cam.o+d*140,d.norm()),0,Xi)*(1./samps);
-//*(int*)0x100000 = 0;
-                            } // Camera rays are pushed ^^^^^ forward to start in interior
-                            r.x = 0.001;
-                            r.y = 0.0001;
-                            r.z = 0.001;
-                            c[i] = c[i] + Vec(clamp(r.x),clamp(r.y),clamp(r.z))*.25;
-                        }
-                    }
-                }
-#if 0
-                int start_ptr = tile_y*32*render_width + tile_x*32;
-                for (int yy=0; yy < 32; yy++)
-                {
-                    for (int xx=0; xx < 32; xx++)
-                    {
-                        buffer[start_ptr+xx] = ((toInt(c[(xx+32*yy)].z) & 0xff)) |
-                            ((toInt(c[(xx+32*yy)].y) & 0xff) << 8) | ((toInt(c[(xx + 32*yy)].x) & 0xff) << 16);
-                    }
-                    start_ptr += render_width;
-                }
-#endif
-            }
-            RedrawTile(tile_x, tile_y);
+            RenderTile(tile_x, tile_y);
         }
     }
 
