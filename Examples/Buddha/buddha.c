@@ -44,7 +44,7 @@ void RedrawBuffer()
             if (g > 63) g = 63;
 
             uint16_t c = b | (g << 5) | (r << 11);
-            ((volatile uint16_t *)fb)[out_offset + x] = LE16(c);
+            fb[out_offset + x] = LE16(c);
         }
         in_offset += render_width;
         out_offset += pitch/2;
