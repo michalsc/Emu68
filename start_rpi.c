@@ -738,6 +738,7 @@ uint8_t *chunky; //[DATA_SIZE];
     //plane0, plane1, plane2, plane3
 //};
 
+uint32_t last_PC = 0xffffffff;
 
 void start_emu(void *addr)
 {
@@ -774,7 +775,7 @@ for (int i=1; i < 2; i++)
 
     printf("[JIT] Let it go...\n");
     uint64_t ctx_count = 0;
-    uint32_t last_PC = 0xffffffff;
+
     t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
     do {
