@@ -41,7 +41,7 @@ static struct List *ICache;
 #else
 static struct List ICache[65536];
 #endif
-static struct List LRU;
+struct List LRU;
 #ifndef RASPI
 static uint32_t *arm_cache;
 static const uint32_t arm_cache_size = EMU68_ARM_CACHE_SIZE;
@@ -614,6 +614,8 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
             *end++ = bx_lr();
         epilogue_size += end - tmpptr;
 
+        // Put a marker at the end of translation unit
+        *end++ = 0xffffffff;
 
     if (debug)      {
 
@@ -635,16 +637,19 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
             unit = tlsf_malloc_aligned(handle, line_length, 32);
             if (unit == NULL)
             {
+                extern uint32_t last_PC;
                 struct Node *n = REMTAIL(&LRU);
                 void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
+                REMOVE((struct Node *)ptr);
                 printf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 tlsf_free(handle, ptr);
+                last_PC = 0xffffffff;
             }
         } while(unit == NULL);
 
         unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
         unit->mt_M68kInsnCnt = insn_count;
-        unit->mt_ARMInsnCnt = (uint32_t)(end - arm_code);
+        unit->mt_ARMInsnCnt = (uint32_t)(end - arm_code - 1);
         unit->mt_UseCount = 0;
         unit->mt_M68kAddress = orig_m68kcodeptr;
         unit->mt_M68kLow = m68k_low;
