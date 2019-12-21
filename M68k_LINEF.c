@@ -16,6 +16,8 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "Features.h"
+#include "lists.h"
+#include "tlsf.h"
 
 enum {
     C_PI = 0,
@@ -1125,6 +1127,176 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
     return ptr;
 }
 
+/* Clean and invalidate entire data cache, code after ARMv7 architecture reference manual */
+void __attribute__((naked)) clear_entire_dcache(void)
+{
+    asm volatile(
+"   push {r0, r1, r2, r3, r4, r5, r7, r9, r10, r11, lr} \n"
+"   mrc p15, 1, r0, c0, c0, 1   \n"     // Read CLIDR into R0
+"   ands r3, r0, #0x07000000    \n"
+"   mov r3, r3, lsr #23         \n"     // Cache level value (naturally aligned)
+"   beq 5f                      \n"
+"   mov r10, #0                 \n"
+"1: add r2, r10, r10, lsr #1    \n"     // Work out 3 x cachelevel
+"   mov r1, r0, lsr r2          \n"     // bottom 3 bits are the Cache type for this level
+"   and r1, r1, #7              \n"     // get those 3 bits alone
+"   cmp r1, #2                  \n"
+"   blt 4f                      \n"     // no cache or only instruction cache at this level
+"   mcr p15, 2, r10, c0, c0, 0  \n"     // write CSSELR from R10
+"   isb                         \n"     // ISB to sync the change to the CCSIDR
+"   mrc p15, 1, r1, c0, c0, 0   \n"     // read current CCSIDR to R1
+"   and r2, r1, #7              \n"     // extract the line length field
+"   add r2, r2, #4              \n"     // add 4 for the line length offset (log2 16 bytes)
+"   ldr r4, =0x3FF              \n"
+"   ands r4, r4, r1, lsr #3     \n"     // R4 is the max number on the way size (right aligned)
+"   clz r5, r4                  \n"     // R5 is the bit position of the way size increment
+"   mov r9, r4                  \n"     // R9 working copy of the max way size (right aligned)
+"2: ldr r7, =0x00007FFF         \n"
+"   ands r7, r7, r1, lsr #13    \n"     // R7 is the max number of the index size (right aligned)
+"3: orr r11, r10, r9, lsl r5    \n"     // factor in the way number and cache number into R11
+"   orr r11, r11, r7, lsl r2    \n"     // factor in the index number
+"   mcr p15, 0, r11, c7, c14, 2 \n"     // clean and invalidate by set/way
+"   subs r7, r7, #1             \n"     // decrement the index
+"   bge 3b                      \n"
+"   subs r9, r9, #1             \n"     // decrement the way number
+"   bge 2b                      \n"
+"4: add r10, r10, #2            \n"     // increment the cache number
+"   cmp r3, r10                 \n"
+"   bgt 1b                      \n"
+"   dsb                         \n"
+"5: pop {r0, r1, r2, r3, r4, r5, r7, r9, r10, r11, pc} \n"
+"   .ltorg                      \n"
+    );
+}
+
+/* Clean and invalidate entire data cache, code after ARMv7 architecture reference manual */
+void __attribute__((naked)) invalidate_entire_dcache(void)
+{
+    asm volatile(
+"   push {r4, r5, r7, r9, r10, r11, lr} \n"
+"   mrc p15, 1, r0, c0, c0, 1   \n"     // Read CLIDR into R0
+"   ands r3, r0, #0x07000000    \n"
+"   mov r3, r3, lsr #23         \n"     // Cache level value (naturally aligned)
+"   beq 5f                      \n"
+"   mov r10, #0                 \n"
+"1: add r2, r10, r10, lsr #1    \n"     // Work out 3 x cachelevel
+"   mov r1, r0, lsr r2          \n"     // bottom 3 bits are the Cache type for this level
+"   and r1, r1, #7              \n"     // get those 3 bits alone
+"   cmp r1, #2                  \n"
+"   blt 4f                      \n"     // no cache or only instruction cache at this level
+"   mcr p15, 2, r10, c0, c0, 0  \n"     // write CSSELR from R10
+"   isb                         \n"     // ISB to sync the change to the CCSIDR
+"   mrc p15, 1, r1, c0, c0, 0   \n"     // read current CCSIDR to R1
+"   and r2, r1, #7              \n"     // extract the line length field
+"   add r2, r2, #4              \n"     // add 4 for the line length offset (log2 16 bytes)
+"   ldr r4, =0x3FF              \n"
+"   ands r4, r4, r1, lsr #3     \n"     // R4 is the max number on the way size (right aligned)
+"   clz r5, r4                  \n"     // R5 is the bit position of the way size increment
+"   mov r9, r4                  \n"     // R9 working copy of the max way size (right aligned)
+"2: ldr r7, =0x00007FFF         \n"
+"   ands r7, r7, r1, lsr #13    \n"     // R7 is the max number of the index size (right aligned)
+"3: orr r11, r10, r9, lsl r5    \n"     // factor in the way number and cache number into R11
+"   orr r11, r11, r7, lsl r2    \n"     // factor in the index number
+"   mcr p15, 0, r11, c7, c6, 2  \n"     // invalidate by set/way
+"   subs r7, r7, #1             \n"     // decrement the index
+"   bge 3b                      \n"
+"   subs r9, r9, #1             \n"     // decrement the way number
+"   bge 2b                      \n"
+"4: add r10, r10, #2            \n"     // increment the cache number
+"   cmp r3, r10                 \n"
+"   bgt 1b                      \n"
+"   dsb                         \n"
+"5: pop {r4, r5, r7, r9, r10, r11, pc} \n"
+"   .ltorg                      \n"
+    );
+}
+
+void __clear_cache(void *begin, void *end);
+
+uint32_t icache_epilogue[64];
+
+void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t *arm_pc)
+{
+    int i;
+    uint16_t opcode = BE16(pc[0]);
+    struct M68KTranslationUnit *u;
+    struct Node *n, *next;
+    extern struct List LRU;
+    extern void *handle;
+    extern uint32_t last_PC;
+
+    printf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%08x\n", opcode, target_addr, pc, arm_pc);
+    printf("[LINEF] ARM insn: %08x\n", *arm_pc);
+
+    for (i=0; i < 64; i++)
+    {
+        if (arm_pc[i] == 0xffffffff)
+            break;
+
+        icache_epilogue[i] = arm_pc[i];
+    }
+
+    printf("[LINEF] Copied %d instructions of epilogue\n", i);
+    __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
+
+    last_PC = 0xffffffff;
+
+    /* Get the scope */
+    switch (opcode & 0x18) {
+        case 0x08:  /* Line */
+            printf("[LINEF] Invalidating line\n");
+            ForeachNodeSafe(&LRU, n, next)
+            {
+                u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                printf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+
+                // If highest address of unit is lower than the begin flushed area, or lowest address of unit higher than the flushed area end
+                // then skip the unit
+                if ((uintptr_t)u->mt_M68kLow > ((target_addr + 16) & ~15) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~15))
+                    continue;
+
+                printf("[LINEF] Unit match! Removing.\n");
+                REMOVE(&u->mt_LRUNode);
+                REMOVE(&u->mt_HashNode);
+                tlsf_free(handle, u);
+            }
+            break;
+        case 0x10:  /* Page */
+            printf("[LINEF] Invalidating page\n");
+            ForeachNodeSafe(&LRU, n, next)
+            {
+                u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                printf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+
+                // If highest address of unit is lower than the begin flushed area, or lowest address of unit higher than the flushed area end
+                // then skip the unit
+                if ((uintptr_t)u->mt_M68kLow > ((target_addr + 4096) & ~4095) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~4095))
+                    continue;
+
+                printf("[LINEF] Unit match! Removing.\n");
+                REMOVE(&u->mt_LRUNode);
+                REMOVE(&u->mt_HashNode);
+                tlsf_free(handle, u);
+            }
+            break;
+        case 0x18:  /* All */
+            printf("[LINEF] Invalidating all\n");
+            while ((n = REMHEAD(&LRU))) {
+                u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                printf("[LINEF] Removing unit %08x\n", u);
+                REMOVE(&u->mt_HashNode);
+                tlsf_free(handle, u);
+            }
+            break;
+    }
+
+    return &icache_epilogue[0];
+}
+
+void __attribute__((naked)) trampoline_icache_invalidate(void)
+{
+    asm volatile("bl invalidate_instruction_cache\n\tbx r0");
+}
 
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
@@ -1133,8 +1305,169 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
 
+    /* CINV */
+    if ((opcode & 0xff20) == 0xf400)
+    {
+        uint8_t tmp = 0xff;
+        uint8_t tmp2 = 0xff;
+        ext_count = 0;
+
+        /* Invalidating data cache? */
+        if (opcode & 0x40) {
+            /* Get the scope */
+            switch (opcode & 0x18) {
+                case 0x08:  /* Line */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
+                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
+                    *ptr++ = mov_immed_u8(tmp, 0);
+                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0x10:  /* Page */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+                    tmp2 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
+                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
+                    *ptr++ = mov_immed_u8(tmp2, 128);
+                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
+                    *ptr++ = add_immed(tmp, tmp, 32);
+                    *ptr++ = subs_immed(tmp2, tmp2, 1);
+                    *ptr++ = b_cc(ARM_CC_NE, -5);
+                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
+                    RA_FreeARMRegister(&ptr, tmp);
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    break;
+                case 0x18:  /* All */
+                    *ptr++ = push(0x0f | (1 << 12));
+                    *ptr++ = ldr_offset(15, 12, 8);
+                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+                    *ptr++ = pop(0x0f | (1 << 12));
+                    *ptr++ = b_cc(ARM_CC_AL, 0);
+                    *ptr++ = BE32((uint32_t)invalidate_entire_dcache);
+                    break;
+            }
+        }
+        /* Invalidating instruction cache? */
+        if (opcode & 0x80) {
+            int8_t off = 0;
+            ptr = EMIT_GetOffsetPC(ptr, &off);
+            printf("[LINEF] Inserting icache flush\n");
+
+            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
+            {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = push(0x0f | (1 << 12));
+                if (tmp != 0)
+                    *ptr++ = mov_reg(0, tmp);
+            }
+            else
+            {
+                *ptr++ = push(0x0f | (1 << 12));
+            }
+            if (off >= 0)
+                *ptr++ = add_immed(1, REG_PC, off);
+            else
+                *ptr++ = sub_immed(1, REG_PC, -off);
+            *ptr++ = add_immed(2, 15, 4);
+            *ptr++ = ldr_offset(15, 12, 8);
+            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+            *ptr++ = pop(0x0f | (1 << 12));
+            *ptr++ = b_cc(ARM_CC_AL, 0);
+            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+
+        /* If instruction cache was invalidated, then break translation after this instruction! */
+        if (opcode & 0x80) {
+            *ptr++ = INSN_TO_LE(0xffffffff);
+        }
+
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
+    /* CPUSH */
+    else if ((opcode & 0xff20) == 0xf420)
+    {
+        uint8_t tmp = 0xff;
+        uint8_t tmp2 = 0xff;
+        ext_count = 0;
+
+        /* Flush data cache? */
+        if (opcode & 0x40) {
+            /* Get the scope */
+            switch (opcode & 0x18) {
+                case 0x08:  /* Line */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
+                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
+                    *ptr++ = mov_immed_u8(tmp, 0);
+                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0x10:  /* Page */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+                    tmp2 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
+                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
+                    *ptr++ = mov_immed_u8(tmp2, 128);
+                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
+                    *ptr++ = add_immed(tmp, tmp, 32);
+                    *ptr++ = subs_immed(tmp2, tmp2, 1);
+                    *ptr++ = b_cc(ARM_CC_NE, -5);
+                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
+                    RA_FreeARMRegister(&ptr, tmp);
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    break;
+                case 0x18:  /* All */
+                    *ptr++ = push(0x0f | (1 << 12));
+                    *ptr++ = ldr_offset(15, 12, 8);
+                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+                    *ptr++ = pop(0x0f | (1 << 12));
+                    *ptr++ = b_cc(ARM_CC_AL, 0);
+                    *ptr++ = BE32((uint32_t)clear_entire_dcache);
+                    break;
+            }
+        }
+        /* Invalidating instruction cache? */
+        if (opcode & 0x80) {
+            int8_t off = 0;
+            ptr = EMIT_GetOffsetPC(ptr, &off);
+            printf("[LINEF] Inserting icache flush\n");
+            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
+            {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = push(0x0f | (1 << 12));
+                if (tmp != 0)
+                    *ptr++ = mov_reg(0, tmp);
+            }
+            else
+            {
+                *ptr++ = push(0x0f | (1 << 12));
+            }
+            if (off >= 0)
+                *ptr++ = add_immed(1, REG_PC, off);
+            else
+                *ptr++ = sub_immed(1, REG_PC, -off);
+            *ptr++ = add_immed(2, 15, 4);
+            *ptr++ = ldr_offset(15, 12, 8);
+            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+            *ptr++ = pop(0x0f | (1 << 12));
+            *ptr++ = b_cc(ARM_CC_AL, 0);
+            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+
+        /* If instruction cache was invalidated, then break translation after this instruction! */
+        if (opcode & 0x80) {
+            *ptr++ = INSN_TO_LE(0xffffffff);
+        }
+
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
     /* FMOVECR reg */
-    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
         union {
             double d;
@@ -1180,10 +1513,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     /* FABS */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0018)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0018 || (opcode2 & 0xa07b) == 0x0058))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -1208,10 +1551,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     /* FADD */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0022)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0022 || (opcode2 & 0xa07b) == 0x0062))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
@@ -1430,10 +1783,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     /* FDIV */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0020)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0020 || (opcode2 & 0xa07b) == 0x0060))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
@@ -1556,10 +1919,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
     /* FMOVE to REG */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0000)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -1603,6 +1976,77 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
         }
+    }
+    /* FMOVE from special */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
+    {
+        uint8_t special_reg;
+        switch (opcode2 & 0x1c00)
+        {
+            case 0x1000:    /* FPCR */
+                special_reg = M68K_GetFPCR(&ptr);
+                break;
+            case 0x0800:    /* FPSR */
+                special_reg = M68K_GetFPSR(&ptr);
+                break;
+            case 0x0400:    /* FPIAR */
+                special_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ldr_offset(REG_CTX, special_reg, __builtin_offsetof(struct M68KState, FPIAR));
+                break;
+        }
+
+        if ((opcode & 0x38) == 0)
+        {
+            uint8_t reg = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
+            *ptr++ = mov_reg(reg, special_reg);
+        }
+        else
+        {
+            ptr = EMIT_StoreToEffectiveAddress(ptr, 4, &special_reg, opcode & 0x3f, *m68k_ptr, &ext_count);
+        }
+
+        if ((opcode2 & 0x1c00) == 0x0400)
+            RA_FreeARMRegister(&ptr, special_reg);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
+    /* FMOVE to special */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0x8000)
+    {
+        uint8_t src = 0xff;
+        uint8_t tmp = 0xff;
+        uint8_t reg = 0xff;
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+
+        switch (opcode2 & 0x1c00)
+        {
+            case 0x1000:    /* FPCR */
+                tmp = RA_AllocARMRegister(&ptr);
+                reg = M68K_ModifyFPCR(&ptr);
+                *ptr++ = mov_reg(reg, src);
+                *ptr++ = fmxr(tmp, FPSCR);
+                *ptr++ = lsr_immed(src, src, 4);
+                *ptr++ = tst_immed(src, 1);
+                *ptr++ = eor_cc_immed(ARM_CC_NE, src, src, 2);
+                *ptr++ = bfi(tmp, src, 22, 2);
+                *ptr++ = fmrx(FPSCR, tmp);
+                break;
+            case 0x0800:    /* FPSR */
+                reg = M68K_ModifyFPSR(&ptr);
+                *ptr++ = mov_reg(reg, src);
+                break;
+            case 0x0400:    /* FPIAR */
+                *ptr++ = str_offset(REG_CTX, src, __builtin_offsetof(struct M68KState, FPIAR));
+                break;
+        }
+
+        RA_FreeARMRegister(&ptr, src);
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
     }
     /* FMOVEM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000)
@@ -1691,10 +2135,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FMUL */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0023)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0023 || (opcode2 & 0xa07b) == 0x0063))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
@@ -1721,10 +2175,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     /* FNEG */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001a)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x001a || (opcode2 & 0xa07b) == 0x005a))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -1899,10 +2363,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         (*m68k_ptr) += ext_count;
     }
     /* FSQRT */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0004)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
@@ -1934,10 +2408,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     /* FSUB */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0028)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0028 || (opcode2 & 0xa07b) == 0x0068))
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
