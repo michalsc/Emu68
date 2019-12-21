@@ -109,7 +109,6 @@ static inline struct Node * REMOVE(struct Node *n)
 static inline struct Node * REMTAIL(struct List *l)
 {
     return (l->lh_TailPred->ln_Pred) ? REMOVE(l->lh_TailPred) : (struct Node *)0;
-
 }
 #define GetHead(_l)                                     \
 ({                                                      \
@@ -143,13 +142,10 @@ static inline struct Node * REMTAIL(struct List *l)
     (n && n->ln_Pred && n->ln_Pred->ln_Pred) ? n->ln_Pred : (struct Node *)0; \
 })
 
-#define REMHEAD(_l)                                               \
-({                                                                \
-    struct List *__aros_list_tmp = (struct List *)(_l),           \
-                *l = __aros_list_tmp;                             \
-                                                                  \
-     l->lh_Head->ln_Succ ? REMOVE(l->lh_Head) : (struct Node *)0; \
-})
+static inline struct Node * REMHEAD(struct List *l)
+{
+    return l->lh_Head->ln_Succ ? REMOVE(l->lh_Head) : (struct Node *)0;
+}
 
 #define ForeachNode(list, node)                        \
 for                                                    \
