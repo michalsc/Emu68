@@ -244,6 +244,8 @@ static inline uint32_t lsrs_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint
 static inline uint32_t lsrs_immed(uint8_t dest, uint8_t src, uint8_t value){return lsrs_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t lsrs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t value){return INSN_TO_LE(0x01a00030 | (1 << 20) | (cc << 28) | (dest << 12) | src | ((value & 0xf) << 8));}
 static inline uint32_t lsrs_reg(uint8_t dest, uint8_t src, uint8_t value){return lsrs_cc_reg(ARM_CC_AL, dest, src, value);}
+static inline uint32_t mcr(uint8_t cp, uint8_t op1, uint8_t rd, uint8_t crn, uint8_t crm, uint8_t op2) { return INSN_TO_LE(0xee000010 | (op1 << 21) | (crn << 16) | (rd << 12) | (cp << 8) | (op2 << 5) | crm); }
+static inline uint32_t mrc(uint8_t cp, uint8_t op1, uint8_t rd, uint8_t crn, uint8_t crm, uint8_t op2) { return INSN_TO_LE(0xee100010 | (op1 << 21) | (crn << 16) | (rd << 12) | (cp << 8) | (op2 << 5) | crm); }
 static inline uint32_t mov_cc_reg(uint8_t cc, uint8_t reg, uint8_t src) { return INSN_TO_LE(0x01a00000 | (cc << 28) | src | (reg << 12)); }
 static inline uint32_t mov_reg(uint8_t reg, uint8_t src) { return INSN_TO_LE(0xe1a00000 | src | (reg << 12)); }
 static inline uint32_t mov_cc_reg_shift(uint8_t cc, uint8_t reg, uint8_t src, uint8_t shift) { return INSN_TO_LE(0x01a00000 | (cc << 28) | src | (reg << 12) | (shift << 7)); }
@@ -438,6 +440,11 @@ static inline uint32_t fmdlr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return
 static inline uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return fmdlr_cc(ARM_CC_AL, v_dst, src); }
 static inline uint32_t fmdrr_cc(uint8_t cc, uint8_t v_dst, uint8_t src_hi, uint8_t src_lo) { return INSN_TO_LE(0x0c400b10 | (cc << 28) | (v_dst) | (src_lo << 12) | (src_hi << 16)); }
 static inline uint32_t fmdrr(uint8_t v_dst, uint8_t src_hi, uint8_t src_lo) { return fmdrr_cc(ARM_CC_AL, v_dst, src_hi, src_lo); }
+enum VFP_REG { FPSID = 0, FPSCR = 1, FPEXT = 8 };
+static inline uint32_t fmrx_cc(uint8_t cc, enum VFP_REG sr, uint8_t src) { return INSN_TO_LE(0x0ee00a10 | (cc << 28) | (src << 12) | (sr << 16)); }
+static inline uint32_t fmrx(enum VFP_REG sr, uint8_t src) { return fmrx_cc(ARM_CC_AL, sr, src); }
+static inline uint32_t fmxr_cc(uint8_t cc, uint8_t dest, enum VFP_REG sr) { return INSN_TO_LE(0x0ef00a10 | (cc << 28) | (dest << 12) | (sr << 16)); }
+static inline uint32_t fmxr(uint8_t dest, enum VFP_REG sr) { return fmxr_cc(ARM_CC_AL, dest, sr); }
 static inline uint32_t fmov_cc_imm(uint8_t cc, uint8_t dst, uint8_t imm) { return INSN_TO_LE(0x0eb00b00 | (cc << 28) | ((imm >> 4) << 16) | (dst << 12) | (imm & 0xf)); }
 static inline uint32_t fmov_imm(uint8_t dst, uint8_t imm) { return fmov_cc_imm(ARM_CC_AL, dst, imm); }
 static inline uint32_t fmov_i64(uint8_t dst, uint8_t imm, uint8_t cmode) { return INSN_TO_LE(0xf2800e30 | ((imm >> 7) << 24) | (((imm >> 4) & 7) << 16) | (dst << 12) | (imm & 0xf) | (cmode << 8)); }
