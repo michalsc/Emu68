@@ -5,7 +5,7 @@
 
 struct SegList {
     uint32_t        h_Size;
-    void *          h_Next;
+    uint32_t        h_Next;
     uint8_t         h_Data[];
 };
 

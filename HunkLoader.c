@@ -7,11 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "support.h"
 #include "DuffCopy.h"
 #include "HunkLoader.h"
 #include "ARM.h"
@@ -20,7 +16,7 @@
 
 #ifdef RASPI
 
-char * pool = (char *)0x007ffff8;
+char * pool = (char *)0x000ffff8;
 void * _my_malloc(size_t size)
 {
     void *ptr = pool;
@@ -43,11 +39,11 @@ void * LoadHunkFile(void *buffer)
     intptr_t ref_base = 0;
     intptr_t base = 0;
 
-    printf("[HUNK] Loading Hunk file from address %p\n", buffer);
+    kprintf("[HUNK] Loading Hunk file from address %p\n", buffer);
 
     if (BE32(words[0]) != 0x3f3 || BE32(words[1]) != 0)
     {
-        printf("[HUNK] FAILURE: Wrong header %08x:%08x.\n", BE32(words[0]), BE32(words[1]));
+        kprintf("[HUNK] FAILURE: Wrong header %08x:%08x.\n", BE32(words[0]), BE32(words[1]));
         return NULL;
     }
 
@@ -55,7 +51,7 @@ void * LoadHunkFile(void *buffer)
     first_to_load = BE32(words[3]);
     last_to_load = BE32(words[4]);
 
-    D(printf("[HUNK] Pre-allocating segments %d to %d\n", first_to_load, last_to_load));
+    D(kprintf("[HUNK] Pre-allocating segments %d to %d\n", first_to_load, last_to_load));
 
     words = &words[5];
 
@@ -65,12 +61,13 @@ void * LoadHunkFile(void *buffer)
         uint32_t size = 4 * (BE32(*words++) & 0x3fffffff);
         struct SegList *h = malloc(size + sizeof(struct SegList));
         bzero(h, size + sizeof(struct SegList));
-        h->h_Next = NULL;
+
+        h->h_Next = 0;
         h->h_Size = size;
         if (hunks == NULL)
             hunks = h;
         if (prevhunk != NULL)
-            *(void**)prevhunk = &h->h_Next;
+            *(uint32_t*)prevhunk = (uint32_t)((intptr_t)&h->h_Next);
         prevhunk = &h->h_Next;
     }
 
@@ -78,16 +75,16 @@ void * LoadHunkFile(void *buffer)
     {
         void *segments = &hunks->h_Next;
 
-        printf("[HUNK] Dumping hunk list:\n");
+        kprintf("[HUNK] Dumping hunk list:\n");
         while (segments != NULL)
         {
-            printf("[HUNK]   Hunk %p, size %d, next %p\n",
-                segments, ((uint32_t*)segments)[-1], *(void**)segments);
-            segments = *(void**)segments;
+            kprintf("[HUNK]   Hunk %08x, size %d, next %08x\n",
+                segments, ((uint32_t*)segments)[-1], *(uint32_t*)segments);
+            segments = (void*)(intptr_t)(*(uint32_t*)segments);
         }
     }
 
-    D(printf("[HUNK] Pulling the hunk data\n"));
+    D(kprintf("[HUNK] Pulling the hunk data\n"));
 
     /* Now pull file hunk by hunk and eventually apply relocations */
     h = hunks;
@@ -99,12 +96,12 @@ void * LoadHunkFile(void *buffer)
             case 0x3e9:
                 if (current_block >= first_to_load)
                 {
-                    D(printf("[HUNK] Loading block %d (code hunk) to %08x with size of %d words\n",
+                    D(kprintf("[HUNK] Loading block %d (code hunk) to %08x with size of %d words\n",
                         current_block, (void*)&h->h_Data, BE32(words[1])));
                     DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else {
-                    D(printf("[HUNK] Skipping block %d\n", current_block));
+                    D(kprintf("[HUNK] Skipping block %d\n", current_block));
                 }
                 words += 2 + BE32(words[1]);
                 break;
@@ -112,12 +109,12 @@ void * LoadHunkFile(void *buffer)
             case 0x3ea:
                 if (current_block >= first_to_load)
                 {
-                    D(printf("[HUNK] Loading block %d (data hunk) to %08x with size of %d words\n",
+                    D(kprintf("[HUNK] Loading block %d (data hunk) to %08x with size of %d words\n",
                         current_block, (void*)h->h_Data, BE32(words[1])));
                     DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else {
-                    D(printf("[HUNK] Skipping block %d\n", current_block));
+                    D(kprintf("[HUNK] Skipping block %d\n", current_block));
                 }
                 words += 2 + BE32(words[1]);
                 break;
@@ -125,20 +122,20 @@ void * LoadHunkFile(void *buffer)
             case 0x3eb:
                 if (current_block >= first_to_load)
                 {
-                    D(printf("[HUNK] Block %d (bss hunk) with size of %d words\n",
+                    D(kprintf("[HUNK] Block %d (bss hunk) with size of %d words\n",
                         current_block, BE32(words[1])));
                 }
                 else {
-                    D(printf("[HUNK] Skipping block %d\n", current_block));
+                    D(kprintf("[HUNK] Skipping block %d\n", current_block));
                 }
                 words += 2;
                 break;
 
             case 0x3ec:
                 if (current_block >= first_to_load) {
-                    D(printf("[HUNK] Applying relocations to previous section\n"));
+                    D(kprintf("[HUNK] Applying relocations to previous section\n"));
                 } else {
-                    D(printf("[HUNK] Skipping relocations for block %d\n", current_block));
+                    D(kprintf("[HUNK] Skipping relocations for block %d\n", current_block));
                 }
                 ref_base = 0;
                 base = (intptr_t)&h->h_Data;
@@ -152,17 +149,17 @@ void * LoadHunkFile(void *buffer)
                         void *segments = &hunks->h_Next;
                         for (unsigned i=0; i < refcnt; i++)
                         {
-                            segments = *(void**)segments;
+                            segments = (void *)(intptr_t)*(uint32_t*)segments;
                         }
                         ref_base = (intptr_t)segments + 4;
                         words += 2;
 
-                        D(printf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base));
+                        D(kprintf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base));
 
                         while(count--)
                         {
                             uint32_t off = BE32(*words++);
-                            D(printf("[HUNK]    at offset %08x\n", off));
+                            D(kprintf("[HUNK]    at offset %08x\n", off));
                             *(uint32_t*)(base + off) = BE32(
                                 BE32(*(uint32_t*)(base+off)) + ref_base
                             );
@@ -176,9 +173,9 @@ void * LoadHunkFile(void *buffer)
 
             case 0x3fd:
                 if (current_block >= first_to_load) {
-                    D(printf("[HUNK] Applying PC-relative relocations to previous section\n"));
+                    D(kprintf("[HUNK] Applying PC-relative relocations to previous section\n"));
                 } else {
-                    D(printf("[HUNK] Skipping relocations for block %d\n", current_block));
+                    D(kprintf("[HUNK] Skipping relocations for block %d\n", current_block));
                 }
                 ref_base = 0;
                 base = (intptr_t)&h->h_Data;
@@ -192,19 +189,19 @@ void * LoadHunkFile(void *buffer)
                         void *segments = &hunks->h_Next;
                         for (unsigned i=0; i < refcnt; i++)
                         {
-                            segments = *(void**)segments;
+                            segments = (void*)(intptr_t)(*(uint32_t*)segments);
                         }
 
                         ref_base = (intptr_t)segments + 4;
                         ref_base -= (intptr_t)base;
                         words += 2;
 
-                        D(printf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base));
+                        D(kprintf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base));
 
                         while(count--)
                         {
                             uint32_t off = BE32(*words++);
-                            D(printf("[HUNK]    at offset %08x\n", off));
+                            D(kprintf("[HUNK]    at offset %08x\n", off));
                             *(uint32_t*)(base + off) = BE32(
                                 BE32(*(uint32_t*)(base+off)) + ref_base
                             );
@@ -217,7 +214,7 @@ void * LoadHunkFile(void *buffer)
                 break;
 
             case 0x3f0:
-                D(printf("[HUNK] Symbols. Skipping...\n"));
+                D(kprintf("[HUNK] Symbols. Skipping...\n"));
                 words++;
                 while(BE32(words[0]) != 0)
                 {
@@ -227,14 +224,14 @@ void * LoadHunkFile(void *buffer)
                 break;
 
             case 0x3f2:
-                D(printf("[HUNK] End of block\n"));
+                D(kprintf("[HUNK] End of block\n"));
                 words++;
                 current_block++;
                 h = (struct SegList *)((uintptr_t)h->h_Next - __builtin_offsetof(struct SegList, h_Next));
                 break;
 
             default:
-                printf("[HUNK] Unknown hunk type %08x at %08x\n", BE32(*words), words);
+                kprintf("[HUNK] Unknown hunk type %08x at %08x\n", BE32(*words), words);
                 words += 2 + BE32(words[1]);
                 break;
         }
