@@ -1,7 +1,18 @@
+/*
+    Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #ifndef _SUPPORT_RPI_H
 #define _SUPPORT_RPI_H
 
 #include <stdarg.h>
+#include "support.h"
+
 #include "ARM.h"
 
 #define PL011_0_BASE              (ARM_PERIIOBASE + 0x201000)
@@ -67,56 +78,6 @@
 #define PL011_ICR_BEIC           (1 << 9)
 #define PL011_ICR_OEIC           (1 << 10)
 
-static inline uint32_t rd32le(uint32_t iobase) {
-    return LE32(*(volatile uint32_t *)(iobase));
-}
-
-static inline uint32_t rd32be(uint32_t iobase) {
-    return BE32(*(volatile uint32_t *)(iobase));
-}
-
-static inline uint16_t rd16le(uint32_t iobase) {
-    return LE16(*(volatile uint16_t *)(iobase));
-}
-
-static inline uint16_t rd16be(uint32_t iobase) {
-    return BE16(*(volatile uint16_t *)(iobase));
-}
-
-static inline uint8_t rd8(uint32_t iobase) {
-    return *(volatile uint8_t *)(iobase);
-}
-
-static inline void wr32le(uint32_t iobase, uint32_t value) {
-    *(volatile uint32_t *)(iobase) = LE32(value);
-}
-
-static inline void wr32be(uint32_t iobase, uint32_t value) {
-    *(volatile uint32_t *)(iobase) = BE32(value);
-}
-
-static inline void wr16le(uint32_t iobase, uint16_t value) {
-    *(volatile uint16_t *)(iobase) = LE16(value);
-}
-
-static inline void wr16be(uint32_t iobase, uint16_t value) {
-    *(volatile uint16_t *)(iobase) = BE16(value);
-}
-
-static inline void wr8(uint32_t iobase, uint8_t value) {
-    *(volatile uint8_t *)(iobase) = value;
-}
-
-typedef void (*putc_func)(void *data, char c);
-void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, va_list args);
-void kprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, ...);
-void vkprintf(const char * restrict format, va_list args);
-void kprintf(const char * restrict format, ...);
-void arm_flush_cache(uint32_t addr, uint32_t length);
-void arm_icache_invalidate(uint32_t addr, uint32_t length);
-void arm_dcache_invalidate(uint32_t addr, uint32_t length);
-const char *remove_path(const char *in);
-extern void * tlsf;
 uint32_t set_clock_rate(uint32_t clock_id, uint32_t speed);
 uint32_t get_min_clock_rate(uint32_t clock_id);
 uint32_t get_max_clock_rate(uint32_t clock_id);
@@ -125,20 +86,6 @@ void setup_serial();
 struct Size { uint16_t width; uint16_t height; };
 struct Size get_display_size();
 void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch);
-
-struct Result32 {
-    uint32_t q;
-    uint32_t r;
-};
-
-struct Result64 {
-    uint64_t q;
-    uint64_t r;
-};
-
-struct Result32 uidiv(uint32_t n, uint32_t d);
-struct Result32 sidiv(int32_t n, int32_t d);
-struct Result64 uldiv(uint64_t n, uint64_t d);
-struct Result64 sldiv(int64_t n, int64_t d);
+void get_vc_memory(void **base, uint32_t *size);
 
 #endif // _SUPPORT_RPI_H

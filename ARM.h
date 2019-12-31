@@ -10,6 +10,8 @@
 #ifndef _ARM_H
 #define _ARM_H
 
+#include "support.h"
+
 /*
     Global registers:
 
@@ -39,80 +41,6 @@
 #define ARM_CC_GT 0x0c /* Z == 0 && N == V */
 #define ARM_CC_LE 0x0d /* Z == 1 || N != V */
 #define ARM_CC_AL 0x0e /* Always */
-
-static inline uint64_t BE64(uint64_t x)
-{
-    union {
-        uint64_t v;
-        uint8_t u[8];
-    } tmp;
-
-    tmp.v = x;
-
-    return ((uint64_t)(tmp.u[0]) << 56) | ((uint64_t)(tmp.u[1]) << 48) | ((uint64_t)(tmp.u[2]) << 40) | ((uint64_t)(tmp.u[3]) << 32) |
-        (tmp.u[4] << 24) | (tmp.u[5] << 16) | (tmp.u[6] << 8) | (tmp.u[7]);
-}
-
-static inline uint64_t LE64(uint64_t x)
-{
-    union {
-        uint64_t v;
-        uint8_t u[8];
-    } tmp;
-
-    tmp.v = x;
-
-    return ((uint64_t)(tmp.u[7]) << 56) | ((uint64_t)(tmp.u[6]) << 48) | ((uint64_t)(tmp.u[5]) << 40) | ((uint64_t)(tmp.u[4]) << 32) |
-        (tmp.u[3] << 24) | (tmp.u[2] << 16) | (tmp.u[1] << 8) | (tmp.u[0]);
-}
-
-static inline uint32_t BE32(uint32_t x)
-{
-    union {
-        uint32_t v;
-        uint8_t u[4];
-    } tmp;
-
-    tmp.v = x;
-
-    return (tmp.u[0] << 24) | (tmp.u[1] << 16) | (tmp.u[2] << 8) | (tmp.u[3]);
-}
-
-static inline uint32_t LE32(uint32_t x)
-{
-    union {
-        uint32_t v;
-        uint8_t u[4];
-    } tmp;
-
-    tmp.v = x;
-
-    return (tmp.u[3] << 24) | (tmp.u[2] << 16) | (tmp.u[1] << 8) | (tmp.u[0]);
-}
-
-static inline uint16_t BE16(uint16_t x)
-{
-    union {
-        uint16_t v;
-        uint8_t u[2];
-    } tmp;
-
-    tmp.v = x;
-
-    return (tmp.u[0] << 8) | (tmp.u[1]);
-}
-
-static inline uint16_t LE16(uint16_t x)
-{
-    union {
-        uint16_t v;
-        uint8_t u[2];
-    } tmp;
-
-    tmp.v = x;
-
-    return (tmp.u[1] << 8) | (tmp.u[0]);
-}
 
 /* Converts generated ARM instruction to little-endian */
 static inline uint32_t INSN_TO_LE(uint32_t insn)
