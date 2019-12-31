@@ -7,11 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdlib.h>
-
 #include <math.h>
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -509,7 +505,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
 
                 default:
-                    printf("[JIT] LineF: wrong argument size %d for Dn access at %08x\n", (int)size, *m68k_ptr-1);
+                    kprintf("[JIT] LineF: wrong argument size %d for Dn access at %08x\n", (int)size, *m68k_ptr-1);
             }
         }
         /* Case 2: mode 111:100 - immediate */
@@ -573,7 +569,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                     case SIZE_X:
                         {
-                            printf("extended precision load!\n");
+                            kprintf("extended precision load!\n");
                             uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                             uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                             /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
@@ -613,7 +609,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         break;
 
                     case SIZE_P:
-                        printf("Packed load!\n");
+                        kprintf("Packed load!\n");
                         *ext_count += 6;
                         break;
 
@@ -666,7 +662,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                             imm_offset = 0;
                         }
 
-                        printf("extended precision load from EA!\n");
+                        kprintf("extended precision load from EA!\n");
                         uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                         /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
@@ -910,7 +906,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
 
             default:
-                printf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
+                kprintf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
         }
 
         RA_FreeFPURegister(&ptr, vfp_reg);
@@ -944,7 +940,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         {
             case SIZE_X:
                 {
-                    printf("extended precision store to EA!\n");
+                    kprintf("extended precision store to EA!\n");
 #if 0
                     uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
@@ -2081,7 +2077,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                 }
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             } else if (mode == 3) {
-                printf("[JIT] Unsupported FMOVEM operation (REG to MEM postindex)\n");
+                kprintf("[JIT] Unsupported FMOVEM operation (REG to MEM postindex)\n");
             } else {
                 int cnt = 0;
                 for (int i=0; i < 8; i++) {
@@ -2115,7 +2111,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = add_immed(base_reg, base_reg, 12*cnt);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             } else if (mode == 4) {
-                printf("[JIT] Unsupported FMOVEM operation (REG to MEM preindex)\n");
+                kprintf("[JIT] Unsupported FMOVEM operation (REG to MEM preindex)\n");
             } else {
                 int cnt = 0;
                 for (int i=0; i < 8; i++) {

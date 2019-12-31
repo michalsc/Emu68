@@ -7,10 +7,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdlib.h>
-
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -213,7 +209,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
                 break;
 
             default:
-                printf("Default CC called! Can't be!\n");
+                kprintf("Default CC called! Can't be!\n");
                 *ptr++ = udf(0x0bcc);
                 break;
         }

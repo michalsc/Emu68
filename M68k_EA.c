@@ -8,7 +8,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -69,7 +68,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, D[src_reg]));
                 break;
             default:
-                printf("Wrong size\n");
+                kprintf("Wrong size\n");
                 break;
         }
     }
@@ -89,7 +88,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, A[src_reg]));
                 break;
             default:
-                printf("Wrong size\n");
+                kprintf("Wrong size\n");
                 break;
         }
     }
@@ -123,7 +122,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         *ptr++ = ldrb_offset(reg_An, *arm_reg, 0);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                 }
             }
@@ -155,7 +154,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = ldrb_offset_postindex(reg_An, *arm_reg, 1);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                 }
             }
@@ -186,7 +185,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = ldrb_offset_preindex(reg_An, *arm_reg, -1);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                 }
             }
@@ -241,7 +240,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         *ptr++ = add_reg(*arm_reg, reg_An, reg_d16, 0);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                 }
                 RA_FreeARMRegister(&ptr, reg_d16);
@@ -308,7 +307,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         *ptr++ = add_reg(*arm_reg, displ ? tmp1 : reg_An, tmp2, (brief >> 9) & 3);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                 }
                 if (displ)
@@ -461,7 +460,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 *ptr++ = mov_reg(*arm_reg, bd_reg);
                             break;
                         default:
-                            printf("Unknown size opcode\n");
+                            kprintf("Unknown size opcode\n");
                             break;
                     }
                 }
@@ -505,7 +504,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 *ptr++ = add_reg(*arm_reg, bd_reg, index_reg, (brief >> 9) & 3);
                                 break;
                             default:
-                                printf("Unknown size opcode\n");
+                                kprintf("Unknown size opcode\n");
                                 break;
                         }
                     }
@@ -546,7 +545,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 *ptr++ = mov_reg(*arm_reg, bd_reg);
                                 break;
                             default:
-                                printf("Unknown size opcode\n");
+                                kprintf("Unknown size opcode\n");
                                 break;
                         }
                     }
@@ -576,7 +575,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 }
                 else
                 {
-                    //printf("(d16, PC) mode\n");
+                    //kprintf("(d16, PC) mode\n");
                     uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
                     int8_t off8 = 2;
                     ptr = EMIT_GetOffsetPC(ptr, &off8);
@@ -617,7 +616,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
                             break;
                         default:
-                            printf("Unknown size opcode\n");
+                            kprintf("Unknown size opcode\n");
                             break;
                     }
                     RA_FreeARMRegister(&ptr, reg_d16);
@@ -678,7 +677,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = add_reg(*arm_reg, tmp1, tmp2, (brief >> 9) & 3);
                             break;
                         default:
-                            printf("Unknown size opcode\n");
+                            kprintf("Unknown size opcode\n");
                             break;
                     }
                     RA_FreeARMRegister(&ptr, tmp1);
@@ -807,7 +806,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                     *ptr++ = mov_reg(*arm_reg, bd_reg);
                                 break;
                             default:
-                                printf("Unknown size opcode\n");
+                                kprintf("Unknown size opcode\n");
                                 break;
                         }
                     }
@@ -848,7 +847,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                     *ptr++ = add_reg(*arm_reg, bd_reg, index_reg, (brief >> 9) & 3);
                                     break;
                                 default:
-                                    printf("Unknown size opcode\n");
+                                    kprintf("Unknown size opcode\n");
                                     break;
                             }
                         }
@@ -889,7 +888,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                     *ptr++ = mov_reg(*arm_reg, bd_reg);
                                     break;
                                 default:
-                                    printf("Unknown size opcode\n");
+                                    kprintf("Unknown size opcode\n");
                                     break;
                             }
                         }
@@ -1080,7 +1079,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, D[src_reg]));
                 break;
             default:
-                printf("Wrong size\n");
+                kprintf("Wrong size\n");
                 break;
         }
     }
@@ -1109,7 +1108,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, A[src_reg]));
                 break;
             default:
-                printf("Wrong size\n");
+                kprintf("Wrong size\n");
                 break;
         }
     }
@@ -1136,7 +1135,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     *ptr++ = strb_offset(reg_An, *arm_reg, 0);
                     break;
                 default:
-                    printf("Unknown size opcode\n");
+                    kprintf("Unknown size opcode\n");
                     break;
                 }
             }
@@ -1168,7 +1167,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         *ptr++ = strb_offset_postindex(reg_An, *arm_reg, 1);
                     break;
                 default:
-                    printf("Unknown size opcode\n");
+                    kprintf("Unknown size opcode\n");
                     break;
                 }
             }
@@ -1200,7 +1199,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         *ptr++ = strb_offset_preindex(reg_An, *arm_reg, -1);
                     break;
                 default:
-                    printf("Unknown size opcode\n");
+                    kprintf("Unknown size opcode\n");
                     break;
                 }
             }
@@ -1247,7 +1246,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 *ptr++ = add_reg(*arm_reg, reg_An, reg_d16, 0);
                 break;
             default:
-                printf("Unknown size opcode\n");
+                kprintf("Unknown size opcode\n");
                 break;
             }
             RA_FreeARMRegister(&ptr, reg_d16);
@@ -1313,7 +1312,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     *ptr++ = add_reg(*arm_reg, displ ? tmp1 : reg_An, tmp2, (brief >> 9) & 3);
                     break;
                 default:
-                    printf("Unknown size opcode\n");
+                    kprintf("Unknown size opcode\n");
                     break;
                 }
                 if (displ) RA_FreeARMRegister(&ptr, tmp1);
@@ -1461,7 +1460,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = mov_reg(*arm_reg, bd_reg);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                     }
                 }
@@ -1502,7 +1501,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = add_reg(*arm_reg, bd_reg, index_reg, (brief >> 9) & 3);
                             break;
                         default:
-                            printf("Unknown size opcode\n");
+                            kprintf("Unknown size opcode\n");
                             break;
                         }
                     }
@@ -1544,7 +1543,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = mov_reg(*arm_reg, bd_reg);
                             break;
                         default:
-                            printf("Unknown size opcode\n");
+                            kprintf("Unknown size opcode\n");
                             break;
                         }
                     }
@@ -1605,7 +1604,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         *ptr++ = add_reg(*arm_reg, REG_PC, reg_d16, 0);
                         break;
                     default:
-                        printf("Unknown size opcode\n");
+                        kprintf("Unknown size opcode\n");
                         break;
                 }
                 RA_FreeARMRegister(&ptr, reg_d16);
@@ -1665,7 +1664,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = add_reg(*arm_reg, tmp1, tmp2, (brief >> 9) & 3);
                             break;
                         default:
-                            printf("Unknown size opcode\n");
+                            kprintf("Unknown size opcode\n");
                             break;
                     }
                     RA_FreeARMRegister(&ptr, tmp1);
@@ -1824,7 +1823,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                     *ptr++ = mov_reg(*arm_reg, bd_reg);
                                 break;
                             default:
-                                printf("Unknown size opcode\n");
+                                kprintf("Unknown size opcode\n");
                                 break;
                         }
                     }
@@ -1865,7 +1864,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                     *ptr++ = add_reg(*arm_reg, bd_reg, index_reg, (brief >> 9) & 3);
                                     break;
                                 default:
-                                    printf("Unknown size opcode\n");
+                                    kprintf("Unknown size opcode\n");
                                     break;
                             }
                         }
@@ -1906,7 +1905,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                     *ptr++ = mov_reg(*arm_reg, bd_reg);
                                     break;
                                 default:
-                                    printf("Unknown size opcode\n");
+                                    kprintf("Unknown size opcode\n");
                                     break;
                             }
                         }

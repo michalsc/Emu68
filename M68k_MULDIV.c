@@ -7,24 +7,10 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdlib.h>
-
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "Features.h"
-
-struct Result32 {
-    uint32_t q;
-    uint32_t r;
-};
-
-struct Result64 {
-    uint64_t q;
-    uint64_t r;
-};
 
 struct Result32 uidiv(uint32_t n, uint32_t d)
 {
@@ -539,7 +525,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             uint8_t tmp_r8 = RA_AllocARMRegister(&ptr);
             uint8_t tmp_r9 = RA_AllocARMRegister(&ptr);
 
-            printf("DIV%c_L 64/32->32:32\n", sig ? 'S':'U');
+            kprintf("DIV%c_L 64/32->32:32\n", sig ? 'S':'U');
 
             if (sig) {
 
@@ -638,7 +624,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         /* In case of 64-bit division use (u)ldivmod, otherwise use (u)idivmod */
         if (div64)
         {
-    printf("64 bit division not done yet!\n");
+    kprintf("64 bit division not done yet!\n");
         }
         else
         {

@@ -8,13 +8,13 @@
 */
 
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "ARM.h"
-#include "support_rpi.h"
+#include "support.h"
 #include "devicetree.h"
 #include "tlsf.h"
 #include "DuffCopy.h"
+
+#define NULL ((void*)0)
 
 #define D(x)
 

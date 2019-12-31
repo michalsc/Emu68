@@ -7,10 +7,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdlib.h>
-
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -482,7 +478,7 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (void)opcode;
     (void)m68k_ptr;
 
-    printf("[LINE0] Supervisor ORI to SR!\n");
+    kprintf("[LINE0] Supervisor ORI to SR!\n");
 
     return ptr;
 }
@@ -678,7 +674,7 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (void)opcode;
     (void)m68k_ptr;
 
-    printf("[LINE0] Supervisor ANDI to SR!\n");
+    kprintf("[LINE0] Supervisor ANDI to SR!\n");
 
     return ptr;
 }
@@ -874,7 +870,7 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (void)opcode;
     (void)m68k_ptr;
 
-    printf("[LINE0] Supervisor EORI to SR!\n");
+    kprintf("[LINE0] Supervisor EORI to SR!\n");
 
     return ptr;
 }
@@ -1489,7 +1485,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {
-        printf("[LINE0] Not implemented CMP2/CHK2");
+        kprintf("[LINE0] Not implemented CMP2/CHK2");
         *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xff00) == 0x0a00)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
@@ -1523,12 +1519,12 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xff00) == 0x0e00)   /* 00001110xxxxxxxx - MOVES */
     {
-        printf("[LINE0] Supervisor MOVES\n");
+        kprintf("[LINE0] Supervisor MOVES\n");
         *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
     {
-        printf("[LINE0] Not implemented CAS/CAS2");
+        kprintf("[LINE0] Not implemented CAS/CAS2");
         *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xf1c0) == 0x0100)   /* 0000xxx100xxxxxx - BTST */
@@ -1549,7 +1545,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
     {
-        printf("[LINE0] Not implemented MOVEP");
+        kprintf("[LINE0] Not implemented MOVEP");
         *ptr++ = udf(opcode);
     }
     else

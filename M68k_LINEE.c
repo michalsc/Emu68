@@ -7,10 +7,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdlib.h>
-
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -109,7 +105,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110010x11xxxxxx - ROXL, ROXR - memory */
     else if ((opcode & 0xfec0) == 0xe4c0)
     {
-        printf("Not implemented: ROXL, ROXR\n");
+        kprintf("Not implemented: ROXL, ROXR\n");
         *ptr++ = udf(opcode);
     }
     /* 1110011x11xxxxxx - ROL, ROR - memory */

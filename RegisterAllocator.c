@@ -7,13 +7,9 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdio.h>
-
 #include "RegisterAllocator.h"
 #include "ARM.h"
 #include "M68k.h"
-
 
 static struct {
     uint8_t rs_ARMReg;
@@ -185,13 +181,13 @@ void RA_DiscardM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     if (LRU_M68kRegisters[m68k_reg].rs_Dirty)
     {
         if (m68k_reg < 8) {
- //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+ //           kprintf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
  //                                     (int)__builtin_offsetof(struct M68KState, D[m68k_reg]));
             **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
                                 __builtin_offsetof(struct M68KState, D[m68k_reg]));
         }
         else {
- //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+ //           kprintf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
  //                                     (int)__builtin_offsetof(struct M68KState, A[m68k_reg-8]));
             **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
                                       __builtin_offsetof(struct M68KState, A[m68k_reg-8]));
@@ -210,14 +206,14 @@ void RA_StoreDirtyM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     {
         if (m68k_reg < 8)
         {
-            //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+            //           kprintf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
             //                                     (int)__builtin_offsetof(struct M68KState, D[m68k_reg]));
             **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
                                       __builtin_offsetof(struct M68KState, D[m68k_reg]));
         }
         else
         {
-            //           printf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
+            //           kprintf("emit: str r%d, [r%d, %d]\n", LRU_M68kRegisters[m68k_reg].rs_ARMReg, REG_CTX,
             //                                     (int)__builtin_offsetof(struct M68KState, A[m68k_reg-8]));
             **arm_stream = str_offset(REG_CTX, LRU_M68kRegisters[m68k_reg].rs_ARMReg,
                                       __builtin_offsetof(struct M68KState, A[m68k_reg - 8]));
@@ -481,7 +477,7 @@ uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
     if (reg != 0xff)
         return reg;
 
-    printf("[JIT] ARM Register allocator exhausted!!!\n");
+    kprintf("[JIT] ARM Register allocator exhausted!!!\n");
 
     return 0xff;
 }

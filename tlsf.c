@@ -4,17 +4,11 @@
 */
 
 #define _GNU_SOURCE
-#include <unistd.h>
 
-#include <string.h>
-#include <sys/mman.h>
-
+#include "support.h"
 #include "tlsf.h"
 
 #undef USE_MACROS
-
-#include <stddef.h>
-#include <stdio.h>
 
 /*
  * Minimal alignment as required by AROS. In contrary to the default
@@ -291,7 +285,7 @@ static inline __attribute__((always_inline)) bhdr_t * GET_NEXT_BHDR(bhdr_t *hdr,
 
 static inline __attribute__((always_inline)) bhdr_t * MEM_TO_BHDR(void *ptr)
 {
-    return (bhdr_t *)((uintptr_t)ptr - offsetof(bhdr_t, mem));
+    return (bhdr_t *)((uintptr_t)ptr - __builtin_offsetof(bhdr_t, mem));
 }
 
 static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bhdr_t *b, int fl, int sl)

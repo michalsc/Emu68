@@ -7,10 +7,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <stdint.h>
-#include <stdlib.h>
-
-#include <stdio.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -713,13 +709,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100000011xxxxxx - MOVE from SR */
     if ((opcode & 0xffc0) == 0x40c0)
     {
-        printf("[LINE4] Not implemented MOVE from SR\n");
+        kprintf("[LINE4] Not implemented MOVE from SR\n");
         *ptr++ = udf(opcode);
     }
     /* 0100001011xxxxxx - MOVE from CCR */
     else if ((opcode &0xffc0) == 0x42c0)
     {
-        printf("[LINE4] Not implemented MOVE from CCR\n");
+        kprintf("[LINE4] Not implemented MOVE from CCR\n");
         *ptr++ = udf(opcode);
     }
     /* 01000000ssxxxxxx - NEGX */
@@ -735,7 +731,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100010011xxxxxx - MOVE to CCR */
     else if ((opcode &0xffc0) == 0x44c0)
     {
-        printf("[LINE4] Not implemented MOVE to CCR\n");
+        kprintf("[LINE4] Not implemented MOVE to CCR\n");
         *ptr++ = udf(opcode);
     }
     /* 01000100ssxxxxxx - NEG */
@@ -746,7 +742,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100011011xxxxxx - MOVE to SR */
     else if ((opcode &0xffc0) == 0x46c0)
     {
-        printf("[LINE4] Not implemented MOVE to CCR\n");
+        kprintf("[LINE4] Not implemented MOVE to CCR\n");
         *ptr++ = udf(opcode);
     }
     /* 01000110ssxxxxxx - NOT */
@@ -821,7 +817,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100000xxxxxx - NBCD */
     else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
     {
-        printf("[LINE4] Not implemented NBCD\n");
+        kprintf("[LINE4] Not implemented NBCD\n");
         *ptr++ = udf(opcode);
     }
     /* 0100100001000xxx - SWAP */
@@ -849,7 +845,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100001001xxx - BKPT */
     else if ((opcode & 0xfff8) == 0x4848)
     {
-        printf("[LINE4] Not implemented BKPT\n");
+        kprintf("[LINE4] Not implemented BKPT\n");
         *ptr++ = udf(opcode);
     }
     /* 0100100001xxxxxx - PEA */
@@ -895,7 +891,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100100xxxx - TRAP */
     else if ((opcode & 0xfff0) == 0x4e40)
     {
-        printf("[LINE4] Not implemented TRAP\n");
+        kprintf("[LINE4] Not implemented TRAP\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111001010xxx - LINK */
@@ -943,13 +939,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100110xxxx - MOVE USP */
     else if ((opcode & 0xfff0) == 0x4e60)
     {
-        printf("[LINE4] Not implemented MOVE USP\n");
+        kprintf("[LINE4] Not implemented MOVE USP\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111001110000 - RESET */
     else if (opcode == 0x4e70)
     {
-        printf("[LINE4] Not implemented RESET\n");
+        kprintf("[LINE4] Not implemented RESET\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111001110000 - NOP */
@@ -961,13 +957,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110010 - STOP */
     else if (opcode == 0x4e72)
     {
-        printf("[LINE4] Not implemented STOP\n");
+        kprintf("[LINE4] Not implemented STOP\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111001110011 - RTE */
     else if (opcode == 0x4e73)
     {
-        printf("[LINE4] Not implemented RTE\n");
+        kprintf("[LINE4] Not implemented RTE\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111001110100 - RTD */
@@ -1019,7 +1015,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110110 - TRAPV */
     else if (opcode == 0x4e76)
     {
-        printf("[LINE4] Not implemented TRAPV\n");
+        kprintf("[LINE4] Not implemented TRAPV\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111001110111 - RTR */
@@ -1045,7 +1041,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100111101x - MOVEC */
     else if ((opcode & 0xfffe) == 0x4e7a)
     {
-        printf("[LINE4] Not implemented MOVEC\n");
+        kprintf("[LINE4] Not implemented MOVEC\n");
         *ptr++ = udf(opcode);
     }
     /* 0100111010xxxxxx - JSR */
@@ -1214,7 +1210,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100xxx1x0xxxxxx - CHK */
     else if ((opcode & 0xf140) == 0x4100)
     {
-        printf("[LINE4] Not implemented CHK\n");
+        kprintf("[LINE4] Not implemented CHK\n");
         *ptr++ = udf(opcode);
     }
     else

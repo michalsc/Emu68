@@ -8,10 +8,8 @@
 */
 
 #define _GNU_SOURCE 1
-#include <sys/mman.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
+
+#include "support.h"
 #include "Features.h"
 #include "M68k.h"
 #include "ARM.h"
@@ -82,7 +80,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
 
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset)
 {
-//if (debug)    printf("Emit_AdvancePC(pc_rel=%d, off=%d)\n", _pc_rel, (int)offset);
+//if (debug)    kprintf("Emit_AdvancePC(pc_rel=%d, off=%d)\n", _pc_rel, (int)offset);
     // Calculate new PC relative offset
     _pc_rel += (int)offset;
 
@@ -353,7 +351,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash ^ (hash >> 16)) & 0xffff;
 
-//    printf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
+//    kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
     /* Find entry with correct address */
     ForeachNode(&ICache[hash], n)
@@ -402,7 +400,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         mod_CC = 0;
 
 //        unit = tlsf_malloc(handle, m68k_translation_depth * 4 * 64);
-if (debug)        printf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash, (void*)m68kcodeptr);
+if (debug)        kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash, (void*)m68kcodeptr);
 //        unit->mt_M68kAddress = m68kcodeptr;
 
         uint32_t prologue_size = 0;
@@ -476,7 +474,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
 
                 if (0) //branch_target != 0)
                 {
-                    printf("Check if branching within translation unit...\n");
+                    kprintf("Check if branching within translation unit...\n");
                     for (int i=insn_count-1; i >= 0; --i)
                     {
                         if (local_state[i].mls_M68kPtr == (void*)branch_target)
@@ -486,26 +484,26 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                             local_state[insn_count].mls_PCRel = _pc_rel;
                             for (int r=0; r < 16; r++)
                                 local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
-                            printf("Yes, branch within local translation unit.\n");
-                            printf("translator state at point of branch: ");
-                            printf("    %p -> %08x", local_state[insn_count].mls_M68kPtr, local_state[insn_count].mls_ARMOffset);
+                            kprintf("Yes, branch within local translation unit.\n");
+                            kprintf("translator state at point of branch: ");
+                            kprintf("    %p -> %08x", local_state[insn_count].mls_M68kPtr, local_state[insn_count].mls_ARMOffset);
                             for (int r=0; r < 16; r++) {
                                 if (local_state[insn_count].mls_RegMap[r] != 0xff) {
-                                    printf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, (local_state[insn_count].mls_RegMap[r]) & 15,
+                                    kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, (local_state[insn_count].mls_RegMap[r]) & 15,
                                     local_state[insn_count].mls_RegMap[r] & 0x80 ? "!":"");
                                 }
                             }
-                            printf(" PC_Rel=%d\n", local_state[insn_count-1].mls_PCRel);
+                            kprintf(" PC_Rel=%d\n", local_state[insn_count-1].mls_PCRel);
 
-                            printf("translator state at target point: ");
-                            printf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
+                            kprintf("translator state at target point: ");
+                            kprintf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
                             for (int r=0; r < 16; r++) {
                                 if (local_state[i].mls_RegMap[r] != 0xff) {
-                                    printf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
+                                    kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
                                     local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
                                 }
                             }
-                            printf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
+                            kprintf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
 
                             int number_of_pushes = 0;
 
@@ -513,7 +511,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                             {
                                 if (local_state[i].mls_RegMap[r] == 0xff && local_state[insn_count].mls_RegMap[r] != 0xff && local_state[insn_count].mls_RegMap[r] & 0x80)
                                 {
-                                    printf("Register %c%d unmapped in branch target and now is dirty.\nStoring it for security reasons\n",
+                                    kprintf("Register %c%d unmapped in branch target and now is dirty.\nStoring it for security reasons\n",
                                         r < 8 ? 'D' : 'A', r & 7
                                     );
                                     number_of_pushes++;
@@ -533,7 +531,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                             *end++ = movw_immed_u16(REG_PC, (branch_target) - local_state[i].mls_PCRel);
                             *end++ = movt_immed_u16(REG_PC, ((branch_target) - local_state[i].mls_PCRel) >> 16);
 
-                            printf("Generating branch...\n");
+                            kprintf("Generating branch...\n");
                             uint32_t *__endtmp = end;
                             *end++ = b_cc(ARM_CC_AL, local_state[i].mls_ARMOffset - (__endtmp - arm_code) - 2);
 
@@ -619,15 +617,15 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
 
     if (debug)      {
 
-        printf("[ICache]   Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
-        printf("[ICache]   Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
+        kprintf("[ICache]   Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
+        kprintf("[ICache]   Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
             prologue_size, epilogue_size, conditionals_count);
-        printf("[ICache]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
+        kprintf("[ICache]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
             uint32_t mean = 100 * (end - arm_code - (prologue_size + epilogue_size));
             mean = mean / insn_count;
             uint32_t mean_n = mean / 100;
             uint32_t mean_f = mean % 100;
-            printf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+            kprintf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
         }
 
         uintptr_t line_length = (uintptr_t)end - (uintptr_t)arm_code;
@@ -641,7 +639,7 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
                 struct Node *n = REMTAIL(&LRU);
                 void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
                 REMOVE((struct Node *)ptr);
-                printf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
+                kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 tlsf_free(handle, ptr);
                 last_PC = 0xffffffff;
             }
@@ -670,30 +668,30 @@ if (debug)        printf("[ICache] Creating new translation unit with hash %04x 
         __clear_cache(&unit->mt_ARMCode[0], &unit->mt_ARMCode[unit->mt_ARMInsnCnt]);
 
 if (debug) {
-        printf("-- ARM Code dump --\n");
+        kprintf("-- ARM Code dump --\n");
         for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
         {
             if ((i % 5) == 0)
-                printf("   ");
+                kprintf("   ");
             uint32_t insn = LE32(unit->mt_ARMCode[i]);
-            printf(" %02x %02x %02x %02x", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+            kprintf(" %02x %02x %02x %02x", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
             if ((i % 5) == 4)
-                printf("\n");
+                kprintf("\n");
         }
         if (unit->mt_ARMInsnCnt % 5 != 0)
-            printf("\n");
+            kprintf("\n");
 if (debug > 1) {
-        printf("\n-- Local State --\n");
+        kprintf("\n-- Local State --\n");
         for (unsigned i=0; i < insn_count; i++)
         {
-            printf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
+            kprintf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
             for (int r=0; r < 16; r++) {
                 if (local_state[i].mls_RegMap[r] != 0xff) {
-                    printf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
+                    kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
                     local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
                 }
             }
-            printf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
+            kprintf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
         }
 }
         }
@@ -707,7 +705,7 @@ if (debug > 1) {
 
 void M68K_InitializeCache()
 {
-    printf("[ICache] Initializing caches\n");
+    kprintf("[ICache] Initializing caches\n");
 
 #ifdef RASPI
     handle = tlsf;
@@ -715,20 +713,20 @@ void M68K_InitializeCache()
     handle = tlsf_init();
     arm_cache = (uint32_t *)mmap(NULL, arm_cache_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 
-    printf("[ICache] ARM insn cache at %p\n", (void*)arm_cache);
+    kprintf("[ICache] ARM insn cache at %p\n", (void*)arm_cache);
 
     tlsf_add_memory(handle, arm_cache, arm_cache_size);
 #endif
 
-    printf("[ICache] Setting up LRU\n");
+    kprintf("[ICache] Setting up LRU\n");
     NEWLIST(&LRU);
 
-    printf("[ICache] Setting up ICache\n");
+    kprintf("[ICache] Setting up ICache\n");
 #ifdef RASPI
     ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
     temporary_arm_code = tlsf_malloc(tlsf, EMU68_M68K_INSN_DEPTH * 16 * 64);
     local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*EMU68_M68K_INSN_DEPTH*2);
-    printf("[ICache] ICache array at %08x\n", ICache);
+    kprintf("[ICache] ICache array at %08x\n", ICache);
 #endif
     for (int i=0; i < 65536; i++)
         NEWLIST(&ICache[i]);
@@ -744,12 +742,12 @@ void M68K_DumpStats()
     unsigned arm_count = 0;
     unsigned total_arm_count = 0;
 
-    printf("[ICache] Listing translation units:\n");
+    kprintf("[ICache] Listing translation units:\n");
     ForeachNode(&LRU, n)
     {
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-        printf("[ICache]   Unit %p, mt_UseCount=%lld, M68K address %p (range %p-%p)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", (void*)unit, unit->mt_UseCount,
+        kprintf("[ICache]   Unit %p, mt_UseCount=%lld, M68K address %p (range %p-%p)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", (void*)unit, unit->mt_UseCount,
             (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
 
         size = size + (unsigned)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (unsigned)unit;
@@ -757,18 +755,18 @@ void M68K_DumpStats()
         total_arm_count += unit->mt_ARMInsnCnt;
         arm_count += unit->mt_ARMInsnCnt - (unit->mt_PrologueSize + unit->mt_EpilogueSize);
     }
-    printf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
+    kprintf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
 
     uint32_t mean = 100 * (arm_count);
     mean = mean / m68k_count;
     uint32_t mean_n = mean / 100;
     uint32_t mean_f = mean % 100;
-    printf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    kprintf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
 
     mean = 100 * (total_arm_count);
     mean = mean / m68k_count;
     mean_n = mean / 100;
     mean_f = mean % 100;
-    printf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    kprintf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
 
 }
