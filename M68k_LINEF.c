@@ -1221,8 +1221,8 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     extern void *handle;
     extern uint32_t last_PC;
 
-    printf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%08x\n", opcode, target_addr, pc, arm_pc);
-    printf("[LINEF] ARM insn: %08x\n", *arm_pc);
+    kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%08x\n", opcode, target_addr, pc, arm_pc);
+    kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
 
     for (i=0; i < 64; i++)
     {
@@ -1232,7 +1232,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
         icache_epilogue[i] = arm_pc[i];
     }
 
-    printf("[LINEF] Copied %d instructions of epilogue\n", i);
+    kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
     last_PC = 0xffffffff;
@@ -1240,46 +1240,46 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     /* Get the scope */
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
-            printf("[LINEF] Invalidating line\n");
+            kprintf("[LINEF] Invalidating line\n");
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                printf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+                kprintf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 // If highest address of unit is lower than the begin flushed area, or lowest address of unit higher than the flushed area end
                 // then skip the unit
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 16) & ~15) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~15))
                     continue;
 
-                printf("[LINEF] Unit match! Removing.\n");
+                kprintf("[LINEF] Unit match! Removing.\n");
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(handle, u);
             }
             break;
         case 0x10:  /* Page */
-            printf("[LINEF] Invalidating page\n");
+            kprintf("[LINEF] Invalidating page\n");
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                printf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+                kprintf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 // If highest address of unit is lower than the begin flushed area, or lowest address of unit higher than the flushed area end
                 // then skip the unit
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 4096) & ~4095) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~4095))
                     continue;
 
-                printf("[LINEF] Unit match! Removing.\n");
+                kprintf("[LINEF] Unit match! Removing.\n");
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(handle, u);
             }
             break;
         case 0x18:  /* All */
-            printf("[LINEF] Invalidating all\n");
+            kprintf("[LINEF] Invalidating all\n");
             while ((n = REMHEAD(&LRU))) {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                printf("[LINEF] Removing unit %08x\n", u);
+                kprintf("[LINEF] Removing unit %08x\n", u);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(handle, u);
             }
@@ -1348,7 +1348,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         if (opcode & 0x80) {
             int8_t off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &off);
-            printf("[LINEF] Inserting icache flush\n");
+            kprintf("[LINEF] Inserting icache flush\n");
 
             if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
             {
@@ -1429,7 +1429,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         if (opcode & 0x80) {
             int8_t off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &off);
-            printf("[LINEF] Inserting icache flush\n");
+            kprintf("[LINEF] Inserting icache flush\n");
             if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
             {
                 uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
