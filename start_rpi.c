@@ -113,64 +113,7 @@ static uint32_t arm_stack[10241] __attribute__((aligned(64)));
 static __attribute__((used)) void * tmp_stack_ptr __attribute__((used, section(".startup @"))) = (void *)(&arm_stack[10240]);
 extern int __bootstrap_end;
 
-extern const struct BuildID {
-    uint32_t bid_NameLen;
-    uint32_t bid_DescLen;
-    uint32_t bid_Type;
-    uint8_t bid_Data[];
-} g_note_build_id;
-
-int raise(int sig)
-{
-    kprintf("[BOOT] called raise(%d)\n", sig);
-    (void)sig;
-    return 0;
-}
-
-void bzero(void *ptr, long sz)
-{
-    char *p = ptr;
-    if (p)
-        while(sz--)
-            *p++ = 0;
-}
-
-void memset(void *ptr, uint8_t fill, long sz)
-{
-    uint8_t *p = ptr;
-    if (p)
-        while(sz--)
-            *p++ = fill;
-}
-
-void memcpy(void *dst, const void *src, long sz)
-{
-    uint8_t *d = dst;
-    const uint8_t *s = src;
-
-    while(sz--)
-	*d++ = *s++;
-}
-
-void *memmove(void *dst, const void *src, long sz)
-{
-    uint8_t *d = dst;
-    const uint8_t *s = src;
-
-    if (d > s)
-    {
-	d += sz;
-	s += sz;
-
-	while(sz--)
-	    *--d = *--s;
-    }
-    else
-	while(sz--)
-	    *d++ = *s++;
-
-    return dst;
-}
+extern const struct BuildID g_note_build_id;
 
 void mmap()
 {
@@ -213,7 +156,7 @@ static __attribute__((used, section(".mmu"))) uint32_t mmu_table[4096] = {
 };
 
 /* Trivial virtual to physical translator, fetches data from MMU table and assumes 1M pages */
-uint32_t virt2phys(uint32_t virt_addr)
+intptr_t virt2phys(intptr_t virt_addr)
 {
     uint32_t page = virt_addr >> 20;
     uint32_t offset = virt_addr & 0x000fffff;
@@ -224,8 +167,6 @@ uint32_t virt2phys(uint32_t virt_addr)
 }
 
 static __attribute__((used)) void * mmu_table_ptr __attribute__((used, section(".startup @"))) = (void *)((uintptr_t)mmu_table - 0xff800000);
-
-void *tlsf;
 
 void start_emu(void *);
 
@@ -415,7 +356,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         }
     }
 
-    arm_flush_cache((uint32_t)mmu_table, sizeof(mmu_table));
+    arm_flush_cache((intptr_t)mmu_table, sizeof(mmu_table));
 
     setup_serial();
 
@@ -452,7 +393,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
             range++;
 
         top_of_ram = BE32(range[0]) + BE32(range[1]);
-        uint32_t kernel_new_loc = top_of_ram - 0x00800000;
+        intptr_t kernel_new_loc = top_of_ram - 0x00800000;
         top_of_ram = kernel_new_loc - 0x1000;
 
         range[1] = BE32(BE32(range[1])-0x00800000);
@@ -475,7 +416,7 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
         kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
         DuffCopy((void*)(kernel_new_loc+4), (void*)4, 0x00800000 / 4 - 1);
         arm_flush_cache(kernel_new_loc, 0x00800000);
-        arm_flush_cache((uint32_t)mmu_table, sizeof(mmu_table));
+        arm_flush_cache((intptr_t)mmu_table, sizeof(mmu_table));
 
         /* Load new pointer to the mmu table */
         asm volatile("dsb; mcr p15,0,%0,c2,c0,0; dsb; isb"::"r"(((uint32_t)mmu_table_ptr & 0x000fffff) | (kernel_new_loc & 0xfff00000)));
@@ -486,6 +427,8 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     if (get_max_clock_rate(3) != get_clock_rate(3)) {
         kprintf("[BOOT] Changing ARM clock rate from %d MHz to %d MHz\n", get_clock_rate(3)/1000000, get_max_clock_rate(3)/1000000);
         set_clock_rate(3, get_max_clock_rate(3));
+    } else {
+        kprintf("[BOOT] ARM Clock at %d MHz\n", get_clock_rate(3) / 1000000);
     }
 
     display_logo();
@@ -495,13 +438,13 @@ void boot(uintptr_t dummy, uintptr_t arch, uintptr_t atags, uintptr_t dummy2)
     {
         void *image_start, *image_end;
         of_property_t *p = dt_find_property(e, "linux,initrd-start");
-        image_start = (void*)BE32(*(uint32_t*)p->op_value);
+        image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
         p = dt_find_property(e, "linux,initrd-end");
-        image_end = (void*)BE32(*(uint32_t*)p->op_value);
+        image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
 
         kprintf("[BOOT] Loading executable from %p-%p\n", image_start, image_end);
         void *hunks = LoadHunkFile(image_start);
-        start_emu((void *)((uint32_t)hunks + 4));
+        start_emu((void *)((intptr_t)hunks + 4));
     }
 
     while(1);
@@ -742,6 +685,8 @@ uint32_t last_PC = 0xffffffff;
 
 void start_emu(void *addr)
 {
+#ifndef __aarch64__
+
     register struct M68KState * m68k asm("fp");
     M68K_InitializeCache();
     uint64_t t1=0, t2=0;
@@ -809,4 +754,7 @@ for (int i=1; i < 2; i++)
     }
 #endif
     M68K_DumpStats();
+#else
+(void)addr;
+#endif
 }
