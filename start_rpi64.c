@@ -9,6 +9,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include "A64.h"
 #include "config.h"
 #include "support_rpi.h"
 #include "tlsf.h"
@@ -18,6 +19,7 @@
 #include "DuffCopy.h"
 #include "EmuLogo.h"
 #include "Features.h"
+#include "RegisterAllocator.h"
 
 #define DV2P(x) /* x */
 
@@ -110,6 +112,7 @@ asm("   .section .startup           \n"
 
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
+void M68K_StartEmu(void *addr);
 
 #if EMU68_HOST_BIG_ENDIAN
 static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 BigEndian";
@@ -248,7 +251,7 @@ void display_logo()
     /* In case the screen is too small, attempt to adjust its size */
     if (sz.height < 800 || sz.width < 1280)
     {
-        sz.width = 1280; sz.height = 800;
+        sz.width = 800; sz.height = 500;
     }
 
     kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
@@ -302,12 +305,13 @@ void print_build_id()
     kprintf("\n");
 }
 
+uintptr_t top_of_ram;
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + 0x1000000) & ~0xffffff;
     uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
     uint64_t tmp;
-    uintptr_t top_of_ram;
     void *base_vcmem;
     uint32_t size_vcmem;
 
@@ -525,7 +529,7 @@ void boot(void *dtree)
             kprintf("[BOOT] Loading executable from %p-%p\n", image_start, image_end);
             void *hunks = LoadHunkFile(image_start);
             (void)hunks;
-//            start_emu((void *)((intptr_t)hunks + 4));
+            M68K_StartEmu((void *)((intptr_t)hunks + 4));
         }
         else
         {
@@ -534,4 +538,176 @@ void boot(void *dtree)
     }
 
     while(1) asm volatile("wfe");
+}
+
+void M68K_LoadContext(struct M68KState *ctx)
+{
+    asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
+
+    asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
+
+    asm volatile("ldr w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
+
+    asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+
+    asm volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+}
+
+void M68K_SaveContext(struct M68KState *ctx)
+{
+    asm volatile("str w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
+
+    asm volatile("str w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
+
+    asm volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+
+    asm volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    asm volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    asm volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    asm volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    asm volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    asm volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+}
+
+void M68K_PrintContext(struct M68KState *m68k)
+{
+    M68K_SaveContext(m68k);
+
+    kprintf("[JIT]\n[JIT] M68K Context:\n[JIT] ");
+
+    for (int i=0; i < 8; i++) {
+        if (i==4)
+            kprintf("\n[JIT] ");
+        kprintf("    D%d = 0x%08x", i, BE32(m68k->D[i].u32));
+    }
+    kprintf("\n[JIT] ");
+
+    for (int i=0; i < 8; i++) {
+        if (i==4)
+            kprintf("\n[JIT] ");
+        kprintf("    A%d = 0x%08x", i, BE32(m68k->A[i].u32));
+    }
+    kprintf("\n[JIT] ");
+
+    kprintf("    PC = 0x%08x    SR = ", BE32((int)m68k->PC));
+    uint16_t sr = BE16(m68k->SR);
+    if (sr & SR_X)
+        kprintf("X");
+    else
+        kprintf(".");
+
+    if (sr & SR_N)
+        kprintf("N");
+    else
+        kprintf(".");
+
+    if (sr & SR_Z)
+        kprintf("Z");
+    else
+        kprintf(".");
+
+    if (sr & SR_V)
+        kprintf("V");
+    else
+        kprintf(".");
+
+    if (sr & SR_C)
+        kprintf("C");
+    else
+        kprintf(".");
+
+    kprintf("\n[JIT]     USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n[JIT] ", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
+
+    for (int i=0; i < 8; i++) {
+        union {
+            double d;
+            uint32_t u[2];
+        } u;
+        if (i==4)
+            kprintf("\n[JIT] ");
+        u.d = m68k->FP[i];
+        kprintf("    FP%d = %08x%08x", i, u.u[0], u.u[1]);
+    }
+    kprintf("\n[JIT] ");
+
+    kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
+}
+
+void M68K_StartEmu(void *addr)
+{
+//    void (*arm_code)(); //(struct M68KState *ctx);
+//    struct M68KTranslationUnit * unit = (void*)0;
+    struct M68KState __m68k;
+    uint64_t t1=0, t2=0;
+
+    uint32_t stream[512];
+    uint32_t *ptr = stream;
+
+    bzero(&__m68k, sizeof(__m68k));
+
+    __m68k.A[7].u32 = BE32((uint32_t)top_of_ram);
+    __m68k.PC = BE32((intptr_t)addr);
+    __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
+    *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
+
+    M68K_LoadContext(&__m68k);
+    M68K_PrintContext(&__m68k);
+
+    kprintf("[JIT] Let it go...\n");
+
+    t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
+
+    RA_ModifyFPCR(&ptr);
+    RA_FlushFPCR(&ptr);
+
+    for (uint32_t *p = stream; p != ptr; p++)
+    {
+        kprintf("%08x ", *p);
+    }
+    kprintf("\n");
+
+    t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
+
+    kprintf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
+
+    kprintf("[JIT] Back from translated code\n");
+
+    M68K_PrintContext(&__m68k);
 }

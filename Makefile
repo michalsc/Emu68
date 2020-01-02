@@ -6,7 +6,7 @@ CC64 := aarch64-linux-gcc
 CXX64:= aarch64-linux-g++
 OBJCOPY := arm-linux-gnueabihf-objcopy
 OBJCOPY64 := aarch64-linux-objcopy
-CFLAGS64:= $(EXTRA_FLAGS) -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-x11 -ffixed-x12 -ffixed-x13 -ffixed-x14 -ffixed-x15 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CFLAGS64:= $(EXTRA_FLAGS) -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CFLAGS  := $(EXTRA_FLAGS) -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CXXFLAGS:= $(EXTRA_FLAGS) -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 LDFLAGS := -static -lrt -s
@@ -19,7 +19,8 @@ RPI_OBJS := start_rpi.o support_rpi.o devicetree.o tlsf.o HunkLoader.o M68k_Tran
         M68k_MOVE.o M68k_LINE0.o M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o M68k_LINEF.o \
         M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_MULDIV.o EmuLogo.o support.o
 
-RPI64_OBJS := start_rpi64.o support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o
+RPI64_OBJS := start_rpi64.o support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
+        RegisterAllocator64.o
 
 #devicetree.o tlsf.o HunkLoader.o support.o support_rpi.o
 
