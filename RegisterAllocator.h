@@ -44,5 +44,16 @@ void RA_SetDirtyFPURegister(uint32_t **arm_stream, uint8_t fpu_reg);
 void RA_FlushFPURegs(uint32_t **arm_stream);
 void RA_StoreDirtyFPURegs(uint32_t **arm_stream);
 
+uint8_t RA_GetCTX(uint32_t **ptr);
+void RA_FlushCTX(uint32_t **ptr);
+uint8_t RA_GetCC(uint32_t **ptr);
+uint8_t RA_ModifyCC(uint32_t **ptr);
+void RA_FlushCC(uint32_t **ptr);
+uint8_t RA_GetFPCR(uint32_t **ptr);
+uint8_t RA_ModifyFPCR(uint32_t **ptr);
+void RA_FlushFPCR(uint32_t **ptr);
+uint8_t RA_GetFPSR(uint32_t **ptr);
+uint8_t RA_ModifyFPSR(uint32_t **ptr);
+void RA_FlushFPSR(uint32_t **ptr);
 
 #endif /* _REGISTER_ALLOCATOR_H */
