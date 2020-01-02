@@ -457,11 +457,9 @@ if (debug)        kprintf("[ICache] Creating new translation unit with hash %04x
                 uint32_t *tmpptr;
                 uint32_t *branch_mod[10];
                 uint32_t branch_cnt;
-                intptr_t branch_target;
                 int local_branch_done = 0;
 //                printf("[ICache] Conditional PC change.\n");
                 end--;
-                branch_target = *--end;
                 branch_cnt = *--end;
 //                printf("[ICache] Need to adjust %d branches\n", branch_cnt);
                 for (unsigned i=0; i < branch_cnt; i++)
@@ -471,75 +469,6 @@ if (debug)        kprintf("[ICache] Creating new translation unit with hash %04x
                 }
 
                 tmpptr = end;
-
-                if (0) //branch_target != 0)
-                {
-                    kprintf("Check if branching within translation unit...\n");
-                    for (int i=insn_count-1; i >= 0; --i)
-                    {
-                        if (local_state[i].mls_M68kPtr == (void*)branch_target)
-                        {
-                            local_state[insn_count].mls_ARMOffset = end - arm_code;
-                            local_state[insn_count].mls_M68kPtr = m68kcodeptr;
-                            local_state[insn_count].mls_PCRel = _pc_rel;
-                            for (int r=0; r < 16; r++)
-                                local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
-                            kprintf("Yes, branch within local translation unit.\n");
-                            kprintf("translator state at point of branch: ");
-                            kprintf("    %p -> %08x", local_state[insn_count].mls_M68kPtr, local_state[insn_count].mls_ARMOffset);
-                            for (int r=0; r < 16; r++) {
-                                if (local_state[insn_count].mls_RegMap[r] != 0xff) {
-                                    kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, (local_state[insn_count].mls_RegMap[r]) & 15,
-                                    local_state[insn_count].mls_RegMap[r] & 0x80 ? "!":"");
-                                }
-                            }
-                            kprintf(" PC_Rel=%d\n", local_state[insn_count-1].mls_PCRel);
-
-                            kprintf("translator state at target point: ");
-                            kprintf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
-                            for (int r=0; r < 16; r++) {
-                                if (local_state[i].mls_RegMap[r] != 0xff) {
-                                    kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
-                                    local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
-                                }
-                            }
-                            kprintf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
-
-                            int number_of_pushes = 0;
-
-                            for (int r=0; r < 16; r++)
-                            {
-                                if (local_state[i].mls_RegMap[r] == 0xff && local_state[insn_count].mls_RegMap[r] != 0xff && local_state[insn_count].mls_RegMap[r] & 0x80)
-                                {
-                                    kprintf("Register %c%d unmapped in branch target and now is dirty.\nStoring it for security reasons\n",
-                                        r < 8 ? 'D' : 'A', r & 7
-                                    );
-                                    number_of_pushes++;
-                                    if (r < 8)
-                                    {
-                                        *end++ = str_offset(REG_CTX, local_state[insn_count].mls_RegMap[r] & 15,
-                                                                __builtin_offsetof(struct M68KState, D[r & 7]));
-                                    }
-                                    else
-                                    {
-                                        *end++ = str_offset(REG_CTX, local_state[insn_count].mls_RegMap[r] & 15,
-                                                                __builtin_offsetof(struct M68KState, A[r & 7]));
-                                    }
-                                }
-                            }
-
-                            *end++ = movw_immed_u16(REG_PC, (branch_target) - local_state[i].mls_PCRel);
-                            *end++ = movt_immed_u16(REG_PC, ((branch_target) - local_state[i].mls_PCRel) >> 16);
-
-                            kprintf("Generating branch...\n");
-                            uint32_t *__endtmp = end;
-                            *end++ = b_cc(ARM_CC_AL, local_state[i].mls_ARMOffset - (__endtmp - arm_code) - 2);
-
-                            local_branch_done = 1;
-                        }
-                    }
-                }
-
 
                 conditionals_count++;
 
