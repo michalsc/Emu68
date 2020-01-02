@@ -122,7 +122,7 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 
 
 /* Initial MMU maps are pretty simple - four 1GB blocks necessary to boot the C code */
-static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L1[512] = 
+static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L1[512] =
 {
     [0x000] = 0x0000000000000701,
     [0x001] = 0x0000000040000701,
@@ -133,7 +133,7 @@ static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L1[512] =
 /* Four additional directories to map the 4GB address space in 2MB pages here */
 static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L2[4*512];
 
-static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] = 
+static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] =
 {
     [0x000] = 0x0000000000000701,
     [0x001] = 0x0000000040000701,
@@ -150,9 +150,9 @@ static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] =
 /* Four additional directories to map the 4GB address space in 2MB pages here */
 static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L2[512];
 
-intptr_t virt2phys(intptr_t addr)
+uintptr_t virt2phys(uintptr_t addr)
 {
-    intptr_t phys = 0;
+    uintptr_t phys = 0;
     uint64_t *tbl = NULL;
     int idx_l1, idx_l2, idx_l3;
     uint64_t tmp;
@@ -162,11 +162,11 @@ intptr_t virt2phys(intptr_t addr)
     if (addr & 0xffff000000000000) {
         DV2P(kprintf("selecting kernel tables\n"));
         asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((intptr_t)tbl | 0xffffffff00000000);
+        tbl = (uint64_t *)((uintptr_t)tbl | 0xffffffff00000000);
     } else {
         DV2P(kprintf("selecting user tables\n"));
         asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((intptr_t)tbl | 0xffffffff00000000);
+        tbl = (uint64_t *)((uintptr_t)tbl | 0xffffffff00000000);
     }
 
     DV2P(kprintf("L1 table: %p\n", tbl));
@@ -325,7 +325,7 @@ void boot(void *dtree)
     asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp)); 
+    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
     /* Initialize tlsf and parse device tree */
     tlsf = tlsf_init();
@@ -344,7 +344,7 @@ void boot(void *dtree)
         }
     }
 
-    /* 
+    /*
         Prepare mapping for peripherals. Use and update the data from device tree here
         All peripherals are mapped in the lower 4G address space so that they can be
         accessed from m68k.
@@ -405,7 +405,7 @@ void boot(void *dtree)
     mmu_user_L1[1] = virt2phys((intptr_t)&mmu_user_L2[1 * 512]) | 3;
     mmu_user_L1[2] = virt2phys((intptr_t)&mmu_user_L2[2 * 512]) | 3;
     mmu_user_L1[3] = virt2phys((intptr_t)&mmu_user_L2[3 * 512]) | 3;
-    
+
     arm_flush_cache((intptr_t)mmu_user_L1, sizeof(mmu_user_L1));
 
     setup_serial();

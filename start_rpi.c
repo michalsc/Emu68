@@ -156,7 +156,7 @@ static __attribute__((used, section(".mmu"))) uint32_t mmu_table[4096] = {
 };
 
 /* Trivial virtual to physical translator, fetches data from MMU table and assumes 1M pages */
-intptr_t virt2phys(intptr_t virt_addr)
+uintptr_t virt2phys(uintptr_t virt_addr)
 {
     uint32_t page = virt_addr >> 20;
     uint32_t offset = virt_addr & 0x000fffff;
