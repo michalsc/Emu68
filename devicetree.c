@@ -8,7 +8,6 @@
 */
 
 #include <stdint.h>
-#include "ARM.h"
 #include "support.h"
 #include "devicetree.h"
 #include "tlsf.h"
