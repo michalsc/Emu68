@@ -55,17 +55,15 @@ struct M68KState
         int16_t s16[2];
         uint32_t u32;
         int32_t s32;
-        void *p32;
     } A[8];
     union {
         uint16_t u16[2];
         int16_t s16[2];
         uint32_t u32;
         int32_t s32;
-        void *p32;
     } USP, MSP, ISP;
 
-    uint16_t *PC;
+    uint32_t PC;
     uint16_t SR;
 
     /* FPU Part */
