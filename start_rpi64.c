@@ -350,8 +350,6 @@ void boot(void *dtree)
     char *compatible = NULL;
     int raspi4 = 0;
 
-    (void)raspi4;
-
     /* Enable caches and cache maintenance instructions from EL0 */
     asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
