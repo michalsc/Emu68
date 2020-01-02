@@ -13,7 +13,11 @@
 #include <stdarg.h>
 #include "support.h"
 
+#ifdef __aarch64__
+#include "A64.h"
+#else
 #include "ARM.h"
+#endif
 
 #define PL011_0_BASE              (ARM_PERIIOBASE + 0x201000)
 #define PRIMECELLID_PL011       0x011
