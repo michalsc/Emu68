@@ -460,6 +460,7 @@ if (debug)        kprintf("[ICache] Creating new translation unit with hash %04x
                 int local_branch_done = 0;
 //                printf("[ICache] Conditional PC change.\n");
                 end--;
+                end--;  /* Remove branch target (unused!) */
                 branch_cnt = *--end;
 //                printf("[ICache] Need to adjust %d branches\n", branch_cnt);
                 for (unsigned i=0; i < branch_cnt; i++)
