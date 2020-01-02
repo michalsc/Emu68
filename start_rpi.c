@@ -710,7 +710,7 @@ for (int i=1; i < 2; i++)
         m68k->A[0].u32 = BE32((uint32_t)framebuffer);
     }
     m68k->A[7].u32 = BE32((uint32_t)top_of_ram);
-    m68k->PC = (uint16_t *)BE32((uint32_t)addr);
+    m68k->PC = BE32((uint32_t)addr);
 
     print_context(m68k);
 
@@ -733,7 +733,7 @@ for (int i=1; i < 2; i++)
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
         arm_code(m68k);
 
-    } while(m68k->PC != (void*)0);
+    } while(m68k->PC != 0);
 
     t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
