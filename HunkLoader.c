@@ -10,13 +10,12 @@
 #include "support.h"
 #include "DuffCopy.h"
 #include "HunkLoader.h"
-#include "ARM.h"
 
 #define D(x) /* */
 
 #ifdef RASPI
 
-char * pool = (char *)0x000ffff8;
+char * pool = (char *)0x00effff8;
 void * _my_malloc(size_t size)
 {
     void *ptr = pool;
