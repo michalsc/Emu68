@@ -75,6 +75,32 @@ asm("   .section .startup           \n"
 "       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
 "       msr     SCTLR_EL1, x10      \n"
 #endif
+
+/*
+    At this point we have correct endianess and the code is executing, but we do not really know where
+    we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
+*/
+
+"       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
+"       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
+
+"       orr     x9, x17, #3         \n" /* valid + page tagle */
+"       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
+
+"       adrp    x16, _start         \n" /* x16 - address of our kernel + offset */
+"       sub     x16, x16, #0x80000  \n" /* subtract the kernel offset to get the 2MB page */
+"       orr     x16, x16, #0x700    \n" /* set page attributes */
+"       orr     x16, x16, #1        \n" /* page is valid */
+"       mov     x9, #" xstr(KERNEL_RSRVD_PAGES) "\n" /* Enable all pages used by the kernel */
+"1:     str     x16, [x17], #8      \n" /* Store pages in the L2 map */
+"       add     x16, x16, #0x200000 \n" /* Advance phys address by 2MB */
+"       sub     x9, x9, #1          \n"
+"       cbnz    x9, 1b              \n"
+
+/*
+    MMU Map is prepared. We can continue
+*/
+
 "       ldr     x9, =_start         \n"
 "       mov     sp, x9              \n"
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
