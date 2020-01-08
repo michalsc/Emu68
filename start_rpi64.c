@@ -23,11 +23,46 @@
 
 #define DV2P(x) /* x */
 
+#define xstr(s) str(s)
+#define str(s) #s
+
+#define KERNEL_RSRVD_PAGES  8
+
+#if EMU68_HOST_BIG_ENDIAN
+#define L16(x) ((((x) & 0xff00) >> 8) | (((x) & 0x00ff) << 8))
+#define L32(x) (((L16(x)) << 16) | L16(((x) >> 16) & 0xffff))
+#define L64(x) (((L32(x)) << 32) | L32(((x) >> 32) & 0xffffffff))
+#else
+#define L16(x) (x)
+#define L32(x) (x)
+#define L64(x) (x)
+#endif
+
 void _start();
 
 asm("   .section .startup           \n"
 "       .globl _start               \n"
-"       .type _start,%function      \n"
+"       .type _start,%function      \n" /* Our kernel image starts with a standard header */
+"       b       _start              \n" /* code0: branch to the start */
+"       .long   0                   \n" /* code1: not used yet */
+"       .quad " xstr(L64(0x00080000)) " \n" /* requested Image offset within the 2MB page */
+"       .quad " xstr(L64(KERNEL_RSRVD_PAGES << 21)) "\n" /* Total size of kernel */
+#if EMU68_HOST_BIG_ENDIAN
+"       .quad " xstr(L64(0xb)) "    \n" /* Flags: Endianess, 4K pages, kernel anywhere in RAM */
+#else
+"       .quad " xstr(L64(0xa)) "    \n" /* Flags: Endianess, 4K pages, kernel anywhere in RAM */
+#endif
+"       .quad 0                     \n" /* res2 */
+"       .quad 0                     \n" /* res3 */
+"       .quad 0                     \n" /* res4 */
+"       .long " xstr(L32(0x664d5241)) "\n" /* Magic: ARM\x64 */
+"       .long 0                     \n" /* res5 */
+".byte 0                            \n"
+".align 4                           \n"
+".string \"$VER: Emu68.img " VERSION_STRING_DATE "\"\n"
+".byte 0                            \n"
+".align 4                           \n"
+
 "_start:                            \n"
 "       mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
 "       and     x9, x9, #0xc        \n"
@@ -104,10 +139,6 @@ asm("   .section .startup           \n"
 "       eret                        \n"
 
 "       .section .text              \n"
-".byte 0                            \n"
-".string \"$VER: Emu68.img " VERSION_STRING_DATE "\"\n"
-".byte 0                            \n"
-"\n\t\n\t"
 );
 
 extern int __bootstrap_end;
