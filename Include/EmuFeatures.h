@@ -1,5 +1,5 @@
-#ifndef __FEATURES_H
-#define __FEATURES_H
+#ifndef _EMU_FEATURES_H
+#define _EMU_FEATURES_H
 
 #include <stdint.h>
 #include "config.h"
@@ -49,4 +49,4 @@ static const options_t Options = {
 #endif
 
 
-#endif /* __FEATURES_H */
+#endif /* _EMU_FEATURES_H */

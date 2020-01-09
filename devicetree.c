@@ -32,6 +32,7 @@ of_node_t * dt_build_node(of_node_t *parent)
             e->on_next = parent->on_children;
             parent->on_children = e;
         }
+        e->on_parent = parent;
         e->on_children = NULL;
         e->on_properties = NULL;
         e->on_name = (char *)data;
@@ -251,6 +252,33 @@ of_property_t *dt_find_property(void *key, char *propname)
         }
     }
     return prop;
+}
+
+uint32_t dt_get_property_value_u32(void *key, char *propname, uint32_t def_val, int check_parent)
+{
+    uint32_t ret = def_val;
+    of_node_t *node = (of_node_t *)key;
+    of_property_t *p = NULL;
+
+    while (node != NULL)
+    {
+        p = dt_find_property(node, propname);
+
+        if (p != NULL)
+        {
+            if (p->op_length >= 4)
+            {
+                ret = BE32(*(uint32_t *)p->op_value);
+            }
+
+            return ret;
+        } else if (check_parent == 0) {
+            return ret;
+        }
+
+        node = node->on_parent;
+    }
+    return ret;
 }
 
 char fill[] = "                         ";

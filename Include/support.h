@@ -14,6 +14,22 @@
 #include <stdarg.h>
 
 #define NULL ((void*)0)
+#define TRUE 1
+#define FALSE 0
+
+#define xstr(s) str(s)
+#define str(s) #s
+
+#if EMU68_HOST_BIG_ENDIAN
+#define L16(x) ((((x) & 0xff00) >> 8) | (((x) & 0x00ff) << 8))
+#define L32(x) (((L16(x)) << 16) | L16(((x) >> 16) & 0xffff))
+#define L64(x) (((L32(x)) << 32) | L32(((x) >> 32) & 0xffffffff))
+#else
+#define L16(x) (x)
+#define L32(x) (x)
+#define L64(x) (x)
+#endif
+
 
 static inline uint64_t BE64(uint64_t x)
 {
@@ -164,6 +180,7 @@ void *memmove(void *dst, const void *src, size_t sz);
 void memcpy(void *dst, const void *src, size_t sz);
 void memset(void *ptr, uint8_t fill, size_t sz);
 void bzero(void *ptr, size_t sz);
+uintptr_t virt2phys(uintptr_t addr);
 
 extern void * tlsf;
 
@@ -190,7 +207,7 @@ struct Result64 uldiv(uint64_t n, uint64_t d);
 struct Result64 sldiv(int64_t n, int64_t d);
 
 #ifdef RASPI
-#include "support_rpi.h"
+#include "../raspi/support_rpi.h"
 #endif
 
 #endif /* _SUPPORT_H */

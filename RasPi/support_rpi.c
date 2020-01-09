@@ -106,8 +106,6 @@ void vkprintf(const char * restrict format, va_list args)
 
 /*----------------------------------------------------------------------------*/
 
-intptr_t virt2phys(intptr_t virt_addr);
-
 static uint32_t mbox_recv(uint32_t channel)
 {
 	volatile uint32_t *mbox_read = (uint32_t*)(ARM_PERIIOBASE + 0xB880);

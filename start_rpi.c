@@ -10,14 +10,14 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "config.h"
-#include "support_rpi.h"
+#include "support.h"
 #include "tlsf.h"
 #include "devicetree.h"
 #include "M68k.h"
 #include "HunkLoader.h"
 #include "DuffCopy.h"
 #include "EmuLogo.h"
-#include "Features.h"
+#include "EmuFeatures.h"
 
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE (__arm_periiobase)

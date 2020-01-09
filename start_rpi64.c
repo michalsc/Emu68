@@ -11,138 +11,24 @@
 #include <stdint.h>
 #include "A64.h"
 #include "config.h"
-#include "support_rpi.h"
+#include "support.h"
 #include "tlsf.h"
 #include "devicetree.h"
 #include "M68k.h"
 #include "HunkLoader.h"
 #include "DuffCopy.h"
 #include "EmuLogo.h"
-#include "Features.h"
+#include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 
-#define DV2P(x) /* x */
-
-#define xstr(s) str(s)
-#define str(s) #s
-
-#define KERNEL_RSRVD_PAGES  8
-
-#if EMU68_HOST_BIG_ENDIAN
-#define L16(x) ((((x) & 0xff00) >> 8) | (((x) & 0x00ff) << 8))
-#define L32(x) (((L16(x)) << 16) | L16(((x) >> 16) & 0xffff))
-#define L64(x) (((L32(x)) << 32) | L32(((x) >> 32) & 0xffffffff))
-#else
-#define L16(x) (x)
-#define L32(x) (x)
-#define L64(x) (x)
-#endif
-
 void _start();
-
-asm("   .section .startup           \n"
-"       .globl _start               \n"
-"       .type _start,%function      \n" /* Our kernel image starts with a standard header */
-"       b       _start              \n" /* code0: branch to the start */
-"       .long   0                   \n" /* code1: not used yet */
-"       .quad " xstr(L64(0x00080000)) " \n" /* requested Image offset within the 2MB page */
-"       .quad " xstr(L64(KERNEL_RSRVD_PAGES << 21)) "\n" /* Total size of kernel */
-#if EMU68_HOST_BIG_ENDIAN
-"       .quad " xstr(L64(0xb)) "    \n" /* Flags: Endianess, 4K pages, kernel anywhere in RAM */
-#else
-"       .quad " xstr(L64(0xa)) "    \n" /* Flags: Endianess, 4K pages, kernel anywhere in RAM */
-#endif
-"       .quad 0                     \n" /* res2 */
-"       .quad 0                     \n" /* res3 */
-"       .quad 0                     \n" /* res4 */
-"       .long " xstr(L32(0x664d5241)) "\n" /* Magic: ARM\x64 */
-"       .long 0                     \n" /* res5 */
-".byte 0                            \n"
-".align 4                           \n"
-".string \"$VER: Emu68.img " VERSION_STRING_DATE "\"\n"
-".byte 0                            \n"
-".align 4                           \n"
-
-"_start:                            \n"
-"       mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
-"       and     x9, x9, #0xc        \n"
-"       cmp     x9, #8              \n"
-"       b.eq    leave_EL2           \n" /* In case of EL2 or EL3 switch back to EL1 */
-"       b.gt    leave_EL3           \n"
-"continue_boot:                     \n"
-#if EMU68_HOST_BIG_ENDIAN
-"       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
-"       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
-"       msr     SCTLR_EL1, x10      \n"
-#endif
-"       ldr     x9, =_start         \n"
-"       mov     sp, x9              \n"
-"       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
-"       msr     CPACR_EL1, x10      \n"
-"       isb     sy                  \n"
-"       isb     sy                  \n" /* Drain the insn queue */
-"       ic      IALLU               \n" /* Invalidate entire instruction cache */
-"       isb     sy                  \n"
-
-"       ldr     x10, =0x4404ff      \n" /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
-
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
-"       msr     TCR_EL1, x10        \n"
-
-"       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
-"       msr     TTBR0_EL1, x10      \n" /* Initially only 4GB in each region is mapped, the rest comes later */
-"       adrp    x10, mmu_kernel_L1  \n"
-"       msr     TTBR1_EL1, x10      \n"
-
-"       isb     sy                  \n"
-"       mrs     x10, SCTLR_EL1      \n"
-"       orr     x10, x10, #1        \n"
-"       msr     SCTLR_EL1, x10      \n"
-"       isb     sy                  \n"
-
-"       ldr     x9, =__bss_start    \n"
-"       ldr     w10, =__bss_size    \n"
-"1:     cbz     w10, 2f             \n"
-"       str     xzr, [x9], #8       \n"
-"       sub     w10, w10, 1         \n"
-"       cbnz    w10, 1b             \n"
-"2:     ldr     x30, =boot          \n"
-"       br      x30                 \n"
-
-"leave_EL3:                         \n"
-#if EMU68_HOST_BIG_ENDIAN
-"       mrs     x10, SCTLR_EL3      \n" /* If necessary, set endianess of EL3 before fetching any data */
-"       orr     x10, x10, #(1 << 25)\n"
-"       msr     SCTLR_EL3, x10      \n"
-#endif
-"       adr     x10, leave_EL2      \n" /* Fallback to continue_boot in EL2 here below */
-"       msr     ELR_EL3, x10        \n"
-"       ldr     w10, =0x000003c5    \n"
-"       msr     SPSR_EL3, x10       \n"
-"       eret                        \n"
-
-"leave_EL2:                         \n"
-#if EMU68_HOST_BIG_ENDIAN
-"       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
-"       orr     x10, x10, #(1 << 25)\n"
-"       msr     SCTLR_EL2, x10      \n"
-#endif
-"       mov     x10, #3             \n" /* Enable CNTL access from EL1 and EL0 */
-"       msr     CNTHCTL_EL2, x10    \n"
-"       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
-"       msr     HCR_EL2, x10        \n"
-"       adr     x10, continue_boot  \n" /* Fallback to continue_boot in EL1 */
-"       msr     ELR_EL2, x10        \n"
-"       ldr     w10, =0x000003c5    \n"
-"       msr     SPSR_EL2, x10       \n"
-"       eret                        \n"
-
-"       .section .text              \n"
-);
-
+void _boot();
+void move_kernel(intptr_t from, intptr_t to);
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
+extern uint64_t mmu_user_L1[512];
+extern uint64_t mmu_user_L2[4*512];
+
 void M68K_StartEmu(void *addr);
 
 #if EMU68_HOST_BIG_ENDIAN
@@ -150,120 +36,6 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 #else
 static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
 #endif
-
-
-/* Initial MMU maps are pretty simple - four 1GB blocks necessary to boot the C code */
-static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L1[512] =
-{
-    [0x000] = 0x0000000000000701,
-    [0x001] = 0x0000000040000701,
-    [0x002] = 0x0000000080000701,
-    [0x003] = 0x00000000c0000701,
-};
-
-/* Four additional directories to map the 4GB address space in 2MB pages here */
-static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L2[4*512];
-
-static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] =
-{
-    [0x000] = 0x0000000000000701,
-    [0x001] = 0x0000000040000701,
-    [0x002] = 0x0000000080000701,
-    [0x003] = 0x00000000c0000701,
-
-    /* Top of RAM - 1:1 map of 32bit address space, uncached */
-    [0x1fc] = 0x000000000000070d,
-    [0x1fd] = 0x000000004000070d,
-    [0x1fe] = 0x000000008000070d,
-    [0x1ff] = 0x00000000c000070d,
-};
-
-/* Four additional directories to map the 4GB address space in 2MB pages here */
-static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L2[512];
-
-uintptr_t virt2phys(uintptr_t addr)
-{
-    uintptr_t phys = 0;
-    uint64_t *tbl = NULL;
-    int idx_l1, idx_l2, idx_l3;
-    uint64_t tmp;
-
-    DV2P(kprintf("virt2phys(%p)\n", addr));
-
-    if (addr & 0xffff000000000000) {
-        DV2P(kprintf("selecting kernel tables\n"));
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((uintptr_t)tbl | 0xffffffff00000000);
-    } else {
-        DV2P(kprintf("selecting user tables\n"));
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((uintptr_t)tbl | 0xffffffff00000000);
-    }
-
-    DV2P(kprintf("L1 table: %p\n", tbl));
-
-    idx_l1 = (addr >> 30) & 0x1ff;
-    idx_l2 = (addr >> 21) & 0x1ff;
-    idx_l3 = (addr >> 12) & 0x1ff;
-
-    DV2P(kprintf("idx_l1 = %d, idx_l2 = %d, idx_l3 = %d\n", idx_l1, idx_l2, idx_l3));
-
-    tmp = tbl[idx_l1];
-    DV2P(kprintf("item in L1 table: %016x\n", tmp));
-    if (tmp & 1)
-    {
-        DV2P(kprintf("is valid\n"));
-        if (tmp & 2) {
-            tbl = (uint64_t *)((tmp & 0x0000fffffffff000) | 0xffffffff00000000);
-            DV2P(kprintf("L2 table at %p\n", tbl));
-
-            tmp = tbl[idx_l2];
-            DV2P(kprintf("item in L2 table: %016x\n", tmp));
-            if (tmp & 1)
-            {
-                DV2P(kprintf("is valid\n"));
-                if (tmp & 2)
-                {
-                    tbl = (uint64_t *)((tmp & 0x0000fffffffff000) | 0xffffffff00000000);
-                    DV2P(kprintf("L3 table at %p\n", tbl));
-
-                    tmp = tbl[idx_l3];
-                    DV2P(kprintf("item in L3 table: %016x\n", tmp));
-                    if ((tmp & 3) == 3)
-                    {
-                        DV2P(kprintf("is valid 4K page\n"));
-                        phys = (tmp & 0xfffffffff000) + (addr & 0xfff);
-                    }
-                    else {
-                        DV2P(kprintf("invalid!\n"));
-                        return -1;
-                    }
-                }
-                else {
-                    DV2P(kprintf("2MB page!\n"));
-                    phys = (tmp & 0xffffffe00000) + (addr & 0x1fffff);
-                }
-            }
-            else
-            {
-                DV2P(kprintf("invalid!\n"));
-                return -1;
-            }
-        } else {
-            DV2P(kprintf("1GB page!\n"));
-            phys = (tmp & 0xffffc0000000) + (addr & 0x3fffffff);
-        }
-    }
-    else {
-        DV2P(kprintf("invalid!\n"));
-        return -1;
-    }
-
-    DV2P(kprintf("returning %p\n", phys));
-
-    return phys;
-}
-
 
 uint16_t *framebuffer;
 uint32_t pitch;
@@ -340,15 +112,13 @@ uintptr_t top_of_ram;
 
 void boot(void *dtree)
 {
-    uintptr_t kernel_top_virt = ((uintptr_t)boot + 0x1000000) & ~0xffffff;
+    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_RSRVD_PAGES << 21)) & ~((KERNEL_RSRVD_PAGES << 21)-1);
     uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
     uint64_t tmp;
     void *base_vcmem;
     uint32_t size_vcmem;
 
     of_node_t *e = NULL;
-    char *compatible = NULL;
-    int raspi4 = 0;
 
     /* Enable caches and cache maintenance instructions from EL0 */
     asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
@@ -360,18 +130,6 @@ void boot(void *dtree)
     tlsf = tlsf_init();
     tlsf_add_memory(tlsf, &__bootstrap_end, pool_size);
     dt_parse((void*)dtree);
-
-    e = dt_find_node("/");
-    if (e)
-    {
-        of_property_t *p = dt_find_property(e, "compatible");
-        if (p)
-        {
-            compatible = p->op_value;
-            if (compatible[12] >= '4')
-                raspi4 = 1;
-        }
-    }
 
     /*
         Prepare mapping for peripherals. Use and update the data from device tree here
@@ -386,17 +144,22 @@ void boot(void *dtree)
         int32_t len = p->op_length;
         uint32_t start_map = 0xf20 / 2;
 
+        int addr_cpu_len = dt_get_property_value_u32(e->on_parent, "#address-cells", 1, FALSE);
+        int addr_bus_len = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+        int size_bus_len = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+
+        int pos_abus = addr_bus_len - 1;
+        int pos_acpu = pos_abus + addr_cpu_len;
+        int pos_sbus = pos_acpu + size_bus_len;
+
         while (len > 0)
         {
             uint32_t addr_bus, addr_cpu;
             uint32_t addr_len;
 
-            addr_bus = BE32(*ranges++);
-            /* ignore higher half of addr_cpu here */
-            if (raspi4)
-                ranges++;
-            addr_cpu = BE32(*ranges++);
-            addr_len = BE32(*ranges++);
+            addr_bus = BE32(ranges[pos_abus]);
+            addr_cpu = BE32(ranges[pos_acpu]);
+            addr_len = BE32(ranges[pos_sbus]);
 
             (void)addr_bus;
 
@@ -412,14 +175,12 @@ void boot(void *dtree)
                 mmu_user_L2[start_map + i] = (i << 21) | addr_cpu | 0x745;
             }
 
-            ranges[-2] = BE32(start_map << 21);
+            ranges[pos_acpu] = BE32(start_map << 21);
 
             start_map += addr_len >> 21;
 
-            if (raspi4)
-                len -= 16;
-            else
-                len -= 12;
+            len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
+            ranges += addr_bus_len + addr_cpu_len + size_bus_len;
         }
     }
 
@@ -444,7 +205,7 @@ void boot(void *dtree)
 
     print_build_id();
 
-    kprintf("[BOOT] ARM stack top at %p\n", &_start);
+    kprintf("[BOOT] ARM stack top at %p\n", &_boot);
     kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
@@ -476,67 +237,40 @@ void boot(void *dtree)
     {
         of_property_t *p = dt_find_property(e, "reg");
         uint32_t *range = p->op_value;
+        int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+        int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+        int addr_pos = address_cells - 1;
+        int size_pos = address_cells + size_cells - 1;
 
-        if (raspi4)
-            range++;
-
-        top_of_ram = BE32(range[0]) + BE32(range[1]);
-        intptr_t kernel_new_loc = top_of_ram - 0x01000000;
+        top_of_ram = BE32(range[addr_pos]) + BE32(range[size_pos]);
+        intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
+        intptr_t kernel_old_loc = virt2phys((intptr_t)_boot) & 0xffe00000;
         top_of_ram = kernel_new_loc - 0x1000;
 
-        range[1] = BE32(BE32(range[1])-0x01000000);
+        range[size_pos] = BE32(BE32(range[size_pos])-(KERNEL_RSRVD_PAGES << 21));
 
-        kprintf("[BOOT] System memory: %p-%p\n", BE32(range[0]), BE32(range[0]) + BE32(range[1]) - 1);
+        kprintf("[BOOT] System memory: %p-%p\n", BE32(range[addr_pos]), BE32(range[addr_pos]) + BE32(range[size_pos]) - 1);
 
-        for (uint32_t i=BE32(range[0]) >> 21; i < (BE32(range[0]) + BE32(range[1])) >> 21; i++)
+        for (uint32_t i=BE32(range[addr_pos]) >> 21; i < (BE32(range[addr_pos]) + BE32(range[size_pos])) >> 21; i++)
         {
             /* User/super RW mode, cached */
             mmu_user_L2[i] = (i << 21) | 0x0741;
         }
 
-        kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
-
-        /* First prepare the correct MMU L2 map for the kernel */
-        for (int i=0; i < 8; i++)
-        {
-            mmu_kernel_L2[i] = ((kernel_new_loc & 0xffe00000) + (i << 21)) | 0x701;
-        }
-        arm_flush_cache((intptr_t)mmu_kernel_L2, sizeof(mmu_kernel_L2));
+        kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
 
         /*
-            Next copy the 16MB memory block from origin to new destination, use kernel space
-            which is still 1:1 map of first 4GB region
+            Copy the kernel memory block from origin to new destination, use the top of
+            the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        DuffCopy((void *)(0xffffff8000000000 + kernel_new_loc), (void *)0xffffff8000000000, 0x01000000 / 4);
-        arm_flush_cache(0xffffff8000000000 + kernel_new_loc, 0x01000000);
+        arm_flush_cache((intptr_t)_boot, KERNEL_RSRVD_PAGES << 21);
 
         /*
-            At this point the copy of kernel is at the new location, but MMU tables are still in old place.
-            First, update the old MMU L1 table to point at the new kernel region, then update the pointers in
-            kernel and user MMU maps.
+            We use routine in assembler here, because we will move both kernel code *and* stack.
+            Playing with C code without knowledge what will happen to the stack after move is ready
+            can result in funny Heisenbugs...
         */
-        mmu_kernel_L1[0] = virt2phys((intptr_t)&mmu_kernel_L2[0]) | 3;
-        mmu_kernel_L1[1] = 0;
-        mmu_kernel_L1[2] = 0;
-        mmu_kernel_L1[3] = 0;
-        arm_flush_cache((intptr_t)mmu_kernel_L1, sizeof(mmu_kernel_L1));
-        asm volatile("tlbi VMALLE1");
-
-        /*
-            After last fix the mmu_kernel_L1[0] is pointing to the new value, although the table
-            is still in wrong location. Now we can update kernel and user maps, and then, finally,
-            uptade both ttbr.
-        */
-        mmu_kernel_L1[0] = virt2phys((intptr_t)&mmu_kernel_L2[0]) | 3;
-        arm_flush_cache((intptr_t)mmu_kernel_L1, sizeof(mmu_kernel_L1));
-        asm volatile ("dsb sy; msr TTBR1_EL1, %0; isb"::"r"(virt2phys((intptr_t)mmu_kernel_L1)));
-
-        mmu_user_L1[0] = virt2phys((intptr_t)&mmu_user_L2[0 * 512]) | 3;
-        mmu_user_L1[1] = virt2phys((intptr_t)&mmu_user_L2[1 * 512]) | 3;
-        mmu_user_L1[2] = virt2phys((intptr_t)&mmu_user_L2[2 * 512]) | 3;
-        mmu_user_L1[3] = virt2phys((intptr_t)&mmu_user_L2[3 * 512]) | 3;
-        arm_flush_cache((intptr_t)mmu_user_L1, sizeof(mmu_user_L1));
-        asm volatile ("dsb sy; msr TTBR0_EL1, %0; isb"::"r"(virt2phys((intptr_t)mmu_user_L1)));
+        move_kernel(kernel_old_loc, kernel_new_loc);
 
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
     }
@@ -562,6 +296,7 @@ void boot(void *dtree)
         }
         else
         {
+            dt_dump_tree();
             kprintf("[BOOT] No executable to run...\n");
         }
     }
