@@ -39,11 +39,12 @@
 #endif
 
 void _start();
+void _boot();
 
 asm("   .section .startup           \n"
 "       .globl _start               \n"
 "       .type _start,%function      \n" /* Our kernel image starts with a standard header */
-"       b       _start              \n" /* code0: branch to the start */
+"_boot:  b       _start              \n" /* code0: branch to the start */
 "       .long   0                   \n" /* code1: not used yet */
 "       .quad " xstr(L64(0x00080000)) " \n" /* requested Image offset within the 2MB page */
 "       .quad " xstr(L64(KERNEL_RSRVD_PAGES << 21)) "\n" /* Total size of kernel */
@@ -87,7 +88,7 @@ asm("   .section .startup           \n"
 "       orr     x9, x17, #3         \n" /* valid + page tagle */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
-"       adrp    x16, _start         \n" /* x16 - address of our kernel + offset */
+"       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       sub     x16, x16, #0x80000  \n" /* subtract the kernel offset to get the 2MB page */
 "       orr     x16, x16, #0x700    \n" /* set page attributes */
 "       orr     x16, x16, #1        \n" /* page is valid */
@@ -101,7 +102,7 @@ asm("   .section .startup           \n"
     MMU Map is prepared. We can continue
 */
 
-"       ldr     x9, =_start         \n"
+"       ldr     x9, =_boot          \n"
 "       mov     sp, x9              \n"
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
@@ -167,6 +168,90 @@ asm("   .section .startup           \n"
 "       .section .text              \n"
 );
 
+void move_kernel(intptr_t from, intptr_t to);
+asm(
+"       .globl move_kernel          \n"
+"       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
+"move_kernel:                       \n" /* x0: from, x1: to */
+"       movk    x0, #0xffff, lsl #32\n" /* x0: phys from in topmost part of addr space */
+"       movk    x0, #0xffff, lsl #48\n"
+"       movk    x1, #0xffff, lsl #32\n" /* x1: phys to in topmost part of addr space */
+"       movk    x1, #0xffff, lsl #48\n"
+"       mov     x2, #" xstr(KERNEL_RSRVD_PAGES << 21) "\n"
+"       mov     x3, x0              \n"
+"       mov     x4, x1              \n"
+"       sub     x7, x1, x0          \n" /* x7: delta = (to - from) */
+"1:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location */
+"       stp     x5, x6, [x4], #16   \n"
+"       ldp     x5, x6, [x3], #16   \n"
+"       stp     x5, x6, [x4], #16   \n"
+"       ldp     x5, x6, [x3], #16   \n"
+"       stp     x5, x6, [x4], #16   \n"
+"       ldp     x5, x6, [x3], #16   \n"
+"       stp     x5, x6, [x4], #16   \n"
+"       sub     x2, x2, #64         \n"
+"       cbnz    x2, 1b              \n"
+
+/* Fix kernel MMU table */
+
+"       adrp    x2, mmu_kernel_L1   \n" /* Take address of L1 MMU map */
+"       mov     w5, w2              \n" /* Copy it to x5 and discard the top 32 bits */
+"       add     x2, x5, x1          \n" /* Add x5 to x1 and store back in x2 - this gets phys offset of MMU map at new location */
+"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2]            \n" /* Store back */
+"       adrp    x2, mmu_kernel_L2   \n" /* Take address of L2 MMU map */
+"       mov     w5, w2              \n" /* Copy it to x5 and discard the top 32 bits */
+"       add     x2, x5, x1          \n" /* Add x5 to x1 and store back in x2 - this gets phys offset of MMU map at new location */
+"       mov     x4, #" xstr(KERNEL_RSRVD_PAGES) "\n"
+"1:     ldr     x3, [x2]            \n" /* Get first entry - pointer to page */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2], #8        \n" /* Store back */
+"       sub     x4, x4, #1          \n" /* Repeat for all kernel pages */
+"       cbnz    x4, 1b              \n"
+
+/*
+    Fix user MMU table. We know it consists of pointers to L2 entries, and that L2 entries are 
+    pointing to 2MB pages and do not need to be adjusted at all. 
+    
+    Would it be not the case, we would need to iterate through entire L1, check if entries 
+    point to L2, in that case fix them and fix every L2 table in the same manner down to the 
+    4K pages if necessary.
+*/
+
+"       adrp    x2, mmu_user_L1     \n" /* Take address of L1 MMU map */
+"       mov     w5, w2              \n" /* Copy it to x5 and discard the top 32 bits */
+"       add     x2, x5, x1          \n" /* Add x5 to x1 and store back in x2 - this gets phys offset of MMU map at new location */
+"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2], #8        \n" /* Store back */
+"       ldr     x3, [x2]            \n" /* Get second entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2], #8        \n" /* Store back */
+"       ldr     x3, [x2]            \n" /* Get third entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2], #8        \n" /* Store back */
+"       ldr     x3, [x2]            \n" /* Get fourth entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2]            \n" /* Store back */
+
+/*
+    All is moved and fixed. Load new tables now!
+*/
+
+"       tlbi    VMALLE1             \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       adrp    x5, mmu_kernel_L1   \n"
+"       add     w5, w5, w1          \n"
+"       msr     TTBR1_EL1, x5       \n" /* Load new TTBR1 */
+"       adrp    x5, mmu_user_L1     \n"
+"       add     w5, w5, w1          \n"
+"       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
+"       isb                         \n"
+
+"       br      x30                 \n" /* Return! */
+);
+
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
 void M68K_StartEmu(void *addr);
@@ -192,11 +277,6 @@ static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L2[4*512];
 
 static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] =
 {
-    [0x000] = 0x0000000000000701,
-    [0x001] = 0x0000000040000701,
-    [0x002] = 0x0000000080000701,
-    [0x003] = 0x00000000c0000701,
-
     /* Top of RAM - 1:1 map of 32bit address space, uncached */
     [0x1fc] = 0x000000000000070d,
     [0x1fd] = 0x000000004000070d,
@@ -204,7 +284,7 @@ static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] =
     [0x1ff] = 0x00000000c000070d,
 };
 
-/* Four additional directories to map the 4GB address space in 2MB pages here */
+/* One additional directory to map the 1GB kernel address space in 2MB pages here */
 static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L2[512];
 
 uintptr_t virt2phys(uintptr_t addr)
@@ -366,7 +446,7 @@ uintptr_t top_of_ram;
 
 void boot(void *dtree)
 {
-    uintptr_t kernel_top_virt = ((uintptr_t)boot + 0x1000000) & ~0xffffff;
+    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_RSRVD_PAGES << 21)) & ~((KERNEL_RSRVD_PAGES << 21)-1);
     uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
     uint64_t tmp;
     void *base_vcmem;
@@ -472,7 +552,7 @@ void boot(void *dtree)
 
     print_build_id();
 
-    kprintf("[BOOT] ARM stack top at %p\n", &_start);
+    kprintf("[BOOT] ARM stack top at %p\n", &_boot);
     kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
@@ -509,10 +589,11 @@ void boot(void *dtree)
             range++;
 
         top_of_ram = BE32(range[0]) + BE32(range[1]);
-        intptr_t kernel_new_loc = top_of_ram - 0x01000000;
+        intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
+        intptr_t kernel_old_loc = virt2phys((intptr_t)_boot) & 0xffe00000;
         top_of_ram = kernel_new_loc - 0x1000;
 
-        range[1] = BE32(BE32(range[1])-0x01000000);
+        range[1] = BE32(BE32(range[1])-(KERNEL_RSRVD_PAGES << 21));
 
         kprintf("[BOOT] System memory: %p-%p\n", BE32(range[0]), BE32(range[0]) + BE32(range[1]) - 1);
 
@@ -522,49 +603,20 @@ void boot(void *dtree)
             mmu_user_L2[i] = (i << 21) | 0x0741;
         }
 
-        kprintf("[BOOT] Moving kernel to %p\n", (void*)kernel_new_loc);
-
-        /* First prepare the correct MMU L2 map for the kernel */
-        for (int i=0; i < 8; i++)
-        {
-            mmu_kernel_L2[i] = ((kernel_new_loc & 0xffe00000) + (i << 21)) | 0x701;
-        }
-        arm_flush_cache((intptr_t)mmu_kernel_L2, sizeof(mmu_kernel_L2));
+        kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
 
         /*
-            Next copy the 16MB memory block from origin to new destination, use kernel space
-            which is still 1:1 map of first 4GB region
+            Copy the kernel memory block from origin to new destination, use the top of
+            the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        DuffCopy((void *)(0xffffff8000000000 + kernel_new_loc), (void *)0xffffff8000000000, 0x01000000 / 4);
-        arm_flush_cache(0xffffff8000000000 + kernel_new_loc, 0x01000000);
+        arm_flush_cache((intptr_t)_boot, KERNEL_RSRVD_PAGES << 21);
 
         /*
-            At this point the copy of kernel is at the new location, but MMU tables are still in old place.
-            First, update the old MMU L1 table to point at the new kernel region, then update the pointers in
-            kernel and user MMU maps.
+            We use routine in assembler here, because we will move both kernel code *and* stack.
+            Playing with C code without knowledge what will happen to the stack after move is ready
+            can result in funny Heisenbugs...
         */
-        mmu_kernel_L1[0] = virt2phys((intptr_t)&mmu_kernel_L2[0]) | 3;
-        mmu_kernel_L1[1] = 0;
-        mmu_kernel_L1[2] = 0;
-        mmu_kernel_L1[3] = 0;
-        arm_flush_cache((intptr_t)mmu_kernel_L1, sizeof(mmu_kernel_L1));
-        asm volatile("tlbi VMALLE1");
-
-        /*
-            After last fix the mmu_kernel_L1[0] is pointing to the new value, although the table
-            is still in wrong location. Now we can update kernel and user maps, and then, finally,
-            uptade both ttbr.
-        */
-        mmu_kernel_L1[0] = virt2phys((intptr_t)&mmu_kernel_L2[0]) | 3;
-        arm_flush_cache((intptr_t)mmu_kernel_L1, sizeof(mmu_kernel_L1));
-        asm volatile ("dsb sy; msr TTBR1_EL1, %0; isb"::"r"(virt2phys((intptr_t)mmu_kernel_L1)));
-
-        mmu_user_L1[0] = virt2phys((intptr_t)&mmu_user_L2[0 * 512]) | 3;
-        mmu_user_L1[1] = virt2phys((intptr_t)&mmu_user_L2[1 * 512]) | 3;
-        mmu_user_L1[2] = virt2phys((intptr_t)&mmu_user_L2[2 * 512]) | 3;
-        mmu_user_L1[3] = virt2phys((intptr_t)&mmu_user_L2[3 * 512]) | 3;
-        arm_flush_cache((intptr_t)mmu_user_L1, sizeof(mmu_user_L1));
-        asm volatile ("dsb sy; msr TTBR0_EL1, %0; isb"::"r"(virt2phys((intptr_t)mmu_user_L1)));
+        move_kernel(kernel_old_loc, kernel_new_loc);
 
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
     }
