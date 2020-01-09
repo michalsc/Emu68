@@ -10,7 +10,7 @@
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
-#include "Features.h"
+#include "EmuFeatures.h"
 
 struct Result32 uidiv(uint32_t n, uint32_t d)
 {

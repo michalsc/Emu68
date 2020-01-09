@@ -10,7 +10,7 @@
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
-#include "Features.h"
+#include "EmuFeatures.h"
 #include "lists.h"
 #include "tlsf.h"
 
