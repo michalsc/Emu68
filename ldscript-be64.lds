@@ -1,4 +1,3 @@
-FORCE_COMMON_ALLOCATION
 
 SECTIONS
 {
@@ -27,7 +26,6 @@ SECTIONS
     .rodata1 : { *(.rodata1) }
 
     .sdata2 : { *(.sdata2) *(.sdata2.*) *(.gnu.linkonce.s2.*) }
-    .sbss2  : { *(.sbss2) *(.sbss2.*) *(.gnu.linkonce.sb2.*) }
 
     .data ALIGN(0x1000) :
     {
@@ -48,7 +46,21 @@ SECTIONS
         *(.gnu.linkonce.s.*)
     }
 
-    .mmu ALIGN(0x1000) :
+    .trailer ALIGN(4) :
+    {
+    LONG(0)
+    LONG(0)
+    LONG(0x01000000)    /* DTOK = 1, please give us device tree */
+    LONG(0x04000000)
+    LONG(0x44544f4b)    /* DTOK */
+    LONG(0x20000000)
+    LONG(0x04000000)
+    LONG(0x5250544c)
+    }
+
+    /* Begin of non-loaded empty sections */
+
+    .mmu ALIGN(0x1000) (NOLOAD) :
     {
         *(.mmu)
     }
@@ -63,6 +75,8 @@ SECTIONS
         *(.scommon)
     }
 
+    .sbss2  : { *(.sbss2) *(.sbss2.*) *(.gnu.linkonce.sb2.*) }
+    
     .bss ALIGN(0x1000) :
     {
         *(.bss)
@@ -77,18 +91,6 @@ SECTIONS
     _end = . ;
 
     __bootstrap_end = . ;
-
-    .trailer ALIGN(4) :
-    {
-    LONG(0)
-    LONG(0)
-    LONG(0x01000000)    /* DTOK = 1, please give us device tree */
-    LONG(0x04000000)
-    LONG(0x44544f4b)    /* DTOK */
-    LONG(0x20000000)
-    LONG(0x04000000)
-    LONG(0x5250544c)
-    }
 }
 
-__bss_size = (__bss_end - __bss_start) >> 3;
+__bss_size = (__bss_end - __bss_start);
