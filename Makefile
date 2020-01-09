@@ -51,13 +51,13 @@ raspi64-build:
 
 $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 	@echo "Building target: $@"
-	@$(CC) $(foreach f,$(RPI_OBJS),$(OBJDIR)/$(f)) -Wl,--build-id -Wl,--be8 -Wl,--format=elf32-bigarm -nostdlib -nostartfiles -static -T ldscript-be.lds -o $@.elf
+	@$(CC) $(foreach f,$(RPI_OBJS),$(OBJDIR)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,--be8 -Wl,--format=elf32-bigarm -nostdlib -nostartfiles -static -T ldscript-be.lds -o $@.elf
 	@$(OBJCOPY) -O binary $@.elf $@
 	@echo "Build completed"
 
 $(OBJDIR)/kernel8.img: ldscript-be64.lds $(addprefix $(OBJDIR64)/, $(RPI64_OBJS))
 	@echo "Building target: $@"
-	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static -T ldscript-be64.lds -o $@.elf
+	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static -T ldscript-be64.lds -o $@.elf
 	@$(OBJCOPY64) -O binary $@.elf $@
 	@echo "Build completed"
 
