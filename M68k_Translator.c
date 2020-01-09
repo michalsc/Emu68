@@ -10,7 +10,7 @@
 #define _GNU_SOURCE 1
 
 #include "support.h"
-#include "Features.h"
+#include "EmuFeatures.h"
 #include "M68k.h"
 #include "ARM.h"
 #include "RegisterAllocator.h"
@@ -34,7 +34,6 @@ options_t Options = {
 const int debug = 0;
 
 #ifdef RASPI
-#include "support_rpi.h"
 static struct List *ICache;
 #else
 static struct List ICache[65536];

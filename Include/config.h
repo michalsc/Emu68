@@ -34,4 +34,6 @@
 #define VERSION_STRING_DATE ""
 #endif
 
+#define KERNEL_RSRVD_PAGES      8
+
 #endif /* _CONFIG_H */

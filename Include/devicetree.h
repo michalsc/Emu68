@@ -36,6 +36,7 @@ typedef struct of_property {
 
 typedef struct of_node {
     struct of_node *on_next;
+    struct of_node *on_parent;
     char *          on_name;
     struct of_node *on_children;
     of_property_t * on_properties;
@@ -56,5 +57,6 @@ long dt_total_size();
 of_node_t *dt_find_node_by_phandle(uint32_t phandle);
 of_node_t *dt_find_node(char *key);
 of_property_t *dt_find_property(void *key, char *propname);
+uint32_t dt_get_property_value_u32(void *key, char *propname, uint32_t def_val, int check_parent);
 
 #endif /* _DEVICETREE_H */

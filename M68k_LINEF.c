@@ -7,7 +7,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <math.h>
 #include "ARM.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -67,20 +66,20 @@ enum {
 };
 
 static long double const constants[128] = {
-    [C_PI] =        M_PI,               /* Official */
-    [C_PI_2] =      M_PI_2,
-    [C_PI_4] =      M_PI_4,
-    [C_1_PI] =      M_1_PI,
-    [C_2_PI] =      M_2_PI,
-    [C_2_SQRTPI] =  M_2_SQRTPI,
-    [C_SQRT2] =     M_SQRT2,
-    [C_SQRT1_2] =   M_SQRT1_2,
+    [C_PI] =        3.14159265358979323846264338327950288, /* Official */
+    [C_PI_2] =      1.57079632679489661923132169163975144,
+    [C_PI_4] =      0.785398163397448309615660845819875721,
+    [C_1_PI] =      0.318309886183790671537767526745028724,
+    [C_2_PI] =      0.636619772367581343075535053490057448,
+    [C_2_SQRTPI] =  1.12837916709551257389615890312154517,
+    [C_SQRT2] =     1.41421356237309504880168872420969808,
+    [C_SQRT1_2] =   0.707106781186547524400844362104849039,
     [C_0_5] =       0.5,
     [C_1_5] =       1.5,
     [C_LOG10_2] =   0.301029995663981195214, /* Official - Log10(2) */
-    [C_E] =         M_E,                /* Official */
-    [C_LOG2E] =     M_LOG2E,            /* Official */
-    [C_LOG10E] =    M_LOG10E,           /* Official */
+    [C_E] =         2.71828182845904523536028747135266250,                /* Official */
+    [C_LOG2E] =     1.44269504088896340735992468100189214,            /* Official */
+    [C_LOG10E] =    0.434294481903251827651128918916605082,           /* Official */
     [C_ZERO] =      0.0,                /* Official */
 
     /* Polynom coefficients for sin(x*Pi), x=0..0.5*/
@@ -123,8 +122,8 @@ static long double const constants[128] = {
                     -4.93479497666537363458,
                     9.99999967245121125386E-1,
 
-    [C_LN2] =       M_LN2,              /* Official */
-    [C_LN10] =      M_LN10,             /* Official */
+    [C_LN2] =       0.693147180559945309417232121458176568,              /* Official */
+    [C_LN10] =      2.30258509299404568401799145468436421,             /* Official */
     [C_10P0] =      1.0,                /* Official */
     [C_10P1] =      1E1,                /* Official */
     [C_10P2] =      1E2,                /* Official */
@@ -135,10 +134,10 @@ static long double const constants[128] = {
     [C_10P64] =     1E64,               /* Official */
     [C_10P128] =    1E128,              /* Official */
     [C_10P256] =    1E256,              /* Official */
-    [C_10P512] =    HUGE_VAL,           /* Official 1E512 - too large for double! */
-    [C_10P1024] =   HUGE_VAL,           /* Official 1E1024 - too large for double! */
-    [C_10P2048] =   HUGE_VAL,           /* Official 1E2048 - too large for double! */
-    [C_10P4096] =   HUGE_VAL,           /* Official 1E4096 - too large for double! */
+    [C_10P512] =    0x1.fffffep+127f,           /* Official 1E512 - too large for double! */
+    [C_10P1024] =   0x1.fffffep+127f,           /* Official 1E1024 - too large for double! */
+    [C_10P2048] =   0x1.fffffep+127f,           /* Official 1E2048 - too large for double! */
+    [C_10P4096] =   0x1.fffffep+127f,           /* Official 1E4096 - too large for double! */
 
     [C_TWO54] =     1.80143985094819840000e+16,
     [C_LN2HI] =     6.93147180369123816490e-01,
