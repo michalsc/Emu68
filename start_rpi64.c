@@ -82,11 +82,31 @@ asm("   .section .startup           \n"
     we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
 */
 
+"       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
+"       mov     x9, 0x701           \n" /* initial setup: 1:1 cached for first 4GB */
+"       mov     x10, #0x40000000    \n"
+"       str     x9, [x16, #0]       \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #8]       \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #16]      \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #24]      \n"
+
 "       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
 "       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
 
 "       orr     x9, x17, #3         \n" /* valid + page tagle */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
+
+"       mov     x9, 0x70d           \n" /* Prepare 1:1 uncached map at the top of kernel address space */
+"       str     x9, [x16, #4064]    \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #4072]    \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #4080]    \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #4088]    \n"
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       sub     x16, x16, #0x80000  \n" /* subtract the kernel offset to get the 2MB page */
@@ -132,7 +152,7 @@ asm("   .section .startup           \n"
 "       ldr     w10, =__bss_size    \n"
 "1:     cbz     w10, 2f             \n"
 "       str     xzr, [x9], #8       \n"
-"       sub     w10, w10, 1         \n"
+"       sub     w10, w10, 8         \n"
 "       cbnz    w10, 1b             \n"
 "2:     ldr     x30, =boot          \n"
 "       br      x30                 \n"
@@ -263,27 +283,13 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 #endif
 
 
-/* Initial MMU maps are pretty simple - four 1GB blocks necessary to boot the C code */
-static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L1[512] =
-{
-    [0x000] = 0x0000000000000701,
-    [0x001] = 0x0000000040000701,
-    [0x002] = 0x0000000080000701,
-    [0x003] = 0x00000000c0000701,
-};
-
+/* L1 table for bottom half. Filled from startup code */
+static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L1[512];
 /* Four additional directories to map the 4GB address space in 2MB pages here */
 static __attribute__((used, section(".mmu"))) uint64_t mmu_user_L2[4*512];
 
-static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512] =
-{
-    /* Top of RAM - 1:1 map of 32bit address space, uncached */
-    [0x1fc] = 0x000000000000070d,
-    [0x1fd] = 0x000000004000070d,
-    [0x1fe] = 0x000000008000070d,
-    [0x1ff] = 0x00000000c000070d,
-};
-
+/* L1 table for top half */
+static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512];
 /* One additional directory to map the 1GB kernel address space in 2MB pages here */
 static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L2[512];
 
@@ -642,6 +648,7 @@ void boot(void *dtree)
         }
         else
         {
+            dt_dump_tree();
             kprintf("[BOOT] No executable to run...\n");
         }
     }
