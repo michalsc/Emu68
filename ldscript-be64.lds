@@ -59,11 +59,13 @@ SECTIONS
     }
 
     /* Begin of non-loaded empty sections */
-
     .mmu ALIGN(0x1000) (NOLOAD) :
     {
+        __mmu_start = . ;
+
         *(.mmu)
     }
+    __mmu_end = . ;
 
     __bss_start = . ;
 
@@ -92,5 +94,5 @@ SECTIONS
 
     __bootstrap_end = . ;
 }
-
+__mmu_size = (__mmu_end - __mmu_start);
 __bss_size = (__bss_end - __bss_start);

@@ -58,11 +58,12 @@ asm("   .section .startup           \n"
 "       .quad 0                     \n" /* res4 */
 "       .long " xstr(L32(0x664d5241)) "\n" /* Magic: ARM\x64 */
 "       .long 0                     \n" /* res5 */
+
 ".byte 0                            \n"
 ".align 4                           \n"
 ".string \"$VER: Emu68.img " VERSION_STRING_DATE "\"\n"
 ".byte 0                            \n"
-".align 4                           \n"
+".align 5                           \n"
 
 "_start:                            \n"
 "       mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
@@ -81,6 +82,13 @@ asm("   .section .startup           \n"
     At this point we have correct endianess and the code is executing, but we do not really know where
     we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
 */
+
+"       adr     x9, __mmu_start     \n" /* First clear the memory for MMU tables, in case there was a trash */
+"       ldr     w10, =__mmu_size    \n"
+"1:     str     xzr, [x9], #8       \n"
+"       sub     w10, w10, 8         \n"
+"       cbnz    w10, 1b             \n"
+"2:                                 \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
 "       mov     x9, 0x701           \n" /* initial setup: 1:1 cached for first 4GB */
