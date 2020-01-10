@@ -42,7 +42,7 @@ asm("   .section .startup           \n"
 "       .quad 0                     \n" /* res2 */
 "       .quad 0                     \n" /* res3 */
 "       .quad 0                     \n" /* res4 */
-"       .long " xstr(L32(0x664d5241)) "\n" /* Magic: ARM\x64 */
+"       .long " xstr(L32(0x644d5241)) "\n" /* Magic: ARM\x64 */
 "       .long 0                     \n" /* res5 */
 
 ".byte 0                            \n"
@@ -52,18 +52,26 @@ asm("   .section .startup           \n"
 ".align 5                           \n"
 
 "_start:                            \n"
+"       mov     x20, #0xff000000    \n"
+"       mov     x19, #0x001a0000    \n"
+"       orr     x20, x20, x19       \n"
+"       mov     x19, #'a'           \n"
+"       str     x19,[x20]           \n"
 "       mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
 "       and     x9, x9, #0xc        \n"
 "       cmp     x9, #8              \n"
 "       b.eq    leave_EL2           \n" /* In case of EL2 or EL3 switch back to EL1 */
 "       b.gt    leave_EL3           \n"
 "continue_boot:                     \n"
+"       mov     x19, #'d'           \n"
+"       str     x19,[x20]           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
 "       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
 "       msr     SCTLR_EL1, x10      \n"
 #endif
-
+"       mov     x19, #'e' << 24     \n"
+"       str     w19,[x20]           \n"
 /*
     At this point we have correct endianess and the code is executing, but we do not really know where
     we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
@@ -75,6 +83,9 @@ asm("   .section .startup           \n"
 "       sub     w10, w10, 8         \n"
 "       cbnz    w10, 1b             \n"
 "2:                                 \n"
+
+"       mov     x19, #'f' << 24     \n"
+"       str     w19,[x20]           \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
 "       mov     x9, 0x701           \n" /* initial setup: 1:1 cached for first 4GB */
@@ -89,6 +100,9 @@ asm("   .section .startup           \n"
 
 "       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
 "       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
+
+"       mov     x19, #'g'           \n"
+"       str     x19,[x20]           \n"
 
 "       orr     x9, x17, #3         \n" /* valid + page tagle */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
@@ -116,6 +130,9 @@ asm("   .section .startup           \n"
     MMU Map is prepared. We can continue
 */
 
+"       mov     x19, #'h'           \n"
+"       str     x19,[x20]           \n"
+
 "       ldr     x9, =_boot          \n"
 "       mov     sp, x9              \n"
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
@@ -136,11 +153,19 @@ asm("   .section .startup           \n"
 "       adrp    x10, mmu_kernel_L1  \n"
 "       msr     TTBR1_EL1, x10      \n"
 
+"       mov     x19, #'i'           \n"
+"       str     x19,[x20]           \n"
+
+
 "       isb     sy                  \n"
 "       mrs     x10, SCTLR_EL1      \n"
 "       orr     x10, x10, #1        \n"
 "       msr     SCTLR_EL1, x10      \n"
 "       isb     sy                  \n"
+
+
+"       mov     x19, #'j'           \n"
+"       str     x19,[x20]           \n"
 
 "       ldr     x9, =__bss_start    \n"
 "       ldr     w10, =__bss_size    \n"
@@ -152,6 +177,8 @@ asm("   .section .startup           \n"
 "       br      x30                 \n"
 
 "leave_EL3:                         \n"
+"       mov     x19, #'b'           \n"
+"       str     x19,[x20]           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       mrs     x10, SCTLR_EL3      \n" /* If necessary, set endianess of EL3 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
@@ -159,11 +186,13 @@ asm("   .section .startup           \n"
 #endif
 "       adr     x10, leave_EL2      \n" /* Fallback to continue_boot in EL2 here below */
 "       msr     ELR_EL3, x10        \n"
-"       ldr     w10, =0x000003c5    \n"
+"       ldr     w10, =0x000003c9    \n"
 "       msr     SPSR_EL3, x10       \n"
 "       eret                        \n"
 
 "leave_EL2:                         \n"
+"       mov     x19, #'c'           \n"
+"       str     x19,[x20]           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
@@ -276,6 +305,15 @@ static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L1[512];
 /* One additional directory to map the 1GB kernel address space in 2MB pages here */
 static __attribute__((used, section(".mmu"))) uint64_t mmu_kernel_L2[512];
 
+#if EMU68_HOST_BIG_ENDIAN
+static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 BigEndian";
+#else
+static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
+#endif
+
+extern int __bootstrap_end;
+extern const struct BuildID g_note_build_id;
+
 uintptr_t virt2phys(uintptr_t addr)
 {
     uintptr_t phys = 0;
@@ -357,5 +395,160 @@ uintptr_t virt2phys(uintptr_t addr)
     DV2P(kprintf("returning %p\n", phys));
 
     return phys;
+}
+
+void print_build_id()
+{
+    const uint8_t *build_id_data = &g_note_build_id.bid_Data[g_note_build_id.bid_NameLen];
+
+    kprintf("[BOOT] Build ID: ");
+    for (unsigned i = 0; i < g_note_build_id.bid_DescLen; ++i) {
+        kprintf("%02x", build_id_data[i]);
+    }
+    kprintf("\n");
+}
+
+void boot(void *dtree)
+{
+    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_RSRVD_PAGES << 21)) & ~((KERNEL_RSRVD_PAGES << 21)-1);
+    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
+    uint64_t tmp;
+    uintptr_t top_of_ram;
+
+    of_node_t *e = NULL;
+
+    /* Enable caches and cache maintenance instructions from EL0 */
+    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
+    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
+    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+
+    /* Initialize tlsf and parse device tree */
+    tlsf = tlsf_init();
+    tlsf_add_memory(tlsf, &__bootstrap_end, pool_size);
+    dt_parse((void*)dtree);
+
+    platform_init();
+
+
+    /*
+        At this stage the user space memory is not set up yet, but the kernel runs in high address
+        space, so it is safe to adjust the MMU tables for lower region. Here, only peripherals are
+        mapped, but the rest will come very soon.
+    */
+    arm_flush_cache((intptr_t)mmu_user_L2, sizeof(mmu_user_L2));
+    mmu_user_L1[0] = virt2phys((intptr_t)&mmu_user_L2[0 * 512]) | 3;
+    mmu_user_L1[1] = virt2phys((intptr_t)&mmu_user_L2[1 * 512]) | 3;
+    mmu_user_L1[2] = virt2phys((intptr_t)&mmu_user_L2[2 * 512]) | 3;
+    mmu_user_L1[3] = virt2phys((intptr_t)&mmu_user_L2[3 * 512]) | 3;
+    arm_flush_cache((intptr_t)mmu_user_L1, sizeof(mmu_user_L1));
+
+    setup_serial();
+
+    kprintf("[BOOT] Booting %s\n", bootstrapName);
+    kprintf("[BOOT] Boot address is %p\n", _start);
+
+    print_build_id();
+
+    kprintf("[BOOT] ARM stack top at %p\n", &_boot);
+    kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
+
+    kprintf("[BOOT] Kernel args (%p)\n", dtree);
+    kprintf("[BOOT] Local memory pool:\n");
+    kprintf("[BOOT]    %p - %p (size=%d)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size);
+
+    dt_dump_tree();
+
+#if 0
+    if (get_max_clock_rate(3) != get_clock_rate(3)) {
+        kprintf("[BOOT] Changing ARM clock from %d MHz to %d MHz\n", get_clock_rate(3)/1000000, get_max_clock_rate(3)/1000000);
+        set_clock_rate(3, get_max_clock_rate(3));
+    } else {
+        kprintf("[BOOT] ARM Clock at %d MHz\n", get_clock_rate(3) / 1000000);
+    }
+
+    get_vc_memory(&base_vcmem, &size_vcmem);
+    kprintf("[BOOT] VC4 memory: %p-%p\n", (intptr_t)base_vcmem, (intptr_t)base_vcmem + size_vcmem - 1);
+
+    if (base_vcmem && size_vcmem)
+    {
+        for (uint32_t i=(intptr_t)(base_vcmem) >> 21; i < ((intptr_t)base_vcmem + size_vcmem) >> 21; i++)
+        {
+            /* User/super RW mode, cached */
+            mmu_user_L2[i] = (i << 21) | 0x074d;
+        }
+        arm_flush_cache((intptr_t)mmu_user_L2, sizeof(mmu_user_L2));
+    }
+#endif
+    e = dt_find_node("/memory");
+    if (e)
+    {
+        of_property_t *p = dt_find_property(e, "reg");
+        uint32_t *range = p->op_value;
+        int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+        int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+        int addr_pos = address_cells - 1;
+        int size_pos = address_cells + size_cells - 1;
+
+        top_of_ram = BE32(range[addr_pos]) + BE32(range[size_pos]);
+        intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
+        intptr_t kernel_old_loc = virt2phys((intptr_t)_boot) & 0xffe00000;
+        top_of_ram = kernel_new_loc - 0x1000;
+
+        range[size_pos] = BE32(BE32(range[size_pos])-(KERNEL_RSRVD_PAGES << 21));
+
+        kprintf("[BOOT] System memory: %p-%p\n", BE32(range[addr_pos]), BE32(range[addr_pos]) + BE32(range[size_pos]) - 1);
+
+        for (uint32_t i=BE32(range[addr_pos]) >> 21; i < (BE32(range[addr_pos]) + BE32(range[size_pos])) >> 21; i++)
+        {
+            /* User/super RW mode, cached */
+            mmu_user_L2[i] = (i << 21) | 0x0741;
+        }
+
+        kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
+
+        /*
+            Copy the kernel memory block from origin to new destination, use the top of
+            the kernel space which is a 1:1 map of first 4GB region, uncached
+        */
+        arm_flush_cache((intptr_t)_boot, KERNEL_RSRVD_PAGES << 21);
+
+        /*
+            We use routine in assembler here, because we will move both kernel code *and* stack.
+            Playing with C code without knowledge what will happen to the stack after move is ready
+            can result in funny Heisenbugs...
+        */
+        move_kernel(kernel_old_loc, kernel_new_loc);
+
+        kprintf("[BOOT] Kernel moved, MMU tables updated\n");
+    }
+#if 0
+    display_logo();
+
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        void *image_start, *image_end;
+        of_property_t *p = dt_find_property(e, "linux,initrd-start");
+
+        if (p)
+        {
+            image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+            p = dt_find_property(e, "linux,initrd-end");
+            image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+
+            kprintf("[BOOT] Loading executable from %p-%p\n", image_start, image_end);
+            void *hunks = LoadHunkFile(image_start);
+            (void)hunks;
+            M68K_StartEmu((void *)((intptr_t)hunks + 4));
+        }
+        else
+        {
+            dt_dump_tree();
+            kprintf("[BOOT] No executable to run...\n");
+        }
+    }
+#endif
+    while(1) asm volatile("wfe");
 }
 

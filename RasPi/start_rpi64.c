@@ -24,18 +24,10 @@
 void _start();
 void _boot();
 void move_kernel(intptr_t from, intptr_t to);
-extern int __bootstrap_end;
-extern const struct BuildID g_note_build_id;
 extern uint64_t mmu_user_L1[512];
 extern uint64_t mmu_user_L2[4*512];
 
 void M68K_StartEmu(void *addr);
-
-#if EMU68_HOST_BIG_ENDIAN
-static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 BigEndian";
-#else
-static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
-#endif
 
 uint16_t *framebuffer;
 uint32_t pitch;
@@ -97,40 +89,12 @@ void display_logo()
     }
 }
 
-void print_build_id()
-{
-    const uint8_t *build_id_data = &g_note_build_id.bid_Data[g_note_build_id.bid_NameLen];
-
-    kprintf("[BOOT] Build ID: ");
-    for (unsigned i = 0; i < g_note_build_id.bid_DescLen; ++i) {
-        kprintf("%02x", build_id_data[i]);
-    }
-    kprintf("\n");
-}
-
 uintptr_t top_of_ram;
 
-void boot(void *dtree)
+void platform_init()
 {
-    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_RSRVD_PAGES << 21)) & ~((KERNEL_RSRVD_PAGES << 21)-1);
-    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
-    uint64_t tmp;
-    void *base_vcmem;
-    uint32_t size_vcmem;
-
     of_node_t *e = NULL;
-
-    /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
-    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
-    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
-
-    /* Initialize tlsf and parse device tree */
-    tlsf = tlsf_init();
-    tlsf_add_memory(tlsf, &__bootstrap_end, pool_size);
-    dt_parse((void*)dtree);
-
+    
     /*
         Prepare mapping for peripherals. Use and update the data from device tree here
         All peripherals are mapped in the lower 4G address space so that they can be
@@ -183,6 +147,30 @@ void boot(void *dtree)
             ranges += addr_bus_len + addr_cpu_len + size_bus_len;
         }
     }
+}
+
+void boot(void *dtree)
+{
+    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_RSRVD_PAGES << 21)) & ~((KERNEL_RSRVD_PAGES << 21)-1);
+    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
+    uint64_t tmp;
+    void *base_vcmem;
+    uint32_t size_vcmem;
+
+    of_node_t *e = NULL;
+
+    /* Enable caches and cache maintenance instructions from EL0 */
+    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
+    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
+    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+
+    /* Initialize tlsf and parse device tree */
+    tlsf = tlsf_init();
+    tlsf_add_memory(tlsf, &__bootstrap_end, pool_size);
+    dt_parse((void*)dtree);
+
+    platform_init();
 
     arm_flush_cache((intptr_t)mmu_user_L2, sizeof(mmu_user_L2));
 

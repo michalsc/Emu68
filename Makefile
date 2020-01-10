@@ -15,8 +15,10 @@ RPI_OBJS := start_rpi.o RasPi/support_rpi.o devicetree.o tlsf.o HunkLoader.o M68
         M68k_MOVE.o M68k_LINE0.o M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o M68k_LINEF.o \
         M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_MULDIV.o EmuLogo.o support.o
 
-RPI64_OBJS := start_aarch64.o start_rpi64.o RasPi/support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
+RPI64_OBJS := start_aarch64.o RasPi/start_rpi64.o RasPi/support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
         RegisterAllocator64.o
+
+PBPRO_OBJS := start_aarch64.o PBPro/start_pbpro.o PBPro/support_pbpro.o support.o tlsf.o devicetree.o
 
 #devicetree.o tlsf.o HunkLoader.o support.o support_rpi.o
 
@@ -28,6 +30,8 @@ TESTOBJS :=
 TESTOBJDIR := BuildTest
 
 raspi: pre-build raspi-build raspi64-build
+
+pbpro: pre-build pbpro64-build
 
 examples:
 	@echo "Building Examples"
@@ -45,6 +49,10 @@ raspi64-build:
 	@touch start_aarch64.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel8.img
 
+pbpro64-build:
+	@touch start_aarch64.c
+	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DPBPRO" $(OBJDIR)/Emu68_pinebook.img
+
 $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 	@echo "Building target: $@"
 	@$(CC) $(foreach f,$(RPI_OBJS),$(OBJDIR)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,--be8 -Wl,--format=elf32-bigarm -nostdlib -nostartfiles -static -T ldscript-be.lds -o $@.elf
@@ -54,6 +62,12 @@ $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 $(OBJDIR)/kernel8.img: ldscript-be64.lds $(addprefix $(OBJDIR64)/, $(RPI64_OBJS))
 	@echo "Building target: $@"
 	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static -T ldscript-be64.lds -o $@.elf
+	@$(OBJCOPY64) -O binary $@.elf $@
+	@echo "Build completed"
+
+$(OBJDIR)/Emu68_pinebook.img: ldscript-be64.lds $(addprefix $(OBJDIR64)/, $(PBPRO_OBJS))
+	@echo "Building target: $@"
+	@$(CC64) $(foreach f,$(PBPRO_OBJS),$(OBJDIR64)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static -T ldscript-be64.lds -o $@.elf
 	@$(OBJCOPY64) -O binary $@.elf $@
 	@echo "Build completed"
 
