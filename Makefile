@@ -18,7 +18,8 @@ RPI_OBJS := start_rpi.o RasPi/support_rpi.o devicetree.o tlsf.o HunkLoader.o M68
 RPI64_OBJS := start_aarch64.o RasPi/start_rpi64.o RasPi/support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
         RegisterAllocator64.o
 
-PBPRO_OBJS := start_aarch64.o PBPro/start_pbpro.o PBPro/support_pbpro.o support.o tlsf.o devicetree.o
+PBPRO_OBJS := start_aarch64.o PBPro/start_pbpro.o PBPro/support_pbpro.o support.o tlsf.o devicetree.o \
+        EmuLogo.o HunkLoader.o RegisterAllocator64.o
 
 #devicetree.o tlsf.o HunkLoader.o support.o support_rpi.o
 

@@ -52,26 +52,17 @@ asm("   .section .startup           \n"
 ".align 5                           \n"
 
 "_start:                            \n"
-"       mov     x20, #0xff000000    \n"
-"       mov     x19, #0x001a0000    \n"
-"       orr     x20, x20, x19       \n"
-"       mov     x19, #'a'           \n"
-"       str     x19,[x20]           \n"
 "       mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
 "       and     x9, x9, #0xc        \n"
 "       cmp     x9, #8              \n"
 "       b.eq    leave_EL2           \n" /* In case of EL2 or EL3 switch back to EL1 */
 "       b.gt    leave_EL3           \n"
 "continue_boot:                     \n"
-"       mov     x19, #'d'           \n"
-"       str     x19,[x20]           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
 "       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
 "       msr     SCTLR_EL1, x10      \n"
 #endif
-"       mov     x19, #'e' << 24     \n"
-"       str     w19,[x20]           \n"
 /*
     At this point we have correct endianess and the code is executing, but we do not really know where
     we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
@@ -84,11 +75,8 @@ asm("   .section .startup           \n"
 "       cbnz    w10, 1b             \n"
 "2:                                 \n"
 
-"       mov     x19, #'f' << 24     \n"
-"       str     w19,[x20]           \n"
-
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
-"       mov     x9, 0x701           \n" /* initial setup: 1:1 cached for first 4GB */
+"       mov     x9, 0x70d           \n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
 "       add     x9, x9, x10         \n"
@@ -100,9 +88,6 @@ asm("   .section .startup           \n"
 
 "       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
 "       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
-
-"       mov     x19, #'g'           \n"
-"       str     x19,[x20]           \n"
 
 "       orr     x9, x17, #3         \n" /* valid + page tagle */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
@@ -130,9 +115,6 @@ asm("   .section .startup           \n"
     MMU Map is prepared. We can continue
 */
 
-"       mov     x19, #'h'           \n"
-"       str     x19,[x20]           \n"
-
 "       ldr     x9, =_boot          \n"
 "       mov     sp, x9              \n"
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
@@ -153,19 +135,11 @@ asm("   .section .startup           \n"
 "       adrp    x10, mmu_kernel_L1  \n"
 "       msr     TTBR1_EL1, x10      \n"
 
-"       mov     x19, #'i'           \n"
-"       str     x19,[x20]           \n"
-
-
 "       isb     sy                  \n"
 "       mrs     x10, SCTLR_EL1      \n"
 "       orr     x10, x10, #1        \n"
 "       msr     SCTLR_EL1, x10      \n"
 "       isb     sy                  \n"
-
-
-"       mov     x19, #'j'           \n"
-"       str     x19,[x20]           \n"
 
 "       ldr     x9, =__bss_start    \n"
 "       ldr     w10, =__bss_size    \n"
@@ -254,11 +228,11 @@ asm(
 "       cbnz    x4, 1b              \n"
 
 /*
-    Fix user MMU table. We know it consists of pointers to L2 entries, and that L2 entries are 
-    pointing to 2MB pages and do not need to be adjusted at all. 
-    
-    Would it be not the case, we would need to iterate through entire L1, check if entries 
-    point to L2, in that case fix them and fix every L2 table in the same manner down to the 
+    Fix user MMU table. We know it consists of pointers to L2 entries, and that L2 entries are
+    pointing to 2MB pages and do not need to be adjusted at all.
+
+    Would it be not the case, we would need to iterate through entire L1, check if entries
+    point to L2, in that case fix them and fix every L2 table in the same manner down to the
     4K pages if necessary.
 */
 
@@ -551,4 +525,3 @@ void boot(void *dtree)
 #endif
     while(1) asm volatile("wfe");
 }
-
