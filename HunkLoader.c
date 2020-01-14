@@ -13,8 +13,6 @@
 
 #define D(x) /* */
 
-#ifdef RASPI
-
 char * pool = (char *)0x00effff8;
 void * _my_malloc(size_t size)
 {
@@ -23,8 +21,6 @@ void * _my_malloc(size_t size)
     return ptr;
 }
 #define malloc(s) _my_malloc(s)
-
-#endif
 
 void * LoadHunkFile(void *buffer)
 {
