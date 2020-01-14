@@ -86,5 +86,15 @@ void vkprintf(const char * restrict format, va_list args)
 
 void setup_serial()
 {
+    uint32_t tmp;
+
+    tmp = rd32le(0xff1a0000 + UART_LCR);
+
+    while(rd32le(0xff1a0000 + UART_USR) & 1);
+    wr32le(0xff1a0000 + UART_LCR, tmp | 0x80);
+    wr32le(0xff1a0000 + UART_DLL, 13);
+    wr32le(0xff1a0000 + UART_DLH, 0);
+    wr32le(0xff1a0000 + UART_LCR, tmp);
+
     serial_up = 1;
 }
