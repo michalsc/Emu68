@@ -15,10 +15,10 @@ RPI_OBJS := start_rpi.o RasPi/support_rpi.o devicetree.o tlsf.o HunkLoader.o M68
         M68k_MOVE.o M68k_LINE0.o M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o M68k_LINEF.o \
         M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_MULDIV.o EmuLogo.o support.o
 
-RPI64_OBJS := start_aarch64.o RasPi/start_rpi64.o RasPi/support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
+RPI64_OBJS := start_aarch64.o RasPi/start_rpi64.o RasPi/support_rpi.o AArch64/mmu.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
         RegisterAllocator64.o
 
-PBPRO_OBJS := start_aarch64.o PBPro/start_pbpro.o PBPro/support_pbpro.o support.o tlsf.o devicetree.o
+PBPRO_OBJS := start_aarch64.o PBPro/start_pbpro.o PBPro/support_pbpro.o AArch64/mmu.o support.o tlsf.o devicetree.o
 
 #devicetree.o tlsf.o HunkLoader.o support.o support_rpi.o
 
