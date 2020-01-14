@@ -151,8 +151,6 @@ asm("   .section .startup           \n"
 "       br      x30                 \n"
 
 "leave_EL3:                         \n"
-"       mov     x19, #'b'           \n"
-"       str     x19,[x20]           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       mrs     x10, SCTLR_EL3      \n" /* If necessary, set endianess of EL3 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
@@ -165,8 +163,6 @@ asm("   .section .startup           \n"
 "       eret                        \n"
 
 "leave_EL2:                         \n"
-"       mov     x19, #'c'           \n"
-"       str     x19,[x20]           \n"
 #if EMU68_HOST_BIG_ENDIAN
 "       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
