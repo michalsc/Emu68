@@ -94,7 +94,7 @@ uintptr_t top_of_ram;
 void platform_init()
 {
     of_node_t *e = NULL;
-    
+
     /*
         Prepare mapping for peripherals. Use and update the data from device tree here
         All peripherals are mapped in the lower 4G address space so that they can be
@@ -148,6 +148,8 @@ void platform_init()
         }
     }
 }
+
+#if 0
 
 void boot(void *dtree)
 {
@@ -463,3 +465,4 @@ void M68K_StartEmu(void *addr)
 
     M68K_PrintContext(&__m68k);
 }
+#endif
