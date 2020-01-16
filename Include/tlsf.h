@@ -14,6 +14,7 @@ void *tlsf_malloc(void *handle, uintptr_t size);
 void *tlsf_malloc_aligned(void *handle, uintptr_t size, uintptr_t align);
 void tlsf_free(void *handle, void *ptr);
 void *tlsf_realloc(void *handle, void *ptr, uintptr_t new_size);
+void *tlsf_init_with_memory(void *memory, uintptr_t size);
 
 #ifdef __cplusplus
 }

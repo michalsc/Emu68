@@ -734,3 +734,17 @@ void * tlsf_init()
 
     return tlsf;
 }
+
+void * tlsf_init_with_memory(void *memory, uintptr_t size)
+{
+    tlsf_t *tlsf = memory;
+    unsigned int tlsf_size = (sizeof(tlsf_t) + 4095) & ~4095;
+
+    memory = (void*)((uintptr_t)memory + tlsf_size);
+    size -= tlsf_size;
+
+    bzero(tlsf, tlsf_size);
+    tlsf_add_memory(tlsf, memory, size);
+
+    return tlsf;
+}
