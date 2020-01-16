@@ -60,6 +60,22 @@
 #define A64_CC_AL 0x0e /* Always */
 #define A64_CC_NV 0x0f /* Always */
 
+#define MMU_NG          0x800
+#define MMU_ACCESS      0x400
+#define MMU_ISHARE      0x300
+#define MMU_OSHARE      0x200
+#define MMU_READ_ONLY   0x080
+#define MMU_ALLOW_EL0   0x040
+#define MMU_NS          0x020
+#define MMU_ATTR(x)     (((x) & 7) << 2)
+#define MMU_DIR         0x003
+#define MMU_PAGE        0x001
+
+#define ATTR_DEVICE_nGnRnE  0x00
+#define ATTR_DEVICE_nGnRE   0x04
+#define ATTR_NOCACHE        0x44
+#define ATTR_CACHED         0xff
+
 #define SP      31  /* 31 encodes SP base, or */
 #define ZR      31  /* Zero register, depending on usage */
 
