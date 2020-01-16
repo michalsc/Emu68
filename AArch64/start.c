@@ -292,7 +292,7 @@ void boot(void *dtree)
     /* Setup debug console on serial port */
     setup_serial();
 
-    kprintf("\033c[BOOT] Booting %s\n", bootstrapName);
+    kprintf("\033[2J[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %p\n", _start);
 
     print_build_id();
