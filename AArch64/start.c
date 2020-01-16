@@ -75,7 +75,7 @@ asm("   .section .startup           \n"
 "2:                                 \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
-"       mov     x9, 0x70d           \n" /* initial setup: 1:1 uncached for first 4GB */
+"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(2)|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
 "       add     x9, x9, x10         \n"
@@ -91,7 +91,7 @@ asm("   .section .startup           \n"
 "       orr     x9, x17, #3         \n" /* valid + page tagle */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
-"       mov     x9, 0x70d           \n" /* Prepare 1:1 uncached map at the top of kernel address space */
+"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(2)|MMU_PAGE) "\n" /* Prepare 1:1 uncached map at the top of kernel address space */
 "       str     x9, [x16, #4064]    \n"
 "       add     x9, x9, x10         \n"
 "       str     x9, [x16, #4072]    \n"
@@ -102,8 +102,7 @@ asm("   .section .startup           \n"
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       sub     x16, x16, #0x80000  \n" /* subtract the kernel offset to get the 2MB page */
-"       orr     x16, x16, #0x700    \n" /* set page attributes */
-"       orr     x16, x16, #1        \n" /* page is valid */
+"       movk    x16, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(0)|MMU_PAGE) "\n" /* set page attributes */
 "       mov     x9, #" xstr(KERNEL_SYS_PAGES) "\n" /* Enable all pages used by the kernel */
 "1:     str     x16, [x17], #8      \n" /* Store pages in the L2 map */
 "       add     x16, x16, #0x200000 \n" /* Advance phys address by 2MB */
@@ -123,7 +122,8 @@ asm("   .section .startup           \n"
 "       ic      IALLU               \n" /* Invalidate entire instruction cache */
 "       isb     sy                  \n"
 
-"       ldr     x10, =0x4404ff      \n" /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
+                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n" 
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -260,6 +260,8 @@ void print_build_id()
     kprintf("\n");
 }
 
+void M68K_StartEmu(void *addr);
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -300,11 +302,8 @@ void boot(void *dtree)
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
 
-
-#if 0
-
-#endif
     e = dt_find_node("/memory");
+
     if (e)
     {
         of_property_t *p = dt_find_property(e, "reg");
@@ -323,15 +322,15 @@ void boot(void *dtree)
 
         kprintf("[BOOT] System memory: %p-%p\n", BE32(range[addr_pos]), BE32(range[addr_pos]) + BE32(range[size_pos]) - 1);
 
-        mmu_map(range[addr_pos], range[addr_pos], range[size_pos], 0x741, 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, 0x741, 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, 0x741, 0);
+        mmu_map(range[addr_pos], range[addr_pos], range[size_pos], MMU_ACCESS | MMU_ISHARE | MMU_NS | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_NS | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_NS | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
         jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
 
         kprintf("[BOOT] Local memory pools:\n");
-        kprintf("[BOOT]    SYS: %p - %p (size=%d kB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT: %p - %p (size=%d kB)\n", 0xffffffe000000000,
+        kprintf("[BOOT]    SYS: %p - %p (size: %5d kB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
+        kprintf("[BOOT]    JIT: %p - %p (size: %5d kB)\n", 0xffffffe000000000,
                     0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
@@ -354,10 +353,8 @@ void boot(void *dtree)
 
     platform_post_init();
 
-#if 0
-    display_logo();
-
     e = dt_find_node("/chosen");
+
     if (e)
     {
         void *image_start, *image_end;
@@ -380,6 +377,179 @@ void boot(void *dtree)
             kprintf("[BOOT] No executable to run...\n");
         }
     }
-#endif
+
     while(1) asm volatile("wfe");
+}
+
+
+void M68K_LoadContext(struct M68KState *ctx)
+{
+    asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
+
+    asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
+
+    asm volatile("ldr w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
+
+    asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+
+    asm volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+}
+
+void M68K_SaveContext(struct M68KState *ctx)
+{
+    asm volatile("str w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
+    asm volatile("str w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
+
+    asm volatile("str w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
+    asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
+
+    asm volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+
+    asm volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    asm volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    asm volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    asm volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    asm volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    asm volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+}
+
+void M68K_PrintContext(struct M68KState *m68k)
+{
+    M68K_SaveContext(m68k);
+
+    kprintf("[JIT]\n[JIT] M68K Context:\n[JIT] ");
+
+    for (int i=0; i < 8; i++) {
+        if (i==4)
+            kprintf("\n[JIT] ");
+        kprintf("    D%d = 0x%08x", i, BE32(m68k->D[i].u32));
+    }
+    kprintf("\n[JIT] ");
+
+    for (int i=0; i < 8; i++) {
+        if (i==4)
+            kprintf("\n[JIT] ");
+        kprintf("    A%d = 0x%08x", i, BE32(m68k->A[i].u32));
+    }
+    kprintf("\n[JIT] ");
+
+    kprintf("    PC = 0x%08x    SR = ", BE32((int)m68k->PC));
+    uint16_t sr = BE16(m68k->SR);
+    if (sr & SR_X)
+        kprintf("X");
+    else
+        kprintf(".");
+
+    if (sr & SR_N)
+        kprintf("N");
+    else
+        kprintf(".");
+
+    if (sr & SR_Z)
+        kprintf("Z");
+    else
+        kprintf(".");
+
+    if (sr & SR_V)
+        kprintf("V");
+    else
+        kprintf(".");
+
+    if (sr & SR_C)
+        kprintf("C");
+    else
+        kprintf(".");
+
+    kprintf("\n[JIT]     USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n[JIT] ", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
+
+    for (int i=0; i < 8; i++) {
+        union {
+            double d;
+            uint32_t u[2];
+        } u;
+        if (i==4)
+            kprintf("\n[JIT] ");
+        u.d = m68k->FP[i];
+        kprintf("    FP%d = %08x%08x", i, u.u[0], u.u[1]);
+    }
+    kprintf("\n[JIT] ");
+
+    kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
+}
+
+void M68K_StartEmu(void *addr)
+{
+//    void (*arm_code)(); //(struct M68KState *ctx);
+//    struct M68KTranslationUnit * unit = (void*)0;
+    struct M68KState __m68k;
+    uint64_t t1=0, t2=0;
+
+    uint32_t stream[512];
+    uint32_t *ptr = stream;
+
+    bzero(&__m68k, sizeof(__m68k));
+
+    __m68k.A[7].u32 = BE32(((intptr_t)addr - 4096)& 0xfffff000);
+    __m68k.PC = BE32((intptr_t)addr);
+    __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
+    *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
+
+    M68K_LoadContext(&__m68k);
+    M68K_PrintContext(&__m68k);
+
+    kprintf("[JIT] Let it go...\n");
+
+    t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
+
+    RA_ModifyFPCR(&ptr);
+    RA_FlushFPCR(&ptr);
+
+    for (uint32_t *p = stream; p != ptr; p++)
+    {
+        kprintf("%08x ", *p);
+    }
+    kprintf("\n");
+
+    t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
+
+    kprintf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
+
+    kprintf("[JIT] Back from translated code\n");
+
+    M68K_PrintContext(&__m68k);
 }
