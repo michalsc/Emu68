@@ -256,8 +256,8 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     }
 
     p->mp_entries[idx_l2] = phys & 0x0000ffffffe00000;
-    p->mp_entries[idx_l2] |= attr_low;
-    p->mp_entries[idx_l2] |= ((uint64_t)attr_high) << 48;
+    p->mp_entries[idx_l2] |= attr_low | MMU_PAGE;
+    p->mp_entries[idx_l2] |= ((uint64_t)attr_high) << 52;
 
     DMAP(kprintf("L2[%d] = %016x\n", idx_l2, p->mp_entries[idx_l2]));
 }
@@ -349,7 +349,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     }
 
     p->mp_entries[idx_l3] = phys & 0x0000fffffffff000;
-    p->mp_entries[idx_l3] |= attr_low;
+    p->mp_entries[idx_l3] |= attr_low | MMU_PAGE;
     p->mp_entries[idx_l3] |= ((uint64_t)attr_high) << 48;
 
     DMAP(kprintf("L3[%d] = %016x\n", idx_l3, p->mp_entries[idx_l3]));
