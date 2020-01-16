@@ -277,7 +277,7 @@ void boot(void *dtree)
 
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
-    
+
     /* Parse device tree */
     dt_parse((void*)dtree);
 
@@ -290,7 +290,7 @@ void boot(void *dtree)
     /* Setup debug console on serial port */
     setup_serial();
 
-    kprintf("[BOOT] Booting %s\n", bootstrapName);
+    kprintf("\033c[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %p\n", _start);
 
     print_build_id();
@@ -299,30 +299,10 @@ void boot(void *dtree)
     kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
-    
 
-//    dt_dump_tree();
 
 #if 0
-    if (get_max_clock_rate(3) != get_clock_rate(3)) {
-        kprintf("[BOOT] Changing ARM clock from %d MHz to %d MHz\n", get_clock_rate(3)/1000000, get_max_clock_rate(3)/1000000);
-        set_clock_rate(3, get_max_clock_rate(3));
-    } else {
-        kprintf("[BOOT] ARM Clock at %d MHz\n", get_clock_rate(3) / 1000000);
-    }
 
-    get_vc_memory(&base_vcmem, &size_vcmem);
-    kprintf("[BOOT] VC4 memory: %p-%p\n", (intptr_t)base_vcmem, (intptr_t)base_vcmem + size_vcmem - 1);
-
-    if (base_vcmem && size_vcmem)
-    {
-        for (uint32_t i=(intptr_t)(base_vcmem) >> 21; i < ((intptr_t)base_vcmem + size_vcmem) >> 21; i++)
-        {
-            /* User/super RW mode, cached */
-            mmu_user_L2[i] = (i << 21) | 0x074d;
-        }
-        arm_flush_cache((intptr_t)mmu_user_L2, sizeof(mmu_user_L2));
-    }
 #endif
     e = dt_find_node("/memory");
     if (e)
@@ -351,7 +331,7 @@ void boot(void *dtree)
 
         kprintf("[BOOT] Local memory pools:\n");
         kprintf("[BOOT]    SYS: %p - %p (size=%d kB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT: %p - %p (size=%d kB)\n", 0xffffffe000000000, 
+        kprintf("[BOOT]    JIT: %p - %p (size=%d kB)\n", 0xffffffe000000000,
                     0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
@@ -372,6 +352,7 @@ void boot(void *dtree)
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
     }
 
+    platform_post_init();
 
 #if 0
     display_logo();

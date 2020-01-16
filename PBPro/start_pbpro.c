@@ -34,3 +34,8 @@ void platform_init()
     */
     mmu_map(0xf8000000, 0xf8000000, 0x08000000, 0x745, 0);
 }
+
+void platform_post_init()
+{
+
+}

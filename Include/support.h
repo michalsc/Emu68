@@ -181,6 +181,7 @@ void memcpy(void *dst, const void *src, size_t sz);
 void memset(void *ptr, uint8_t fill, size_t sz);
 void bzero(void *ptr, size_t sz);
 void platform_init();
+void platform_post_init();
 void setup_serial();
 
 extern void * tlsf;
