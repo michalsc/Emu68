@@ -13,6 +13,7 @@
 #include "config.h"
 #include "support.h"
 #include "tlsf.h"
+#include "mmu.h"
 #include "devicetree.h"
 #include "M68k.h"
 #include "HunkLoader.h"
@@ -127,17 +128,9 @@ void platform_init()
 
             (void)addr_bus;
 
-            if (addr_len < 0x00200000)
-                addr_len = 0x00200000;
+            mmu_map(addr_cpu, start_map << 21, addr_len, 0x475, 0);
 
             kprintf("bus: %08x, cpu: %08x, len: %08x\n", addr_bus, addr_cpu, addr_len);
-
-            /* Prepare mapping - device type */
-            for (unsigned i=0; i < (addr_len >> 21); i++)
-            {
-                /* Strongly-ordered device, uncached, 16MB region */
-                mmu_user_L2[start_map + i] = (i << 21) | addr_cpu | 0x745;
-            }
 
             ranges[pos_acpu] = BE32(start_map << 21);
 

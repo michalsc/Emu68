@@ -47,11 +47,11 @@ raspi-build:
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel.img
 
 raspi64-build:
-	@touch start_aarch64.c
+	@touch AArch64/start.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel8.img
 
 pbpro64-build:
-	@touch start_aarch64.c
+	@touch AArch64/start.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DPBPRO" $(OBJDIR)/Emu68_pinebook.img
 
 $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))

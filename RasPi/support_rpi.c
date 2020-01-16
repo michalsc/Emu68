@@ -11,6 +11,7 @@
 #include <stdarg.h>
 
 #include "support_rpi.h"
+#include "mmu.h"
 
 #ifdef __aarch64__
 
@@ -166,7 +167,7 @@ uint32_t get_clock_rate(uint32_t clock_id)
     FBReq[7] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 32);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -184,7 +185,7 @@ uint32_t get_max_clock_rate(uint32_t clock_id)
     FBReq[7] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 32);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -202,7 +203,7 @@ uint32_t get_min_clock_rate(uint32_t clock_id)
     FBReq[7] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 32);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -221,7 +222,7 @@ uint32_t set_clock_rate(uint32_t clock_id, uint32_t speed)
     FBReq[7] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 36);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     return LE32(FBReq[6]);
@@ -239,7 +240,7 @@ void get_vc_memory(void **base, uint32_t *size)
     FBReq[7] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 32);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     if (base) {
@@ -265,7 +266,7 @@ struct Size get_display_size()
     FBReq[7] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 32);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     sz.width = LE32(FBReq[5]);
@@ -318,7 +319,7 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
     FBReq[0] = LE32(c << 2);
 
     arm_flush_cache((intptr_t)FBReq, c * 4);
-    mbox_send(8, virt2phys((intptr_t)FBReq));
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
 
     uint32_t _base = LE32(FBReq[pos_buffer_base]);

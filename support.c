@@ -532,3 +532,4 @@ void *memmove(void *dst, const void *src, size_t sz)
 }
 
 void * tlsf;
+void * jit_tlsf;
