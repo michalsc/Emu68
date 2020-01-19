@@ -49,11 +49,14 @@ void RA_FlushCTX(uint32_t **ptr);
 uint8_t RA_GetCC(uint32_t **ptr);
 uint8_t RA_ModifyCC(uint32_t **ptr);
 void RA_FlushCC(uint32_t **ptr);
+void RA_StoreCC(uint32_t **ptr);
 uint8_t RA_GetFPCR(uint32_t **ptr);
 uint8_t RA_ModifyFPCR(uint32_t **ptr);
 void RA_FlushFPCR(uint32_t **ptr);
+void RA_StoreFPCR(uint32_t **ptr);
 uint8_t RA_GetFPSR(uint32_t **ptr);
 uint8_t RA_ModifyFPSR(uint32_t **ptr);
 void RA_FlushFPSR(uint32_t **ptr);
+void RA_StoreFPSR(uint32_t **ptr);
 
 #endif /* _REGISTER_ALLOCATOR_H */

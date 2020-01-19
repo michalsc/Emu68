@@ -512,15 +512,18 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
 
+uint32_t last_PC = 0xffffffff;
+
 void M68K_StartEmu(void *addr)
 {
-//    void (*arm_code)(); //(struct M68KState *ctx);
-//    struct M68KTranslationUnit * unit = (void*)0;
+    void (*arm_code)();
+    struct M68KTranslationUnit * unit = (void*)0;
     struct M68KState __m68k;
     uint64_t t1=0, t2=0;
 
-    uint32_t stream[512];
-    uint32_t *ptr = stream;
+    uint32_t m68k_pc;
+
+    M68K_InitializeCache();
 
     bzero(&__m68k, sizeof(__m68k));
 
@@ -536,14 +539,23 @@ void M68K_StartEmu(void *addr)
 
     t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
-    RA_ModifyFPCR(&ptr);
-    RA_FlushFPCR(&ptr);
+    asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
+    
+    do {
 
-    for (uint32_t *p = stream; p != ptr; p++)
-    {
-        kprintf("%08x ", *p);
-    }
-    kprintf("\n");
+        if (last_PC != m68k_pc)
+        {
+            unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
+            last_PC = m68k_pc;
+        }
+
+        *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+    
+        arm_code();
+
+        asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
+
+    } while(m68k_pc != 0);
 
     t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
@@ -552,4 +564,6 @@ void M68K_StartEmu(void *addr)
     kprintf("[JIT] Back from translated code\n");
 
     M68K_PrintContext(&__m68k);
+    
+    M68K_DumpStats();
 }

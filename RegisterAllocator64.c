@@ -14,6 +14,7 @@
 
 static uint16_t register_pool = 0;
 static uint16_t changed_mask = 0;
+static uint8_t fpu_allocstate;
 
 #if 0
 static struct {
@@ -39,7 +40,6 @@ static struct {
 };
 static int8_t LRU_Table[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 
-static uint8_t FPU_AllocState;
 static uint8_t FPU_Reg_State[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 #define FPU_LOADED  0x01
 #define FPU_DIRTY   0x02
@@ -57,31 +57,6 @@ void RA_ClearChangedMask()
 void RA_ResetFPUAllocator()
 {
     FPU_AllocState = 0;
-}
-
-uint8_t RA_AllocFPURegister(uint32_t **arm_stream)
-{
-    (void)arm_stream;
-
-    for (int i=1; i < 8; i++) {
-        if ((FPU_AllocState & (1 << i)) == 0)
-        {
-            FPU_AllocState |= 1 << i;
-            return i;
-        }
-    }
-
-    return 0xff;
-}
-
-void RA_FreeFPURegister(uint32_t **arm_stream, uint8_t arm_reg)
-{
-    (void)arm_stream;
-
-    if (arm_reg < 8) {
-        if (FPU_AllocState & (1 << arm_reg))
-            FPU_AllocState &= ~(1 << arm_reg);
-    }
 }
 
 uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
@@ -275,106 +250,6 @@ void RA_RemoveM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
         RA_DiscardM68kRegister(arm_stream, m68k_reg);
 }
 
-/*
-    Make a discardable copy of m68k register (e.g. temporary value from reg which can be later worked on)
-*/
-uint8_t RA_CopyFromM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
-{
-    uint8_t arm_reg = RA_AllocARMRegister(arm_stream);
-
-    /* If the register is already mapped, move it's value to temporary without touching mapped reg */
-    if (LRU_M68kRegisters[m68k_reg].rs_ARMReg != 0xff) {
-        **arm_stream = mov_reg(arm_reg, LRU_M68kRegisters[m68k_reg].rs_ARMReg);
-    }
-    else
-    {
-        /* The register was not mapped. Fetch it from m68k state instead */
-        if (m68k_reg < 8) {
-            **arm_stream = ldr_offset(REG_CTX, arm_reg,
-                                  __builtin_offsetof(struct M68KState, D[m68k_reg]));
-        } else {
-            **arm_stream = ldr_offset(REG_CTX, arm_reg,
-                                  __builtin_offsetof(struct M68KState, A[m68k_reg - 8]));
-        }
-    }
-
-    (*arm_stream)++;
-
-    return arm_reg;
-}
-
-/*
-    Map m68k register to ARM register
-*/
-uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
-{
-    /*
-        Check if register is already mapped, if yes, update slot in order to delay
-        reassignment.
-    */
-    if (LRU_M68kRegisters[m68k_reg].rs_ARMReg != 0xff)
-    {
-        RA_TouchM68kRegister(arm_stream, m68k_reg);
-        return LRU_M68kRegisters[m68k_reg].rs_ARMReg;
-    }
-
-    /*
-        Register not found in the cache. Alloc new ARM register for it, fetch it from
-        context and put in front of the register cache
-    */
-    uint8_t arm_reg = RA_AllocARMRegister(arm_stream);
-    LRU_M68kRegisters[m68k_reg].rs_ARMReg = arm_reg;
-
-//    fprintf(stderr, "# MapRegister %X <-> r%d\n", m68k_reg < 8 ? 0xd0 + m68k_reg : 0x98 + m68k_reg, arm_reg);
-
-    if (m68k_reg < 8) {
-        //fprintf(stderr, "# emit: ldr r%d, [r%d, %d]\n", arm_reg, REG_CTX,
-        //       (int)__builtin_offsetof(struct M68KState, D[m68k_reg]));
-        **arm_stream = ldr_offset(REG_CTX, arm_reg,
-                                  __builtin_offsetof(struct M68KState, D[m68k_reg]));
-    } else {
-        //fprintf(stderr, "# emit: ldr r%d, [r%d, %d]\n", arm_reg, REG_CTX,
-        //       (int)__builtin_offsetof(struct M68KState, A[m68k_reg - 8]));
-        **arm_stream = ldr_offset(REG_CTX, arm_reg,
-                                  __builtin_offsetof(struct M68KState, A[m68k_reg - 8]));
-    }
-    //fprintf(stderr, "    0x%08x\n", **arm_stream);
-    (*arm_stream)++;
-
-    RA_InsertM68kRegister(arm_stream, m68k_reg);
-
-    return arm_reg;
-}
-
-/*
-    Map m68k register to ARM register
-*/
-uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg)
-{
-    /*
-        Check if register is already mapped, if yes, update slot in order to delay
-        reassignment.
-    */
-    if (LRU_M68kRegisters[m68k_reg].rs_ARMReg != 0xff)
-    {
-        RA_SetDirtyM68kRegister(arm_stream, m68k_reg);
-        RA_TouchM68kRegister(arm_stream, m68k_reg);
-        return LRU_M68kRegisters[m68k_reg].rs_ARMReg;
-    }
-
-    /*
-        Register not found in the cache. Alloc new ARM register for it, fetch it from
-        context and put in front of the register cache
-    */
-    uint8_t arm_reg = RA_AllocARMRegister(arm_stream);
-    LRU_M68kRegisters[m68k_reg].rs_ARMReg = arm_reg;
-
-    RA_SetDirtyM68kRegister(arm_stream, m68k_reg);
-    RA_InsertM68kRegister(arm_stream, m68k_reg);
-
-    return arm_reg;
-}
-
 uint8_t RA_IsARMRegisterMapped(uint8_t arm_reg)
 {
     arm_reg &= 0xf;
@@ -436,6 +311,100 @@ uint16_t RA_GetTempAllocMask()
     return map;
 }
 #endif
+
+void RA_ClearChangedMask(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+}
+
+void RA_StoreDirtyFPURegs(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+}
+
+void RA_FlushFPURegs(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+}
+
+void RA_StoreDirtyM68kRegs(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+}
+
+void RA_FlushM68kRegs(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+}
+
+uint8_t RA_AllocFPURegister(uint32_t **arm_stream)
+{
+    (void)arm_stream;
+
+    for (int i=1; i < 8; i++) {
+        if ((fpu_allocstate & (1 << i)) == 0)
+        {
+            fpu_allocstate |= 1 << i;
+            return i;
+        }
+    }
+
+    return 0xff;
+}
+
+void RA_FreeFPURegister(uint32_t **arm_stream, uint8_t arm_reg)
+{
+    (void)arm_stream;
+
+    if (arm_reg < 8) {
+        if (fpu_allocstate & (1 << arm_reg))
+            fpu_allocstate &= ~(1 << arm_reg);
+    }
+}
+
+static const uint8_t _reg_map_m68k_to_arm[16] = {
+    REG_D0, REG_D1, REG_D2, REG_D3, REG_D4, REG_D5, REG_D6, REG_D7,
+    REG_A0, REG_A1, REG_A2, REG_A3, REG_A4, REG_A5, REG_A6, REG_A7
+};
+
+/*
+    Make a discardable copy of m68k register (e.g. temporary value from reg which can be later worked on)
+*/
+uint8_t RA_CopyFromM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    uint8_t arm_reg = RA_AllocARMRegister(arm_stream);
+
+    **arm_stream = mov_reg(arm_reg, _reg_map_m68k_to_arm[m68k_reg & 15]);
+
+    (*arm_stream)++;
+
+    return arm_reg;
+}
+
+/*
+    Map m68k register to ARM register
+
+    On AArch64 Dn and An m68k registers are always mapped. Just return the corresponding ARM
+    register number here.
+*/
+uint8_t RA_MapM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    (void)arm_stream;
+    return _reg_map_m68k_to_arm[m68k_reg & 15];
+}
+
+/*
+    Map m68k register to ARM register
+
+    On AArch64 Dn and An m68k registers are always mapped. Just return the corresponding ARM
+    register number here.
+*/
+uint8_t RA_MapM68kRegisterForWrite(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    (void)arm_stream;
+    return _reg_map_m68k_to_arm[m68k_reg & 15];
+}
+
 
 static uint8_t reg_CC = 0xff;
 static uint8_t mod_CC = 0;
@@ -602,14 +571,12 @@ void RA_FlushCC(uint32_t **ptr)
 /* Allocate register x0-x11 for JIT */
 static uint8_t __int_arm_alloc_reg()
 {
-    for (int i = 0; i < 12; i++)
-    {
-        if ((register_pool & (1 << i)) == 0)
-        {
-            register_pool |= 1 << i;
-            changed_mask |= 1 << i;
-            return i;
-        }
+    int reg = __builtin_ctz(~register_pool);
+
+    if (reg < 12) {
+        register_pool |= 1 << reg;
+        changed_mask |= 1 << reg;
+        return reg;
     }
 
     return 0xff;

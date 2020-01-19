@@ -7,7 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include "ARM.h"
+#include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
@@ -28,17 +28,32 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
+#ifdef __aarch64__
+        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+        if (value <= 0) {
+            if (value < 0)
+                *ptr++ = mov_immed_u16(tmp, SR_N, 0);
+            else
+                *ptr++ = mov_immed_u16(tmp, SR_Z, 0);
+            *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+        }
+        RA_FreeARMRegister(&ptr, tmp);
+#else
         M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
         if (value == 0)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+            *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
         else if (value & 0x80)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
+#endif
     }
 
     return ptr;
 }
-
+#ifndef __aarch64__
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -141,3 +156,4 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, tmp_reg);
     return ptr;
 }
+#endif

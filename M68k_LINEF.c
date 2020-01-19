@@ -1217,7 +1217,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     struct M68KTranslationUnit *u;
     struct Node *n, *next;
     extern struct List LRU;
-    extern void *handle;
+    extern void *jit_tlsf;
     extern uint32_t last_PC;
 
     kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%08x\n", opcode, target_addr, pc, arm_pc);
@@ -1253,7 +1253,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 kprintf("[LINEF] Unit match! Removing.\n");
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
-                tlsf_free(handle, u);
+                tlsf_free(jit_tlsf, u);
             }
             break;
         case 0x10:  /* Page */
@@ -1271,7 +1271,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 kprintf("[LINEF] Unit match! Removing.\n");
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
-                tlsf_free(handle, u);
+                tlsf_free(jit_tlsf, u);
             }
             break;
         case 0x18:  /* All */
@@ -1280,7 +1280,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
                 kprintf("[LINEF] Removing unit %08x\n", u);
                 REMOVE(&u->mt_HashNode);
-                tlsf_free(handle, u);
+                tlsf_free(jit_tlsf, u);
             }
             break;
     }

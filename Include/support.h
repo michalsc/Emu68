@@ -13,6 +13,12 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#ifdef __aarch64__
+#include "A64.h"
+#else
+#include "ARM.h"
+#endif
+
 #define NULL ((void*)0)
 #define TRUE 1
 #define FALSE 0
@@ -29,7 +35,6 @@
 #define L32(x) (x)
 #define L64(x) (x)
 #endif
-
 
 static inline uint64_t BE64(uint64_t x)
 {
