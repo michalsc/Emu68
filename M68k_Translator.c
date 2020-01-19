@@ -116,14 +116,6 @@ uint32_t *EMIT_line0(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     return arm_ptr;
 }
 
-uint32_t *EMIT_move(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x1230);
-
-    return arm_ptr;
-}
-
 uint32_t *EMIT_line4(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
@@ -613,7 +605,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         RA_FlushFPSR(&end);
 #endif
         {
+#ifndef __aarch64__
             arm_code++;
+#endif
             int i=1;
 
             while (pop_update_loc[i]) {

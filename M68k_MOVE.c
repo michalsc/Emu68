@@ -53,7 +53,7 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
 
     return ptr;
 }
-#ifndef __aarch64__
+
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -97,7 +97,11 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
     /* In case of movea the value is *always* sign-extended to 32 bits */
     if (is_movea && size == 2) {
+#ifdef __aarch64__
+        *ptr++ = sxth(tmp_reg, tmp_reg);
+#else
         *ptr++ = sxth(tmp_reg, tmp_reg, 0);
+#endif
         size = 4;
     }
 
@@ -114,6 +118,59 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+#ifdef __aarch64__
+            uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+            if (is_load_immediate) {
+                int32_t tmp_immediate = 0;
+
+                switch (size)
+                {
+                    case 4:
+                        tmp_immediate = (int32_t)immediate_value;
+                        break;
+                    case 2:
+                        tmp_immediate = (int16_t)immediate_value;
+                        break;
+                    case 1:
+                        tmp_immediate = (int8_t)immediate_value;
+                        break;
+                }
+
+                if (tmp_immediate <= 0) {
+                    if (tmp_immediate < 0)
+                        *ptr++ = mov_immed_u16(tmp, SR_N, 0);
+                    else
+                        *ptr++ = mov_immed_u16(tmp, SR_Z, 0);
+                    *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                }
+            } else {
+                *ptr++ = mov_immed_u8(tmp, 0);
+                switch (size)
+                {
+                    case 4:
+                        *ptr++ = cmp_reg(tmp_reg, 31, LSL, 0);
+                        break;
+                    case 2:
+                        *ptr++ = cmp_reg(tmp_reg, 31, LSL, 16);
+                        break;
+                    case 1:
+                        *ptr++ = cmp_reg(tmp_reg, 31, LSL, 24);
+                        break;
+                }
+                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                *ptr++ = add_immed(tmp, tmp, SR_Z);
+                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                *ptr++ = add_immed(tmp, tmp, SR_N);
+                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+            }
+
+            RA_FreeARMRegister(&ptr, tmp);
+#else
+
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (is_load_immediate) {
@@ -150,10 +207,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
                 if (update_mask & SR_Z)
                     *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
             }
+#endif
         }
     }
 
     RA_FreeARMRegister(&ptr, tmp_reg);
     return ptr;
 }
-#endif

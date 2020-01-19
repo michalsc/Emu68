@@ -293,6 +293,7 @@ static inline uint32_t movn64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift
 static inline uint32_t movw_immed_u16(uint8_t reg, uint16_t val) { return mov_immed_u16(reg, val, 0); }
 static inline uint32_t movt_immed_u16(uint8_t reg, uint16_t val) { return movk_immed_u16(reg, val, 1); }
 static inline uint32_t mov_immed_s8(uint8_t reg, int8_t val) { if (val < 0) return sub_immed(reg, 31, -val); else return mov_immed_u16(reg, val, 0); }
+static inline uint32_t mov_immed_u8(uint8_t reg, uint8_t val) { return mov_immed_u16(reg, val, 0); }
 
 
 typedef enum { LSL = 0, LSR = 1, ASR = 2, ROR = 3 } shift_t;

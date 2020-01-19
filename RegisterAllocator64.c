@@ -367,6 +367,12 @@ static const uint8_t _reg_map_m68k_to_arm[16] = {
     REG_A0, REG_A1, REG_A2, REG_A3, REG_A4, REG_A5, REG_A6, REG_A7
 };
 
+void RA_SetDirtyM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
+{
+    (void)arm_stream;
+    (void)m68k_reg;
+}
+
 /*
     Make a discardable copy of m68k register (e.g. temporary value from reg which can be later worked on)
 */
