@@ -155,18 +155,18 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = cmp_reg(31, tmp_reg, LSL, 0);
+                        *ptr++ = cmn_reg(31, tmp_reg, LSL, 0);
                         break;
                     case 2:
-                        *ptr++ = cmp_reg(31, tmp_reg, LSL, 16);
+                        *ptr++ = cmn_reg(31, tmp_reg, LSL, 16);
                         break;
                     case 1:
-                        *ptr++ = cmp_reg(31, tmp_reg, LSL, 24);
+                        *ptr++ = cmn_reg(31, tmp_reg, LSL, 24);
                         break;
                 }
                 *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
                 *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-                *ptr++ = b_cc(A64_CC_MI, 2);
+                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
                 *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
             }
 

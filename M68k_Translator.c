@@ -116,14 +116,6 @@ uint32_t *EMIT_line0(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     return arm_ptr;
 }
 
-uint32_t *EMIT_line4(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x4444);
-
-    return arm_ptr;
-}
-
 uint32_t *EMIT_line5(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;

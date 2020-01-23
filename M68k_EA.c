@@ -1540,7 +1540,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     }
                 }
                 uint16_t lo16, hi16;
-                
+
                 /* Check if base displacement needs to be fetched */
                 switch ((brief & M68K_EA_BD_SIZE) >> 4)
                 {
