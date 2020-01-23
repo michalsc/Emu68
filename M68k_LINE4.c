@@ -489,6 +489,18 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t ext_count = 0;
     uint8_t dest;
     uint8_t size = 0;
+    uint8_t zero = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+    uint8_t cc = RA_GetCC(&ptr);
+    *ptr++ = tst_immed(cc, 1, (32 - SRB_X) & 31);
+    *ptr++ = csetm(zero, A64_CC_NE);
+#else
+    M68K_GetCC(&ptr);
+    *ptr++ = tst_immed(REG_SR, SR_X);
+    *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, zero, 0);
+    *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, zero, 0);
+#endif
+    
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -503,9 +515,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 4;
             break;
     }
-(void)dest;
-(void)size;
-#if 0
 
     /* handle clearing D register here */
     if ((opcode & 0x0038) == 0)
@@ -514,20 +523,14 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-            M68K_GetCC(&ptr);
-            *ptr++ = tst_immed(REG_SR, SR_X);                   /* If X was set perform 0 - (dest + 1), otherwise 0 - dest */
-            *ptr++ = rsbs_immed(dest, dest, 0);
-            *ptr++ = subs_cc_immed(ARM_CC_NE, dest, dest, 1);
+#ifdef __aarch64__
+            *ptr++ = subs_reg(dest, zero, dest, LSL, 0);
+#else
+            *ptr++ = rsbs_reg(dest, dest, zero, 0);
+#endif
         }
         else
         {
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
-
-            M68K_GetCC(&ptr);
-            *ptr++ = tst_immed(REG_SR, SR_X);
-            *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, tmp, 0);
-            *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, tmp, 0);
-
             /* Fetch m68k register for write */
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
 
@@ -536,37 +539,42 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             switch(size)
             {
+#ifdef __aarch64__
                 case 2:
-                    *ptr++ = subs_reg(tmp, tmp, dest, 16);
-                    *ptr++ = lsr_immed(tmp, tmp, 16);
-                    *ptr++ = bfi(dest, tmp, 0, 16);
+                    *ptr++ = subs_reg(zero, zero, dest, LSL, 16);
+                    *ptr++ = lsr(zero, zero, 16);
+                    *ptr++ = bfi(dest, zero, 0, 16);
                     break;
                 case 1:
-                    *ptr++ = subs_reg(tmp, tmp, dest, 24);
-                    *ptr++ = lsr_immed(tmp, tmp, 24);
-                    *ptr++ = bfi(dest, tmp, 0, 8);
+                    *ptr++ = subs_reg(zero, zero, dest, LSL, 24);
+                    *ptr++ = lsr(zero, zero, 24);
+                    *ptr++ = bfi(dest, zero, 0, 8);
                     break;
+#else
+                case 2:
+                    *ptr++ = subs_reg(zero, zero, dest, 16);
+                    *ptr++ = lsr_immed(zero, zero, 16);
+                    *ptr++ = bfi(dest, zero, 0, 16);
+                    break;
+                case 1:
+                    *ptr++ = subs_reg(zero, zero, dest, 24);
+                    *ptr++ = lsr_immed(zero, zero, 24);
+                    *ptr++ = bfi(dest, zero, 0, 8);
+                    break;
+#endif
             }
-
-            RA_FreeARMRegister(&ptr, tmp);
         }
     }
     else
     {
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
-        uint8_t tmp_zero = RA_AllocARMRegister(&ptr);
 
         /* Load effective address */
         if (mode == 4 || mode == 3)
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
         else
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
-
-        M68K_GetCC(&ptr);
-        *ptr++ = tst_immed(REG_SR, SR_X);
-        *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, tmp_zero, 0);
-        *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, tmp_zero, 0);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -580,8 +588,11 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             else
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
-            *ptr++ = subs_reg(tmp, tmp_zero, tmp, 0);
-
+#ifdef __aarch64__
+            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
+#else
+            *ptr++ = subs_reg(tmp, zero, tmp, 0);
+#endif
             if (mode == 3)
             {
                 *ptr++ = str_offset_postindex(dest, tmp, 4);
@@ -598,10 +609,13 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
             else
                 *ptr++ = ldrh_offset(dest, tmp, 0);
-
+#ifdef __aarch64__
+            *ptr++ = sxth(tmp, tmp);
+            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
+#else
             *ptr++ = sxth(tmp, tmp, 0);
-            *ptr++ = rsbs_reg(tmp, tmp, tmp_zero, 0);
-
+            *ptr++ = rsbs_reg(tmp, tmp, zero, 0);
+#endif
             if (mode == 3)
             {
                 *ptr++ = strh_offset_postindex(dest, tmp, 2);
@@ -618,10 +632,13 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
             else
                 *ptr++ = ldrb_offset(dest, tmp, 0);
-
+#ifdef __aarch64__
+            *ptr++ = sxtb(tmp, tmp);
+            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
+#else
             *ptr++ = sxtb(tmp, tmp, 0);
-            *ptr++ = rsbs_reg(tmp, tmp, tmp_zero, 0);
-
+            *ptr++ = rsbs_reg(tmp, tmp, zero, 0);
+#endif
             if (mode == 3)
             {
                 *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
@@ -633,11 +650,11 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
 
         RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, tmp_zero);
     }
 
+    RA_FreeARMRegister(&ptr, zero);
     RA_FreeARMRegister(&ptr, dest);
-#endif
+
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
