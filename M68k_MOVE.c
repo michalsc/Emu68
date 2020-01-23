@@ -74,7 +74,11 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     else
         size = 2;
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+    if (is_movea && size == 2) {
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+    } else {
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+    }
 
     if ((opcode & 0x3f) == 0x3c) {
         is_load_immediate = 1;
@@ -148,24 +152,22 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
                 }
             } else {
-                *ptr++ = mov_immed_u8(tmp, 0);
                 switch (size)
                 {
                     case 4:
-                        *ptr++ = cmp_reg(tmp_reg, 31, LSL, 0);
+                        *ptr++ = cmp_reg(31, tmp_reg, LSL, 0);
                         break;
                     case 2:
-                        *ptr++ = cmp_reg(tmp_reg, 31, LSL, 16);
+                        *ptr++ = cmp_reg(31, tmp_reg, LSL, 16);
                         break;
                     case 1:
-                        *ptr++ = cmp_reg(tmp_reg, 31, LSL, 24);
+                        *ptr++ = cmp_reg(31, tmp_reg, LSL, 24);
                         break;
                 }
                 *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = add_immed(tmp, tmp, SR_Z);
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = add_immed(tmp, tmp, SR_N);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                *ptr++ = b_cc(A64_CC_MI, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
             }
 
             RA_FreeARMRegister(&ptr, tmp);
