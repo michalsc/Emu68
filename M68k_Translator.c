@@ -108,14 +108,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 
 #ifdef __aarch64__
 
-uint32_t *EMIT_line8(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x8888);
-
-    return arm_ptr;
-}
-
 uint32_t *EMIT_line9(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
@@ -549,9 +541,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 #endif
                 }
                 int distance = end - tmpptr;
-                
+
                 for (unsigned i=0; i < branch_cnt; i++) {
-                    kprintf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);    
+                    //kprintf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
 #ifdef __aarch64__
                     *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
 #else
