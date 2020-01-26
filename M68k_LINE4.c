@@ -17,8 +17,13 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
     uint8_t size = 1;
-    uint8_t zero = RA_AllocARMRegister(&ptr);
+    uint8_t zero = 0xff;
+#ifdef __aarch64__
+    zero = 31;
+#else
+    RA_AllocARMRegister(&ptr);
     *ptr++ = mov_immed_u8(zero, 0);
+#endif
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -35,7 +40,9 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count);
+#ifndef __aarch64__
     RA_FreeARMRegister(&ptr, zero);
+#endif
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
@@ -69,7 +76,7 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
-    uint8_t dest;
+    uint8_t dest = 0xff;
     uint8_t size = 0;
 
     /* Determine the size of operation */
@@ -270,7 +277,7 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
-    uint8_t dest;
+    uint8_t dest = 0xff;
     uint8_t size = 0;
 
     /* Determine the size of operation */
@@ -462,7 +469,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
         }
         if (update_mask & (SR_C | SR_X)) {
-            *ptr++ = b_cc(A64_CC_VS ^ 1, 3);
+            *ptr++ = b_cc(A64_CC_NE ^ 1, 3);
             *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
         }
@@ -487,7 +494,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
-    uint8_t dest;
+    uint8_t dest = 0xff;
     uint8_t size = 0;
     uint8_t zero = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
@@ -682,7 +689,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
         }
         if (update_mask & (SR_C | SR_X)) {
-            *ptr++ = b_cc(A64_CC_VS ^ 1, 3);
+            *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
             *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
         }
@@ -708,7 +715,7 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    uint8_t dest;
+    uint8_t dest = 0xff;
     uint8_t size = 0;
 
     /* Load immediate into the register */
@@ -833,7 +840,7 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
-    uint8_t dest;
+    uint8_t dest = 0xff;
     uint8_t mode = (opcode & 0x0038) >> 3;
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
     uint8_t tmpresult = RA_AllocARMRegister(&ptr);
@@ -1137,8 +1144,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100001xxxxxx - PEA */
     else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
     {
-        uint8_t sp;
-        uint8_t ea;
+        uint8_t sp = 0xff;
+        uint8_t ea = 0xff;
         uint8_t ext_words = 0;
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
@@ -1352,8 +1359,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xffc0) == 0x4e80)
     {
         uint8_t ext_words = 0;
-        uint8_t ea;
-        uint8_t sp;
+        uint8_t ea = 0xff;
+        uint8_t sp = 0xff;
 
         sp = RA_MapM68kRegister(&ptr, 15);
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
@@ -1371,7 +1378,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xffc0) == 0x4ec0)
     {
         uint8_t ext_words = 0;
-        uint8_t ea;
+        uint8_t ea = 0xff;
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
         ptr = EMIT_ResetOffsetPC(ptr);
@@ -1399,7 +1406,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (dir == 0)
         {
-            uint8_t base;
+            uint8_t base = 0xff;
 
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
@@ -1457,7 +1464,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else
         {
-            uint8_t base;
+            uint8_t base = 0xff;
             uint8_t offset = 0;
 
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
@@ -1500,8 +1507,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100xxx111xxxxxx - LEA */
     else if ((opcode & 0xf1c0) == 0x41c0)
     {
-        uint8_t dest;
-        uint8_t ea;
+        uint8_t dest = 0xff;
+        uint8_t ea = 0xff;
         uint8_t ext_words = 0;
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
         dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));

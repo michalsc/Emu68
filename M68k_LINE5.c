@@ -7,7 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include "ARM.h"
+#include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
@@ -43,88 +43,179 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 if (m68k_condition != M_CC_F)
                 {
                     uint8_t cond_tmp = 0xff;
-
+#ifdef __aarch64__
+                    uint8_t cc = RA_GetCC(&ptr);
+#else
                     M68K_GetCC(&ptr);
-
+#endif
                     switch (m68k_condition)
                     {
                         case M_CC_EQ:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_NE:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_CS:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_C);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_CC:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_C);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_PL:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_N);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_MI:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_N);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_VS:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_V);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_VC:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_V);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_LS:   /* C == 1 || Z == 1 */
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 2);
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_HI:   /* C == 0 && Z == 0 */
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 2);
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
-                        case M_CC_GE:   /* (N==0 && V==0) || (N==1 && V==1) */
+                        case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_LT:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
                             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_GT:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 3);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_LE:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 3);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
@@ -133,6 +224,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_Z); /* Check if Z is set */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         default:
@@ -142,9 +234,20 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     }
 
                     /* Adjust PC, negated CC is loop condition, CC is loop break condition */
+#ifdef __aarch64__
+                    uint8_t c_true = RA_AllocARMRegister(&ptr);
+                    uint8_t c_false = RA_AllocARMRegister(&ptr);
+
+                    *ptr++ = add_immed(c_false, REG_PC, 2);
+                    *ptr++ = add_immed(c_true, REG_PC, 4);
+                    *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
+
+                    RA_FreeARMRegister(&ptr, c_true);
+                    RA_FreeARMRegister(&ptr, c_false);
+#else
                     *ptr++ = add_cc_immed(arm_condition^1, REG_PC, REG_PC, 2);
                     *ptr++ = add_cc_immed(arm_condition, REG_PC, REG_PC, 4);
-
+#endif
                     /* conditionally exit loop */
                     branch_1 = ptr;
                     *ptr++ = b_cc(arm_condition, 0);
@@ -152,35 +255,55 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
                 /* Copy register to temporary, shift 16 bits left */
                 uint8_t reg = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                *ptr++ = uxth(reg, counter_reg);
+#else
                 *ptr++ = mov_reg_shift(reg, counter_reg, 16);
-
+#endif
                 /* Substract 0x10000 from temporary, copare with 0xffff0000 */
+#ifdef __aarch64__
+                *ptr++ = subs_immed(reg, reg, 1);
+#else
                 *ptr++ = sub_immed(reg, reg, 0x801);
                 *ptr++ = cmn_immed(reg, 0x801);
-
+                
                 /* Bit shift result back and copy it into counter register */
                 *ptr++ = lsr_immed(reg, reg, 16);
+#endif
                 *ptr++ = bfi(counter_reg, reg, 0, 16);
                 RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
                 /* If counter was 0xffff (temprary reg 0xffff0000) break the loop */
+#ifdef __aarch64__
+                *ptr++ = add_immed(reg, REG_PC, 4);
+                *ptr++ = csel(REG_PC, reg, REG_PC, A64_CC_MI);
+                branch_2 = ptr;
+                *ptr++ = b_cc(A64_CC_MI, 2);
+#else
                 *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 4);
                 branch_2 = ptr;
                 *ptr++ = b_cc(ARM_CC_EQ, 2);
+#endif
 
                 *ptr++ = add_immed(REG_PC, REG_PC, 2);
                 /* Load PC-relative offset */
                 *ptr++ = ldrsh_offset(REG_PC, reg, 0);
-
+#ifdef __aarch64__
+                *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
+#else
                 *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+#endif
                 RA_FreeARMRegister(&ptr, reg);
 
                 if (branch_1) {
-                    *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + (int)(branch_2 - branch_1));
-                    *ptr++ = (uint32_t)branch_1;
+#ifdef __aarch64__
+#else
+                    *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + ((int)(branch_2 - branch_1) << 5));
+#endif
+                    *ptr++ = (uint32_t)(uintptr_t)branch_1;
                 }
 
-                *ptr++ = (uint32_t)branch_2;
+                *ptr++ = (uint32_t)(uintptr_t)branch_2;
                 *ptr++ = branch_1 == NULL ? 1 : 2;
                 *ptr++ = 0;
                 *ptr++ = INSN_TO_LE(0xfffffffe);
@@ -208,97 +331,196 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 /* T condition always sets lowest 8 bis, F condition always clears them */
                 if ((opcode & 0x0f00) == 0x0100)
                 {
+#ifdef __aarch64__
+                    *ptr++ = bic_immed(dest, dest, 8, 0);
+#else
                     *ptr++ = bfc(dest, 0, 8);
+#endif
                 }
                 else if ((opcode & 0x0f00) == 0x0000)
                 {
+#ifdef __aarch64__
+                    *ptr++ = orr_immed(dest, dest, 8, 0);
+#else
                     *ptr++ = orr_immed(dest, dest, 0xff);
+#endif
                 }
                 else
                 {
                     uint8_t cond_tmp = 0xff;
-
+#ifdef __aarch64__
+                    uint8_t cc = RA_GetCC(&ptr);
+#else
                     M68K_GetCC(&ptr);
-
+#endif
                     switch (m68k_condition)
                     {
                         case M_CC_EQ:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_NE:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_CS:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_C);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_CC:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_C);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_PL:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_N);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_MI:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_N);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_VS:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_V);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_VC:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_V);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_LS:   /* C == 1 || Z == 1 */
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 2);
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_HI:   /* C == 0 && Z == 0 */
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 2);
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
-                        case M_CC_GE:   /* (N==0 && V==0) || (N==1 && V==1) */
+                        case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_LT:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
                             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_GT:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 3);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_LE:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 3);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
@@ -307,6 +529,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_Z); /* Check if Z is set */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         default:
@@ -315,8 +538,20 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                             break;
                     }
 
+#ifdef __aarch64__
+                    uint8_t c_yes = RA_AllocARMRegister(&ptr);
+                    uint8_t c_no = RA_AllocARMRegister(&ptr);
+
+                    *ptr++ = orr_immed(c_yes, dest, 8, 0);
+                    *ptr++ = bic_immed(c_no, dest, 8, 0);
+                    *ptr++ = csel(dest, c_yes, c_no, arm_condition);
+
+                    RA_FreeARMRegister(&ptr, c_yes);
+                    RA_FreeARMRegister(&ptr, c_no);
+#else
                     *ptr++ = orr_cc_immed(arm_condition, dest, dest, 0xff);
                     *ptr++ = bfc_cc(arm_condition^1, dest, 0, 8);
+#endif
                 }
             }
             else
@@ -343,97 +578,196 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 /* T condition always sets lowest 8 bis, F condition always clears them */
                 if ((opcode & 0x0f00) == 0)
                 {
+#ifdef __aarch64__
+                    *ptr++ = bic_immed(dest, dest, 8, 0);
+#else
                     *ptr++ = bfc(tmp, 0, 8);
+#endif
                 }
                 else if ((opcode & 0x0f00) == 0x0100)
                 {
+#ifdef __aarch64__
+                    *ptr++ = orr_immed(dest, dest, 8, 0);
+#else
                     *ptr++ = orr_immed(tmp, tmp, 0xff);
+#endif
                 }
                 else
                 {
                     uint8_t cond_tmp = 0xff;
-
+#ifdef __aarch64__
+                    uint8_t cc = RA_GetCC(&ptr);
+#else
                     M68K_GetCC(&ptr);
-
+#endif
                     switch (m68k_condition)
                     {
                         case M_CC_EQ:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_NE:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_CS:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_C);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_CC:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_C);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_PL:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_N);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_MI:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_N);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_VS:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_V);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_VC:
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_V);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
                         case M_CC_LS:   /* C == 1 || Z == 1 */
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 2);
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_NE;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
                             arm_condition = ARM_CC_NE;
+#endif
                             break;
 
                         case M_CC_HI:   /* C == 0 && Z == 0 */
+#ifdef __aarch64__
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 2);
+                            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+                            arm_condition = A64_CC_EQ;
+#else
                             *ptr++ = tst_immed(REG_SR, SR_Z);
                             *ptr++ = tst_cc_immed(ARM_CC_EQ, REG_SR, SR_C);
                             arm_condition = ARM_CC_EQ;
+#endif
                             break;
 
-                        case M_CC_GE:   /* (N==0 && V==0) || (N==1 && V==1) */
+                        case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If N and V != 0, perform equality check */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_LT:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V */
                             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_V); /* Check N==0 && V==1 */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_GT:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 3);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_EQ;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = ands_immed(cond_tmp, REG_SR, SR_N | SR_V | SR_Z); /* Extract Z, N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_N | SR_V); /* If above fails, check if Z==0, N==1 and V==1 */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         case M_CC_LE:
+#ifdef __aarch64__
+                            cond_tmp = RA_AllocARMRegister(&ptr);
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                            *ptr++ = b_cc(A64_CC_NE, 3);
+                            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
+                            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
+                            arm_condition = A64_CC_NE;
+                            RA_FreeARMRegister(&ptr, cond_tmp);
+#else
                             cond_tmp = RA_AllocARMRegister(&ptr);
                             *ptr++ = and_immed(cond_tmp, REG_SR, SR_N | SR_V); /* Extract N and V, set ARM_CC_EQ if both clear */
                             *ptr++ = teq_immed(cond_tmp, SR_N); /* Check N==1 && V==0 */
@@ -442,6 +776,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                             *ptr++ = teq_cc_immed(ARM_CC_NE, cond_tmp, SR_Z); /* Check if Z is set */
                             arm_condition = ARM_CC_EQ;
                             RA_FreeARMRegister(&ptr, cond_tmp);
+#endif
                             break;
 
                         default:
@@ -450,8 +785,20 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                             break;
                     }
 
+#ifdef __aarch64__
+                    uint8_t c_yes = RA_AllocARMRegister(&ptr);
+                    uint8_t c_no = RA_AllocARMRegister(&ptr);
+
+                    *ptr++ = orr_immed(c_yes, dest, 8, 0);
+                    *ptr++ = bic_immed(c_no, dest, 8, 0);
+                    *ptr++ = csel(dest, c_yes, c_no, arm_condition);
+
+                    RA_FreeARMRegister(&ptr, c_yes);
+                    RA_FreeARMRegister(&ptr, c_no);
+#else
                     *ptr++ = orr_cc_immed(arm_condition, tmp, tmp, 0xff);
                     *ptr++ = bfc_cc(arm_condition^1, tmp, 0, 8);
+#endif
                 }
 
                 if (mode == 3)
@@ -495,18 +842,30 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 {
                 case 0:
                     tmp = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    *ptr++ = mov_immed_u16(tmp, (-data) << 8, 1);
+                    *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
+                    *ptr++ = lsr(tmp, tmp, 24);
+#else
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
+#endif
                     *ptr++ = bfi(dest, tmp, 0, 8);
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
 
                 case 1:
                     tmp = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    *ptr++ = mov_immed_u16(tmp, -data, 1);
+                    *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
+                    *ptr++ = lsr(tmp, tmp, 16);
+#else
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
+#endif
                     *ptr++ = bfi(dest, tmp, 0, 16);
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
@@ -530,7 +889,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         {
             /* Load effective address */
-            uint8_t dest;
+            uint8_t dest = 0xff;
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -550,9 +909,17 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 else
                     *ptr++ = ldrb_offset(dest, tmp, 0);
                 /* Perform calcualtion */
+#ifdef __aarch64__
+                uint8_t immed = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(immed, (-data) << 8, 1);
+                *ptr++ = adds_reg(tmp, immed, tmp, LSL, 24);
+                *ptr++ = lsr(tmp, tmp, 24);
+                RA_FreeARMRegister(&ptr, immed);
+#else
                 *ptr++ = lsl_immed(tmp, tmp, 24);
                 *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
                 *ptr++ = lsr_immed(tmp, tmp, 24);
+#endif
                 /* Store back */
                 if (mode == 3)
                 {
@@ -572,10 +939,17 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldrh_offset(dest, tmp, 0);
 
                 /* Perform calcualtion */
+#ifdef __aarch64__
+                immed = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(immed, -data, 1);
+                *ptr++ = adds_reg(tmp, immed, tmp, LSL, 16);
+                *ptr++ = lsr(tmp, tmp, 16);
+                RA_FreeARMRegister(&ptr, immed);
+#else
                 *ptr++ = lsl_immed(tmp, tmp, 16);
                 *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
                 *ptr++ = lsr_immed(tmp, tmp, 16);
-
+#endif
                 /* Store back */
                 if (mode == 3)
                 {
@@ -624,6 +998,31 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
             if (update_mask)
             {
+#ifdef __aarch64__
+                uint8_t cc = RA_ModifyCC(&ptr);
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+                *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+                if (update_mask & SR_Z) {
+                    *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                }
+                if (update_mask & SR_N) {
+                    *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                }
+                if (update_mask & SR_V) {
+                    *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+                }
+                if (update_mask & (SR_C | SR_X)) {
+                    *ptr++ = b_cc(A64_CC_NE ^ 1, 3);
+                    *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
+                    *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                }
+                RA_FreeARMRegister(&ptr, tmp);
+#else
                 M68K_ModifyCC(&ptr);
                 *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
                 if (update_mask & SR_N)
@@ -634,6 +1033,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
                 if (update_mask & (SR_X | SR_C))
                     *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_X | SR_C);
+#endif
             }
         }
     }
@@ -661,18 +1061,30 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 {
                 case 0:
                     tmp = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    *ptr++ = mov_immed_u16(tmp, data << 8, 1);
+                    *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
+                    *ptr++ = lsr(tmp, tmp, 24);
+#else
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
+#endif
                     *ptr++ = bfi(dest, tmp, 0, 8);
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
 
                 case 1:
                     tmp = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    *ptr++ = mov_immed_u16(tmp, data, 1);
+                    *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
+                    *ptr++ = lsr(tmp, tmp, 16);
+#else
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
+#endif
                     *ptr++ = bfi(dest, tmp, 0, 16);
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
@@ -696,7 +1108,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         else
         {
             /* Load effective address */
-            uint8_t dest;
+            uint8_t dest = 0xff;
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -716,9 +1128,17 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     else
                         *ptr++ = ldrb_offset(dest, tmp, 0);
                     /* Perform calcualtion */
+#ifdef __aarch64__
+                    uint8_t immed = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_immed_u16(immed, data << 8, 1);
+                    *ptr++ = adds_reg(tmp, immed, tmp, LSL, 24);
+                    *ptr++ = lsr(tmp, tmp, 24);
+                    RA_FreeARMRegister(&ptr, immed);
+#else
                     *ptr++ = lsl_immed(tmp, tmp, 24);
                     *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
+#endif
                     /* Store back */
                     if (mode == 3)
                     {
@@ -738,10 +1158,17 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                         *ptr++ = ldrh_offset(dest, tmp, 0);
 
                     /* Perform calcualtion */
+#ifdef __aarch64__
+                    immed = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_immed_u16(immed, data, 1);
+                    *ptr++ = adds_reg(tmp, immed, tmp, LSL, 16);
+                    *ptr++ = lsr(tmp, tmp, 16);
+                    RA_FreeARMRegister(&ptr, immed);
+#else
                     *ptr++ = lsl_immed(tmp, tmp, 16);
                     *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
-
+#endif
                     /* Store back */
                     if (mode == 3)
                     {
@@ -790,6 +1217,31 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
             if (update_mask)
             {
+#ifdef __aarch64__
+                uint8_t cc = RA_ModifyCC(&ptr);
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+                *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+                if (update_mask & SR_Z) {
+                    *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                }
+                if (update_mask & SR_N) {
+                    *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                }
+                if (update_mask & SR_V) {
+                    *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+                }
+                if (update_mask & (SR_C | SR_X)) {
+                    *ptr++ = b_cc(A64_CC_NE ^ 1, 3);
+                    *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
+                    *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                }
+                RA_FreeARMRegister(&ptr, tmp);
+#else
                 M68K_ModifyCC(&ptr);
                 *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
                 if (update_mask & SR_N)
@@ -800,6 +1252,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
                 if (update_mask & (SR_X | SR_C))
                     *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
+#endif
             }
         }
     }

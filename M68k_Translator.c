@@ -108,30 +108,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 
 #ifdef __aarch64__
 
-uint32_t *EMIT_line0(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x0000);
-
-    return arm_ptr;
-}
-
-uint32_t *EMIT_line5(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x5555);
-
-    return arm_ptr;
-}
-
-uint32_t *EMIT_line6(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x6666);
-
-    return arm_ptr;
-}
-
 uint32_t *EMIT_line8(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
@@ -151,7 +127,7 @@ uint32_t *EMIT_line9(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 uint32_t *EMIT_lineB(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x6666);
+    *arm_ptr++ = udf(0xbbbb);
 
     return arm_ptr;
 }
@@ -159,28 +135,28 @@ uint32_t *EMIT_lineB(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 uint32_t *EMIT_lineC(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x6666);
+    *arm_ptr++ = udf(0xcccc);
 
     return arm_ptr;
 }
 uint32_t *EMIT_lineD(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x6666);
+    *arm_ptr++ = udf(0xdddd);
 
     return arm_ptr;
 }
 uint32_t *EMIT_lineE(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x6666);
+    *arm_ptr++ = udf(0xeeee);
 
     return arm_ptr;
 }
 uint32_t *EMIT_lineF(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x6666);
+    *arm_ptr++ = udf(0xffff);
 
     return arm_ptr;
 }
@@ -532,7 +508,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
                 for (unsigned i=0; i < branch_cnt; i++)
                 {
-                    branch_mod[i] = *(uint32_t **)--end;
+                    uintptr_t ptr = *(uint32_t *)--end;
+#ifdef __aarch64__
+                    ptr |= (uintptr_t)end & 0xffffffff00000000;
+#endif
+                    branch_mod[i] = (uint32_t *)ptr;
                 }
 
                 tmpptr = end;
@@ -569,9 +549,15 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 #endif
                 }
                 int distance = end - tmpptr;
-//                printf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod, distance);
-                for (unsigned i=0; i < branch_cnt; i++)
+                
+                for (unsigned i=0; i < branch_cnt; i++) {
+                    kprintf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);    
+#ifdef __aarch64__
+                    *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
+#else
                     *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + distance));
+#endif
+                }
                 epilogue_size += distance;
             }
         }
