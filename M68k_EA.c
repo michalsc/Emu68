@@ -12,7 +12,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-static inline uint32_t * load_s16_ext32(uint32_t *ptr, uint8_t reg, int16_t s16)
+static inline __attribute__((always_inline)) uint32_t * load_s16_ext32(uint32_t *ptr, uint8_t reg, int16_t s16)
 {
 #ifdef __aarch64__
     if (s16 & 0x8000)
@@ -31,7 +31,7 @@ static inline uint32_t * load_s16_ext32(uint32_t *ptr, uint8_t reg, int16_t s16)
     return ptr;
 }
 
-static inline uint32_t * load_reg_from_addr_offset(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, int32_t offset, uint8_t offset_32bit)
+static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offset(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, int32_t offset, uint8_t offset_32bit)
 {
     uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
 
@@ -141,18 +141,28 @@ static inline uint32_t * load_reg_from_addr_offset(uint32_t *ptr, uint8_t size, 
                 break;
             case 0:
 #ifdef __aarch64__
-                if (offset_32bit) {
-                    *ptr++ = movw_immed_u16(reg_d16, offset);
-                    if ((offset >> 16) & 0xffff) {
-                        *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
-                    }
-                } else {
-                    if (offset > 0)
-                        *ptr++ = mov_immed_u16(reg_d16, offset, 0);
+                if (offset > -4096 && offset < 4096)
+                {
+                    if (offset < 0)
+                        *ptr++ = sub_immed(reg, base, -offset);
                     else
-                        *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                        *ptr++ = add_immed(reg, base, offset);
                 }
-                *ptr++ = add_reg(reg, base, reg_d16, LSL, 0);
+                else
+                {
+                    if (offset_32bit) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        }
+                    } else {
+                        if (offset > 0)
+                            *ptr++ = mov_immed_u16(reg_d16, offset, 0);
+                        else
+                            *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                    }
+                    *ptr++ = add_reg(reg, base, reg_d16, LSL, 0);
+                }
 #else
                 *ptr++ = add_reg(reg, base, reg_d16, 0);
 #endif
@@ -166,7 +176,7 @@ static inline uint32_t * load_reg_from_addr_offset(uint32_t *ptr, uint8_t size, 
     return ptr;
 }
 
-static inline uint32_t * load_reg_from_addr(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, uint8_t index, uint8_t shift)
+static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, uint8_t index, uint8_t shift)
 {
     uint8_t tmp;
 
@@ -266,7 +276,7 @@ static inline uint32_t * load_reg_from_addr(uint32_t *ptr, uint8_t size, uint8_t
     return ptr;
 }
 
-static inline uint32_t * store_reg_to_addr_offset(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, int32_t offset, uint8_t offset_32bit)
+static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, int32_t offset, uint8_t offset_32bit)
 {
     uint8_t reg_d16 = RA_AllocARMRegister(&ptr);
 
@@ -401,7 +411,7 @@ static inline uint32_t * store_reg_to_addr_offset(uint32_t *ptr, uint8_t size, u
     return ptr;
 }
 
-static inline uint32_t * store_reg_to_addr(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, uint8_t index, uint8_t shift)
+static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, uint8_t index, uint8_t shift)
 {
     uint8_t tmp;
 
@@ -591,7 +601,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
     }
     else
     {
-        *arm_reg = RA_AllocARMRegister(&ptr);
+        if (*arm_reg == 0xff)
+            *arm_reg = RA_AllocARMRegister(&ptr);
 
         if (mode == 2) /* Mode 002: (An) */
         {
