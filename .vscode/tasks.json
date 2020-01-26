@@ -26,6 +26,18 @@
             "$gcc"
         ],
         "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "build examples",
+        "command": "make",
+        "args": [
+            "examples"
+        ],
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "group": "build"
       }
     ]
 }
