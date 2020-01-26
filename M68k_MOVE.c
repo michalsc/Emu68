@@ -65,6 +65,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     int is_load_immediate = 0;
     uint32_t immediate_value = 0;
 
+    /* Reverse destination mode, since this one is reversed in MOVE instruction */
+    tmp = (opcode >> 6) & 0x3f;
+    tmp = ((tmp & 7) << 3) | (tmp >> 3);
+
     (*m68k_ptr)++;
 
     if ((opcode & 0x3000) == 0x1000)
@@ -74,9 +78,17 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     else
         size = 2;
 
-    if (is_movea && size == 2) {
+    if ((tmp & 0x38) == 0 && size == 4)
+    {
+        tmp_reg = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-    } else {
+    }
+    else if ((tmp & 0x38) == 0x08)
+    {
+        tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+    }
+    else {
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
     }
 
@@ -95,10 +107,6 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
 
-    /* Reverse destination mode, since this one is reversed in MOVE instruction */
-    tmp = (opcode >> 6) & 0x3f;
-    tmp = ((tmp & 7) << 3) | (tmp >> 3);
-
     /* In case of movea the value is *always* sign-extended to 32 bits */
     if (is_movea && size == 2) {
 #ifdef __aarch64__
@@ -109,7 +117,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         size = 4;
     }
 
-    ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
+    if ((tmp & 0x38) != 0 && ((tmp & 0x38) != 0x08))
+        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
 
