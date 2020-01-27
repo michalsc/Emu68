@@ -26,10 +26,17 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
+#ifdef __aarch64__
+        if (size == 2)
+            *ptr++ = sxth(src, src);
+
+        *ptr++ = cmp_reg(dst, src, LSL, 0);
+#else
         if (size == 2)
             *ptr++ = sxth(src, src, 0);
 
         *ptr++ = cmp_reg(dst, src);
+#endif
 
         RA_FreeARMRegister(&ptr, src);
 
@@ -41,6 +48,31 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+#ifdef __aarch64__
+            uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+            if (update_mask & SR_Z) {
+                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            }
+            if (update_mask & SR_N) {
+                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            }
+            if (update_mask & SR_V) {
+                *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+            }
+            if (update_mask & (SR_C | SR_X)) {
+                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+            }
+            RA_FreeARMRegister(&ptr, tmp);
+#else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -51,6 +83,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
             if (update_mask & SR_C) /* Note - after sub/rsb C flag on ARM is inverted! */
                 *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_C);
+#endif
         }
     }
     /* 1011xxx1xx001xxx - CMPM */
@@ -67,6 +100,19 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         switch (size)
         {
+#ifdef __aarch64__
+        case 4:
+            *ptr++ = subs_reg(tmp, dst, src, LSL, 0);
+            break;
+        case 2:
+            *ptr++ = lsl(tmp, dst, 16);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
+            break;
+        case 1:
+            *ptr++ = lsl(tmp, dst, 24);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
+            break;
+#else
         case 4:
             *ptr++ = rsbs_reg(tmp, src, dst, 0);
             break;
@@ -78,6 +124,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = lsl_immed(tmp, src, 24);
             *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
             break;
+#endif
         }
 
         RA_FreeARMRegister(&ptr, tmp);
@@ -92,6 +139,31 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+#ifdef __aarch64__
+            uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+            if (update_mask & SR_Z) {
+                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            }
+            if (update_mask & SR_N) {
+                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            }
+            if (update_mask & SR_V) {
+                *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+            }
+            if (update_mask & (SR_C | SR_X)) {
+                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+            }
+            RA_FreeARMRegister(&ptr, tmp);
+#else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -102,6 +174,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
             if (update_mask & SR_C) /* Note - after sub/rsb C flag on ARM is inverted! */
                 *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_C);
+#endif
         }
     }
     /* 1011xxx0xxxxxxxx - CMP */
@@ -117,6 +190,19 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         switch(size)
         {
+#ifdef __aarch64__
+            case 4:
+                *ptr++ = subs_reg(tmp, dst, src, LSL, 0);
+                break;
+            case 2:
+                *ptr++ = lsl(tmp, dst, 16);
+                *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
+                break;
+            case 1:
+                *ptr++ = lsl(tmp, dst, 24);
+                *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
+                break;
+#else
             case 4:
                 *ptr++ = rsbs_reg(tmp, src, dst, 0);
                 break;
@@ -128,6 +214,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = lsl_immed(tmp, src, 24);
                 *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
                 break;
+#endif
         }
 
         RA_FreeARMRegister(&ptr, tmp);
@@ -141,6 +228,31 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+#ifdef __aarch64__
+            uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+            if (update_mask & SR_Z) {
+                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            }
+            if (update_mask & SR_N) {
+                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            }
+            if (update_mask & SR_V) {
+                *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+            }
+            if (update_mask & (SR_C | SR_X)) {
+                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+            }
+            RA_FreeARMRegister(&ptr, tmp);
+#else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
@@ -151,6 +263,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
             if (update_mask & SR_C) /* Note - after sub/rsb C flag on ARM is inverted! */
                 *ptr++ = orr_cc_immed(ARM_CC_CC, REG_SR, REG_SR, SR_C);
+#endif
         }
     }
     /* 1011xxxxxxxxxxxx - EOR */
@@ -169,6 +282,26 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
             switch (size)
             {
+#ifdef __aarch64__
+            case 4:
+                *ptr++ = eor_reg(dest, dest, src, LSL, 0);
+                *ptr++ = cmn_reg(31, dest, LSL, 0);
+                break;
+            case 2:
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_reg(tmp, tmp, dest, LSL, 0);
+                *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                *ptr++ = bfi(dest, tmp, 0, 16);
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 1:
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_reg(tmp, tmp, dest, LSL, 0);
+                *ptr++ = cmn_reg(31, tmp, LSL, 24);
+                *ptr++ = bfi(dest, tmp, 0, 8);
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
+#else
             case 4:
                 *ptr++ = eors_reg(dest, dest, src, 0);
                 break;
@@ -188,6 +321,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = bfi(dest, tmp, 0, 8);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
+#endif
             }
 
             RA_FreeARMRegister(&ptr, src);
@@ -217,8 +351,12 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldr_offset(dest, tmp, 0);
 
                 /* Perform calcualtion */
+#ifdef __aarch64__
+                *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
+                *ptr++ = cmn_reg(31, tmp, LSL, 0);
+#else
                 *ptr++ = eors_reg(tmp, tmp, src, 0);
-
+#endif
                 /* Store back */
                 if (mode == 3)
                 {
@@ -237,9 +375,14 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 else
                     *ptr++ = ldrh_offset(dest, tmp, 0);
                 /* Perform calcualtion */
+#ifdef __aarch64__
+                *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
+                *ptr++ = cmn_reg(31, tmp, LSL, 16);
+#else
                 *ptr++ = lsl_immed(tmp, tmp, 16);
                 *ptr++ = eors_reg(tmp, tmp, src, 16);
                 *ptr++ = lsr_immed(tmp, tmp, 16);
+#endif
                 /* Store back */
                 if (mode == 3)
                 {
@@ -259,10 +402,14 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = ldrb_offset(dest, tmp, 0);
 
                 /* Perform calcualtion */
+#ifdef __aarch64__
+                *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
+                *ptr++ = cmn_reg(31, tmp, LSL, 24);
+#else
                 *ptr++ = lsl_immed(tmp, tmp, 24);
                 *ptr++ = eors_reg(tmp, tmp, src, 24);
                 *ptr++ = lsr_immed(tmp, tmp, 24);
-
+#endif
                 /* Store back */
                 if (mode == 3)
                 {
@@ -286,12 +433,29 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
+#ifdef __aarch64__
+            uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+
+            if (update_mask & SR_Z) {
+                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            }
+            if (update_mask & SR_N) {
+                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            }
+            RA_FreeARMRegister(&ptr, tmp);
+#else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
             if (update_mask & SR_N)
                 *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
             if (update_mask & SR_Z)
                 *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+#endif
         }
     }
     else

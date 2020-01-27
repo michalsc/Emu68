@@ -108,22 +108,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 
 #ifdef __aarch64__
 
-uint32_t *EMIT_line9(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0x9999);
-
-    return arm_ptr;
-}
-
-uint32_t *EMIT_lineB(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0xbbbb);
-
-    return arm_ptr;
-}
-
 uint32_t *EMIT_lineC(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
