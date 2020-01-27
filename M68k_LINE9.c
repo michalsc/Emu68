@@ -7,7 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include "ARM.h"
+#include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
@@ -24,7 +24,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ext_words = 0;
         uint8_t size = (opcode & 0x0100) == 0x0100 ? 4 : 2;
         uint8_t reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
-        uint8_t tmp;
+        uint8_t tmp = 0xff;
         RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
@@ -156,7 +156,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
         if (direction == 0)
         {
             uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-            uint8_t src = 0;
+            uint8_t src = 0xff;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
             ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);

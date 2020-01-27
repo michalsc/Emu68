@@ -296,7 +296,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else
         {
-            uint8_t dest;
+            uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
             RA_FreeARMRegister(&ptr, dest);
@@ -361,7 +361,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else
         {
-            uint8_t dest;
+            uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
             RA_FreeARMRegister(&ptr, dest);
@@ -414,7 +414,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else
         {
-            uint8_t dest;
+            uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
             RA_FreeARMRegister(&ptr, dest);
@@ -481,7 +481,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else
         {
-            uint8_t dest;
+            uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
             RA_FreeARMRegister(&ptr, dest);
