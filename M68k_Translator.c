@@ -30,7 +30,7 @@ options_t Options = {
 };
 #endif
 
-const int debug = 1;
+const int debug = 0;
 
 static struct List *ICache;
 struct List LRU;
@@ -108,27 +108,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 
 #ifdef __aarch64__
 
-uint32_t *EMIT_lineC(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0xcccc);
-
-    return arm_ptr;
-}
-uint32_t *EMIT_lineD(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0xdddd);
-
-    return arm_ptr;
-}
-uint32_t *EMIT_lineE(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0xeeee);
-
-    return arm_ptr;
-}
 uint32_t *EMIT_lineF(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     (*m68k_ptr)++;
@@ -163,7 +142,18 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint8_t group = opcode >> 12;
 
-    ptr = line_array[group](arm_ptr, m68k_ptr);
+#ifdef __aarch64__
+    if (debug)
+    {
+        *ptr++ = hint(0);
+        *ptr++ = movw_immed_u16(31, opcode);
+        *ptr++ = movk_immed_u16(31, ((uintptr_t)*(m68k_ptr)) >> 16, 1);
+        *ptr++ = movk_immed_u16(31, ((uintptr_t)*(m68k_ptr)), 0);
+        *ptr++ = hint(1);
+    }
+#endif
+
+    ptr = line_array[group](ptr, m68k_ptr);
 
     return ptr;
 }
@@ -557,6 +547,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         RA_FlushCC(&end);
         RA_FlushFPCR(&end);
         RA_FlushFPSR(&end);
+        RA_FlushCTX(&end);
 #endif
         {
 #ifndef __aarch64__
@@ -648,7 +639,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
-        kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
+        if (debug)
+            kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
+
         __clear_cache(&unit->mt_ARMCode[0], &unit->mt_ARMCode[unit->mt_ARMInsnCnt]);
         arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, 4 * unit->mt_ARMInsnCnt);
 
