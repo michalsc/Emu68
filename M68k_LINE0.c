@@ -26,8 +26,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0000:    /* Byte operation */
             lo16 = -BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
-            *ptr++ = mov_immed_u16(immed, lo16 & 0xff, 0);
-            *ptr++ = ror(immed, immed, 8);
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
             *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
 #endif
@@ -158,7 +157,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
         }
         if (update_mask & (SR_C)) {
-            *ptr++ = b_cc(A64_CC_CS ^ 1, 2);
+            *ptr++ = b_cc(A64_CC_CS, 2);
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_C) & 31);
         }
         RA_FreeARMRegister(&ptr, tmp);
@@ -392,7 +391,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
         }
         if (update_mask & (SR_C | SR_X)) {
-            *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+            *ptr++ = b_cc(A64_CC_CS, 3);
             *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
         }
