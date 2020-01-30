@@ -689,7 +689,7 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
         }
         if (update_mask & (SR_C | SR_X)) {
-            *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+            *ptr++ = b_cc(A64_CC_CS, 3);
             *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
         }
@@ -1179,7 +1179,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100110000xxxxxx - MULU, MULS, DIVU, DIVUL, DIVS, DIVSL */
     else if ((opcode & 0xff80) == 0x4c00 || (opcode == 0x83c0))
     {
-        //ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
+        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
     }
     /* 010011100100xxxx - TRAP */
     else if ((opcode & 0xfff0) == 0x4e40)
@@ -1419,6 +1419,33 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                 RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
 
                 /* In pre-decrement the register order is reversed */
+#ifdef __aarch64__
+                uint8_t rt1 = 0xff;
+
+                for (int i=0; i < 16; i++)
+                {
+                    if (mask & (0x8000 >> i))
+                    {
+                        uint8_t reg = RA_MapM68kRegister(&ptr, i);
+                        if (size) {
+                            if (rt1 == 0xff)
+                                rt1 = reg;
+                            else {
+                                *ptr++ = stp(base, rt1, reg, offset);
+                                offset += 8;
+                                rt1 = 0xff;
+                            }
+                        }
+                        else
+                        {
+                            *ptr++ = strh_offset(base, reg, offset);
+                            offset += 2;
+                        }
+                    }
+                }
+                if (rt1 != 0xff)
+                    *ptr++ = str_offset(base, rt1, offset);
+#else
                 for (int i=0; i < 16; i++)
                 {
                     /* Keep base register high in LRU */
@@ -1437,11 +1464,39 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                         }
                     }
                 }
+#endif
             }
             else
             {
                 uint8_t offset = 0;
 
+#ifdef __aarch64__
+                uint8_t rt1 = 0xff;
+
+                for (int i=0; i < 16; i++)
+                {
+                    if (mask & (1 << i))
+                    {
+                        uint8_t reg = RA_MapM68kRegister(&ptr, i);
+                        if (size) {
+                            if (rt1 == 0xff)
+                                rt1 = reg;
+                            else {
+                                *ptr++ = stp(base, rt1, reg, offset);
+                                offset += 8;
+                                rt1 = 0xff;
+                            }
+                        }
+                        else
+                        {
+                            *ptr++ = strh_offset(base, reg, offset);
+                            offset += 2;
+                        }
+                    }
+                }
+                if (rt1 != 0xff)
+                    *ptr++ = str_offset(base, rt1, offset);
+#else
                 for (int i=0; i < 16; i++)
                 {
                     if (mask & (1 << i))
@@ -1458,6 +1513,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                         }
                     }
                 }
+#endif
             }
 
             RA_FreeARMRegister(&ptr, base);
@@ -1469,6 +1525,9 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
+#ifdef __aarch64__
+            uint8_t rt1 = 0xff;
+
             for (int i=0; i < 16; i++)
             {
                 if (mask & (1 << i))
@@ -1478,8 +1537,52 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
 
                     uint8_t reg = RA_MapM68kRegisterForWrite(&ptr, i);
                     if (size) {
+                        if ((((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8))) {
+                            /* If rt1 was set, flush it now and reset, skip the base register */
+                            if (rt1 != 0xff) {
+                                *ptr++ = ldr_offset(base, rt1, offset);
+                                rt1 = 0xff;
+                                offset += 4;
+                            }
+                            offset += 4;
+                            continue;
+                        }
+                        
+                        if (rt1 == 0xff)
+                            rt1 = reg;
+                        else {
+                            *ptr++ = ldp(base, rt1, reg, offset);
+                            offset += 8;
+                            rt1 = 0xff;
+                        }
+                    }
+                    else
+                    {
                         if (!(((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8)))
-                            *ptr++ = ldr_offset(base, reg, offset);
+                            *ptr++ = ldrsh_offset(base, reg, offset);
+                        offset += 2;
+                    }
+                }
+            }
+            if (rt1 != 0xff) {
+                *ptr++ = ldr_offset(base, rt1, offset);
+            }
+#else
+            for (int i=0; i < 16; i++)
+            {
+                if (mask & (1 << i))
+                {
+                    /* Keep base register high in LRU */
+                    if (((opcode & 0x38) == 0x18)) RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
+
+                    uint8_t reg = RA_MapM68kRegisterForWrite(&ptr, i);
+                    if (size) {
+                        if ((((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8))) {
+                            offset += 4;
+                            continue;
+                        }
+                        
+                        *ptr++ = ldr_offset(base, reg, offset);
                         offset += 4;
                     }
                     else
@@ -1490,7 +1593,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                     }
                 }
             }
-
+#endif
             /* Post-increment mode? Increase the base now */
             if ((opcode & 0x38) == 0x18)
             {
