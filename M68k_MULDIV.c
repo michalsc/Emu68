@@ -713,15 +713,15 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             if (sig)
             {
-                *ptr++ = sdiv64(reg_dq, reg_dq, reg_q);
+                *ptr++ = sdiv64(tmp, reg_dq, reg_q);
             }
             else
             {
-                *ptr++ = udiv64(reg_dq, reg_dq, reg_q);
+                *ptr++ = udiv64(tmp, reg_dq, reg_q);
             }
 
             *ptr++ = msub64(reg_dr, reg_dq, tmp, reg_q);
-            *ptr++ = mov_reg(reg_dr, tmp);
+            *ptr++ = mov_reg(reg_dq, tmp);
         }
 
         *ptr++ = sxtw64(tmp, reg_dq);
@@ -748,7 +748,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = udiv(tmp, reg_dq, reg_q);
 
             *ptr++ = msub(reg_dr, reg_dq, tmp, reg_q);
-            *ptr++ = mov_reg(reg_dr, tmp);
+            *ptr++ = mov_reg(reg_dq, tmp);
 
             RA_FreeARMRegister(&ptr, tmp);
         }
