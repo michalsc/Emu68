@@ -514,6 +514,11 @@ void M68K_PrintContext(struct M68KState *m68k)
 
 uint32_t last_PC = 0xffffffff;
 
+uint16_t *framebuffer __attribute__((weak)) = NULL;
+uint32_t pitch  __attribute__((weak))= 0;
+uint32_t fb_width  __attribute__((weak))= 0;
+uint32_t fb_height  __attribute__((weak))= 0;
+
 void M68K_StartEmu(void *addr)
 {
     void (*arm_code)();
@@ -526,6 +531,11 @@ void M68K_StartEmu(void *addr)
     M68K_InitializeCache();
 
     bzero(&__m68k, sizeof(__m68k));
+
+    __m68k.D[0].u32 = BE32((uint32_t)pitch);
+    __m68k.D[1].u32 = BE32((uint32_t)fb_width);
+    __m68k.D[2].u32 = BE32((uint32_t)fb_height);
+    __m68k.A[0].u32 = BE32((uint32_t)(intptr_t)framebuffer);
 
     __m68k.A[7].u32 = BE32(((intptr_t)addr - 4096)& 0xfffff000);
     __m68k.PC = BE32((intptr_t)addr);
