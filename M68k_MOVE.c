@@ -64,6 +64,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t is_movea = (opcode & 0x01c0) == 0x0040;
     int is_load_immediate = 0;
     uint32_t immediate_value = 0;
+    int loaded_in_dest = 0;
 
     /* Reverse destination mode, since this one is reversed in MOVE instruction */
     tmp = (opcode >> 6) & 0x3f;
@@ -77,18 +78,22 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         size = 4;
     else
         size = 2;
-
+#if 0
     if ((tmp & 0x38) == 0 && size == 4)
     {
+        loaded_in_dest = 1;
         tmp_reg = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
     }
     else if ((tmp & 0x38) == 0x08)
     {
+        loaded_in_dest = 1;
         tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
     }
-    else {
+    else
+#endif
+    {
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
     }
 
@@ -117,7 +122,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         size = 4;
     }
 
-    if ((tmp & 0x38) != 0 && ((tmp & 0x38) != 0x08))
+    if (!loaded_in_dest)
         ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
