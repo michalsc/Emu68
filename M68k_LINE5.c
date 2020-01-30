@@ -1017,7 +1017,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
                 }
                 if (update_mask & (SR_C | SR_X)) {
-                    *ptr++ = b_cc(A64_CC_NE ^ 1, 3);
+                    *ptr++ = b_cc(A64_CC_CS, 3);
                     *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                     *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
                 }
@@ -1236,7 +1236,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
                 }
                 if (update_mask & (SR_C | SR_X)) {
-                    *ptr++ = b_cc(A64_CC_NE ^ 1, 3);
+                    *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
                     *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                     *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
                 }
