@@ -31,7 +31,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             *ptr++ = lsl(tmp, tmp, 1);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
+
 #else
             *ptr++ = lsls_immed(tmp, tmp, 17);
             *ptr++ = lsr_immed(tmp, tmp, 16);
@@ -41,16 +41,12 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             *ptr++ = asr(tmp, tmp, 1);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
             *ptr++ = asrs_immed(tmp, tmp, 1);
 #endif
         }
 
         *ptr++ = strh_offset(dest, tmp, 0);
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, dest);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
@@ -61,7 +57,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = cmn_reg(31, tmp, LSL, 16);
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -78,7 +74,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
-            RA_FreeARMRegister(&ptr, tmp);
 #else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
@@ -90,6 +85,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, dest);
     }
     /* 1110001x11xxxxxx - LSL, LSR - memory */
     else if ((opcode & 0xfec0) == 0xe2c0)
@@ -106,7 +103,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             *ptr++ = lsl(tmp, tmp, 1);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
             *ptr++ = lsls_immed(tmp, tmp, 17);
             *ptr++ = lsr_immed(tmp, tmp, 16);
@@ -116,16 +112,13 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             *ptr++ = lsr(tmp, tmp, 1);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
+
 #else
             *ptr++ = lsrs_immed(tmp, tmp, 1);
 #endif
         }
 
         *ptr++ = strh_offset(dest, tmp, 0);
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, dest);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
@@ -136,7 +129,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = cmn_reg(31, tmp, LSL, 16);
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -153,7 +146,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
-            RA_FreeARMRegister(&ptr, tmp);
 #else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
@@ -165,6 +157,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, dest);
     }
     /* 1110010x11xxxxxx - ROXL, ROXR - memory */
     else if ((opcode & 0xfec0) == 0xe4c0)
@@ -188,7 +182,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             *ptr++ = ror(tmp, tmp, 32 - 1);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
             *ptr++ = rors_immed(tmp, tmp, 32 - 1);
 #endif
@@ -197,16 +190,12 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             *ptr++ = ror(tmp, tmp, 1);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
             *ptr++ = rors_immed(tmp, tmp, 1);
 #endif
         }
 
         *ptr++ = strh_offset(dest, tmp, 0);
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, dest);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 
@@ -217,7 +206,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = cmn_reg(31, tmp, LSL, 16);
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -234,7 +223,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
-            RA_FreeARMRegister(&ptr, tmp);
 #else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
@@ -246,6 +234,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C);
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, dest);
     }
     /* 1110100011xxxxxx - BFTST */
     else if ((opcode & 0xffc0) == 0xe8c0)
@@ -734,7 +724,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 4:
 #ifdef __aarch64__
                         *ptr++ = lslv(reg, reg, shift);
-                        *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                         *ptr++ = lsls_reg(reg, reg, shift);
 #endif
@@ -742,7 +731,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 2:
 #ifdef __aarch64__
                         *ptr++ = lslv(tmp, reg, shift);
-                        *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                         *ptr++ = mov_reg_shift(tmp, reg, 16);
                         *ptr++ = lsls_reg(tmp, tmp, shift);
@@ -753,7 +741,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 1:
 #ifdef __aarch64__
                         *ptr++ = lslv(tmp, reg, shift);
-                        *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                         *ptr++ = mov_reg_shift(tmp, reg, 24);
                         *ptr++ = lsls_reg(tmp, tmp, shift);
@@ -770,7 +757,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 4:
 #ifdef __aarch64__
                         *ptr++ = asrv(reg, reg, shift);
-                        *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                         *ptr++ = asrs_reg(reg, reg, shift);
 #endif
@@ -779,7 +765,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                         *ptr++ = sxth(tmp, reg);
                         *ptr++ = asrv(tmp, tmp, shift);
-                        *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                         *ptr++ = sxth(tmp, reg, 0);
                         *ptr++ = asrs_reg(tmp, tmp, shift);
@@ -790,7 +775,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                         *ptr++ = sxtb(tmp, reg);
                         *ptr++ = asrv(tmp, tmp, shift);
-                        *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                         *ptr++ = sxtb(tmp, reg, 0);
                         *ptr++ = asrs_reg(tmp, tmp, shift);
@@ -811,7 +795,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 4:
 #ifdef __aarch64__
                         *ptr++ = lsl(reg, reg, shift);
-                        *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                         *ptr++ = lsls_immed(reg, reg, shift);
 #endif
@@ -819,7 +802,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 2:
 #ifdef __aarch64__
                         *ptr++ = lsl(tmp, reg, shift);
-                        *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                         *ptr++ = mov_reg_shift(tmp, reg, 16);
                         *ptr++ = lsls_immed(tmp, tmp, shift);
@@ -830,7 +812,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     case 1:
 #ifdef __aarch64__
                         *ptr++ = lsl(tmp, reg, shift);
-                        *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                         *ptr++ = mov_reg_shift(tmp, reg, 24);
                         *ptr++ = lsls_immed(tmp, tmp, shift);
@@ -847,7 +828,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 4:
 #ifdef __aarch64__
                     *ptr++ = asr(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                     *ptr++ = asrs_immed(reg, reg, shift);
 #endif
@@ -856,7 +836,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = sxth(tmp, reg);
                     *ptr++ = asr(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                     *ptr++ = sxth(tmp, reg, 0);
                     *ptr++ = asrs_immed(tmp, tmp, shift);
@@ -867,7 +846,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = sxtb(tmp, reg);
                     *ptr++ = asr(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                     *ptr++ = sxtb(tmp, reg, 0);
                     *ptr++ = asrs_immed(tmp, tmp, shift);
@@ -878,8 +856,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             }
         }
 
-        RA_FreeARMRegister(&ptr, tmp);
-
         ptr = EMIT_AdvancePC(ptr, 2);
 
         uint8_t mask = M68K_GetSRMask(*m68k_ptr);
@@ -889,7 +865,20 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            switch(size)
+            {
+                case 4:
+                    *ptr++ = cmn_reg(31, reg, LSL, 0);
+                    break;
+                case 2:
+                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                    break;
+                case 1:
+                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
+                    break;
+            }
+
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -906,7 +895,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
-            RA_FreeARMRegister(&ptr, tmp);
 #else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
@@ -918,6 +906,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 1110xxxxxxx01xxx - LSL, LSR */
     else if ((opcode & 0xf018) == 0xe008)
@@ -942,7 +931,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 4:
 #ifdef __aarch64__
                     *ptr++ = lslv(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                     *ptr++ = lsls_reg(reg, reg, shift);
 #endif
@@ -951,7 +939,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = mov_reg(tmp, reg);
                     *ptr++ = lslv(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 16);
 #else
                     *ptr++ = mov_reg_shift(tmp, reg, 16);
                     *ptr++ = lsls_reg(tmp, tmp, shift);
@@ -963,7 +950,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = mov_reg(tmp, reg);
                     *ptr++ = lslv(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 24);
 #else
                     *ptr++ = mov_reg_shift(tmp, reg, 24);
                     *ptr++ = lsls_reg(tmp, tmp, shift);
@@ -980,7 +966,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 4:
 #ifdef __aarch64__
                     *ptr++ = lsrv(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                     *ptr++ = lsrs_reg(reg, reg, shift);
 #endif
@@ -989,7 +974,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = uxth(tmp, reg);
                     *ptr++ = lsrv(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                     *ptr++ = uxth(tmp, reg, 0);
                     *ptr++ = lsrs_reg(tmp, tmp, shift);
@@ -1000,7 +984,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = uxtb(tmp, reg);
                     *ptr++ = lsrv(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                     *ptr++ = uxtb(tmp, reg, 0);
                     *ptr++ = lsrs_reg(tmp, tmp, shift);
@@ -1022,7 +1005,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 4:
 #ifdef __aarch64__
                     *ptr++ = lsl(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                     *ptr++ = lsls_immed(reg, reg, shift);
 #endif
@@ -1030,7 +1012,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 2:
 #ifdef __aarch64__
                     *ptr++ = lsl(tmp, reg, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                     *ptr++ = mov_reg_shift(tmp, reg, 16);
                     *ptr++ = lsls_immed(tmp, tmp, shift);
@@ -1041,7 +1022,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 1:
 #ifdef __aarch64__
                     *ptr++ = lsl(tmp, reg, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                     *ptr++ = mov_reg_shift(tmp, reg, 24);
                     *ptr++ = lsls_immed(tmp, tmp, shift);
@@ -1058,7 +1038,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 4:
 #ifdef __aarch64__
                     *ptr++ = lsr(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                     *ptr++ = lsrs_immed(reg, reg, shift);
 #endif
@@ -1067,7 +1046,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = uxth(tmp, reg);
                     *ptr++ = lsr(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                     *ptr++ = uxth(tmp, reg, 0);
                     *ptr++ = lsrs_immed(tmp, tmp, shift);
@@ -1078,7 +1056,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = uxtb(tmp, reg);
                     *ptr++ = lsr(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                     *ptr++ = uxtb(tmp, reg, 0);
                     *ptr++ = lsrs_immed(tmp, tmp, shift);
@@ -1089,8 +1066,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             }
         }
 
-        RA_FreeARMRegister(&ptr, tmp);
-
         ptr = EMIT_AdvancePC(ptr, 2);
 
         uint8_t mask = M68K_GetSRMask(*m68k_ptr);
@@ -1100,7 +1075,20 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            switch(size)
+            {
+                case 4:
+                    *ptr++ = cmn_reg(31, reg, LSL, 0);
+                    break;
+                case 2:
+                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                    break;
+                case 1:
+                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
+                    break;
+            }
+
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -1117,7 +1105,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
-            RA_FreeARMRegister(&ptr, tmp);
 #else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
@@ -1129,6 +1116,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 1110xxxxxxx10xxx - ROXL, ROXR */
     else if ((opcode & 0xf018) == 0xe010)
@@ -1219,7 +1207,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 4:
 #ifdef __aarch64__
                     *ptr++ = rorv(reg, reg, shift);
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                     *ptr++ = rors_reg(reg, reg, shift);
 #endif
@@ -1229,7 +1216,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = bfi(tmp, tmp, 16, 16);
 #ifdef __aarch64__
                     *ptr++ = rorv(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 0);
 #else
                     *ptr++ = rors_reg(tmp, tmp, shift);
 #endif
@@ -1241,7 +1227,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = bfi(tmp, tmp, 16, 16);
 #ifdef __aarch64__
                     *ptr++ = rorv(tmp, tmp, shift);
-                    *ptr++ = cmn_reg(31, tmp, LSL, 0);
 #else
                     *ptr++ = rors_reg(tmp, tmp, shift);
 #endif
@@ -1266,7 +1251,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             case 4:
 #ifdef __aarch64__
                 *ptr++ = ror(reg, reg, shift);
-                *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
                 *ptr++ = rors_immed(reg, reg, shift);
 #endif
@@ -1276,7 +1260,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = bfi(tmp, tmp, 16, 16);
 #ifdef __aarch64__
                 *ptr++ = ror(tmp, tmp, shift);
-                *ptr++ = cmn_reg(31, tmp, LSL, 16);
 #else
                 *ptr++ = rors_immed(tmp, tmp, shift);
 #endif
@@ -1288,7 +1271,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = bfi(tmp, tmp, 16, 16);
 #ifdef __aarch64__
                 *ptr++ = ror(tmp, tmp, shift);
-                *ptr++ = cmn_reg(31, tmp, LSL, 24);
 #else
                 *ptr++ = rors_immed(tmp, tmp, shift);
 #endif
@@ -1296,8 +1278,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 break;
             }
         }
-
-        RA_FreeARMRegister(&ptr, tmp);
 
         ptr = EMIT_AdvancePC(ptr, 2);
 
@@ -1308,7 +1288,20 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            switch(size)
+            {
+                case 4:
+                    *ptr++ = cmn_reg(31, reg, LSL, 0);
+                    break;
+                case 2:
+                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                    break;
+                case 1:
+                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
+                    break;
+            }
+
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -1325,7 +1318,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
-            RA_FreeARMRegister(&ptr, tmp);
 #else
             M68K_ModifyCC(&ptr);
             *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
@@ -1337,6 +1329,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C);
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmp);
     }
     else
         *ptr++ = udf(opcode);
