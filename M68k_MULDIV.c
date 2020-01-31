@@ -263,17 +263,16 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
 #ifdef __aarch64__
-    if (opcode2 & (1 << 10))
+    if (opcode2 & (1 << 11))
         *ptr++ = smull(reg_dl, reg_dl, src);
     else
         *ptr++ = umull(reg_dl, reg_dl, src);
-    *ptr++ = cmn64_reg(31, reg_dl, LSL, 0);
     if (opcode2 & (1 << 10))
     {
         *ptr++ = add64_reg(reg_dh, 31, reg_dl, LSR, 32);
     }
 #else
-    if (opcode2 & (1 << 10))
+    if (opcode2 & (1 << 11))
         *ptr++ = smulls(reg_dh, reg_dl, reg_dl, src);
     else
         *ptr++ = umulls(reg_dh, reg_dl, reg_dl, src);
@@ -292,6 +291,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
+        *ptr++ = cmn64_reg(31, reg_dl, LSL, 0);
         *ptr++ = mov_immed_u16(tmp, update_mask, 0);
         *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -306,8 +306,8 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if ((update_mask & SR_V) && 0 == (opcode2 & (1 << 10))) {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             *ptr++ = cmn_reg(reg_dl, 31, LSL, 0);
-            *ptr++ = csetm(tmp, A64_CC_MI);
-            *ptr++ = cmp_reg(tmp, reg_dh, LSL, 0);
+            *ptr++ = csetm(tmp, A64_CC_MI^1);
+            *ptr++ = cmp64_reg(tmp, reg_dl, LSR, 32);
             *ptr++ = b_cc(A64_CC_EQ, 2);
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
             RA_FreeARMRegister(&ptr, tmp);
