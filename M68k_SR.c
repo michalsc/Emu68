@@ -64,7 +64,7 @@ static struct SRMaskEntry Line4_Map[] = {
     { 0xffc0, 0x4840, SME_MASK, 0, NULL },                                /* BKPT/PEA */
     { 0xffff, 0x4afc, SME_MASK, 0, NULL },                                /* ILLEGAL */
     { 0xff00, 0x4a00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* TAS/TST */
-    { 0xff80, 0x4a00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* MULU/MULS/DIVU/DIVS */
+    { 0xff80, 0x4c00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* MULU/MULS/DIVU/DIVS */
     { 0xfff0, 0x4e40, SME_MASK, 0, NULL },                                /* TRAP */
     { 0xfff8, 0x4e50, SME_MASK, 0, NULL },                                /* LINK */
     { 0xfff8, 0x4e58, SME_MASK, 0, NULL },                                /* UNLK */
