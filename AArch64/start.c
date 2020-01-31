@@ -123,7 +123,7 @@ asm("   .section .startup           \n"
 "       isb     sy                  \n"
 
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n" 
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -235,6 +235,7 @@ asm(
 "       adrp    x5, mmu_user_L1     \n"
 "       add     w5, w5, w1          \n"
 "       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
+"       tlbi    VMALLE1             \n" /* Flush tlb */
 "       isb                         \n"
 
 "       br      x30                 \n" /* Return! */
@@ -339,7 +340,7 @@ void boot(void *dtree)
             Copy the kernel memory block from origin to new destination, use the top of
             the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        arm_flush_cache((intptr_t)_boot, KERNEL_SYS_PAGES << 21);
+        arm_flush_cache((intptr_t)_boot & 0xffe00000, KERNEL_SYS_PAGES << 21);
 
         /*
             We use routine in assembler here, because we will move both kernel code *and* stack.
@@ -550,7 +551,7 @@ void M68K_StartEmu(void *addr)
     t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
-    
+
     do {
 
         if (last_PC != m68k_pc)
@@ -560,7 +561,7 @@ void M68K_StartEmu(void *addr)
         }
 
         *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-    
+
         arm_code();
 
         asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
@@ -574,6 +575,6 @@ void M68K_StartEmu(void *addr)
     kprintf("[JIT] Back from translated code\n");
 
     M68K_PrintContext(&__m68k);
-    
+
     M68K_DumpStats();
 }
