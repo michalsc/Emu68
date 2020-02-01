@@ -484,7 +484,7 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
     {
         case 0:
             break;
-        
+
         case 1:
             *ptr++ = bic_immed(cc, cc, 1, 0);
             break;
@@ -492,7 +492,7 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 3:
             *ptr++ = bic_immed(cc, cc, 2, 0);
             break;
-        
+
         case 7:
             *ptr++ = bic_immed(cc, cc, 3, 0);
             break;
@@ -504,7 +504,7 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 31:
             *ptr++ = bic_immed(cc, cc, 5, 0);
             break;
-        
+
         case 2:
             *ptr++ = bic_immed(cc, cc, 1, 31);
             break;
@@ -512,7 +512,7 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 6:
             *ptr++ = bic_immed(cc, cc, 2, 31);
             break;
-        
+
         case 14:
             *ptr++ = bic_immed(cc, cc, 3, 31);
             break;
@@ -528,7 +528,7 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 12:
             *ptr++ = bic_immed(cc, cc, 2, 30);
             break;
-        
+
         case 28:
             *ptr++ = bic_immed(cc, cc, 3, 30);
             break;
@@ -536,7 +536,7 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 8:
             *ptr++ = bic_immed(cc, cc, 1, 29);
             break;
-        
+
         case 24:
             *ptr++ = bic_immed(cc, cc, 2, 29);
             break;
@@ -564,7 +564,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
     {
         case 0:
             break;
-        
+
         case 1:
             *ptr++ = orr_immed(cc, cc, 1, 0);
             break;
@@ -572,7 +572,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 3:
             *ptr++ = orr_immed(cc, cc, 2, 0);
             break;
-        
+
         case 7:
             *ptr++ = orr_immed(cc, cc, 3, 0);
             break;
@@ -584,7 +584,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 31:
             *ptr++ = orr_immed(cc, cc, 5, 0);
             break;
-        
+
         case 2:
             *ptr++ = orr_immed(cc, cc, 1, 31);
             break;
@@ -592,7 +592,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 6:
             *ptr++ = orr_immed(cc, cc, 2, 31);
             break;
-        
+
         case 14:
             *ptr++ = orr_immed(cc, cc, 3, 31);
             break;
@@ -608,7 +608,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 12:
             *ptr++ = orr_immed(cc, cc, 2, 30);
             break;
-        
+
         case 28:
             *ptr++ = orr_immed(cc, cc, 3, 30);
             break;
@@ -616,7 +616,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
         case 8:
             *ptr++ = orr_immed(cc, cc, 1, 29);
             break;
-        
+
         case 24:
             *ptr++ = orr_immed(cc, cc, 2, 29);
             break;
@@ -635,6 +635,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
     return ptr;
 }
 
+#if 0
 static inline __attribute__((always_inline))
 uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
 {
@@ -644,7 +645,7 @@ uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, u
     {
         case 0:
             break;
-        
+
         case 1:
             *ptr++ = cset(tmp_reg, cond);
             *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
@@ -679,6 +680,51 @@ uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, u
     RA_FreeARMRegister(&ptr, tmp_reg);
     return ptr;
 }
+#else
+static inline __attribute__((always_inline))
+uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
+    switch (flags)
+    {
+        case 0:
+            break;
+
+        case 1:
+            *ptr++ = b_cc(cond ^ 1, 2);
+            *ptr++ = orr_immed(cc, cc, 1, 0);
+            break;
+
+        case 2:
+            *ptr++ = b_cc(cond ^ 1, 2);
+            *ptr++ = orr_immed(cc, cc, 1, 31);
+            break;
+
+        case 4:
+            *ptr++ = b_cc(cond ^ 1, 2);
+            *ptr++ = orr_immed(cc, cc, 1, 30);
+            break;
+
+        case 8:
+            *ptr++ = b_cc(cond ^ 1, 2);
+            *ptr++ = orr_immed(cc, cc, 1, 29);
+            break;
+
+        case 16:
+            *ptr++ = b_cc(cond ^ 1, 2);
+            *ptr++ = orr_immed(cc, cc, 1, 28);
+            break;
+
+        default:
+            *ptr++ = b_cc(cond ^ 1, 3);
+            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+    return ptr;
+}
+#endif
 
 #endif /* _A64_H */
