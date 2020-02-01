@@ -143,14 +143,15 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     uint8_t group = opcode >> 12;
 
 #ifdef __aarch64__
-    if (debug)
+    if (debug > 1)
     {
         *ptr++ = hint(0);
         *ptr++ = movw_immed_u16(31, opcode);
         *ptr++ = movk_immed_u16(31, ((uintptr_t)*(m68k_ptr)) >> 16, 1);
         *ptr++ = movk_immed_u16(31, ((uintptr_t)*(m68k_ptr)), 0);
-        *ptr++ = hint(1);
     }
+    if (debug)
+        *ptr++ = hint(1);
 #endif
 
     ptr = line_array[group](ptr, m68k_ptr);
@@ -601,7 +602,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         if (debug)
             kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
 
-        __clear_cache(&unit->mt_ARMCode[0], &unit->mt_ARMCode[unit->mt_ARMInsnCnt]);
+        arm_flush_cache((uintptr_t)&unit->mt_ARMCode, 4 * unit->mt_ARMInsnCnt);
         arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, 4 * unit->mt_ARMInsnCnt);
 
         if (debug)
@@ -618,7 +619,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             }
             if (unit->mt_ARMInsnCnt % 5 != 0)
                 kprintf("\n");
-            if (debug > 1)
+            if (debug > 2)
             {
                 kprintf("\n-- Local State --\n");
                 for (unsigned i=0; i < insn_count; i++)
@@ -635,6 +636,10 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             }
         }
     }
+
+#ifdef __aarch64__
+    asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
+#endif
 
     return unit;
 }

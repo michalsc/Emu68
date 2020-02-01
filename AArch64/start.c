@@ -520,13 +520,14 @@ uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
 uint32_t fb_height  __attribute__((weak))= 0;
 
+
+
 void M68K_StartEmu(void *addr)
 {
     void (*arm_code)();
     struct M68KTranslationUnit * unit = (void*)0;
     struct M68KState __m68k;
     uint64_t t1=0, t2=0;
-
     uint32_t m68k_pc;
 
     M68K_InitializeCache();
