@@ -381,36 +381,36 @@ void kprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format,
 
 void arm_flush_cache(intptr_t addr, uint32_t length)
 {
-    length = (length + 31) & ~31;
+    length = (length + 63) & ~63;
     while (length)
     {
             __asm__ __volatile__("dc civac, %0"::"r"(addr));
-            addr += 32;
-            length -= 32;
+            addr += 64;
+            length -= 64;
     }
     __asm__ __volatile__("dsb sy");
 }
 
 void arm_icache_invalidate(intptr_t addr, uint32_t length)
 {
-    length = (length + 31) & ~31;
+    length = (length + 63) & ~63;
     while (length)
     {
             __asm__ __volatile__("ic ivau, %0"::"r"(addr));
-            addr += 32;
-            length -= 32;
+            addr += 64;
+            length -= 64;
     }
     __asm__ __volatile__("dsb sy");
 }
 
 void arm_dcache_invalidate(intptr_t addr, uint32_t length)
 {
-    length = (length + 31) & ~31;
+    length = (length + 63) & ~63;
     while (length)
     {
             __asm__ __volatile__("dc ivac, %0"::"r"(addr));
-            addr += 32;
-            length -= 32;
+            addr += 64;
+            length -= 64;
     }
     __asm__ __volatile__("dsb sy");
 }
