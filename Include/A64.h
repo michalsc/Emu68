@@ -60,6 +60,23 @@
 #define A64_CC_AL 0x0e /* Always */
 #define A64_CC_NV 0x0f /* Always */
 
+#define ARM_CC_EQ 0x00 /* Z=1 */
+#define ARM_CC_NE 0x01 /* Z=0 */
+#define ARM_CC_CS 0x02 /* C=1 */
+#define ARM_CC_CC 0x03 /* C=0 */
+#define ARM_CC_MI 0x04 /* N=1 */
+#define ARM_CC_PL 0x05 /* N=0 */
+#define ARM_CC_VS 0x06 /* V=1 */
+#define ARM_CC_VC 0x07 /* V=0 */
+#define ARM_CC_HI 0x08
+#define ARM_CC_LS 0x09
+#define ARM_CC_GE 0x0a /* N == V */
+#define ARM_CC_LT 0x0b /* N != V */
+#define ARM_CC_GT 0x0c /* Z == 0 && N == V */
+#define ARM_CC_LE 0x0d /* Z == 1 || N != V */
+#define ARM_CC_AL 0x0e /* Always */
+#define ARM_CC_NV 0x0f /* Always */
+
 #define MMU_NG          0x800
 #define MMU_ACCESS      0x400
 #define MMU_ISHARE      0x300
@@ -250,10 +267,10 @@ static inline uint32_t cmn_immed_lsl12(uint8_t rn, uint16_t imm12) { return adds
 static inline uint32_t cmn64_immed_lsl12(uint8_t rn, uint16_t imm12) { return adds64_immed_lsl12(31, rn, imm12); }
 static inline uint32_t and_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x12000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t and64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0x92000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t bic_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return and_immed(rd, rn, 32 - width, 32 - ror - width); }
+static inline uint32_t bic_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return and_immed(rd, rn, 32 - width, ror - width); }
 static inline uint32_t ands_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x72000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t ands64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0xf2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t bics_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return ands_immed(rd, rn, 32 - width, 32 - ror - width); }
+static inline uint32_t bics_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return ands_immed(rd, rn, 32 - width, ror - width); }
 static inline uint32_t eor_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x52000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t eor64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0xd2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t orr_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x32000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
@@ -315,7 +332,7 @@ static inline uint32_t movn_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16
 static inline uint32_t movn64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0x92800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
 static inline uint32_t movw_immed_u16(uint8_t reg, uint16_t val) { return mov_immed_u16(reg, val, 0); }
 static inline uint32_t movt_immed_u16(uint8_t reg, uint16_t val) { return movk_immed_u16(reg, val, 1); }
-static inline uint32_t mov_immed_s8(uint8_t reg, int8_t val) { if (val < 0) return sub_immed(reg, 31, -val); else return mov_immed_u16(reg, val, 0); }
+static inline uint32_t mov_immed_s8(uint8_t reg, int8_t val) { if (val < 0) return movn_immed_u16(reg, -val - 1, 0); else return mov_immed_u16(reg, val, 0); }
 static inline uint32_t mov_immed_u8(uint8_t reg, uint8_t val) { return mov_immed_u16(reg, val, 0); }
 
 
@@ -378,10 +395,10 @@ static inline uint32_t csinc(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) {
 static inline uint32_t csinc64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x9a800400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
 static inline uint32_t csinv(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x5a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
 static inline uint32_t csinv64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0xda800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-static inline uint32_t csetm(uint8_t rd, uint8_t cond) { return csinv(rd, 31, 31, cond); }
-static inline uint32_t csetm64(uint8_t rd, uint8_t cond) { return csinv64(rd, 31, 31, cond); }
-static inline uint32_t cset(uint8_t rd, uint8_t cond) { return csinc(rd, 31, 31, cond); }
-static inline uint32_t cset64(uint8_t rd, uint8_t cond) { return csinc64(rd, 31, 31, cond); }
+static inline uint32_t csetm(uint8_t rd, uint8_t cond) { return csinv(rd, 31, 31, cond ^ 1); }
+static inline uint32_t csetm64(uint8_t rd, uint8_t cond) { return csinv64(rd, 31, 31, cond ^ 1); }
+static inline uint32_t cset(uint8_t rd, uint8_t cond) { return csinc(rd, 31, 31, cond ^ 1); }
+static inline uint32_t cset64(uint8_t rd, uint8_t cond) { return csinc64(rd, 31, 31, cond ^ 1); }
 
 /* Data processing: logic */
 static inline uint32_t and_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x0a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
@@ -455,5 +472,213 @@ static inline uint32_t rev16(uint8_t rd, uint8_t rn) { return I32(0x5ac00400 | (
 static inline uint32_t rev16_64(uint8_t rd, uint8_t rn) { return I32(0xdac00400 | (rd & 31) | ((rn & 31) << 5)); }
 static inline uint32_t rev32(uint8_t rd, uint8_t rn) { return I32(0xdac00800 | (rd & 31) | ((rn & 31) << 5)); }
 static inline uint32_t rev64(uint8_t rd, uint8_t rn) { return I32(0xdac00c00 | (rd & 31) | ((rn & 31) << 5)); }
+
+#include <RegisterAllocator.h>
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
+{
+    uint8_t tmp_reg;
+
+    switch (flags)
+    {
+        case 0:
+            break;
+        
+        case 1:
+            *ptr++ = bic_immed(cc, cc, 1, 0);
+            break;
+
+        case 3:
+            *ptr++ = bic_immed(cc, cc, 2, 0);
+            break;
+        
+        case 7:
+            *ptr++ = bic_immed(cc, cc, 3, 0);
+            break;
+
+        case 15:
+            *ptr++ = bic_immed(cc, cc, 4, 0);
+            break;
+
+        case 31:
+            *ptr++ = bic_immed(cc, cc, 5, 0);
+            break;
+        
+        case 2:
+            *ptr++ = bic_immed(cc, cc, 1, 31);
+            break;
+
+        case 6:
+            *ptr++ = bic_immed(cc, cc, 2, 31);
+            break;
+        
+        case 14:
+            *ptr++ = bic_immed(cc, cc, 3, 31);
+            break;
+
+        case 30:
+            *ptr++ = bic_immed(cc, cc, 4, 31);
+            break;
+
+        case 4:
+            *ptr++ = bic_immed(cc, cc, 1, 30);
+            break;
+
+        case 12:
+            *ptr++ = bic_immed(cc, cc, 2, 30);
+            break;
+        
+        case 28:
+            *ptr++ = bic_immed(cc, cc, 3, 30);
+            break;
+
+        case 8:
+            *ptr++ = bic_immed(cc, cc, 1, 29);
+            break;
+        
+        case 24:
+            *ptr++ = bic_immed(cc, cc, 2, 29);
+            break;
+
+        case 16:
+            *ptr++ = bic_immed(cc, cc, 1, 28);
+            break;
+
+        default:
+            tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
+            *ptr++ = bic_reg(cc, cc, tmp_reg, LSL, 0);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+    }
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
+{
+    uint8_t tmp_reg;
+
+    switch (flags)
+    {
+        case 0:
+            break;
+        
+        case 1:
+            *ptr++ = orr_immed(cc, cc, 1, 0);
+            break;
+
+        case 3:
+            *ptr++ = orr_immed(cc, cc, 2, 0);
+            break;
+        
+        case 7:
+            *ptr++ = orr_immed(cc, cc, 3, 0);
+            break;
+
+        case 15:
+            *ptr++ = orr_immed(cc, cc, 4, 0);
+            break;
+
+        case 31:
+            *ptr++ = orr_immed(cc, cc, 5, 0);
+            break;
+        
+        case 2:
+            *ptr++ = orr_immed(cc, cc, 1, 31);
+            break;
+
+        case 6:
+            *ptr++ = orr_immed(cc, cc, 2, 31);
+            break;
+        
+        case 14:
+            *ptr++ = orr_immed(cc, cc, 3, 31);
+            break;
+
+        case 30:
+            *ptr++ = orr_immed(cc, cc, 4, 31);
+            break;
+
+        case 4:
+            *ptr++ = orr_immed(cc, cc, 1, 30);
+            break;
+
+        case 12:
+            *ptr++ = orr_immed(cc, cc, 2, 30);
+            break;
+        
+        case 28:
+            *ptr++ = orr_immed(cc, cc, 3, 30);
+            break;
+
+        case 8:
+            *ptr++ = orr_immed(cc, cc, 1, 29);
+            break;
+        
+        case 24:
+            *ptr++ = orr_immed(cc, cc, 2, 29);
+            break;
+
+        case 16:
+            *ptr++ = orr_immed(cc, cc, 1, 28);
+            break;
+
+        default:
+            tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+    }
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    switch (flags)
+    {
+        case 0:
+            break;
+        
+        case 1:
+            *ptr++ = cset(tmp_reg, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+            break;
+
+        case 2:
+            *ptr++ = cset(tmp_reg, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 1);
+            break;
+
+        case 4:
+            *ptr++ = cset(tmp_reg, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 2);
+            break;
+
+        case 8:
+            *ptr++ = cset(tmp_reg, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 3);
+            break;
+
+        case 16:
+            *ptr++ = cset(tmp_reg, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 4);
+            break;
+
+        default:
+            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
+            *ptr++ = csel(tmp_reg, tmp_reg, 31, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+    return ptr;
+}
+
 
 #endif /* _A64_H */

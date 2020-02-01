@@ -574,6 +574,16 @@ void RA_FlushCC(uint32_t **ptr)
     mod_CC = 0;
 }
 
+int RA_IsCCLoaded()
+{
+    return (reg_CC != 0xff);
+}
+
+int RA_IsCCModified()
+{
+    return (mod_CC != 0);
+}
+
 /* Allocate register x0-x11 for JIT */
 static uint8_t __int_arm_alloc_reg()
 {

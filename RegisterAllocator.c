@@ -496,3 +496,61 @@ void RA_FreeARMRegister(uint32_t **arm_stream, uint8_t arm_reg)
 
     register_pool &= ~(1 << arm_reg);
 }
+
+static uint8_t got_CC = 0;
+static uint8_t mod_CC = 0;
+
+uint8_t M68K_GetCC(uint32_t **ptr) __attribute__((alias("RA_GetCC")));
+uint8_t M68K_ModifyCC(uint32_t **ptr) __attribute__((alias("RA_ModifyCC")));
+void M68K_FlushCC(uint32_t **ptr) __attribute__((alias("RA_FlushCC")));
+void M68K_StoreCC(uint32_t **ptr) __attribute__((alias("RA_StoreCC")));
+
+int RA_IsCCLoaded()
+{
+    return (got_CC != 0);
+}
+
+int RA_IsCCModified()
+{
+    return (mod_CC != 0);
+}
+
+uint8_t RA_GetCC(uint32_t **ptr)
+{
+    if (got_CC == 0)
+    {
+        **ptr = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        (*ptr)++;
+        got_CC = 1;
+        mod_CC = 0;
+    }
+
+    return REG_SR;
+}
+
+uint8_t RA_ModifyCC(uint32_t **ptr)
+{
+    uint8_t reg = RA_GetCC(ptr);
+    mod_CC = 1;
+
+    return reg;
+}
+
+void RA_StoreCC(uint32_t **ptr)
+{
+    if (got_CC && mod_CC)
+    {
+        **ptr = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        (*ptr)++;
+    }
+}
+
+void RA_FlushCC(uint32_t **ptr)
+{
+    if (got_CC && mod_CC)
+    {
+        **ptr = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
+        (*ptr)++;
+    }
+    got_CC = 0;
+}

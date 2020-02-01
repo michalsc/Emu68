@@ -46,6 +46,8 @@ void RA_StoreDirtyFPURegs(uint32_t **arm_stream);
 
 uint8_t RA_GetCTX(uint32_t **ptr);
 void RA_FlushCTX(uint32_t **ptr);
+int RA_IsCCLoaded();
+int RA_IsCCModified();
 uint8_t RA_GetCC(uint32_t **ptr);
 uint8_t RA_ModifyCC(uint32_t **ptr);
 void RA_FlushCC(uint32_t **ptr);

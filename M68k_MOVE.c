@@ -28,27 +28,14 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
         if (value <= 0) {
             if (value < 0)
-                *ptr++ = mov_immed_u16(tmp, SR_N, 0);
+                ptr = EMIT_SetFlags(ptr, cc, SR_N);
             else
-                *ptr++ = mov_immed_u16(tmp, SR_Z, 0);
-            *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                ptr = EMIT_SetFlags(ptr, cc, SR_Z);
         }
-        RA_FreeARMRegister(&ptr, tmp);
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (value == 0)
-            *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
-        else if (value & 0x80)
-            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
-#endif
     }
 
     return ptr;
@@ -78,6 +65,24 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         size = 4;
     else
         size = 2;
+
+    /* Copy 32bit from data reg to data reg */
+    if (size == 4)
+    {
+        /* If source was not a register (this is handled separately), but target is a register */
+        if ((opcode & 0x38) != 0 && (opcode & 0x38) != 0x08) {
+            if ((tmp & 0x38) == 0) {
+                loaded_in_dest = 1;
+                tmp_reg = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);        
+            }
+            else if ((tmp & 0x38) == 0x08) {
+                loaded_in_dest = 1;
+                tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);        
+            }
+        }
+    }
 #if 0
     if ((tmp & 0x38) == 0 && size == 4)
     {
@@ -93,6 +98,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else
 #endif
+    if (!loaded_in_dest)
     {
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
     }
@@ -136,11 +142,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
-#ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
 
             if (is_load_immediate) {
                 int32_t tmp_immediate = 0;
@@ -159,13 +162,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
                 }
 
                 if (tmp_immediate <= 0) {
-                    if (tmp_immediate < 0)
-                        *ptr++ = mov_immed_u16(tmp, SR_N, 0);
-                    else
-                        *ptr++ = mov_immed_u16(tmp, SR_Z, 0);
-                    *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                    if ((update_mask & SR_N) && (tmp_immediate < 0))
+                        ptr = EMIT_SetFlags(ptr, cc, SR_N);
+                    else if (update_mask & SR_Z)
+                        ptr = EMIT_SetFlags(ptr, cc, SR_Z);
                 }
             } else {
+#ifdef __aarch64__
                 switch (size)
                 {
                     case 4:
@@ -178,52 +181,14 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
                         *ptr++ = cmn_reg(31, tmp_reg, LSL, 24);
                         break;
                 }
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
-
-            RA_FreeARMRegister(&ptr, tmp);
 #else
-
-            M68K_ModifyCC(&ptr);
-            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (is_load_immediate) {
-                if (update_mask & SR_N) {
-                    switch (size)
-                    {
-                    case 4:
-                        if (immediate_value & 0x80000000)
-                            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
-                        break;
-
-                    case 2:
-                        if (immediate_value & 0x8000)
-                            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
-                        break;
-
-                    case 1:
-                        if (immediate_value & 0x80)
-                            *ptr++ = orr_immed(REG_SR, REG_SR, SR_N);
-                        break;
-
-                    default:
-                        break;
-                    }
-                }
-
-                if ((update_mask & SR_Z) && (immediate_value == 0))
-                    *ptr++ = orr_immed(REG_SR, REG_SR, SR_Z);
-            }
-            else {
                 *ptr++ = cmp_immed(tmp_reg, 0);
-                if (update_mask & SR_N)
-                    *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-                if (update_mask & SR_Z)
-                    *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-            }
 #endif
+                if (update_mask & SR_N)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                if (update_mask & SR_Z)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            }
         }
     }
 

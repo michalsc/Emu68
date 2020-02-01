@@ -401,4 +401,31 @@ static inline uint32_t ftosid(uint8_t s_dst, uint8_t d_src) { return ftosid_cc(A
 static inline uint32_t ftosidrz_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0bc0 | (cc << 28) | ((s_dst >> 1) << 12) | d_src | (s_dst & 1 ? (1 << 22):0)); }
 static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_cc(ARM_CC_AL, s_dst, d_src); }
 
+
+#include <RegisterAllocator.h>
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
+{
+    *ptr++ = bic_immed(cc, cc, flags);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
+{
+    *ptr++ = orr_immed(cc, cc, flags);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
+{
+    *ptr++ = orr_cc_immed(cond, cc, cc, flags);
+
+    return ptr;
+}
+
 #endif /* _ARM_H */

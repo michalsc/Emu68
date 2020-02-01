@@ -130,7 +130,6 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = sxth(src, src);
 
     *ptr++ = mul(reg, reg, src);
-    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
     *ptr++ = sxth(reg, reg, 0);
     *ptr++ = sxth(src, src, 0);
@@ -147,29 +146,17 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+#ifdef __aarch64__
+        *ptr++ = cmn_reg(31, reg, LSL, 0);
+#endif
         if (update_mask & SR_Z) {
-            *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         }
         if (update_mask & SR_N) {
-            *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
-        RA_FreeARMRegister(&ptr, tmp);
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_Z)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_Z);
-#endif
     }
 
     return ptr;
@@ -193,7 +180,6 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = uxth(reg, reg);
     *ptr++ = uxth(src, src);
     *ptr++ = mul(reg, reg, src);
-    *ptr++ = cmn_reg(31, reg, LSL, 0);
 #else
     *ptr++ = uxth(reg, reg, 0);
     *ptr++ = uxth(src, src, 0);
@@ -210,29 +196,17 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+#ifdef __aarch64__
+        *ptr++ = cmn_reg(31, reg, LSL, 0);
+#endif
         if (update_mask & SR_Z) {
-            *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         }
         if (update_mask & SR_N) {
-            *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
-        RA_FreeARMRegister(&ptr, tmp);
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_Z)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_Z);
-#endif
     }
 
     return ptr;
@@ -288,40 +262,27 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+
+#ifdef __aarch64__
         *ptr++ = cmn64_reg(31, reg_dl, LSL, 0);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+#endif
 
         if (update_mask & SR_Z) {
-            *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         }
         if (update_mask & SR_N) {
-            *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
         if ((update_mask & SR_V) && 0 == (opcode2 & (1 << 10))) {
+#ifdef __aarch64__
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             *ptr++ = cmn_reg(reg_dl, 31, LSL, 0);
-            *ptr++ = csetm(tmp, A64_CC_MI^1);
+            *ptr++ = csetm(tmp, A64_CC_MI);
             *ptr++ = cmp64_reg(tmp, reg_dl, LSR, 32);
-            *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
             RA_FreeARMRegister(&ptr, tmp);
-        }
-        RA_FreeARMRegister(&ptr, tmp);
 #else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_Z)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-        if ((update_mask & SR_V) && !(opcode2 & (1 << 10)))
-        {
             if (opcode2 & (1 << 10))
             {
                 uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -333,17 +294,15 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = mvn_cc_immed_u8(ARM_CC_MI, tmp, 0);
                 *ptr++ = mov_cc_immed_u8(ARM_CC_PL, tmp, 0);
                 *ptr++ = subs_reg(tmp, reg_dh, tmp, 0);
-                *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_V);
-
                 RA_FreeARMRegister(&ptr, tmp);
             }
             else
             {
                 *ptr++ = cmp_immed(reg_dh, 0);
-                *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_V);
             }
-        }
 #endif
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
+        }
     }
 
     RA_FreeARMRegister(&ptr, reg_dh);
@@ -442,51 +401,26 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
 
         if (update_mask & SR_V) {
-            *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
         }
         if (update_mask & (SR_Z | SR_N))
         {
-            *ptr++ = cmn_reg(31, reg_quot, LSL, 0);
+#ifdef __aarch64__
+            *ptr++ = cmn_reg(31, reg_quot, LSL, 16);
+#else
+            *ptr++ = cmp_immed(reg_quot, 0);
+#endif
             if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             }
             if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             }
         }
-        RA_FreeARMRegister(&ptr, tmp);
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_V)
-        {
-            *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_V);
-        }
-        int cnt = 0;
-        if (update_mask & SR_N)
-            cnt++;
-        if (update_mask & SR_Z)
-            cnt++;
-        if (cnt)
-        {
-            *ptr++ = b_cc(ARM_CC_NE, cnt+3);
-            *ptr++ = cmp_immed(reg_quot, 0);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        }
-#endif
     }
 
     /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
@@ -595,54 +529,32 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        
         if (update_mask & SR_V) {
-            *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
         }
+
         if (update_mask & (SR_Z | SR_N))
         {
-            *ptr++ = cmn_reg(31, reg_quot, LSL, 0);
             if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
-        }
-        RA_FreeARMRegister(&ptr, tmp);
+#ifdef __aarch64__
+                *ptr++ = cmn_reg(31, reg_quot, LSL, 16);
 #else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_V)
-        {
-            *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_V);
-        }
-        int cnt = 0;
-        if (update_mask & SR_N)
-            cnt+=2;
-        if (update_mask & SR_Z)
-            cnt++;
-        if (cnt)
-        {
-            *ptr++ = b_cc(ARM_CC_NE, cnt+3);
-            *ptr++ = cmp_immed(reg_quot, 0);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+                *ptr++ = cmp_immed(reg_quot, 0);
+#endif
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            }
             if (update_mask & SR_N) {
-                /* When setting N flag do not test 32-bit quotient but rather 16 bit. Therefore test bit 15 here */
+#ifdef __aarch64__
+                *ptr++ = tst_immed(reg_quot, 1, 32-15);
+#else
                 *ptr++ = tst_immed(reg_quot, 0x902);
-                *ptr++ = orr_cc_immed(ARM_CC_NE, REG_SR, REG_SR, SR_N);
+#endif
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_NE);
             }
         }
-#endif
     }
 
     /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
@@ -921,55 +833,25 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
-        if (update_mask & SR_V) {
-            *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        if (div64) {
+            if (update_mask & SR_V) {
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
+            }
         }
-        if (update_mask & (SR_Z | SR_N))
+        if (update_mask & (SR_C | SR_N))
         {
+#ifdef __aarch64__
             *ptr++ = cmn_reg(31, reg_dq, LSL, 0);
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
-        }
-        RA_FreeARMRegister(&ptr, tmp);
 #else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_V)
-        {
-            /* V bit can be set only with 64-bit division was used. Otherwise no overflow can occur */
-            if (div64) {
-
-            }
-        }
-        int cnt = 0;
-        if (update_mask & SR_N)
-            cnt++;
-        if (update_mask & SR_Z)
-            cnt++;
-        if (cnt)
-        {
             *ptr++ = cmp_immed(reg_dq, 0);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-            if (update_mask & SR_N) {
-                /* When setting N flag do not test 32-bit quotient but rather 16 bit. Therefore test bit 15 here */
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-            }
-        }
 #endif
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+        }
     }
 
     /* Advance PC */
@@ -980,8 +862,10 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (reg_dr != 0xff)
         RA_FreeARMRegister(&ptr, reg_dr);
 
+#ifndef __aarch64__
     if (!Features.ARM_SUPPORTS_DIV)
         *ptr++ = INSN_TO_LE(0xfffffff0);
+#endif
 
     return ptr;
 }

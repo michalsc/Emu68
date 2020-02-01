@@ -17,12 +17,12 @@ extern uint16_t *framebuffer;
 extern uint32_t pitch;
 void put_char(uint8_t c);
 
-void __start(uint32_t p asm("d0"), uint16_t *fb asm("a0"))
+int __start(uint32_t p asm("d0"), uint16_t *fb asm("a0"))
 {
   framebuffer = fb;
   pitch = p;
 
-  _main(2000000);
+  _main(200000);
 }
 
 uint16_t *framebuffer = (void*)0;

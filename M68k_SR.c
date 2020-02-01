@@ -118,7 +118,7 @@ static struct SRMaskEntry Line8_Map[] = {
 
 static struct SRMaskEntry Line9_Map[] = {
     { 0xf0c0, 0x90c0, SME_MASK, 0, NULL },                                /* SUBA */
-    { 0xf000, 0x9000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUB/SUBX */
+    { 0xf000, 0x9000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* SUB/SUBX */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
@@ -143,14 +143,14 @@ static struct SRMaskEntry LineC_Map[] = {
 
 static struct SRMaskEntry LineD_Map[] = {
     { 0xf0c0, 0xd0c0, SME_MASK, 0, NULL },                                /* ADDA */
-    { 0xf000, 0xd000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ADD/ADDX */
+    { 0xf000, 0xd000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ADD/ADDX */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
 static struct SRMaskEntry LineE_Map[] = {
     { 0xfec0, 0xe0c0, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ASL/ASR */
     { 0xfec0, 0xe2c0, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* LSL/LSR */
-    { 0xfec0, 0xe4c0, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ROXL/ROXR */
+    { 0xfec0, 0xe4c0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ROXL/ROXR */
     { 0xfec0, 0xe6c0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ROL/ROR */
     { 0xffc0, 0xe8c0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* BFTST */
     { 0xffc0, 0xe9c0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* BFEXTU */
@@ -162,7 +162,7 @@ static struct SRMaskEntry LineE_Map[] = {
     { 0xffc0, 0xefc0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* BFINS */
     { 0xf018, 0xe000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ASL/ASR */
     { 0xf018, 0xe008, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* LSL/LSR */
-    { 0xf018, 0xe010, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ROXL/ROXR */
+    { 0xf018, 0xe010, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ROXL/ROXR */
     { 0xf018, 0xe018, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ROL/ROR */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };

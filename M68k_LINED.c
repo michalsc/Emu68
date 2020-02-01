@@ -26,7 +26,11 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
         uint8_t tmp = 0xff;
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        if (size == 2)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
 #ifdef __aarch64__
         if (size == 2)
             *ptr++ = sxth(tmp, tmp);
@@ -200,42 +204,22 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
-#ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
-            if (update_mask & SR_V) {
-                *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
-            }
-            if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
-            }
-            RA_FreeARMRegister(&ptr, tmp);
-#else
-            M68K_ModifyCC(&ptr);
-            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
             if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
-            if (update_mask & (SR_X | SR_C))
-                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
-#endif
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            if (update_mask & (SR_X | SR_C)) {
+                if ((update_mask & (SR_X | SR_C)) == SR_X)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CS);
+                else if ((update_mask & (SR_X | SR_C)) == SR_C)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
+                else
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CS);
+            }
         }
     }
     /* ADD */
@@ -254,7 +238,10 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t src = 0xff;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+            if (size == 4)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
             switch (size)
             {
@@ -283,7 +270,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = lsl(tmp, dest, 24);
-                *ptr++ = subs_reg(src, dest, src, LSL, 24);
+                *ptr++ = adds_reg(src, dest, src, LSL, 24);
                 *ptr++ = lsr(src, src, 24);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
@@ -405,42 +392,22 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
-#ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
-            if (update_mask & SR_V) {
-                *ptr++ = b_cc(A64_CC_VS ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
-            }
-            if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
-            }
-            RA_FreeARMRegister(&ptr, tmp);
-#else
-            M68K_ModifyCC(&ptr);
-            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
+            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
             if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                *ptr++ = orr_cc_immed(ARM_CC_VS, REG_SR, REG_SR, SR_V);
-            if (update_mask & (SR_X | SR_C))
-                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
-#endif
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            if (update_mask & (SR_X | SR_C)) {
+                if ((update_mask & (SR_X | SR_C)) == SR_X)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CS);
+                else if ((update_mask & (SR_X | SR_C)) == SR_C)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
+                else
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CS);
+            }
         }
     }
     else

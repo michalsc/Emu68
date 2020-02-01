@@ -166,8 +166,6 @@ void __clear_cache(void *begin, void *end)
 
 #ifndef __aarch64__
 
-static uint8_t got_CC = 0;
-static uint8_t mod_CC = 0;
 
 static uint8_t reg_FPCR = 0xff;
 static uint8_t mod_FPCR = 0;
@@ -256,41 +254,6 @@ void M68K_FlushFPSR(uint32_t **ptr)
     mod_FPSR = 0;
 }
 
-void M68K_GetCC(uint32_t **ptr)
-{
-    if (got_CC == 0)
-    {
-        **ptr = ldrh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
-        (*ptr)++;
-        got_CC = 1;
-        mod_CC = 0;
-    }
-}
-
-void M68K_ModifyCC(uint32_t **ptr)
-{
-    M68K_GetCC(ptr);
-    mod_CC = 1;
-}
-
-void M68K_StoreCC(uint32_t **ptr)
-{
-    if (got_CC && mod_CC)
-    {
-        **ptr = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
-        (*ptr)++;
-    }
-}
-
-void M68K_FlushCC(uint32_t **ptr)
-{
-    if (got_CC && mod_CC)
-    {
-        **ptr = strh_offset(REG_CTX, REG_SR, __builtin_offsetof(struct M68KState, SR));
-        (*ptr)++;
-    }
-    got_CC = 0;
-}
 #endif
 
 #define RTSTACK_SIZE    32
@@ -399,10 +362,6 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             pop_update_loc[i] = (uint32_t *)0;
 
         M68K_ResetReturnStack();
-#ifndef __aarch64__
-        got_CC = 0;
-        mod_CC = 0;
-#endif
 
         if (debug)
             kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash, (void*)m68kcodeptr);
@@ -491,7 +450,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                     RA_StoreDirtyM68kRegs(&end);
                     end = EMIT_FlushPC(end);
 #ifndef __aarch64__
-                    M68K_StoreCC(&end);
+                    RA_StoreCC(&end);
                     M68K_StoreFPCR(&end);
                     M68K_StoreFPSR(&end);
 
@@ -537,7 +496,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         M68K_FlushFPSR(&end);
         *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         uint16_t mask = RA_GetChangedMask() & 0xfff0;
-        if (mod_CC)
+        if (RA_IsCCModified())
             mask |= 1 << REG_SR;
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
         *end++ = setend_le();
