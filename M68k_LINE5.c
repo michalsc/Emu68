@@ -845,13 +845,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = mov_immed_u16(tmp, (-data) << 8, 1);
                     *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
-                    *ptr++ = lsr(tmp, tmp, 24);
+                    *ptr++ = bfxil(dest, tmp, 24, 8);
 #else
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
-#endif
                     *ptr++ = bfi(dest, tmp, 0, 8);
+#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
 
@@ -860,13 +860,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = mov_immed_u16(tmp, -data, 1);
                     *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
-                    *ptr++ = lsr(tmp, tmp, 16);
+                    *ptr++ = bfxil(dest, tmp, 16, 16);
 #else
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
                     *ptr++ = bfi(dest, tmp, 0, 16);
+#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
 
@@ -1044,13 +1044,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = mov_immed_u16(tmp, data << 8, 1);
                     *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
-                    *ptr++ = lsr(tmp, tmp, 24);
+                    *ptr++ = bfxil(dest, tmp, 24, 8);
 #else
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 24);
-#endif
                     *ptr++ = bfi(dest, tmp, 0, 8);
+#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
 
@@ -1059,13 +1059,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     *ptr++ = mov_immed_u16(tmp, data, 1);
                     *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
-                    *ptr++ = lsr(tmp, tmp, 16);
+                    *ptr++ = bfxil(dest, tmp, 16, 16);
 #else
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
                     *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
                     *ptr++ = bfi(dest, tmp, 0, 16);
+#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
 
