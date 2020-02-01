@@ -77,8 +77,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = cset(tmp, A64_CC_NE);
                     *ptr++ = add_reg(tmp, tmp, regy, LSL, 24);
                     *ptr++ = adds_reg(tmp, tmp, regx, LSL, 24);
-                    *ptr++ = lsr(tmp, tmp, 24);
-                    *ptr++ = bfi(regy, tmp, 0, 8);
+                    *ptr++ = bfxil(regy, tmp, 24, 8);
                     RA_FreeARMRegister(&ptr, tmp);
 #else
                     tmp = RA_AllocARMRegister(&ptr);
@@ -96,8 +95,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = cset(tmp, A64_CC_NE);
                     *ptr++ = add_reg(tmp, tmp, regy, LSL, 16);
                     *ptr++ = adds_reg(tmp, tmp, regx, LSL, 16);
-                    *ptr++ = lsr(tmp, tmp, 16);
-                    *ptr++ = bfi(regy, tmp, 0, 16);
+                    *ptr++ = bfxil(regy, tmp, 16, 16);
                     RA_FreeARMRegister(&ptr, tmp);
 #else
                     tmp = RA_AllocARMRegister(&ptr);
@@ -257,28 +255,28 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = lsl(tmp, dest, 16);
                 *ptr++ = adds_reg(src, dest, src, LSL, 16);
-                *ptr++ = lsr(src, src, 16);
+                *ptr++ = bfxil(dest, src, 16, 16);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
                 *ptr++ = lsl_immed(src, src, 16);
                 *ptr++ = adds_reg(src, src, dest, 16);
                 *ptr++ = lsr_immed(src, src, 16);
-#endif
                 *ptr++ = bfi(dest, src, 0, 16);
+#endif
                 break;
             case 1:
 #ifdef __aarch64__
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = lsl(tmp, dest, 24);
                 *ptr++ = adds_reg(src, dest, src, LSL, 24);
-                *ptr++ = lsr(src, src, 24);
+                *ptr++ = bfxil(dest, src, 24, 8);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
                 *ptr++ = lsl_immed(src, src, 24);
                 *ptr++ = adds_reg(src, src, dest, 24);
                 *ptr++ = lsr_immed(src, src, 24);
-#endif
                 *ptr++ = bfi(dest, src, 0, 8);
+#endif
                 break;
             }
 

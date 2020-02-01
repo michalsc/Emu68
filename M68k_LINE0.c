@@ -167,8 +167,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0000:    /* Byte operation */
             lo16 = -BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
-            *ptr++ = mov_immed_u16(immed, lo16 & 0xff, 0);
-            *ptr++ = ror(immed, immed, 8);
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
             *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
 #endif
@@ -217,13 +216,11 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = adds_reg(immed, immed, dest, LSL, 16);
-                *ptr++ = lsr(immed, immed, 16);
-                *ptr++ = bfi(dest, immed, 0, 16);
+                *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = adds_reg(immed, immed, dest, LSL, 24);
-                *ptr++ = lsr(immed, immed, 24);
-                *ptr++ = bfi(dest, immed, 0, 8);
+                *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
             case 4:
@@ -381,8 +378,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0000:    /* Byte operation */
             lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
-            *ptr++ = mov_immed_u16(immed, lo16 & 0xff, 0);
-            *ptr++ = ror(immed, immed, 8);
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
             *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
 #endif
@@ -430,13 +426,11 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = adds_reg(immed, immed, dest, LSL, 16);
-                *ptr++ = lsr(immed, immed, 16);
-                *ptr++ = bfi(dest, immed, 0, 16);
+                *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = adds_reg(immed, immed, dest, LSL, 24);
-                *ptr++ = lsr(immed, immed, 24);
-                *ptr++ = bfi(dest, immed, 0, 8);
+                *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
             case 4:
@@ -631,8 +625,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0000:    /* Byte operation */
             lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
-            *ptr++ = mov_immed_u16(immed, lo16 & 0xff, 0);
-            *ptr++ = ror(immed, immed, 8);
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
             *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
 #endif
@@ -682,14 +675,12 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 2:
                 *ptr++ = orr_reg(immed, immed, dest, LSL, 16);
                 *ptr++ = cmp_reg(31, immed, LSL, 0);
-                *ptr++ = lsr(immed, immed, 16);
-                *ptr++ = bfi(dest, immed, 0, 16);
+                *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = orr_reg(immed, immed, dest, LSL, 24);
                 *ptr++ = cmp_reg(31, immed, LSL, 0);
-                *ptr++ = lsr(immed, immed, 24);
-                *ptr++ = bfi(dest, immed, 0, 8);
+                *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
             case 4:
@@ -876,8 +867,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0000:    /* Byte operation */
             lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
-            *ptr++ = mov_immed_u16(immed, lo16 & 0xff, 0);
-            *ptr++ = ror(immed, immed, 8);
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
             *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
 #endif
@@ -925,13 +915,11 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = ands_reg(immed, immed, dest, LSL, 16);
-                *ptr++ = lsr(immed, immed, 16);
-                *ptr++ = bfi(dest, immed, 0, 16);
+                *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = ands_reg(immed, immed, dest, LSL, 24);
-                *ptr++ = lsr(immed, immed, 24);
-                *ptr++ = bfi(dest, immed, 0, 8);
+                *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
             case 4:
@@ -1115,8 +1103,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0000:    /* Byte operation */
             lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
-            *ptr++ = mov_immed_u16(immed, lo16 & 0xff, 0);
-            *ptr++ = ror(immed, immed, 8);
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
             *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
 #endif
@@ -1166,14 +1153,12 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 2:
                 *ptr++ = eor_reg(immed, immed, dest, LSL, 16);
                 *ptr++ = cmp_reg(31, immed, LSL, 0);
-                *ptr++ = lsr(immed, immed, 16);
-                *ptr++ = bfi(dest, immed, 0, 16);
+                *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = eor_reg(immed, immed, dest, LSL, 24);
                 *ptr++ = cmp_reg(31, immed, LSL, 0);
-                *ptr++ = lsr(immed, immed, 24);
-                *ptr++ = bfi(dest, immed, 0, 8);
+                *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
             case 4:

@@ -306,8 +306,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 case 2:
 #ifdef __aarch64__
                     *ptr++ = negs_reg(tmp, dest, LSL, 16);
-                    *ptr++ = lsr(tmp, tmp, 16);
-                    *ptr++ = bfi(dest, tmp, 0, 16);
+                    *ptr++ = bfxil(dest, tmp, 16, 16);
 #else
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = rsbs_immed(tmp, tmp, 0);
@@ -318,8 +317,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 case 1:
 #ifdef __aarch64__
                     *ptr++ = negs_reg(tmp, dest, LSL, 24);
-                    *ptr++ = lsr(tmp, tmp, 24);
-                    *ptr++ = bfi(dest, tmp, 0, 8);
+                    *ptr++ = bfxil(dest, tmp, 24, 8);
 #else
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = rsbs_immed(tmp, tmp, 0);
@@ -513,13 +511,11 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 case 2:
                     *ptr++ = subs_reg(zero, zero, dest, LSL, 16);
-                    *ptr++ = lsr(zero, zero, 16);
-                    *ptr++ = bfi(dest, zero, 0, 16);
+                    *ptr++ = bfxil(dest, zero, 16, 16);
                     break;
                 case 1:
                     *ptr++ = subs_reg(zero, zero, dest, LSL, 24);
-                    *ptr++ = lsr(zero, zero, 24);
-                    *ptr++ = bfi(dest, zero, 0, 8);
+                    *ptr++ = bfxil(dest, zero, 24, 8);
                     break;
 #else
                 case 2:
@@ -1214,10 +1210,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = ldrh_offset_postindex(sp, tmp, 2);
 #ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        *ptr++ = mov_immed_u16(mask, 0x1f, 0);
-        *ptr++ = bic_reg(cc, cc, mask, LSL, 0);
-        *ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
-        *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+        *ptr++ = bfi(cc, tmp, 0, 5);
 #else
         M68K_ModifyCC(&ptr);
         *ptr++ = bic_immed(REG_SR, REG_SR, 0x1f);

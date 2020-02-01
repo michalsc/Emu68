@@ -43,13 +43,13 @@ void display_logo()
     int32_t pix_cnt = (uint32_t)EmuLogo.el_Width * (uint32_t)EmuLogo.el_Height;
     uint8_t *rle = EmuLogo.el_Data;
     int x = 0;
-
+#if 0
     /* In case the screen is too small, attempt to adjust its size */
     if (sz.height < 800 || sz.width < 1280)
     {
         sz.width = 800; sz.height = 500;
     }
-
+#endif
     kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
     fb_width = sz.width;
     fb_height = sz.height;
