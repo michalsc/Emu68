@@ -286,7 +286,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
             case M_CC_GT:
 #ifdef __aarch64__
                 cond_tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 3);
                 *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
                 *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
@@ -304,7 +304,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
             case M_CC_LE:
 #ifdef __aarch64__
                 cond_tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_Z));
+                *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 3);
                 *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
                 *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
