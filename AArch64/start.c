@@ -553,15 +553,18 @@ void M68K_StartEmu(void *addr)
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
-    do {
+    unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
+    last_PC = m68k_pc;
+    *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
 
+    do
+    {
         if (last_PC != m68k_pc)
         {
             unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
             last_PC = m68k_pc;
+            *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
         }
-
-        *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
 
         arm_code();
 
