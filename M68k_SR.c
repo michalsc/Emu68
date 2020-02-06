@@ -22,6 +22,14 @@ struct SRMaskEntry {
 #define SME_FUNC    2
 #define SME_END     255
 
+static uint8_t SR_TestBranch(uint16_t *insn_stream);
+static uint8_t SR_TestOpcode16B(uint16_t *insn_stream);
+static uint8_t SR_TestOpcode32B(uint16_t *insn_stream);
+static uint8_t SR_TestOpcode48B(uint16_t *insn_stream);
+static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream);
+static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream);
+static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream);
+
 static struct SRMaskEntry Line0_Map[] = {
     { 0xffbf, 0x003c, SME_MASK, 0, NULL },                                /* ORI to CCR/SR - they rely on current CC! */
     { 0xff00, 0x0000, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* ORI */
@@ -41,7 +49,7 @@ static struct SRMaskEntry Line0_Map[] = {
 };
 
 static struct SRMaskEntry Line1_Map[] = {
-    { 0xc1c0, 0x0040, SME_MASK, 0, NULL },                                /* MOVEA case - destination is An */
+    { 0xc1c0, 0x0040, SME_FUNC, 0, SR_TestOpcodeMOVEA },                  /* MOVEA case - destination is An */
     { 0xc000, 0x0000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* All other moves change CC */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
@@ -58,19 +66,20 @@ static struct SRMaskEntry Line4_Map[] = {
     { 0xffc0, 0x46c0, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* MOVE to SR */
     { 0xff00, 0x4600, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* NOT */
     { 0xfeb8, 0x4880, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* EXT/EXTB */
-    { 0xfff8, 0x4808, SME_MASK, 0, NULL },                                /* LINK */
+    { 0xfff8, 0x4808, SME_FUNC, 0, SR_TestOpcode48B },                    /* LINK */
     { 0xffc0, 0x4800, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* NBCD */
     { 0xfff8, 0x4840, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* SWAP */
-    { 0xffc0, 0x4840, SME_MASK, 0, NULL },                                /* BKPT/PEA */
+    { 0xfff8, 0x4848, SME_MASK, 0, NULL },                                /* BKPT */
+    { 0xffc0, 0x4840, SME_FUNC, 0, SR_TestOpcodeEA },                     /* PEA */
     { 0xffff, 0x4afc, SME_MASK, 0, NULL },                                /* ILLEGAL */
     { 0xff00, 0x4a00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* TAS/TST */
     { 0xff80, 0x4c00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* MULU/MULS/DIVU/DIVS */
     { 0xfff0, 0x4e40, SME_MASK, 0, NULL },                                /* TRAP */
-    { 0xfff8, 0x4e50, SME_MASK, 0, NULL },                                /* LINK */
-    { 0xfff8, 0x4e58, SME_MASK, 0, NULL },                                /* UNLK */
+    { 0xfff8, 0x4e50, SME_FUNC, 0, SR_TestOpcode32B },                    /* LINK */
+    { 0xfff8, 0x4e58, SME_FUNC, 0, SR_TestOpcode16B },                    /* UNLK */
     { 0xfff0, 0x4e60, SME_MASK, 0, NULL },                                /* MOVE USP */
     { 0xffff, 0x4e70, SME_MASK, 0, NULL },                                /* RESET */
-    { 0xffff, 0x4e71, SME_MASK, 0, NULL },                                /* NOP */
+    { 0xffff, 0x4e71, SME_FUNC, 0, SR_TestOpcode16B },                    /* NOP */
     { 0xffff, 0x4e72, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* STOP */
     { 0xffff, 0x4e73, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* RTE */
     { 0xffff, 0x4e74, SME_MASK, 0, NULL },                                /* RTD */
@@ -80,20 +89,18 @@ static struct SRMaskEntry Line4_Map[] = {
     { 0xfffe, 0x4e7a, SME_MASK, 0, NULL },                                /* MOVEC */
     { 0xffc0, 0x4e80, SME_MASK, 0, NULL },                                /* JSR */
     { 0xffc0, 0x4ec0, SME_MASK, 0, NULL },                                /* JMP */
-    { 0xfb80, 0x4880, SME_MASK, 0, NULL },                                /* MOVEM */
-    { 0xf1c0, 0x41c0, SME_MASK, 0, NULL },                                /* LEA */
+    { 0xfb80, 0x4880, SME_FUNC, 0, SR_TestOpcode32B },                    /* MOVEM */
+    { 0xf1c0, 0x41c0, SME_FUNC, 0, SR_TestOpcodeEA },                     /* LEA */
     { 0xf140, 0x4100, SME_MASK, 0, NULL },                                /* CHK */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
 static struct SRMaskEntry Line5_Map[] = {
     { 0xf0c0, 0x50c0, SME_MASK, 0, NULL },                                /* TRAP/DBcc/Scc */
-    { 0xf038, 0x5008, SME_MASK, 0, NULL },                                /* SUBQ/ADDQ with An */
+    { 0xf038, 0x5008, SME_FUNC, 0, SR_TestOpcode16B },                    /* SUBQ/ADDQ with An */
     { 0xf000, 0x5000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUBQ/ADDQ */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
-
-static uint8_t SR_TestBranch(uint16_t *insn_stream);
 
 static struct SRMaskEntry Line6_Map[] = {
     { 0xfe00, 0x6000, SME_FUNC,  0, SR_TestBranch },                      /* BRA/BSR */
@@ -117,7 +124,7 @@ static struct SRMaskEntry Line8_Map[] = {
 };
 
 static struct SRMaskEntry Line9_Map[] = {
-    { 0xf0c0, 0x90c0, SME_MASK, 0, NULL },                                /* SUBA */
+    { 0xf0c0, 0x90c0, SME_FUNC, 0, SR_TestOpcodeADDA },                   /* SUBA */
     { 0xf000, 0x9000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* SUB/SUBX */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
@@ -135,14 +142,14 @@ static struct SRMaskEntry LineC_Map[] = {
     { 0xf1c0, 0xc0c0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* MULU */
     { 0xf1f0, 0xc100, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ABCD */
     { 0xf1c0, 0xc1c0, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* MULS */
-    { 0xf1f0, 0xc140, SME_MASK, 0, NULL },                                /* EXG Dx,Dy / EXG Ax,Ay */
-    { 0xf1f0, 0xc180, SME_MASK, 0, NULL },                                /* EXG Dx,Ay */
+    { 0xf1f0, 0xc140, SME_FUNC, 0, SR_TestOpcode16B },                    /* EXG Dx,Dy / EXG Ax,Ay */
+    { 0xf1f0, 0xc180, SME_FUNC, 0, SR_TestOpcode16B },                    /* EXG Dx,Ay */
     { 0xf000, 0xc000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* AND */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
 static struct SRMaskEntry LineD_Map[] = {
-    { 0xf0c0, 0xd0c0, SME_MASK, 0, NULL },                                /* ADDA */
+    { 0xf0c0, 0xd0c0, SME_FUNC, 0, SR_TestOpcodeADDA },                   /* ADDA */
     { 0xf000, 0xd000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ADD/ADDX */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
@@ -189,6 +196,282 @@ static struct SRMaskEntry *OpcodeMap[16] = {
     LineE_Map,
     LineF_Map
 };
+
+static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t imm_size)
+{
+    uint16_t opcode;
+    uint8_t word_count = 1;
+    uint8_t mode, reg;
+
+    opcode = BE16(insn_stream[0]);
+    mode = (opcode >> 3) & 7;
+    reg = (opcode) & 7;
+
+    /* modes 0, 1, 2, 3 and 4 do not have extra words */
+    if (mode > 4)
+    {
+        if (mode == 5)      /* 16-bit offset in next opcode */
+            word_count++;
+        else if (mode == 6 || (mode == 7 && reg == 3))
+        {
+            /* Reg- or PC-relative addressing mode */
+            uint16_t brief = BE16(insn_stream[1]);
+            
+            /* Brief word is here */
+            word_count++;
+
+            switch (brief & 3)
+            {
+                case 2:
+                    word_count++;       /* Word outer displacement */
+                    break;
+                case 3:
+                    word_count += 2;    /* Long outer displacement */
+                    break;
+            }
+
+            switch (brief & 0x30)
+            {
+                case 0x20:
+                    word_count++;       /* Word base displacement */
+                    break;
+                case 0x30:
+                    word_count += 2;    /* Long base displacement */
+                    break;
+            }
+
+
+        }
+        else if (mode == 7)
+        {
+            if (reg == 2) /* PC-relative with 16-bit offset in next opcode */
+                word_count++;
+            else if (reg == 0)  /* Absolute word */
+                word_count++;
+            else if (reg == 1)  /* Absolute long */
+                word_count += 2;
+            else if (reg == 4)  /* Immediate */
+            {
+                switch (imm_size)
+                {
+                    case 1:
+                        word_count++;
+                        break;
+                    case 2:
+                        word_count++;
+                        break;
+                    case 4:
+                        word_count+= 2;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+
+    return word_count;
+}
+
+static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream)
+{
+    uint16_t next_opcode;
+    uint8_t mask = 0;
+    uint8_t word_count;
+
+    /* First calculate the EA length */
+    word_count = SR_GetEALength(insn_stream, 0);
+
+    /* Get the opcode past current 2-byte instruction */
+    next_opcode = BE16(insn_stream[word_count]);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
+}
+
+static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream)
+{
+    uint16_t opcode;
+    uint16_t next_opcode;
+    uint8_t mask = 0;
+    uint8_t word_count;
+
+    opcode = BE16(insn_stream[0]);
+
+    /* First calculate the EA length */
+    switch (opcode & 0x3000)
+    {
+        case 0x3000:
+            word_count = SR_GetEALength(insn_stream, 2);
+            break;
+        case 0x2000:
+            word_count = SR_GetEALength(insn_stream, 4);
+            break;
+        default:
+            return 0;
+    }
+
+    /* Get the opcode past current 2-byte instruction */
+    next_opcode = BE16(insn_stream[word_count]);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
+}
+
+static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream)
+{
+    uint16_t opcode;
+    uint16_t next_opcode;
+    uint8_t mask = 0;
+    uint8_t word_count;
+
+    opcode = BE16(insn_stream[0]);
+
+    /* First calculate the EA length */
+    switch (opcode & 0x01c0)
+    {
+        case 0x00c0:
+            word_count = SR_GetEALength(insn_stream, 2);
+            break;
+        case 0x01c0:
+            word_count = SR_GetEALength(insn_stream, 4);
+            break;
+        default:
+            return 0;
+    }
+
+    /* Get the opcode past current 2-byte instruction */
+    next_opcode = BE16(insn_stream[word_count]);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
+}
+
+static uint8_t SR_TestOpcode16B(uint16_t *insn_stream)
+{
+    uint16_t next_opcode;
+    uint8_t mask = 0;
+
+    /* Get the opcode past current 2-byte instruction */
+    next_opcode = BE16(insn_stream[1]);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
+}
+
+static uint8_t SR_TestOpcode32B(uint16_t *insn_stream)
+{
+    uint16_t next_opcode;
+    uint8_t mask = 0;
+
+    /* Get the opcode past current 4-byte instruction */
+    next_opcode = BE16(insn_stream[2]);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
+}
+
+static uint8_t SR_TestOpcode48B(uint16_t *insn_stream)
+{
+    uint16_t next_opcode;
+    uint8_t mask = 0;
+
+    /* Get the opcode past current 4-byte instruction */
+    next_opcode = BE16(insn_stream[3]);
+
+    /* Fetch correct table baset on bits 12..15 of the opcode */
+    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
+
+    /* Search within table until SME_END is found */
+    while (e->me_Type != SME_END)
+    {
+        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
+        {
+            /* Don't nest. Check only the SME_MASK type */
+            if (e->me_Type == SME_MASK)
+                mask = e->me_SRMask;
+            break;
+        }
+        e++;
+    }
+
+    return mask;
+}
 
 static uint8_t SR_TestBranch(uint16_t *insn_stream)
 {
