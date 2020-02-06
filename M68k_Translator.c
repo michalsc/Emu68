@@ -565,10 +565,17 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
 
         uintptr_t line_length = (uintptr_t)end - (uintptr_t)arm_code;
+#ifdef __aarch64__
+    line_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
+#else
         line_length = (line_length + 31 + sizeof(struct M68KTranslationUnit)) & ~31;
-
+#endif
         do {
+#ifdef __aarch64__
+            unit = tlsf_malloc_aligned(jit_tlsf, line_length, 64);
+#else
             unit = tlsf_malloc_aligned(jit_tlsf, line_length, 32);
+#endif
             if (unit == NULL)
             {
                 extern uint32_t last_PC;

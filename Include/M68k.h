@@ -35,7 +35,12 @@ struct M68KTranslationUnit {
     uint64_t        mt_UseCount;
     void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
-    uint32_t        mt_ARMCode[] __attribute__((aligned(32)));
+    uint32_t        mt_ARMCode[]
+#ifdef __aarch64__
+    __attribute__((aligned(64)));
+#else
+     __attribute__((aligned(32)));
+#endif
 };
 
 struct M68KState
