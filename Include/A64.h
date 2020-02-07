@@ -141,6 +141,8 @@ static inline uint32_t brk(uint16_t imm16) { return I32(0xd4200000 | (imm16 << 5
 static inline uint32_t hlt(uint16_t imm16) { return I32(0xd4400000 | (imm16 << 5)); }
 static inline uint32_t udf(uint16_t imm16) { return hlt(imm16); }
 static inline uint32_t hint(uint8_t h) { return I32(0xd503201f | ((h & 0x7f) << 5)); }
+static inline uint32_t get_nzcv(uint8_t rt) { return mrs(rt, 3, 3, 4, 2, 0); }
+static inline uint32_t set_nzcv(uint8_t rt) { return msr(rt, 3, 3, 4, 2, 0); }
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
@@ -474,6 +476,45 @@ static inline uint32_t rev32(uint8_t rd, uint8_t rn) { return I32(0xdac00800 | (
 static inline uint32_t rev64(uint8_t rd, uint8_t rn) { return I32(0xdac00c00 | (rd & 31) | ((rn & 31) << 5)); }
 
 #include <RegisterAllocator.h>
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    *not_done = 15;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+    *ptr++ = bic_immed(cc, cc, 2, 0);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    *not_done = 0;
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = ror(tmp_reg, tmp_reg, 30);
+    *ptr++ = bfi(cc, tmp_reg, 2, 2);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    *not_done = 0;
+    return ptr;
+}
 
 static inline __attribute__((always_inline))
 uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)

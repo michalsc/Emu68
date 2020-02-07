@@ -405,6 +405,30 @@ static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_
 #include <RegisterAllocator.h>
 
 static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    *not_done = 15;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    *not_done = 15;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    *not_done = 12;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
 uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
 {
     *ptr++ = bic_immed(cc, cc, flags);
