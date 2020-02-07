@@ -74,12 +74,12 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
             if ((tmp & 0x38) == 0) {
                 loaded_in_dest = 1;
                 tmp_reg = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);        
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
             }
             else if ((tmp & 0x38) == 0x08) {
                 loaded_in_dest = 1;
                 tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);        
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
             }
         }
     }
@@ -143,11 +143,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
         if (update_mask)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
 
             if (is_load_immediate) {
                 int32_t tmp_immediate = 0;
-
+                ptr = EMIT_ClearFlags(ptr, cc, update_mask);
                 switch (size)
                 {
                     case 4:
@@ -184,10 +183,19 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
 #else
                 *ptr++ = cmp_immed(tmp_reg, 0);
 #endif
-                if (update_mask & SR_N)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-                if (update_mask & SR_Z)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                uint8_t not_done;
+                ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+
+                if (not_done)
+                {
+                    update_mask &= not_done;
+
+                    ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+                    if (update_mask & SR_Z)
+                        ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                    if (update_mask & SR_N)
+                        ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                }
             }
         }
     }
