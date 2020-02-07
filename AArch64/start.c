@@ -415,6 +415,9 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
     asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
     asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+
+    uint64_t tmp_reg;
+    asm volatile("ldr %0, %1; msr tpidr_EL0, %0":"=r"(tmp_reg):"m"(ctx->SR));
 }
 
 void M68K_SaveContext(struct M68KState *ctx)
@@ -447,6 +450,9 @@ void M68K_SaveContext(struct M68KState *ctx)
     asm volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
     asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
     asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+
+    uint64_t tmp_reg;
+    asm volatile("mrs %0, tpidr_EL0; str %0, %1":"=r"(tmp_reg):"m"(ctx->SR));
 }
 
 void M68K_PrintContext(struct M68KState *m68k)
