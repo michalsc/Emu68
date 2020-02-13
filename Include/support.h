@@ -175,9 +175,9 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
 void kprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, ...);
 void vkprintf(const char * restrict format, va_list args);
 void kprintf(const char * restrict format, ...);
-void arm_flush_cache(intptr_t addr, uint32_t length);
-void arm_icache_invalidate(intptr_t addr, uint32_t length);
-void arm_dcache_invalidate(intptr_t addr, uint32_t length);
+void arm_flush_cache(uintptr_t addr, uint32_t length);
+void arm_icache_invalidate(uintptr_t addr, uint32_t length);
+void arm_dcache_invalidate(uintptr_t addr, uint32_t length);
 const char *remove_path(const char *in);
 size_t strlen(const char *c);
 int strcmp(const char *s1, const char *s2);
