@@ -473,6 +473,66 @@ static inline uint32_t rev16_64(uint8_t rd, uint8_t rn) { return I32(0xdac00400 
 static inline uint32_t rev32(uint8_t rd, uint8_t rn) { return I32(0xdac00800 | (rd & 31) | ((rn & 31) << 5)); }
 static inline uint32_t rev64(uint8_t rd, uint8_t rn) { return I32(0xdac00c00 | (rd & 31) | ((rn & 31) << 5)); }
 
+/* Floating point */
+static inline uint32_t fabsd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e60c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t fabss(uint8_t v_dst, uint8_t v_src) { return I32(0x1e20c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t faddd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e602800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+static inline uint32_t fadds(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e202800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+static inline uint32_t fcmpd(uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x1e602000 | ((v_dst & 31) << 5) | ((v_src & 31) << 16)); }
+static inline uint32_t fcmps(uint8_t v_dst, uint8_t v_src) { return INSN_TO_LE(0x1e202000 | ((v_dst & 31) << 5) | ((v_src & 31) << 16)); }
+static inline uint32_t fcmpzd(uint8_t v_src) { return INSN_TO_LE(0x1e602008 | ((v_src & 31) << 5)); }
+static inline uint32_t fcmpzs(uint8_t v_src) { return INSN_TO_LE(0x1e202008 | ((v_src & 31) << 5)); }
+static inline uint32_t fcpyd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e604000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t fcvtds(uint8_t d_dst, uint8_t s_src) { return I32(0x1e22c000 | (d_dst & 31) | ((s_src & 31) << 5)); }
+static inline uint32_t fcvtsd(uint8_t s_dst, uint8_t d_src) { return I32(0x1e624000 | (s_dst & 31) | ((d_src & 31) << 5)); }
+static inline uint32_t fdivd(uint8_t v_dst, uint8_t v_dividend, uint8_t v_divisor) { return I32(0x1e601800 | (v_dst & 31) | ((v_dividend & 31) << 5) | ((v_divisor & 31) << 16)); }
+static inline uint32_t fldd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) < 12)); }
+static inline uint32_t flds(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) < 12)); }
+
+enum TS { TS_B = 1, TS_H = 2, TS_S = 4, TS_D = 8 };
+static inline uint32_t mov_reg_to_simd(uint8_t v_dst, enum TS ts, uint8_t index, uint8_t rn) { return I32(0x4e001c00 | (ts == TS_B ? ((index & 0xf) << 17) : ts == TS_H ? ((index & 7) << 18) : ts == TS_S ? ((index & 3) << 19) : ts == TS_D ? ((index & 1) << 20) : 0) | ((ts & 31) << 16) | (v_dst & 31) | ((rn & 31) << 5)); }
+static inline uint32_t mov_simd_to_reg(uint8_t rd, uint8_t v_src, enum TS ts, uint8_t index) { return I32(ts == TS_D ? 0x4e003c00 : 0x0e003c00 | (ts == TS_B ? ((index & 0xf) << 17) : ts == TS_H ? ((index & 7) << 18) : ts == TS_S ? ((index & 3) << 19) : ts == TS_D ? ((index & 1) << 20) : 0) | ((ts & 31) << 16) | (rd & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t fmsr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_S, 0, src); }
+
+static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e600800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t fsqrtd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e61c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e603800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+static inline uint32_t fstd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) < 12)); }
+static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) < 12)); }
+
+#if 0
+static inline uint32_t fmsr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return INSN_TO_LE(0x0e000a10 | (cc << 28) | ((v_dst >> 1) << 16) | (src << 12) | ((v_dst & 1) << 7)); }
+static inline uint32_t fmsr(uint8_t v_dst, uint8_t src) { return fmsr_cc(ARM_CC_AL, v_dst, src); }
+static inline uint32_t fmdhr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return INSN_TO_LE(0x0e200b10 | (cc << 28) | (v_dst << 16) | (src << 12)); }
+static inline uint32_t fmdhr(uint8_t v_dst, uint8_t src) { return fmdhr_cc(ARM_CC_AL, v_dst, src); }
+static inline uint32_t fmdlr_cc(uint8_t cc, uint8_t v_dst, uint8_t src) { return INSN_TO_LE(0x0e000b10 | (cc << 28) | (v_dst << 16) | (src << 12)); }
+static inline uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return fmdlr_cc(ARM_CC_AL, v_dst, src); }
+static inline uint32_t fmdrr_cc(uint8_t cc, uint8_t v_dst, uint8_t src_hi, uint8_t src_lo) { return INSN_TO_LE(0x0c400b10 | (cc << 28) | (v_dst) | (src_lo << 12) | (src_hi << 16)); }
+static inline uint32_t fmdrr(uint8_t v_dst, uint8_t src_hi, uint8_t src_lo) { return fmdrr_cc(ARM_CC_AL, v_dst, src_hi, src_lo); }
+enum VFP_REG { FPSID = 0, FPSCR = 1, FPEXT = 8 };
+static inline uint32_t fmrx_cc(uint8_t cc, enum VFP_REG sr, uint8_t src) { return INSN_TO_LE(0x0ee00a10 | (cc << 28) | (src << 12) | (sr << 16)); }
+static inline uint32_t fmrx(enum VFP_REG sr, uint8_t src) { return fmrx_cc(ARM_CC_AL, sr, src); }
+static inline uint32_t fmxr_cc(uint8_t cc, uint8_t dest, enum VFP_REG sr) { return INSN_TO_LE(0x0ef00a10 | (cc << 28) | (dest << 12) | (sr << 16)); }
+static inline uint32_t fmxr(uint8_t dest, enum VFP_REG sr) { return fmxr_cc(ARM_CC_AL, dest, sr); }
+static inline uint32_t fmov_cc_imm(uint8_t cc, uint8_t dst, uint8_t imm) { return INSN_TO_LE(0x0eb00b00 | (cc << 28) | ((imm >> 4) << 16) | (dst << 12) | (imm & 0xf)); }
+static inline uint32_t fmov_imm(uint8_t dst, uint8_t imm) { return fmov_cc_imm(ARM_CC_AL, dst, imm); }
+static inline uint32_t fmov_i64(uint8_t dst, uint8_t imm, uint8_t cmode) { return INSN_TO_LE(0xf2800e30 | ((imm >> 7) << 24) | (((imm >> 4) & 7) << 16) | (dst << 12) | (imm & 0xf) | (cmode << 8)); }
+static inline uint32_t fmrrd_cc(uint8_t cc, uint8_t dst_hi, uint8_t dst_lo, uint8_t v_src) { return INSN_TO_LE(0x0c500b10 | (cc << 28) | (v_src) | (dst_lo << 12) | (dst_hi << 16)); }
+static inline uint32_t fmrrd(uint8_t dst_hi, uint8_t dst_lo, uint8_t v_src) { return fmrrd_cc(ARM_CC_AL, dst_hi, dst_lo, v_src); }
+static inline uint32_t fmrs_cc(uint8_t cc, uint8_t dst, uint8_t v_src) { return INSN_TO_LE(0x0e100a10 | (cc << 28) | ((v_src >> 1) << 16) | (dst << 12) | ((v_src & 1) << 7)); }
+static inline uint32_t fmrs(uint8_t dst, uint8_t v_src) { return fmrs_cc(ARM_CC_AL, dst, v_src); }
+static inline uint32_t fmstat_cc(uint8_t cc) { return INSN_TO_LE(0x0ef1fa10 | (cc << 28)); }
+static inline uint32_t fmstat() { return fmstat_cc(ARM_CC_AL); }
+static inline uint32_t fsitod_cc(uint8_t cc, uint8_t d_dst, uint8_t s_src) { return INSN_TO_LE(0x0eb80bc0 | (cc << 28) | (d_dst << 12) | (s_src >> 1) | (s_src & 1 ? 0x20:0)); }
+static inline uint32_t fsitod(uint8_t d_dst, uint8_t s_src) { return fsitod_cc(ARM_CC_AL, d_dst, s_src); }
+static inline uint32_t ftosid_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0b40 | (cc << 28) | ((s_dst >> 1) << 12) | d_src | (s_dst & 1 ? (1 << 22):0)); }
+static inline uint32_t ftosid(uint8_t s_dst, uint8_t d_src) { return ftosid_cc(ARM_CC_AL, s_dst, d_src); }
+static inline uint32_t ftosidrz_cc(uint8_t cc, uint8_t s_dst, uint8_t d_src) { return INSN_TO_LE(0x0ebd0bc0 | (cc << 28) | ((s_dst >> 1) << 12) | d_src | (s_dst & 1 ? (1 << 22):0)); }
+static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_cc(ARM_CC_AL, s_dst, d_src); }
+#endif
+
+
 #include <RegisterAllocator.h>
 
 static inline __attribute__((always_inline))
