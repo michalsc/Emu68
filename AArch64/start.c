@@ -278,6 +278,8 @@ void boot(void *dtree)
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
+    asm volatile("mrs %0, CTR_EL0":"=r"(tmp));
+
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
 
@@ -295,6 +297,7 @@ void boot(void *dtree)
 
     kprintf("\033[2J[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %p\n", _start);
+    kprintf("[BOOT] CTR_EL0=%08x\n", tmp);
 
     print_build_id();
 
