@@ -379,45 +379,68 @@ void kprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format,
 
 #ifdef __aarch64__
 
-void arm_flush_cache(intptr_t addr, uint32_t length)
+void arm_flush_cache(uintptr_t addr, uint32_t length)
 {
-    length = (length + 63) & ~63;
-    while (length)
+    int line_size = 0;
+    uintptr_t top_addr = addr + length;
+
+    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+
+    line_size = (line_size >> 16) & 15;
+    line_size = 4 << line_size;
+
+    addr = addr & ~(line_size - 1);
+    while (addr < top_addr)
     {
             __asm__ __volatile__("dc civac, %0"::"r"(addr));
-            addr += 64;
-            length -= 64;
+            addr += line_size;
     }
     __asm__ __volatile__("dsb sy");
 }
 
-void arm_icache_invalidate(intptr_t addr, uint32_t length)
+void arm_icache_invalidate(uintptr_t addr, uint32_t length)
 {
-    length = (length + 63) & ~63;
-    while (length)
+    int line_size = 0;
+    uintptr_t top_addr = addr + length;
+
+    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+
+    line_size = line_size & 15;
+    line_size = 4 << line_size;
+
+    addr = addr & ~(line_size - 1);
+
+    while (addr < top_addr)
     {
             __asm__ __volatile__("ic ivau, %0"::"r"(addr));
-            addr += 64;
-            length -= 64;
+            addr += line_size;
     }
-    __asm__ __volatile__("dsb sy");
+    __asm__ __volatile__("isb sy");
 }
 
-void arm_dcache_invalidate(intptr_t addr, uint32_t length)
+void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
 {
-    length = (length + 63) & ~63;
-    while (length)
+    int line_size = 0;
+    uintptr_t top_addr = addr + length;
+
+    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+
+    line_size = (line_size >> 16) & 15;
+    line_size = 4 << line_size;
+
+    addr = addr & ~(line_size - 1);
+
+    while (addr < top_addr)
     {
             __asm__ __volatile__("dc ivac, %0"::"r"(addr));
-            addr += 64;
-            length -= 64;
+            addr += line_size;
     }
     __asm__ __volatile__("dsb sy");
 }
 
 #else
 
-void arm_flush_cache(intptr_t addr, uint32_t length)
+void arm_flush_cache(uintptr_t addr, uint32_t length)
 {
         length = (length + 31) & ~31;
         while (length)
@@ -429,7 +452,7 @@ void arm_flush_cache(intptr_t addr, uint32_t length)
         __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
 }
 
-void arm_icache_invalidate(intptr_t addr, uint32_t length)
+void arm_icache_invalidate(uintptr_t addr, uint32_t length)
 {
     length = (length + 31) & ~31;
         while (length)
@@ -441,7 +464,7 @@ void arm_icache_invalidate(intptr_t addr, uint32_t length)
         __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
 }
 
-void arm_dcache_invalidate(intptr_t addr, uint32_t length)
+void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
 {
     length = (length + 31) & ~31;
         while (length)
