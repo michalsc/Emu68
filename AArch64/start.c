@@ -113,7 +113,7 @@ asm("   .section .startup           \n"
     MMU Map is prepared. We can continue
 */
 
-"       ldr     x9, =_boot          \n"
+"       ldr     x9, =_boot          \n" /* Set up stack */
 "       mov     sp, x9              \n"
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
@@ -185,6 +185,13 @@ asm(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
 "move_kernel:                       \n" /* x0: from, x1: to */
+"       adrp    x2, _boot           \n"
+"       mov     w3, w2              \n"
+"1:     sub     x2, x2, #32         \n"
+"       dc      civac, x2           \n"
+"       sub     w3, w3, #32         \n"
+"       cbnz    w3, 1b              \n"
+"       dsb     sy                  \n"
 "       movk    x0, #0xffff, lsl #32\n" /* x0: phys from in topmost part of addr space */
 "       movk    x0, #0xffff, lsl #48\n"
 "       movk    x1, #0xffff, lsl #32\n" /* x1: phys to in topmost part of addr space */
@@ -193,7 +200,7 @@ asm(
 "       mov     x3, x0              \n"
 "       mov     x4, x1              \n"
 "       sub     x7, x1, x0          \n" /* x7: delta = (to - from) */
-"1:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location */
+"2:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location */
 "       stp     x5, x6, [x4], #16   \n"
 "       ldp     x5, x6, [x3], #16   \n"
 "       stp     x5, x6, [x4], #16   \n"
@@ -202,7 +209,7 @@ asm(
 "       ldp     x5, x6, [x3], #16   \n"
 "       stp     x5, x6, [x4], #16   \n"
 "       sub     x2, x2, #64         \n"
-"       cbnz    x2, 1b              \n"
+"       cbnz    x2, 2b              \n"
 
 /* Fix kernel MMU table */
 
@@ -312,7 +319,7 @@ void boot(void *dtree)
         int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
         int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
         int addr_pos = address_cells - 1;
-        int size_pos = address_cells + size_cells - 1;
+        int size_pos = addr_pos + size_cells;
 
         top_of_ram = BE32(range[addr_pos]) + BE32(range[size_pos]);
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
@@ -340,7 +347,7 @@ void boot(void *dtree)
             Copy the kernel memory block from origin to new destination, use the top of
             the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        arm_flush_cache((intptr_t)_boot & 0xffe00000, KERNEL_SYS_PAGES << 21);
+        arm_flush_cache((intptr_t)_boot & 0xffffffff00000000, KERNEL_SYS_PAGES << 21);
 
         /*
             We use routine in assembler here, because we will move both kernel code *and* stack.

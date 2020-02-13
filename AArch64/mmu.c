@@ -57,7 +57,7 @@ static void *get_4k_page()
             uintptr_t mmu_ploc = BE32(range[addr_pos]) + BE32(range[size_pos]);
 
             /*
-                Perform OR of the range address with 0xffffffff << 32, that way it will 
+                Perform OR of the range address with 0xffffffff << 32, that way it will
                 be 1:1 mapped to VA in an uncached region
             */
             mmu_ploc |= 0xffffffff00000000;
@@ -192,6 +192,7 @@ void mmu_init()
     mmu_user_L1.mp_entries[1] = 0;
     mmu_user_L1.mp_entries[2] = 0;
     mmu_user_L1.mp_entries[3] = 0;
+
     arm_flush_cache((intptr_t)&mmu_user_L1, sizeof(mmu_user_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L1, sizeof(mmu_kernel_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L2, sizeof(mmu_kernel_L2));
@@ -221,12 +222,12 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     if ((tbl_2 & 3) == 0)
     {
         DMAP(kprintf("L1 is empty. Creating L2 directory\n"));
-        
+
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = 0;
-        
+
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
 
     }
@@ -238,7 +239,7 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = (tbl_2 & 0xc0000fff) + (i << 21);
-        
+
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
     }
     else
@@ -287,12 +288,12 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     if ((tbl_2 & 3) == 0)
     {
         DMAP(kprintf("L1 is empty. Creating L2 directory\n"));
-        
+
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = 0;
-        
+
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
 
     }
@@ -304,7 +305,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = (tbl_2 & 0xc0000fff) + (i << 21);
-        
+
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
     }
     else
@@ -318,16 +319,16 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
     DMAP(kprintf("L2[%d] = %016x\n", idx_l2, p->mp_entries[idx_l2]));
     uint64_t tbl_3 = tbl->mp_entries[idx_l2];
-    
+
     if ((tbl_3 & 3) == 0)
     {
         DMAP(kprintf("L2 is empty. Creating L3 directory\n"));
-        
+
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = 0;
-        
+
         tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p & 0xffffffff);
     }
     else if ((tbl_3 & 3) == 1)
@@ -338,7 +339,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = (tbl_3 & 0xffe00fff) + (i << 12);
-        
+
         tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p & 0xffffffff);
     }
     else
