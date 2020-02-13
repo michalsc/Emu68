@@ -1122,6 +1122,56 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
     return ptr;
 }
 
+#if 0
+MRS X0, CLIDR_EL1
+AND W3, W0, #0x07000000 LSR W3, W3, #23
+CBZ W3, Finished
+MOV W10, #0
+MOV W8, #1
+// Get 2 x Level of Coherence
+// W10 = 2 x cache level
+// W8 = constant 0b1
+// Calculate 3 x cache level
+// extract 3-bit cache type for this level
+// No data or unified cache at this level // Select this cache level
+// Synchronize change of CSSELR
+// Read CCSIDR
+// W2 = log2(linelen)-4
+// W2 = log2(linelen)
+// W4 = max way number, right aligned
+// W5 = 32-log2(ways), bit position of way in DC operand // W9 = max way number, aligned to position in DC operand // W16 = amount to decrement way number per iteration
+// W7 = max set number, right aligned
+// W7 = max set number, aligned to position in DC operand // W17 = amount to decrement set number per iteration
+// W11 = combine way number and cache number ...
+// ... and set number for DC operand
+// Do data cache clean by set and way
+// Decrement set number
+// Decrement way number
+// Increment 2 x cache level
+// Ensure completion of previous cache maintenance instruction
+Loop1: ADD
+LSR W1, W0, W2
+W2, W10, W10, LSR #1
+AND W1, W1, #0x7 CMP W1, #2
+B.LT Skip
+MSR CSSELR_EL1, X10 ISB
+MRS X1, CCSIDR_EL1 AND W2, W1, #7
+ADD W2, W2, #4
+UBFX W4, W1, #3, #10 CLZ W5, W4
+LSL W9, W4, W5 LSL W16, W8, W5
+Loop2: UBFX
+LSL W7, W7, W2
+W7, W1, #13, #15 LSL W17, W8, W2
+Loop3: ORR
+ORR W11, W11, W7
+DC CSW, X11 SUBS W7, W7, W17 B.GE Loop3
+SUBS X9, X9, X16 B.GE Loop2
+Skip: ADD
+CMP W3, W10
+DSB
+B.GT Loop1 Finished:
+#endif
+
 /* Clean and invalidate entire data cache, code after ARMv7 architecture reference manual */
 void __attribute__((naked)) clear_entire_dcache(void)
 {
