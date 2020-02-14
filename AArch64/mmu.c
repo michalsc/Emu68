@@ -337,7 +337,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
-            p->mp_entries[i] = (tbl_3 & 0xffe00fff) + (i << 12);
+            p->mp_entries[i] = 3 | ((tbl_3 & 0xffe00fff) + (i << 12));
         
         tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p & 0xffffffff);
     }
@@ -349,7 +349,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     }
 
     p->mp_entries[idx_l3] = phys & 0x0000fffffffff000;
-    p->mp_entries[idx_l3] |= attr_low | MMU_PAGE;
+    p->mp_entries[idx_l3] |= attr_low | 3; //MMU_PAGE;
     p->mp_entries[idx_l3] |= ((uint64_t)attr_high) << 48;
 
     DMAP(kprintf("L3[%d] = %016x\n", idx_l3, p->mp_entries[idx_l3]));
