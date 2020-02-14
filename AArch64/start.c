@@ -75,7 +75,7 @@ asm("   .section .startup           \n"
 "2:                                 \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
-"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(2)|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
+"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR(2)|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
 "       add     x9, x9, x10         \n"
@@ -91,7 +91,7 @@ asm("   .section .startup           \n"
 "       orr     x9, x17, #3         \n" /* valid + page tagle */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
-"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(2)|MMU_PAGE) "\n" /* Prepare 1:1 uncached map at the top of kernel address space */
+"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR(2)|MMU_PAGE) "\n" /* Prepare 1:1 uncached map at the top of kernel address space */
 "       str     x9, [x16, #4064]    \n"
 "       add     x9, x9, x10         \n"
 "       str     x9, [x16, #4072]    \n"
@@ -102,7 +102,7 @@ asm("   .section .startup           \n"
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       sub     x16, x16, #0x80000  \n" /* subtract the kernel offset to get the 2MB page */
-"       movk    x16, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(0)|MMU_PAGE) "\n" /* set page attributes */
+"       movk    x16, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* set page attributes */
 "       mov     x9, #" xstr(KERNEL_SYS_PAGES) "\n" /* Enable all pages used by the kernel */
 "1:     str     x16, [x17], #8      \n" /* Store pages in the L2 map */
 "       add     x16, x16, #0x200000 \n" /* Advance phys address by 2MB */
@@ -326,9 +326,9 @@ void boot(void *dtree)
 
         kprintf("[BOOT] System memory: %p-%p\n", BE32(range[addr_pos]), BE32(range[addr_pos]) + BE32(range[size_pos]) - 1);
 
-        mmu_map(range[addr_pos], range[addr_pos], range[size_pos], MMU_ACCESS | MMU_ISHARE | MMU_NS | MMU_ATTR(0), 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_NS | MMU_ATTR(0), 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_NS | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        mmu_map(range[addr_pos], range[addr_pos], range[size_pos], MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
         jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
 
