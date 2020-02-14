@@ -101,7 +101,7 @@ asm("   .section .startup           \n"
 "       str     x9, [x16, #4088]    \n"
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
-"       sub     x16, x16, #0x80000  \n" /* subtract the kernel offset to get the 2MB page */
+"       and     x16, x16, #~((1 << 21) - 1) \n" /* get the 2MB page */
 "       movk    x16, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_NS|MMU_ATTR(0)|MMU_PAGE) "\n" /* set page attributes */
 "       mov     x9, #" xstr(KERNEL_SYS_PAGES) "\n" /* Enable all pages used by the kernel */
 "1:     str     x16, [x17], #8      \n" /* Store pages in the L2 map */
