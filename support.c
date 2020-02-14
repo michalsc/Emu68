@@ -389,6 +389,7 @@ void arm_flush_cache(uintptr_t addr, uint32_t length)
     line_size = (line_size >> 16) & 15;
     line_size = 4 << line_size;
 
+    __asm__ __volatile__("dsb sy");
     addr = addr & ~(line_size - 1);
     while (addr < top_addr)
     {
@@ -410,6 +411,7 @@ void arm_icache_invalidate(uintptr_t addr, uint32_t length)
 
     addr = addr & ~(line_size - 1);
 
+    __asm__ __volatile__("dsb sy");
     while (addr < top_addr)
     {
             __asm__ __volatile__("ic ivau, %0"::"r"(addr));
@@ -430,6 +432,7 @@ void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
 
     addr = addr & ~(line_size - 1);
 
+    __asm__ __volatile__("dsb sy");
     while (addr < top_addr)
     {
             __asm__ __volatile__("dc ivac, %0"::"r"(addr));
