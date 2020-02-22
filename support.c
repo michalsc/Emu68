@@ -417,7 +417,7 @@ void arm_icache_invalidate(uintptr_t addr, uint32_t length)
             __asm__ __volatile__("ic ivau, %0"::"r"(addr));
             addr += line_size;
     }
-    __asm__ __volatile__("isb sy");
+    __asm__ __volatile__("dsb ish; isb sy");
 }
 
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
