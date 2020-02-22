@@ -219,7 +219,7 @@ uint32_t set_clock_rate(uint32_t clock_id, uint32_t speed)
     FBReq[5] = LE32(clock_id);
     FBReq[6] = LE32(speed);
     FBReq[7] = 0;
-    FBReq[7] = 0;
+    FBReq[8] = 0;
 
     arm_flush_cache((intptr_t)FBReq, 36);
     mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
