@@ -736,7 +736,7 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
     return ptr;
 }
 
-#if 0
+#if 1
 static inline __attribute__((always_inline))
 uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
 {
