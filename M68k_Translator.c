@@ -403,6 +403,31 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
         while (*m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
         {
+            if (insn_count && ((uintptr_t)m68kcodeptr < (uintptr_t)local_state[insn_count-1].mls_M68kPtr))
+            {
+                int found = -1;
+//kprintf("going backwards... %p -> %p\n", local_state[insn_count-1].mls_M68kPtr, m68kcodeptr);
+                for (int i=insn_count - 1; i >= 0; --i)
+                {
+                    if (local_state[i].mls_M68kPtr == m68kcodeptr)
+                    {
+//                        kprintf("PC match at i=%d, %d instructions\n", i, insn_count - i - 1);
+                        found = i;
+                        break;
+                    }
+                }
+
+                if (found > 0)
+                {
+                    if ((insn_count - found - 1) > (Options.M68K_TRANSLATION_DEPTH - insn_count))
+                    {
+//                        kprintf("not enough place for completion of the loop\n");
+                        break;
+                    }
+                }
+
+            }
+
             if (m68kcodeptr < m68k_low)
                 m68k_low = m68kcodeptr;
             if (m68kcodeptr + 16 > m68k_high)
