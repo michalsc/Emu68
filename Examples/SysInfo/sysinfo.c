@@ -22,7 +22,7 @@ int __start(uint32_t p asm("d0"), uint16_t *fb asm("a0"))
   framebuffer = fb;
   pitch = p;
 
-  _main(200000);
+  _main(3000000);
 }
 
 uint16_t *framebuffer = (void*)0;
@@ -41,7 +41,7 @@ void put_char(uint8_t c)
     {
     uint16_t *pos_in_image = (uint16_t*)((uint32_t)framebuffer + (text_y * 16 + 5)* pitch);
     pos_in_image += 4 + text_x * 8;
-    
+
     if (c == 10) {
 	text_x = 0;
 	text_y++;
@@ -693,9 +693,8 @@ void _main (int n)
     Microseconds = (User_Time * 100) / Number_Of_Runs;
     Megabytes_Per_Second = Number_Of_Runs * 128 / ((1024 * User_Time)/1000);
     Megabytes_Per_Second = (1000 * Megabytes_Per_Second) / 1024;
-    
   }
-  
+
   kprintf("[SysInfo] Starting SysInfo like Dhrystone benchmark.\n[SysInfo] Performing %d loops\n", n);
   Number_Of_Runs = n;
   kprintf("[SysInfo] Execution starts\n");
@@ -716,15 +715,8 @@ void _main (int n)
     kprintf ("%d.%02d \n", Microseconds / 100, Microseconds % 100);
 
     kprintf ("[SysInfo] Memory performance in BUSTEST:              ");
-    kprintf ("%d MiB/s\n", Megabytes_Per_Second);    
+    kprintf ("%d MiB/s\n", Megabytes_Per_Second);
 
-
-  if (User_Time < Too_Small_Time)
-  {
-    kprintf ("[SysInfo] Measured time too small to obtain meaningful results\n");
-    kprintf ("[SysInfo] Please increase number of runs\n");
-    kprintf ("\n");
-  }
 
   {
     uint32_t Microseconds = (User_Time * 100) / Number_Of_Runs;
@@ -737,6 +729,12 @@ void _main (int n)
     kprintf ("%d \n", Dhrystones_Per_Second);
     kprintf ("[SysInfo] SysInfo MIPS      :                         ");
     kprintf ("%d.%02d \n", MIPS / 100, MIPS % 100);
-    
+    if (User_Time < Too_Small_Time)
+    {
+        kprintf ("[SysInfo]   Measured time too small to obtain meaningful results\n");
+        kprintf ("[SysInfo]   Please increase number of runs\n");
+    }
+
+
   }
 }
