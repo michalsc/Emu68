@@ -128,11 +128,11 @@ static inline uint32_t cbnz(uint8_t rt, uint32_t offset19) { return I32(0x350000
 static inline uint32_t cbnz_64(uint8_t rt, uint32_t offset19) { return I32(0xb5000000 | ((offset19 & 0x7ffff) << 5) | (rt & 31)); }
 static inline uint32_t cbz(uint8_t rt, uint32_t offset19) { return I32(0x34000000 | ((offset19 & 0x7ffff) << 5) | (rt & 31)); }
 static inline uint32_t cbz_64(uint8_t rt, uint32_t offset19) { return I32(0xb4000000 | ((offset19 & 0x7ffff) << 5) | (rt & 31)); }
-static inline uint32_t ret() { return I32(0xd62f0000 | (30 << 5));}
-static inline uint32_t ret_reg(uint8_t rt) { return I32(0xd62f0000 | ((rt & 31) << 5));}
+static inline uint32_t ret() { return I32(0xd65f0000 | (30 << 5));}
+static inline uint32_t ret_reg(uint8_t rt) { return I32(0xd65f0000 | ((rt & 31) << 5));}
 static inline uint32_t tbnz(uint8_t rt, uint8_t bit, uint16_t offset) { return I32(bit & 32 ? 0xb7000000 : 0x37000000 | ((bit & 31) << 19) | ((offset & 0x3fff) << 5) | (rt & 31)); }
 static inline uint32_t tbz(uint8_t rt, uint8_t bit, uint16_t offset) { return I32(bit & 32 ? 0xb6000000 : 0x36000000 | ((bit & 31) << 19) | ((offset & 0x3fff) << 5) | (rt & 31)); }
-static inline uint32_t bx_lr() { return br(30); }
+static inline uint32_t bx_lr() { return ret(); }
 
 /* System instructions */
 static inline uint32_t mrs(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { return I32(0xd5300000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
