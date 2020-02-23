@@ -51,7 +51,12 @@ asm("   .section .startup           \n"
 ".align 5                           \n"
 
 "_start:                            \n"
-"       mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
+"       mrs     x9, MPIDR_EL1       \n" /* Non BSP cores should be sleeping, but put them to sleep if case they were not */
+"       ands    x9, x9, #3          \n"
+"       b.eq    2f                  \n"
+"1:     wfe                         \n"
+"       b 1b                        \n"
+"2:     mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
 "       and     x9, x9, #0xc        \n"
 "       cmp     x9, #8              \n"
 "       b.eq    leave_EL2           \n" /* In case of EL2 or EL3 switch back to EL1 */
@@ -88,10 +93,10 @@ asm("   .section .startup           \n"
 "       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
 "       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
 
-"       orr     x9, x17, #3         \n" /* valid + page tagle */
+"       orr     x9, x17, #3         \n" /* valid + page table */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
-"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR(2)|MMU_PAGE) "\n" /* Prepare 1:1 uncached map at the top of kernel address space */
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map at the top of kernel address space */
 "       str     x9, [x16, #4064]    \n"
 "       add     x9, x9, x10         \n"
 "       str     x9, [x16, #4072]    \n"
@@ -211,41 +216,50 @@ asm(
 "       sub     x2, x2, #64         \n"
 "       cbnz    x2, 2b              \n"
 
+"       mrs     x5, TTBR1_EL1       \n"
+"       add     x5, x5, x7          \n"
+"       msr     TTBR1_EL1, x5       \n" /* Load new TTBR1 */
+"       mrs     x5, TTBR0_EL1       \n"
+"       add     x5, x5, x7          \n"
+"       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
+
+"       dsb     ish                 \n"
+"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       isb                         \n"
+
 /* Fix kernel MMU table */
 
-"       adrp    x2, mmu_kernel_L1   \n" /* Take address of L1 MMU map */
-"       mov     w5, w2              \n" /* Copy it to x5 and discard the top 32 bits */
-"       add     x2, x5, x1          \n" /* Add x5 to x1 and store back in x2 - this gets phys offset of MMU map at new location */
+"       adrp    x5, _boot           \n"
+"       adr     x2, 1f              \n"
+"       orr     x2, x2, 0xffffffff00000000  \n"
+"       add     x2, x2, x7          \n"
+"       br      x2                  \n"
+"1:     mrs     x2, TTBR1_EL1       \n" /* Take address of L1 MMU map */
+"       and     x2, x2, 0xfffff000  \n" /* Discard the top 32 bits and lowest 12 bits */
+"       orr     x2, x2, 0xffffffff00000000\n" /* Go to the 1:1 map at top of ram */
 "       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
 "       add     x3, x3, x7          \n" /* Add delta */
 "       str     x3, [x2]            \n" /* Store back */
-"       adrp    x2, mmu_kernel_L2   \n" /* Take address of L2 MMU map */
-"       mov     w5, w2              \n" /* Copy it to x5 and discard the top 32 bits */
-"       add     x2, x5, x1          \n" /* Add x5 to x1 and store back in x2 - this gets phys offset of MMU map at new location */
+"       dsb     ish                 \n"
+"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       isb                         \n"
+"       and     x2, x3, 0xfffff000  \n" /* Copy L2 pointer to x5, discard the top 32 bits and bottom 12 bits*/
+"       and     x5, x5, 0xffffffff00000000 \n"
+"       orr     x2, x2, 0xffffffff00000000 \n"
 "       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
 "1:     ldr     x3, [x2]            \n" /* Get first entry - pointer to page */
 "       add     x3, x3, x7          \n" /* Add delta */
 "       str     x3, [x2], #8        \n" /* Store back */
+"       dsb     ish                 \n"
+"       tlbi    vae1, x5            \n"
+"       dsb     ish                 \n"
+"       isb                         \n"
+"       add     x5, x5, #0x200000   \n"
 "       sub     x4, x4, #1          \n" /* Repeat for all kernel pages */
 "       cbnz    x4, 1b              \n"
-
-/*
-    The user MMU table does not need to be fixed, since it has been created on the fly.
-    All is moved and fixed. Load new tables now!
-*/
-
-"       tlbi    VMALLE1             \n" /* Flush tlb */
-"       dsb     sy                  \n"
-"       adrp    x5, mmu_kernel_L1   \n"
-"       add     w5, w5, w1          \n"
-"       msr     TTBR1_EL1, x5       \n" /* Load new TTBR1 */
-"       adrp    x5, mmu_user_L1     \n"
-"       add     w5, w5, w1          \n"
-"       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
-"       tlbi    VMALLE1             \n" /* Flush tlb */
-"       isb                         \n"
-
-"       br      x30                 \n" /* Return! */
+"       ret                         \n" /* Return! */
 );
 
 #if EMU68_HOST_BIG_ENDIAN
@@ -285,8 +299,6 @@ void boot(void *dtree)
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(tmp));
-
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
 
@@ -304,7 +316,6 @@ void boot(void *dtree)
 
     kprintf("\033[2J[BOOT] Booting %s\n", bootstrapName);
     kprintf("[BOOT] Boot address is %p\n", _start);
-    kprintf("[BOOT] CTR_EL0=%08x\n", tmp);
 
     print_build_id();
 
@@ -350,7 +361,7 @@ void boot(void *dtree)
             Copy the kernel memory block from origin to new destination, use the top of
             the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        arm_flush_cache((intptr_t)_boot & 0xffffffff00000000, KERNEL_SYS_PAGES << 21);
+        arm_flush_cache((uintptr_t)_boot & 0xffffffff00000000, KERNEL_SYS_PAGES << 21);
 
         /*
             We use routine in assembler here, because we will move both kernel code *and* stack.
