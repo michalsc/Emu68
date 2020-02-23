@@ -22,7 +22,7 @@ int __start(uint32_t p asm("d0"), uint16_t *fb asm("a0"))
   framebuffer = fb;
   pitch = p;
 
-  _main(3000000);
+  _main(1000);
 }
 
 uint16_t *framebuffer = (void*)0;
@@ -673,7 +673,7 @@ uint32_t       Begin_Time,
 uint32_t	Number_Of_Runs;
 void _main (int n)
 {
-  Number_Of_Runs = 1000000;
+  Number_Of_Runs = 2000000;
   kprintf("[SysInfo] Running BUSTEST (%d loops)\n", Number_Of_Runs);
   kprintf("[SysInfo] Execution starts\n");
   Begin_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
@@ -698,14 +698,19 @@ void _main (int n)
   kprintf("[SysInfo] Starting SysInfo like Dhrystone benchmark.\n[SysInfo] Performing %d loops\n", n);
   Number_Of_Runs = n;
   kprintf("[SysInfo] Execution starts\n");
-  Begin_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
+  do {
+    Number_Of_Runs = Number_Of_Runs << 2;
+    Begin_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
 
-  SI_Start_Nr(Number_Of_Runs);
+    SI_Start_Nr(Number_Of_Runs);
 
-  End_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
-  kprintf("[SysInfo] Execution ends\n");
+    End_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
 
-  User_Time = End_Time - Begin_Time;
+    User_Time = End_Time - Begin_Time;
+  } while (User_Time < Too_Small_Time);
+
+  kprintf("[SysInfo] Execution ends, final loop count was %d\n", Number_Of_Runs);
+
 
   kprintf("[SysInfo] Begin time: %d\n", Begin_Time);
   kprintf("[SysInfo] End time: %d\n", End_Time);
