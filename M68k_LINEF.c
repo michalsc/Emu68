@@ -65,7 +65,7 @@ enum {
     C_LG7
 };
 
-static double const constants[128] = {
+static double const __attribute__((used)) constants[128] = {
     [C_PI] =        3.14159265358979323846264338327950288, /* Official */
     [C_PI_2] =      1.57079632679489661923132169163975144,
     [C_PI_4] =      0.785398163397448309615660845819875721,
