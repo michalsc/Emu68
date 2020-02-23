@@ -65,7 +65,7 @@ enum {
     C_LG7
 };
 
-static long double const constants[128] = {
+static double const constants[128] = {
     [C_PI] =        3.14159265358979323846264338327950288, /* Official */
     [C_PI_2] =      1.57079632679489661923132169163975144,
     [C_PI_4] =      0.785398163397448309615660845819875721,
@@ -274,9 +274,137 @@ double TrimDoubleRange(double a)
     return out.d;
 }
 
-void __attribute__((naked)) PolySine(void)
+#ifdef __aarch64__
+
+void PolySine(void);
+void stub_PolySine(void)
 {
     asm volatile(
+        "   .align 4                \n"
+        "PolySine:                  \n"
+        "   stp d1, d2, [sp, #-16]! \n"
+        "   str d3, [sp, #-8]!      \n"
+        "   str x0, [sp, #-8]!      \n"
+        "   ldr x0,=constants       \n"
+        "   ldp d1, d2, [x0, %0]    \n"
+        "   fmul d3, d0, d0         \n"
+        "   fmadd d2, d2, d1, d3    \n"
+        "   ldr d1, [x0, %0+16]     \n"
+        "   fmadd d1, d1, d2, d3    \n"
+        "   ldr d2, [x0, %0+24]     \n"
+        "   fmadd d2, d2, d1, d3    \n"
+        "   ldr d1, [x0, %0+32]     \n"
+        "   fmadd d1, d1, d2, d3    \n"
+        "   ldr d2, [x0, %0+40]     \n"
+        "   fmadd d2, d2, d1, d3    \n"
+        "   ldr d1, [x0, %0+48]     \n"
+        "   fmadd d1, d1, d2, d3    \n"
+        "   ldr d2, [x0, %0+56]     \n"
+        "   fmadd d2, d2, d1, d3    \n"
+        "   fmul d0, d2, d0         \n"
+        "   ldr x0, [sp], 8         \n"
+        "   ldr d3, [sp], 8         \n"
+        "   ldp d1, d2, [sp], 16    \n"
+        "   ret                     \n"
+        "   .ltorg                  \n"::"i"(C_SIN_COEFF*8)
+    );
+}
+
+void PolySineSingle(void);
+void stub_PolySineSingle(void)
+{
+    asm volatile(
+        "   .align 4                \n"
+        "PolySineSingle:            \n"
+        "   stp d1, d2, [sp, #-16]! \n"
+        "   str d3, [sp, #-8]!      \n"
+        "   str x0, [sp, #-8]!      \n"
+        "   ldr x0,=constants       \n"
+        "   ldp d1, d2, [x0, %0]    \n"
+        "   fmul d3, d0, d0         \n"
+        "   fmadd d2, d2, d1, d3    \n"
+        "   ldr d1, [x0, %0+16]     \n"
+        "   fmadd d1, d1, d2, d3    \n"
+        "   ldr d2, [x0, %0+24]     \n"
+        "   fmadd d2, d2, d1, d3    \n"
+        "   ldr d1, [x0, %0+32]     \n"
+        "   fmadd d1, d1, d2, d3    \n"
+        "   fmul d0, d1, d0         \n"
+        "   ldr x0, [sp], 8         \n"
+        "   ldr d3, [sp], 8         \n"
+        "   ldp d1, d2, [sp], 16    \n"
+        "   ret                     \n"
+        "   .ltorg                  \n"::"i"(C_SIN_COEFF_SINGLE*8)
+    );
+}
+
+void PolyCosine(void);
+void stub_PolyCosine(void)
+{
+    asm volatile(
+        "   .align 4                \n"
+        "PolyCosine:                \n"
+        "   stp d1, d2, [sp, #-16]! \n"
+        "   str x0, [sp, #-8]!      \n"
+        "   ldr x0,=constants       \n"
+        "   fmul d2, d0, d0         \n"
+        "   ldp d0, d1, [x0, %0]    \n"
+        "   fmadd d1, d1, d0, d2    \n"
+        "   ldr d0, [x0, %0+16]     \n"
+        "   fmadd d0, d0, d1, d2    \n"
+        "   ldr d1, [x0, %0+24]     \n"
+        "   fmadd d1, d1, d0, d2    \n"
+        "   ldr d0, [x0, %0+32]     \n"
+        "   fmadd d0, d0, d1, d2    \n"
+        "   ldr d1, [x0, %0+40]     \n"
+        "   fmadd d1, d1, d0, d2    \n"
+        "   ldr d0, [x0, %0+48]     \n"
+        "   fmadd d0, d0, d1, d2    \n"
+        "   ldr d1, [x0, %0+56]     \n"
+        "   fmadd d1, d1, d0, d2    \n"
+        "   ldr d0, [x0, %0+64]     \n"
+        "   fmadd d0, d0, d1, d2    \n"
+        "   ldr x0, [sp], 8         \n"
+        "   ldp d1, d2, [sp], 16    \n"
+        "   ret                     \n"
+        "   .ltorg                  \n"::"i"(C_COS_COEFF*8)
+    );
+}
+
+void PolyCosineSingle(void);
+void stub_PolyCosineSingle(void)
+{
+    asm volatile(
+        "   .align 4                \n"
+        "PolyCosineSingle:          \n"
+        "   stp d1, d2, [sp, #-16]! \n"
+        "   str x0, [sp, #-8]!      \n"
+        "   ldr x0,=constants       \n"
+        "   fmul d2, d0, d0         \n"
+        "   ldp d0, d1, [x0, %0]    \n"
+        "   fmadd d1, d1, d0, d2    \n"
+        "   ldr d0, [x0, %0+16]     \n"
+        "   fmadd d0, d0, d1, d2    \n"
+        "   ldr d1, [x0, %0+24]     \n"
+        "   fmadd d1, d1, d0, d2    \n"
+        "   ldr d0, [x0, %0+32]     \n"
+        "   fmadd d0, d0, d1, d2    \n"
+        "   ldr x0, [sp], 8         \n"
+        "   ldp d1, d2, [sp], 16    \n"
+        "   ret                     \n"
+        "   .ltorg                  \n"::"i"(C_COS_COEFF_SINGLE*8)
+    );
+}
+
+
+#else
+
+void PolySine(void);
+void stub_PolySine(void)
+{
+    asm volatile(
+        "   .align 4                \n"
+        "PolySine:                  \n"
         "   vpush {d1,d2,d3}        \n"
         "   push {r0}               \n"
         "   ldr r0,=constants       \n"
@@ -304,9 +432,12 @@ void __attribute__((naked)) PolySine(void)
     );
 }
 
-void __attribute__((naked)) PolySineSingle(void)
+void PolySineSingle(void);
+void stub_PolySineSingle(void)
 {
     asm volatile(
+        "   .align 4                \n"
+        "PolySineSingle:            \n"
         "   vpush {d1,d2,d3}        \n"
         "   push {r0}               \n"
         "   ldr r0,=constants       \n"
@@ -328,9 +459,12 @@ void __attribute__((naked)) PolySineSingle(void)
     );
 }
 
-void __attribute__((naked)) PolyCosine(void)
+void PolyCosine(void);
+void stub_PolyCosine(void)
 {
     asm volatile(
+        "   .align 4                \n"
+        "PolyCosine:                \n"
         "   vpush {d1,d2}           \n"
         "   push {r0}               \n"
         "   ldr r0,=constants       \n"
@@ -359,9 +493,12 @@ void __attribute__((naked)) PolyCosine(void)
     );
 }
 
-void __attribute__((naked)) PolyCosineSingle(void)
+void PolyCosineSingle(void);
+void stub_PolyCosineSingle(void)
 {
     asm volatile(
+        "   .align 4                \n"
+        "PolyCosineSingle:          \n"
         "   vpush {d1,d2}           \n"
         "   push {r0}               \n"
         "   ldr r0,=constants       \n"
@@ -381,6 +518,8 @@ void __attribute__((naked)) PolyCosineSingle(void)
         "   .ltorg                  \n"::"i"(C_COS_COEFF_SINGLE*8)
     );
 }
+
+#endif
 
 enum FPUOpSize {
     SIZE_L = 0,
@@ -432,6 +571,8 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
 
     return 0;
 }
+
+#ifndef __aarch64__
 
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
 uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
@@ -2808,3 +2949,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
     return ptr;
 }
+
+
+#endif
