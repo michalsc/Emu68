@@ -329,6 +329,10 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
             struct Node *this = &unit->mt_LRUNode;
 
+#ifdef __aarch64__
+            /* Correct unit found. Preload ICache */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
+#endif
             if (1)
             {
                 // Update LRU for least *frequently* used strategy
@@ -350,6 +354,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 REMOVE(&unit->mt_LRUNode);
                 ADDHEAD(&LRU, &unit->mt_LRUNode);
             }
+
             return unit;
         }
     }
