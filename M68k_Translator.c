@@ -106,17 +106,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     return arm_ptr;
 }
 
-#ifdef __aarch64__
-
-uint32_t *EMIT_lineF(uint32_t *arm_ptr, uint16_t **m68k_ptr)
-{
-    (*m68k_ptr)++;
-    *arm_ptr++ = udf(0xffff);
-
-    return arm_ptr;
-}
-#endif
-
 static uint32_t * (*line_array[16])(uint32_t *arm_ptr, uint16_t **m68k_ptr) = {
     EMIT_line0,
     EMIT_move,
@@ -164,98 +153,6 @@ void __clear_cache(void *begin, void *end)
     arm_flush_cache((uintptr_t)begin, (uintptr_t)end - (uintptr_t)begin);
     arm_icache_invalidate((uintptr_t)begin, (uintptr_t)end - (uintptr_t)begin);
 }
-
-#ifndef __aarch64__
-
-
-static uint8_t reg_FPCR = 0xff;
-static uint8_t mod_FPCR = 0;
-static uint8_t reg_FPSR = 0xff;
-static uint8_t mod_FPSR = 0;
-
-uint8_t M68K_GetFPCR(uint32_t **ptr)
-{
-    if (reg_FPCR == 0xff)
-    {
-        reg_FPCR = RA_AllocARMRegister(ptr);
-        **ptr = ldrh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
-        (*ptr)++;
-        mod_FPCR = 0;
-    }
-
-    return reg_FPCR;
-}
-
-uint8_t M68K_ModifyFPCR(uint32_t **ptr)
-{
-    uint8_t fpcr = M68K_GetFPCR(ptr);
-    mod_FPCR = 1;
-    return fpcr;
-}
-
-void M68K_StoreFPCR(uint32_t **ptr)
-{
-    if (reg_FPCR != 0xff && mod_FPCR)
-    {
-        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
-        (*ptr)++;
-    }
-}
-
-void M68K_FlushFPCR(uint32_t **ptr)
-{
-    if (reg_FPCR != 0xff && mod_FPCR)
-    {
-        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
-        (*ptr)++;
-        RA_FreeARMRegister(ptr, reg_FPCR);
-    }
-    reg_FPCR = 0xff;
-    mod_FPCR = 0;
-}
-
-uint8_t M68K_GetFPSR(uint32_t **ptr)
-{
-    if (reg_FPSR == 0xff)
-    {
-        reg_FPSR = RA_AllocARMRegister(ptr);
-        **ptr = ldr_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
-        (*ptr)++;
-        mod_FPSR = 0;
-    }
-
-    return reg_FPSR;
-}
-
-uint8_t M68K_ModifyFPSR(uint32_t **ptr)
-{
-    uint8_t fpsr = M68K_GetFPSR(ptr);
-    mod_FPSR = 1;
-    return fpsr;
-}
-
-void M68K_StoreFPSR(uint32_t **ptr)
-{
-    if (reg_FPSR != 0xff && mod_FPSR)
-    {
-        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
-        (*ptr)++;
-    }
-}
-
-void M68K_FlushFPSR(uint32_t **ptr)
-{
-    if (reg_FPSR != 0xff && mod_FPSR)
-    {
-        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
-        (*ptr)++;
-        RA_FreeARMRegister(ptr, reg_FPSR);
-    }
-    reg_FPSR = 0xff;
-    mod_FPSR = 0;
-}
-
-#endif
 
 #define RTSTACK_SIZE    32
 uint16_t *ReturnStack[RTSTACK_SIZE];
@@ -482,8 +379,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                     end = EMIT_FlushPC(end);
 #ifndef __aarch64__
                     RA_StoreCC(&end);
-                    M68K_StoreFPCR(&end);
-                    M68K_StoreFPSR(&end);
+                    RA_StoreFPCR(&end);
+                    RA_StoreFPSR(&end);
 
                     *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
 #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
@@ -522,9 +419,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         RA_FlushM68kRegs(&end);
         end = EMIT_FlushPC(end);
 #ifndef __aarch64__
-        M68K_FlushCC(&end);
-        M68K_FlushFPCR(&end);
-        M68K_FlushFPSR(&end);
+        RA_FlushCC(&end);
+        RA_FlushFPCR(&end);
+        RA_FlushFPSR(&end);
         *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
         uint16_t mask = RA_GetChangedMask() & 0xfff0;
         if (RA_IsCCModified())

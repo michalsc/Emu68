@@ -56,7 +56,7 @@ void RA_ClearChangedMask()
 
 void RA_ResetFPUAllocator()
 {
-    FPU_AllocState = 0;
+    fpu_allocstate = 0;
 }
 
 uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
@@ -311,6 +311,35 @@ uint16_t RA_GetTempAllocMask()
     return map;
 }
 #endif
+
+void RA_ResetFPUAllocator()
+{
+    fpu_allocstate = 0;
+}
+
+uint8_t RA_MapFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
+{
+    (void)arm_stream;
+    
+    fpu_reg &= 7;
+
+    return fpu_reg + 8;
+}
+
+uint8_t RA_MapFPURegisterForWrite(uint32_t **arm_stream, uint8_t fpu_reg)
+{
+    (void)arm_stream;
+
+   fpu_reg &= 7;
+
+   return fpu_reg + 8;
+}
+
+void RA_SetDirtyFPURegister(uint32_t **arm_stream, uint8_t fpu_reg)
+{
+    (void)arm_stream;
+    (void)fpu_reg;
+}
 
 void RA_ClearChangedMask(uint32_t **arm_stream)
 {
@@ -643,4 +672,9 @@ void RA_FreeARMRegister(uint32_t **arm_stream, uint8_t arm_reg)
     (void)arm_stream;
 
     register_pool &= ~(1 << arm_reg);
+}
+
+uint16_t RA_GetTempAllocMask()
+{
+    return register_pool;
 }

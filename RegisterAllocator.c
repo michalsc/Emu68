@@ -469,8 +469,8 @@ uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
     if (reg != 0xff)
         return reg;
 
-    M68K_FlushFPCR(arm_stream);
-    M68K_FlushFPSR(arm_stream);
+    RA_FlushFPCR(arm_stream);
+    RA_FlushFPSR(arm_stream);
 
     reg = __int_arm_alloc_reg();
 
@@ -553,4 +553,91 @@ void RA_FlushCC(uint32_t **ptr)
         (*ptr)++;
     }
     got_CC = 0;
+}
+
+static uint8_t reg_FPCR = 0xff;
+static uint8_t mod_FPCR = 0;
+static uint8_t reg_FPSR = 0xff;
+static uint8_t mod_FPSR = 0;
+
+uint8_t RA_GetFPCR(uint32_t **ptr)
+{
+    if (reg_FPCR == 0xff)
+    {
+        reg_FPCR = RA_AllocARMRegister(ptr);
+        **ptr = ldrh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+        (*ptr)++;
+        mod_FPCR = 0;
+    }
+
+    return reg_FPCR;
+}
+
+uint8_t RA_ModifyFPCR(uint32_t **ptr)
+{
+    uint8_t fpcr = RA_GetFPCR(ptr);
+    mod_FPCR = 1;
+    return fpcr;
+}
+
+void RA_StoreFPCR(uint32_t **ptr)
+{
+    if (reg_FPCR != 0xff && mod_FPCR)
+    {
+        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+        (*ptr)++;
+    }
+}
+
+void RA_FlushFPCR(uint32_t **ptr)
+{
+    if (reg_FPCR != 0xff && mod_FPCR)
+    {
+        **ptr = strh_offset(REG_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+        (*ptr)++;
+        RA_FreeARMRegister(ptr, reg_FPCR);
+    }
+    reg_FPCR = 0xff;
+    mod_FPCR = 0;
+}
+
+uint8_t RA_GetFPSR(uint32_t **ptr)
+{
+    if (reg_FPSR == 0xff)
+    {
+        reg_FPSR = RA_AllocARMRegister(ptr);
+        **ptr = ldr_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+        (*ptr)++;
+        mod_FPSR = 0;
+    }
+
+    return reg_FPSR;
+}
+
+uint8_t RA_ModifyFPSR(uint32_t **ptr)
+{
+    uint8_t fpsr = RA_GetFPSR(ptr);
+    mod_FPSR = 1;
+    return fpsr;
+}
+
+void RA_StoreFPSR(uint32_t **ptr)
+{
+    if (reg_FPSR != 0xff && mod_FPSR)
+    {
+        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+        (*ptr)++;
+    }
+}
+
+void RA_FlushFPSR(uint32_t **ptr)
+{
+    if (reg_FPSR != 0xff && mod_FPSR)
+    {
+        **ptr = str_offset(REG_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+        (*ptr)++;
+        RA_FreeARMRegister(ptr, reg_FPSR);
+    }
+    reg_FPSR = 0xff;
+    mod_FPSR = 0;
 }
