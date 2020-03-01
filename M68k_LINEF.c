@@ -166,7 +166,7 @@ static double const __attribute__((used)) constants[128] = {
  * ====================================================
  */
 
-double __ieee754_log(double x)
+double __attribute__((used)) __ieee754_log(double x)
 {
     double hfsq,f,s,z,R,w,t1,t2,dk;
     int32_t k,hx,i,j;
@@ -572,8 +572,6 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
     return 0;
 }
 
-#ifndef __aarch64__
-
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
 uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count)
@@ -612,24 +610,38 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 /* Single - move to single half of the reg, convert to double */
                 case SIZE_S:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
+#ifdef __aarch64__
+                    *ptr++ = fmsr(*reg, int_reg);
+                    *ptr++ = fcvtds(*reg, *reg);
+#else
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fcvtds(*reg, *reg * 2);
+#endif
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
                 case SIZE_L:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
+#ifdef __aarch64__
+                    *ptr++ = scvtf_32toD(*reg, int_reg);
+#else
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
                 case SIZE_W:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    *ptr++ = sxth(tmp_reg, int_reg);
+                    *ptr++ = scvtf_32toD(*reg, tmp_reg);
+#else
                     *ptr++ = sxth(tmp_reg, int_reg, 0);
                     *ptr++ = fmsr(*reg * 2, tmp_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     RA_FreeARMRegister(&ptr, tmp_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
@@ -637,9 +649,14 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_B:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    *ptr++ = sxth(tmp_reg, int_reg);
+                    *ptr++ = scvtf_32toD(*reg, tmp_reg);
+#else
                     *ptr++ = sxtb(tmp_reg, int_reg, 0);
                     *ptr++ = fmsr(*reg * 2, tmp_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     RA_FreeARMRegister(&ptr, tmp_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
@@ -659,25 +676,44 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             {
                 case SIZE_S:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
+#ifdef __aarch64__
+                    *ptr++ = fmsr(*reg, int_reg);
+                    *ptr++ = fcvtds(*reg, *reg);
+#else
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fcvtds(*reg, *reg * 2);
+#endif
                     break;
                 case SIZE_L:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
+#ifdef __aarch64__
+                    *ptr++ = scvtf_32toD(*reg, int_reg);
+#else
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     break;
                 case SIZE_W:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
+#ifdef __aarch64__
+                    *ptr++ = sxth(int_reg, int_reg);
+                    *ptr++ = scvtf_32toD(*reg, int_reg);
+#else
                     *ptr++ = sxth(int_reg, int_reg, 0);
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     break;
                 case SIZE_B:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
+#ifdef __aarch64__
+                    *ptr++ = sxtb(int_reg, int_reg);
+                    *ptr++ = scvtf_32toD(*reg, int_reg);
+#else
                     *ptr++ = sxtb(int_reg, int_reg, 0);
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     break;
                 default:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
@@ -691,6 +727,9 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 switch(size)
                 {
                     case SIZE_D:
+#ifdef __aarch64__
+                        *ptr++ = fldd(*reg, int_reg, 0);
+#else
                         if (((uint32_t)(*m68k_ptr + *ext_count)) & 0x3) {
                             uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                             uint8_t tmp2 = RA_AllocARMRegister(&ptr);
@@ -704,12 +743,16 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         }
                         else
                             *ptr++ = fldd(*reg, int_reg, 0);
+#endif
                         *ext_count += 4;
                         break;
 
                     case SIZE_X:
                         {
                             kprintf("extended precision load!\n");
+#ifdef __aarch64__
+
+#else
                             uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                             uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                             /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
@@ -744,6 +787,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                             RA_FreeARMRegister(&ptr, tmp1);
                             RA_FreeARMRegister(&ptr, tmp2);
+#endif
                         }
                         *ext_count += 6;
                         break;
@@ -788,6 +832,9 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             {
                 case SIZE_X:
                     {
+#ifdef __aarch64__
+
+#else
                         if (imm_offset < -4095 || imm_offset > 4095-8) {
                             uint8_t off = RA_AllocARMRegister(&ptr);
 
@@ -838,10 +885,32 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         RA_FreeARMRegister(&ptr, tmp1);
                         RA_FreeARMRegister(&ptr, tmp2);
+#endif
                     }
                     break;
                 case SIZE_D:
                     {
+#ifdef __aarch64__
+                        if (imm_offset >= -255 && imm_offset <= -255)
+                        {
+                            *ptr++ = fldd(*reg, int_reg, imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 32760 && !(imm_offset & 7))
+                        {
+                            *ptr++ = fldd_pimm(*reg, int_reg, imm_offset >> 3);
+                        }
+                        else
+                        {
+                            uint8_t off = RA_AllocARMRegister(&ptr);
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            *ptr++ = fldd(*reg, off, 0);
+                            RA_FreeARMRegister(&ptr, off);
+                        }
+#else
                         uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
@@ -882,9 +951,32 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         RA_FreeARMRegister(&ptr, tmp2);
                         RA_FreeARMRegister(&ptr, tmp1);
+#endif
                     }
                     break;
                 case SIZE_S:
+#ifdef __aarch64__
+                        if (imm_offset >= -255 && imm_offset <= -255)
+                        {
+                            *ptr++ = flds(*reg, int_reg, imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
+                        {
+                            *ptr++ = flds_pimm(*reg, int_reg, imm_offset >> 2);
+                        }
+                        else
+                        {
+                            uint8_t off = RA_AllocARMRegister(&ptr);
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            *ptr++ = flds(*reg, off, 0);
+                            RA_FreeARMRegister(&ptr, off);
+                        }
+                        *ptr++ = fcvtds(*reg, *reg);
+#else
                     if ((imm_offset & 3) || imm_offset < -1023 || imm_offset > 1023) {
                         uint8_t off = RA_AllocARMRegister(&ptr);
 
@@ -900,8 +992,33 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     *ptr++ = flds(*reg * 2, int_reg, imm_offset >> 2);
                     *ptr++ = fcvtds(*reg, *reg * 2);
+#endif
                     break;
                 case SIZE_L:
+#ifdef __aarch64__
+                    val_reg = RA_AllocARMRegister(&ptr);
+
+                    if (imm_offset >= -255 && imm_offset <= -255)
+                    {
+                        *ptr++ = ldur_offset(int_reg, val_reg, imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
+                    {
+                        *ptr++ = ldr_offset(int_reg, val_reg, imm_offset);
+                    }
+                    else
+                    {
+                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        *ptr++ = ldr_offset(off, val_reg, 0);
+                        RA_FreeARMRegister(&ptr, off);
+                    }
+                    *ptr++ = scvtf_32toD(*reg, val_reg);
+#else
                     if (imm_offset < -4095 || imm_offset > 4095) {
                         uint8_t off = RA_AllocARMRegister(&ptr);
 
@@ -920,8 +1037,34 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     *ptr++ = ldr_offset(int_reg, val_reg, imm_offset);
                     *ptr++ = fmsr(*reg * 2, val_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     break;
                 case SIZE_W:
+#ifdef __aarch64__
+                    val_reg = RA_AllocARMRegister(&ptr);
+
+                    if (imm_offset >= -255 && imm_offset <= -255)
+                    {
+                        *ptr++ = ldurh_offset(int_reg, val_reg, imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 8190 && !(imm_offset & 1))
+                    {
+                        *ptr++ = ldrh_offset(int_reg, val_reg, imm_offset);
+                    }
+                    else
+                    {
+                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        *ptr++ = ldrh_offset(off, val_reg, 0);
+                        RA_FreeARMRegister(&ptr, off);
+                    }
+                    *ptr++ = sxth(val_reg, val_reg);
+                    *ptr++ = scvtf_32toD(*reg, val_reg);
+#else
                     if (imm_offset < -255 || imm_offset > 255) {
                         uint8_t off = RA_AllocARMRegister(&ptr);
 
@@ -939,8 +1082,35 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     *ptr++ = ldrsh_offset(int_reg, val_reg, imm_offset);
                     *ptr++ = fmsr(*reg * 2, val_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     break;
                 case SIZE_B:
+#ifdef __aarch64__
+                    val_reg = RA_AllocARMRegister(&ptr);
+
+                    if (imm_offset >= -255 && imm_offset <= -255)
+                    {
+                        *ptr++ = ldurb_offset(int_reg, val_reg, imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = ldrb_offset(int_reg, val_reg, imm_offset);
+                    }
+                    else
+                    {
+                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        *ptr++ = ldrb_offset(off, val_reg, 0);
+                        RA_FreeARMRegister(&ptr, off);
+                    }
+                    *ptr++ = sxtb(val_reg, val_reg);
+                    *ptr++ = scvtf_32toD(*reg, val_reg);
+#else
+
                     if (imm_offset < -4095 || imm_offset > 4095) {
                         uint8_t off = RA_AllocARMRegister(&ptr);
 
@@ -958,6 +1128,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     *ptr++ = ldrsb_offset(int_reg, val_reg, imm_offset);
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
+#endif
                     break;
                 default:
                     break;
@@ -982,6 +1153,8 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
     return ptr;
 }
+
+#ifndef __aarch64__
 
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
 uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_t opcode,
@@ -1484,6 +1657,8 @@ void __attribute__((naked)) trampoline_icache_invalidate(void)
     asm volatile("bl invalidate_instruction_cache\n\tbx r0");
 }
 
+#endif
+
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -1491,6 +1666,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
 
+#ifndef __aarch64__
     /* CINV */
     if ((opcode & 0xff20) == 0xf400)
     {
@@ -1653,7 +1829,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
     /* FMOVECR reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    else 
+#endif
+    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
         union {
             double d;
@@ -1670,32 +1848,47 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             destination VFP register, finally skip the base address (which is not an ARM INSN)
         */
         if (offset == C_10P0) {
-            *ptr++ = fmov_imm(fp_dst, 112);
+            *ptr++ = fmov_1(fp_dst);
         }
         else if (offset == C_ZERO) {
-            *ptr++ = fmov_i64(fp_dst, 0, 0xe);
+            *ptr++ = fmov_0(fp_dst);
         }
         else {
             u.d = constants[offset];
-
+#ifdef __aarch64__
+            *ptr++ = fldd_pcrel(fp_dst, 2);
+            *ptr++ = b(3);
+            *ptr++ = BE32(u.u32[0]);
+            *ptr++ = BE32(u.u32[1]);
+#else
             *ptr++ = fldd(fp_dst, 15, 0);
             *ptr++ = b_cc(ARM_CC_AL, 1);
             *ptr++ = BE32(u.u32[0]);
             *ptr++ = BE32(u.u32[1]);
+#endif
         }
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FABS */
@@ -1726,14 +1919,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FADD */
@@ -1766,20 +1968,30 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
+#ifndef __aarch64__
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
     {
-        uint8_t fpsr = M68K_GetFPSR(&ptr);
+        uint8_t fpsr = RA_GetFPSR(&ptr);
         uint8_t predicate = opcode & 0x3f;
         uint8_t success_condition = 0;
         uint8_t tmp_cc = 0xff;
@@ -1941,6 +2153,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = branch_target;
         *ptr++ = INSN_TO_LE(0xfffffffe);
     }
+#endif
     /* FCMP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0038)
     {
@@ -1959,13 +2172,22 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FDIV */
@@ -1998,14 +2220,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FINT */
@@ -2017,8 +2248,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
+#ifdef __aarch64__
+        *ptr++ = frint64x(fp_dst, fp_src);
+#else
         *ptr++ = ftosid(0, fp_src);     /* Convert double to signed integer with rounding defined by FPSCR */
         *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
+#endif
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -2027,14 +2262,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FINTRZ */
@@ -2046,8 +2290,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
+#ifdef __aarch64__
+        *ptr++ = frint64z(fp_dst, fp_src);
+#else
         *ptr++ = ftosidrz(0, fp_src);     /* Convert double to signed integer with rounding defined by FPSCR */
         *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
+#endif
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -2056,16 +2304,26 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
+#ifndef __aarch64__
     /* FLOGN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
@@ -2092,7 +2350,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
             *ptr++ = fmstat();
@@ -2104,6 +2362,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
+#endif
     /* FMOVE to REG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
     {
@@ -2131,16 +2390,26 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
+#ifndef __aarch64__
     /* FMOVE to MEM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe07f) == 0x6000)
     {
@@ -2153,7 +2422,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_src);
             *ptr++ = fmstat();
@@ -2170,10 +2439,10 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         switch (opcode2 & 0x1c00)
         {
             case 0x1000:    /* FPCR */
-                special_reg = M68K_GetFPCR(&ptr);
+                special_reg = RA_GetFPCR(&ptr);
                 break;
             case 0x0800:    /* FPSR */
-                special_reg = M68K_GetFPSR(&ptr);
+                special_reg = RA_GetFPSR(&ptr);
                 break;
             case 0x0400:    /* FPIAR */
                 special_reg = RA_AllocARMRegister(&ptr);
@@ -2210,7 +2479,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             case 0x1000:    /* FPCR */
                 tmp = RA_AllocARMRegister(&ptr);
-                reg = M68K_ModifyFPCR(&ptr);
+                reg = RA_ModifyFPCR(&ptr);
                 *ptr++ = mov_reg(reg, src);
                 *ptr++ = fmxr(tmp, FPSCR);
                 *ptr++ = lsr_immed(src, src, 4);
@@ -2220,7 +2489,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = fmrx(FPSCR, tmp);
                 break;
             case 0x0800:    /* FPSR */
-                reg = M68K_ModifyFPSR(&ptr);
+                reg = RA_ModifyFPSR(&ptr);
                 *ptr++ = mov_reg(reg, src);
                 break;
             case 0x0400:    /* FPIAR */
@@ -2320,6 +2589,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
+#endif
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0023 || (opcode2 & 0xa07b) == 0x0063))
     {
@@ -2350,14 +2620,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FNEG */
@@ -2388,14 +2667,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FTST */
@@ -2414,19 +2702,29 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
+#ifndef __aarch64__
     /* FScc */
     else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
     {
-        uint8_t fpsr = M68K_GetFPSR(&ptr);
+        uint8_t fpsr = RA_GetFPSR(&ptr);
         uint8_t predicate = opcode2 & 0x3f;
         uint8_t success_condition = 0;
         uint8_t tmp_cc = 0xff;
@@ -2548,6 +2846,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
+#endif
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
     {
@@ -2567,6 +2866,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
+#ifdef __aarch64__
+        *ptr++ = fsqrtd(fp_dst, fp_src);
+#else
         if (Features.ARM_SUPPORTS_SQRT)
         {
             *ptr++ = fsqrtd(fp_dst, fp_src);
@@ -2575,7 +2877,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             /* Missing... */
         }
-
+#endif
         RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -2583,14 +2885,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
     /* FSUB */
@@ -2623,16 +2934,26 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
+#ifdef __aarch64__
+            uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = get_nzcv(tmp_reg);
+            *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+            *ptr++ = ror(tmp_reg, tmp_reg, 4);
+            *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+            RA_FreeARMRegister(&ptr, tmp_reg);
+#else
             *ptr++ = fmstat();
             *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
             *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
             *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
             *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
+#endif
         }
     }
+#ifndef __aarch64__
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
@@ -2777,7 +3098,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
             *ptr++ = fmstat();
@@ -2925,7 +3246,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (FPSR_Update_Needed(m68k_ptr))
         {
-            uint8_t fpsr = M68K_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
             *ptr++ = fcmpzd(fp_dst);
             *ptr++ = fmstat();
@@ -2937,6 +3258,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
+#endif
     /* FNOP */
     else if (opcode == 0xf280 && opcode2 == 0)
     {
@@ -2949,6 +3271,3 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
     return ptr;
 }
-
-
-#endif
