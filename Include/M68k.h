@@ -183,11 +183,4 @@ uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
 
-uint8_t M68K_GetFPCR(uint32_t **ptr);
-uint8_t M68K_ModifyFPCR(uint32_t **ptr);
-void M68K_FlushFPCR(uint32_t **ptr);
-uint8_t M68K_GetFPSR(uint32_t **ptr);
-uint8_t M68K_ModifyFPSR(uint32_t **ptr);
-void M68K_FlushFPSR(uint32_t **ptr);
-
 #endif /* _M68K_H */
