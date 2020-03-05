@@ -650,7 +650,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                    *ptr++ = sxth(tmp_reg, int_reg);
+                    *ptr++ = sxtb(tmp_reg, int_reg);
                     *ptr++ = scvtf_32toD(*reg, tmp_reg);
 #else
                     *ptr++ = sxtb(tmp_reg, int_reg, 0);
