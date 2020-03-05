@@ -433,7 +433,7 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     (void)cc;
     ptr = EMIT_ClearFlags(ptr, cc, 15);
-    *not_done = 15;
+    (*not_done) &= 0x1f;
     return ptr;
 }
 
@@ -442,7 +442,7 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     (void)cc;
     ptr = EMIT_ClearFlags(ptr, cc, 12);
-    *not_done = 12;
+    (*not_done) &= 0x1f;
     return ptr;
 }
 
@@ -451,7 +451,7 @@ uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     (void)cc;
     ptr = EMIT_ClearFlags(ptr, cc, 15);
-    *not_done = 15;
+    (*not_done) &= 0x1f;
     return ptr;
 }
 

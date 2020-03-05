@@ -629,7 +629,7 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 
     RA_FreeARMRegister(&ptr, tmp_reg);
 
-    *not_done = 0;
+    (*not_done) &= 0x10;
 
     return ptr;
 }
@@ -645,7 +645,7 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 
     RA_FreeARMRegister(&ptr, tmp_reg);
 
-    *not_done = 0;
+    (*not_done) &= 0x13;
     return ptr;
 }
 
@@ -662,7 +662,7 @@ uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 
     RA_FreeARMRegister(&ptr, tmp_reg);
 
-    *not_done = 0;
+    (*not_done) &= 0x10;
     return ptr;
 }
 
