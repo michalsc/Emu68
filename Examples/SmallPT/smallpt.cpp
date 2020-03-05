@@ -108,10 +108,10 @@ Vec radiance_expl(const Ray &r, int depth, unsigned short *Xi,int E=1){
         return obj.e*E;
   else
   if (depth>10||!p) { // From depth 10 start Russian roulette
-       if (erand48(Xi)<p) f=f*(1/p); else return obj.e*E;
+       if (my_erand48(Xi)<p) f=f*(1/p); else return obj.e*E;
     }
   if (obj.refl == DIFF){                  // Ideal DIFFUSE reflection
-    double r1=2.0*M_PI*erand48(Xi), r2=erand48(Xi), r2s=sqrt(r2);
+    double r1=2.0*M_PI*my_erand48(Xi), r2=my_erand48(Xi), r2s=sqrt(r2);
     Vec w=nl, u=((fabs(w.x)>.1?Vec(0,1):Vec(1))%w).norm(), v=w%u;
     Vec d = (u*cos(r1)*r2s + v*sin(r1)*r2s + w*sqrt(1-r2)).norm();
 
@@ -123,7 +123,7 @@ Vec radiance_expl(const Ray &r, int depth, unsigned short *Xi,int E=1){
 
       Vec sw=s.p-x, su=((fabs(sw.x)>.1?Vec(0,1):Vec(1))%sw).norm(), sv=sw%su;
       double cos_a_max = sqrt(1-s.rad*s.rad/(x-s.p).dot(x-s.p));
-      double eps1 = erand48(Xi), eps2 = erand48(Xi);
+      double eps1 = my_erand48(Xi), eps2 = my_erand48(Xi);
       double cos_a = 1-eps1+eps1*cos_a_max;
       double sin_a = sqrt(1-cos_a*cos_a);
       double phi = 2*M_PI*eps2;
@@ -146,7 +146,7 @@ Vec radiance_expl(const Ray &r, int depth, unsigned short *Xi,int E=1){
   Vec tdir = (r.d*nnt - n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
   double a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir.dot(n));
   double Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re,P=.25+.5*Re,RP=Re/P,TP=Tr/(1-P);
-  return obj.e + f.mult(depth>2 ? (erand48(Xi)<P ?   // Russian roulette
+  return obj.e + f.mult(depth>2 ? (my_erand48(Xi)<P ?   // Russian roulette
     radiance_expl(reflRay,depth,Xi)*RP:radiance_expl(Ray(x,tdir),depth,Xi)*TP) :
     radiance_expl(reflRay,depth,Xi)*Re+radiance_expl(Ray(x,tdir),depth,Xi)*Tr);
 }
@@ -173,12 +173,12 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi)
     {
         double p = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z; // max refl
 
-        if (erand48(Xi)<p)
+        if (my_erand48(Xi)<p)
             f=f*(1/p);
         else return obj.e; //R.R.
     }
     if (obj.refl == DIFF){                  // Ideal DIFFUSE reflection
-        double r1=2*M_PI*erand48(Xi), r2=erand48(Xi), r2s=sqrt(r2);
+        double r1=2*M_PI*my_erand48(Xi), r2=my_erand48(Xi), r2s=sqrt(r2);
         Vec w=nl, u=((fabs(w.x)>.1?Vec(0,1):Vec(1))%w).norm(), v=w%u;
         Vec d = (u*cos(r1)*r2s + v*sin(r1)*r2s + w*sqrt(1-r2)).norm();
         return obj.e + f.mult(radiance(Ray(x,d),depth,Xi));
@@ -192,7 +192,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi)
     Vec tdir = (r.d*nnt - n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
     double a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir.dot(n));
     double Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re,P=.25+.5*Re,RP=Re/P,TP=Tr/(1-P);
-    return obj.e + f.mult(depth>2 ? (erand48(Xi)<P ?   // Russian roulette
+    return obj.e + f.mult(depth>2 ? (my_erand48(Xi)<P ?   // Russian roulette
         radiance(reflRay,depth,Xi)*RP:radiance(Ray(x,tdir),depth,Xi)*TP) :
         radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr);
 }
@@ -260,8 +260,8 @@ void RenderTile(int tile_x, int tile_y)
                 {        // 2x2 subpixel cols
                     for (unsigned s=0; s<samps; s++)
                     {
-                        double r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1: 1-sqrt(2-r1);
-                        double r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1: 1-sqrt(2-r2);
+                        double r1=2*my_erand48(Xi), dx=r1<1 ? sqrt(r1)-1: 1-sqrt(2-r1);
+                        double r2=2*my_erand48(Xi), dy=r2<1 ? sqrt(r2)-1: 1-sqrt(2-r2);
                         Vec d = cx*( ( (sx+.5 + dx)/2 + x)/render_width - .5) +
                                 cy*( ( (sy+.5 + dy)/2 + y)/render_height - .5) + cam.d;
 

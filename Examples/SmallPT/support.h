@@ -122,7 +122,7 @@ extern "C" {
 double copysign (double x, double y);
 double scalbn (double x, int n);
 double pow(double x, double y);
-double erand48(unsigned short *Xi);
+double my_erand48(unsigned short *Xi);
 void do_global_ctors(void);
 void do_global_dtors(void);
 void *memcpy(void *d, const void *s, long unsigned int l);

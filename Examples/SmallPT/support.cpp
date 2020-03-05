@@ -357,7 +357,7 @@ double pow(double x, double y)
     return s*z;
 }
 
-double erand48(unsigned short *Xi)
+double my_erand48(unsigned short *Xi)
 {
     union {
         uint16_t x[4];
