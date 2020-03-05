@@ -409,26 +409,14 @@ static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_
 #include <RegisterAllocator.h>
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+uint32_t * EMIT_GetFPUFlags(uint32_t * ptr, uint8_t fpsr)
 {
-    (void)cc;
-    *not_done = 15;
-    return ptr;
-}
+    *ptr++ = fmstat();
+    *ptr++ = bic_immed(fpsr, fpsr, 0x40f);
+    *ptr++ = orr_cc_immed(ARM_CC_EQ, fpsr, fpsr, 0x404);
+    *ptr++ = orr_cc_immed(ARM_CC_MI, fpsr, fpsr, 0x408);
+    *ptr++ = orr_cc_immed(ARM_CC_VS, fpsr, fpsr, 0x401);
 
-static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
-{
-    (void)cc;
-    *not_done = 15;
-    return ptr;
-}
-
-static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
-{
-    (void)cc;
-    *not_done = 12;
     return ptr;
 }
 
@@ -437,6 +425,33 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
 {
     *ptr++ = bic_immed(cc, cc, flags);
 
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    ptr = EMIT_ClearFlags(ptr, cc, 15);
+    *not_done = 15;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    ptr = EMIT_ClearFlags(ptr, cc, 12);
+    *not_done = 12;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    ptr = EMIT_ClearFlags(ptr, cc, 15);
+    *not_done = 15;
     return ptr;
 }
 
