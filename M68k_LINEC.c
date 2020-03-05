@@ -247,19 +247,12 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
             }
 #endif
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t not_done;
-            ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
-            if (not_done)
-            {
-                update_mask &= not_done;
-
-                ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-                if (update_mask & SR_Z)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-                if (update_mask & SR_N)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-            }
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
         RA_FreeARMRegister(&ptr, test_register);
     }

@@ -231,7 +231,6 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t not_done;
 
 #ifdef __aarch64__
         switch(size) {
@@ -247,18 +246,12 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
 #endif
 
-        ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
-        if (not_done)
-        {
-            update_mask &= not_done;
-
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-            if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-            if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        }
+        if (update_mask & SR_Z)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+        if (update_mask & SR_N)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
     }
 
     RA_FreeARMRegister(&ptr, test_register);
@@ -759,19 +752,12 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t not_done;
-        ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
-        if (not_done)
-        {
-            update_mask &= not_done;
-
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-            if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-            if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        }
+        if (update_mask & SR_Z)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+        if (update_mask & SR_N)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
     }
     return ptr;
 }
@@ -851,19 +837,12 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = teq_immed(tmpresult, 0);
 #endif
         uint8_t cc = RA_ModifyCC(&ptr);
-        uint8_t not_done;
-        ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
-        if (not_done)
-        {
-            update_mask &= not_done;
-
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-            if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-            if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        }
+        if (update_mask & SR_Z)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+        if (update_mask & SR_N)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
     }
 
     RA_FreeARMRegister(&ptr, tmpresult);
@@ -968,20 +947,12 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = cmp_immed(tmp, 0);
 #endif
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t not_done;
-            ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
-            if (not_done)
-            {
-                update_mask &= not_done;
-
-                ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-                if (update_mask & SR_Z)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-                if (update_mask & SR_N)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-            }
-
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
         if (tmp != reg)
             RA_FreeARMRegister(&ptr, tmp);
@@ -1041,19 +1012,12 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
             *ptr++ = cmn_reg(31, reg, LSL, 0);
 #endif
             uint8_t cc = RA_ModifyCC(&ptr);
-            uint8_t not_done;
-            ptr = EMIT_GetNZ00(ptr, cc, &not_done);
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
-            if (not_done)
-            {
-                update_mask &= not_done;
-
-                ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-                if (update_mask & SR_Z)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-                if (update_mask & SR_N)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-            }
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
     }
     /* 0100100001001xxx - BKPT */
