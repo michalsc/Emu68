@@ -100,6 +100,15 @@ struct M68KState
 #define SRB_T0   14
 #define SRB_T1   15
 
+#define FPSR_Z      0x08000000
+#define FPSR_N      0x04000000
+#define FPSR_I      0x02000000
+#define FPSR_NAN    0x01000000
+#define FPSRB_Z     27
+#define FPSRB_N     26
+#define FPSRB_I     25
+#define FPSRB_NAN   24
+
 #define M_CC_T  0x00
 #define M_CC_F  0x01
 #define M_CC_HI 0x02

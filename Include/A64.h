@@ -534,8 +534,8 @@ static inline uint32_t fcvtzs_Sto64(uint8_t dst, uint8_t v_src) { return fcvtzs(
 static inline uint32_t fcvtzs_Dto32(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 0, 1); }
 static inline uint32_t fcvtzs_Dto64(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 1, 1); }
 
-static inline uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e69c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
-static inline uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e694000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e674000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e65c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 
 #if 0
 enum VFP_REG { FPSID = 0, FPSCR = 1, FPEXT = 8 };
@@ -611,7 +611,7 @@ uint32_t * EMIT_GetFPUFlags(uint32_t * ptr, uint8_t fpsr)
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
     *ptr++ = get_nzcv(tmp_reg);
     *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
-    *ptr++ = ror(tmp_reg, tmp_reg, 4);
+    *ptr++ = ror(tmp_reg, tmp_reg, 28);
     *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
     RA_FreeARMRegister(&ptr, tmp_reg);
 
