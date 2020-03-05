@@ -515,6 +515,13 @@ int RA_IsCCModified()
     return (mod_CC != 0);
 }
 
+uint8_t RA_GetCTX(uint32_t **ptr)
+{
+    (void)ptr;
+
+    return REG_CTX;
+}
+
 uint8_t RA_GetCC(uint32_t **ptr)
 {
     if (got_CC == 0)
