@@ -497,11 +497,13 @@ static inline uint32_t fldq_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x9
 
 enum TS { TS_B = 1, TS_H = 2, TS_S = 4, TS_D = 8 };
 static inline uint32_t mov_reg_to_simd(uint8_t v_dst, enum TS ts, uint8_t index, uint8_t rn) { return I32(0x4e001c00 | (ts == TS_B ? ((index & 0xf) << 17) : ts == TS_H ? ((index & 7) << 18) : ts == TS_S ? ((index & 3) << 19) : ts == TS_D ? ((index & 1) << 20) : 0) | ((ts & 31) << 16) | (v_dst & 31) | ((rn & 31) << 5)); }
-static inline uint32_t mov_simd_to_reg(uint8_t rd, uint8_t v_src, enum TS ts, uint8_t index) { return I32(ts == TS_D ? 0x4e003c00 : 0x0e003c00 | (ts == TS_B ? ((index & 0xf) << 17) : ts == TS_H ? ((index & 7) << 18) : ts == TS_S ? ((index & 3) << 19) : ts == TS_D ? ((index & 1) << 20) : 0) | ((ts & 31) << 16) | (rd & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t mov_simd_to_reg(uint8_t rd, uint8_t v_src, enum TS ts, uint8_t index) { return I32((ts == TS_D ? 0x4e003c00 : 0x0e003c00) | (ts == TS_B ? ((index & 0xf) << 17) : ts == TS_H ? ((index & 7) << 18) : ts == TS_S ? ((index & 3) << 19) : ts == TS_D ? ((index & 1) << 20) : 0) | ((ts & 31) << 16) | (rd & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fmsr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_S, 0, src); }
 static inline uint32_t fmdhr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_S, 1, src); }
 static inline uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_S, 0, src); }
 static inline uint32_t fmdxr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_D, 0, src); }
+static inline uint32_t fmrs(uint8_t dst, uint8_t v_src) { return mov_simd_to_reg(dst, v_src, TS_S, 0); }
+
 
 static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e600800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
 static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
@@ -526,6 +528,12 @@ static inline uint32_t scvtf_32toD(uint8_t v_dst, uint8_t src) { return I32(0x1e
 static inline uint32_t scvtf_64toS(uint8_t v_dst, uint8_t src) { return I32(0x9e220000 | (v_dst & 31) | ((src & 31) << 5)); }
 static inline uint32_t scvtf_64toD(uint8_t v_dst, uint8_t src) { return I32(0x9e620000 | (v_dst & 31) | ((src & 31) << 5)); }
 
+static inline uint32_t fcvtzs(uint8_t dst, uint8_t v_src, uint8_t sf, uint8_t ftype) { return I32(0x1e380000 | ((sf & 1) << 31) | ((ftype & 3) << 22) | ((v_src & 31) << 5) | (dst & 31)); }
+static inline uint32_t fcvtzs_Sto32(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 0, 0); }
+static inline uint32_t fcvtzs_Sto64(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 1, 0); }
+static inline uint32_t fcvtzs_Dto32(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 0, 1); }
+static inline uint32_t fcvtzs_Dto64(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 1, 1); }
+
 static inline uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e69c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e694000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 
@@ -547,10 +555,66 @@ static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_
 #include <RegisterAllocator.h>
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t offset9)
 {
-    (void)cc;
-    *not_done = 15;
+    uint8_t exp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t mant_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = ldur_offset(base, exp_reg, offset9);
+    *ptr++ = mov_immed_u16(tmp_reg, 0xc400, 0);
+    *ptr++ = cmp_reg(exp_reg, 31, LSL, 0);
+    *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
+    *ptr++ = lsr64(mant_reg, mant_reg, 11);
+    *ptr++ = add_reg(tmp_reg, tmp_reg, exp_reg, LSR, 16);
+    *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
+    *ptr++ = cset(tmp_reg, A64_CC_MI);
+    *ptr++ = bfi64(mant_reg, tmp_reg, 63, 1);
+    *ptr++ = mov_reg_to_simd(fpreg, TS_D, 0, mant_reg);
+
+    RA_FreeARMRegister(&ptr, exp_reg);
+    RA_FreeARMRegister(&ptr, mant_reg);
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t offset9)
+{
+    uint8_t exp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t mant_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = mov_simd_to_reg(exp_reg, fpreg, TS_D, 0);
+    *ptr++ = cmp64_reg(exp_reg, 31, LSL, 0);
+    *ptr++ = lsl64(mant_reg, exp_reg, 11);
+    *ptr++ = ubfx64(tmp_reg, exp_reg, 52, 11);
+    *ptr++ = mov_immed_u16(exp_reg, 0x3c00, 1);
+    *ptr++ = add_reg(exp_reg, exp_reg, tmp_reg, LSL, 16);
+    *ptr++ = orr64_immed(mant_reg, mant_reg, 1, 1, 1);
+    *ptr++ = stur64_offset(base, mant_reg, offset9+4);
+    *ptr++ = cset(tmp_reg, A64_CC_MI);
+    *ptr++ = bfi(exp_reg, tmp_reg, 31, 1);
+    *ptr++ = stur_offset(base, exp_reg, offset9);
+
+    RA_FreeARMRegister(&ptr, exp_reg);
+    RA_FreeARMRegister(&ptr, mant_reg);
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetFPUFlags(uint32_t * ptr, uint8_t fpsr)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+    *ptr++ = ror(tmp_reg, tmp_reg, 4);
+    *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
     return ptr;
 }
 
@@ -578,6 +642,23 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     *ptr++ = get_nzcv(tmp_reg);
     *ptr++ = ror(tmp_reg, tmp_reg, 30);
     *ptr++ = bfi(cc, tmp_reg, 2, 2);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    *not_done = 0;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = ror(tmp_reg, tmp_reg, 30);
+    *ptr++ = bfi(cc, tmp_reg, 2, 2);
+    *ptr++ = rbit(tmp_reg, tmp_reg);
+    *ptr++ = bfi(cc, tmp_reg, 0, 2);
 
     RA_FreeARMRegister(&ptr, tmp_reg);
 
