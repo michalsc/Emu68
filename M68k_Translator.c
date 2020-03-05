@@ -132,14 +132,14 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     uint8_t group = opcode >> 12;
 
 #ifdef __aarch64__
-    if (debug > 1)
+    if (debug > 2)
     {
         *ptr++ = hint(0);
         *ptr++ = movw_immed_u16(31, opcode);
         *ptr++ = movk_immed_u16(31, ((uintptr_t)*(m68k_ptr)) >> 16, 1);
         *ptr++ = movk_immed_u16(31, ((uintptr_t)*(m68k_ptr)), 0);
     }
-    if (debug)
+    if (debug > 1)
         *ptr++ = hint(1);
 #endif
 
@@ -553,7 +553,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             }
             if (unit->mt_ARMInsnCnt % 5 != 0)
                 kprintf("\n");
-            if (debug > 2)
+            if (debug > 3)
             {
                 kprintf("\n-- Local State --\n");
                 for (unsigned i=0; i < insn_count; i++)
