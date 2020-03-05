@@ -619,54 +619,6 @@ uint32_t * EMIT_GetFPUFlags(uint32_t * ptr, uint8_t fpsr)
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
-{
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-
-    *ptr++ = get_nzcv(tmp_reg);
-    *ptr++ = bfxil(cc, tmp_reg, 28, 4);
-    *ptr++ = bic_immed(cc, cc, 2, 0);
-
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    (*not_done) &= 0x10;
-
-    return ptr;
-}
-
-static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
-{
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-
-    *ptr++ = get_nzcv(tmp_reg);
-    *ptr++ = ror(tmp_reg, tmp_reg, 30);
-    *ptr++ = bfi(cc, tmp_reg, 2, 2);
-
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    (*not_done) &= 0x13;
-    return ptr;
-}
-
-static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
-{
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-
-    *ptr++ = get_nzcv(tmp_reg);
-    *ptr++ = ror(tmp_reg, tmp_reg, 30);
-    *ptr++ = bfi(cc, tmp_reg, 2, 2);
-    *ptr++ = rbit(tmp_reg, tmp_reg);
-    *ptr++ = bfi(cc, tmp_reg, 0, 2);
-
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    (*not_done) &= 0x10;
-    return ptr;
-}
-
-static inline __attribute__((always_inline))
 uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
 {
     uint8_t tmp_reg;
@@ -742,6 +694,84 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
             *ptr++ = bic_reg(cc, cc, tmp_reg, LSL, 0);
             RA_FreeARMRegister(&ptr, tmp_reg);
     }
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+    *ptr++ = bic_immed(cc, cc, 2, 0);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    (*not_done) &= 0x10;
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = ror(tmp_reg, tmp_reg, 30);
+    *ptr++ = bfi(cc, tmp_reg, 2, 2);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    (*not_done) &= 0x13;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    if ((*not_done) & 15)
+    {
+        *ptr++ = get_nzcv(tmp_reg);
+        *ptr++ = ror(tmp_reg, tmp_reg, 30);
+        *ptr++ = bfi(cc, tmp_reg, 2, 2);
+        *ptr++ = rbit(tmp_reg, tmp_reg);
+        *ptr++ = bfi(cc, tmp_reg, 0, 2);
+        (*not_done) &= 0x10;
+    }
+
+    if (*not_done)
+        ptr = EMIT_ClearFlags(ptr, cc, *not_done);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVnC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    if ((*not_done) & 15)
+    {
+        *ptr++ = get_nzcv(tmp_reg);
+        *ptr++ = ror(tmp_reg, tmp_reg, 30);
+        *ptr++ = bfi(cc, tmp_reg, 2, 2);
+        *ptr++ = rbit(tmp_reg, tmp_reg);
+        *ptr++ = bfi(cc, tmp_reg, 0, 2);
+        *ptr++ = eor_immed(cc, cc, 1, 0);
+        (*not_done) &= 0x10;
+    }
+    
+    if (*not_done)
+        ptr = EMIT_ClearFlags(ptr, cc, *not_done);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
 
     return ptr;
 }
