@@ -534,7 +534,7 @@ static inline uint32_t fcvtzs_Sto64(uint8_t dst, uint8_t v_src) { return fcvtzs(
 static inline uint32_t fcvtzs_Dto32(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 0, 1); }
 static inline uint32_t fcvtzs_Dto64(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 1, 1); }
 
-static inline uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e674000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+static inline uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e67c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e65c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 
 #if 0
