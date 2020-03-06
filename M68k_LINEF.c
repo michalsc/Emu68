@@ -2898,7 +2898,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
-#ifndef __aarch64__
     /* FScc */
     else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
     {
@@ -2911,76 +2910,177 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         switch (predicate & 0x0f)
         {
             case F_CC_EQ:
+#ifdef __aarch64__
+                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_NE;
+#else
                 *ptr++ = tst_immed(fpsr, 0x404);
                 success_condition = ARM_CC_NE;
+#endif
                 break;
             case F_CC_NE:
+#ifdef __aarch64__
+                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_EQ;
+#else
                 *ptr++ = tst_immed(fpsr, 0x404);
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_OGT:
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
+                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                success_condition = ARM_CC_EQ;
+#else
                 *ptr++ = tst_immed(fpsr, 0x40d);
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_ULE:
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
+                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                success_condition = ARM_CC_NE;
+#else
                 *ptr++ = tst_immed(fpsr, 0x40d);
                 success_condition = ARM_CC_NE;
+#endif
                 break;
             case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 2); // Mix N | NAN -> N
+                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
+                *ptr++ = orr_reg(tmp_cc, fpsr, tmp_cc, LSL, 1); // !N | Z -> Z
+                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_NE;
+#else
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 0x404);    /* Copy fpsr to temporary reg, invert Z */
                 *ptr++ = tst_immed(tmp_cc, 0x404); // Test Z
                 *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x409); // Z == 1? Test N == 0 && NAN == 0
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)); // Invert Z
+                *ptr++ = and_reg(tmp_cc, tmp_cc, fpsr, LSL, 1); // !Z & N -> Z
+                *ptr++ = orr_reg(tmp_cc, tmp_cc, fpsr, LSL, 3); // NAN | Z -> Z
+                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_NE;
+#else
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 0x409);    /* Copy fpsr to temporary reg, invert N and NAN */
                 *ptr++ = tst_immed(tmp_cc, 0x401);  // Test NAN
                 *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x40c); // !NAN == 1, test !N == 0 && Z == 0
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 3);
+                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                *ptr++ = orr_reg(tmp_cc, tmp_cc, fpsr, LSL, 1);
+                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_NE;
+#else
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
                 *ptr++ = tst_immed(tmp_cc, 0x40d);
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N));
+                *ptr++ = bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I));
+                *ptr++ = tst_immed(tmp_cc, 4, 8);
+                success_condition = A64_CC_NE;
+#else
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
                 *ptr++ = tst_immed(tmp_cc, 0x40d);
                 success_condition = ARM_CC_NE;
+#endif
                 break;
             case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)); // Invert NAN
+                *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2);   // !NAN & N -> N
+                *ptr++ = orr_reg(tmp_cc, fpsr, tmp_cc, LSL, 1);     // N | Z -> Z
+                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_NE;
+#else
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 0x40c);    /* Copy fpsr to temporary reg, invert Z and N */
                 *ptr++ = tst_immed(tmp_cc, 0x404);          /* Test if inverted Z == 0 */
                 *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x409);    /* Test if !N == 0 && NAN == 0 */
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 1);
+                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                *ptr++ = orr_reg(tmp_cc, tmp_cc, fpsr, LSL, 3);
+                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                success_condition = A64_CC_NE;
+#else
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 0x401);    /* Copy fpsr to temporary reg, invert NAN */
                 *ptr++ = tst_immed(tmp_cc, 0x401);          /* Test if inverted NAN == 0 */
                 *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x40c);    /* Test if !N == 0 && Z == 0 */
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_OGL:
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
+                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                success_condition = A64_CC_EQ;
+#else
                 *ptr++ = tst_immed(fpsr, 0x405);
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_UEQ:
+#ifdef __aarch64__
+                tmp_cc = RA_AllocARMRegister(&ptr);
+                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
+                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                success_condition = A64_CC_NE;
+#else
                 *ptr++ = tst_immed(fpsr, 0x405);
                 success_condition = ARM_CC_NE;
+#endif
                 break;
             case F_CC_OR:
+#ifdef __aarch64__
+                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
+                success_condition = A64_CC_EQ;
+#else
                 *ptr++ = tst_immed(fpsr, 0x401);
                 success_condition = ARM_CC_EQ;
+#endif
                 break;
             case F_CC_UN:
+#ifdef __aarch64__
+                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
+                success_condition = A64_CC_NE;
+#else
                 *ptr++ = tst_immed(fpsr, 0x401);
                 success_condition = ARM_CC_NE;
+#endif
                 break;
         }
         RA_FreeARMRegister(&ptr, tmp_cc);
@@ -2991,8 +3091,15 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
+#ifdef __aarch64__
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = csetm(tmp, success_condition);
+            *ptr++ = bfi(dest, tmp, 0, 8);
+            RA_FreeARMRegister(&ptr, tmp);
+#else
             *ptr++ = orr_cc_immed(success_condition, dest, dest, 0xff);
             *ptr++ = bfc_cc(success_condition ^ 1, dest, 0, 8);
+#endif
         }
         else
         {
@@ -3001,8 +3108,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t mode = (opcode & 0x0038) >> 3;
 
+#ifdef __aarch64__
+            *ptr++ = csetm(tmp, success_condition);
+#else
             *ptr++ = mov_cc_immed_u8(success_condition ^ 1, tmp, 0);
             *ptr++ = mvn_cc_immed_u8(success_condition, tmp, 0);
+#endif
 
             if (mode == 3)
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
@@ -3024,7 +3135,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
     }
-#endif
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
     {
