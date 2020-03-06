@@ -2543,7 +2543,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
-#ifndef __aarch64__
     /* FLOGN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
@@ -2555,6 +2554,35 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = fcpyd(0, fp_src);
 
+#ifdef __aarch64__
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        u.u64 = (uintptr_t)__ieee754_log;
+
+        *ptr++ = stp64_preindex(31, 0, 1, -80);
+        *ptr++ = stp64(31, 2, 3, 16);
+        *ptr++ = stp64(31, 4, 5, 32);
+        *ptr++ = stp64(31, 6, 7, 48);
+        *ptr++ = str64_offset(31, 30, 64);
+        
+        *ptr++ = adr(30, 20);
+        *ptr++ = ldr64_pcrel(0, 2);
+        *ptr++ = br(0);
+
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+
+        *ptr++ = fcpyd(fp_dst, 0);
+
+        *ptr++ = ldp64(31, 2, 3, 16);
+        *ptr++ = ldp64(31, 4, 5, 32);
+        *ptr++ = ldp64(31, 6, 7, 48);
+        *ptr++ = ldr64_offset(31, 30, 64);
+        *ptr++ = ldp64_postindex(31, 0, 1, 80);
+#else
         *ptr++ = push(0x0f | (1 << 12));
         *ptr++ = ldr_offset(15, 12, 12);
         *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
@@ -2562,7 +2590,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = pop(0x0f | (1 << 12));
         *ptr++ = b_cc(ARM_CC_AL, 0);
         *ptr++ = BE32((uint32_t)__ieee754_log);
-
+#endif
         RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -2578,7 +2606,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
-#endif
     /* FMOVE to REG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
     {
