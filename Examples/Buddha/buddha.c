@@ -6,12 +6,21 @@ static uint32_t pitch;
 static uint32_t width;
 static uint32_t height;
 
-#define render_width    800
-#define render_height   800
+#define render_width    400
+#define render_height   400
 #define max_work        4000
 #define oversample      4
 #define buddha          1
 
+#if !buddha
+#undef oversample
+#undef maxwork
+#define oversample 1
+#define maxwork 4095
+#define redraw_step 0xff
+#else
+#define redraw_step 0xffff
+#endif
 
 // over 5
 // max 2000
@@ -81,9 +90,12 @@ unsigned long calculateTrajectory(double r, double i)
         imaginaryNo = 2.0 * realNo * imaginaryNo + i;
         realNo = tmp;
 
-        /* Store */
-        workTrajectories[trajectory].r = realNo;
-        workTrajectories[trajectory].i = imaginaryNo;
+        if (buddha)
+        {
+            /* Store */
+            workTrajectories[trajectory].r = realNo;
+            workTrajectories[trajectory].i = imaginaryNo;
+        }
     }
 
     return 0;
@@ -98,7 +110,11 @@ void Buddha()
     unsigned long trajectoryLength;
     unsigned long current;
 
+#if buddha
     kprintf("[Buddha] Starting Buddhabrot fractal generator\n");
+#else
+    kprintf("[Buddha] Starting fractal generator\n");
+#endif
     kprintf("[Buddha] Screen %dx%d at 0x%08x\n", width, height, fb);
     kprintf("[Buddha] Rendering image with size %dx%d\n", render_width, render_height);
 
@@ -115,7 +131,7 @@ void Buddha()
 
     Begin_Time = LE32(*(volatile uint32_t*)0xf2003004);
 
-    for (current = 0; current <= (render_width * render_height * oversample * oversample); current++)
+    for (current = 0; current < (render_width * render_height * oversample * oversample); current++)
     {
         unsigned long val;
 
@@ -143,10 +159,9 @@ void Buddha()
                     unsigned long px = (workTrajectories[i].r + 2.0) / diff_sr;
                     unsigned long py = (workTrajectories[i].i + y_base) / diff_sr;
 
-                    pos = (unsigned long)(render_width * py + px);
-
-                    if (pos > 0 && pos < (render_width * render_height))
+                    if (px < render_width && py < render_height)
                     {
+                        pos = (unsigned long)(render_width * py + px);
 
                         val = buffer[pos];
 
@@ -160,15 +175,9 @@ void Buddha()
         }
         else
         {
-            val = buffer[current / (oversample * oversample)] & 0xff;
-
-            val += 2*trajectoryLength;
-            if (val > 0xff)
-                val = 0xff;
-
-            buffer[current / (oversample * oversample)] = (val << 16) | (val << 8) | val;
+            buffer[current / (oversample * oversample)] = trajectoryLength;
         }
-        if ((current & 0xffff) == 0)
+        if ((current & redraw_step) == 0)
             RedrawBuffer();
     }
     RedrawBuffer();
