@@ -6,21 +6,12 @@ static uint32_t pitch;
 static uint32_t width;
 static uint32_t height;
 
-#define render_width    400
-#define render_height   400
+#define render_width    800
+#define render_height   800
 #define max_work        4000
 #define oversample      4
 #define buddha          1
-
-#if !buddha
-#undef oversample
-#undef maxwork
-#define oversample 1
-#define maxwork 4095
-#define redraw_step 0xff
-#else
-#define redraw_step 0xffff
-#endif
+#define redraw_step     0xffff
 
 // over 5
 // max 2000
@@ -57,6 +48,31 @@ void RedrawBuffer()
         }
         in_offset += render_width;
         out_offset += pitch/2;
+    }
+}
+
+void RedrawBufferLine(int line)
+{
+    int start_x = (width - render_width) / 2;
+    int start_y = line + (height - render_height) / 2;
+
+    int out_offset = start_x + (start_y * pitch) / 2;
+    int in_offset = render_width * line;
+
+    for (int x=0; x < render_width; x++) {
+        uint32_t rgb = buffer[in_offset + x];
+        uint32_t r=96*rgb,g=128*rgb,b=256*rgb;
+
+        b = (b + 1023) / 2048;
+        r = (r + 1023) / 2048;
+        g = (g + 511) / 1024;
+
+        if (b > 31) b = 31;
+        if (r > 31) r = 31;
+        if (g > 63) g = 63;
+
+        uint16_t c = b | (g << 5) | (r << 11);
+        fb[out_offset + x] = LE16(c);
     }
 }
 
@@ -109,6 +125,8 @@ void Buddha()
     height = get_height();
     unsigned long trajectoryLength;
     unsigned long current;
+    unsigned long total_path_lo = 0;
+    unsigned long total_path_hi = 0;
 
 #if buddha
     kprintf("[Buddha] Starting Buddhabrot fractal generator\n");
@@ -130,6 +148,9 @@ void Buddha()
     double diff_sr = 4.0 / (double)render_width;
 
     Begin_Time = LE32(*(volatile uint32_t*)0xf2003004);
+    const unsigned long line_size = render_width * oversample;
+    unsigned long line_pos = 0;
+    unsigned long line_number = 0;
 
     for (current = 0; current < (render_width * render_height * oversample * oversample); current++)
     {
@@ -143,6 +164,13 @@ void Buddha()
 
         /* Calculate the points trajectory ... */
         trajectoryLength = calculateTrajectory(x, y);
+
+        total_path_lo += trajectoryLength;
+        if (total_path_lo >= 1000000000)
+        {
+            total_path_lo -= 1000000000;
+            total_path_hi++;
+        }
 
         //kprintf("len=%d\n", trajectoryLength);
 
@@ -172,13 +200,27 @@ void Buddha()
                     }
                 }
             }
+            if ((current & redraw_step) == 0)
+                RedrawBuffer();
         }
         else
         {
-            buffer[current / (oversample * oversample)] = trajectoryLength;
+            unsigned long px = line_pos / oversample;
+            unsigned long py = line_number / oversample;
+
+            val = buffer[px + py * render_width];
+            val += trajectoryLength;
+            if (val > 0xfff)
+                val = 0xfff;
+            buffer[px + py * render_width] = val;
+            line_pos++;
+            if (line_pos == line_size) {
+                line_pos = 0;
+                RedrawBufferLine(py);
+                line_number++;
+            }
         }
-        if ((current & redraw_step) == 0)
-            RedrawBuffer();
+
     }
     RedrawBuffer();
 
@@ -187,4 +229,5 @@ void Buddha()
     silence(0);
 
     kprintf("[Buddha] Time consumed: %d.%03d seconds\n", End_Time / 1000000, (End_Time % 1000000) / 1000);
+    kprintf("[Buddha] Total calculation iterations: %d'%09d\n", total_path_hi, total_path_lo);
 }
