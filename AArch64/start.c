@@ -586,7 +586,9 @@ void M68K_StartEmu(void *addr)
     {
         if (last_PC != m68k_pc)
         {
-            unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
+            unit = M68K_FindTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
+            if (!unit)
+                unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
             last_PC = m68k_pc;
             *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
         }
