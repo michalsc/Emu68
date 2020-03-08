@@ -456,10 +456,28 @@ uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 }
 
 static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVCX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    ptr = EMIT_ClearFlags(ptr, cc, 31);
+    (*not_done) &= 0x1f;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZVnC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     (void)cc;
     ptr = EMIT_ClearFlags(ptr, cc, 15);
+    (*not_done) &= 0x1f;
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVnCX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    (void)cc;
+    ptr = EMIT_ClearFlags(ptr, cc, 31);
     (*not_done) &= 0x1f;
     return ptr;
 }

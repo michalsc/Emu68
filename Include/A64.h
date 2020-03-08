@@ -143,6 +143,7 @@ static inline uint32_t udf(uint16_t imm16) { return hlt(imm16); }
 static inline uint32_t hint(uint8_t h) { return I32(0xd503201f | ((h & 0x7f) << 5)); }
 static inline uint32_t get_nzcv(uint8_t rt) { return mrs(rt, 3, 3, 4, 2, 0); }
 static inline uint32_t set_nzcv(uint8_t rt) { return msr(rt, 3, 3, 4, 2, 0); }
+static inline uint32_t cfinv() { return I32(0xd500401f); }
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
@@ -745,11 +746,33 @@ uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     if ((*not_done) & 15)
     {
         *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = ror(tmp_reg, tmp_reg, 30);
-        *ptr++ = bfi(cc, tmp_reg, 2, 2);
+        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
         *ptr++ = rbit(tmp_reg, tmp_reg);
-        *ptr++ = bfi(cc, tmp_reg, 0, 2);
+        *ptr++ = bfxil(cc, tmp_reg, 2, 2);
         (*not_done) &= 0x10;
+    }
+
+    if (*not_done)
+        ptr = EMIT_ClearFlags(ptr, cc, *not_done);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVCX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    if ((*not_done) & 15)
+    {
+        *ptr++ = get_nzcv(tmp_reg);
+        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        *ptr++ = rbit(tmp_reg, tmp_reg);
+        *ptr++ = bfxil(cc, tmp_reg, 2, 2);
+        *ptr++ = bfi(cc, cc, 4, 1);
+        (*not_done) = 0;
     }
 
     if (*not_done)
@@ -768,14 +791,37 @@ uint32_t * EMIT_GetNZVnC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     if ((*not_done) & 15)
     {
         *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = ror(tmp_reg, tmp_reg, 30);
-        *ptr++ = bfi(cc, tmp_reg, 2, 2);
+        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
         *ptr++ = rbit(tmp_reg, tmp_reg);
-        *ptr++ = bfi(cc, tmp_reg, 0, 2);
-        *ptr++ = eor_immed(cc, cc, 1, 0);
+        *ptr++ = bfxil(cc, tmp_reg, 2, 2);
         (*not_done) &= 0x10;
     }
-    
+
+    if (*not_done)
+        ptr = EMIT_ClearFlags(ptr, cc, *not_done);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+
+    return ptr;
+}
+
+static inline __attribute__((always_inline))
+uint32_t * EMIT_GetNZVnCX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    if ((*not_done) & 15)
+    {
+        *ptr++ = get_nzcv(tmp_reg);
+        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
+        *ptr++ = rbit(tmp_reg, tmp_reg);
+        *ptr++ = bfxil(cc, tmp_reg, 2, 2);
+        *ptr++ = bfi(cc, cc, 4, 1);
+        (*not_done) = 0;
+    }
+
     if (*not_done)
         ptr = EMIT_ClearFlags(ptr, cc, *not_done);
 
