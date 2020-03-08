@@ -1286,9 +1286,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
 
         if (update_mask)
         {
-#ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-
+#ifdef __aarch64__
             switch(size)
             {
                 case 4:
@@ -1301,33 +1300,41 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = cmn_reg(31, tmp, LSL, 24);
                     break;
             }
-
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
-
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
-            if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
-            }
-#else
-            M68K_ModifyCC(&ptr);
-            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-            if (update_mask & (SR_C))
-                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C);
 #endif
+            uint8_t old_mask = update_mask & SR_C;
+            ptr = EMIT_GetNZxx(ptr, cc, &update_mask);
+            update_mask |= old_mask;
+
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            if (update_mask & SR_N) {
+#ifdef __aarch64__
+                if (direction) {
+                    switch(size) {
+                        case 4:
+                            *ptr++ = bfxil(cc, reg, 31, 1);
+                            break;
+                        case 2:
+                            *ptr++ = bfxil(cc, reg, 15, 1);
+                            break;
+                        case 1:
+                            *ptr++ = bfxil(cc, reg, 7, 1);
+                            break;
+                    }
+                }
+                else {
+                    if (size == 4)
+                        *ptr++ = bfi(cc, reg, 0, 1);
+                    else
+                        *ptr++ = bfi(cc, tmp, 0, 1);
+                }
+#else
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
+#endif
+            }
+
         }
         RA_FreeARMRegister(&ptr, tmp);
     }

@@ -50,20 +50,15 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
             ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+
             if (update_mask & SR_Z)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
-            if (update_mask & (SR_X | SR_C)) {
-                if ((update_mask & (SR_X | SR_C)) == SR_X)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
-                else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
-                else
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
-            }
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
         }
     }
     /* 1011xxx1xx001xxx - CMPM */
@@ -128,14 +123,8 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
-            if (update_mask & (SR_X | SR_C)) {
-                if ((update_mask & (SR_X | SR_C)) == SR_X)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
-                else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
-                else
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
-            }
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
         }
     }
     /* 1011xxx0xxxxxxxx - CMP */
@@ -191,20 +180,15 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
             ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+
             if (update_mask & SR_Z)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
-            if (update_mask & (SR_X | SR_C)) {
-                if ((update_mask & (SR_X | SR_C)) == SR_X)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
-                else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
-                else
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
-            }
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
         }
     }
     /* 1011xxxxxxxxxxxx - EOR */

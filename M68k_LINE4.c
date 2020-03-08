@@ -39,7 +39,38 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             break;
     }
 
-    ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count);
+    if ((opcode & 0x38) == 0)
+    {
+        if (size != 4) {
+            uint8_t dn = RA_MapM68kRegister(&ptr, opcode & 7);
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            switch (size) {
+                case 1:
+#ifdef __aarch64__
+                    *ptr++ = bic_immed(dn, dn, 8, 0);
+#else
+                    *ptr++ = bic_immed(dn, dn, 0xff);
+#endif
+                    break;
+                case 2:
+#ifdef __aarch64__
+                    *ptr++ = bic_immed(dn, dn, 16, 0);
+#else
+                    *ptr++ = bic_immed(dn, dn, 0xffff);
+#endif
+            }
+        }
+        else {
+            uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
+#ifdef __aarch64__
+            *ptr++ = mov_reg(dn, 31);
+#else
+            *ptr++ = sub_reg(dn, dn, dn, 0);
+#endif
+        }
+    }
+    else
+        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count);
 #ifndef __aarch64__
     RA_FreeARMRegister(&ptr, zero);
 #endif
@@ -434,7 +465,10 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+        if (update_mask & SR_X)
+            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
+        else
+            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
@@ -633,7 +667,10 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+        if (update_mask & SR_X)
+            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
+        else
+            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
@@ -1297,7 +1334,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
             /* Pre-decrement mode? Decrease the base now */
             if ((opcode & 0x38) == 0x20)
             {
-                *ptr++ = sub_immed(base, base, block_size);
+
                 uint8_t offset = 0;
 
                 RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
@@ -1315,7 +1352,10 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                             if (rt1 == 0xff)
                                 rt1 = reg;
                             else {
-                                *ptr++ = stp(base, rt1, reg, offset);
+                                if (offset == 0)
+                                    *ptr++ = stp_preindex(base, rt1, reg, -block_size);
+                                else
+                                    *ptr++ = stp(base, rt1, reg, offset);
                                 offset += 8;
                                 rt1 = 0xff;
                             }
@@ -1327,9 +1367,15 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                         }
                     }
                 }
-                if (rt1 != 0xff)
-                    *ptr++ = str_offset(base, rt1, offset);
+                if (rt1 != 0xff) {
+                    if (offset == 0)
+                        *ptr++ = str_offset_preindex(base, rt1, -block_size);
+                    else
+                        *ptr++ = str_offset(base, rt1, offset);
+                }
 #else
+                *ptr++ = sub_immed(base, base, block_size);
+
                 for (int i=0; i < 16; i++)
                 {
                     /* Keep base register high in LRU */

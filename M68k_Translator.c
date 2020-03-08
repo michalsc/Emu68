@@ -32,7 +32,7 @@ options_t Options = {
 
 const int debug = 0;
 
-static struct List *ICache;
+struct List *ICache;
 struct List LRU;
 static uint32_t *temporary_arm_code;
 static struct M68KLocalState *local_state;
@@ -213,7 +213,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash ^ (hash >> 16)) & 0xffff;
 
-    if (debug > 1)
+    if (debug > 2)
         kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
     /* Find entry with correct address */
@@ -228,7 +228,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
 #ifdef __aarch64__
             /* Correct unit found. Preload ICache */
-            asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
+            //asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
 #endif
             if (1)
             {
@@ -572,7 +572,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     }
 
 #ifdef __aarch64__
-    asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
+    //asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
 #endif
 
     return unit;

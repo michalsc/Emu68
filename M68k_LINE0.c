@@ -345,7 +345,10 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+        if (update_mask & SR_X)
+            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
+        else
+            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
@@ -557,7 +560,10 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_GetNZVC(ptr, cc, &update_mask);
+        if (update_mask & SR_X)
+            ptr = EMIT_GetNZVCX(ptr, cc, &update_mask);
+        else
+            ptr = EMIT_GetNZVC(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
