@@ -9,26 +9,27 @@
 
 #include "support.h"
 #include "M68k.h"
+#include "EmuFeatures.h"
 
 struct SRMaskEntry {
     uint16_t me_OpcodeMask;
     uint16_t me_Opcode;
     uint8_t  me_Type;
     uint8_t  me_SRMask;
-    uint8_t  (*me_TestFunction)(uint16_t *stream);
+    uint8_t  (*me_TestFunction)(uint16_t *stream, int nest_level);
 };
 
 #define SME_MASK    1
 #define SME_FUNC    2
 #define SME_END     255
 
-static uint8_t SR_TestBranch(uint16_t *insn_stream);
-static uint8_t SR_TestOpcode16B(uint16_t *insn_stream);
-static uint8_t SR_TestOpcode32B(uint16_t *insn_stream);
-static uint8_t SR_TestOpcode48B(uint16_t *insn_stream);
-static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream);
-static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream);
-static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream);
+static uint8_t SR_TestBranch(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, int nest_level);
 
 static struct SRMaskEntry Line0_Map[] = {
     { 0xffbf, 0x003c, SME_MASK, 0, NULL },                                /* ORI to CCR/SR - they rely on current CC! */
@@ -125,7 +126,8 @@ static struct SRMaskEntry Line8_Map[] = {
 
 static struct SRMaskEntry Line9_Map[] = {
     { 0xf0c0, 0x90c0, SME_FUNC, 0, SR_TestOpcodeADDA },                   /* SUBA */
-    { 0xf000, 0x9000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* SUB/SUBX */
+    { 0xf130, 0x9100, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* SUBX */
+    { 0xf000, 0x9000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUB */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
@@ -150,7 +152,8 @@ static struct SRMaskEntry LineC_Map[] = {
 
 static struct SRMaskEntry LineD_Map[] = {
     { 0xf0c0, 0xd0c0, SME_FUNC, 0, SR_TestOpcodeADDA },                   /* ADDA */
-    { 0xf000, 0xd000, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ADD/ADDX */
+    { 0xf130, 0xd100, SME_MASK, SR_C | SR_V | SR_Z | SR_N, NULL },        /* ADDX - reqires X and modifies X! */
+    { 0xf000, 0xd000, SME_MASK, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ADD */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
@@ -216,7 +219,7 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t imm_size)
         {
             /* Reg- or PC-relative addressing mode */
             uint16_t brief = BE16(insn_stream[1]);
-            
+
             /* Brief word is here */
             word_count++;
 
@@ -273,7 +276,7 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t imm_size)
     return word_count;
 }
 
-static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream)
+static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, int nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -296,7 +299,8 @@ static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
-            break;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(&insn_stream[word_count], nest_level+1);
         }
         e++;
     }
@@ -304,7 +308,7 @@ static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream)
     return mask;
 }
 
-static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream)
+static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, int nest_level)
 {
     uint16_t opcode;
     uint16_t next_opcode;
@@ -340,6 +344,9 @@ static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(&insn_stream[word_count], nest_level+1);
+
             break;
         }
         e++;
@@ -348,7 +355,7 @@ static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream)
     return mask;
 }
 
-static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream)
+static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, int nest_level)
 {
     uint16_t opcode;
     uint16_t next_opcode;
@@ -384,6 +391,9 @@ static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(&insn_stream[word_count], nest_level+1);
+
             break;
         }
         e++;
@@ -392,7 +402,7 @@ static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream)
     return mask;
 }
 
-static uint8_t SR_TestOpcode16B(uint16_t *insn_stream)
+static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, int nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -411,6 +421,8 @@ static uint8_t SR_TestOpcode16B(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(&insn_stream[1], nest_level+1);
             break;
         }
         e++;
@@ -419,7 +431,7 @@ static uint8_t SR_TestOpcode16B(uint16_t *insn_stream)
     return mask;
 }
 
-static uint8_t SR_TestOpcode32B(uint16_t *insn_stream)
+static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, int nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -438,6 +450,8 @@ static uint8_t SR_TestOpcode32B(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(&insn_stream[2], nest_level+1);
             break;
         }
         e++;
@@ -446,7 +460,7 @@ static uint8_t SR_TestOpcode32B(uint16_t *insn_stream)
     return mask;
 }
 
-static uint8_t SR_TestOpcode48B(uint16_t *insn_stream)
+static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, int nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -465,6 +479,8 @@ static uint8_t SR_TestOpcode48B(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(&insn_stream[3], nest_level+1);
             break;
         }
         e++;
@@ -473,7 +489,7 @@ static uint8_t SR_TestOpcode48B(uint16_t *insn_stream)
     return mask;
 }
 
-static uint8_t SR_TestBranch(uint16_t *insn_stream)
+static uint8_t SR_TestBranch(uint16_t *insn_stream, int nest_level)
 {
     /*
         At this point insn_stream points to the branch opcode.
@@ -519,6 +535,8 @@ static uint8_t SR_TestBranch(uint16_t *insn_stream)
             /* Don't nest. Check only the SME_MASK type */
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
+            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
+                mask = e->me_TestFunction(insn_stream, nest_level+1);
             break;
         }
         e++;
@@ -544,7 +562,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
             if (e->me_Type == SME_MASK)
                 mask = e->me_SRMask;
             else if (e->me_Type == SME_FUNC) {
-                mask = e->me_TestFunction(insn_stream);
+                mask = e->me_TestFunction(insn_stream, 0);
             }
             break;
         }
