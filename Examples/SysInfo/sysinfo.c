@@ -685,14 +685,14 @@ void _main (int n)
   kprintf("[SysInfo] End time: %d\n", End_Time);
   kprintf("[SysInfo] User time: %d\n", User_Time);
 
-    uint32_t Microseconds;
-    uint32_t Megabytes_Per_Second;
+    double Microseconds;
+    double Megabytes_Per_Second;
 
 
   {
-    Microseconds = (User_Time * 100) / Number_Of_Runs;
-    Megabytes_Per_Second = Number_Of_Runs * 128 / ((1024 * User_Time)/1000);
-    Megabytes_Per_Second = (1000 * Megabytes_Per_Second) / 1024;
+    Microseconds = (double)User_Time / (double)Number_Of_Runs;
+    Megabytes_Per_Second = (double)Number_Of_Runs * 128e6 / (double)User_Time;
+    Megabytes_Per_Second = Megabytes_Per_Second / (1024 * 1024);
   }
 
   kprintf("[SysInfo] Starting SysInfo like Dhrystone benchmark.\n[SysInfo] Performing %d loops\n", n);
@@ -717,23 +717,23 @@ void _main (int n)
   kprintf("[SysInfo] User time: %d\n", User_Time);
 
     kprintf ("[SysInfo] Microseconds for one run through BUSTEST:   ");
-    kprintf ("%d.%02d \n", Microseconds / 100, Microseconds % 100);
+    kprintf ("%d.%03d \n", (uint32_t)(Microseconds), ((uint32_t)(Microseconds * 1000.0)) % 1000);
 
     kprintf ("[SysInfo] Memory performance in BUSTEST:              ");
-    kprintf ("%d MiB/s\n", Megabytes_Per_Second);
+    kprintf ("%d MiB/s\n", (uint32_t)Megabytes_Per_Second);
 
 
   {
-    uint32_t Microseconds = (User_Time * 100) / Number_Of_Runs;
-    uint32_t Dhrystones_Per_Second = (uint64_t)(1000 * Number_Of_Runs) / ((User_Time+500) / 1000);
-    uint32_t MIPS = (100 * Dhrystones_Per_Second) / 958;
+    double Microseconds = (double)User_Time / (double)Number_Of_Runs;
+    double Dhrystones_Per_Second = 1e6 * (double)Number_Of_Runs / (double)User_Time;
+    double MIPS = Dhrystones_Per_Second / 958.0;
 
     kprintf ("[SysInfo] Microseconds for one run through Dhrystone: ");
-    kprintf ("%d.%02d \n", Microseconds / 100, Microseconds % 100);
+    kprintf ("%d.%03d \n", (uint32_t)(Microseconds), ((uint32_t)(Microseconds * 1000.0)) % 1000);
     kprintf ("[SysInfo] SysInfo Dhrystones:                         ");
-    kprintf ("%d \n", Dhrystones_Per_Second);
+    kprintf ("%d \n", (uint32_t)Dhrystones_Per_Second);
     kprintf ("[SysInfo] SysInfo MIPS      :                         ");
-    kprintf ("%d.%02d \n", MIPS / 100, MIPS % 100);
+    kprintf ("%d.%02d \n", (uint32_t)MIPS, ((uint32_t)(MIPS * 10.0) % 10));
     if (User_Time < Too_Small_Time)
     {
         kprintf ("[SysInfo]   Measured time too small to obtain meaningful results\n");
