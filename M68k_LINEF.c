@@ -1840,9 +1840,109 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
 
+    /* MOVE16 (Ax)+, (Ay)+ */
+    if ((opcode & 0xfff8) == 0xf620 && (opcode2 & 0x8fff) == 0x8000)
+    {
+        uint8_t aligned_src = RA_AllocARMRegister(&ptr);
+        uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
+        uint8_t buf1 = RA_AllocARMRegister(&ptr);
+        uint8_t buf2 = RA_AllocARMRegister(&ptr);
+#ifndef __aarch64__
+        uint8_t buf3 = RA_AllocARMRegister(&ptr);
+        uint8_t buf4 = RA_AllocARMRegister(&ptr);
+#endif
+
+        uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
+
+#ifdef __aarch64__
+        *ptr++ = bic_immed(aligned_src, src, 4, 0);
+        *ptr++ = bic_immed(aligned_dst, dst, 4, 0);
+        *ptr++ = ldp64(aligned_src, buf1, buf2, 0);
+        *ptr++ = stp64(aligned_dst, buf1, buf2, 0);
+#else
+        *ptr++ = bic_immed(aligned_src, src, 0x0f);
+        *ptr++ = bic_immed(aligned_dst, dst, 0x0f);
+        *ptr++ = ldm(aligned_src, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+        *ptr++ = stm(aligned_dst, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+#endif
+        *ptr++ = add_immed(src, src, 16);
+        *ptr++ = add_immed(dst, dst, 16);
+
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
+
+        RA_FreeARMRegister(&ptr, aligned_src);
+        RA_FreeARMRegister(&ptr, aligned_dst);
+        RA_FreeARMRegister(&ptr, buf1);
+        RA_FreeARMRegister(&ptr, buf2);
+#ifndef __aarch64__
+        RA_FreeARMRegister(&ptr, buf3);
+        RA_FreeARMRegister(&ptr, buf4);
+#endif
+
+        ptr = EMIT_AdvancePC(ptr, 2);
+    }
+    /* MOVE16 other variations */
+    else if ((opcode & 0xffe0) == 0xf600)
+    {
+        uint8_t aligned_reg = RA_AllocARMRegister(&ptr);
+        uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
+        uint8_t buf1 = RA_AllocARMRegister(&ptr);
+        uint8_t buf2 = RA_AllocARMRegister(&ptr);
+#ifndef __aarch64__
+        uint8_t buf3 = RA_AllocARMRegister(&ptr);
+        uint8_t buf4 = RA_AllocARMRegister(&ptr);
+#endif
+        uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        uint32_t mem = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
+        
+        /* Align memory pointer */
+        mem &= 0xfffffff0;
+        *ptr++ = movw_immed_u16(aligned_mem, mem & 0xffff);
+        if (mem & 0xffff0000)
+            *ptr++ = movt_immed_u16(aligned_mem, mem >> 16);
+#ifdef __aarch64__
+        *ptr++ = bic_immed(aligned_reg, reg, 4, 0);
+        if (opcode & 8) {
+            *ptr++ = ldp64(aligned_mem, buf1, buf2, 0);
+            *ptr++ = stp64(aligned_reg, buf1, buf2, 0);
+        }
+        else {
+            *ptr++ = ldp64(aligned_reg, buf1, buf2, 0);
+            *ptr++ = stp64(aligned_mem, buf1, buf2, 0);
+        }
+#else
+        *ptr++ = bic_immed(aligned_reg, reg, 0x0f);
+        if (opcode & 8) {
+            *ptr++ = ldm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+            *ptr++ = stm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+        }
+        else {
+            *ptr++ = ldm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+            *ptr++ = stm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+        }
+#endif
+        if (!(opcode & 0x10))
+        {
+            *ptr++ = add_immed(reg, reg, 16);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+
+        RA_FreeARMRegister(&ptr, aligned_reg);
+        RA_FreeARMRegister(&ptr, aligned_mem);
+        RA_FreeARMRegister(&ptr, buf1);
+        RA_FreeARMRegister(&ptr, buf2);
+#ifndef __aarch64__
+        RA_FreeARMRegister(&ptr, buf3);
+        RA_FreeARMRegister(&ptr, buf4);
+#endif
+        (*m68k_ptr)+=2;
+        ptr = EMIT_AdvancePC(ptr, 6);
+    }
 #ifndef __aarch64__
     /* CINV */
-    if ((opcode & 0xff20) == 0xf400)
+    else if ((opcode & 0xff20) == 0xf400)
     {
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
@@ -2002,10 +2102,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
-    /* FMOVECR reg */
-    else 
 #endif
-    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    /* FMOVECR reg */
+    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
         union {
             double d;
