@@ -218,6 +218,10 @@ static inline uint32_t orrs_cc_immed(uint8_t cc, uint8_t dest, uint8_t src, uint
 static inline uint32_t orrs_immed(uint8_t dest, uint8_t src, uint8_t value){return orrs_cc_immed(ARM_CC_AL, dest, src, value);}
 static inline uint32_t orrs_cc_reg(uint8_t cc, uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return INSN_TO_LE(0x01800000 | (cc << 28) | (1 << 20) | (dest << 12) | (src << 16) | reg | (lsl << 7));}
 static inline uint32_t orrs_reg(uint8_t dest, uint8_t src, uint8_t reg, uint8_t lsl){return orrs_cc_reg(ARM_CC_AL, dest, src, reg, lsl);}
+
+static inline uint32_t ldm(uint8_t rd, uint16_t registers) {return INSN_TO_LE(0xe8900000 | ((rd & 15) << 16) | registers);}
+static inline uint32_t stm(uint8_t rd, uint16_t registers) {return INSN_TO_LE(0xe8800000 | ((rd & 15) << 16) | registers);}
+
 static inline uint32_t push(uint16_t registers) {return INSN_TO_LE(0xe92d0000 | registers);}
 static inline uint32_t pop(uint16_t registers) { return INSN_TO_LE(0xe8bd0000 | registers); }
 static inline uint32_t rev_cc(uint8_t cc, uint8_t dest, uint8_t src){return INSN_TO_LE(0x06bf0f30 | (cc << 28) | (dest << 12) | src);}
