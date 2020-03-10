@@ -21,6 +21,7 @@ enum {
     C_1_PI,
     C_2_PI,
     C_2_SQRTPI,
+    C_1_2PI,
     C_SQRT2,
     C_SQRT1_2,
     C_0_5,
@@ -72,6 +73,7 @@ static double const __attribute__((used)) constants[128] = {
     [C_1_PI] =      0.318309886183790671537767526745028724,
     [C_2_PI] =      0.636619772367581343075535053490057448,
     [C_2_SQRTPI] =  1.12837916709551257389615890312154517,
+    [C_1_2PI] =     0.1591549430918953357688837633725143620,
     [C_SQRT2] =     1.41421356237309504880168872420969808,
     [C_SQRT1_2] =   0.707106781186547524400844362104849039,
     [C_0_5] =       0.5,
@@ -288,19 +290,19 @@ void stub_PolySine(void)
         "   ldr x0,=constants       \n"
         "   ldp d1, d2, [x0, %0]    \n"
         "   fmul d3, d0, d0         \n"
-        "   fmadd d2, d2, d1, d3    \n"
+        "   fmadd d2, d1, d3, d2    \n"
         "   ldr d1, [x0, %0+16]     \n"
-        "   fmadd d1, d1, d2, d3    \n"
+        "   fmadd d1, d2, d3, d1    \n"
         "   ldr d2, [x0, %0+24]     \n"
-        "   fmadd d2, d2, d1, d3    \n"
+        "   fmadd d2, d1, d3, d2    \n"
         "   ldr d1, [x0, %0+32]     \n"
-        "   fmadd d1, d1, d2, d3    \n"
+        "   fmadd d1, d2, d3, d1    \n"
         "   ldr d2, [x0, %0+40]     \n"
-        "   fmadd d2, d2, d1, d3    \n"
+        "   fmadd d2, d1, d3, d2    \n"
         "   ldr d1, [x0, %0+48]     \n"
-        "   fmadd d1, d1, d2, d3    \n"
+        "   fmadd d1, d2, d3, d1    \n"
         "   ldr d2, [x0, %0+56]     \n"
-        "   fmadd d2, d2, d1, d3    \n"
+        "   fmadd d2, d1, d3, d2    \n"
         "   fmul d0, d2, d0         \n"
         "   ldr x0, [sp], 8         \n"
         "   ldr d3, [sp], 8         \n"
@@ -322,13 +324,13 @@ void stub_PolySineSingle(void)
         "   ldr x0,=constants       \n"
         "   ldp d1, d2, [x0, %0]    \n"
         "   fmul d3, d0, d0         \n"
-        "   fmadd d2, d2, d1, d3    \n"
+        "   fmadd d2, d1, d3, d2    \n"
         "   ldr d1, [x0, %0+16]     \n"
-        "   fmadd d1, d1, d2, d3    \n"
+        "   fmadd d1, d2, d3, d1    \n"
         "   ldr d2, [x0, %0+24]     \n"
-        "   fmadd d2, d2, d1, d3    \n"
+        "   fmadd d2, d1, d3, d2    \n"
         "   ldr d1, [x0, %0+32]     \n"
-        "   fmadd d1, d1, d2, d3    \n"
+        "   fmadd d1, d2, d3, d1    \n"
         "   fmul d0, d1, d0         \n"
         "   ldr x0, [sp], 8         \n"
         "   ldr d3, [sp], 8         \n"
@@ -349,21 +351,21 @@ void stub_PolyCosine(void)
         "   ldr x0,=constants       \n"
         "   fmul d2, d0, d0         \n"
         "   ldp d0, d1, [x0, %0]    \n"
-        "   fmadd d1, d1, d0, d2    \n"
+        "   fmadd d1, d0, d2, d1    \n"
         "   ldr d0, [x0, %0+16]     \n"
-        "   fmadd d0, d0, d1, d2    \n"
+        "   fmadd d0, d1, d2, d0    \n"
         "   ldr d1, [x0, %0+24]     \n"
-        "   fmadd d1, d1, d0, d2    \n"
+        "   fmadd d1, d0, d2, d1    \n"
         "   ldr d0, [x0, %0+32]     \n"
-        "   fmadd d0, d0, d1, d2    \n"
+        "   fmadd d0, d1, d2, d0    \n"
         "   ldr d1, [x0, %0+40]     \n"
-        "   fmadd d1, d1, d0, d2    \n"
+        "   fmadd d1, d0, d2, d1    \n"
         "   ldr d0, [x0, %0+48]     \n"
-        "   fmadd d0, d0, d1, d2    \n"
+        "   fmadd d0, d1, d2, d0    \n"
         "   ldr d1, [x0, %0+56]     \n"
-        "   fmadd d1, d1, d0, d2    \n"
+        "   fmadd d1, d0, d2, d1    \n"
         "   ldr d0, [x0, %0+64]     \n"
-        "   fmadd d0, d0, d1, d2    \n"
+        "   fmadd d0, d1, d2, d0    \n"
         "   ldr x0, [sp], 8         \n"
         "   ldp d1, d2, [sp], 16    \n"
         "   ret                     \n"
@@ -382,13 +384,13 @@ void stub_PolyCosineSingle(void)
         "   ldr x0,=constants       \n"
         "   fmul d2, d0, d0         \n"
         "   ldp d0, d1, [x0, %0]    \n"
-        "   fmadd d1, d1, d0, d2    \n"
+        "   fmadd d1, d0, d2, d1    \n"
         "   ldr d0, [x0, %0+16]     \n"
-        "   fmadd d0, d0, d1, d2    \n"
+        "   fmadd d0, d1, d2, d0    \n"
         "   ldr d1, [x0, %0+24]     \n"
-        "   fmadd d1, d1, d0, d2    \n"
+        "   fmadd d1, d0, d2, d1    \n"
         "   ldr d0, [x0, %0+32]     \n"
-        "   fmadd d0, d0, d1, d2    \n"
+        "   fmadd d0, d1, d2, d0    \n"
         "   ldr x0, [sp], 8         \n"
         "   ldp d1, d2, [sp], 16    \n"
         "   ret                     \n"
@@ -1851,7 +1853,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t buf3 = RA_AllocARMRegister(&ptr);
         uint8_t buf4 = RA_AllocARMRegister(&ptr);
 #endif
-
         uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
@@ -3347,25 +3348,118 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
-#ifndef __aarch64__
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
-        uint8_t top_half = RA_AllocARMRegister(&ptr);
-        uint8_t sign    = RA_AllocARMRegister(&ptr);
         uint8_t cmp_num = RA_AllocARMRegister(&ptr);
+        uint8_t sign    = RA_AllocARMRegister(&ptr);
+
         uint8_t fp_tmp1 = RA_AllocFPURegister(&ptr);
         uint8_t fp_tmp2 = RA_AllocFPURegister(&ptr);
-        uint32_t *tmp_ptr;
+
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t fp_src = 0xff;
+
+        uint32_t *adr_sin;
+        uint32_t *adr_cos;
         uint32_t *ref_ptr;
         uint32_t *exit_1;
         uint32_t *exit_2;
         uint32_t *exit_3;
-        uint32_t *adr_sin;
-        uint32_t *adr_cos;
+#ifdef __aarch64__
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        /* Fetch source */
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+
+        /* Alloc destination FP register for write */
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = stp64_preindex(31, 0, 30, -16);
+
+        *ptr++ = ldr64_pcrel(base_reg, 2);
+        *ptr++ = b(7);
+        u.u64 = (uintptr_t)(&constants[0]);
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+        adr_sin = ptr;
+        u.u64 = (uintptr_t)(PolySine);
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+        adr_cos = ptr;
+        u.u64 = (uintptr_t)(PolyCosine);
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+
+        /* sin(x)=-sin(-x) -> tmp1 = |x| */
+        *ptr++ = fabsd(fp_tmp1, fp_src);
+
+        /* Divide x by 2*Pi -> result into d0 */
+        *ptr++ = fldd_pimm(fp_tmp2, base_reg, C_1_2PI);
+        *ptr++ = fmuld(0, fp_tmp1, fp_tmp2);
+
+        /* Trim result to 0..2 range */
+        *ptr++ = frint64z(fp_tmp2, 0);
+        *ptr++ = fsubd(fp_tmp2, 0, fp_tmp2);
+        *ptr++ = faddd(0, fp_tmp2, fp_tmp2);
+
+        *ptr++ = fmov_f64(fp_tmp1, 120); // 1.5 == fldd_pimm(fp_tmp1, base_reg, C_1_5);
+        *ptr++ = fcmpd(0, fp_tmp1);
+        *ptr++ = b_cc(A64_CC_MI, 6);
+        
+        *ptr++ = fsubd(0, 0, fp_tmp1);
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_cos - ref_ptr);
+        *ptr++ = blr(0);
+        *ptr++ = fnegd(0, 0);
+        exit_1 = ptr;
+        *ptr++ = b(0);
+
+        *ptr++ = fmov_f64(fp_tmp1, 112); // 1.0 == fldd_pimm(fp_tmp1, base_reg, C_10P0);
+        *ptr++ = fcmpd(0, fp_tmp1);
+        *ptr++ = b_cc(A64_CC_MI, 6);
+
+        *ptr++ = fsubd(0, 0, fp_tmp1);
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_sin - ref_ptr);
+        *ptr++ = blr(0);
+        *ptr++ = fnegd(0, 0);
+        exit_2 = ptr;
+        *ptr++ = b(0);
+
+        *ptr++ = fmov_f64(fp_tmp1, 96); // 0.5 == fldd_pimm(fp_tmp1, base_reg, C_0_5);
+        *ptr++ = fcmpd(0, fp_tmp1);
+        *ptr++ = b_cc(A64_CC_MI, 5);
+
+        *ptr++ = fsubd(0, 0, fp_tmp1);
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_cos - ref_ptr);
+        *ptr++ = blr(0);
+        exit_3 = ptr;
+        *ptr++ = b(0);
+
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_sin - ref_ptr);
+        *ptr++ = blr(0);
+
+        *exit_1 = b(ptr - exit_1);
+        *exit_2 = b(ptr - exit_2);
+        *exit_3 = b(ptr - exit_3);
+
+        *ptr++ = fcmpzd(fp_src);
+        *ptr++ = b_cc(A64_CC_PL, 2);
+        *ptr++ = fnegd(0, 0);
+        *ptr++ = fcpyd(fp_dst, 0);
+
+        *ptr++ = ldp64_postindex(31, 0, 30, 16);
+#else
+        uint8_t top_half = RA_AllocARMRegister(&ptr);
+
+        uint32_t *tmp_ptr;
         uint32_t *adr_trim;
 
         *ptr++ = push(1 << 12);
@@ -3480,13 +3574,18 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = pop(1 << 12);
 
+
+
+        RA_FreeARMRegister(&ptr, top_half);
+#endif
         RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
-        RA_FreeARMRegister(&ptr, base_reg);
-        RA_FreeARMRegister(&ptr, top_half);
+
         RA_FreeARMRegister(&ptr, sign);
         RA_FreeARMRegister(&ptr, cmp_num);
+        RA_FreeARMRegister(&ptr, base_reg);
+        
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
@@ -3503,20 +3602,110 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t fp_src = 0xff;
         uint8_t base_reg = RA_AllocARMRegister(&ptr);
-        uint8_t top_half = RA_AllocARMRegister(&ptr);
         uint8_t cmp_num = RA_AllocARMRegister(&ptr);
+
         uint8_t fp_tmp1 = RA_AllocFPURegister(&ptr);
         uint8_t fp_tmp2 = RA_AllocFPURegister(&ptr);
-        uint32_t *tmp_ptr;
+
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t fp_src = 0xff;
+
+        uint32_t *adr_sin;
+        uint32_t *adr_cos;
         uint32_t *ref_ptr;
         uint32_t *exit_1;
         uint32_t *exit_2;
         uint32_t *exit_3;
-        uint32_t *adr_sin;
-        uint32_t *adr_cos;
+#ifdef __aarch64__
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        /* Fetch source */
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+
+        /* Alloc destination FP register for write */
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = stp64_preindex(31, 0, 30, -16);
+
+        *ptr++ = ldr64_pcrel(base_reg, 2);
+        *ptr++ = b(7);
+        u.u64 = (uintptr_t)(&constants[0]);
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+        adr_sin = ptr;
+        u.u64 = (uintptr_t)(PolySine);
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+        adr_cos = ptr;
+        u.u64 = (uintptr_t)(PolyCosine);
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+
+        /* cos(x)=-cos(x) -> tmp1 = |x| */
+        *ptr++ = fabsd(fp_tmp1, fp_src);
+
+        /* Divide x by Pi -> result into d0 */
+        *ptr++ = fldd_pimm(fp_tmp2, base_reg, C_1_2PI);
+        *ptr++ = fmuld(fp_tmp1, fp_tmp1, fp_tmp2);
+
+        /* Trim result to 0..2 range */
+        *ptr++ = frint64z(fp_tmp2, fp_tmp1);
+        *ptr++ = fsubd(fp_tmp2, fp_tmp1, fp_tmp2);
+        *ptr++ = faddd(0, fp_tmp2, fp_tmp2);
+
+        *ptr++ = fmov_f64(fp_tmp1, 120); // 1.5 == fldd_pimm(fp_tmp1, base_reg, C_1_5);
+        *ptr++ = fcmpd(0, fp_tmp1);
+        *ptr++ = b_cc(A64_CC_MI, 5);
+
+        *ptr++ = fsubd(0, 0, fp_tmp1);
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_sin - ref_ptr);
+        *ptr++ = blr(0);
+        exit_1 = ptr;
+        *ptr++ = b(0);
+
+        *ptr++ = fmov_f64(fp_tmp1, 112); // 1.0 == fldd_pimm(fp_tmp1, base_reg, C_10P0);
+        *ptr++ = fcmpd(0, fp_tmp1);
+        *ptr++ = b_cc(A64_CC_MI, 6);
+
+        *ptr++ = fsubd(0, 0, fp_tmp1);
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_cos - ref_ptr);
+        *ptr++ = blr(0);
+        *ptr++ = fnegd(0, 0);
+        exit_2 = ptr;
+        *ptr++ = b(0);
+
+        *ptr++ = fmov_f64(fp_tmp1, 96); // 0.5 == fldd_pimm(fp_tmp1, base_reg, C_0_5);
+        *ptr++ = fcmpd(0, fp_tmp1);
+        *ptr++ = b_cc(A64_CC_MI, 6);
+
+        *ptr++ = fsubd(0, 0, fp_tmp1);
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_sin - ref_ptr);
+        *ptr++ = blr(0);
+        *ptr++ = fnegd(0, 0);
+        exit_3 = ptr;
+        *ptr++ = b(0);
+
+        ref_ptr = ptr;
+        *ptr++ = ldr64_pcrel(0, adr_cos - ref_ptr);
+        *ptr++ = blr(0);
+
+        *exit_1 = b(ptr - exit_1);
+        *exit_2 = b(ptr - exit_2);
+        *exit_3 = b(ptr - exit_3);
+
+        *ptr++ = fcpyd(fp_dst, 0);
+
+        *ptr++ = ldp64_postindex(31, 0, 30, 16);
+#else
+        uint8_t top_half = RA_AllocARMRegister(&ptr);
+        uint32_t *tmp_ptr;
         uint32_t *adr_trim;
 
         *ptr++ = push(1 << 12);
@@ -3625,11 +3814,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         *ptr++ = pop(1 << 12);
 
+        RA_FreeARMRegister(&ptr, top_half);
+#endif
         RA_FreeFPURegister(&ptr, fp_src);
         RA_FreeFPURegister(&ptr, fp_tmp1);
         RA_FreeFPURegister(&ptr, fp_tmp2);
         RA_FreeARMRegister(&ptr, base_reg);
-        RA_FreeARMRegister(&ptr, top_half);
         RA_FreeARMRegister(&ptr, cmp_num);
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -3643,8 +3833,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         }
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
+
     }
-#endif
     /* FNOP */
     else if (opcode == 0xf280 && opcode2 == 0)
     {
