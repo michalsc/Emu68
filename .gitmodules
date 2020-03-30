@@ -1,0 +1,3 @@
+[submodule "libtinystd"]
+	path = libtinystd
+	url = https://github.com/michalsc/tiny-std.git
