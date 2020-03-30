@@ -1897,7 +1897,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 #endif
         uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint32_t mem = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
-        
+
         /* Align memory pointer */
         mem &= 0xfffffff0;
         *ptr++ = movw_immed_u16(aligned_mem, mem & 0xffff);
@@ -2667,7 +2667,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = stp64(31, 4, 5, 32);
         *ptr++ = stp64(31, 6, 7, 48);
         *ptr++ = str64_offset(31, 30, 64);
-        
+
         *ptr++ = adr(30, 20);
         *ptr++ = ldr64_pcrel(0, 2);
         *ptr++ = br(0);
@@ -3410,7 +3410,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = fmov_f64(fp_tmp1, 120); // 1.5 == fldd_pimm(fp_tmp1, base_reg, C_1_5);
         *ptr++ = fcmpd(0, fp_tmp1);
         *ptr++ = b_cc(A64_CC_MI, 6);
-        
+
         *ptr++ = fsubd(0, 0, fp_tmp1);
         ref_ptr = ptr;
         *ptr++ = ldr64_pcrel(0, adr_cos - ref_ptr);
@@ -3585,7 +3585,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, sign);
         RA_FreeARMRegister(&ptr, cmp_num);
         RA_FreeARMRegister(&ptr, base_reg);
-        
+
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
