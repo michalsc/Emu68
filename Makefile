@@ -6,8 +6,10 @@ CC64 := aarch64-linux-gcc
 CXX64:= aarch64-linux-g++
 OBJCOPY := arm-linux-gnueabihf-objcopy
 OBJCOPY64 := aarch64-linux-objcopy
-CFLAGS64:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
-CXXFLAGS64:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CFLAGS64_BASE := -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror
+CXXFLAGS64_BASE := -mbig-endian -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror
+CFLAGS64:= $(EXTRA_FLAGS) $(CFLAGS64_BASE) -Iinclude -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CXXFLAGS64:= $(EXTRA_FLAGS) $(CXXFLAGS64_BASE) -Iinclude -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CFLAGS  := $(EXTRA_FLAGS) -Iinclude -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CXXFLAGS:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 LDFLAGS := -static -lrt -s
@@ -23,8 +25,6 @@ RPI64_OBJS := AArch64/start.o AArch64/mmu.o RasPi/start_rpi64.o RasPi/support_rp
 
 PBPRO_OBJS := AArch64/start.o PBPro/start_pbpro.o PBPro/support_pbpro.o AArch64/mmu.o support.o tlsf.o devicetree.o \
         EmuLogo.o HunkLoader.o RegisterAllocator64.o
-
-#devicetree.o tlsf.o HunkLoader.o support.o support_rpi.o
 
 OBJDIR := Build
 OBJDIR64 := Build64
@@ -49,13 +49,18 @@ raspi-build:
 	@touch start_rpi.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel.img
 
-raspi64-build:
+raspi64-build: $(OBJDIR64)/libtinystl.a
 	@touch AArch64/start.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DRASPI" $(OBJDIR)/kernel8.img
 
 pbpro64-build:
 	@touch AArch64/start.c
 	@make --no-print-directory EXTRA_FLAGS="-ffreestanding -DPBPRO" $(OBJDIR)/Emu68_pinebook.img
+
+$(OBJDIR64)/libtinystl.a:
+	@echo "Building libtinystl"
+	@CXX=$(CXX64) CXXFLAGS='$(CXXFLAGS64_BASE) -Iinclude' make -C libtinystd lib
+	@cp libtinystd/Build/libtinystl.a $@
 
 $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 	@echo "Building target: $@"
@@ -65,7 +70,7 @@ $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 
 $(OBJDIR)/kernel8.img: ldscript-be64.lds $(addprefix $(OBJDIR64)/, $(RPI64_OBJS))
 	@echo "Building target: $@"
-	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static -T ldscript-be64.lds -o $@.elf
+	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static $(OBJDIR64)/libtinystl.a -T ldscript-be64.lds -o $@.elf
 	@$(OBJCOPY64) -O binary $@.elf $@
 	@echo "Build completed"
 
