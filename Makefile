@@ -7,6 +7,7 @@ CXX64:= aarch64-linux-g++
 OBJCOPY := arm-linux-gnueabihf-objcopy
 OBJCOPY64 := aarch64-linux-objcopy
 CFLAGS64:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CXXFLAGS64:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CFLAGS  := $(EXTRA_FLAGS) -Iinclude -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CXXFLAGS:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 LDFLAGS := -static -lrt -s
@@ -98,6 +99,18 @@ $(OBJDIR)/%.d: %.c
 	@mkdir -p $(@D)
 	@rm -f $@; \
          $(CC) -MM -MT $(basename $@).o $(CFLAGS) $< > $@.$$$$; \
+         sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+         rm -f $@.$$$$
+
+$(OBJDIR64)/%.o: %.cpp
+	@mkdir -p $(@D)
+	@echo "Compiling: $*.cpp"
+	@$(CXX64) -c $(CXXFLAGS64) $< -o $@
+
+$(OBJDIR64)/%.d: %.cpp
+	@mkdir -p $(@D)
+	@rm -f $@; \
+         $(CXX64) -MM -MT $(basename $@).o $(CXXFLAGS64) $< > $@.$$$$; \
          sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
          rm -f $@.$$$$
 
