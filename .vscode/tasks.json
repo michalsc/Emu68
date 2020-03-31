@@ -17,6 +17,18 @@
       },
       {
         "type": "shell",
+        "label": "build raspi64",
+        "command": "make",
+        "args": [
+            "raspi64"
+        ],
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "group": "build"
+      },
+      {
+        "type": "shell",
         "label": "build pbpro",
         "command": "make",
         "args": [

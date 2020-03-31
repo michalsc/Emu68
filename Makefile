@@ -32,8 +32,8 @@ TESTOBJS :=
 
 TESTOBJDIR := BuildTest
 
-raspi: pre-build raspi-build raspi64-build
-
+raspi: pre-build raspi-build
+raspi64: pre-build raspi64-build
 pbpro: pre-build pbpro64-build
 
 examples:
