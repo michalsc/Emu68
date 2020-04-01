@@ -171,10 +171,10 @@ static inline void dmb() {
 #endif
 
 typedef void (*putc_func)(void *data, char c);
-void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, va_list args);
-void kprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, ...);
-void vkprintf(const char * restrict format, va_list args);
-void kprintf(const char * restrict format, ...);
+void vkprintf_pc(putc_func putc_f, void *putc_data, const char * format, va_list args);
+void kprintf_pc(putc_func putc_f, void *putc_data, const char * format, ...);
+void vkprintf(const char * format, va_list args);
+void kprintf(const char * format, ...);
 void arm_flush_cache(uintptr_t addr, uint32_t length);
 void arm_icache_invalidate(uintptr_t addr, uint32_t length);
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length);
@@ -206,7 +206,7 @@ struct BuildID {
     uint32_t bid_NameLen;
     uint32_t bid_DescLen;
     uint32_t bid_Type;
-    uint8_t bid_Data[];
+    uint8_t bid_Data[1];
 };
 
 struct Result32 uidiv(uint32_t n, uint32_t d);
