@@ -1,0 +1,21 @@
+function(download_raspi_firmware)
+    set(PI_FILES
+        LICENCE.broadcom
+        bootcode.bin
+        fixup.dat
+        fixup4.dat
+        start.elf
+        start4.elf
+        bcm2711-rpi-4-b.dtb
+        bcm2710-rpi-cm3.dtb
+        bcm2710-rpi-3-b.dtb
+        bcm2710-rpi-3-b-plus.dtb
+        bcm2710-rpi-2-b.dtb
+        bcm2709-rpi-2-b.dtb
+    )
+    message("-- Downloadinf RasPi firmware files:")
+    foreach(F IN LISTS PI_FILES)
+        message("--   ${F}")
+        file(DOWNLOAD https://github.com/raspberrypi/firmware/raw/master/boot/${F} ${CMAKE_BINARY_DIR}/firmware/${F})
+    endforeach()
+endfunction(download_raspi_firmware)
