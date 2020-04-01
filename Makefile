@@ -4,12 +4,13 @@ CC := arm-linux-gnueabihf-gcc
 CXX := arm-linux-gnueabihf-g++
 CC64 := aarch64-linux-gcc
 CXX64:= aarch64-linux-g++
+AR64 := aarch64-linux-ar
 OBJCOPY := arm-linux-gnueabihf-objcopy
 OBJCOPY64 := aarch64-linux-objcopy
 CFLAGS64_BASE := -mbig-endian -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror
-CXXFLAGS64_BASE := -mbig-endian -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror
+CXXFLAGS64_BASE := -mbig-endian -std=c++11 -fno-exceptions -O3 -pedantic -pedantic-errors -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 -ffixed-x29 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18 -fomit-frame-pointer -Wall -Wextra -Werror
 CFLAGS64:= $(EXTRA_FLAGS) $(CFLAGS64_BASE) -Iinclude -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
-CXXFLAGS64:= $(EXTRA_FLAGS) $(CXXFLAGS64_BASE) -Iinclude -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
+CXXFLAGS64:= $(EXTRA_FLAGS) $(CXXFLAGS64_BASE) -Iinclude -Ilibtinystd/include -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CFLAGS  := $(EXTRA_FLAGS) -Iinclude -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=gnu11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 CXXFLAGS:= $(EXTRA_FLAGS) -Iinclude -mbig-endian -mcpu=cortex-a7 -mfpu=neon-vfpv4 -std=c++11 -O3 -pedantic -pedantic-errors -ffixed-r11 -fomit-frame-pointer -Wall -Wextra -Werror -DVERSION_STRING_DATE='$(VERSION_STRING_DATE)'
 LDFLAGS := -static -lrt -s
@@ -21,7 +22,7 @@ RPI_OBJS := start_rpi.o RasPi/support_rpi.o devicetree.o tlsf.o HunkLoader.o M68
 RPI64_OBJS := AArch64/start.o AArch64/mmu.o RasPi/start_rpi64.o RasPi/support_rpi.o support.o tlsf.o devicetree.o EmuLogo.o HunkLoader.o \
         RegisterAllocator64.o M68k_Translator.o M68k_MULDIV.o \
         M68k_MOVE.o M68k_EA.o M68k_SR.o M68k_LINE0.o M68k_LINE4.o M68k_LINE5.o M68k_LINE6.o M68k_LINE8.o \
-        M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_LINEF.o
+        M68k_LINE9.o M68k_LINEB.o M68k_LINEC.o M68k_LINED.o M68k_LINEE.o M68k_LINEF.o cpp_support.o
 
 PBPRO_OBJS := AArch64/start.o PBPro/start_pbpro.o PBPro/support_pbpro.o AArch64/mmu.o support.o tlsf.o devicetree.o \
         EmuLogo.o HunkLoader.o RegisterAllocator64.o
@@ -59,7 +60,7 @@ pbpro64-build:
 
 $(OBJDIR64)/libtinystl.a:
 	@echo "Building libtinystl"
-	@CXX=$(CXX64) CXXFLAGS='$(CXXFLAGS64_BASE) -Iinclude' make -C libtinystd lib
+	@CXX=$(CXX64) CXXFLAGS='$(CXXFLAGS64_BASE) -Iinclude' AR=$(AR64) make -C libtinystd lib
 	@cp libtinystd/Build/libtinystl.a $@
 
 $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
@@ -70,7 +71,7 @@ $(OBJDIR)/kernel.img: $(addprefix $(OBJDIR)/, $(RPI_OBJS))
 
 $(OBJDIR)/kernel8.img: ldscript-be64.lds $(addprefix $(OBJDIR64)/, $(RPI64_OBJS))
 	@echo "Building target: $@"
-	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static $(OBJDIR64)/libtinystl.a -T ldscript-be64.lds -o $@.elf
+	@$(CC64) $(foreach f,$(RPI64_OBJS),$(OBJDIR64)/$(f)) -Wl,-L$(OBJDIR64) -Wl,-ltinystl -Wl,--Map=$@.map -Wl,--build-id -Wl,-EB -Wl,--format=elf64-bigaarch64 -nostdlib -nostartfiles -static -T ldscript-be64.lds -o $@.elf
 	@$(OBJCOPY64) -O binary $@.elf $@
 	@echo "Build completed"
 
