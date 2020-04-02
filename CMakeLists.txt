@@ -8,7 +8,6 @@ get_verstring(VERSTRING)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_INSTALL_PREFIX "")
 set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 
