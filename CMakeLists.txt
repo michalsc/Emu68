@@ -10,6 +10,7 @@ set(CMAKE_C_STANDARD 11)
 
 set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
+set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
 set(ARCH_FILES "")
 set(TARGET_FILES "")
