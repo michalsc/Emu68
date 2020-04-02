@@ -41,8 +41,6 @@ set(EMU_FILES
     src/M68k_LINEF.c
 )
 
-add_subdirectory(external/tiny-stl)
-
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
     if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
@@ -77,7 +75,7 @@ else()
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -ffreestanding -pedantic -pedantic-errors -Wall -Wextra -Werror)
+add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -pedantic -pedantic-errors -Wall -Wextra -Werror)
 
 if(${TARGET_ARCH} STREQUAL "armhf")
     list(APPEND ARCH_FILES
@@ -110,6 +108,8 @@ add_custom_command(
     COMMAND ${CMAKE_OBJCOPY} -v -O binary "${CMAKE_BINARY_DIR}/Emu68.elf" "${CMAKE_BINARY_DIR}/Emu68.img"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+add_subdirectory(external/tiny-stl)
 
 target_link_libraries(Emu68.elf tinystl)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include)
