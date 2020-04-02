@@ -13,7 +13,7 @@ function(download_raspi_firmware)
         bcm2710-rpi-2-b.dtb
         bcm2709-rpi-2-b.dtb
     )
-    message("-- Downloadinf RasPi firmware files:")
+    message("-- Downloading RasPi firmware files")
     foreach(F IN LISTS PI_FILES)
         if(NOT EXISTS ${CMAKE_BINARY_DIR}/firmware/${F})
             message("--   ${F}")
