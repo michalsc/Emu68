@@ -182,8 +182,8 @@ const char *remove_path(const char *in);
 size_t strlen(const char *c);
 int strcmp(const char *s1, const char *s2);
 void *memmove(void *dst, const void *src, size_t sz);
-void memcpy(void *dst, const void *src, size_t sz);
-void memset(void *ptr, uint8_t fill, size_t sz);
+void *memcpy(void *dst, const void *src, size_t sz);
+void *memset(void *ptr, int fill, size_t sz);
 void bzero(void *ptr, size_t sz);
 void platform_init();
 void platform_post_init();
@@ -215,7 +215,7 @@ struct Result64 uldiv(uint64_t n, uint64_t d);
 struct Result64 sldiv(int64_t n, int64_t d);
 
 #ifdef RASPI
-#include "../raspi/support_rpi.h"
+#include "support_rpi.h"
 #endif
 
 #endif /* _SUPPORT_H */

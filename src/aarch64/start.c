@@ -7,13 +7,6 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-asm("   .section .startup           \n"
-"       .globl _start               \n"
-"       .globl _boot                \n"
-"       .type _start,%function      \n" /* Our kernel image starts with a standard header */
-"_boot: b       _boot               \n" /* code0: branch to the start */
-);
-#if 0
 #include <stdarg.h>
 #include <stdint.h>
 #include "A64.h"
@@ -53,7 +46,7 @@ asm("   .section .startup           \n"
 
 ".byte 0                            \n"
 ".align 4                           \n"
-".string \"$VER: Emu68.img " VERSION_STRING "\"\n"
+".string \"" VERSION_STRING "\"     \n"
 ".byte 0                            \n"
 ".align 5                           \n"
 
@@ -616,4 +609,3 @@ void M68K_StartEmu(void *addr)
 
     M68K_DumpStats();
 }
-#endif
