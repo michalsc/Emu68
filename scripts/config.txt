@@ -1,0 +1,20 @@
+# Sample config.txt file for booting Emu68 on RaspberryPi
+# Select the Emu68 kernel. If you want RasPi firmware to select a kernel for you depending on the
+# target architecture, then rename 64-bit Emu68.img to kernel8.img and 32-bit Emu68.img to kernel.img
+
+kernel=Emu68.img
+disable_splash=1
+
+# Limit GPU memory a little, force 1080p video mode
+gpu_mem=32
+hdmi_group=2
+hdmi_mode=82
+#hdmi_mode=85
+#hdmi_mode=14
+
+# Select some m68k code to run...
+# initramfs dhrystone
+# initramfs x
+#initramfs Buddha
+#initramfs SmallPT
+initramfs SysInfo

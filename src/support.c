@@ -520,21 +520,24 @@ void bzero(void *ptr, size_t sz)
             *p++ = 0;
 }
 
-void memset(void *ptr, uint8_t fill, size_t sz)
+void *memset(void *ptr, int fill, size_t sz)
 {
     uint8_t *p = ptr;
     if (p)
         while(sz--)
             *p++ = fill;
+    return ptr;
 }
 
-void memcpy(void *dst, const void *src, size_t sz)
+void *memcpy(void *dst, const void *src, size_t sz)
 {
     uint8_t *d = dst;
     const uint8_t *s = src;
 
     while(sz--)
 	*d++ = *s++;
+
+    return dst;
 }
 
 void *memmove(void *dst, const void *src, size_t sz)

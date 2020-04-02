@@ -1,6 +1,6 @@
 # Build directory
-Build/
-Build64/
+build/
+build*/
 
 # Prerequisites
 *.d

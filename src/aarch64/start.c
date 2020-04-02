@@ -46,7 +46,7 @@ asm("   .section .startup           \n"
 
 ".byte 0                            \n"
 ".align 4                           \n"
-".string \"$VER: Emu68.img " VERSION_STRING_DATE "\"\n"
+".string \"" VERSION_STRING "\"     \n"
 ".byte 0                            \n"
 ".align 5                           \n"
 
