@@ -22,7 +22,7 @@ set(BASE_FILES
     src/EmuLogo.c
     src/HunkLoader.c
 )
-set(EMU_FILES
+set(EMU68_FILES
     src/M68k_Translator.c
     src/M68k_SR.c
     src/M68k_MULDIV.c
@@ -87,9 +87,9 @@ if(${TARGET_ARCH} STREQUAL "armhf")
     add_compile_options(-mcpu=cortex-a7 -mfpu=neon-vfpv4 -O3 -ffixed-r11 -fomit-frame-pointer)
 else()
     list(APPEND ARCH_FILES
-            src/aarch64/start.c
-            src/aarch64/mmu.c
-            src/aarch64/RegisterAllocator64.c
+        src/aarch64/start.c
+        src/aarch64/mmu.c
+        src/aarch64/RegisterAllocator64.c
     )
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
     add_link_options(-Wl,-EB -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
@@ -100,7 +100,7 @@ add_executable(Emu68.elf
     ${ARCH_FILES}
     ${TARGET_FILES}
     ${BASE_FILES}
-    ${EMU_FILES}
+    ${EMU68_FILES}
 )
 
 add_custom_command(
