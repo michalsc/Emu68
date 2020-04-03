@@ -84,7 +84,7 @@ if(${TARGET_ARCH} STREQUAL "armhf")
     )
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be.lds)
     add_link_options(-Wl,--be8 -Wl,--format=elf32-bigarm -T ${LINKER_SCRIPT})
-    add_compile_options(-mcpu=cortex-a7 -mfpu=neon-vfpv4 -O3 -ffixed-r11 -fomit-frame-pointer)
+    add_compile_options(-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -O3 -ffixed-r11 -fomit-frame-pointer)
 else()
     list(APPEND ARCH_FILES
         src/aarch64/start.c
