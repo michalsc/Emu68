@@ -10,9 +10,33 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#include <tinystl/allocator>
 #include <stdint.h>
 #include <emu68/CodeGenerator.h>
 
+class IntegerRegister {};
+class FloatingPointRegister {};
+
+template< typename RegType = IntegerRegister >
+class Register {
+public:
+    Register() : _regnum(0xff), _refcount(nullptr) {}
+    Register(uint8_t regnum) : _regnum(regnum) { _refcount = tinystd::allocator<uint32_t>().allocate(1); }
+    Register(Register& other) : _regnum(other._regnum), _refcount(other._refcount) { (*_refcount)++; }
+    Register(Register&& other) : _regnum(other._regnum), _refcount(other._refcount) { other._refcount = nullptr; other._regnum = 0xff; }
+    ~Register() { if (--(*_refcount) == 0) { tinystd::allocator<uint32_t>().deallocate(_refcount, 1); } }
+    Register& operator=(Register& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
+    Register& operator=(const Register& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
+    Register& operator=(Register&& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; other._refcount = nullptr; other._regnum = 0xff; return *this; }
+    Register& operator=(const Register&& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
+
+    uint8_t value() { return _regnum; }
+private:
+    uint8_t _regnum;
+    uint32_t* _refcount;
+};
+
+#if 0
 template< uint8_t MaxRegCount = 8, uint8_t MaxFPURegCount = 8 >
 class RegisterAllocator {
 public:
@@ -61,5 +85,5 @@ private:
         return 0xff;
     }
 };
-
+#endif
 #endif /* _EMU68_REGISTERALLOCATOR_H */

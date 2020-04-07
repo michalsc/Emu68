@@ -120,3 +120,20 @@ extern "C" void __cxa_finalize(void (*f)(void*))
         }
     }
 }
+<<<<<<< HEAD
+=======
+
+
+
+#include <emu68/RegisterAllocator.h>
+#include <emu68/CodeGenerator.h>
+
+void foo() {
+    Register<> reg(1);
+    Register<FloatingPointRegister> fpureg(5);
+
+    fpureg.value();
+//    CodeGenerator cgen;
+//    RegisterAllocator<> regalloc(cgen);
+}
+>>>>>>> 0179946fcdf535f00ebac84688b6bde2177204cf
