@@ -127,6 +127,10 @@ extern "C" void __cxa_finalize(void (*f)(void*))
 #include <emu68/CodeGenerator.h>
 
 void foo() {
-    CodeGenerator cgen;
-    RegisterAllocator<> regalloc(cgen);
+    Register<> reg(1);
+    Register<FloatingPointRegister> fpureg(5);
+
+    fpureg.value();
+//    CodeGenerator cgen;
+//    RegisterAllocator<> regalloc(cgen);
 }
