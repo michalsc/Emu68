@@ -39,7 +39,7 @@ public:
 };
 
 template <class T>
-class regular_allocator {
+class allocator {
 
 public:
     typedef T                   value_type;
@@ -50,9 +50,9 @@ public:
     typedef uintptr_t           size_type;
     typedef ptrdiff_t           difference_type;
 
-    regular_allocator() {};
-    regular_allocator(const regular_allocator&) : regular_allocator() {};
-    ~regular_allocator() {};
+    allocator() {};
+    allocator(const allocator&) : allocator() {};
+    ~allocator() {};
     pointer address(reference x) { return &x; }
     const_pointer address(const_reference x) { return &x; }
     pointer allocate(size_type n) { pointer p = (pointer)tlsf_malloc(tlsf, n * sizeof(value_type)); return p; }
