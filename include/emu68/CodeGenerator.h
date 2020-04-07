@@ -13,19 +13,17 @@
 #include <stdint.h>
 #include <support.h>
 #include <tinystl/vector>
+#include <emu68/Architectures.h>
 #include <emu68/Allocators.h>
 #include <emu68/RegisterAllocator.h>
 
 namespace emu68 {
 
-struct AArch64 { static const int RegEnd = 11; static const int RegStart = 0; static const int FPURegEnd = 8; static const int FPURegStart = 1; };
-struct ARM { static const int RegEnd = 7; static const int RegStart = 0; static const int FPURegEnd = 8; static const int FPURegStart = 1; };
-struct Thumb { static const int RegEnd = 7; static const int RegStart = 0; static const int FPURegEnd = 8; static const int FPURegStart = 1; };
 
 template< typename arch >
 class CodeGenerator {
 public:
-    CodeGenerator() : { }
+    CodeGenerator() { }
     void Emit(uint32_t opcode) { _INSN_Stream.push_back(opcode); }
 private:
     tinystd::vector< uint32_t, jit_allocator<uint32_t> > _INSN_Stream;
