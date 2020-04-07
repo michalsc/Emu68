@@ -21,6 +21,7 @@ set(BASE_FILES
     src/cpp_support.cpp
     src/EmuLogo.c
     src/HunkLoader.c
+    src/cpp_test.cpp
 )
 set(EMU68_FILES
     src/M68k_Translator.c

@@ -120,13 +120,3 @@ extern "C" void __cxa_finalize(void (*f)(void*))
         }
     }
 }
-
-
-
-#include <emu68/RegisterAllocator.h>
-#include <emu68/CodeGenerator.h>
-
-void foo() {
-    CodeGenerator cgen;
-    RegisterAllocator<> regalloc(cgen);
-}
