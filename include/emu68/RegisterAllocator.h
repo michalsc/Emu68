@@ -10,80 +10,69 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
-#include <tinystl/allocator>
 #include <stdint.h>
+#include <emu68/Allocators.h>
 #include <emu68/CodeGenerator.h>
 
-class IntegerRegister {};
-class FloatingPointRegister {};
+namespace emu68 {
 
-template< typename RegType = IntegerRegister >
+class INT {};
+class FPU {};
+
+
+template< typename Arch, typename RegType = INT >
+class RegisterAllocator {
+public:
+    uint8_t allocate() { return __alloc_reg(); }
+    void deallocate(uint8_t r) { __free_reg(r); } 
+private:
+    static uint32_t _register_pool;
+
+    void __free_reg(uint8_t reg) {
+        const int max = std::is_same<RegType, INT>::value ? Arch().RegEnd : Arch().FPURegEnd;
+        const int min = std::is_same<RegType, INT>::value ? Arch().RegStart : Arch().FPURegStart;
+        reg -= min;
+        if (reg <= (max - min)) {
+            _register_pool &= ~(1 << reg);
+        }
+    }
+
+    uint8_t __alloc_reg() {
+        const int max = std::is_same<RegType, INT>::value ? Arch().RegEnd : Arch().FPURegEnd;
+        const int min = std::is_same<RegType, INT>::value ? Arch().RegStart : Arch().FPURegStart;
+        int reg = __builtin_ctz(~_register_pool);
+        if (reg <= (max - min)) {
+            _register_pool |= 1 << reg;
+            return reg + min;
+        }
+        return 0xff;
+    }
+};
+
+template< typename arch, typename reg >
+uint32_t RegisterAllocator<arch, reg>::_register_pool;
+
+template< typename Arch, typename RegType = INT >
 class Register {
 public:
-    Register() : _regnum(0xff), _refcount(nullptr) {}
-    Register(uint8_t regnum) : _regnum(regnum) { _refcount = tinystd::allocator<uint32_t>().allocate(1); }
+    Register(bool alloc=false) { if (alloc) { _regnum=RegisterAllocator< Arch, RegType >().allocate(); _refcount = allocator<uint32_t>().allocate(1); (*_refcount) = 1;} else {_regnum=0xff; _refcount=nullptr;}}
+    Register(uint8_t regnum) : _regnum(regnum) { _refcount = allocator<uint32_t>().allocate(1); (*_refcount) = 1; }
     Register(Register& other) : _regnum(other._regnum), _refcount(other._refcount) { (*_refcount)++; }
     Register(Register&& other) : _regnum(other._regnum), _refcount(other._refcount) { other._refcount = nullptr; other._regnum = 0xff; }
-    ~Register() { if (--(*_refcount) == 0) { tinystd::allocator<uint32_t>().deallocate(_refcount, 1); } }
-    Register& operator=(Register& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
-    Register& operator=(const Register& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
-    Register& operator=(Register&& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; other._refcount = nullptr; other._regnum = 0xff; return *this; }
-    Register& operator=(const Register&& other) { if (_refcount) { (*_refcount)--; } _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
-
-    uint8_t value() { return _regnum; }
+    ~Register() { _decrease_and_release(); }
+    Register& operator=(Register& other) { _decrease_and_release(); _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
+    Register& operator=(const Register& other) { _decrease_and_release(); _regnum = other._regnum; _refcount = other._refcount; (*_refcount)++; return *this; }
+    Register& operator=(Register&& other) { _decrease_and_release(); _regnum = other._regnum; _refcount = other._refcount; other._refcount = nullptr; other._regnum = 0xff; return *this; }
+    Register& operator=(const Register&& other) { _decrease_and_release(); _regnum = other._regnum; _refcount = other._refcount; other._refcount = nullptr; other._regnum = 0xff; return *this; }
+    void alloc() { _decrease_and_release(); _regnum = RegisterAllocator< Arch, RegType >().allocate(); _refcount = allocator<uint32_t>().allocate(1); (*_refcount) = 1; }
+    uint8_t value() { if (_regnum == 0xff) { kprintf("[CXX:Register] Using unitialized register!\n"); } return _regnum; }
+    uint32_t refcnt() { if (_refcount) return *_refcount; else return 0; }
 private:
+    void _decrease_and_release() { if (_refcount && --(*_refcount) == 0) { RegisterAllocator< Arch, RegType >().deallocate(_regnum); allocator<uint32_t>().deallocate(_refcount, 1); } }
     uint8_t _regnum;
     uint32_t* _refcount;
 };
 
-#if 0
-template< uint8_t MaxRegCount = 8, uint8_t MaxFPURegCount = 8 >
-class RegisterAllocator {
-public:
-    class Register {
-        private:
-            uint8_t _regnum;
-        public:
-            Register(uint8_t reg) : _regnum(reg) {};
-    };
+}
 
-    RegisterAllocator(CodeGenerator& cgen) : _int_register_pool(0), _int_changed_mask(0), _fpu_register_pool(0), _fpu_changed_mask(0), _codegen(cgen) {};
-
-private:
-    uint32_t        _int_register_pool;
-    uint32_t        _int_changed_mask;
-    uint32_t        _fpu_register_pool;
-    uint32_t        _fpu_changed_mask;
-    CodeGenerator&  _codegen;
-
-    void __int_free_reg(uint8_t reg) {
-        if (reg < MaxRegCount) {
-            _int_register_pool &= ~(1 << reg);
-        }
-    }
-    void __fpu_free_reg(uint8_t reg) {
-        if (reg < MaxFPURegCount) {
-            _fpu_register_pool &= ~(1 << reg);
-        }
-    }
-    uint8_t __int_alloc_reg() {
-        int reg = __builtin_ctz(~_int_register_pool);
-        if (reg < MaxRegCount) {
-            _int_register_pool |= 1 << reg;
-            _int_changed_mask |= 1 << reg;
-            return reg;
-        }
-        return 0xff;
-    }
-    uint8_t __fpu_alloc_reg() {
-        int reg = __builtin_ctz(~_fpu_register_pool);
-        if (reg < MaxFPURegCount) {
-            _fpu_register_pool |= 1 << reg;
-            _fpu_changed_mask |= 1 << reg;
-            return reg;
-        }
-        return 0xff;
-    }
-};
-#endif
 #endif /* _EMU68_REGISTERALLOCATOR_H */
