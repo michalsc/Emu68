@@ -18,7 +18,7 @@ namespace emu68 {
 
 class INT {};
 class FPU {};
-enum class Role : uint8_t { TempReg, M68KReg, M68KAlias };
+enum class Role : uint8_t { TempReg, M68KReg, M68KAlias, M68KSpecial, TempConstant };
 
 template< typename Arch, typename RegType > class Register;
 
@@ -64,6 +64,7 @@ class Register {
 public:
     Register(bool alloc=false) : _role(Role::TempReg) { if (alloc) { _regnum=RegisterAllocator< Arch, RegType >().allocate(); _refcount = allocator<uint32_t>().allocate(1); (*_refcount) = 1;} else {_regnum=0xff; _refcount=nullptr;}}
     Register(uint8_t regnum) : _regnum(regnum), _role(Role::TempReg) { _refcount = allocator<uint32_t>().allocate(1); (*_refcount) = 1; }
+    Register(uint8_t regnum, Role role) : _regnum(regnum), _role(_role) { _refcount = allocator<uint32_t>().allocate(1); (*_refcount) = 1; }
     Register(Register& other) : _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { (*_refcount)++; }
     Register(Register&& other) : _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { other._refcount = nullptr; other._regnum = 0xff; }
     ~Register() { _decrease_and_release(); }
