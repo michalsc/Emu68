@@ -34,6 +34,13 @@ private:
     tinystd::vector< uint16_t *, allocator<uint16_t *> > _return_stack;
     RegisterAllocator< arch, INT > _regalloc;
     RegisterAllocator< arch, FPU > _fpualloc;
+    Register< arch, INT > D[8];
+    Register< arch, INT > A[8];
+    Register< arch, SR > CC;
+    Register< arch, SR > CTX;
+    Register< arch, SR > FPCR;
+    Register< arch, SR > FPSR;
+    Register< arch, FPU > FP[8];
 };
 
 }
