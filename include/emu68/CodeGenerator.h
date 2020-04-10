@@ -19,14 +19,21 @@
 
 namespace emu68 {
 
-
 template< typename arch >
 class CodeGenerator {
 public:
-    CodeGenerator() { }
+    CodeGenerator(uint16_t *m68k) : m68kcode(m68k), m68kptr(m68k), m68kmin(m68k), m68kmax(m68k) { }
+protected:
     void Emit(uint32_t opcode) { _INSN_Stream.push_back(opcode); }
 private:
+    const uint16_t *m68kcode;
+    uint16_t *m68kptr;
+    uint16_t *m68kmin;
+    uint16_t *m68kmax;
     tinystd::vector< uint32_t, jit_allocator<uint32_t> > _INSN_Stream;
+    tinystd::vector< uint16_t *, allocator<uint16_t *> > _return_stack;
+    RegisterAllocator< arch, INT > _regalloc;
+    RegisterAllocator< arch, FPU > _fpualloc;
 };
 
 }
