@@ -77,6 +77,7 @@ endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
 add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -pedantic -pedantic-errors -Wall -Wextra -Werror)
+add_compile_definitions(NO_EXCEPTIONS=1)
 
 if(${TARGET_ARCH} STREQUAL "armhf")
     list(APPEND ARCH_FILES
