@@ -64,7 +64,7 @@ private:
     };
 public:
     Register(bool alloc=false) : _role(RegisterRole::TempReg) { if (alloc) { _regnum=RegisterAllocator< Arch, RegType >().allocate(); _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; } else {_regnum=0xff; _refcount=nullptr;}}
-    Register(uint8_t regnum) : _regnum(regnum), _role(RegisterRole::TempReg) { _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
+    Register(uint8_t regnum, bool alloc=true) : _regnum(regnum), _role(RegisterRole::TempReg) { if (alloc) { _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; } _refcount->_dirty = false; }
     Register(uint8_t regnum, RegisterRole role) : _regnum(regnum), _role(role) { _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
     Register(Register& other) : _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { _refcount->_cnt++; }
     Register(Register&& other) : _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { other._refcount = nullptr; other._regnum = 0xff; }
