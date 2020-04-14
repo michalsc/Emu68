@@ -31,19 +31,25 @@ CodeGenerator<AArch64>::CodeGenerator(uint16_t *m68k) : m68kcode(m68k), m68kptr(
 template<>
 void CodeGenerator<AArch64>::loadCTX(Register<AArch64, INT> dest)
 {
-    Emit(MRS<3, 3, 13, 0, 3>(dest));
+    Emit({
+        MRS<3, 3, 13, 0, 3>(dest)
+    });
 }
 
 template<>
 void CodeGenerator<AArch64>::loadCC(Register<AArch64, INT> dest)
 {
-    Emit(MRS<3, 3, 13, 0, 2>(dest));
+    Emit({
+        MRS<3, 3, 13, 0, 2>(dest)
+    });
 }
 
 template<>
 void CodeGenerator<AArch64>::saveCC(Register<AArch64, INT> src)
 {
-    Emit(MSR<3, 3, 13, 0, 2>(src));
+    Emit({
+        MSR<3, 3, 13, 0, 2>(src)
+    });
 }
 
 
