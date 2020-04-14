@@ -22,27 +22,33 @@ namespace emu68 {
 template< typename arch >
 class CodeGenerator {
 public:
+    typedef Register<arch, INT> int_reg;
+    typedef Register<arch, DOUBLE> double_reg;
+    typedef Register<arch, SINGLE> float_reg;
+
     CodeGenerator(uint16_t *m68k) : m68kcode(m68k), m68kptr(m68k), m68kmin(m68k), m68kmax(m68k) { }
 //protected:
-    void Emit(uint32_t opcode) { _INSN_Stream.push_back(opcode); }
-    void E(uint32_t opcode) { Emit(opcode); }
-    Register<arch, INT> allocReg(RegisterRole role = RegisterRole::TempReg) {
+    void Emit(typename arch::OpcodeSize opcode) { _INSN_Stream.push_back(opcode); }
+    void Emit(std::initializer_list<typename arch::OpcodeSize> opcodes) { _INSN_Stream.insert(_INSN_Stream.end(), opcodes); }
+    void E(typename arch::OpcodeSize opcode) { Emit(opcode); }
+    void E(std::initializer_list<typename arch::OpcodeSize> opcodes) { Emit(opcodes); }
+    int_reg allocReg(RegisterRole role = RegisterRole::TempReg) {
         uint8_t reg = _regalloc.allocate();
         while (reg == 0xff) {
             lru_dealloc_last();
             reg = _regalloc.allocate();
         }
-        return Register<arch, INT>(reg, role);
+        return int_reg(reg, role);
     }
-    Register<arch, DOUBLE> allocDOUBLEReg() {
+    double_reg allocDOUBLEReg() {
         uint8_t reg = _fpualloc.allocate();
         return Register<arch, DOUBLE>(reg, RegisterRole::TempReg);
     }
-    Register<arch, SINGLE> allocSINGLEReg() {
+    float_reg allocSINGLEReg() {
         uint8_t reg = _fpualloc.allocate();
         return Register<arch, SINGLE>(reg, RegisterRole::TempReg);
     }
-    Register<arch, INT> getCTX() {
+    int_reg getCTX() {
         if (!CTX.valid()) {
             CTX = allocReg(RegisterRole::CTX);
             loadCTX(CTX);
@@ -50,7 +56,7 @@ public:
         lru_move_to_front(&CTX);
         return CTX;
     }
-    Register<arch, INT> getCC() {
+    int_reg getCC() {
         if (!CC.valid()) {
             CC = allocReg(RegisterRole::SR);
             loadCC(CC);
@@ -58,7 +64,7 @@ public:
         lru_move_to_front(&CC);
         return CC;
     }
-    Register<arch, INT> getFPCR() {
+    int_reg getFPCR() {
         if (!FPCR.valid()) {
             FPCR = allocReg(RegisterRole::FPCR);
             loadFPCR(FPCR);
@@ -66,7 +72,7 @@ public:
         lru_move_to_front(&FPCR);
         return FPCR;
     }
-    Register<arch, INT> getFPSR() {
+    int_reg getFPSR() {
         if (!FPSR.valid()) {
             FPSR = allocReg(RegisterRole::FPSR);
             loadFPSR(FPSR);
@@ -104,9 +110,9 @@ private:
     uint16_t *m68kptr;
     uint16_t *m68kmin;
     uint16_t *m68kmax;
-    tinystd::vector< uint32_t, jit_allocator<uint32_t> > _INSN_Stream;
+    tinystd::vector< typename arch::OpcodeSize, jit_allocator<typename arch::OpcodeSize> > _INSN_Stream;
     tinystd::vector< uint16_t *, allocator<uint16_t *> > _return_stack;
-    tinystd::vector< Register<arch, INT> *> _lru;
+    tinystd::vector< int_reg *, allocator<int_reg *> > _lru;
     RegisterAllocator< arch, INT > _regalloc;
     RegisterAllocator< arch, DOUBLE > _fpualloc;
     Register< arch, INT > D[8];
