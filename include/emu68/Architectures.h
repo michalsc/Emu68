@@ -12,9 +12,10 @@
 
 namespace emu68 {
 
-struct AArch64 { static const int RegEnd = 11; static const int RegStart = 0; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
-struct ARM { static const int RegEnd = 7; static const int RegStart = 0; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
-struct Thumb2 { static const int RegEnd = 7; static const int RegStart = 0; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
+struct AArch64 { typedef uint32_t OpcodeSize; static const int RegEnd = 11; static const int RegStart = 0; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
+struct ARM { typedef uint32_t OpcodeSize; static const int RegEnd = 7; static const int RegStart = 0; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
+struct Thumb2 { typedef uint16_t OpcodeSize; static const int RegEnd = 7; static const int RegStart = 0; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
+struct x86_64 { typedef uint8_t OpcodeSize; static const int RegEnd = 15; static const int RegStart = 8; static const int FPURegEnd = 7; static const int FPURegStart = 1; };
 
 }
 
