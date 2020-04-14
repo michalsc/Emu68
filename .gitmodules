@@ -1,3 +1,4 @@
 [submodule "libtinystd"]
 	path = external/tiny-stl
 	url = https://github.com/michalsc/tiny-std.git
+	branch = master
