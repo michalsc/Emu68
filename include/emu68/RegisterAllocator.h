@@ -20,7 +20,7 @@ class INT {};
 class DOUBLE {};
 class SINGLE {};
 
-enum RegisterRole : uint8_t { Dn=0, An=8, FPn = 16, PC = 24, SR, FPCR, FPSR, CTX, TempReg, TempConstant };
+enum RegisterRole : uint8_t { Dn, An=Dn + 8, FPn = An + 8, PC = FPn + 8, SR, FPCR, FPSR, CTX, TempReg, TempConstant };
 
 template< typename Arch, typename RegType > class Register;
 
@@ -75,10 +75,11 @@ public:
     Register& operator=(const Register&& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; other._refcount = nullptr; other._regnum = 0xff; return *this; }
     void alloc() { _decrease_and_release(); _regnum = RegisterAllocator< Arch, RegType >().allocate(); _role = RegisterRole::TempReg; _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
     bool allocated() { const int max = std::is_same<RegType, INT>::value ? Arch().RegEnd : Arch().FPURegEnd; const int min = std::is_same<RegType, INT>::value ? Arch().RegStart : Arch().FPURegStart; if ((_regnum >= min) && (_regnum <= max)) {return true;} else { return false;} }
-    uint8_t value() { if (_regnum == 0xff) { kprintf("[CXX:Register] Using unitialized register!\n"); } return _regnum; }
+    uint8_t value() { if (_regnum == 0xff) { kprintf("[CXX] Register::value() Using unitialized register!\n"); } return _regnum; }
     bool valid() { return _regnum != 0xff; }
     void touch() { if (_refcount) { _refcount->_dirty = true; } }
     bool dirty() { if (_refcount) { return _refcount->_dirty; } else return false; }
+    uint32_t refcnt() { if (_refcount) { return _refcount->_cnt; } else return 0; }
     RegisterRole role() { return _role; }
 private:
     void _decrease_and_release() { if (_refcount && --(_refcount->_cnt) == 0) { RegisterAllocator< Arch, RegType >().deallocate(_regnum); allocator<_RefCountAndDirty>().deallocate(_refcount, 1); } }

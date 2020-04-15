@@ -9,5 +9,5 @@ using namespace emu68;
 
 void foo() {
     CodeGenerator<AArch64> cgen((uint16_t *)0x1000);
-    auto r = cgen.getCC();
+    cgen.Compile();
 }
