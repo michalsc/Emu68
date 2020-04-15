@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <emu68/RegisterAllocator.h>
 #include <emu68/Architectures.h>
+#include <type_traits>
 
 namespace emu68 {
 
@@ -54,12 +55,19 @@ static inline uint32_t I32(uint32_t insn)
 struct LR {};
 struct W32 { static const uint32_t __width_value=0x00000000; };
 struct X64 { static const uint32_t __width_value=0x80000000; };
-struct SW { };
-struct OFFSET_SCALED {};
+struct SET_FLAGS {};
+struct POSTIDX {};
+struct PREIDX {};
+enum class EXTEND : uint8_t { UXTB = 0, UXTH = 1, UXTW = 2, UXTX = 3, SXTB = 4, SXTH = 5, SXTW = 6, SXTX = 7};
+enum class SHIFT : uint8_t { LSL = 0, LSR = 1, ASR = 2, ROR = 3 };
+struct LSL_0 {};
+struct LSL_1 {};
+struct LSL_2 {};
+struct LSL_3 {};
+
 
 /* Branches */
-template< CC cc >
-static inline uint32_t B(int32_t offset19) { return I32(0x54000000 | (static_cast<int>(cc) & 15) | ((offset19 & 0x7ffff) << 5)); }
+static inline uint32_t B(CC cc, int32_t offset19) { return I32(0x54000000 | (static_cast<int>(cc) & 15) | ((offset19 & 0x7ffff) << 5)); }
 template< typename lr=void >
 static inline uint32_t B(uint32_t offset) { if (std::is_same<lr, LR>::value) { return I32(0x94000000 | (offset & 0x3ffffff)); } else { return I32(0x14000000 | (offset & 0x3ffffff)); }}
 template< typename lr=void >
@@ -91,224 +99,292 @@ static inline uint32_t ADR(Register<AArch64, INT> rd, uint32_t imm21) { return I
 static inline uint32_t ADRP(Register<AArch64, INT> rd, uint32_t imm21) { return I32(0x90000000 | (rd.value() & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
 
 /* Load/Store instructions */
+
+/* Load/Store PC-relative */
 template< typename width=W32 >
 static inline uint32_t LDR(Register<AArch64, INT> rd, int32_t offset19) {
+    static_assert(std::is_same<width, W32>::value || std::is_same<width, X64>::value, "Wrong width applied");
     if (std::is_same<width, W32>::value) { return I32(0x18000000 | ((offset19 & 0x7ffff) << 5) | (rd.value() & 31)); }
-    else if (std::is_same<width, X64>::value) { return I32(0x58000000 | ((offset19 & 0x7ffff) << 5) | (rd.value() & 31)); }
-    else { return I32(0x98000000 | ((offset19 & 0x7ffff) << 5) | (rd.value() & 31)); } }
-
-#if 0
-
-typedef enum { UXTB = 0, UXTH = 1, UXTW = 2, UXTX = 3, SXTB = 4, SXTH = 5, SXTW = 6, SXTX = 7} reg_extend_t;
+    else { return I32(0x58000000 | ((offset19 & 0x7ffff) << 5) | (rd.value() & 31)); }
+}
+static inline uint32_t LDRSW(Register<AArch64, INT> rd, int32_t offset19) {
+    return I32(0x98000000 | ((offset19 & 0x7ffff) << 5) | (rd.value() & 31));
+}
 
 /* Load/Store with reg offset */
-static inline uint32_t ldr_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl2) { return I32(0xb8600800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl2 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t ldr64_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl3) { return I32(0xf8600800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl3 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t ldrb_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext) { return I32(0x38600800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((ext & 7) << 13)); }
-static inline uint32_t ldrsb_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext) { return I32(0x38e00800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((ext & 7) << 13)); }
-static inline uint32_t ldrsb64_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext) { return I32(0x38a00800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((ext & 7) << 13)); }
-static inline uint32_t ldrh_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl1) { return I32(0x78600800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl1 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t ldrsh_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl1) { return I32(0x78e00800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl1 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t ldrsh64_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl1) { return I32(0x78a00800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl1 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t ldrsw_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl2) { return I32(0xb8a00800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl2 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t str_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl2) { return I32(0xb8200800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl2 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t str64_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl3) { return I32(0xf8200800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl3 ? 0x1000 : 0) | ((ext & 7) << 13)); }
-static inline uint32_t strb_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext) { return I32(0x38200800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((ext & 7) << 13)); }
-static inline uint32_t strh_regoffset(uint8_t rn, uint8_t rt, uint8_t rm, reg_extend_t ext, uint8_t lsl1) { return I32(0x78200800 | (rt & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | (lsl1 ? 0x1000 : 0) | ((ext & 7) << 13)); }
+template< typename width=W32, EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
+static inline uint32_t LDR(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    static_assert((std::is_same<width, W32>::value && (std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_2>::value)) ||
+                  (std::is_same<width, X64>::value && (std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_3>::value)), "Wrong width/lsl combination");
+    if (std::is_same<width, W32>::value) {
+        return I32(0xb8600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_2>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
+    } else {
+        return I32(0xf8600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_3>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13)); 
+    }
+}
+template<EXTEND ext=EXTEND::UXTX>
+static inline uint32_t LDRB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    return I32(0x38600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13));
+}
+template< typename width=W32, EXTEND ext=EXTEND::UXTX >
+static inline uint32_t LDRSB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    if (std::is_same<width, W32>::value) {
+        return I32(0x38e00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13));
+    } else {
+        return I32(0x38a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13)); 
+    }
+}
+template<EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
+static inline uint32_t LDRH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    static_assert(std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_1>::value, "Wrong shift applied");
+    return I32(0x78600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
+}
+template< typename width=W32, EXTEND ext=EXTEND::UXTX, typename shift=LSL_0  >
+static inline uint32_t LDRSH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    static_assert(std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_1>::value, "Wrong shift applied");
+    if (std::is_same<width, W32>::value) {
+        return I32(0x78e00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
+    } else {
+        return I32(0x78a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13)); 
+    }
+}
+template<EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
+static inline uint32_t LDRSW(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    static_assert(std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_2>::value, "Wrong shift applied");
+    return I32(0xb8a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_2>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
+}
+
+template< typename width=W32, EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
+static inline uint32_t STR(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    static_assert((std::is_same<width, W32>::value && (std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_2>::value)) ||
+                  (std::is_same<width, X64>::value && (std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_3>::value)), "Wrong width/lsl combination");
+    if (std::is_same<width, W32>::value) {
+        return I32(0xb8200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_2>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
+    } else {
+        return I32(0xf8200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_3>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13)); 
+    }
+}
+template<EXTEND ext=EXTEND::UXTX>
+static inline uint32_t STRB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    return I32(0x38200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13));
+}
+template<EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
+static inline uint32_t STRH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, Register<AArch64, INT> rm) {
+    static_assert(std::is_same<shift, LSL_0>::value || std::is_same<shift, LSL_1>::value, "Wrong shift applied");
+    return I32(0x78200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
+}
+
 
 /* Load/Store with scaled offset */
-static inline uint32_t ldr_offset(uint8_t rn, uint8_t rt, uint16_t offset14) { return I32(0xb9400000 | (rt & 31) | ((rn & 31) << 5) | (((offset14 >> 2) & 0xfff) << 10)); }
-static inline uint32_t ldr_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8400400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldr_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8400c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldr64_offset(uint8_t rn, uint8_t rt, uint16_t offset15) { return I32(0xf9400000 | (rt & 31) | ((rn & 31) << 5) | (((offset15 >> 3) & 0xfff) << 10)); }
-static inline uint32_t ldr64_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xf8400400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldr64_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xf8400c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrb_offset(uint8_t rn, uint8_t rt, uint16_t offset12) { return I32(0x39400000 | (rt & 31) | ((rn & 31) << 5) | ((offset12 & 0xfff) << 10)); }
-static inline uint32_t ldrb_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38400400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrb_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38400c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsb_offset(uint8_t rn, uint8_t rt, uint16_t offset12) { return I32(0x39c00000 | (rt & 31) | ((rn & 31) << 5) | ((offset12 & 0xfff) << 10)); }
-static inline uint32_t ldrsb_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38c00400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsb_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38c00c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsb64_offset(uint8_t rn, uint8_t rt, uint16_t offset12) { return I32(0x39800000 | (rt & 31) | ((rn & 31) << 5) | ((offset12 & 0xfff) << 10)); }
-static inline uint32_t ldrsb64_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38800400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsb64_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38800c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrh_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x79400000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
-static inline uint32_t ldrh_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78400400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrh_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78400c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsh_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x79c00000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
-static inline uint32_t ldrsh_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78c00400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsh_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78c00c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsh64_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x79800000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
-static inline uint32_t ldrsh64_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78800400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsh64_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78800c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsw_offset(uint8_t rn, uint8_t rt, uint16_t offset14) { return I32(0xb9800000 | (rt & 31) | ((rn & 31) << 5) | (((offset14 >> 2) & 0xfff) << 10)); }
-static inline uint32_t ldrsw_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8800400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldrsw_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8800c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t str_offset(uint8_t rn, uint8_t rt, uint16_t offset14) { return I32(0xb9000000 | (rt & 31) | ((rn & 31) << 5) | (((offset14 >> 2) & 0xfff) << 10)); }
-static inline uint32_t str_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t str_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t str64_offset(uint8_t rn, uint8_t rt, uint16_t offset15) { return I32(0xf9000000 | (rt & 31) | ((rn & 31) << 5) | (((offset15 >> 3) & 0xfff) << 10)); }
-static inline uint32_t str64_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xf8000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t str64_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xf8000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t strh_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x79000000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
-static inline uint32_t strh_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t strh_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t strb_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x39000000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
-static inline uint32_t strb_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t strb_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+template< typename width=W32, typename idx=void >
+static inline uint32_t LDR(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_void<idx>::value) { if (std::is_same<width, W32>::value) imm /= 4; else imm /= 8; }
+    if (std::is_same<idx, PREIDX>::value) return I32((std::is_same<width, W32>::value ? 0xb8400c00 : 0xf8400c00) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32((std::is_same<width, W32>::value ? 0xb8400400 : 0xf8400400) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32((std::is_same<width, W32>::value ? 0xb9400000 : 0xf9400000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename idx=void >
+static inline uint32_t LDRB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_same<idx, PREIDX>::value) return I32(0x38400c00 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(0x38400400 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32(0x39400000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename width=W32, typename idx=void >
+static inline uint32_t LDRSB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_same<idx, PREIDX>::value) return I32((std::is_same<width, W32>::value ? 0x38c00c00 : 0x38800c00) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32((std::is_same<width, W32>::value ? 0x38c00400 : 0x38800400) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32((std::is_same<width, W32>::value ? 0x39c00000 : 0x39800000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename idx=void >
+static inline uint32_t LDRH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_void<idx>::value) { imm /= 2; }
+    if (std::is_same<idx, PREIDX>::value) return I32(0x78400c00 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(0x78400400 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32(0x79400000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename width=W32, typename idx=void >
+static inline uint32_t LDRSH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_void<idx>::value) { imm /= 2; }
+    if (std::is_same<idx, PREIDX>::value) return I32((std::is_same<width, W32>::value ? 0x78c00c00 : 0x78800c00) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32((std::is_same<width, W32>::value ? 0x78c00400 : 0x78800400) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32((std::is_same<width, W32>::value ? 0x79c00000 : 0x79800000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename idx=void >
+static inline uint32_t LDRSW(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_void<idx>::value) { imm /= 4; }
+    if (std::is_same<idx, PREIDX>::value) return I32(0xb8800c00 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(0xb8800400 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32(0xb9800000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename width=W32, typename idx=void >
+static inline uint32_t STR(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_void<idx>::value) { if (std::is_same<width, W32>::value) imm /= 4; else imm /= 8; }
+    if (std::is_same<idx, PREIDX>::value) return I32((std::is_same<width, W32>::value ? 0xb8000c00 : 0xf8000c00) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32((std::is_same<width, W32>::value ? 0xb8000400 : 0xf8000400) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32((std::is_same<width, W32>::value ? 0xb9000000 : 0xf9000000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename idx=void >
+static inline uint32_t STRB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_same<idx, PREIDX>::value) return I32(0x38000c00 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(0x38000400 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32(0x39000000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
+template< typename idx=void >
+static inline uint32_t STRH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_void<idx>::value) { imm /= 2; }
+    if (std::is_same<idx, PREIDX>::value) return I32(0x78000c00 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(0x78000400 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0x1ff) << 12));
+    else return I32(0x79000000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((imm & 0xfff) << 10));
+}
 
 /* Load/Store pair */
-static inline uint32_t ldp(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0x29400000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
-static inline uint32_t ldp64(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0xa9400000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
-static inline uint32_t ldp_postindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0x28c00000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
-static inline uint32_t ldp64_postindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0xa8c00000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
-static inline uint32_t ldp_preindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0x29c00000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
-static inline uint32_t ldp64_preindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0xa9c00000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
-static inline uint32_t stp(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0x29000000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
-static inline uint32_t stp64(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0xa9000000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
-static inline uint32_t stp_postindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0x28800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
-static inline uint32_t stp64_postindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0xa8800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
-static inline uint32_t stp_preindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0x29800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
-static inline uint32_t stp64_preindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int8_t imm) { return I32(0xa9800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
+template< typename width=W32, typename idx=void >
+static inline uint32_t LDP(Register<AArch64, INT> rt1, Register<AArch64, INT> rt2, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_same<width, W32>::value) imm /= 4; else imm /= 8;
+    if (std::is_same<idx, PREIDX>::value) return I32(width::__width_value | 0x29c00000 | (rt1.value() & 31) | ((rt2.value() & 31) << 10) | ((rn.value() & 31) << 5) | ((imm & 0x7f) << 15));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(width::__width_value | 0x28c00000 | (rt1.value() & 31) | ((rt2.value() & 31) << 10) | ((rn.value() & 31) << 5) | ((imm & 0x7f) << 15));
+    else return I32(width::__width_value | 0x29400000 | (rt1.value() & 31) | ((rt2.value() & 31) << 10) | ((rn.value() & 31) << 5) | ((imm & 0x7f) << 15));
+}
+template< typename width=W32, typename idx=void >
+static inline uint32_t STP(Register<AArch64, INT> rt1, Register<AArch64, INT> rt2, Register<AArch64, INT> rn, int16_t imm) {
+    if (std::is_same<width, W32>::value) imm /= 4; else imm /= 8;
+    if (std::is_same<idx, PREIDX>::value) return I32(width::__width_value | 0x29800000 | (rt1.value() & 31) | ((rt2.value() & 31) << 10) | ((rn.value() & 31) << 5) | ((imm & 0x7f) << 15));
+    else if (std::is_same<idx, POSTIDX>::value) return I32(width::__width_value | 0x28800000 | (rt1.value() & 31) | ((rt2.value() & 31) << 10) | ((rn.value() & 31) << 5) | ((imm & 0x7f) << 15));
+    else return I32(width::__width_value | 0x29000000 | (rt1.value() & 31) | ((rt2.value() & 31) << 10) | ((rn.value() & 31) << 5) | ((imm & 0x7f) << 15));
+}
 
 /* Load/Store exclusive */
-static inline uint32_t ldxr(uint8_t rt, uint8_t rn) { return I32(0x885f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t ldxr64(uint8_t rt, uint8_t rn) { return I32(0xc85f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t ldxrb(uint8_t rt, uint8_t rn) { return I32(0x085f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t ldxrh(uint8_t rt, uint8_t rn) { return I32(0x485f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t stxr(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0x88007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
-static inline uint32_t stxr64(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0xc8007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
-static inline uint32_t stxrb(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0x08007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
-static inline uint32_t stxrh(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0x48007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t LDXR(Register<AArch64, INT> rt, Register<AArch64, INT> rn) { return I32((std::is_same<width, W32>::value ? 0x885f7c00 : 0xc85f7c00) | (rt.value() & 31) | ((rn.value() & 31) << 5)); }
+static inline uint32_t LDXRB(Register<AArch64, INT> rt, Register<AArch64, INT> rn) { return I32(0x085f7c00 | (rt.value() & 31) | ((rn.value() & 31) << 5)); }
+static inline uint32_t LDXRH(Register<AArch64, INT> rt, Register<AArch64, INT> rn) { return I32(0x485f7c00 | (rt.value() & 31) | ((rn.value() & 31) << 5)); }
+template< typename width=W32 >
+static inline uint32_t STXR(Register<AArch64, INT> rt, Register<AArch64, INT> rn) { return I32((std::is_same<width, W32>::value ? 0x88007c00 : 0xc8007c00) | (rt.value() & 31) | ((rn.value() & 31) << 5)); }
+static inline uint32_t STXRB(Register<AArch64, INT> rt, Register<AArch64, INT> rn) { return I32(0x08007c00 | (rt.value() & 31) | ((rn.value() & 31) << 5)); }
+static inline uint32_t STXRH(Register<AArch64, INT> rt, Register<AArch64, INT> rn) { return I32(0x48007c00 | (rt.value() & 31) | ((rn.value() & 31) << 5)); }
 
 /* Load/Store with unscaled offset */
-static inline uint32_t ldur_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8400000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldur64_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xf8400000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldurb_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38400000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldursb_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38c00000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldursb64_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38800000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldurh_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78400000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldursh_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78c00000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldursh64_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78800000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t ldursw_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8800000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t stur_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8000000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t stur64_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xf8000000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t sturb_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t sturh_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78000000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+template< typename width=W32 >
+static inline uint32_t LDUR(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32((std::is_same<width, W32>::value ? 0xb8400000 : 0xf8400000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t LDURB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32(0x38400000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+template< typename width=W32 >
+static inline uint32_t LDURSB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32((std::is_same<width, W32>::value ? 0x38c00000 : 0x38800000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t LDURH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32(0x78400000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+template< typename width=W32 >
+static inline uint32_t LDURSH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32((std::is_same<width, W32>::value ? 0x78c00000 : 0x78800000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t LDURSW(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32(0xb8800000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+template< typename width=W32 >
+static inline uint32_t STUR(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32((std::is_same<width, W32>::value ? 0xb8000000 : 0xf8000000) | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t STURB(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32(0x38000000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t STURH(Register<AArch64, INT> rt, Register<AArch64, INT> rn, int16_t offset9) { return I32(0x78000000 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
 
 /* Data processing: immediate */
-static inline uint32_t add_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x11000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t add64_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x91000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t adds_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x31000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t adds64_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0xb1000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t sub_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x51000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t sub64_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0xd1000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t subs_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x71000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t subs64_immed(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0xf1000000 | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t cmp_immed(uint8_t rn, uint16_t imm12) { return subs_immed(31, rn, imm12); }
-static inline uint32_t cmp64_immed(uint8_t rn, uint16_t imm12) { return subs64_immed(31, rn, imm12); }
-static inline uint32_t cmn_immed(uint8_t rn, uint16_t imm12) { return adds_immed(31, rn, imm12); }
-static inline uint32_t cmn64_immed(uint8_t rn, uint16_t imm12) { return adds64_immed(31, rn, imm12); }
-static inline uint32_t add_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x11000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t add64_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x91000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t adds_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x31000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t adds64_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0xb1000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t sub_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x51000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t sub64_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0xd1000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t subs_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0x71000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t subs64_immed_lsl12(uint8_t rd, uint8_t rn, uint16_t imm12) { return I32(0xf1000000 | (1 << 22) | ((imm12 & 0xfff) << 10) | ((rn & 31) << 5) | (rd & 31)); }
-static inline uint32_t cmp_immed_lsl12(uint8_t rn, uint16_t imm12) { return subs_immed_lsl12(31, rn, imm12); }
-static inline uint32_t cmp64_immed_lsl12(uint8_t rn, uint16_t imm12) { return subs64_immed_lsl12(31, rn, imm12); }
-static inline uint32_t cmn_immed_lsl12(uint8_t rn, uint16_t imm12) { return adds_immed_lsl12(31, rn, imm12); }
-static inline uint32_t cmn64_immed_lsl12(uint8_t rn, uint16_t imm12) { return adds64_immed_lsl12(31, rn, imm12); }
-static inline uint32_t and_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x12000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t and64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0x92000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t bic_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return and_immed(rd, rn, 32 - width, ror - width); }
-static inline uint32_t ands_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x72000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t ands64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0xf2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t bics_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return ands_immed(rd, rn, 32 - width, ror - width); }
-static inline uint32_t eor_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x52000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t eor64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0xd2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t orr_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x32000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t orr64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0xb2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-static inline uint32_t tst_immed(uint8_t rn, uint8_t width, uint8_t ror) { return ands_immed(31, rn, width, ror); }
-static inline uint32_t tst64_immed(uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return ands64_immed(31, rn, width, ror, n); }
+template< typename rwidth=W32, typename flags=void >
+static inline uint32_t ADD(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint16_t imm12) { return I32(rwidth::__width_value | (std::is_same<flags, SET_FLAGS>::value ? 0x31000000 : 0x11000000) | ((imm12 & 0xfff) << 10) | ((rn.value() & 31) << 5) | (rd.value() & 31)); }
+template< typename rwidth=W32, typename flags=void >
+static inline uint32_t SUB(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint16_t imm12) { return I32(rwidth::__width_value | (std::is_same<flags, SET_FLAGS>::value ? 0x71000000 : 0x51000000) | ((imm12 & 0xfff) << 10) | ((rn.value() & 31) << 5) | (rd.value() & 31)); }
+template< typename rwidth=W32>
+static inline uint32_t CMP(Register<AArch64, INT> rn, uint16_t imm12) { Register<AArch64, INT> zr(31, false); return SUB<rwidth, SET_FLAGS>(zr, rn, imm12); }
+template< typename rwidth=W32>
+static inline uint32_t CMN(Register<AArch64, INT> rn, uint16_t imm12) { Register<AArch64, INT> zr(31, false); return ADD<rwidth, SET_FLAGS>(zr, rn, imm12); }
+template< typename rwidth=W32, typename flags=void >
+static inline uint32_t AND(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t width, uint8_t ror) { return I32(rwidth::__width_value | (std::is_same<flags, SET_FLAGS>::value ? 0x72000000 : 0x12000000) | (rd.value() & 31) | ((rn.value() & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
+template< typename rwidth=W32, typename flags=void >
+static inline uint32_t BIC(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t width, uint8_t ror) { return AND<rwidth, flags>(rd, rn, 32-width, ror-width); }
+template< typename rwidth=W32 >
+static inline uint32_t EOR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t width, uint8_t ror) { return I32(rwidth::__width_value | 0x52000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
+template< typename rwidth=W32 >
+static inline uint32_t ORR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t width, uint8_t ror) { return I32(rwidth::__width_value | 0x32000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
+template< typename rwidth=W32 >
+static inline uint32_t TST(Register<AArch64, INT> rn, uint8_t width, uint8_t ror) { Register<AArch64, INT> zr(31, false); return AND<rwidth, SET_FLAGS>(zr, rn, width, ror); }
 
 /* Data processing: bitfields */
-static inline uint32_t bfm(uint8_t rd, uint8_t rn, uint8_t immr, uint8_t imms) { return I32(0x33000000 | (rd & 31) | ((rn & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
-static inline uint32_t bfm64(uint8_t rd, uint8_t rn, uint8_t immr, uint8_t imms) { return I32(0xb3400000 | (rd & 31) | ((rn & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
-static inline uint32_t sbfm(uint8_t rd, uint8_t rn, uint8_t immr, uint8_t imms) { return I32(0x13000000 | (rd & 31) | ((rn & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
-static inline uint32_t sbfm64(uint8_t rd, uint8_t rn, uint8_t immr, uint8_t imms) { return I32(0x93400000 | (rd & 31) | ((rn & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
-static inline uint32_t ubfm(uint8_t rd, uint8_t rn, uint8_t immr, uint8_t imms) { return I32(0x53000000 | (rd & 31) | ((rn & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
-static inline uint32_t ubfm64(uint8_t rd, uint8_t rn, uint8_t immr, uint8_t imms) { return I32(0xd3400000 | (rd & 31) | ((rn & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
-static inline uint32_t bfi(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return bfm(rd, rn, 31 & (32-lsb), width - 1); }
-static inline uint32_t bfi64(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return bfm64(rd, rn, 63 & (64-lsb), width - 1); }
-static inline uint32_t bfxil(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return bfm(rd, rn, lsb, lsb + width - 1); }
-static inline uint32_t bfxil64(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return bfm64(rd, rn, lsb, lsb + width - 1); }
-static inline uint32_t sbfx(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return sbfm(rd, rn, lsb, lsb + width - 1); }
-static inline uint32_t sbfx64(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return sbfm64(rd, rn, lsb, lsb + width - 1); }
-static inline uint32_t sbfiz(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return sbfm(rd, rn, 31 & (32-lsb), width - 1); }
-static inline uint32_t sbfiz64(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return sbfm64(rd, rn, 63 & (64-lsb), width - 1); }
-static inline uint32_t ubfx(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return ubfm(rd, rn, lsb, lsb + width - 1); }
-static inline uint32_t ubfx64(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return ubfm64(rd, rn, lsb, lsb + width - 1); }
-static inline uint32_t ubfiz(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return ubfm(rd, rn, 31 & (32-lsb), width - 1); }
-static inline uint32_t ubfiz64(uint8_t rd, uint8_t rn, uint8_t lsb, uint8_t width) { return ubfm64(rd, rn, 63 & (64-lsb), width - 1); }
+template< typename rwidth=W32 >
+static inline uint32_t BFM(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t immr, uint8_t imms) { return I32((std::is_same<rwidth, W32>::value ? 0x33000000 : 0xb3400000) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
+template< typename rwidth=W32 >
+static inline uint32_t SBFM(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t immr, uint8_t imms) { return I32((std::is_same<rwidth, W32>::value ? 0x13000000 : 0x93400000) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
+template< typename rwidth=W32 >
+static inline uint32_t UBFM(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t immr, uint8_t imms) { return I32((std::is_same<rwidth, W32>::value ? 0x53000000 : 0xd3400000) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((immr & 0x3f) << 16) | ((imms & 0x3f) << 10)); }
+template< typename rwidth=W32 >
+static inline uint32_t BFI(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb, uint8_t width) { return BFM<rwidth>(rd, rn, 31 & (32-lsb), width - 1); }
+template< typename rwidth=W32 >
+static inline uint32_t BFXIL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb, uint8_t width) { return BFM<rwidth>(rd, rn, lsb, lsb + width - 1); }
+template< typename rwidth=W32 >
+static inline uint32_t SBFX(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb, uint8_t width) { return SBFM<rwidth>(rd, rn, lsb, lsb + width - 1); }
+template< typename rwidth=W32 >
+static inline uint32_t SBFIZ(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb, uint8_t width) { return SBFM<rwidth>(rd, rn, 31 & (32-lsb), width - 1); }
+template< typename rwidth=W32 >
+static inline uint32_t UBFX(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb, uint8_t width) { return UBFM<rwidth>(rd, rn, lsb, lsb + width - 1); }
+template< typename rwidth=W32 >
+static inline uint32_t UBFIZ(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb, uint8_t width) { return UBFM<rwidth>(rd, rn, 31 & (32-lsb), width - 1); }
 
 /* Data processing: register extract */
-static inline uint32_t extr(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t lsb) { return I32(0x13800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((lsb & 63) << 10)); }
-static inline uint32_t extr64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t lsb) { return I32(0x93c00000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((lsb & 63) << 10)); }
+template< typename rwidth=W32 >
+static inline uint32_t EXTR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, uint8_t lsb) { 
+    return I32((std::is_same<rwidth, W32>::value ? 0x13800000 : 0x93c00000) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((lsb & 63) << 10));
+}
 
 /* Data processing: shift immediate */
-static inline uint32_t asr(uint8_t rd, uint8_t rn, uint8_t lsb) { return sbfm(rd, rn, lsb, 31); }
-static inline uint32_t asr64(uint8_t rd, uint8_t rn, uint8_t lsb) { return sbfm64(rd, rn, lsb, 63); }
-static inline uint32_t lsl(uint8_t rd, uint8_t rn, uint8_t lsb) { return ubfm(rd, rn, 31 & (32 - lsb), 31 - lsb); }
-static inline uint32_t lsl64(uint8_t rd, uint8_t rn, uint8_t lsb) { return ubfm64(rd, rn, 63 & (64 - lsb), 63 - lsb); }
-static inline uint32_t lsr(uint8_t rd, uint8_t rn, uint8_t lsb) { return ubfm(rd, rn, lsb, 31); }
-static inline uint32_t lsr64(uint8_t rd, uint8_t rn, uint8_t lsb) { return ubfm64(rd, rn, lsb, 63); }
-static inline uint32_t ror(uint8_t rd, uint8_t rn, uint8_t lsb) { return extr(rd, rn, rn, lsb); }
-static inline uint32_t ror64(uint8_t rd, uint8_t rn, uint8_t lsb) { return extr64(rd, rn, rn, lsb); }
+template< typename rwidth=W32 >
+static inline uint32_t ASR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb) { return SBFM<rwidth>(rd, rn, lsb, 31); }
+template< typename rwidth=W32 >
+static inline uint32_t LSL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb) { return UBFM<rwidth>(rd, rn, 31 & (32 - lsb), 31 - lsb); }
+template< typename rwidth=W32 >
+static inline uint32_t LSR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb) { return UBFM<rwidth>(rd, rn, lsb, 31); }
+template< typename rwidth=W32 >
+static inline uint32_t ROR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, uint8_t lsb) { return EXTR<rwidth>(rd, rn, rn, lsb); }
 
 /* Data processing: extending */
-static inline uint32_t sxtb(uint8_t rd, uint8_t rn) { return sbfm(rd, rn, 0, 7); }
-static inline uint32_t sxtb64(uint8_t rd, uint8_t rn) { return sbfm64(rd, rn, 0, 7); }
-static inline uint32_t sxth(uint8_t rd, uint8_t rn) { return sbfm(rd, rn, 0, 15); }
-static inline uint32_t sxth64(uint8_t rd, uint8_t rn) { return sbfm64(rd, rn, 0, 15); }
-static inline uint32_t sxtw64(uint8_t rd, uint8_t rn) { return sbfm64(rd, rn, 0, 31); }
-static inline uint32_t uxtb(uint8_t rd, uint8_t rn) { return ubfm(rd, rn, 0, 7); }
-static inline uint32_t uxtb64(uint8_t rd, uint8_t rn) { return ubfm64(rd, rn, 0, 7); }
-static inline uint32_t uxth(uint8_t rd, uint8_t rn) { return ubfm(rd, rn, 0, 15); }
-static inline uint32_t uxth64(uint8_t rd, uint8_t rn) { return ubfm64(rd, rn, 0, 15); }
+template< typename rwidth=W32 >
+static inline uint32_t SXTB(Register<AArch64, INT> rd, Register<AArch64, INT> rn) { return SBFM<rwidth>(rd, rn, 0, 7); }
+template< typename rwidth=W32 >
+static inline uint32_t SXTH(Register<AArch64, INT> rd, Register<AArch64, INT> rn) { return SBFM<rwidth>(rd, rn, 0, 15); }
+static inline uint32_t SXTW(Register<AArch64, INT> rd, Register<AArch64, INT> rn) { return SBFM<X64>(rd, rn, 0, 31); }
+template< typename rwidth=W32 >
+static inline uint32_t UXTB(Register<AArch64, INT> rd, Register<AArch64, INT> rn) { return UBFM<rwidth>(rd, rn, 0, 7); }
+template< typename rwidth=W32 >
+static inline uint32_t UXTH(Register<AArch64, INT> rd, Register<AArch64, INT> rn) { return UBFM<rwidth>(rd, rn, 0, 15); }
 
 /* Data processing: move */
-static inline uint32_t mov_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0x52800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t mov64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0xd2800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t movk_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0x72800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t movk64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0xf2800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t movn_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0x12800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t movn64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { return I32(0x92800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t movw_immed_u16(uint8_t reg, uint16_t val) { return mov_immed_u16(reg, val, 0); }
-static inline uint32_t movt_immed_u16(uint8_t reg, uint16_t val) { return movk_immed_u16(reg, val, 1); }
-static inline uint32_t mov_immed_s8(uint8_t reg, int8_t val) { if (val < 0) return movn_immed_u16(reg, -val - 1, 0); else return mov_immed_u16(reg, val, 0); }
-static inline uint32_t mov_immed_u8(uint8_t reg, uint8_t val) { return mov_immed_u16(reg, val, 0); }
+template< typename rwidth=W32, uint8_t shift16=0>
+static inline uint32_t MOV(Register<AArch64, INT> rd, uint16_t val) {
+    static_assert((std::is_same<rwidth, W32>::value && shift16 < 2) || (std::is_same<rwidth, X64>::value && shift16 < 4), "Wrong width/shift combination");
+    return I32((std::is_same<rwidth, W32>::value ? 0x52800000 : 0xd2800000) | ((shift16 & 3) << 21) | (val << 5) | (rd.value() & 31));
+}
+template< typename rwidth=W32, uint8_t shift16=0>
+static inline uint32_t MOVK(Register<AArch64, INT> rd, uint16_t val) {
+    static_assert((std::is_same<rwidth, W32>::value && shift16 < 2) || (std::is_same<rwidth, X64>::value && shift16 < 4), "Wrong width/shift combination");
+    return I32((std::is_same<rwidth, W32>::value ? 0x72800000 : 0xf2800000) | ((shift16 & 3) << 21) | (val << 5) | (rd.value() & 31));
+}
+template< typename rwidth=W32, uint8_t shift16=0>
+static inline uint32_t MOVN(Register<AArch64, INT> rd, uint16_t val) {
+    static_assert((std::is_same<rwidth, W32>::value && shift16 < 2) || (std::is_same<rwidth, X64>::value && shift16 < 4), "Wrong width/shift combination");
+    return I32((std::is_same<rwidth, W32>::value ? 0x12800000 : 0x92800000) | ((shift16 & 3) << 21) | (val << 5) | (rd.value() & 31));
+}
+template< typename rwidth=W32 >
+static inline uint32_t MOVS(Register<AArch64, INT> rd, int16_t val) {
+    if (val < 0) return MOVN<rwidth>(rd, -val - 1); else return MOV<rwidth>(rd, val);
+}
 
-typedef enum { LSL = 0, LSR = 1, ASR = 2, ROR = 3 } shift_t;
 /* Data processing: register */
-static inline uint32_t add_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x0b000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t add64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x8b000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t adds_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x2b000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t adds64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xab000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t sub_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x4b000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t sub64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xcb000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t subs_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x6b000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t subs64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xeb000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t cmn_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return adds_reg(31, rn, rm, shift, amount); }
-static inline uint32_t cmn64_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return adds64_reg(31, rn, rm, shift, amount); }
-static inline uint32_t cmp_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return subs_reg(31, rn, rm, shift, amount); }
-static inline uint32_t cmp64_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return subs64_reg(31, rn, rm, shift, amount); }
-static inline uint32_t neg_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return sub_reg(rd, 31, rm, shift, amount); }
-static inline uint32_t neg64_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return sub64_reg(rd, 31, rm, shift, amount); }
-static inline uint32_t negs_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return subs_reg(rd, 31, rm, shift, amount); }
-static inline uint32_t negs64_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return subs64_reg(rd, 31, rm, shift, amount); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t ADD(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x0b000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t ADDS(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x2b000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t SUB(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x4b000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t SUBS(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x6b000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t CMN(Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return ADDS<width, shift, amount>(zr, rn, rm); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t CMP(Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SUBS<width, shift, amount>(zr, rn, rm); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t NEG(Register<AArch64, INT> rd, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SUB<width, shift, amount>(rd, zr, rm); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t NEGS(Register<AArch64, INT> rd, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SUBS<width, shift, amount>(rd, zr, rm); }
+
+#if 0
 
 /* Data processing: register with extend */
 static inline uint32_t add_reg_ext(uint8_t rd, uint8_t rn, uint8_t rm, reg_extend_t extend, uint8_t lsl) { return I32(0x0b200000 | ((lsl & 7) << 10) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((extend & 7) << 13)); }
@@ -328,79 +404,80 @@ static inline uint32_t neg64_reg_ext(uint8_t rd, uint8_t rm, reg_extend_t extend
 static inline uint32_t negs_reg_ext(uint8_t rd, uint8_t rm, reg_extend_t extend, uint8_t lsl) { return subs_reg_ext(rd, 31, rm, extend, lsl); }
 static inline uint32_t negs64_reg_ext(uint8_t rd, uint8_t rm, reg_extend_t extend, uint8_t lsl) { return subs64_reg_ext(rd, 31, rm, extend, lsl); }
 
+#endif
+
 /* Data prcessing: arithmetic with carry */
-static inline uint32_t adc(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x1a000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t adc64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x9a000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t adcs(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x3a000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t adcs64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0xba000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t sbc(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x5a000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t sbc64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0xda000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t sbcs(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x7a000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t sbcs64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0xfa000000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t ngc(uint8_t rd, uint8_t rm) { return sbc(rd, 31, rm); }
-static inline uint32_t ngc64(uint8_t rd, uint8_t rm) { return sbc64(rd, 31, rm); }
-static inline uint32_t ngcs(uint8_t rd, uint8_t rm) { return sbcs(rd, 31, rm); }
-static inline uint32_t ngcs64(uint8_t rd, uint8_t rm) { return sbcs64(rd, 31, rm); }
+template< typename width=W32 >
+static inline uint32_t ADC(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x1a000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t ADCS(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x3a000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t SBC(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x5a000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t SBCS(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x7a000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t NGC(Register<AArch64, INT> rd, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SBC<width>(rd, zr, rm); }
+template< typename width=W32 >
+static inline uint32_t NGCS(Register<AArch64, INT> rd, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SBCS<width>(rd, zr, rm); }
+
 
 /* Data processing: conditional select */
-
-static inline uint32_t csel(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x1a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-static inline uint32_t csel64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x9a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 6) | ((cond & 15) << 12)); }
-static inline uint32_t csinc(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x1a800400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-static inline uint32_t csinc64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x9a800400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-static inline uint32_t csinv(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0x5a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-static inline uint32_t csinv64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { return I32(0xda800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-static inline uint32_t csetm(uint8_t rd, uint8_t cond) { return csinv(rd, 31, 31, cond ^ 1); }
-static inline uint32_t csetm64(uint8_t rd, uint8_t cond) { return csinv64(rd, 31, 31, cond ^ 1); }
-static inline uint32_t cset(uint8_t rd, uint8_t cond) { return csinc(rd, 31, 31, cond ^ 1); }
-static inline uint32_t cset64(uint8_t rd, uint8_t cond) { return csinc64(rd, 31, 31, cond ^ 1); }
+template< typename width=W32 >
+static inline uint32_t CSEL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, CC cond) { return I32(width::__width_value | 0x1a800000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(cond)  << 12)); }
+template< typename width=W32 >
+static inline uint32_t CSINC(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, CC cond) { return I32(width::__width_value | 0x1a800400 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(cond)  << 12)); }
+template< typename width=W32 >
+static inline uint32_t CSINV(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, CC cond) { return I32(width::__width_value | 0x5a800000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(cond)  << 12)); }
+template< typename width=W32 >
+static inline uint32_t CSETM(Register<AArch64, INT> rd, CC cond) { Register<AArch64, INT> zr(31, false); return CSINV<width>(rd, zr, zr, static_cast<int>(cond) ^ 1); }
+template< typename width=W32 >
+static inline uint32_t CSET(Register<AArch64, INT> rd, CC cond) { Register<AArch64, INT> zr(31, false); return CSINC<width>(rd, zr, zr, static_cast<int>(cond) ^ 1); }
 
 /* Data processing: logic */
-static inline uint32_t and_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x0a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t and64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x8a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t ands_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x6a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t ands64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xea000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t bic_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x0a200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t bic64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x8a200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t bics_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x6a200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t bics64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xea200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t eon_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x4a200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t eon64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xca200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t eor_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x4a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t eor64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xca000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t orr_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x2a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t orr64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xaa000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t orn_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0x2a200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t orn64_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return I32(0xaa200000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
-static inline uint32_t mvn_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return orn_reg(rd, 31, rm, shift, amount); }
-static inline uint32_t mvn64_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return orn64_reg(rd, 31, rm, shift, amount); }
-static inline uint32_t tst_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return ands_reg(31, rn, rm, shift, amount); }
-static inline uint32_t tst64_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return ands64_reg(31, rn, rm, shift, amount); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t AND(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x0a000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t ANDS(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x6a000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t BIC(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x0a200000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t BICS(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x6a200000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t EON(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x4a200000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t EOR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x4a000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t ORR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x2a000000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t ORN(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x2a200000 | (static_cast<int>(shift) << 22) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((amount & 63) << 10)); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t MVN(Register<AArch64, INT> rd, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return ORN<width, shift, amount>(rd, zr, rm); }
+template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
+static inline uint32_t TST(Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return ANDS<width, shift, amount>(zr, rn, rm); }
 
 /* Data processing: move register */
-static inline uint32_t mov_reg(uint8_t rd, uint8_t rm) { return orr_reg(rd, 31, rm, LSL, 0); }
-static inline uint32_t mov64_reg(uint8_t rd, uint8_t rm) { return orr64_reg(rd, 31, rm, LSL, 0); }
+template< typename width=W32 >
+static inline uint32_t MOV(Register<AArch64, INT> rd, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return ORR<width>(rd, ZR, rm); }
 
 /* Data processing: shift reg */
-static inline uint32_t asrv(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x1ac02800 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t asrv64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x9ac02800 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t lslv(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x1ac02000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t lslv64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x9ac02000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t lsrv(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x1ac02400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t lsrv64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x9ac02400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t rorv(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x1ac02c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
-static inline uint32_t rorv64(uint8_t rd, uint8_t rn, uint8_t rm) { return I32(0x9ac02c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t ASR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x1ac02800 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t LSL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x1ac02000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t LSR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x1ac02400 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
+template< typename width=W32 >
+static inline uint32_t ROR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x1ac02c00 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16)); }
 
 /* Data processing: multiply */
-static inline uint32_t smaddl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { return I32(0x9b200000 | (rd & 31) | ((rn & 31) << 5) | ((ra & 31) << 10) | ((rm & 31) << 16)); }
-static inline uint32_t smsubl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { return I32(0x9b208000 | (rd & 31) | ((rn & 31) << 5) | ((ra & 31) << 10) | ((rm & 31) << 16)); }
-static inline uint32_t smnegl(uint8_t rd, uint8_t rn, uint8_t rm) { return smsubl(rd, 31, rn, rm); }
-static inline uint32_t smull(uint8_t rd, uint8_t rn, uint8_t rm) { return smaddl(rd, 31, rn, rm); }
-static inline uint32_t umaddl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { return I32(0x9ba00000 | (rd & 31) | ((rn & 31) << 5) | ((ra & 31) << 10) | ((rm & 31) << 16)); }
-static inline uint32_t umsubl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { return I32(0x9ba08000 | (rd & 31) | ((rn & 31) << 5) | ((ra & 31) << 10) | ((rm & 31) << 16)); }
-static inline uint32_t umnegl(uint8_t rd, uint8_t rn, uint8_t rm) { return umsubl(rd, 31, rn, rm); }
-static inline uint32_t umull(uint8_t rd, uint8_t rn, uint8_t rm) { return umaddl(rd, 31, rn, rm); }
-#endif
+static inline uint32_t SMADDL(Register<AArch64, INT> rd, Register<AArch64, INT> ra, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(0x9b200000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((ra.value() & 31) << 10) | ((rm.value() & 31) << 16)); }
+static inline uint32_t SMSUBL(Register<AArch64, INT> rd, Register<AArch64, INT> ra, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(0x9b208000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((ra.value() & 31) << 10) | ((rm.value() & 31) << 16)); }
+static inline uint32_t SMNEGL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SMSUBL(rd, zr, rn, rm); }
+static inline uint32_t SMULL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return SMADDL(rd, zr, rn, rm); }
+static inline uint32_t UMADDL(Register<AArch64, INT> rd, Register<AArch64, INT> ra, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(0x9ba00000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((ra.value() & 31) << 10) | ((rm.value() & 31) << 16)); }
+static inline uint32_t UMSUBL(Register<AArch64, INT> rd, Register<AArch64, INT> ra, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(0x9ba08000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((ra.value() & 31) << 10) | ((rm.value() & 31) << 16)); }
+static inline uint32_t UMNEGL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return UMSUBL(rd, zr, rn, rm); }
+static inline uint32_t UMULL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return UMADDL(rd, zr, rn, rm); }
 
 template< typename width=W32 >
 static inline uint32_t MADD(Register<AArch64, INT> rd, Register<AArch64, INT> ra, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { return I32(width::__width_value | 0x1b000000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((ra.value() & 31) << 10) | ((rm.value() & 31) << 16)); }
@@ -410,7 +487,6 @@ template< typename width=W32 >
 static inline uint32_t MNEG(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return MSUB<width>(rd, zr, rn, rm); }
 template< typename width=W32 >
 static inline uint32_t MUL(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm) { Register<AArch64, INT> zr(31, false); return MADD<width>(rd, zr, rn, rm); }
-
 
 /* Data processing: divide */
 template< typename width=W32 >
@@ -452,13 +528,15 @@ static inline uint32_t DIV(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBL
 static inline uint32_t FRINT64X(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBLE> rn) { return I32(0x1e67c000 | (rd.value() & 31) | ((rn.value() & 31) << 5)); }
 static inline uint32_t FRINT64Z(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBLE> rn) { return I32(0x1e65c000 | (rd.value() & 31) | ((rn.value() & 31) << 5)); }
 
-template< typename scale=void >
+template< typename scale=LSL_0 >
 static inline uint32_t LDR(Register<AArch64, DOUBLE> rd, Register<AArch64, INT> base, int16_t offset) { 
-    if (std::is_same<scale, OFFSET_SCALED>::value) { return I32(0xfd400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
+    static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_3>::value, "Scale can be only LSL_0 or LSL_3");
+    if (std::is_same<scale, LSL_3>::value) { return I32(0xfd400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xfc400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
-template< typename scale=void >
+template< typename scale=LSL_0 >
 static inline uint32_t LDR(Register<AArch64, SINGLE> rd, Register<AArch64, INT> base, int16_t offset) { 
-    if (std::is_same<scale, OFFSET_SCALED>::value) { return I32(0xbd400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
+    static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_2>::value, "Scale can be only LSL_0 or LSL_2");
+    if (std::is_same<scale, LSL_2>::value) { return I32(0xbd400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xbc400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
 static inline uint32_t LDR(Register<AArch64, DOUBLE> rd, int32_t offset) { return I32(0x5c000000 | (rd.value() & 31) | ((offset & 0x7ffff) << 5)); }
 static inline uint32_t LDR(Register<AArch64, SINGLE> rd, int32_t offset) { return I32(0x1c000000 | (rd.value() & 31) | ((offset & 0x7ffff) << 5)); }
@@ -485,13 +563,15 @@ static inline uint32_t MUL(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBL
 static inline uint32_t NEG(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBLE> rn) { return I32(0x1e614000 | (rd.value() & 31) | ((rn.value() & 31) << 5)); }
 static inline uint32_t SQRT(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBLE> rn) { return I32(0x1e61c000 | (rd.value() & 31) | ((rn.value() & 31) << 5)); }
 static inline uint32_t SUB(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBLE> first, Register<AArch64, DOUBLE> second) { return I32(0x1e603800 | (rd.value() & 31) | ((first.value() & 31) << 5) | ((second.value() & 31) << 16)); }
-template< typename scale=void >
-static inline uint32_t STR(Register<AArch64, DOUBLE> rd, Register<AArch64, INT> base, int16_t offset) { 
-    if (std::is_same<scale, OFFSET_SCALED>::value) { return I32(0xfd000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
+template< typename scale=LSL_0 >
+static inline uint32_t STR(Register<AArch64, DOUBLE> rd, Register<AArch64, INT> base, int16_t offset) {
+    static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_3>::value, "Scale can be only LSL_0 or LSL_3");
+    if (std::is_same<scale, LSL_3>::value) { return I32(0xfd000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xfc000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
 template< typename scale=void >
 static inline uint32_t STR(Register<AArch64, SINGLE> rd, Register<AArch64, INT> base, int16_t offset) { 
-    if (std::is_same<scale, OFFSET_SCALED>::value) { return I32(0xbd000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
+    static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_2>::value, "Scale can be only LSL_0 or LSL_2");
+    if (std::is_same<scale, LSL_2>::value) { return I32(0xbd000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xbc000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
 
 
