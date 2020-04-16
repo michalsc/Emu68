@@ -75,7 +75,7 @@ static inline uint32_t B(Register<AArch64, INT> rt) { if (std::is_same<lr, LR>::
 template< typename width=W32 >
 static inline uint32_t CBNZ(Register<AArch64, INT> rt, uint32_t offset19) { return I32(width::__width_value | 0x35000000 | ((offset19 & 0x7ffff) << 5) | (rt.value() & 31)); }
 template< typename width=W32 >
-static inline uint32_t CBZ(Register<AArch64, INT> rt, uint32_t offset19) { return I32(width::__width_value | 0x34000000 | ((offset19 & 0x7ffff) << 5) | (rt.value() & 31)); } 
+static inline uint32_t CBZ(Register<AArch64, INT> rt, uint32_t offset19) { return I32(width::__width_value | 0x34000000 | ((offset19 & 0x7ffff) << 5) | (rt.value() & 31)); }
 static inline uint32_t RET() { return I32(0xd65f0000 | (30 << 5));}
 static inline uint32_t RET(Register<AArch64, INT> rt) { return I32(0xd65f0000 | (rt.value() << 5));}
 static inline uint32_t TBNZ(Register<AArch64, INT> rt, uint8_t bit, uint16_t offset) { return I32(bit & 32 ? 0xb7000000 : 0x37000000 | ((bit & 31) << 19) | ((offset & 0x3fff) << 5) | (rt.value() & 31)); }
@@ -119,7 +119,7 @@ static inline uint32_t LDR(Register<AArch64, INT> rt, Register<AArch64, INT> rn,
     if (std::is_same<width, W32>::value) {
         return I32(0xb8600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_2>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
     } else {
-        return I32(0xf8600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_3>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13)); 
+        return I32(0xf8600800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_3>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
     }
 }
 template<EXTEND ext=EXTEND::UXTX>
@@ -131,7 +131,7 @@ static inline uint32_t LDRSB(Register<AArch64, INT> rt, Register<AArch64, INT> r
     if (std::is_same<width, W32>::value) {
         return I32(0x38e00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13));
     } else {
-        return I32(0x38a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13)); 
+        return I32(0x38a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(ext) << 13));
     }
 }
 template<EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
@@ -145,7 +145,7 @@ static inline uint32_t LDRSH(Register<AArch64, INT> rt, Register<AArch64, INT> r
     if (std::is_same<width, W32>::value) {
         return I32(0x78e00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
     } else {
-        return I32(0x78a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13)); 
+        return I32(0x78a00800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_1>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
     }
 }
 template<EXTEND ext=EXTEND::UXTX, typename shift=LSL_0 >
@@ -161,7 +161,7 @@ static inline uint32_t STR(Register<AArch64, INT> rt, Register<AArch64, INT> rn,
     if (std::is_same<width, W32>::value) {
         return I32(0xb8200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_2>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
     } else {
-        return I32(0xf8200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_3>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13)); 
+        return I32(0xf8200800 | (rt.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (std::is_same<shift, LSL_3>::value ? 0x1000 : 0) | (static_cast<int>(ext) << 13));
     }
 }
 template<EXTEND ext=EXTEND::UXTX>
@@ -320,7 +320,7 @@ static inline uint32_t UBFIZ(Register<AArch64, INT> rd, Register<AArch64, INT> r
 
 /* Data processing: register extract */
 template< typename rwidth=W32 >
-static inline uint32_t EXTR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, uint8_t lsb) { 
+static inline uint32_t EXTR(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, uint8_t lsb) {
     return I32((std::is_same<rwidth, W32>::value ? 0x13800000 : 0x93c00000) | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | ((lsb & 63) << 10));
 }
 
@@ -429,9 +429,9 @@ static inline uint32_t CSINC(Register<AArch64, INT> rd, Register<AArch64, INT> r
 template< typename width=W32 >
 static inline uint32_t CSINV(Register<AArch64, INT> rd, Register<AArch64, INT> rn, Register<AArch64, INT> rm, CC cond) { return I32(width::__width_value | 0x5a800000 | (rd.value() & 31) | ((rn.value() & 31) << 5) | ((rm.value() & 31) << 16) | (static_cast<int>(cond)  << 12)); }
 template< typename width=W32 >
-static inline uint32_t CSETM(Register<AArch64, INT> rd, CC cond) { Register<AArch64, INT> zr(31, false); return CSINV<width>(rd, zr, zr, static_cast<int>(cond) ^ 1); }
+static inline uint32_t CSETM(Register<AArch64, INT> rd, CC cond) { Register<AArch64, INT> zr(31, false); return CSINV<width>(rd, zr, zr, static_cast<CC>(static_cast<int>(cond) ^ 1)); }
 template< typename width=W32 >
-static inline uint32_t CSET(Register<AArch64, INT> rd, CC cond) { Register<AArch64, INT> zr(31, false); return CSINC<width>(rd, zr, zr, static_cast<int>(cond) ^ 1); }
+static inline uint32_t CSET(Register<AArch64, INT> rd, CC cond) { Register<AArch64, INT> zr(31, false); return CSINC<width>(rd, zr, zr, static_cast<CC>(static_cast<int>(cond) ^ 1)); }
 
 /* Data processing: logic */
 template< typename width=W32, SHIFT shift=SHIFT::LSL, uint8_t amount=0>
@@ -529,12 +529,12 @@ static inline uint32_t FRINT64X(Register<AArch64, DOUBLE> rd, Register<AArch64, 
 static inline uint32_t FRINT64Z(Register<AArch64, DOUBLE> rd, Register<AArch64, DOUBLE> rn) { return I32(0x1e65c000 | (rd.value() & 31) | ((rn.value() & 31) << 5)); }
 
 template< typename scale=LSL_0 >
-static inline uint32_t LDR(Register<AArch64, DOUBLE> rd, Register<AArch64, INT> base, int16_t offset) { 
+static inline uint32_t LDR(Register<AArch64, DOUBLE> rd, Register<AArch64, INT> base, int16_t offset) {
     static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_3>::value, "Scale can be only LSL_0 or LSL_3");
     if (std::is_same<scale, LSL_3>::value) { return I32(0xfd400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xfc400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
 template< typename scale=LSL_0 >
-static inline uint32_t LDR(Register<AArch64, SINGLE> rd, Register<AArch64, INT> base, int16_t offset) { 
+static inline uint32_t LDR(Register<AArch64, SINGLE> rd, Register<AArch64, INT> base, int16_t offset) {
     static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_2>::value, "Scale can be only LSL_0 or LSL_2");
     if (std::is_same<scale, LSL_2>::value) { return I32(0xbd400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xbc400000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
@@ -569,7 +569,7 @@ static inline uint32_t STR(Register<AArch64, DOUBLE> rd, Register<AArch64, INT> 
     if (std::is_same<scale, LSL_3>::value) { return I32(0xfd000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xfc000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
 template< typename scale=void >
-static inline uint32_t STR(Register<AArch64, SINGLE> rd, Register<AArch64, INT> base, int16_t offset) { 
+static inline uint32_t STR(Register<AArch64, SINGLE> rd, Register<AArch64, INT> base, int16_t offset) {
     static_assert(std::is_same<scale, LSL_0>::value || std::is_same<scale, LSL_2>::value, "Scale can be only LSL_0 or LSL_2");
     if (std::is_same<scale, LSL_2>::value) { return I32(0xbd000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0xfff) << 10));
     } else { return I32(0xbc000000 | ((base.value() & 31) << 5) | (rd.value() & 31) | ((offset & 0x1ff) << 12)); } }
