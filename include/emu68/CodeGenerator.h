@@ -31,26 +31,24 @@ protected:
     void E(std::initializer_list<typename arch::OpcodeSize> opcodes) { Emit(opcodes); }
     void EmitPrologue();
     void EmitEpilogue();
-    Register<arch, INT> AllocReg(RegisterRole role = RegisterRole::TempReg) {
-        uint8_t reg = _RegAlloc.allocate();
-        while (reg == 0xff) {
-            LRU_DeallocLast();
+    template<typename, typename type>
+    Register<arch, type> GetReg(RegisterRole role = RegisterRole::TempReg) {
+        uint8_t reg;
+        if (std::is_same<type, INT>::value) {
             reg = _RegAlloc.allocate();
+            while (reg == 0xff) {
+                LRU_DeallocLast();
+                reg = _RegAlloc.allocate();
+            }
+        } else {
+            reg = _FPUAlloc.allocate();
         }
-        return Register<arch, INT>(reg, role);
-    }
-    Register<arch, DOUBLE> AllocDOUBLEReg() {
-        uint8_t reg = _FPUAlloc.allocate();
-        return Register<arch, DOUBLE>(reg, RegisterRole::TempReg);
-    }
-    Register<arch, SINGLE> AllocSINGLEReg() {
-        uint8_t reg = _FPUAlloc.allocate();
-        return Register<arch, SINGLE>(reg, RegisterRole::TempReg);
+        return Register<arch, type>(reg, role);
     }
     Register<arch, INT> GetDn(uint8_t n) {
         n &= 7;
         if (!D[n].valid()) {
-            D[n] = AllocReg(RegisterRole::Dn + n);
+            D[n] = GetReg<arch, INT>(RegisterRole::Dn + n);
             LoadReg(D[n]);
         }
         if (arch::DynamicDn) {
@@ -61,7 +59,7 @@ protected:
     Register<arch, INT> GetAn(uint8_t n) {
         n &= 7;
         if (!A[n].valid()) {
-            A[n] = AllocReg(RegisterRole::An + n);
+            A[n] = GetReg<arch, INT>(RegisterRole::An + n);
             LoadReg(A[n]);
         }
         if (arch::DynamicAn) {
@@ -71,7 +69,7 @@ protected:
     }
     Register<arch, INT> GetCTX() {
         if (!CTX.valid()) {
-            CTX = AllocReg(RegisterRole::CTX);
+            CTX = GetReg<arch, INT>(RegisterRole::CTX);
             LoadReg(CTX);
         }
         LRU_MoveToFront(&CTX);
@@ -79,7 +77,7 @@ protected:
     }
     Register<arch, INT> GetCC() {
         if (!CC.valid()) {
-            CC = AllocReg(RegisterRole::SR);
+            CC = GetReg<arch, INT>(RegisterRole::SR);
             LoadReg(CC);
         }
         LRU_MoveToFront(&CC);
@@ -87,7 +85,7 @@ protected:
     }
     Register<arch, INT> GetFPCR() {
         if (!FPCR.valid()) {
-            FPCR = AllocReg(RegisterRole::FPCR);
+            FPCR = GetReg<arch, INT>(RegisterRole::FPCR);
             LoadReg(FPCR);
         }
         LRU_MoveToFront(&FPCR);
@@ -95,13 +93,13 @@ protected:
     }
     Register<arch, INT> GetFPSR() {
         if (!FPSR.valid()) {
-            FPSR = AllocReg(RegisterRole::FPSR);
+            FPSR = GetReg<arch, INT>(RegisterRole::FPSR);
             LoadReg(FPSR);
         }
         LRU_MoveToFront(&FPSR);
         return FPSR;
     }
-    uint8_t GetEALength(const uint16_t *insn_stream, uint8_t imm_size);
+    uint8_t GetEALength(uint8_t ea, uint16_t brief, uint8_t imm_size);
 private:
     void LoadReg(Register<arch, INT> dest);
     void SaveReg(Register<arch, INT> src);

@@ -15,25 +15,31 @@
 
 namespace emu68 {
 
+/*
+    Calculate additional length of the instruction determined by the addressing mode.
+    The ea is the mode itself, brief is the 16-bit word past the instruction opcode.
+*/
 template< typename arch >
-uint8_t CodeGenerator<arch>::GetEALength(const uint16_t *insn_stream, uint8_t imm_size)
+uint8_t CodeGenerator<arch>::GetEALength(uint8_t ea, uint16_t brief, uint8_t imm_size)
 {
     uint16_t opcode;
-    uint8_t word_count = 1;
+    uint8_t word_count = 0;
     uint8_t mode, reg;
 
-    opcode = BE16(insn_stream[0]);
-    mode = (opcode >> 3) & 7;
-    reg = (opcode) & 7;
+    mode = (ea >> 3) & 7;
+    reg = ea & 7;
 
     /* modes 0, 1, 2, 3 and 4 do not have extra words */
     if (mode > 4) {
         if (mode == 5) {     /* 16-bit offset in next opcode */
             word_count++;
         } else if (mode == 6 || (mode == 7 && reg == 3)) {
-            /* Reg- or PC-relative addressing mode */
-            uint16_t brief = BE16(insn_stream[1]);
-            /* Brief word is here */
+            /*
+                Reg- or PC-relative addressing mode.
+
+                Brief word was provided to the function already, but it is
+                in the EA, so calculate it here
+            */
             word_count++;
             switch (brief & 3) {
                 case 2:
@@ -75,7 +81,6 @@ uint8_t CodeGenerator<arch>::GetEALength(const uint16_t *insn_stream, uint8_t im
     }
     return word_count;
 }
-
 
 template< typename arch >
 void CodeGenerator<arch>::Compile()
