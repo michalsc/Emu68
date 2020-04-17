@@ -5,7 +5,7 @@ include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
 get_verstring(VERSTRING)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 11)
 
 set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64")
