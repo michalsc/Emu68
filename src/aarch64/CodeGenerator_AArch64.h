@@ -77,9 +77,9 @@ void CodeGenerator<AArch64>::EmitPrologue()
 template<>
 void CodeGenerator<AArch64>::EmitEpilogue()
 {
-    Emit({
+    Emit(
         RET()
-    });
+    );
 }
 
 template<>
@@ -116,7 +116,7 @@ void CodeGenerator<AArch64>::SaveReg(Register<AArch64, INT> src)
 template<>
 void CodeGenerator<AArch64>::GetFPUFlags(Register<AArch64, INT> fpsr)
 {
-    auto tmp = AllocReg();
+    auto tmp = GetReg<AArch64, INT>();
     Emit({
         GET_NZCV    (tmp),
         BIC         (tmp, tmp, 1, 3),
@@ -128,10 +128,10 @@ void CodeGenerator<AArch64>::GetFPUFlags(Register<AArch64, INT> fpsr)
 template<>
 void CodeGenerator<AArch64>::Load96BitFP(Register<AArch64, DOUBLE> fpreg, Register<AArch64, INT> base, int16_t offset9)
 {
-    auto zero = Register<AArch64, INT>(31, false);
-    auto exp_reg = AllocReg();
-    auto mant_reg = AllocReg();
-    auto tmp_reg = AllocReg();
+    Register<AArch64, INT> zero(31);
+    auto exp_reg = GetReg<AArch64, INT>();
+    auto mant_reg = GetReg<AArch64, INT>();
+    auto tmp_reg = GetReg<AArch64, INT>();
 
     Emit({
         LDUR                     (exp_reg, base, offset9),
