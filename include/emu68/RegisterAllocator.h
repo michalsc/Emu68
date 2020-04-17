@@ -63,26 +63,27 @@ private:
         bool _dirty;
     };
 public:
-    Register(bool alloc=false) : _role(RegisterRole::TempReg) { if (alloc) { _regnum=RegisterAllocator< Arch, RegType >().allocate(); _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; } else {_regnum=0xff; _refcount=nullptr;}}
-    Register(uint8_t regnum, bool alloc=true) : _regnum(regnum), _role(RegisterRole::TempReg) { if (alloc) { _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false;} }
-    Register(uint8_t regnum, RegisterRole role) : _regnum(regnum), _role(role) { _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
-    Register(Register& other) : _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { _refcount->_cnt++; }
-    Register(Register&& other) : _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { other._refcount = nullptr; other._regnum = 0xff; }
-    ~Register() { _decrease_and_release(); }
-    Register& operator=(Register& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; _refcount->_cnt++; return *this; }
-    Register& operator=(const Register& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; _refcount->_cnt++; return *this; }
+    Register() : _fixed(false), _role(RegisterRole::TempReg) { _regnum=RegisterAllocator< Arch, RegType >().allocate(); _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
+    explicit Register(uint8_t regnum) : _fixed(true), _regnum(regnum), _role(RegisterRole::TempReg), _refcount(nullptr) {  }
+    Register(uint8_t regnum, RegisterRole role) : _fixed(false), _regnum(regnum), _role(role) { _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
+    Register(Register& other) : _fixed(other._fixed), _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { if (_refcount) _refcount->_cnt++; }
+    Register(Register&& other) : _fixed(other._fixed), _regnum(other._regnum), _role(other._role), _refcount(other._refcount) { other._refcount = nullptr; other._regnum = 0xff; }
+    ~Register() { if (!_fixed) _decrease_and_release(); }
+    Register& operator=(Register& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; if (_refcount) _refcount->_cnt++; return *this; }
+    Register& operator=(const Register& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; if (_refcount) _refcount->_cnt++; return *this; }
     Register& operator=(Register&& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; other._refcount = nullptr; other._regnum = 0xff; return *this; }
     Register& operator=(const Register&& other) { _decrease_and_release(); _regnum = other._regnum; _role = other._role; _refcount = other._refcount; other._refcount = nullptr; other._regnum = 0xff; return *this; }
     void alloc() { _decrease_and_release(); _regnum = RegisterAllocator< Arch, RegType >().allocate(); _role = RegisterRole::TempReg; _refcount = allocator<_RefCountAndDirty>().allocate(1); _refcount->_cnt = 1; _refcount->_dirty = false; }
-    bool allocated() { const int max = std::is_same<RegType, INT>::value ? Arch().RegEnd : Arch().FPURegEnd; const int min = std::is_same<RegType, INT>::value ? Arch().RegStart : Arch().FPURegStart; if ((_regnum >= min) && (_regnum <= max)) {return true;} else { return false;} }
-    uint8_t value() { if (_regnum == 0xff) { kprintf("[CXX] Register::value() Using unitialized register!\n"); } return _regnum; }
-    bool valid() { return _regnum != 0xff; }
+    bool allocated() const { const int max = std::is_same<RegType, INT>::value ? Arch().RegEnd : Arch().FPURegEnd; const int min = std::is_same<RegType, INT>::value ? Arch().RegStart : Arch().FPURegStart; if ((_regnum >= min) && (_regnum <= max)) {return true;} else { return false;} }
+    uint8_t value() const { if (_regnum == 0xff) { kprintf("[CXX] Register::value() Using unitialized register!\n"); } return _regnum; }
+    bool valid() const { return _regnum != 0xff; }
     void touch() { if (_refcount) { _refcount->_dirty = true; } }
-    bool dirty() { if (_refcount) { return _refcount->_dirty; } else return false; }
-    uint32_t refcnt() { if (_refcount) { return _refcount->_cnt; } else return 0; }
-    RegisterRole role() { return _role; }
+    bool dirty() const { if (_refcount) { return _refcount->_dirty; } else return false; }
+    uint32_t refcnt() const { if (_refcount) { return _refcount->_cnt; } else return 0; }
+    RegisterRole role() const { return _role; }
 private:
     void _decrease_and_release() { if (_refcount && --(_refcount->_cnt) == 0) { RegisterAllocator< Arch, RegType >().deallocate(_regnum); allocator<_RefCountAndDirty>().deallocate(_refcount, 1); } }
+    const bool _fixed;
     uint8_t _regnum;
     RegisterRole _role;
     _RefCountAndDirty *_refcount;
