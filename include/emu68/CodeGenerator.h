@@ -69,7 +69,7 @@ protected:
     Register<arch, INT> GetDnNoLoad(uint8_t n) {
         n &= 7;
         if (!D[n].valid()) {
-            D[n] = AllocReg(RegisterRole::Dn + n);
+            D[n] = GetReg(RegisterRole::Dn + n);
         }
         if (arch::DynamicDn) {
             LRU_MoveToFront(&D[n]);
@@ -90,7 +90,7 @@ protected:
     Register<arch, INT> GetAnNoLoad(uint8_t n) {
         n &= 7;
         if (!A[n].valid()) {
-            A[n] = AllocReg(RegisterRole::An + n);
+            A[n] = GetReg(RegisterRole::An + n);
         }
         if (arch::DynamicAn) {
             LRU_MoveToFront(&A[n]);
