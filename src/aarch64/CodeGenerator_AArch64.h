@@ -85,18 +85,18 @@ void CodeGenerator<AArch64>::EmitEpilogue()
 template<>
 void CodeGenerator<AArch64>::LoadReg(Register<AArch64, INT> dest)
 {
-    if (dest.role() == RegisterRole::CTX) Emit({
+    if (dest.role() == RegisterRole::CTX) Emit(
         MRS<3, 3, 13, 0, 3>(dest)
-    });
-    if (dest.role() == RegisterRole::SR) Emit({
+    );
+    if (dest.role() == RegisterRole::SR) Emit(
         MRS<3, 3, 13, 0, 2>(dest)
-    });
-    else if (dest.role() == RegisterRole::FPCR) Emit({
+    );
+    else if (dest.role() == RegisterRole::FPCR) Emit(
         LDRH(dest, GetCTX(), __builtin_offsetof(struct M68KState, FPCR))
-    });
-    else if (dest.role() == RegisterRole::FPSR) Emit({
+    );
+    else if (dest.role() == RegisterRole::FPSR) Emit(
         LDR(dest, GetCTX(), __builtin_offsetof(struct M68KState, FPSR))
-    });
+    );
 }
 
 template<>
