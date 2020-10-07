@@ -188,8 +188,9 @@ static int checkHeader(Elf32_Ehdr *eh)
     }
 }
 
-int getElfSize(Elf32_Ehdr *eh, uint32_t *size_rw, uint32_t *size_ro)
+int GetElfSize(void *file, uint32_t *size_rw, uint32_t *size_ro)
 {
+    Elf32_Ehdr *eh = (Elf32_Ehdr *)file;
     uint32_t s_ro = 0;
     uint32_t s_rw = 0;
 
@@ -370,18 +371,17 @@ static int relocate(Elf32_Ehdr *eh, Elf32_Shdr *sh, int shrel_idx)
     return 1;
 }
 
-void * LoadELFFile(void *mem)
+void * LoadELFFile(void *mem, void *load_address)
 {
     Elf32_Ehdr *elf = (Elf32_Ehdr *)mem;
     uint32_t size_rw;
     uint32_t size_ro;
-    void *load_address = (void*)0x00f00000;
 
-    if (getElfSize(elf, &size_rw, &size_ro))
+    if (GetElfSize(elf, &size_rw, &size_ro))
     {
         Elf32_Shdr *sh = (Elf32_Shdr *)((intptr_t)mem + elf->e_shoff);
         ptr_ro = (uintptr_t)load_address;
-        ptr_rw = ptr_ro - size_rw;
+        ptr_rw = ptr_ro + ((size_ro + 4095) & ~4095);
 
         for (int i = 0; i < elf->e_shnum; i++)
         {
