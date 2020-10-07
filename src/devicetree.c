@@ -92,6 +92,11 @@ long dt_total_size()
         return 0;
 }
 
+void * dt_fdt_base()
+{
+    return hdr;
+}
+
 of_node_t * dt_parse(void *dt)
 {
     uint32_t token = 0;

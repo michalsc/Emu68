@@ -54,6 +54,7 @@ typedef struct of_node {
 void dt_dump_tree();
 of_node_t *dt_parse(void *ptr);
 long dt_total_size();
+void * dt_fdt_base();
 of_node_t *dt_find_node_by_phandle(uint32_t phandle);
 of_node_t *dt_find_node(char *key);
 of_property_t *dt_find_property(void *key, char *propname);
