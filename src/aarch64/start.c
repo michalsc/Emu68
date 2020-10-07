@@ -17,6 +17,7 @@
 #include "devicetree.h"
 #include "M68k.h"
 #include "HunkLoader.h"
+#include "ElfLoader.h"
 #include "DuffCopy.h"
 #include "EmuLogo.h"
 #include "EmuFeatures.h"
@@ -387,11 +388,21 @@ void boot(void *dtree)
             image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
             p = dt_find_property(e, "linux,initrd-end");
             image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+            uint32_t magic = BE32(*(uint32_t*)image_start);
 
-            kprintf("[BOOT] Loading executable from %p-%p\n", image_start, image_end);
-            void *hunks = LoadHunkFile(image_start);
-            (void)hunks;
-            M68K_StartEmu((void *)((intptr_t)hunks + 4));
+            if (magic == 0x3f3)
+            {
+                kprintf("[BOOT] Loading HUNK executable from %p-%p\n", image_start, image_end);
+                void *hunks = LoadHunkFile(image_start);
+                (void)hunks;
+                M68K_StartEmu((void *)((intptr_t)hunks + 4));
+            }
+            else if (magic == 0x7f454c46)
+            {
+                kprintf("[BOOT] Loading ELF executable from %p-%p\n", image_start, image_end);
+                void *ptr = LoadELFFile(image_start);
+                M68K_StartEmu(ptr);
+            }
         }
         else
         {
