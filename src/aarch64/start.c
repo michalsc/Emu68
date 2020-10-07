@@ -283,14 +283,14 @@ void print_build_id()
     kprintf("\n");
 }
 
-void M68K_StartEmu(void *addr);
+void M68K_StartEmu(void *addr, void *fdt);
 
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
     uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
     uint64_t tmp;
-    uintptr_t top_of_ram;
+    uintptr_t top_of_ram = 0;
 
     of_node_t *e = NULL;
 
@@ -382,6 +382,9 @@ void boot(void *dtree)
     {
         void *image_start, *image_end;
         of_property_t *p = dt_find_property(e, "linux,initrd-start");
+        void *fdt = (void*)(top_of_ram - ((dt_total_size() + 4095) & ~4095));
+        memcpy(fdt, dt_fdt_base(), dt_total_size());
+        top_of_ram -= (dt_total_size() + 4095) & ~4095;
 
         if (p)
         {
@@ -395,13 +398,22 @@ void boot(void *dtree)
                 kprintf("[BOOT] Loading HUNK executable from %p-%p\n", image_start, image_end);
                 void *hunks = LoadHunkFile(image_start);
                 (void)hunks;
-                M68K_StartEmu((void *)((intptr_t)hunks + 4));
+                M68K_StartEmu((void *)((intptr_t)hunks + 4), fdt);
             }
             else if (magic == 0x7f454c46)
             {
-                kprintf("[BOOT] Loading ELF executable from %p-%p\n", image_start, image_end);
-                void *ptr = LoadELFFile(image_start);
-                M68K_StartEmu(ptr);
+                uint32_t rw, ro;
+                if (GetElfSize(image_start, &rw, &ro))
+                {
+                    rw = (rw + 4095) & ~4095;
+                    ro = (ro + 4095) & ~4095;
+
+                    top_of_ram -= rw + ro;
+
+                    kprintf("[BOOT] Loading ELF executable from %p-%p\n", image_start, image_end);
+                    void *ptr = LoadELFFile(image_start, (void*)top_of_ram);
+                    M68K_StartEmu(ptr, fdt);
+                }
             }
         }
         else
@@ -558,7 +570,7 @@ uint32_t fb_height  __attribute__((weak))= 0;
 
 
 
-void M68K_StartEmu(void *addr)
+void M68K_StartEmu(void *addr, void *fdt)
 {
     void (*arm_code)();
     struct M68KTranslationUnit * unit = (void*)0;
@@ -575,6 +587,7 @@ void M68K_StartEmu(void *addr)
     __m68k.D[2].u32 = BE32((uint32_t)fb_height);
     __m68k.A[0].u32 = BE32((uint32_t)(intptr_t)framebuffer);
 
+    __m68k.A[6].u32 = BE32((intptr_t)fdt);
     __m68k.A[7].u32 = BE32(((intptr_t)addr - 4096)& 0xfffff000);
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
