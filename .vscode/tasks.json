@@ -29,6 +29,19 @@
       },
       {
         "type": "shell",
+        "label": "install raspi64",
+        "command": "make",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "args": ["install"],
+        "options": {
+          "cwd": "${workspaceFolder}/build-raspi64"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
         "label": "build pbpro",
         "command": "make",
         "problemMatcher": [
