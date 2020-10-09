@@ -582,6 +582,8 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     bzero(&__m68k, sizeof(__m68k));
 
+    *(uint32_t*)4 = 0;
+
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
     __m68k.D[2].u32 = BE32((uint32_t)fb_height);
