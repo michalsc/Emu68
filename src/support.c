@@ -205,9 +205,9 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     int_itoa(tmpbuf, 16, value, 1, 2*sizeof(uintptr_t), 2*sizeof(uintptr_t), big, 1, 0, sign);
                     str = tmpbuf;
                     size_mod -= int_strlen(str);
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
+                    while (*str) {
+                        putc_f(putc_data, *str++);
+                    }
                     break;
 
                 case 'X':
@@ -237,9 +237,9 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     if (!leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
+                    while(*str) {
+                        putc_f(putc_data, *str++);
+                    }
                     if (leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
@@ -269,9 +269,9 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     if (!leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
+                    while(*str) {
+                        putc_f(putc_data, *str++);
+                    }
                     if (leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
@@ -305,9 +305,9 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     if (!leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
+                    while(*str) {
+                        putc_f(putc_data, *str++);
+                    }
                     if (leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
@@ -337,9 +337,9 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
                     if (!leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
+                    while(*str) {
+                        putc_f(putc_data, *str++);
+                    }
                     if (leftalign)
                         while(size_mod-- > 0)
                             putc_f(putc_data, ' ');
