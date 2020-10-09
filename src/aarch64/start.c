@@ -409,8 +409,9 @@ void boot(void *dtree)
                     ro = (ro + 4095) & ~4095;
 
                     top_of_ram -= rw + ro;
+                    top_of_ram &= ~0x1fffff;
 
-                    kprintf("[BOOT] Loading ELF executable from %p-%p\n", image_start, image_end);
+                    kprintf("[BOOT] Loading ELF executable from %p-%p to %p\n", image_start, image_end, top_of_ram);
                     void *ptr = LoadELFFile(image_start, (void*)top_of_ram);
                     M68K_StartEmu(ptr, fdt);
                 }
@@ -501,7 +502,7 @@ void M68K_PrintContext(struct M68KState *m68k)
 {
     M68K_SaveContext(m68k);
 
-    kprintf("[JIT]\n[JIT] M68K Context:\n[JIT] ");
+    kprintf("[JIT] M68K Context:\n[JIT] ");
 
     for (int i=0; i < 8; i++) {
         if (i==4)
@@ -596,6 +597,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
 
     M68K_LoadContext(&__m68k);
+    kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
     kprintf("[JIT] Let it go...\n");
@@ -631,6 +633,7 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     kprintf("[JIT] Back from translated code\n");
 
+    kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
     M68K_DumpStats();
