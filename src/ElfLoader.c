@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define D(x) x
+#define D(x) /* x */
 
 typedef uint32_t    Elf32_Addr;
 typedef uint16_t    Elf32_Half;
@@ -318,7 +318,7 @@ static int relocate(Elf32_Ehdr *eh, Elf32_Shdr *sh, int shrel_idx)
                                         sym->st_name,
                                         (char *)(uintptr_t)(sh[eh->e_shstrndx].sh_addr) +
                                         toreloc->sh_name);
-                return 0;
+                continue; //return 0;
                 
             case SHN_COMMON:
                 kprintf("[ELF] COMMON symbol '%s' in section '%s'\n",
