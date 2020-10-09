@@ -903,8 +903,38 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100001011xxxxxx - MOVE from CCR */
     else if ((opcode &0xffc0) == 0x42c0)
     {
-        kprintf("[LINE4] Not implemented MOVE from CCR\n");
+#ifdef __aarch64__
+        uint8_t cc = RA_GetCC(&ptr);
+        uint8_t ext_words = 0;
+
+        if (opcode & 0x38)
+        {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = mov_reg(tmp, cc);
+            *ptr++ = bic_immed(tmp, tmp, 11, 27);
+            ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+            RA_FreeARMRegister(&ptr, tmp);
+        }
+        else
+        {
+            /* Fetch m68k register */
+            uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
+
+            /* Mark register dirty */
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+            *ptr++ = bfi(dest, cc, 0, 5);
+            *ptr++ = bic_immed(dest, dest, 11, 27);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+#else
+        kprintf("[LINE4] Not implemented MOVE from CCR @ %08x\n", *m68k_ptr - 1);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 01000000ssxxxxxx - NEGX */
     else if ((opcode & 0xff00) == 0x4000 && (opcode & 0xc0) != 0xc0)
@@ -919,8 +949,21 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100010011xxxxxx - MOVE to CCR */
     else if ((opcode &0xffc0) == 0x44c0)
     {
-        kprintf("[LINE4] Not implemented MOVE to CCR\n");
+#ifdef __aarch64__
+        uint8_t ext_words = 0;
+        uint8_t src = 0xff;
+        uint8_t cc = RA_ModifyCC(&ptr);
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+        *ptr++ = bfi(cc, src, 0, 5);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+#else
+        kprintf("[LINE4] Not implemented MOVE to CCR @ %08x\n", *m68k_ptr - 1);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 01000100ssxxxxxx - NEG */
     else if ((opcode &0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
@@ -930,7 +973,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100011011xxxxxx - MOVE to SR */
     else if ((opcode &0xffc0) == 0x46c0)
     {
-        kprintf("[LINE4] Not implemented MOVE to CCR\n");
+        kprintf("[LINE4] Not implemented MOVE to SR @ %08x\n", *m68k_ptr - 1);
         *ptr++ = udf(opcode);
     }
     /* 01000110ssxxxxxx - NOT */
