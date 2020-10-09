@@ -1151,8 +1151,14 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100100xxxx - TRAP */
     else if ((opcode & 0xfff0) == 0x4e40)
     {
-        kprintf("[LINE4] Not implemented TRAP\n");
-        *ptr++ = udf(opcode);
+        /* Correct implementation is missing */
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAP #%02d at %08x\n", opcode & 15, (*m68k_ptr) - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
+
+        ptr = EMIT_AdvancePC(ptr, 2);
+        ptr = EMIT_FlushPC(ptr);
+        
+        //*ptr++ = udf(opcode);
     }
     /* 0100111001010xxx - LINK */
     else if ((opcode & 0xfff8) == 0x4e50)
@@ -1209,12 +1215,15 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110000 - RESET */
     else if (opcode == 0x4e70)
     {
-        kprintf("[LINE4] Not implemented RESET\n");
-        *ptr++ = udf(opcode);
+        /* Allow only in supervisor!!! */
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] RESET opcode at %08x\n", *m68k_ptr - 1);
+        ptr = EMIT_AdvancePC(ptr, 2);
+        ptr = EMIT_FlushPC(ptr);
     }
     /* 0100111001110000 - NOP */
     else if (opcode == 0x4e71)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] NOP opcode at %08x\n", *m68k_ptr - 1);
         ptr = EMIT_AdvancePC(ptr, 2);
         ptr = EMIT_FlushPC(ptr);
     }
