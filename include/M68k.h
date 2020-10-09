@@ -11,6 +11,7 @@
 #define _M68K_H
 
 #include <stdint.h>
+#include <stdarg.h>
 
 #include "nodes.h"
 #include "lists.h"
@@ -180,6 +181,10 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
+
+uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
+uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args);
+uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ...);
 
 void M68K_PushReturnAddress(uint16_t *ret_addr);
 uint16_t *M68K_PopReturnAddress(uint8_t *success);

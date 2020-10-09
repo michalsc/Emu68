@@ -638,3 +638,110 @@ void M68K_DumpStats()
     mean_f = mean % 100;
     kprintf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
 }
+
+uint32_t *EMIT_InjectPrintContext(uint32_t *ptr)
+{
+    extern void M68K_PrintContext(void*);
+
+#ifdef __aarch64__
+    union {
+        uint64_t u64;
+        uint32_t u32[2];
+    } u;
+
+    u.u64 = (uintptr_t)M68K_PrintContext;
+
+    *ptr++ = stp64_preindex(31, 0, 1, -80);
+    *ptr++ = stp64(31, 2, 3, 16);
+    *ptr++ = stp64(31, 4, 5, 32);
+    *ptr++ = stp64(31, 6, 7, 48);
+    *ptr++ = str64_offset(31, 30, 64);
+
+    *ptr++ = mrs(0, 3, 3, 13, 0, 3);
+    *ptr++ = adr(30, 20);
+    *ptr++ = ldr64_pcrel(1, 2);
+    *ptr++ = br(1);
+
+    *ptr++ = BE32(u.u32[0]);
+    *ptr++ = BE32(u.u32[1]);
+
+    *ptr++ = ldp64(31, 2, 3, 16);
+    *ptr++ = ldp64(31, 4, 5, 32);
+    *ptr++ = ldp64(31, 6, 7, 48);
+    *ptr++ = ldr64_offset(31, 30, 64);
+    *ptr++ = ldp64_postindex(31, 0, 1, 80);
+#else
+
+#endif
+    return ptr;
+}
+
+
+static void put_to_stream(void *d, char c)
+{
+    char **pptr = (char**)d;
+    char *ptr = *pptr;
+
+    *ptr++ = c;
+
+    *pptr = ptr;
+}
+
+uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args)
+{
+#ifdef __aarch64__
+    void *tmp;
+
+    union {
+        uint64_t u64;
+        uint32_t u32[2];
+    } u;
+
+    u.u64 = (uintptr_t)kprintf;
+
+    *ptr++ = stp64_preindex(31, 0, 1, -80);
+    *ptr++ = stp64(31, 2, 3, 16);
+    *ptr++ = stp64(31, 4, 5, 32);
+    *ptr++ = stp64(31, 6, 7, 48);
+    *ptr++ = str64_offset(31, 30, 64);
+
+    *ptr++ = adr(0, 48);
+    *ptr++ = adr(30, 20);
+    *ptr++ = ldr64_pcrel(1, 2);
+    *ptr++ = br(1);
+
+    *ptr++ = BE32(u.u32[0]);
+    *ptr++ = BE32(u.u32[1]);
+
+    *ptr++ = ldp64(31, 2, 3, 16);
+    *ptr++ = ldp64(31, 4, 5, 32);
+    *ptr++ = ldp64(31, 6, 7, 48);
+    *ptr++ = ldr64_offset(31, 30, 64);
+    *ptr++ = ldp64_postindex(31, 0, 1, 80);
+
+    *ptr++ = b(0);
+    tmp = ptr;
+
+    vkprintf_pc(put_to_stream, &tmp, format, args);
+
+    *(char*)tmp = 0;
+
+    tmp = (void*)(((uintptr_t)tmp + 4) & ~3);
+
+    ptr[-1] = b(1 + ((uintptr_t)tmp - (uintptr_t)ptr) / 4);
+    
+    ptr = (uint32_t *)tmp;
+#else
+
+#endif
+    return ptr;
+}
+
+uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ...)
+{
+    va_list v;
+    va_start(v, format);
+    ptr = EMIT_InjectDebugStringV(ptr, format, v);
+    va_end(v);
+    return ptr;
+}
