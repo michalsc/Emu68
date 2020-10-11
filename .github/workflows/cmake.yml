@@ -26,7 +26,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential
         sudo apt-get install -y gcc-8-aarch64-linux-gnu g++-8-aarch64-linux-gnu
-        sudo cp /usr/aarch64-linux-gnu/include/gnu/stubs-lp64.h /usr/aarch64-linux-gnu/include/stubs-lp64_be.h
+        sudo cp /usr/aarch64-linux-gnu/include/gnu/stubs-lp64.h /usr/aarch64-linux-gnu/include/gnu/stubs-lp64_be.h
         cmake -E make_directory ${{runner.workspace}}/build
         cmake -E make_directory ${{runner.workspace}}/install
 
