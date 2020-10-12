@@ -908,7 +908,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t cc = RA_GetCC(&ptr);
         uint8_t ext_words = 0;
 
-        ptr = EMIT_InjectDebugString(ptr, "MOVE from CCR at %08x\n", *m68k_ptr - 1);
         if (opcode & 0x38)
         {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -956,16 +955,12 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
         uint8_t cc = RA_ModifyCC(&ptr);
 
-        ptr = EMIT_InjectDebugString(ptr, "MOVE to CCR at %08x\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
         *ptr++ = bfi(cc, src, 0, 5);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         
-        ptr = EMIT_InjectPrintContext(ptr);
         (*m68k_ptr) += ext_words;
 #else
         kprintf("[LINE4] Not implemented MOVE to CCR @ %08x\n", *m68k_ptr - 1);
