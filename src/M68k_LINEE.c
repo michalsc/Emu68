@@ -636,9 +636,77 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110110111xxxxxx - BFFFO */
     else if ((opcode & 0xffc0) == 0xedc0)
     {
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] BFFFO at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
+        uint8_t ext_words = 1;
+        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+        uint8_t dst = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t src = 0xff;
+
+        /* Special case: Source is Dn */
+        if ((opcode & 0x0038) == 0)
+        {
+            /* Direct offset and width */
+            if ((opcode2 & 0x0820) == 0)
+            {
+                uint8_t offset = (opcode2 >> 6) & 0x1f;
+                uint8_t width = opcode2 & 0x1f;
+
+                /* Another special case - full width and zero offset */
+                if (offset == 0 && width == 0)
+                {
+                    src = RA_MapM68kRegister(&ptr, opcode & 7);
+
+                    *ptr++ = clz(dst, src);
+                }
+                else
+                {
+                    src = RA_CopyFromM68kRegister(&ptr, opcode & 7);
+
+                    if (offset)
+                    {
+                        *ptr++ = bic_immed(src, src, offset, offset);
+                    }
+                    if (width)
+                    {
+                        *ptr++ = orr_immed(src, src, width, 0);
+                    }
+
+                    *ptr++ = clz(dst, src);
+                }
+
+                ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+                (*m68k_ptr) += ext_words;
+
+                uint8_t mask = M68K_GetSRMask(*m68k_ptr);
+                uint8_t update_mask = (SR_Z | SR_N | SR_C | SR_V) & ~mask;
+                if (update_mask)
+                {
+                    uint8_t cc = RA_ModifyCC(&ptr);
+                    if (width)
+                    {
+                        *ptr++ = bic_immed(src, src, width, 0);
+                    }
+                    *ptr++ = cmn_reg(31, src, LSL, offset);
+                    ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                }
+            }
+            else
+            {
+                ptr = EMIT_InjectDebugString(ptr, "[JIT] BFFFO at %08x not implemented\n", *m68k_ptr - 1);
+                ptr = EMIT_InjectPrintContext(ptr);
+                *ptr++ = udf(opcode);
+            }
+        }
+        else
+        {
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] BFFFO at %08x not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
+            *ptr++ = udf(opcode);
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, src);
+        RA_FreeARMRegister(&ptr, dst);
     }
     /* 1110111011xxxxxx - BFSET */
     else if ((opcode & 0xffc0) == 0xeec0)
@@ -676,6 +744,11 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = bfi(dst, tmp, offset, width + 1);
 
                 RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            }
+            else
+            {
+                ptr = EMIT_InjectDebugString(ptr, "[JIT] BFINS at %08x not implemented\n", *m68k_ptr - 1);
+                ptr = EMIT_InjectPrintContext(ptr);
             }
         }
         else
