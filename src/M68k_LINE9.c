@@ -415,7 +415,11 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     else
+    {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+    }
 
 
     return ptr;

@@ -610,11 +610,11 @@ uint32_t *EMIT_ORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    (void)ptr;
-    (void)opcode;
-    (void)m68k_ptr;
-
-    kprintf("[LINE0] Supervisor ORI to SR!\n");
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] Supervisor ORI to SR not implemented\n");
+    ptr = EMIT_InjectPrintContext(ptr);
+    *ptr++ = udf(opcode);
+    ptr = EMIT_AdvancePC(ptr, 4);
+    (*m68k_ptr) += 1;
 
     return ptr;
 }
@@ -854,11 +854,11 @@ uint32_t *EMIT_ANDI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    (void)ptr;
-    (void)opcode;
-    (void)m68k_ptr;
-
-    kprintf("[LINE0] Supervisor ANDI to SR!\n");
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] Supervisor ANDI to SR not implemented\n");
+    ptr = EMIT_InjectPrintContext(ptr);
+    *ptr++ = udf(opcode);
+    ptr = EMIT_AdvancePC(ptr, 4);
+    (*m68k_ptr) += 1;
 
     return ptr;
 }
@@ -1091,11 +1091,11 @@ uint32_t *EMIT_EORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    (void)ptr;
-    (void)opcode;
-    (void)m68k_ptr;
-
-    kprintf("[LINE0] Supervisor EORI to SR!\n");
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] Supervisor EORI to SR not implemented\n");
+    ptr = EMIT_InjectPrintContext(ptr);
+    *ptr++ = udf(opcode);
+    ptr = EMIT_AdvancePC(ptr, 4);
+    (*m68k_ptr) += 1;
 
     return ptr;
 }
@@ -1853,7 +1853,8 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {
-        kprintf("[LINE0] Not implemented CMP2/CHK2");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] CMP2/CHK2 at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xff00) == 0x0a00)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
@@ -1887,12 +1888,14 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xff00) == 0x0e00)   /* 00001110xxxxxxxx - MOVES */
     {
-        kprintf("[LINE0] Supervisor MOVES\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVES at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
     {
-        kprintf("[LINE0] Not implemented CAS/CAS2");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] CAS/CAS2 at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     else if ((opcode & 0xf1c0) == 0x0100)   /* 0000xxx100xxxxxx - BTST */
@@ -1913,11 +1916,14 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr)
     }
     else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
     {
-        kprintf("[LINE0] Not implemented MOVEP");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEP at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     else
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
 

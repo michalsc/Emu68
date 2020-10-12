@@ -897,7 +897,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100000011xxxxxx - MOVE from SR */
     if ((opcode & 0xffc0) == 0x40c0)
     {
-        kprintf("[LINE4] Not implemented MOVE from SR\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVE from SR at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100001011xxxxxx - MOVE from CCR */
@@ -907,6 +908,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t cc = RA_GetCC(&ptr);
         uint8_t ext_words = 0;
 
+        ptr = EMIT_InjectDebugString(ptr, "MOVE from CCR at %08x\n", *m68k_ptr - 1);
         if (opcode & 0x38)
         {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -954,11 +956,16 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
         uint8_t cc = RA_ModifyCC(&ptr);
 
+        ptr = EMIT_InjectDebugString(ptr, "MOVE to CCR at %08x\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
+
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
         *ptr++ = bfi(cc, src, 0, 5);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        
+        ptr = EMIT_InjectPrintContext(ptr);
         (*m68k_ptr) += ext_words;
 #else
         kprintf("[LINE4] Not implemented MOVE to CCR @ %08x\n", *m68k_ptr - 1);
@@ -973,7 +980,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100011011xxxxxx - MOVE to SR */
     else if ((opcode &0xffc0) == 0x46c0)
     {
-        kprintf("[LINE4] Not implemented MOVE to SR @ %08x\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVE to SR at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 01000110ssxxxxxx - NOT */
@@ -1070,7 +1078,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100000xxxxxx - NBCD */
     else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
     {
-        kprintf("[LINE4] Not implemented NBCD\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] NBCD at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100100001000xxx - SWAP */
@@ -1105,7 +1114,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100001001xxx - BKPT */
     else if ((opcode & 0xfff8) == 0x4848)
     {
-        kprintf("[LINE4] Not implemented BKPT\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] BKPT at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100100001xxxxxx - PEA */
@@ -1209,7 +1219,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100110xxxx - MOVE USP */
     else if ((opcode & 0xfff0) == 0x4e60)
     {
-        kprintf("[LINE4] Not implemented MOVE USP\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVE USP at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100111001110000 - RESET */
@@ -1217,26 +1228,28 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         /* Allow only in supervisor!!! */
         ptr = EMIT_InjectDebugString(ptr, "[JIT] RESET opcode at %08x\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         ptr = EMIT_AdvancePC(ptr, 2);
         ptr = EMIT_FlushPC(ptr);
     }
     /* 0100111001110000 - NOP */
     else if (opcode == 0x4e71)
     {
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] NOP opcode at %08x\n", *m68k_ptr - 1);
         ptr = EMIT_AdvancePC(ptr, 2);
         ptr = EMIT_FlushPC(ptr);
     }
     /* 0100111001110010 - STOP */
     else if (opcode == 0x4e72)
     {
-        kprintf("[LINE4] Not implemented STOP\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] STOP at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100111001110011 - RTE */
     else if (opcode == 0x4e73)
     {
-        kprintf("[LINE4] Not implemented RTE\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] RTE at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100111001110100 - RTD */
@@ -1292,7 +1305,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110110 - TRAPV */
     else if (opcode == 0x4e76)
     {
-        kprintf("[LINE4] Not implemented TRAPV\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAPV at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100111001110111 - RTR */
@@ -1325,7 +1339,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100111101x - MOVEC */
     else if ((opcode & 0xfffe) == 0x4e7a)
     {
-        kprintf("[LINE4] Not implemented MOVEC\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEC at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 0100111010xxxxxx - JSR */
@@ -1612,11 +1627,16 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100xxx1x0xxxxxx - CHK */
     else if ((opcode & 0xf140) == 0x4100)
     {
-        kprintf("[LINE4] Not implemented CHK\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] CHK at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     else
+    {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+    }
 
     return ptr;
 }

@@ -26,16 +26,22 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1000xxx10000xxxx - SBCD */
     else if ((opcode & 0xf1f0) == 0x8100)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] SBCD at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1000xxx10100xxxx - PACK */
     else if ((opcode & 0xf1f0) == 0x8140)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] PACK at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1000xxx11000xxxx - UNPK */
     else if ((opcode & 0xf1f0) == 0x8180)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1000xxx111xxxxxx - DIVS */
@@ -225,7 +231,11 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, test_register);
     }
     else
+    {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+    }
 
     return ptr;
 }

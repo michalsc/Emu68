@@ -26,6 +26,8 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1100xxx10000xxxx - ABCD */
     else if ((opcode & 0xf1f0) == 0xc100)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1100xxx111xxxxxx - MULS */
@@ -257,7 +259,11 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, test_register);
     }
     else
+    {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+    }
 
     return ptr;
 }

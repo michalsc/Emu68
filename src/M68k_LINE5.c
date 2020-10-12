@@ -313,7 +313,9 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else if ((opcode & 0x38) == 0x38)
         {
-            /* TRAPcc */
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAPcc at %08x not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
+            *ptr++ = udf(opcode);
         }
         else
         {
@@ -1225,7 +1227,11 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         }
     }
     else
+    {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+    }
 
     return ptr;
 }

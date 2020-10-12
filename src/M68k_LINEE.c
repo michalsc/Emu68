@@ -163,7 +163,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110010x11xxxxxx - ROXL, ROXR - memory */
     else if ((opcode & 0xfec0) == 0xe4c0)
     {
-        kprintf("Not implemented: ROXL, ROXR\n");
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1110011x11xxxxxx - ROL, ROR - memory */
@@ -351,6 +352,9 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t dest;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] BFTST at %08x partially not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
+
             RA_FreeARMRegister(&ptr, dest);
         }
 
@@ -427,6 +431,9 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] BFEXTU at %08x partially not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
+
             RA_FreeARMRegister(&ptr, dest);
         }
 
@@ -468,6 +475,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110101011xxxxxx - BFCHG */
     else if ((opcode & 0xffc0) == 0xeac0)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] BFCHG at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1110101111xxxxxx - BFEXTS */
@@ -507,6 +516,9 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] BFEXTS at %08x not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
 
             RA_FreeARMRegister(&ptr, dest);
         }
@@ -580,6 +592,9 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] BFCLR at %08x not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
+
             RA_FreeARMRegister(&ptr, dest);
         }
 
@@ -621,11 +636,16 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110110111xxxxxx - BFFFO */
     else if ((opcode & 0xffc0) == 0xedc0)
     {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] BFFFO at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1110111011xxxxxx - BFSET */
     else if ((opcode & 0xffc0) == 0xeec0)
     {
+
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] BFSET at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* 1110111111xxxxxx - BFINS */
@@ -662,6 +682,9 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             uint8_t dest = 0xff;
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] BFINS at %08x not implemented\n", *m68k_ptr - 1);
+            ptr = EMIT_InjectPrintContext(ptr);
 
             RA_FreeARMRegister(&ptr, dest);
         }
@@ -1121,6 +1144,9 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1110xxxxxxx10xxx - ROXL, ROXR */
     else if ((opcode & 0xf018) == 0xe010)
     {
+
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
     /* Special case: the combination of RO(R/L).W #8, Dn; SWAP Dn; RO(R/L).W, Dn
@@ -1339,7 +1365,11 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, tmp);
     }
     else
+    {
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+    }
 
     return ptr;
 }
