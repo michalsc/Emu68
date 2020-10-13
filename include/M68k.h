@@ -72,6 +72,8 @@ struct M68KState
 
     uint32_t PC;
     uint16_t SR;
+    uint32_t CACR;
+    uint32_t VBR;
 
     /* FPU Part */
     uint32_t FPSR;
@@ -79,6 +81,12 @@ struct M68KState
     uint16_t FPCR;
     double FP[8];   // Double precision! Extended is "emulated" in load/store only
 };
+
+#define CACR_DE 0x80000000
+#define CACR_IE 0x00008000
+
+#define CACRB_DE 31
+#define CACRB_IE 15
 
 #define SR_C    0x0001
 #define SR_V    0x0002
