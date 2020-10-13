@@ -614,26 +614,21 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     int16_t val = BE16((*m68k_ptr)[0]);
     uint32_t *tmp;
-    int8_t off_pc = 4;
 
     /* Load immediate into the register */
 #ifdef __aarch64__
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
-    ptr = EMIT_GetOffsetPC(ptr, &off_pc);
-    ptr = EMIT_ResetOffsetPC(ptr);
+    ptr = EMIT_FlushPC(ptr);
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
     /* EOR is here */
-    *ptr++ = b_cc(A64_CC_EQ, off_pc ? 4 : 3);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
     *ptr++ = orr_reg(cc, cc, immed, LSL, 0);
-    if (off_pc > 0)
-        *ptr++ = add_immed(REG_PC, REG_PC, off_pc);
-    else if (off_pc <= 0)
-        *ptr++ = sub_immed(REG_PC, REG_PC, -off_pc);
+    *ptr++ = add_immed(REG_PC, REG_PC, 4);
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
 
@@ -927,26 +922,21 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     int16_t val = BE16((*m68k_ptr)[0]);
     uint32_t *tmp;
-    int8_t off_pc = 4;
 
     /* Load immediate into the register */
 #ifdef __aarch64__
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
-    ptr = EMIT_GetOffsetPC(ptr, &off_pc);
-    ptr = EMIT_ResetOffsetPC(ptr);
+    ptr = EMIT_FlushPC(ptr);
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
     /* EOR is here */
-    *ptr++ = b_cc(A64_CC_EQ, off_pc ? 4 : 3);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
     *ptr++ = and_reg(cc, cc, immed, LSL, 0);
-    if (off_pc > 0)
-        *ptr++ = add_immed(REG_PC, REG_PC, off_pc);
-    else if (off_pc <= 0)
-        *ptr++ = sub_immed(REG_PC, REG_PC, -off_pc);
+    *ptr++ = add_immed(REG_PC, REG_PC, 4);
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
 
@@ -1231,26 +1221,21 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     int16_t val = BE16((*m68k_ptr)[0]);
     uint32_t *tmp;
-    int8_t off_pc = 4;
 
     /* Load immediate into the register */
 #ifdef __aarch64__
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
-    ptr = EMIT_GetOffsetPC(ptr, &off_pc);
-    ptr = EMIT_ResetOffsetPC(ptr);
+    ptr = EMIT_FlushPC(ptr);
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
     /* EOR is here */
-    *ptr++ = b_cc(A64_CC_EQ, off_pc ? 4 : 3);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
     *ptr++ = eor_reg(cc, cc, immed, LSL, 0);
-    if (off_pc > 0)
-        *ptr++ = add_immed(REG_PC, REG_PC, off_pc);
-    else if (off_pc <= 0)
-        *ptr++ = sub_immed(REG_PC, REG_PC, -off_pc);
+    *ptr++ = add_immed(REG_PC, REG_PC, 4);
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
 
