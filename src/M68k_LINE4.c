@@ -1400,9 +1400,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 010011100111101x - MOVEC */
     else if ((opcode & 0xfffe) == 0x4e7a)
     {
+#ifdef __aarch64__
+
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEC at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 0100111010xxxxxx - JSR */
     else if ((opcode & 0xffc0) == 0x4e80)
