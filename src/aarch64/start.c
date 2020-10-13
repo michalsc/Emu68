@@ -520,6 +520,21 @@ void M68K_PrintContext(struct M68KState *m68k)
 
     kprintf("    PC = 0x%08x    SR = ", BE32((int)m68k->PC));
     uint16_t sr = BE16(m68k->SR);
+    
+    kprintf("T%d", sr >> 14);
+    
+    if (sr & SR_S)
+        kprintf("S");
+    else
+        kprintf(".");
+    
+    if (sr & SR_M)
+        kprintf("M.");
+    else
+        kprintf("..");
+    
+    kprintf("IP%d...", (sr >> 8) & 7);
+
     if (sr & SR_X)
         kprintf("X");
     else
@@ -545,6 +560,7 @@ void M68K_PrintContext(struct M68KState *m68k)
     else
         kprintf(".");
 
+    kprintf("\n[JIT]     CACR=0x%08x    VBR= 0x%08x", BE32(m68k->CACR), BE32(m68k->VBR));
     kprintf("\n[JIT]     USP= 0x%08x    MSP= 0x%08x    ISP= 0x%08x\n[JIT] ", BE32(m68k->USP.u32), BE32(m68k->MSP.u32), BE32(m68k->ISP.u32));
 
     for (int i=0; i < 8; i++) {
@@ -582,6 +598,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     M68K_InitializeCache();
 
     bzero(&__m68k, sizeof(__m68k));
+    bzero((void *)4, 1020);
 
     *(uint32_t*)4 = 0;
 
@@ -592,8 +609,10 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     __m68k.A[6].u32 = BE32((intptr_t)fdt);
     __m68k.A[7].u32 = BE32(((intptr_t)addr - 4096)& 0xfffff000);
+    __m68k.ISP.u32 = __m68k.A[7].u32;
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
+    __m68k.SR = BE16(SR_S | SR_IPL);
     *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
 
     M68K_LoadContext(&__m68k);
