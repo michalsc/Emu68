@@ -169,6 +169,31 @@ struct M68KState
 #define F_CC_SEQ    0x11
 #define F_CC_SNE    0x1e
 
+#define VECTOR_RESET_ISP            0x000
+#define VECTOR_RESET_PC             0x004
+#define VECTOR_ACCESS_FAULT         0x008
+#define VECTOR_ADDRESS_ERROR        0x00c
+#define VECTOR_ILLEGAL_INSTRUCTION  0x010
+#define VECTOR_DIVIDE_BY_ZERO       0x014
+#define VECTOR_CHK                  0x018
+#define VECTOR_TRAPcc               0x01c
+#define VECTOR_PRIVILEGE_VIOLATION  0x020
+#define VECTOR_TRACE                0x024
+#define VECTOR_LINE_A               0x028
+#define VECTOR_LINE_F               0x02c
+#define VECTOR_FORMAT_ERROR         0x038
+#define VECTOR_UNINITIALIZED_INT    0x03c
+#define VECTOR_INT_SPURIOUS         0x060
+#define VECTOR_INT_LEVEL1           0x064
+#define VECTOR_INT_LEVEL2           0x068
+#define VECTOR_INT_LEVEL3           0x06c
+#define VECTOR_INT_LEVEL4           0x070
+#define VECTOR_INT_LEVEL5           0x074
+#define VECTOR_INT_LEVEL6           0x078
+#define VECTOR_INT_LEVEL7           0x07c
+
+#define VECTOR_INT_TRAP(n)          (0x080 + ((n) & 15)*4)
+
 uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
 uint32_t *EMIT_FlushPC(uint32_t *ptr);
