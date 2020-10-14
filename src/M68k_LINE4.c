@@ -1401,6 +1401,134 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xfffe) == 0x4e7a)
     {
 #ifdef __aarch64__
+        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+        uint8_t dr = opcode & 1;
+        uint8_t reg = RA_MapM68kRegister(&ptr, opcode2 >> 12);
+        uint8_t ctx = RA_GetCTX(&ptr);
+        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t tmp = 0xff;
+        uint8_t sp = 0xff;
+        uint32_t *tmpptr;
+
+        /* Test if supervisor mode is active */
+        *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
+    
+        /* Branch to exception if not in supervisor */
+        tmpptr = ptr;
+        *ptr++ = b_cc(A64_CC_EQ, 4);
+
+        if (dr)
+        {
+            switch (opcode2 & 0xfff)
+            {
+                case 0x800:
+                    *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, USP));
+                    break;
+                case 0x801:
+                    *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, VBR));
+                    break;
+                case 0x002:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = bic_immed(tmp, reg, 15, 0);
+                    *ptr++ = bic_immed(tmp, tmp, 15, 16);
+                    *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, CACR));
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0x803:
+                    sp = RA_MapM68kRegister(&ptr, 15);
+                    RA_SetDirtyM68kRegister(&ptr, 15);
+                    *ptr++ = tst_immed(cc, 1, 32 - SRB_M);
+                    *ptr++ = b_cc(A64_CC_EQ, 2);
+                    *ptr++ = mov_reg(sp, reg);
+                    *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, MSP));
+                    break;
+                case 0x804:
+                    sp = RA_MapM68kRegister(&ptr, 15);
+                    RA_SetDirtyM68kRegister(&ptr, 15);
+                    *ptr++ = tst_immed(cc, 1, 32 - SRB_M);
+                    *ptr++ = b_cc(A64_CC_NE, 2);
+                    *ptr++ = mov_reg(sp, reg);
+                    *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, ISP));                    
+                    break;
+            }
+        }
+        else
+        {
+            switch (opcode2 & 0xfff)
+            {
+                case 0x800:
+                    *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, USP));
+                    break;
+                case 0x801:
+                    *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, VBR));
+                    break;
+                case 0x002:
+                    *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, CACR));
+                    break;
+                case 0x803:
+                    sp = RA_MapM68kRegister(&ptr, 15);
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = tst_immed(cc, 1, 32 - SRB_M);
+                    *ptr++ = ldr_offset(ctx, tmp, __builtin_offsetof(struct M68KState, MSP));
+                    *ptr++ = csel(reg, sp, tmp, A64_CC_NE);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0x804:
+                    sp = RA_MapM68kRegister(&ptr, 15);
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = tst_immed(cc, 1, 32 - SRB_M);
+                    *ptr++ = ldr_offset(ctx, tmp, __builtin_offsetof(struct M68KState, ISP));
+                    *ptr++ = csel(reg, sp, tmp, A64_CC_EQ);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+            }
+            RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
+        }
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 4);
+        *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
+        tmpptr = ptr;
+        *ptr++ = b_cc(A64_CC_AL, 10);
+
+        /* No supervisor. Update USP, generate exception */
+        {
+            uint8_t ctx = RA_GetCTX(&ptr);
+            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+            uint8_t vbr = RA_AllocARMRegister(&ptr);
+
+            RA_SetDirtyM68kRegister(&ptr, 15);
+
+            /* Store A7 as USP */
+            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+            /* Load ISP to A7 */
+            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+
+            /* Store exception vector and type */
+            *ptr++ = mov_immed_u16(vbr, 32, 0);
+            *ptr++ = strh_offset_preindex(sp, vbr, -2);
+
+            /* Store program counter */
+            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
+
+            /* Store SR */
+            *ptr++ = strh_offset_preindex(sp, cc, -2);
+
+            /* Clear trace flags, set supervisor */
+            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
+            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
+
+            /* Load VBR */
+            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
+            *ptr++ = ldr_offset(vbr, REG_PC, 32);
+
+            RA_FreeARMRegister(&ptr, vbr);
+        }
+
+        *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
+        *ptr++ = (uint32_t)(uintptr_t)tmpptr;
+        *ptr++ = 1;
+        *ptr++ = 0;
+        *ptr++ = INSN_TO_LE(0xfffffffe);
 
 #else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEC at %08x not implemented\n", *m68k_ptr - 1);
