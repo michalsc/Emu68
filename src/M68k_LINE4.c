@@ -1410,6 +1410,9 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t sp = 0xff;
         uint32_t *tmpptr;
 
+        (*m68k_ptr) += 1;
+        ptr = EMIT_FlushPC(ptr);
+
         /* Test if supervisor mode is active */
         *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
@@ -1529,7 +1532,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = 1;
         *ptr++ = 0;
         *ptr++ = INSN_TO_LE(0xfffffffe);
-
 #else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEC at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
