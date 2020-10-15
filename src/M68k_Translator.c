@@ -200,6 +200,269 @@ void M68K_ResetReturnStack()
     ReturnStackDepth = 0;
 }
 
+uint16_t *m68k_high;
+uint16_t *m68k_low;
+uint32_t insn_count;
+uint32_t prologue_size = 0;
+uint32_t epilogue_size = 0;
+uint32_t conditionals_count = 0;
+
+static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
+{
+    uintptr_t hash = (uintptr_t)m68kcodeptr;
+    uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
+    uint32_t pop_cnt=0;
+
+    for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
+        pop_update_loc[i] = (uint32_t *)0;
+
+    M68K_ResetReturnStack();
+
+    if (debug)
+        kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", (hash ^ (hash >> 16)) & 0xffff, (void*)m68kcodeptr);
+
+
+    int lr_is_saved = 0;
+    
+    prologue_size = 0;
+    epilogue_size = 0;
+    conditionals_count = 0;
+
+    insn_count = 0;
+    uint32_t *arm_code = temporary_arm_code;
+    uint32_t *end = arm_code;
+
+    (void)prologue_size;
+    (void)lr_is_saved;
+
+    RA_ClearChangedMask();
+
+    uint32_t *tmpptr = end;
+    pop_update_loc[pop_cnt++] = end;
+
+#ifndef __aarch64__
+    *end++ = push(0); // Space for register saving, aarch32 only
+
+#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+    *end++ = setend_be();
+#endif
+
+    *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
+#endif
+
+    prologue_size = end - tmpptr;
+
+    while (*m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    {
+        if (insn_count && ((uintptr_t)m68kcodeptr < (uintptr_t)local_state[insn_count-1].mls_M68kPtr))
+        {
+            int found = -1;
+//kprintf("going backwards... %p -> %p\n", local_state[insn_count-1].mls_M68kPtr, m68kcodeptr);
+            for (int i=insn_count - 1; i >= 0; --i)
+            {
+                if (local_state[i].mls_M68kPtr == m68kcodeptr)
+                {
+//                        kprintf("PC match at i=%d, %d instructions\n", i, insn_count - i - 1);
+                    found = i;
+                    break;
+                }
+            }
+
+            if (found > 0)
+            {
+                if ((insn_count - found - 1) > (Options.M68K_TRANSLATION_DEPTH - insn_count))
+                {
+//                        kprintf("not enough place for completion of the loop\n");
+                    break;
+                }
+            }
+
+        }
+
+        if (m68kcodeptr < m68k_low)
+            m68k_low = m68kcodeptr;
+        if (m68kcodeptr + 16 > m68k_high)
+            m68k_high = m68kcodeptr + 16;
+
+        local_state[insn_count].mls_ARMOffset = end - arm_code;
+        local_state[insn_count].mls_M68kPtr = m68kcodeptr;
+        local_state[insn_count].mls_PCRel = _pc_rel;
+#ifndef __aarch64__
+        for (int r=0; r < 16; r++)
+            local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
+#endif
+        end = EmitINSN(end, &m68kcodeptr);
+        insn_count++;
+        if (end[-1] == INSN_TO_LE(0xfffffff0))
+        {
+            lr_is_saved = 1;
+            end--;
+        }
+        if (end[-1] == INSN_TO_LE(0xffffffff))
+        {
+            end--;
+            break;
+        }
+        else if (end[-1] == INSN_TO_LE(0xfffffffe))
+        {
+            uint32_t *tmpptr;
+            uint32_t *branch_mod[10];
+            uint32_t branch_cnt;
+            int local_branch_done = 0;
+            end--;
+            end--;  /* Remove branch target (unused!) */
+            branch_cnt = *--end;
+
+            for (unsigned i=0; i < branch_cnt; i++)
+            {
+                uintptr_t ptr = *(uint32_t *)--end;
+#ifdef __aarch64__
+                ptr |= (uintptr_t)end & 0xffffffff00000000;
+#endif
+                branch_mod[i] = (uint32_t *)ptr;
+            }
+
+            tmpptr = end;
+
+            conditionals_count++;
+
+            if (!local_branch_done)
+            {
+                RA_StoreDirtyFPURegs(&end);
+                RA_StoreDirtyM68kRegs(&end);
+                end = EMIT_FlushPC(end);
+#ifndef __aarch64__
+                RA_StoreCC(&end);
+                RA_StoreFPCR(&end);
+                RA_StoreFPSR(&end);
+
+                *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
+#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+                *end++ = setend_le();
+#endif
+
+#else
+                RA_StoreCC(&end);
+                RA_StoreFPCR(&end);
+                RA_StoreFPSR(&end);
+#endif
+                pop_update_loc[pop_cnt++] = end;
+#ifndef __aarch64__
+                *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
+                if (!lr_is_saved)
+                    *end++ = bx_lr();
+#else
+                *end++ = bx_lr();
+#endif
+            }
+            int distance = end - tmpptr;
+
+            for (unsigned i=0; i < branch_cnt; i++) {
+                //kprintf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
+#ifdef __aarch64__
+                *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
+#else
+                *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + distance));
+#endif
+            }
+            epilogue_size += distance;
+        }
+    }
+    tmpptr = end;
+    RA_FlushFPURegs(&end);
+    RA_FlushM68kRegs(&end);
+    end = EMIT_FlushPC(end);
+#ifndef __aarch64__
+    RA_FlushCC(&end);
+    RA_FlushFPCR(&end);
+    RA_FlushFPSR(&end);
+    *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
+    uint16_t mask = RA_GetChangedMask() & 0xfff0;
+    if (RA_IsCCModified())
+        mask |= 1 << REG_SR;
+#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
+    *end++ = setend_le();
+#endif
+    if (!mask && !lr_is_saved)
+#else
+    RA_FlushCC(&end);
+    RA_FlushFPCR(&end);
+    RA_FlushFPSR(&end);
+    RA_FlushCTX(&end);
+#endif
+    {
+#ifndef __aarch64__
+        arm_code++;
+#endif
+        int i=1;
+
+        while (pop_update_loc[i]) {
+            *pop_update_loc[i++] = bx_lr();
+        }
+    }
+#ifndef __aarch64__
+    if (lr_is_saved)
+    {
+        *end++ = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 15));
+    }
+    else if (mask)
+    {
+        *end++ = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
+    }
+
+    if (mask || lr_is_saved)
+    {
+        int i=1;
+        if (lr_is_saved)
+            *pop_update_loc[0] = push(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 14));
+        else
+            *pop_update_loc[0] = push(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
+        while (pop_update_loc[i]) {
+            if (lr_is_saved)
+                *pop_update_loc[i++] = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 15));
+            else
+                *pop_update_loc[i++] = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
+        }
+    }
+    if (!lr_is_saved)
+#endif
+        *end++ = bx_lr();
+    epilogue_size += end - tmpptr;
+
+    // Put a marker at the end of translation unit
+    *end++ = 0xffffffff;
+
+    if (debug)
+    {
+        kprintf("[ICache]   Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
+        kprintf("[ICache]   Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
+            prologue_size, epilogue_size, conditionals_count);
+        kprintf("[ICache]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
+        uint32_t mean = 100 * (end - arm_code - (prologue_size + epilogue_size));
+        mean = mean / insn_count;
+        uint32_t mean_n = mean / 100;
+        uint32_t mean_f = mean % 100;
+        kprintf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    }
+
+    return (uintptr_t)end - (uintptr_t)arm_code;
+}
+
+void *M68K_TranslateNoCache(uint16_t *m68kcodeptr)
+{
+    uintptr_t line_length = M68K_Translate(m68kcodeptr);
+    void *entry_point = (void*)temporary_arm_code;
+
+#ifdef __aarch64__
+    entry_point = (void *)((uintptr_t)entry_point | 0x0000001000000000);
+#endif
+
+    arm_flush_cache((uintptr_t)entry_point, line_length);
+    arm_icache_invalidate((intptr_t)entry_point, line_length);
+
+    return entry_point;
+} 
+
 /*
     Get M68K code unit from the instruction cache. Return NULL if code was not found and needs to be
     translated first.
@@ -211,8 +474,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     struct M68KTranslationUnit *unit = NULL, *n;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
-    uint16_t *m68k_low = m68kcodeptr;
-    uint16_t *m68k_high = m68kcodeptr;
+    
+    m68k_low = m68kcodeptr;
+    m68k_high = m68kcodeptr;
 
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash ^ (hash >> 16)) & 0xffff;
@@ -262,250 +526,19 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
     if (unit == NULL)
     {
-        uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
-        uint32_t pop_cnt=0;
+        uintptr_t line_length = M68K_Translate(m68kcodeptr);
+        uintptr_t arm_insn_count = line_length/4 - 1;
 
-        for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
-            pop_update_loc[i] = (uint32_t *)0;
-
-        M68K_ResetReturnStack();
-
-        if (debug)
-            kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash, (void*)m68kcodeptr);
-
-        uint32_t prologue_size = 0;
-        uint32_t epilogue_size = 0;
-        uint32_t conditionals_count = 0;
-        int lr_is_saved = 0;
-
-        uint32_t insn_count = 0;
-        uint32_t *arm_code = temporary_arm_code;
-        uint32_t *end = arm_code;
-
-        (void)prologue_size;
-        (void)lr_is_saved;
-
-        RA_ClearChangedMask();
-
-        uint32_t *tmpptr = end;
-        pop_update_loc[pop_cnt++] = end;
-
-#ifndef __aarch64__
-        *end++ = push(0); // Space for register saving, aarch32 only
-
-  #if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-        *end++ = setend_be();
-  #endif
-
-        *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
-#endif
-
-        prologue_size = end - tmpptr;
-
-        while (*m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
-        {
-            if (insn_count && ((uintptr_t)m68kcodeptr < (uintptr_t)local_state[insn_count-1].mls_M68kPtr))
-            {
-                int found = -1;
-//kprintf("going backwards... %p -> %p\n", local_state[insn_count-1].mls_M68kPtr, m68kcodeptr);
-                for (int i=insn_count - 1; i >= 0; --i)
-                {
-                    if (local_state[i].mls_M68kPtr == m68kcodeptr)
-                    {
-//                        kprintf("PC match at i=%d, %d instructions\n", i, insn_count - i - 1);
-                        found = i;
-                        break;
-                    }
-                }
-
-                if (found > 0)
-                {
-                    if ((insn_count - found - 1) > (Options.M68K_TRANSLATION_DEPTH - insn_count))
-                    {
-//                        kprintf("not enough place for completion of the loop\n");
-                        break;
-                    }
-                }
-
-            }
-
-            if (m68kcodeptr < m68k_low)
-                m68k_low = m68kcodeptr;
-            if (m68kcodeptr + 16 > m68k_high)
-                m68k_high = m68kcodeptr + 16;
-
-            local_state[insn_count].mls_ARMOffset = end - arm_code;
-            local_state[insn_count].mls_M68kPtr = m68kcodeptr;
-            local_state[insn_count].mls_PCRel = _pc_rel;
-#ifndef __aarch64__
-            for (int r=0; r < 16; r++)
-                local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
-#endif
-            end = EmitINSN(end, &m68kcodeptr);
-            insn_count++;
-            if (end[-1] == INSN_TO_LE(0xfffffff0))
-            {
-                lr_is_saved = 1;
-                end--;
-            }
-            if (end[-1] == INSN_TO_LE(0xffffffff))
-            {
-                end--;
-                break;
-            }
-            else if (end[-1] == INSN_TO_LE(0xfffffffe))
-            {
-                uint32_t *tmpptr;
-                uint32_t *branch_mod[10];
-                uint32_t branch_cnt;
-                int local_branch_done = 0;
-                end--;
-                end--;  /* Remove branch target (unused!) */
-                branch_cnt = *--end;
-
-                for (unsigned i=0; i < branch_cnt; i++)
-                {
-                    uintptr_t ptr = *(uint32_t *)--end;
 #ifdef __aarch64__
-                    ptr |= (uintptr_t)end & 0xffffffff00000000;
-#endif
-                    branch_mod[i] = (uint32_t *)ptr;
-                }
-
-                tmpptr = end;
-
-                conditionals_count++;
-
-                if (!local_branch_done)
-                {
-                    RA_StoreDirtyFPURegs(&end);
-                    RA_StoreDirtyM68kRegs(&end);
-                    end = EMIT_FlushPC(end);
-#ifndef __aarch64__
-                    RA_StoreCC(&end);
-                    RA_StoreFPCR(&end);
-                    RA_StoreFPSR(&end);
-
-                    *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
-#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-                    *end++ = setend_le();
-#endif
-
+        uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
 #else
-                    RA_StoreCC(&end);
-                    RA_StoreFPCR(&end);
-                    RA_StoreFPSR(&end);
-#endif
-                    pop_update_loc[pop_cnt++] = end;
-#ifndef __aarch64__
-                    *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
-                    if (!lr_is_saved)
-                        *end++ = bx_lr();
-#else
-                    *end++ = bx_lr();
-#endif
-                }
-                int distance = end - tmpptr;
-
-                for (unsigned i=0; i < branch_cnt; i++) {
-                    //kprintf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
-#ifdef __aarch64__
-                    *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
-#else
-                    *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + distance));
-#endif
-                }
-                epilogue_size += distance;
-            }
-        }
-        tmpptr = end;
-        RA_FlushFPURegs(&end);
-        RA_FlushM68kRegs(&end);
-        end = EMIT_FlushPC(end);
-#ifndef __aarch64__
-        RA_FlushCC(&end);
-        RA_FlushFPCR(&end);
-        RA_FlushFPSR(&end);
-        *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
-        uint16_t mask = RA_GetChangedMask() & 0xfff0;
-        if (RA_IsCCModified())
-            mask |= 1 << REG_SR;
-#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-        *end++ = setend_le();
-#endif
-        if (!mask && !lr_is_saved)
-#else
-        RA_FlushCC(&end);
-        RA_FlushFPCR(&end);
-        RA_FlushFPSR(&end);
-        RA_FlushCTX(&end);
-#endif
-        {
-#ifndef __aarch64__
-            arm_code++;
-#endif
-            int i=1;
-
-            while (pop_update_loc[i]) {
-                *pop_update_loc[i++] = bx_lr();
-            }
-        }
-#ifndef __aarch64__
-        if (lr_is_saved)
-        {
-            *end++ = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 15));
-        }
-        else if (mask)
-        {
-            *end++ = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
-        }
-
-        if (mask || lr_is_saved)
-        {
-            int i=1;
-            if (lr_is_saved)
-                *pop_update_loc[0] = push(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 14));
-            else
-                *pop_update_loc[0] = push(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
-            while (pop_update_loc[i]) {
-                if (lr_is_saved)
-                    *pop_update_loc[i++] = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/ | (1 << 15));
-                else
-                    *pop_update_loc[i++] = pop(mask /*| (1 << REG_SR)*/ /*| (1 << REG_CTX)*/);
-            }
-        }
-        if (!lr_is_saved)
-#endif
-            *end++ = bx_lr();
-        epilogue_size += end - tmpptr;
-
-        // Put a marker at the end of translation unit
-        *end++ = 0xffffffff;
-
-        if (debug)
-        {
-            kprintf("[ICache]   Translated %d M68k instructions to %d ARM instructions\n", insn_count, (int)(end - arm_code));
-            kprintf("[ICache]   Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
-                prologue_size, epilogue_size, conditionals_count);
-            kprintf("[ICache]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
-            uint32_t mean = 100 * (end - arm_code - (prologue_size + epilogue_size));
-            mean = mean / insn_count;
-            uint32_t mean_n = mean / 100;
-            uint32_t mean_f = mean % 100;
-            kprintf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
-        }
-
-        uintptr_t line_length = (uintptr_t)end - (uintptr_t)arm_code;
-#ifdef __aarch64__
-    line_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
-#else
-        line_length = (line_length + 31 + sizeof(struct M68KTranslationUnit)) & ~31;
+        uintptr_t unit_length = (line_length + 31 + sizeof(struct M68KTranslationUnit)) & ~31;
 #endif
         do {
 #ifdef __aarch64__
-            unit = tlsf_malloc_aligned(jit_tlsf, line_length, 64);
+            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
 #else
-            unit = tlsf_malloc_aligned(jit_tlsf, line_length, 32);
+            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 32);
 #endif
             if (unit == NULL)
             {
@@ -513,6 +546,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 struct Node *n = REMTAIL(&LRU);
                 void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
                 REMOVE((struct Node *)ptr);
+                kprintf("[ICache] Requested block was %d\n", unit_length);
                 kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 tlsf_free(jit_tlsf, ptr);
                 last_PC = 0xffffffff;
@@ -524,7 +558,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_ARMEntryPoint = (void *)((uintptr_t)unit->mt_ARMEntryPoint | 0x0000001000000000);
 #endif
         unit->mt_M68kInsnCnt = insn_count;
-        unit->mt_ARMInsnCnt = (uint32_t)(end - arm_code - 1);
+        unit->mt_ARMInsnCnt = arm_insn_count;
         unit->mt_UseCount = 0;
         unit->mt_M68kAddress = orig_m68kcodeptr;
         unit->mt_M68kLow = m68k_low;
@@ -532,7 +566,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_PrologueSize = prologue_size;
         unit->mt_EpilogueSize = epilogue_size;
         unit->mt_Conditionals = conditionals_count;
-        DuffCopy(&unit->mt_ARMCode[0], arm_code, end - arm_code);
+        DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
 
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
