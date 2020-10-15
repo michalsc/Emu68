@@ -705,6 +705,8 @@ void stub_ExecutionLoop()
 #else
 "2:                                         \n"
 #endif
+
+#if 0
 "23:    bl      M68K_SaveContext            \n"
 "       mvn     w0, wzr                     \n"
 "       str     w0, [x9]                    \n"
@@ -715,7 +717,23 @@ void stub_ExecutionLoop()
 "       bl      M68K_LoadContext            \n"
 "       blr     x12                         \n"
 "       b       1b                          \n"
+#else
+"23:    bl      M68K_SaveContext            \n"
+"       mvn     w0, wzr                     \n"
+"       str     w0, [x9]                    \n"
+"       mov     w20, w%[reg_pc]             \n"
+"       bl      FindUnit                    \n"
+"       bl      M68K_VerifyUnit             \n"
+"       cbnz    x0, 223f                    \n"
+"       mov     w0, w20                     \n"
+"       bl      M68K_GetTranslationUnit     \n"
+"223:   ldr     x12, [x0, #%[offset]]       \n"
+"       mrs     x0, TPIDRRO_EL0             \n"
+"       bl      M68K_LoadContext            \n"
+"       blr     x12                         \n"
+"       b       1b                          \n"
 
+#endif
 "4:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
 "       ldp     x27, x28, [sp, #1*16]       \n"
