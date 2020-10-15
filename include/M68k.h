@@ -226,6 +226,7 @@ void M68K_ResetReturnStack();
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
+void *M68K_TranslateNoCache(uint16_t *m68kcodeptr);
 void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
