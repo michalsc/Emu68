@@ -22,6 +22,7 @@ set(BASE_FILES
     src/EmuLogo.c
     src/HunkLoader.c
     src/ElfLoader.c
+    src/md5.c
 )
 set(EMU68_FILES
     src/M68k_Translator.c

@@ -22,6 +22,7 @@
 #include "EmuLogo.h"
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
+#include "md5.h"
 
 void _start();
 void _boot();
@@ -650,9 +651,7 @@ void stub_ExecutionLoop()
 
 "       cmp     w1, w%[reg_pc]              \n"
 "       b.ne    13f                         \n"
-"       str     x2, [sp, #96]               \n"
-"       blr     x2                          \n"
-"       ldr     x2, [sp, #96]               \n"
+"       blr     x12                         \n"
 "       b       1b                          \n"
 
 "13:                                        \n"
@@ -681,11 +680,9 @@ void stub_ExecutionLoop()
 "       str     x4, [x6, #8]                \n"
 
 "55:                                        \n"
-"       ldr     x2, [x0, #%[offset]]        \n"
-"       str     x2, [sp, #96]               \n"
+"       ldr     x12, [x0, #%[offset]]       \n"
 "       str     w%[reg_pc], [x9]            \n"
-"       blr     x2                          \n"
-"       ldr     x2, [sp, #96]               \n"
+"       blr     x12                         \n"
 "       b       1b                          \n"
 
 "5:     mrs     x0, TPIDRRO_EL0             \n"
@@ -693,21 +690,17 @@ void stub_ExecutionLoop()
 "       mov     w0, w%[reg_pc]              \n"
 "       str     w%[reg_pc], [x9]            \n"
 "       bl      M68K_GetTranslationUnit     \n"
-"       ldr     x2, [x0, #%[offset]]        \n"
-"       str     x2, [sp, #96]               \n"
+"       ldr     x12, [x0, #%[offset]]       \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
-"       blr     x2                          \n"
-"       ldr     x2, [sp, #96]               \n"
+"       blr     x12                         \n"
 "       b       1b                          \n"
 
 
 #if 0
 "2:     cmp     w1, w%[reg_pc]              \n"
 "       b.ne    23f                         \n"
-"       str     x2, [sp, #96]               \n"
-"       blr     x2                          \n"
-"       ldr     x2, [sp, #96]               \n"
+"       blr     x12                         \n"
 "       b       1b                          \n"
 #else
 "2:                                         \n"
@@ -717,12 +710,10 @@ void stub_ExecutionLoop()
 "       str     w0, [x9]                    \n"
 "       mov     w0, w%[reg_pc]              \n"
 "       bl      M68K_TranslateNoCache       \n"
-"       mov     x2, x0                      \n"
-"       str     x0, [sp, #96]               \n"
+"       mov     x12, x0                     \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
-"       blr     x2                          \n"
-"       ldr     x2, [sp, #96]               \n"
+"       blr     x12                         \n"
 "       b       1b                          \n"
 
 "4:     mrs     x0, TPIDRRO_EL0             \n"
@@ -745,8 +736,6 @@ void stub_ExecutionLoop()
 
 
 }
-
-
 
 void M68K_StartEmu(void *addr, void *fdt)
 {
@@ -774,7 +763,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
-    //__m68k.CACR = BE32(0x80008000);
+    __m68k.CACR = BE32(0x80008000);
     *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
 
 /*
@@ -782,6 +771,9 @@ void M68K_StartEmu(void *addr, void *fdt)
 */
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
+
+    struct MD5 m = CalcMD5(addr, (uint8_t*)addr + 100000);
+    kprintf("MD5 is %08x %08x %08x %08x\n", m.a, m.b, m.c, m.d);
 
     kprintf("[JIT] Let it go...\n");
 
