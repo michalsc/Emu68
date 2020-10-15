@@ -14,6 +14,7 @@
 #include <stdarg.h>
 
 #include "nodes.h"
+#include "md5.h"
 #include "lists.h"
 
 struct M68KLocalState {
@@ -37,6 +38,7 @@ struct M68KTranslationUnit {
     uint64_t        mt_UseCount;
     void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
+    struct MD5      mt_MD5;
     uint32_t        mt_ARMCode[]
 #ifdef __aarch64__
     __attribute__((aligned(64)));
@@ -227,6 +229,7 @@ uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void *M68K_TranslateNoCache(uint16_t *m68kcodeptr);
+struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit);
 void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);

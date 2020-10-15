@@ -448,6 +448,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     return (uintptr_t)end - (uintptr_t)arm_code;
 }
 
+/*
+    Translate portion of m68k code into ARM. No new unit is created, instead
+    a raw pointer to ARM code is returned and instruction cache on host side is
+    invalidated
+*/
 void *M68K_TranslateNoCache(uint16_t *m68kcodeptr)
 {
     uintptr_t line_length = M68K_Translate(m68kcodeptr);
@@ -462,6 +467,38 @@ void *M68K_TranslateNoCache(uint16_t *m68kcodeptr)
 
     return entry_point;
 } 
+
+/*
+    Verify if the translated code has changed since the unit was created. In order
+    to do this MD5 sum of the block is compared with the previousy calculated one.
+
+    If th sums are not same, the block is removed form LRU cache and hashtable and memory
+    is released.
+
+    The function returns poitner to verified unit or NULL if the unit changed
+*/
+struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
+{
+    struct MD5 m;
+
+    if (unit)
+    {
+        m = CalcMD5(unit->mt_M68kLow, unit->mt_M68kHigh);
+
+        if (m.a != unit->mt_MD5.a ||
+            m.b != unit->mt_MD5.b ||
+            m.c != unit->mt_MD5.c ||
+            m.d != unit->mt_MD5.d)
+        {
+            REMOVE(&unit->mt_LRUNode);
+            REMOVE(&unit->mt_HashNode);
+            tlsf_free(jit_tlsf, unit);
+            unit = NULL;
+        }
+    }
+
+    return unit;
+}
 
 /*
     Get M68K code unit from the instruction cache. Return NULL if code was not found and needs to be
@@ -563,6 +600,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_M68kAddress = orig_m68kcodeptr;
         unit->mt_M68kLow = m68k_low;
         unit->mt_M68kHigh = m68k_high;
+        unit->mt_MD5 = CalcMD5(m68k_low, m68k_high);
         unit->mt_PrologueSize = prologue_size;
         unit->mt_EpilogueSize = epilogue_size;
         unit->mt_Conditionals = conditionals_count;
@@ -571,8 +609,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
-        if (debug)
+        if (debug) {
+            struct MD5 m = unit->mt_MD5;
+            kprintf("[ICache]   Block checksum: %08x%08x%08x%08x\n", m.a, m.b, m.c, m.d);
             kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
+        }
 
         arm_flush_cache((uintptr_t)&unit->mt_ARMCode, 4 * unit->mt_ARMInsnCnt);
         arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, 4 * unit->mt_ARMInsnCnt);
