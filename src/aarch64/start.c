@@ -432,23 +432,15 @@ void M68K_LoadContext(struct M68KState *ctx)
 {
     asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
 
-    asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
 
-    asm volatile("ldr w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
+    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
 
     asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
@@ -461,11 +453,21 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
     asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("ldrh w0, %0; msr tpidr_EL0, x0"::"m"(ctx->SR):"x0");
+    asm volatile("ldrh w1, %0; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1");
 }
 
 void M68K_SaveContext(struct M68KState *ctx)
 {
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
+
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
+    asm volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
+#if 0
     asm volatile("str w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
     asm volatile("str w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
     asm volatile("str w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
@@ -483,7 +485,7 @@ void M68K_SaveContext(struct M68KState *ctx)
     asm volatile("str w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
     asm volatile("str w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
     asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
-
+#endif
     asm volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
     asm volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
@@ -495,12 +497,12 @@ void M68K_SaveContext(struct M68KState *ctx)
     asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
     asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("mrs x0, tpidr_EL0; strh w0, %0"::"m"(ctx->SR):"x0");
+    asm volatile("mrs x1, tpidr_EL0; strh w1, %0"::"m"(ctx->SR):"x1");
 }
 
 void M68K_PrintContext(struct M68KState *m68k)
 {
-    M68K_SaveContext(m68k);
+//    M68K_SaveContext(m68k);
 
     kprintf("[JIT] M68K Context:\n[JIT] ");
 
@@ -585,6 +587,165 @@ uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
 uint32_t fb_height  __attribute__((weak))= 0;
 
+void ExecutionLoop(struct M68KState *ctx);
+
+struct M68KTranslationUnit *_FindUnit(uint16_t *ptr)
+{
+    return M68K_FindTranslationUnit(ptr);
+}
+
+void stub_FindUnit()
+{
+    asm volatile(
+"FindUnit:                                  \n"
+"       adr     x4, ICache                  \n"
+"       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
+"       and     x0, x0, #0xffff             \n"
+"       ldr     x4, [x4]                    \n" // 1 -> 4
+"       add     x0, x0, x0, lsl #1          \n"
+"       ldr     x0, [x4, x0, lsl #3]        \n"
+"       b       1f                          \n"
+"3:     ldr     x5, [x0, #32]               \n" // 2 -> 5
+"       cmp     w5, w%[reg_pc]              \n"
+"       b.eq    2f                          \n"
+"       mov     x0, x4                      \n"
+"1:     ldr     x4, [x0]                    \n"
+"       cbnz    x4, 3b                      \n"
+"       mov     x0, #0                      \n"
+"4:     ret                                 \n"
+"2:     ldr     x4, [x0, #24]               \n"
+"       ldr     x5, [x4, #8]                \n"
+"       cbz     x5, 4b                      \n"
+"       ldr     x6, [x0, #16]               \n" // 3 -> 6
+"       stp     x4, x5, [x0, #16]           \n"
+"       add     x7, x0, #0x10               \n" // 4 -> 7
+"       str     x7, [x5]                    \n"
+"       stp     x6, x7, [x4]                \n"
+"       str     x4, [x6, #8]                \n"
+"       ret                                 \n"
+
+::[reg_pc]"i"(REG_PC));
+}
+
+void stub_ExecutionLoop()
+{
+    asm volatile(
+"ExecutionLoop:                             \n"
+"       stp     x29, x30, [sp, #-128]!      \n"
+"       stp     x27, x28, [sp, #1*16]       \n"
+"       stp     x25, x26, [sp, #2*16]       \n"
+"       stp     x23, x24, [sp, #3*16]       \n"
+"       stp     x21, x22, [sp, #4*16]       \n"
+"       stp     x19, x20, [sp, #5*16]       \n"
+"       bl      M68K_LoadContext            \n"
+
+"1:     cmp     wzr, w%[reg_pc]             \n"
+"       b.eq    4f                          \n"
+"       adr     x9, last_PC                 \n"
+"       ldr     w1, [x9]                    \n"
+"       mrs     x0, TPIDRRO_EL0             \n"
+"       ldr     w1, [x0, #%[cacr]]          \n"
+"       ands    wzr, w1, #%[cacr_ie]        \n"
+"       b.eq    2f                          \n"
+
+"       cmp     w1, w%[reg_pc]              \n"
+"       b.ne    13f                         \n"
+"       str     x2, [sp, #96]               \n"
+"       blr     x2                          \n"
+"       ldr     x2, [sp, #96]               \n"
+"       b       1b                          \n"
+
+"13:                                        \n"
+"       adr     x4, ICache                  \n"
+"       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
+"       and     x0, x0, #0xffff             \n"
+"       ldr     x4, [x4]                    \n" // 1 -> 4
+"       add     x0, x0, x0, lsl #1          \n"
+"       ldr     x0, [x4, x0, lsl #3]        \n"
+"       b       51f                         \n"
+"53:     ldr     x5, [x0, #32]              \n" // 2 -> 5
+"       cmp     w5, w%[reg_pc]              \n"
+"       b.eq    52f                         \n"
+"       mov     x0, x4                      \n"
+"51:     ldr     x4, [x0]                   \n"
+"       cbnz    x4, 53b                     \n"
+"       b 5f                                \n"
+"52:     ldr     x4, [x0, #24]              \n"
+"       ldr     x5, [x4, #8]                \n"
+"       cbz     x5, 55f                     \n"
+"       ldr     x6, [x0, #16]               \n" // 3 -> 6
+"       stp     x4, x5, [x0, #16]           \n"
+"       add     x7, x0, #0x10               \n" // 4 -> 7
+"       str     x7, [x5]                    \n"
+"       stp     x6, x7, [x4]                \n"
+"       str     x4, [x6, #8]                \n"
+
+"55:                                        \n"
+"       ldr     x2, [x0, #%[offset]]        \n"
+"       str     x2, [sp, #96]               \n"
+"       str     w%[reg_pc], [x9]            \n"
+"       blr     x2                          \n"
+"       ldr     x2, [sp, #96]               \n"
+"       b       1b                          \n"
+
+"5:     mrs     x0, TPIDRRO_EL0             \n"
+"       bl      M68K_SaveContext            \n"
+"       mov     w0, w%[reg_pc]              \n"
+"       str     w%[reg_pc], [x9]            \n"
+"       bl      M68K_GetTranslationUnit     \n"
+"       ldr     x2, [x0, #%[offset]]        \n"
+"       str     x2, [sp, #96]               \n"
+"       mrs     x0, TPIDRRO_EL0             \n"
+"       bl      M68K_LoadContext            \n"
+"       blr     x2                          \n"
+"       ldr     x2, [sp, #96]               \n"
+"       b       1b                          \n"
+
+
+#if 0
+"2:     cmp     w1, w%[reg_pc]              \n"
+"       b.ne    23f                         \n"
+"       str     x2, [sp, #96]               \n"
+"       blr     x2                          \n"
+"       ldr     x2, [sp, #96]               \n"
+"       b       1b                          \n"
+#else
+"2:                                         \n"
+#endif
+"23:    bl      M68K_SaveContext            \n"
+"       mvn     w0, wzr                     \n"
+"       str     w0, [x9]                    \n"
+"       mov     w0, w%[reg_pc]              \n"
+"       bl      M68K_TranslateNoCache       \n"
+"       mov     x2, x0                      \n"
+"       str     x0, [sp, #96]               \n"
+"       mrs     x0, TPIDRRO_EL0             \n"
+"       bl      M68K_LoadContext            \n"
+"       blr     x2                          \n"
+"       ldr     x2, [sp, #96]               \n"
+"       b       1b                          \n"
+
+"4:     mrs     x0, TPIDRRO_EL0             \n"
+"       bl      M68K_SaveContext            \n"
+"       ldp     x27, x28, [sp, #1*16]       \n"
+"       ldp     x25, x26, [sp, #2*16]       \n"
+"       ldp     x23, x24, [sp, #3*16]       \n"
+"       ldp     x21, x22, [sp, #4*16]       \n"
+"       ldp     x19, x20, [sp, #5*16]       \n"
+"       ldp     x29, x30, [sp], #128        \n"
+"       ret                                 \n"
+
+:
+:[reg_pc]"i"(REG_PC),
+ [cacr_ie]"i"(CACR_IE),
+ [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
+ [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint))
+
+    );
+
+
+}
+
 
 
 void M68K_StartEmu(void *addr, void *fdt)
@@ -613,9 +774,12 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
+    //__m68k.CACR = BE32(0x80008000);
     *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
 
+/*
     M68K_LoadContext(&__m68k);
+*/
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
@@ -625,27 +789,103 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
+    /*
     unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
     last_PC = m68k_pc;
     *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+    */
+    last_PC = 0xffffffff;
+    *(void**)(&arm_code) = NULL;
 
+#if 1
+    (void)unit;
+    ExecutionLoop(&__m68k);
+#if 0
+    uint32_t tmp = 0;
+    asm volatile(
+"1:     cmp     wzr, w%[reg_pc]             \n"
+"       b.eq    4f                          \n"
+"       adrp %[tmp], last_PC                \n"
+"       ldr %w[last_pc], [%[tmp]]           \n"
+"       mrs %[tmp], TPIDRRO_EL0             \n"
+"       ldr %w[tmp], [%[tmp], #%[cacr]]     \n"
+"       ands xzr, %[tmp], #%[cacr_ie]       \n"
+"       b.eq 2f                             \n"
+
+"       cmp     %w[last_pc], w%[reg_pc]     \n"
+"       b.ne    13f                         \n"
+"       str     x0, [sp, #8]                \n"
+"       blr     x0                          \n"
+"       ldr     x0, [sp, #8]                \n"
+"       b       1b                          \n"
+
+"13:    mov     w0, w%[reg_pc]              \n"
+"       adrp    %[tmp], last_PC             \n"
+"       str     w%[reg_pc], [%[tmp]]        \n"
+"       bl      M68K_GetTranslationUnit     \n"
+"       ldr     x0, [x0, #%[offset]]        \n"
+"       str     x0, [sp, #8]                \n"
+"       blr     x0                          \n"
+"       ldr     x0, [sp, #8]                \n"
+"       b       1b                          \n"
+#if 0
+"2:     cmp     %w[last_pc], w%[reg_pc]     \n"
+"       b.ne    23f                          \n"
+"       str     x0, [sp, #8]                \n"
+"       blr     x0                          \n"
+"       ldr     x0, [sp, #8]                \n"
+"       b       1b                          \n"
+#else
+"2:\n"
+#endif
+"23:    mov     w0, w%[reg_pc]              \n"
+"       adrp    %[tmp], last_PC             \n"
+"       str     w%[reg_pc], [%[tmp]]        \n"
+"       bl      M68K_TranslateNoCache       \n"
+"       str     x0, [sp, #8]                \n"
+"       blr     x0                          \n"
+"       ldr     x0, [sp, #8]                \n"
+"       b       1b                          \n"
+
+"4:     \n"
+:
+:[last_pc]"r"(last_PC),
+ [tmp]"r"(tmp),
+ [reg_pc]"i"(REG_PC),
+ [cacr_ie]"i"(CACR_IE),
+ [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
+ [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint))
+:"x0","x30"
+    );
+#endif
+#else
     do
     {
-        if (last_PC != m68k_pc)
+        if (__m68k.CACR & CACR_IE)
         {
-            unit = M68K_FindTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-            if (!unit)
-                unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-            last_PC = m68k_pc;
-            *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+            if (last_PC != m68k_pc)
+            {
+                //unit = M68K_FindTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
+                //if (!unit)
+                    unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
+                last_PC = m68k_pc;
+                *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
+            }
         }
-
+        else
+        {
+            //if (last_PC != m68k_pc)
+            {
+                *(void**)(&arm_code) = M68K_TranslateNoCache((uint16_t *)(uintptr_t)m68k_pc);
+                //last_PC = m68k_pc;
+                last_PC = 0xffffffff;
+            }
+        }
         arm_code();
-
         asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
     } while(m68k_pc != 0);
-
+#endif
     t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
 
     kprintf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
