@@ -671,6 +671,7 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = 1;
     *ptr++ = 0;
     *ptr++ = INSN_TO_LE(0xfffffffe);
+    *ptr++ = INSN_TO_LE(0xffffffff);
 #else
     *ptr++ = udf(opcode);
 #endif
@@ -979,6 +980,7 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = 1;
     *ptr++ = 0;
     *ptr++ = INSN_TO_LE(0xfffffffe);
+    *ptr++ = INSN_TO_LE(0xffffffff);
 #else
     *ptr++ = udf(opcode);
 #endif
@@ -1278,6 +1280,7 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = 1;
     *ptr++ = 0;
     *ptr++ = INSN_TO_LE(0xfffffffe);
+    *ptr++ = INSN_TO_LE(0xffffffff);
 #else
     *ptr++ = udf(opcode);
 #endif
