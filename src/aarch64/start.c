@@ -650,8 +650,8 @@ void stub_ExecutionLoop()
 "       b.eq    2f                          \n"
 
 "       cmp     w2, w%[reg_pc]              \n"
-"       b.ne    13f                         \n"
 "       adr     x30, 1b                     \n"
+"       b.ne    13f                         \n"
 "       br      x12                         \n"
 
 "13:                                        \n"
@@ -682,7 +682,6 @@ void stub_ExecutionLoop()
 "55:                                        \n"
 "       ldr     x12, [x0, #%[offset]]       \n"
 "       str     w%[reg_pc], [x9]            \n"
-"       adr     x30, 1b                     \n"
 "       br      x12                         \n"
 
 "5:     mrs     x0, TPIDRRO_EL0             \n"
