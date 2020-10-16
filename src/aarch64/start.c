@@ -781,7 +781,6 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
-    __m68k.CACR = BE32(0x80008000);
     *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
 
 /*
