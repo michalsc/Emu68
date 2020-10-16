@@ -252,7 +252,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     prologue_size = end - tmpptr;
 
-    while (*m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    int break_loop = FALSE;
+
+    while (break_loop == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
         if (insn_count && ((uintptr_t)m68kcodeptr < (uintptr_t)local_state[insn_count-1].mls_M68kPtr))
         {
@@ -296,6 +298,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         {
             lr_is_saved = 1;
             end--;
+        }
+        if (end[-1] == INSN_TO_LE(0xffffffff))
+        {
+            end--;
+            break_loop = TRUE;
         }
         if (end[-1] == INSN_TO_LE(0xfffffffe))
         {
@@ -360,11 +367,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #endif
             }
             epilogue_size += distance;
-        }
-        if (end[-1] == INSN_TO_LE(0xffffffff))
-        {
-            end--;
-            break;
         }
     }
     tmpptr = end;
