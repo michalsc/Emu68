@@ -771,6 +771,7 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
 {
 #ifdef __aarch64__
     void *tmp;
+    uint32_t *tmpptr;
 
     union {
         uint64_t u64;
@@ -779,12 +780,12 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
 
     u.u64 = (uintptr_t)kprintf;
 
-    *ptr++ = stp64_preindex(31, 0, 1, -80);
-    *ptr++ = stp64(31, 2, 3, 16);
-    *ptr++ = stp64(31, 4, 5, 32);
-    *ptr++ = stp64(31, 6, 7, 48);
-    *ptr++ = str64_offset(31, 30, 64);
+    *ptr++ = stp64_preindex(31, 0, 1, -256);
+    for (int i=2; i < 30; i += 2)
+        *ptr++ = stp64(31, i, i+1, i*8);
+    *ptr++ = str64_offset(31, 30, 240);
 
+    tmpptr = ptr;
     *ptr++ = adr(0, 48);
     *ptr++ = adr(30, 20);
     *ptr++ = ldr64_pcrel(1, 2);
@@ -793,14 +794,15 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
     *ptr++ = BE32(u.u32[0]);
     *ptr++ = BE32(u.u32[1]);
 
-    *ptr++ = ldp64(31, 2, 3, 16);
-    *ptr++ = ldp64(31, 4, 5, 32);
-    *ptr++ = ldp64(31, 6, 7, 48);
-    *ptr++ = ldr64_offset(31, 30, 64);
-    *ptr++ = ldp64_postindex(31, 0, 1, 80);
+    for (int i=2; i < 30; i += 2)
+        *ptr++ = ldp64(31, i, i+1, i*8);
+    *ptr++ = ldr64_offset(31, 30, 240);
+    *ptr++ = ldp64_postindex(31, 0, 1, 256);
 
     *ptr++ = b(0);
     tmp = ptr;
+
+    *tmpptr = adr(0, (uintptr_t)ptr - (uintptr_t)tmpptr);
 
     vkprintf_pc(put_to_stream, &tmp, format, args);
 
