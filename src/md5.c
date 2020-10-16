@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "md5.h"
+#include "support.h"
 
 static const uint8_t s[] = { 7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,
     5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,
@@ -29,7 +30,8 @@ struct MD5 CalcMD5(void *_start, void *_end)
 
     uint32_t *M = (uint32_t*)((intptr_t)_start & ~63);
     uint32_t *E = (uint32_t*)(((intptr_t)_end + 63) & ~63);
-    uint32_t count = (E - M) / 16;
+    uint32_t count = 1 + (E - M) / 16;
+    uint32_t pad[16];
 
     while(count--)
     {
@@ -76,6 +78,14 @@ struct MD5 CalcMD5(void *_start, void *_end)
         md.d += D;
 
         M = M + 16;
+        if (M == E)
+        {
+            M = pad;
+            M[0] = BE32(0x80000000);
+            for (int i=1; i < 15; i++)
+                M[i] = 0;
+            M[15] = (intptr_t)_end - (intptr_t)_start;
+        }
     }
 
     return md;
