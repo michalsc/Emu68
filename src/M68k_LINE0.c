@@ -614,7 +614,7 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t changed = RA_AllocARMRegister(&ptr);
     int16_t val = BE16((*m68k_ptr)[0]);
-    uint8_t ctx = 0xff;
+    uint8_t ctx = RA_GetCTX(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmp;
     RA_SetDirtyM68kRegister(&ptr, 15);
@@ -624,16 +624,15 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
-    *ptr++ = mov_reg(changed, cc);
-    
     ptr = EMIT_FlushPC(ptr);
-    ctx = RA_GetCTX(&ptr);
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
     /* OR is here */
-    *ptr++ = b_cc(A64_CC_EQ, 14);
+    *ptr++ = mov_reg(changed, cc);
+    
+    *ptr++ = b_cc(A64_CC_EQ, 14);   
     *ptr++ = orr_reg(cc, cc, immed, LSL, 0);
     
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
@@ -696,6 +695,7 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = udf(opcode);
 #endif
     RA_FreeARMRegister(&ptr, immed);
+    RA_FreeARMRegister(&ptr, changed);
 
     (*m68k_ptr) += 1;
 
@@ -944,6 +944,11 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     int16_t val = BE16((*m68k_ptr)[0]);
     uint32_t *tmp;
 
+    uint8_t changed = RA_AllocARMRegister(&ptr);
+    uint8_t ctx = RA_GetCTX(&ptr);
+    uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+    RA_SetDirtyM68kRegister(&ptr, 15);
+
     /* Load immediate into the register */
 #ifdef __aarch64__
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
@@ -953,10 +958,37 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
-    
-    /* EOR is here */
-    *ptr++ = b_cc(A64_CC_EQ, 4);
+
+    /* AND is here */
+    *ptr++ = mov_reg(changed, cc);
+    *ptr++ = b_cc(A64_CC_EQ, 23);
+
     *ptr++ = and_reg(cc, cc, immed, LSL, 0);
+    *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
+
+    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 8);
+
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to MSP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP));
+    *ptr++ = b(3);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to ISP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+
+    // No need to check if S was set - it cannot, sueprvisor can only switch it off
+    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_S);    
+    *ptr++ = b_cc(A64_CC_EQ, 8);
+
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to USP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+    *ptr++ = b(3);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to ISP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
@@ -1005,6 +1037,7 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = udf(opcode);
 #endif
     RA_FreeARMRegister(&ptr, immed);
+    RA_FreeARMRegister(&ptr, changed);
 
     (*m68k_ptr) += 1;
 
@@ -1244,6 +1277,11 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     int16_t val = BE16((*m68k_ptr)[0]);
     uint32_t *tmp;
 
+    uint8_t changed = RA_AllocARMRegister(&ptr);
+    uint8_t ctx = RA_GetCTX(&ptr);
+    uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+    RA_SetDirtyM68kRegister(&ptr, 15);
+
     /* Load immediate into the register */
 #ifdef __aarch64__
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
@@ -1255,8 +1293,34 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
     /* EOR is here */
-    *ptr++ = b_cc(A64_CC_EQ, 4);
+    *ptr++ = mov_reg(changed, cc);
+    *ptr++ = b_cc(A64_CC_EQ, 23);
     *ptr++ = eor_reg(cc, cc, immed, LSL, 0);
+    *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
+
+    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 8);
+
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to MSP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP));
+    *ptr++ = b(3);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to ISP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+
+    // No need to check if S was set - it cannot, sueprvisor can only switch it off
+    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_S);    
+    *ptr++ = b_cc(A64_CC_EQ, 8);
+
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 4);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to USP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+    *ptr++ = b(3);
+    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to ISP
+    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
@@ -1305,6 +1369,7 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = udf(opcode);
 #endif
     RA_FreeARMRegister(&ptr, immed);
+    RA_FreeARMRegister(&ptr, changed);
 
     (*m68k_ptr) += 1;
 
