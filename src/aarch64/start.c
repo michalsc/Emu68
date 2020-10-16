@@ -455,6 +455,15 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
     asm volatile("ldrh w1, %0; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1");
+    if (ctx->SR & SR_S)
+    {
+        if (ctx->SR & SR_M)
+            asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->MSP));
+        else
+            asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->ISP));
+    }
+    else
+        asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->USP));
 }
 
 void M68K_SaveContext(struct M68KState *ctx)
@@ -481,12 +490,19 @@ void M68K_SaveContext(struct M68KState *ctx)
     asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
     asm volatile("mrs x1, tpidr_EL0; strh w1, %0"::"m"(ctx->SR):"x1");
+    if (ctx->SR & SR_S)
+    {
+        if (ctx->SR & SR_M)
+            asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->MSP));
+        else
+            asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->ISP));
+    }
+    else
+        asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->USP));
 }
 
 void M68K_PrintContext(struct M68KState *m68k)
 {
-//    M68K_SaveContext(m68k);
-
     kprintf("[JIT] M68K Context:\n[JIT] ");
 
     for (int i=0; i < 8; i++) {
@@ -506,7 +522,7 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("    PC = 0x%08x    SR = ", BE32((int)m68k->PC));
     uint16_t sr = BE16(m68k->SR);
     
-    kprintf("T%d", sr >> 14);
+    kprintf("T%d|", sr >> 14);
     
     if (sr & SR_S)
         kprintf("S");
@@ -514,11 +530,11 @@ void M68K_PrintContext(struct M68KState *m68k)
         kprintf(".");
     
     if (sr & SR_M)
-        kprintf("M.");
+        kprintf("M|");
     else
-        kprintf("..");
+        kprintf(".|");
     
-    kprintf("IP%d...", (sr >> 8) & 7);
+    kprintf("IPM%d|", (sr >> 8) & 7);
 
     if (sr & SR_X)
         kprintf("X");
@@ -737,12 +753,11 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.A[0].u32 = BE32((uint32_t)(intptr_t)framebuffer);
 
     __m68k.A[6].u32 = BE32((intptr_t)fdt);
-    __m68k.A[7].u32 = BE32(((intptr_t)addr - 4096)& 0xfffff000);
-    __m68k.ISP.u32 = __m68k.A[7].u32;
+    __m68k.ISP.u32 = BE32(((intptr_t)addr - 4096)& 0xfffff000);
     __m68k.PC = BE32((intptr_t)addr);
-    __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
+    __m68k.ISP.u32 = BE32(BE32(__m68k.ISP.u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
-    *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
+    *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
