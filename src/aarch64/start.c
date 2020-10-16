@@ -468,25 +468,7 @@ void M68K_SaveContext(struct M68KState *ctx)
     asm volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
-#if 0
-    asm volatile("str w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
-    asm volatile("str w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
 
-    asm volatile("str w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
-    asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
-#endif
     asm volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
     asm volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
@@ -697,27 +679,7 @@ void stub_ExecutionLoop()
 
 
 
-#if 0
-"2:     cmp     w1, w%[reg_pc]              \n"
-"       b.ne    23f                         \n"
-"       blr     x12                         \n"
-"       b       1b                          \n"
-#else
 "2:                                         \n"
-#endif
-
-#if 0
-"23:    bl      M68K_SaveContext            \n"
-"       mvn     w0, wzr                     \n"
-"       str     w0, [x9]                    \n"
-"       mov     w0, w%[reg_pc]              \n"
-"       bl      M68K_TranslateNoCache       \n"
-"       mov     x12, x0                     \n"
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_LoadContext            \n"
-"       blr     x12                         \n"
-"       b       1b                          \n"
-#else
 "23:    bl      M68K_SaveContext            \n"
 "       mvn     w0, wzr                     \n"
 "       str     w0, [x9]                    \n"
@@ -733,7 +695,6 @@ void stub_ExecutionLoop()
 "       adr     x30, 1b                     \n"
 "       br      x12                         \n"
 
-#endif
 "4:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
 "       ldp     x27, x28, [sp, #1*16]       \n"
@@ -781,17 +742,10 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.A[7].u32 = BE32(BE32(__m68k.A[7].u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
-    __m68k.CACR = BE32(0x80008000);
     *(uint32_t*)(intptr_t)(BE32(__m68k.A[7].u32)) = 0;
 
-/*
-    M68K_LoadContext(&__m68k);
-*/
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
-
-    struct MD5 m = CalcMD5(addr, (uint8_t*)addr + 100000);
-    kprintf("MD5 is %08x %08x %08x %08x\n", m.a, m.b, m.c, m.d);
 
     kprintf("[JIT] Let it go...\n");
 
@@ -799,75 +753,12 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
-    /*
-    unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-    last_PC = m68k_pc;
-    *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-    */
     last_PC = 0xffffffff;
     *(void**)(&arm_code) = NULL;
 
 #if 1
     (void)unit;
     ExecutionLoop(&__m68k);
-#if 0
-    uint32_t tmp = 0;
-    asm volatile(
-"1:     cmp     wzr, w%[reg_pc]             \n"
-"       b.eq    4f                          \n"
-"       adrp %[tmp], last_PC                \n"
-"       ldr %w[last_pc], [%[tmp]]           \n"
-"       mrs %[tmp], TPIDRRO_EL0             \n"
-"       ldr %w[tmp], [%[tmp], #%[cacr]]     \n"
-"       ands xzr, %[tmp], #%[cacr_ie]       \n"
-"       b.eq 2f                             \n"
-
-"       cmp     %w[last_pc], w%[reg_pc]     \n"
-"       b.ne    13f                         \n"
-"       str     x0, [sp, #8]                \n"
-"       blr     x0                          \n"
-"       ldr     x0, [sp, #8]                \n"
-"       b       1b                          \n"
-
-"13:    mov     w0, w%[reg_pc]              \n"
-"       adrp    %[tmp], last_PC             \n"
-"       str     w%[reg_pc], [%[tmp]]        \n"
-"       bl      M68K_GetTranslationUnit     \n"
-"       ldr     x0, [x0, #%[offset]]        \n"
-"       str     x0, [sp, #8]                \n"
-"       blr     x0                          \n"
-"       ldr     x0, [sp, #8]                \n"
-"       b       1b                          \n"
-#if 0
-"2:     cmp     %w[last_pc], w%[reg_pc]     \n"
-"       b.ne    23f                          \n"
-"       str     x0, [sp, #8]                \n"
-"       blr     x0                          \n"
-"       ldr     x0, [sp, #8]                \n"
-"       b       1b                          \n"
-#else
-"2:\n"
-#endif
-"23:    mov     w0, w%[reg_pc]              \n"
-"       adrp    %[tmp], last_PC             \n"
-"       str     w%[reg_pc], [%[tmp]]        \n"
-"       bl      M68K_TranslateNoCache       \n"
-"       str     x0, [sp, #8]                \n"
-"       blr     x0                          \n"
-"       ldr     x0, [sp, #8]                \n"
-"       b       1b                          \n"
-
-"4:     \n"
-:
-:[last_pc]"r"(last_PC),
- [tmp]"r"(tmp),
- [reg_pc]"i"(REG_PC),
- [cacr_ie]"i"(CACR_IE),
- [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
- [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint))
-:"x0","x30"
-    );
-#endif
 #else
     do
     {

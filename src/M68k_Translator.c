@@ -252,7 +252,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     prologue_size = end - tmpptr;
 
-    while (*m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    int break_loop = FALSE;
+
+    while (break_loop == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
         if (insn_count && ((uintptr_t)m68kcodeptr < (uintptr_t)local_state[insn_count-1].mls_M68kPtr))
         {
@@ -276,7 +278,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                     break;
                 }
             }
-
         }
 
         if (m68kcodeptr < m68k_low)
@@ -301,9 +302,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         if (end[-1] == INSN_TO_LE(0xffffffff))
         {
             end--;
-            break;
+            break_loop = TRUE;
         }
-        else if (end[-1] == INSN_TO_LE(0xfffffffe))
+        if (end[-1] == INSN_TO_LE(0xfffffffe))
         {
             uint32_t *tmpptr;
             uint32_t *branch_mod[10];

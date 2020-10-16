@@ -1278,6 +1278,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = 1;
         *ptr++ = 0;
         *ptr++ = INSN_TO_LE(0xfffffffe);
+        *ptr++ = INSN_TO_LE(0xffffffff);
 #else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVE USP at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
@@ -1292,6 +1293,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         ptr = EMIT_InjectPrintContext(ptr);
         ptr = EMIT_AdvancePC(ptr, 2);
         ptr = EMIT_FlushPC(ptr);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     /* 0100111001110000 - NOP */
     else if (opcode == 0x4e71)
@@ -1532,6 +1534,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = 1;
         *ptr++ = 0;
         *ptr++ = INSN_TO_LE(0xfffffffe);
+        *ptr++ = INSN_TO_LE(0xffffffff);
 #else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEC at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
