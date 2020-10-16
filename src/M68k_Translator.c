@@ -276,7 +276,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                     break;
                 }
             }
-
         }
 
         if (m68kcodeptr < m68k_low)
@@ -298,12 +297,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             lr_is_saved = 1;
             end--;
         }
-        if (end[-1] == INSN_TO_LE(0xffffffff))
-        {
-            end--;
-            break;
-        }
-        else if (end[-1] == INSN_TO_LE(0xfffffffe))
+        if (end[-1] == INSN_TO_LE(0xfffffffe))
         {
             uint32_t *tmpptr;
             uint32_t *branch_mod[10];
@@ -366,6 +360,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #endif
             }
             epilogue_size += distance;
+        }
+        if (end[-1] == INSN_TO_LE(0xffffffff))
+        {
+            end--;
+            break;
         }
     }
     tmpptr = end;
