@@ -1475,9 +1475,115 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110011 - RTE */
     else if (opcode == 0x4e73)
     {
+#ifdef __aarch64__
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t changed = RA_AllocARMRegister(&ptr);
+        uint8_t ctx = RA_GetCTX(&ptr);
+        uint32_t *tmpptr;
+        RA_SetDirtyM68kRegister(&ptr, 15);
+
+        /* Test if supervisor mode is active */
+        *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
+        tmpptr = ptr;
+        *ptr++ = b_cc(A64_CC_EQ, 0);
+
+        /* Fetch sr from stack */
+        ptr = EMIT_ResetOffsetPC(ptr);
+        *ptr++ = ldrh_offset_postindex(sp, changed, 2);
+        /* Fetch PC from stack */
+        *ptr++ = ldr_offset_postindex(sp, REG_PC, 4);
+        /* Fetch format word from stack */
+        *ptr++ = ldrh_offset(sp, tmp, 2);
+        *ptr++ = lsr(tmp, tmp, 13);
+        *ptr++ = cmp_immed(tmp, 0);
+        *ptr++ = b_cc(A64_CC_NE, 3);
+        *ptr++ = add_immed(sp, sp, 2);
+        *ptr++ = b(4);
+        *ptr++ = cmp_immed(tmp, 1);
+        *ptr++ = b_cc(A64_CC_NE, 2);
+        *ptr++ = add_immed(sp, sp, 6);
+        
+        /* Use two EORs to generate changed mask and update SR */
+        *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
+        *ptr++ = eor_reg(cc, changed, cc, LSL, 0);       
+
+        /* Now since stack is cleaned up, perform eventual stack switch */
+        *ptr++ = ands_immed(31, changed, 1, 32 - SRB_M);
+        *ptr++ = b_cc(A64_CC_EQ, 8);
+
+        *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
+        *ptr++ = b_cc(A64_CC_EQ, 4);
+        *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to MSP
+        *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP));
+        *ptr++ = b(3);
+        *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to ISP
+        *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+
+        // No need to check if S was set - it cannot, sueprvisor can only switch it off
+        *ptr++ = ands_immed(31, changed, 1, 32 - SRB_S);    
+        *ptr++ = b_cc(A64_CC_EQ, 8);
+
+        *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
+        *ptr++ = b_cc(A64_CC_EQ, 4);
+        *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to USP
+        *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+        *ptr++ = b(3);
+        *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to ISP
+        *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+
+        *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
+        tmpptr = ptr;
+        *ptr++ = b_cc(A64_CC_AL, 0);
+
+        /* No supervisor. Update USP, generate exception */
+        {
+            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
+            uint8_t vbr = RA_AllocARMRegister(&ptr);
+
+            RA_SetDirtyM68kRegister(&ptr, 15);
+
+            /* Store A7 as USP */
+            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+            /* Load ISP to A7 */
+            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+
+            /* Store exception vector and type */
+            *ptr++ = mov_immed_u16(vbr, 32, 0);
+            *ptr++ = strh_offset_preindex(sp, vbr, -2);
+
+            /* Store program counter */
+            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
+
+            /* Store SR */
+            *ptr++ = strh_offset_preindex(sp, cc, -2);
+
+            /* Clear trace flags, set supervisor */
+            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
+            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
+
+            /* Load VBR */
+            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
+            *ptr++ = ldr_offset(vbr, REG_PC, 32);
+
+            RA_FreeARMRegister(&ptr, vbr);
+        }
+        
+        *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
+        *ptr++ = (uint32_t)(uintptr_t)tmpptr;
+        *ptr++ = 1;
+        *ptr++ = 0;
+        *ptr++ = INSN_TO_LE(0xfffffffe);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, changed);
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] RTE at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 0100111001110100 - RTD */
     else if (opcode == 0x4e74)
