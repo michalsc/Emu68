@@ -651,8 +651,8 @@ void stub_ExecutionLoop()
 
 "       cmp     w1, w%[reg_pc]              \n"
 "       b.ne    13f                         \n"
-"       blr     x12                         \n"
-"       b       1b                          \n"
+"       adr     x30, 1b                     \n"
+"       br      x12                         \n"
 
 "13:                                        \n"
 "       adr     x4, ICache                  \n"
@@ -662,14 +662,14 @@ void stub_ExecutionLoop()
 "       add     x0, x0, x0, lsl #1          \n"
 "       ldr     x0, [x4, x0, lsl #3]        \n"
 "       b       51f                         \n"
-"53:     ldr     x5, [x0, #32]              \n" // 2 -> 5
+"53:    ldr     x5, [x0, #32]               \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
 "       b.eq    52f                         \n"
 "       mov     x0, x4                      \n"
-"51:     ldr     x4, [x0]                   \n"
+"51:    ldr     x4, [x0]                    \n"
 "       cbnz    x4, 53b                     \n"
 "       b 5f                                \n"
-"52:     ldr     x4, [x0, #24]              \n"
+"52:    ldr     x4, [x0, #24]               \n"
 "       ldr     x5, [x4, #8]                \n"
 "       cbz     x5, 55f                     \n"
 "       ldr     x6, [x0, #16]               \n" // 3 -> 6
@@ -682,8 +682,8 @@ void stub_ExecutionLoop()
 "55:                                        \n"
 "       ldr     x12, [x0, #%[offset]]       \n"
 "       str     w%[reg_pc], [x9]            \n"
-"       blr     x12                         \n"
-"       b       1b                          \n"
+"       adr     x30, 1b                     \n"
+"       br      x12                         \n"
 
 "5:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
@@ -693,8 +693,9 @@ void stub_ExecutionLoop()
 "       ldr     x12, [x0, #%[offset]]       \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
-"       blr     x12                         \n"
-"       b       1b                          \n"
+"       adr     x30, 1b                     \n"
+"       br      x12                         \n"
+
 
 
 #if 0
@@ -730,8 +731,8 @@ void stub_ExecutionLoop()
 "223:   ldr     x12, [x0, #%[offset]]       \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
-"       blr     x12                         \n"
-"       b       1b                          \n"
+"       adr     x30, 1b                     \n"
+"       br      x12                         \n"
 
 #endif
 "4:     mrs     x0, TPIDRRO_EL0             \n"
