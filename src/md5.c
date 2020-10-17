@@ -82,9 +82,10 @@ struct MD5 CalcMD5(void *_start, void *_end)
         {
             M = pad;
             M[0] = BE32(0x80000000);
-            for (int i=1; i < 15; i++)
+            for (int i=1; i < 14; i++)
                 M[i] = 0;
-            M[15] = (intptr_t)_end - (intptr_t)_start;
+            M[14] = (uintptr_t)_start;
+            M[15] = (uintptr_t)_end - (uintptr_t)_start;
         }
     }
 
