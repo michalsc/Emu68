@@ -143,6 +143,7 @@ static inline uint32_t udf(uint16_t imm16) { return hlt(imm16); }
 static inline uint32_t hint(uint8_t h) { return I32(0xd503201f | ((h & 0x7f) << 5)); }
 static inline uint32_t wfe() { return hint(2); }
 static inline uint32_t wfi() { return hint(3); }
+static inline uint32_t sev() { return hint(4); }
 static inline uint32_t get_nzcv(uint8_t rt) { return mrs(rt, 3, 3, 4, 2, 0); }
 static inline uint32_t set_nzcv(uint8_t rt) { return msr(rt, 3, 3, 4, 2, 0); }
 static inline uint32_t cfinv() { return I32(0xd500401f); }
