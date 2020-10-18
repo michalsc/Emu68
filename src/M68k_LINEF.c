@@ -2099,10 +2099,10 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
                         u.u64 = (uintptr_t)invalidate_entire_dcache;
 
-                        *ptr++ = stp_preindex(31, 0, 30, -16);
+                        *ptr++ = stp64_preindex(31, 0, 30, -16);
                         *ptr++ = ldr64_pcrel(0, 4);
                         *ptr++ = blr(0);
-                        *ptr++ = ldp_postindex(31, 0, 30, 16);
+                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
                         *ptr++ = b(3);
                         *ptr++ = BE32(u.u32[0]);
                         *ptr++ = BE32(u.u32[1]);
@@ -2266,10 +2266,10 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
                         u.u64 = (uintptr_t)clear_entire_dcache;
 
-                        *ptr++ = stp_preindex(31, 0, 30, -16);
+                        *ptr++ = stp64_preindex(31, 0, 30, -16);
                         *ptr++ = ldr64_pcrel(0, 4);
                         *ptr++ = blr(0);
-                        *ptr++ = ldp_postindex(31, 0, 30, 16);
+                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
                         *ptr++ = b(3);
                         *ptr++ = BE32(u.u32[0]);
                         *ptr++ = BE32(u.u32[1]);
