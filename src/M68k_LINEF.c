@@ -2026,7 +2026,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t tmp2 = 0xff;
         uint8_t tmp3 = 0xff;
         uint8_t tmp4 = 0xff;
-        ext_count = 0;
 
         /* Invalidating data cache? */
         if (opcode & 0x40) {
@@ -2180,7 +2179,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 #endif
         }
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        ptr = EMIT_AdvancePC(ptr, 2);
 
         /* Cache flushing is context synchronizing. Stop translating code here */
         *ptr++ = INSN_TO_LE(0xffffffff);
@@ -2193,7 +2192,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t tmp2 = 0xff;
         uint8_t tmp3 = 0xff;
         uint8_t tmp4 = 0xff;
-        ext_count = 0;
 
         /* Flush data cache? */
         if (opcode & 0x40) {
@@ -2347,7 +2345,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 #endif
         }
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        ptr = EMIT_AdvancePC(ptr, 2);
 
         /* Cache is context synchronizing. Break up here! */
         *ptr++ = INSN_TO_LE(0xffffffff);
