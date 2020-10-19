@@ -696,13 +696,15 @@ void M68K_DumpStats()
     unsigned arm_count = 0;
     unsigned total_arm_count = 0;
 
-    kprintf("[ICache] Listing translation units:\n");
+    if (debug)
+        kprintf("[ICache] Listing translation units:\n");
     ForeachNode(&LRU, n)
     {
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-        kprintf("[ICache]   Unit %p, mt_UseCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", (void*)unit, unit->mt_UseCount,
-            (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
+        if (debug)
+            kprintf("[ICache]   Unit %p, mt_UseCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", (void*)unit, unit->mt_UseCount,
+                (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
 
         size = size + (uintptr_t)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (uintptr_t)unit;
         m68k_count += unit->mt_M68kInsnCnt;
