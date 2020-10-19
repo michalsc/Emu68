@@ -147,6 +147,11 @@ static inline uint32_t sev() { return hint(4); }
 static inline uint32_t get_nzcv(uint8_t rt) { return mrs(rt, 3, 3, 4, 2, 0); }
 static inline uint32_t set_nzcv(uint8_t rt) { return msr(rt, 3, 3, 4, 2, 0); }
 static inline uint32_t cfinv() { return I32(0xd500401f); }
+static inline uint32_t sys(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uint8_t op2) { return I32(0xd5080000 | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((cn & 15) << 12) | ((cm & 15) << 8) | (rt & 31)); }
+static inline uint32_t sysl(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uint8_t op2) { return I32(0xd5280000 | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((cn & 15) << 12) | ((cm & 15) << 8) | (rt & 31)); }
+static inline uint32_t dc_ivac(uint8_t rt) { return sys(rt, 0, 7, 6, 1); }
+static inline uint32_t dc_civac(uint8_t rt) { return sys(rt, 3, 7, 14, 1); }
+static inline uint32_t dsb_sy() { return I32(0xd5033f9f); }
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
