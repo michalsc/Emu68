@@ -256,7 +256,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, dest, 16);
-                    *ptr++ = subs_reg(src, dest, src, LSL, 16);
+                    *ptr++ = subs_reg(src, tmp, src, LSL, 16);
                     *ptr++ = bfxil(dest, src, 16, 16);
                     RA_FreeARMRegister(&ptr, tmp);
 #else
@@ -270,7 +270,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, dest, 24);
-                    *ptr++ = subs_reg(src, dest, src, LSL, 24);
+                    *ptr++ = subs_reg(src, tmp, src, LSL, 24);
                     *ptr++ = bfxil(dest, src, 24, 8);
                     RA_FreeARMRegister(&ptr, tmp);
 #else
