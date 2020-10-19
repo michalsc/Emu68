@@ -1664,7 +1664,7 @@ void __clear_entire_dcache(void)
 "       ldp     x9, x10, [sp, #4*16]    \n"
 "       ldp     x11, x16, [sp, #5*16]   \n"
 "       ldr     x17, [sp, #6*16]        \n"
-"       ldp     x0, x1, [sp], #-112     \n"
+"       ldp     x0, x1, [sp], #112      \n"
 "       ret                             \n"
 "       .ltorg                          \n"
     );
@@ -1724,7 +1724,7 @@ void __invalidate_entire_dcache(void)
 "       ldp     x9, x10, [sp, #4*16]    \n"
 "       ldp     x11, x16, [sp, #5*16]   \n"
 "       ldr     x17, [sp, #6*16]        \n"
-"       ldp     x0, x1, [sp], #-112     \n"
+"       ldp     x0, x1, [sp], #112      \n"
 "       ret                             \n"
 "       .ltorg                          \n"
     );
@@ -1889,7 +1889,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             kprintf("[LINEF] Invalidating all\n");
             while ((n = REMHEAD(&LRU))) {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                kprintf("[LINEF] Removing unit %08x\n", u);
+                kprintf("[LINEF] Removing unit %p\n", u);                
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
             }
