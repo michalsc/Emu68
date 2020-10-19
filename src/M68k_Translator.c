@@ -207,6 +207,9 @@ uint32_t prologue_size = 0;
 uint32_t epilogue_size = 0;
 uint32_t conditionals_count = 0;
 
+extern struct M68KState *__m68k_state;
+void M68K_PrintContext(void *);
+
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
     uintptr_t hash = (uintptr_t)m68kcodeptr;
@@ -218,9 +221,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     M68K_ResetReturnStack();
 
-    if (debug)
+    if (debug) {
         kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", (hash ^ (hash >> 16)) & 0xffff, (void*)m68kcodeptr);
-
+        if (debug > 1)
+            M68K_PrintContext(__m68k_state);
+    }
 
     int lr_is_saved = 0;
     

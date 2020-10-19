@@ -732,6 +732,8 @@ void stub_ExecutionLoop()
 
 }
 
+struct M68KState *__m68k_state;
+
 void M68K_StartEmu(void *addr, void *fdt)
 {
     void (*arm_code)();
@@ -744,6 +746,8 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     bzero(&__m68k, sizeof(__m68k));
     bzero((void *)4, 1020);
+
+    __m68k_state = &__m68k;
 
     *(uint32_t*)4 = 0;
 
