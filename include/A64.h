@@ -216,7 +216,7 @@ static inline uint32_t str64_offset_preindex(uint8_t rn, uint8_t rt, int16_t off
 static inline uint32_t strh_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x79000000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
 static inline uint32_t strh_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t strh_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x78000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
-static inline uint32_t strb_offset(uint8_t rn, uint8_t rt, uint16_t offset13) { return I32(0x39000000 | (rt & 31) | ((rn & 31) << 5) | (((offset13 >> 1) & 0xfff) << 10)); }
+static inline uint32_t strb_offset(uint8_t rn, uint8_t rt, uint16_t offset12) { return I32(0x39000000 | (rt & 31) | ((rn & 31) << 5) | ((offset12 & 0xfff) << 10)); }
 static inline uint32_t strb_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t strb_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
 
