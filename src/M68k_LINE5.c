@@ -559,37 +559,22 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             else
             {
                 /* Load effective address */
-                uint8_t dest = 0xff;
+                uint8_t dest = RA_AllocARMRegister(&ptr);
                 uint8_t tmp = RA_AllocARMRegister(&ptr);
-                uint8_t mode = (opcode & 0x0038) >> 3;
-
-                if (mode == 4 || mode == 3)
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-                else
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
-
-                /* Fetch data into temporary register, perform add, store it back */
-                if (mode == 4)
-                {
-                    *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
-                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-                }
-                else
-                    *ptr++ = ldrb_offset(dest, tmp, 0);
 
                 /* T condition always sets lowest 8 bis, F condition always clears them */
-                if ((opcode & 0x0f00) == 0)
+                if ((opcode & 0x0f00) == 0x0100)
                 {
 #ifdef __aarch64__
-                    *ptr++ = bic_immed(dest, dest, 8, 0);
+                    *ptr++ = mov_immed_u16(dest, 0, 0);
 #else
                     *ptr++ = bfc(tmp, 0, 8);
 #endif
                 }
-                else if ((opcode & 0x0f00) == 0x0100)
+                else if ((opcode & 0x0f00) == 0x0000)
                 {
 #ifdef __aarch64__
-                    *ptr++ = orr_immed(dest, dest, 8, 0);
+                    *ptr++ = mov_immed_u16(dest, 0xff, 0);
 #else
                     *ptr++ = orr_immed(tmp, tmp, 0xff);
 #endif
@@ -803,18 +788,12 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #endif
                 }
 
-                if (mode == 3)
-                {
-                    *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
-                    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-                }
-                else
-                    *ptr++ = strb_offset(dest, tmp, 0);
+                ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
 
                 RA_FreeARMRegister(&ptr, tmp);
                 RA_FreeARMRegister(&ptr, dest);
             }
-
+            (*m68k_ptr) += ext_count;
             ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         }
 
