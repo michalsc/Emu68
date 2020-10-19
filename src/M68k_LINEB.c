@@ -24,7 +24,10 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
         uint8_t ext_words = 0;
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        if (size == 4)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+        else
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
 #ifdef __aarch64__
         if (size == 2)
@@ -70,8 +73,8 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ext_words = 0;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, 0x18 | (opcode & 7), *m68k_ptr, &ext_words, 0, NULL);
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dst, 0x18 | ((opcode >> 9) & 7), *m68k_ptr, &ext_words, 0, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, 0x18 | (opcode & 7), *m68k_ptr, &ext_words, 1, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dst, 0x18 | ((opcode >> 9) & 7), *m68k_ptr, &ext_words, 1, NULL);
 
         switch (size)
         {
@@ -136,7 +139,7 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t ext_words = 0;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
         switch(size)
         {
