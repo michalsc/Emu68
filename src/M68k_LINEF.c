@@ -1831,8 +1831,8 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     extern void *jit_tlsf;
     extern uint32_t last_PC;
 
-    kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%p\n", opcode, target_addr, pc, arm_pc);
-    kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
+    //kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%p\n", opcode, target_addr, pc, arm_pc);
+    // kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
 
     for (i=0; i < MAX_EPILOGUE_LENGTH; i++)
     {
@@ -1842,7 +1842,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
         icache_epilogue[i] = arm_pc[i];
     }
 
-    kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
+    //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
     last_PC = 0xffffffff;
@@ -1850,7 +1850,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     /* Get the scope */
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
-            kprintf("[LINEF] Invalidating line\n");
+            // kprintf("[LINEF] Invalidating line\n");
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1860,7 +1860,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 16) & ~15) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~15))
                     continue;
 
-                kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+                // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
@@ -1868,7 +1868,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             }
             break;
         case 0x10:  /* Page */
-            kprintf("[LINEF] Invalidating page\n");
+            // kprintf("[LINEF] Invalidating page\n");
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1878,7 +1878,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 4096) & ~4095) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~4095))
                     continue;
 
-                kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+                // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
@@ -1886,10 +1886,10 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             }
             break;
         case 0x18:  /* All */
-            kprintf("[LINEF] Invalidating all\n");
+            // kprintf("[LINEF] Invalidating all\n");
             while ((n = REMHEAD(&LRU))) {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                kprintf("[LINEF] Removing unit %p\n", u);                
+                // kprintf("[LINEF] Removing unit %p\n", u);                
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
             }
