@@ -1854,14 +1854,14 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                kprintf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 // If highest address of unit is lower than the begin flushed area, or lowest address of unit higher than the flushed area end
                 // then skip the unit
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 16) & ~15) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~15))
                     continue;
 
-                kprintf("[LINEF] Unit match! Removing.\n");
+                kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
@@ -1872,14 +1872,14 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                kprintf("[LINEF] Unit %08x, %08x-%08x\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 // If highest address of unit is lower than the begin flushed area, or lowest address of unit higher than the flushed area end
                 // then skip the unit
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 4096) & ~4095) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~4095))
                     continue;
 
-                kprintf("[LINEF] Unit match! Removing.\n");
+                kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
@@ -2121,7 +2121,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         if (opcode & 0x80) {
             int8_t off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &off);
-            kprintf("[LINEF] Inserting icache flush\n");
 #ifdef __aarch64__
             union {
                 uint64_t u64;
@@ -2287,7 +2286,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         if (opcode & 0x80) {
             int8_t off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &off);
-            kprintf("[LINEF] Inserting icache flush\n");
 #ifdef __aarch64__
             union {
                 uint64_t u64;
