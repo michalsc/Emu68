@@ -1653,15 +1653,11 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         /* Fetch PC from stack */
         *ptr++ = ldr_offset_postindex(sp, REG_PC, 4);
         /* Fetch format word from stack */
-        *ptr++ = ldrh_offset(sp, tmp, 2);
+        *ptr++ = ldrh_offset_postindex(sp, tmp, 2);
         *ptr++ = lsr(tmp, tmp, 13);
-        *ptr++ = cmp_immed(tmp, 0);
-        *ptr++ = b_cc(A64_CC_NE, 3);
-        *ptr++ = add_immed(sp, sp, 2);
-        *ptr++ = b(4);
         *ptr++ = cmp_immed(tmp, 1);
         *ptr++ = b_cc(A64_CC_NE, 2);
-        *ptr++ = add_immed(sp, sp, 6);
+        *ptr++ = add_immed(sp, sp, 4);
         
         /* Use two EORs to generate changed mask and update SR */
         *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
