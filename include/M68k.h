@@ -227,6 +227,7 @@ void M68K_PushReturnAddress(uint16_t *ret_addr);
 uint16_t *M68K_PopReturnAddress(uint8_t *success);
 void M68K_ResetReturnStack();
 
+uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
