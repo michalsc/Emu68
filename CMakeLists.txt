@@ -41,6 +41,7 @@ set(EMU68_FILES
     src/M68k_LINED.c
     src/M68k_LINEE.c
     src/M68k_LINEF.c
+    src/M68k_Exception.c
 )
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
