@@ -1623,7 +1623,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         tmpptr = ptr;
         *ptr++ = b_cc(A64_CC_EQ, 0);
         
-        ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 0);
+        ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 2, (uint32_t)(uintptr_t)(*m68k_ptr - 1));
 
         *tmpptr = b_cc(A64_CC_EQ, ptr - tmpptr);
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
