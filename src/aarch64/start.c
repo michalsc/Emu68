@@ -650,6 +650,12 @@ void stub_ExecutionLoop()
 "       cmp     w2, w%[reg_pc]              \n"
 "       adr     x30, 1b                     \n"
 "       b.ne    13f                         \n"
+#if EMU68_LOG_USES
+"       bic     x0, x12, #0x0000001000000000\n"
+"       ldr     x1, [x0, #-%[diff]]         \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #-%[diff]]         \n"
+#endif
 "       br      x12                         \n"
 
 "13:                                        \n"
@@ -679,7 +685,18 @@ void stub_ExecutionLoop()
 
 "55:                                        \n"
 "       ldr     x12, [x0, #%[offset]]       \n"
+#if EMU68_LOG_FETCHES
+"       ldr     x1, [x0, #%[fcount]]        \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #%[fcount]]        \n"
+#endif
 "       str     w%[reg_pc], [x9]            \n"
+#if EMU68_LOG_USES
+"       bic     x0, x12, #0x0000001000000000\n"
+"       ldr     x1, [x0, #-%[diff]]         \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #-%[diff]]         \n"
+#endif
 "       br      x12                         \n"
 
 "5:     mrs     x0, TPIDRRO_EL0             \n"
@@ -688,9 +705,20 @@ void stub_ExecutionLoop()
 "       str     w%[reg_pc], [x9]            \n"
 "       bl      M68K_GetTranslationUnit     \n"
 "       ldr     x12, [x0, #%[offset]]       \n"
+#if EMU68_LOG_FETCHES
+"       ldr     x1, [x0, #%[fcount]]        \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #%[fcount]]        \n"
+#endif
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
 "       adr     x30, 1b                     \n"
+#if EMU68_LOG_USES
+"       bic     x0, x12, #0x0000001000000000\n"
+"       ldr     x1, [x0, #-%[diff]]         \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #-%[diff]]         \n"
+#endif
 "       br      x12                         \n"
 
 
@@ -706,9 +734,20 @@ void stub_ExecutionLoop()
 "       mov     w0, w20                     \n"
 "       bl      M68K_GetTranslationUnit     \n"
 "223:   ldr     x12, [x0, #%[offset]]       \n"
+#if EMU68_LOG_FETCHES
+"       ldr     x1, [x0, #%[fcount]]        \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #%[fcount]]        \n"
+#endif
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
 "       adr     x30, 1b                     \n"
+#if EMU68_LOG_USES
+"       bic     x0, x12, #0x0000001000000000\n"
+"       ldr     x1, [x0, #-%[diff]]         \n"
+"       add     x1, x1, #1                  \n"
+"       str     x1, [x0, #-%[diff]]         \n"
+#endif
 "       br      x12                         \n"
 
 "4:     mrs     x0, TPIDRRO_EL0             \n"
@@ -724,8 +763,11 @@ void stub_ExecutionLoop()
 :
 :[reg_pc]"i"(REG_PC),
  [cacr_ie]"i"(CACR_IE),
+ [fcount]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_FetchCount)),
  [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
- [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint))
+ [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
+ [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
+        __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount))
 
     );
 

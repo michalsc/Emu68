@@ -36,6 +36,7 @@ struct M68KTranslationUnit {
     uint32_t        mt_M68kInsnCnt;
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;
+    uint64_t        mt_FetchCount;
     void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
     struct MD5      mt_MD5;

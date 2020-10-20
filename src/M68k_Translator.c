@@ -603,6 +603,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_M68kInsnCnt = insn_count;
         unit->mt_ARMInsnCnt = arm_insn_count;
         unit->mt_UseCount = 0;
+        unit->mt_FetchCount = 0;
         unit->mt_M68kAddress = orig_m68kcodeptr;
         unit->mt_M68kLow = m68k_low;
         unit->mt_M68kHigh = m68k_high;
@@ -703,8 +704,10 @@ void M68K_DumpStats()
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
         if (debug)
-            kprintf("[ICache]   Unit %p, mt_UseCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", (void*)unit, unit->mt_UseCount,
-                (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
+            kprintf("[ICache]   Unit %p, mt_UseCount=%lld, mt_FetchCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", 
+                (void*)unit, unit->mt_UseCount, unit->mt_FetchCount,
+                (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, 
+                unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
 
         size = size + (uintptr_t)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (uintptr_t)unit;
         m68k_count += unit->mt_M68kInsnCnt;
