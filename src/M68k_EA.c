@@ -973,16 +973,19 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp2 = 0xff;
                     int8_t displ = brief & 0xff;
+                    int8_t off = 2;
+                    int16_t full_off = 0;
+                    ptr = EMIT_GetOffsetPC(ptr, &off);
 
-                    ptr = EMIT_AdvancePC(ptr, 2);
+                    full_off = off + displ;
 
-                    if (displ > 0)
+                    if (full_off >= 0)
                     {
-                        *ptr++ = add_immed(tmp1, tmp1, displ);
+                        *ptr++ = add_immed(tmp1, REG_PC, full_off);
                     }
                     else
                     {
-                        *ptr++ = sub_immed(tmp1, tmp1, -displ);
+                        *ptr++ = sub_immed(tmp1, REG_PC, -full_off);
                     }
 
                     if (brief & (1 << 11))
@@ -1707,16 +1710,19 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp2 = 0xff;
                     int8_t displ = brief & 0xff;
+                    int8_t off = 2;
+                    int16_t full_off = 0;
+                    ptr = EMIT_GetOffsetPC(ptr, &off);
 
-                    ptr = EMIT_AdvancePC(ptr, 2);
+                    full_off = off + displ;
 
-                    if (displ > 0)
+                    if (full_off >= 0)
                     {
-                        *ptr++ = add_immed(tmp1, tmp1, displ);
+                        *ptr++ = add_immed(tmp1, REG_PC, full_off);
                     }
                     else
                     {
-                        *ptr++ = sub_immed(tmp1, tmp1, -displ);
+                        *ptr++ = sub_immed(tmp1, REG_PC, -full_off);
                     }
 
                     if (brief & (1 << 11))
