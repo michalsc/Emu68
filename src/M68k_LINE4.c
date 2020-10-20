@@ -921,38 +921,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b_cc(A64_CC_AL, 0);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t ctx = RA_GetCTX(&ptr);
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
         
         *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
@@ -1096,43 +1065,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b_cc(A64_CC_AL, 0);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t ctx = RA_GetCTX(&ptr);
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+        
+        *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
 
         RA_FreeARMRegister(&ptr, src);
         RA_FreeARMRegister(&ptr, tmp);
-        
-        *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
+
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
         *ptr++ = 1;
         *ptr++ = 0;
@@ -1276,9 +1215,10 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100100001001xxx - BKPT */
     else if ((opcode & 0xfff8) == 0x4848)
     {
+        ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] BKPT at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     /* 0100100001xxxxxx - PEA */
     else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
@@ -1303,7 +1243,11 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100101011111100 - ILLEGAL */
     else if (opcode == 0x4afc)
     {
-        *ptr++ = udf(0x4afc);
+        /* Illegal generates exception. Always */
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] ILLEGAL opcode at %08x\n", *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     /* 0100101011xxxxxx - TAS */
     else if ((opcode & 0xffc0) == 0x4ac0)
@@ -1325,12 +1269,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         /* Correct implementation is missing */
         ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAP #%02d at %08x\n", opcode & 15, (*m68k_ptr) - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
 
         ptr = EMIT_AdvancePC(ptr, 2);
         ptr = EMIT_FlushPC(ptr);
-        
-        //*ptr++ = udf(opcode);
+
+        ptr = EMIT_Exception(ptr, VECTOR_INT_TRAP(opcode & 15), 0);
+
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     /* 0100111001010xxx - LINK */
     else if ((opcode & 0xfff8) == 0x4e50)
@@ -1407,38 +1352,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b_cc(A64_CC_AL, 10);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t ctx = RA_GetCTX(&ptr);
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
         *tmp = b_cc(A64_CC_AL, ptr - tmp);
         *ptr++ = (uint32_t)(uintptr_t)tmp;
@@ -1471,38 +1385,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b_cc(A64_CC_AL, 10);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t ctx = RA_GetCTX(&ptr);
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
         *tmp = b_cc(A64_CC_AL, ptr - tmp);
         *ptr++ = (uint32_t)(uintptr_t)tmp;
@@ -1582,38 +1465,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b_cc(A64_CC_AL, 10);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t ctx = RA_GetCTX(&ptr);
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
         *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
@@ -1692,37 +1544,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b_cc(A64_CC_AL, 0);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
         
         *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
@@ -1792,9 +1614,22 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110110 - TRAPV */
     else if (opcode == 0x4e76)
     {
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAPV at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
+        uint8_t cc = RA_GetCC(&ptr);
+        uint32_t *tmpptr;
+        ptr = EMIT_AdvancePC(ptr, 2);
+        ptr = EMIT_FlushPC(ptr);
+
+        *ptr++ = ands_immed(31, cc, 1, 32 - SRB_V);
+        tmpptr = ptr;
+        *ptr++ = b_cc(A64_CC_EQ, 0);
+        
+        ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 0);
+
+        *tmpptr = b_cc(A64_CC_EQ, ptr - tmpptr);
+        *ptr++ = (uint32_t)(uintptr_t)tmpptr;
+        *ptr++ = 1;
+        *ptr++ = 0;
+        *ptr++ = INSN_TO_LE(0xfffffffe);
     }
     /* 0100111001110111 - RTR */
     else if (opcode == 0x4e77)
@@ -1917,41 +1752,10 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = add_immed(REG_PC, REG_PC, 4);
         *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
         tmpptr = ptr;
-        *ptr++ = b_cc(A64_CC_AL, 10);
+        *ptr++ = b_cc(A64_CC_AL, 0);
 
         /* No supervisor. Update USP, generate exception */
-        {
-            uint8_t ctx = RA_GetCTX(&ptr);
-            uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-            uint8_t vbr = RA_AllocARMRegister(&ptr);
-
-            RA_SetDirtyM68kRegister(&ptr, 15);
-
-            /* Store A7 as USP */
-            *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-            /* Load ISP to A7 */
-            *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
-
-            /* Store exception vector and type */
-            *ptr++ = mov_immed_u16(vbr, 32, 0);
-            *ptr++ = strh_offset_preindex(sp, vbr, -2);
-
-            /* Store program counter */
-            *ptr++ = str_offset_preindex(sp, REG_PC, -4);
-
-            /* Store SR */
-            *ptr++ = strh_offset_preindex(sp, cc, -2);
-
-            /* Clear trace flags, set supervisor */
-            *ptr++ = bic_immed(cc, cc, 2, 32 - SRB_T0);
-            *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_S);
-
-            /* Load VBR */
-            *ptr++ = ldr_offset(ctx, vbr, __builtin_offsetof(struct M68KState, VBR));
-            *ptr++ = ldr_offset(vbr, REG_PC, 32);
-
-            RA_FreeARMRegister(&ptr, vbr);
-        }
+        ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
         *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
