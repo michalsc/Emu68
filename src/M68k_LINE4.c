@@ -1033,7 +1033,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = mov_reg(changed, cc);
         *ptr++ = mov_immed_u16(tmp, 0xf71f, 0);
         
-        *ptr++ = b_cc(A64_CC_EQ, 23);
+        *ptr++ = b_cc(A64_CC_EQ, 29);
         *ptr++ = and_reg(cc, tmp, src, LSL, 0);
         *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
@@ -1061,6 +1061,14 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
 
         *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        *ptr++ = mvn_reg(changed, cc, LSL, 0);
+        *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
+        *ptr++ = b_cc(A64_CC_EQ, 3);
+        *ptr++ = msr_imm(3, 7, 7);
+        *ptr++ = b(2);
+        *ptr++ = msr_imm(3, 6, 7);
+
         tmpptr = ptr;
         *ptr++ = b_cc(A64_CC_AL, 0);
 
@@ -1456,8 +1464,15 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
 
         /* Now do what stop does - wait for interrupt */
-        /* TODO: ILM flags in SR are not handled yet!!! */
         *ptr++ = add_immed(REG_PC, REG_PC, 4);
+
+        *ptr++ = mvn_reg(changed, cc, LSL, 0);
+        *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
+        *ptr++ = b_cc(A64_CC_EQ, 3);
+        *ptr++ = msr_imm(3, 7, 7);
+        *ptr++ = b(2);
+        *ptr++ = msr_imm(3, 6, 7);
+
         *ptr++ = wfi();
 
         *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
@@ -1538,6 +1553,13 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = b(3);
         *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to ISP
         *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+
+        *ptr++ = mvn_reg(changed, cc, LSL, 0);
+        *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
+        *ptr++ = b_cc(A64_CC_EQ, 3);
+        *ptr++ = msr_imm(3, 7, 7);
+        *ptr++ = b(2);
+        *ptr++ = msr_imm(3, 6, 7);
 
         *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
         tmpptr = ptr;

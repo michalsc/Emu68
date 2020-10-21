@@ -632,7 +632,7 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* OR is here */
     *ptr++ = mov_reg(changed, cc);
     
-    *ptr++ = b_cc(A64_CC_EQ, 14);   
+    *ptr++ = b_cc(A64_CC_EQ, 20);   
     *ptr++ = orr_reg(cc, cc, immed, LSL, 0);
     
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
@@ -648,6 +648,14 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
 
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
+    
+    *ptr++ = mvn_reg(changed, cc, LSL, 0);
+    *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
+    *ptr++ = b_cc(A64_CC_EQ, 3);
+    *ptr++ = msr_imm(3, 7, 7);
+    *ptr++ = b(2);
+    *ptr++ = msr_imm(3, 6, 7);
+
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
 
@@ -930,7 +938,7 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* AND is here */
     *ptr++ = mov_reg(changed, cc);
-    *ptr++ = b_cc(A64_CC_EQ, 23);
+    *ptr++ = b_cc(A64_CC_EQ, 29);
 
     *ptr++ = and_reg(cc, cc, immed, LSL, 0);
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
@@ -959,6 +967,14 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
 
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
+
+    *ptr++ = mvn_reg(changed, cc, LSL, 0);
+    *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
+    *ptr++ = b_cc(A64_CC_EQ, 3);
+    *ptr++ = msr_imm(3, 7, 7);
+    *ptr++ = b(2);
+    *ptr++ = msr_imm(3, 6, 7);
+
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
 
@@ -1232,7 +1248,7 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     
     /* EOR is here */
     *ptr++ = mov_reg(changed, cc);
-    *ptr++ = b_cc(A64_CC_EQ, 23);
+    *ptr++ = b_cc(A64_CC_EQ, 29);
     *ptr++ = eor_reg(cc, cc, immed, LSL, 0);
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
@@ -1260,6 +1276,14 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
 
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
+
+    *ptr++ = mvn_reg(changed, cc, LSL, 0);
+    *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
+    *ptr++ = b_cc(A64_CC_EQ, 3);
+    *ptr++ = msr_imm(3, 7, 7);
+    *ptr++ = b(2);
+    *ptr++ = msr_imm(3, 6, 7);
+
     tmp = ptr;
     *ptr++ = b_cc(A64_CC_AL, 10);
 
