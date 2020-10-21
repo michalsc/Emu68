@@ -124,9 +124,51 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else if ((opcode & 0x38) == 0x38)
         {
-            ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAPcc at %08x not implemented\n", *m68k_ptr - 1);
-            ptr = EMIT_InjectPrintContext(ptr);
-            *ptr++ = udf(opcode);
+            uint32_t source = (uint32_t)(uintptr_t)(*m68k_ptr - 1);
+            uint8_t arm_condition = 0xff;
+            uint8_t m68k_condition = (opcode >> 8) & 15;
+            switch (opcode & 7)
+            {
+                case 4:
+                    ptr = EMIT_AdvancePC(ptr, 2);
+                    break;
+                case 2:
+                    ptr = EMIT_AdvancePC(ptr, 4);
+                    (*m68k_ptr)++;
+                    break;
+                case 3:
+                    ptr = EMIT_AdvancePC(ptr, 6);
+                    (*m68k_ptr)+=2;
+                    break;
+                default:
+                    ptr = EMIT_InjectDebugString(ptr, "[JIT] Illegal OPMODE in TRAPcc at %08x\n", source);
+                    ptr = EMIT_InjectPrintContext(ptr);
+                    *ptr++ = udf(opcode);
+                    break;
+            }
+            ptr = EMIT_FlushPC(ptr);
+
+            /* If condition is TRUE, always generate exception */
+            if (m68k_condition == M_CC_T)
+            {
+                ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 2, source);
+                *ptr++ = INSN_TO_LE(0xffffffff);
+            }
+            /* If condition is FALSE, never generate exception, otherwise test CC */
+            else if (m68k_condition != M_CC_F)
+            {
+                uint32_t *tmpptr;
+                arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
+
+                tmpptr = ptr;
+                *ptr++ = b_cc(arm_condition ^ 1, 0);
+                ptr = EMIT_Exception(ptr, VECTOR_TRAPcc, 2, source);
+                *tmpptr = b_cc(arm_condition ^ 1, ptr - tmpptr);
+                *ptr++ = (uint32_t)(uintptr_t)tmpptr;
+                *ptr++ = 1;
+                *ptr++ = 0;
+                *ptr++ = INSN_TO_LE(0xfffffffe);
+            }
         }
         else
         {
