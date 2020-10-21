@@ -102,10 +102,12 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
-    
+
+    arm_ptr = EMIT_FlushPC(arm_ptr);
     arm_ptr = EMIT_InjectDebugString(arm_ptr, "[JIT] LINE A exception (opcode %04x) at %08x not implemented\n", opcode, *m68k_ptr - 1);
     arm_ptr = EMIT_InjectPrintContext(arm_ptr);
-    *arm_ptr++ = udf(opcode);
+    arm_ptr = EMIT_Exception(arm_ptr, VECTOR_LINE_A, 0);
+    *arm_ptr++ = INSN_TO_LE(0xffffffff);
 
     return arm_ptr;
 }
