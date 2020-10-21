@@ -139,6 +139,7 @@ static inline uint32_t bx_lr() { return ret(); }
 /* System instructions */
 static inline uint32_t mrs(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { return I32(0xd5300000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
 static inline uint32_t msr(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { return I32(0xd5100000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
+static inline uint32_t msr_imm(uint8_t op1, uint8_t op2, uint8_t imm) { return I32(0xd500401f | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((imm & 15) << 8)); }
 static inline uint32_t brk(uint16_t imm16) { return I32(0xd4200000 | (imm16 << 5)); }
 static inline uint32_t hlt(uint16_t imm16) { return I32(0xd4400000 | (imm16 << 5)); }
 static inline uint32_t udf(uint16_t imm16) { return hlt(imm16); }
