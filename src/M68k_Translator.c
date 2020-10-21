@@ -587,14 +587,20 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 #endif
             if (unit == NULL)
             {
+                #ifndef __aarch64__
                 extern uint32_t last_PC;
+                #endif
                 struct Node *n = REMTAIL(&LRU);
                 void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
                 REMOVE((struct Node *)ptr);
                 kprintf("[ICache] Requested block was %d\n", unit_length);
                 kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 tlsf_free(jit_tlsf, ptr);
+                #ifdef __aarch64__
+                asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+                #else
                 last_PC = 0xffffffff;
+                #endif
             }
         } while(unit == NULL);
 

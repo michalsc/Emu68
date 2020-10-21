@@ -94,6 +94,7 @@ else()
         src/aarch64/start.c
         src/aarch64/mmu.c
         src/aarch64/RegisterAllocator64.c
+        src/aarch64/vectors.c
     )
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
     add_link_options(-Wl,-EB -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})

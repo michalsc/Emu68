@@ -285,6 +285,7 @@ void print_build_id()
 }
 
 void M68K_StartEmu(void *addr, void *fdt);
+void __vectors_start(void);
 
 void boot(void *dtree)
 {
@@ -374,6 +375,9 @@ void boot(void *dtree)
 
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
     }
+
+    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
     platform_post_init();
 
@@ -579,7 +583,9 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
 
+#ifndef __aarch64__
 uint32_t last_PC = 0xffffffff;
+#endif
 
 uint16_t *framebuffer __attribute__((weak)) = NULL;
 uint32_t pitch  __attribute__((weak))= 0;
@@ -640,10 +646,11 @@ void stub_ExecutionLoop()
 
 "1:     cmp     wzr, w%[reg_pc]             \n"
 "       b.eq    4f                          \n"
-"       adr     x9, last_PC                 \n"
-"       ldr     w2, [x9]                    \n"
+"       mrs     x2, TPIDR_EL1               \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
-"       ldr     w1, [x0, #%[cacr]]          \n"
+"       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
+"       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
+"99:    ldr     w1, [x0, #%[cacr]]          \n"
 "       ands    wzr, w1, #%[cacr_ie]        \n"
 "       b.eq    2f                          \n"
 
@@ -690,7 +697,7 @@ void stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #%[fcount]]        \n"
 #endif
-"       str     w%[reg_pc], [x9]            \n"
+"       msr     TPIDR_EL1, x%[reg_pc]       \n"
 #if EMU68_LOG_USES
 "       bic     x0, x12, #0x0000001000000000\n"
 "       ldr     x1, [x0, #-%[diff]]         \n"
@@ -702,7 +709,7 @@ void stub_ExecutionLoop()
 "5:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
 "       mov     w0, w%[reg_pc]              \n"
-"       str     w%[reg_pc], [x9]            \n"
+"       msr     TPIDR_EL1, x%[reg_pc]       \n"
 "       bl      M68K_GetTranslationUnit     \n"
 "       ldr     x12, [x0, #%[offset]]       \n"
 #if EMU68_LOG_FETCHES
@@ -726,7 +733,7 @@ void stub_ExecutionLoop()
 "2:                                         \n"
 "23:    bl      M68K_SaveContext            \n"
 "       mvn     w0, wzr                     \n"
-"       str     w0, [x9]                    \n"
+"       msr     TPIDR_EL1, x0               \n"
 "       mov     w20, w%[reg_pc]             \n"
 "       bl      FindUnit                    \n"
 "       bl      M68K_VerifyUnit             \n"
@@ -760,15 +767,46 @@ void stub_ExecutionLoop()
 "       ldp     x29, x30, [sp], #128        \n"
 "       ret                                 \n"
 
+"9:     mrs     x1, TPIDR_EL0               \n" // Get SR
+"       mvn     w2, w1                      \n" // Negate IPM field
+"       ands    wzr, w2, #0x0700            \n" // Check if ~IMP == 0
+"       b.eq    93f                         \n" // At IMP7 ignore all interrupt requests
+"       ands    wzr, w1, #0x2000            \n" // Check if m68k was in supervisor mode already
+"       b.ne    91f                         \n" // Skip if already in supervisor
+"       str     w%[reg_sp], [x0, #%[usp]]   \n" // Store USP
+"       ands    wzr, w1, #0x1000            \n" // Check if MSP is active
+"       b.ne    92f                         \n"
+"       ldr     w%[reg_sp], [x0, #%[isp]]   \n" // Load ISP
+"       b       91f                         \n"
+"92:    ldr     w%[reg_sp], [x0, #%[msp]]   \n" // Load MSP
+"91:    mov     w2, #0x0064                 \n" // Make INT Level 1 exception for now
+"       strh    w2, [x%[reg_sp], #-2]!      \n" // Push frame format 0
+"       str     w%[reg_pc], [x%[reg_sp], #-4]! \n" // Push address of next instruction
+"       strh    w1, [x%[reg_sp], #-2]!      \n" // Push old SR
+"       bic     w1, w1, #0xc000             \n" // Clear T0 and T1
+"       orr     w1, w1, #0x2000             \n" // Set S bit
+"       msr     TPIDR_EL0, x1               \n" // Update SR
+"       str     wzr, [x0, #%[pint]]         \n" // Clear pending interrupt flag
+"       ldr     w1, [x0, #%[vbr]]           \n"
+"       ldr     w%[reg_pc], [x1, #0x64]     \n" // Load new PC
+"93:    mrs     x0, TPIDRRO_EL0             \n" // Reload old values of x0 and x2
+"       mrs     x2, TPIDR_EL1               \n" // And branch back
+"       b       99b                         \n"
 :
 :[reg_pc]"i"(REG_PC),
+ [reg_sp]"i"(REG_A7),
  [cacr_ie]"i"(CACR_IE),
  [fcount]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_FetchCount)),
  [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
  [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
  [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
-        __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount))
-
+        __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
+ [pint]"i"(__builtin_offsetof(struct M68KState, PINT)),
+ [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
+ [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
+ [isp]"i"(__builtin_offsetof(struct M68KState, ISP)),
+ [msp]"i"(__builtin_offsetof(struct M68KState, MSP)),
+ [vbr]"i"(__builtin_offsetof(struct M68KState, VBR))
     );
 
 
@@ -814,7 +852,11 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
+#ifdef __aarch64__
+    asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+#else
     last_PC = 0xffffffff;
+#endif
     *(void**)(&arm_code) = NULL;
 
 #if 1

@@ -1829,7 +1829,9 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     struct Node *n, *next;
     extern struct List LRU;
     extern void *jit_tlsf;
+    #ifndef __aarch64__
     extern uint32_t last_PC;
+    #endif
 
     //kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%p\n", opcode, target_addr, pc, arm_pc);
     // kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
@@ -1845,7 +1847,11 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
+    #ifdef __aarch64__
+    asm volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
+    #else
     last_PC = 0xffffffff;
+    #endif
 
     /* Get the scope */
     switch (opcode & 0x18) {
