@@ -13,6 +13,8 @@
 #include <stdint.h>
 
 /* Context pointer is stored in TPIDRRO_EL0 */
+/* SR is stored in TPIDR_EL0 */
+/* last_PC is stored in TPIDR_EL1 */
 
 #define REG_PC    18
 
