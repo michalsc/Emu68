@@ -61,7 +61,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                 *ptr++ = ldr_offset(base, reg, 0);
             else if (offset > -256 && offset < 256)
                 *ptr++ = ldur_offset(base, reg, offset & 0x1ff);
-            else if (offset > 0 && offset < 4096)
+            else if (offset > 0 && offset < 16384 && (offset & 3) == 0)
                 *ptr++ = ldr_offset(base, reg, offset);
             else {
                 if (offset_32bit) {
@@ -89,7 +89,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
 #ifdef __aarch64__
                 if (offset > -256 && offset < 256)
                     *ptr++ = ldurh_offset(base, reg, offset & 0x1ff);
-                else if (offset >= 0 && offset < 4096)
+                else if (offset >= 0 && offset < 8192 && (offset & 1) == 0)
                     *ptr++ = ldrh_offset(base, reg, offset);
                 else {
                     if (offset_32bit) {
@@ -306,7 +306,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                 *ptr++ = str_offset(base, reg, 0);
             else if (offset > -256 && offset < 256)
                 *ptr++ = stur_offset(base, reg, offset & 0x1ff);
-            else if (offset > 0 && offset < 4096)
+            else if (offset > 0 && offset < 16384 && (offset & 3) == 0)
                 *ptr++ = str_offset(base, reg, offset);
             else {
                 if (offset_32bit) {
@@ -334,7 +334,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
 #ifdef __aarch64__
                 if (offset > -256 && offset < 256)
                     *ptr++ = sturh_offset(base, reg, offset & 0x1ff);
-                else if (offset >= 0 && offset < 4096)
+                else if (offset >= 0 && offset < 8192 && (offset & 1) == 0)
                     *ptr++ = strh_offset(base, reg, offset);
                 else {
                     if (offset_32bit) {
