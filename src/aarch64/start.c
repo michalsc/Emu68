@@ -304,6 +304,7 @@ void boot(void *dtree)
     asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
+    tmp &= ~0x18;                   // Disable stack alignment check
     asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
     /* Initialize tlsf */
@@ -679,7 +680,7 @@ void stub_ExecutionLoop()
 "       stp     x21, x22, [sp, #4*16]       \n"
 "       stp     x19, x20, [sp, #5*16]       \n"
 "       bl      M68K_LoadContext            \n"
-
+"       .align 4                            \n"
 "1:                                         \n"
 "       cmp     wzr, w%[reg_pc]             \n"
 "       b.eq    4f                          \n"
