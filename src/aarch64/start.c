@@ -174,6 +174,9 @@ asm("   .section .startup           \n"
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL2, x10      \n"
 #endif
+"       mrs     x10, MDCR_EL2       \n" /* Enable event counters */
+"       orr     x10, x10, #0x80     \n"
+"       msr     MDCR_EL2, x10       \n"
 "       mov     x10, #3             \n" /* Enable CNTL access from EL1 and EL0 */
 "       msr     CNTHCTL_EL2, x10    \n"
 "       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
@@ -286,6 +289,7 @@ void print_build_id()
 
 void M68K_StartEmu(void *addr, void *fdt);
 void __vectors_start(void);
+extern int debug_cnt;
 
 void boot(void *dtree)
 {
@@ -378,6 +382,38 @@ void boot(void *dtree)
 
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
+
+    if (debug_cnt)
+    {
+        uint64_t tmp;
+        kprintf("[BOOT] Performance counting requested\n");
+        
+        asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+        kprintf("[BOOT] Number of counters implemented: %d\n", (tmp >> 11) & 31);
+
+        kprintf("[BOOT] Enabling performance counters\n");
+        tmp |= 3;
+        asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+
+        asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+        kprintf("[BOOT] PMCR=%08x\n", tmp);
+
+        asm volatile("mrs %0, PMCEID0_EL0":"=r"(tmp));
+        kprintf("[BOOT] PMCEID0=%08x\n", tmp);
+
+        tmp = 0x00000000;
+        asm volatile("msr PMEVTYPER0_EL0, %0; isb"::"r"(tmp));
+        asm volatile("msr PMEVTYPER2_EL0, %0; isb"::"r"(tmp));
+        asm volatile("msr PMEVTYPER1_EL0, %0; isb"::"r"(tmp));
+        asm volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
+        asm volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
+
+        tmp = 15;
+        asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+
+        asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
+        kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
+    }
 
     platform_post_init();
 
@@ -644,7 +680,8 @@ void stub_ExecutionLoop()
 "       stp     x19, x20, [sp, #5*16]       \n"
 "       bl      M68K_LoadContext            \n"
 
-"1:     cmp     wzr, w%[reg_pc]             \n"
+"1:                                         \n"
+"       cmp     wzr, w%[reg_pc]             \n"
 "       b.eq    4f                          \n"
 "       mrs     x2, TPIDR_EL1               \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
@@ -655,7 +692,6 @@ void stub_ExecutionLoop()
 "       b.eq    2f                          \n"
 
 "       cmp     w2, w%[reg_pc]              \n"
-"       adr     x30, 1b                     \n"
 "       b.ne    13f                         \n"
 #if EMU68_LOG_USES
 "       bic     x0, x12, #0x0000001000000000\n"
@@ -663,7 +699,8 @@ void stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
-"       br      x12                         \n"
+"       blr     x12                         \n"
+"       b       1b                          \n"
 
 "13:                                        \n"
 "       adr     x4, ICache                  \n"
@@ -704,7 +741,8 @@ void stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
-"       br      x12                         \n"
+"       blr     x12                         \n"
+"       b       1b                          \n"
 
 "5:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
@@ -719,15 +757,14 @@ void stub_ExecutionLoop()
 #endif
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
-"       adr     x30, 1b                     \n"
 #if EMU68_LOG_USES
 "       bic     x0, x12, #0x0000001000000000\n"
 "       ldr     x1, [x0, #-%[diff]]         \n"
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
-"       br      x12                         \n"
-
+"       blr     x12                         \n"
+"       b       1b                          \n"
 
 
 "2:                                         \n"
@@ -748,14 +785,14 @@ void stub_ExecutionLoop()
 #endif
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_LoadContext            \n"
-"       adr     x30, 1b                     \n"
 #if EMU68_LOG_USES
 "       bic     x0, x12, #0x0000001000000000\n"
 "       ldr     x1, [x0, #-%[diff]]         \n"
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
-"       br      x12                         \n"
+"       blr     x12                         \n"
+"       b       1b                          \n"
 
 "4:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
@@ -900,4 +937,17 @@ void M68K_StartEmu(void *addr, void *fdt)
     M68K_PrintContext(&__m68k);
 
     M68K_DumpStats();
+
+    if (debug_cnt & 1)
+    {
+        uint64_t tmp;
+        asm volatile("mrs %0, PMEVCNTR0_EL0":"=r"(tmp));
+        kprintf("[JIT] Number of m68k instructions executed: %lld\n", tmp);
+    }
+    if (debug_cnt & 2)
+    {
+        uint64_t tmp;
+        asm volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
+        kprintf("[JIT] Number of m68k JIT blocks executed: %lld\n", tmp);
+    }
 }

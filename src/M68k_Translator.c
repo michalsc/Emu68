@@ -31,6 +31,7 @@ options_t Options = {
 #endif
 
 const int debug = 0;
+const int debug_cnt = 0;
 
 struct List *ICache;
 struct List LRU;
@@ -147,6 +148,13 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     }
     if (debug > 1)
         *ptr++ = hint(1);
+    if (debug_cnt & 1)
+    {
+        uint8_t reg = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_immed_u16(reg, 1, 0);
+        *ptr++ = msr(reg, 3, 3, 9, 12, 4);
+        RA_FreeARMRegister(&ptr, reg);
+    }
 #endif
 
     ptr = line_array[group](ptr, m68k_ptr);
@@ -255,6 +263,14 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #endif
 
     *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
+#else
+    if (debug_cnt & 2)
+    {
+        uint8_t reg = RA_AllocARMRegister(&end);
+        *end++ = mov_immed_u16(reg, 4, 0);
+        *end++ = msr(reg, 3, 3, 9, 12, 4);
+        RA_FreeARMRegister(&end, reg);
+    }
 #endif
 
     prologue_size = end - tmpptr;
