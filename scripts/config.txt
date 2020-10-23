@@ -4,6 +4,7 @@
 
 kernel=Emu68.img
 disable_splash=1
+arm_64bit=1
 
 # Limit GPU memory a little, force 1080p video mode
 gpu_mem=32
@@ -15,6 +16,7 @@ hdmi_mode=82
 # Select some m68k code to run...
 # initramfs dhrystone
 # initramfs x
-#initramfs Buddha
+initramfs Buddha
 #initramfs SmallPT
-initramfs SysInfo
+#initramfs Buddha_.elf
+#initramfs sysinfo
