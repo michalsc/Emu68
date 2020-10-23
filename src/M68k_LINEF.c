@@ -545,8 +545,25 @@ uint8_t FPUDataSize[] = {
 
 int FPSR_Update_Needed(uint16_t **m68k_ptr)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
-    uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+    uint16_t *ptr = *m68k_ptr;
+    int cnt = 0;
+
+    while((BE16(*ptr) & 0xfe00) != 0xf200)
+    {
+        if (cnt++ > 15)
+            return 1;
+        if (M68K_IsBranch(ptr))
+            return 1;
+        else {
+            int len = M68K_GetINSNLength(ptr);
+            if (len == 0)
+                return 1;
+            ptr += len;
+        }
+    }
+    
+    uint16_t opcode = BE16(ptr[0]);
+    uint16_t opcode2 = BE16(ptr[1]);
 
     /* If next opcode is not LineF then we need to update FPSR */
     if ((opcode & 0xfe00) != 0xf200)
@@ -717,6 +734,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     *ptr++ = fsitod(*reg, *reg * 2);
 #endif
                     break;
+#ifdef __aarch64__
+                case SIZE_D:
+                    if (ea == 0x3c)
+                    {
+                        int8_t off = 4;
+                        ptr = EMIT_GetOffsetPC(ptr, &off);
+                        *ptr++ = fldd(*reg, REG_PC, off);
+                        *ext_count += 4;
+                    }
+                    else
+                    {
+                        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
+                        not_yet_done = 1;
+                    }
+                    break;
+#endif
                 default:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
                     not_yet_done = 1;
@@ -2403,8 +2436,20 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            if (offset == C_ZERO)
+            {
+                *ptr++ = bic_immed(fpsr, fpsr, 4, 32 - FPSRB_NAN);
+                *ptr++ = orr_immed(fpsr, fpsr, 1, 32 - FPSRB_Z);
+            }
+            else if (offset < C_ZERO || offset >= C_LN2)
+            {
+                *ptr++ = bic_immed(fpsr, fpsr, 4, 32 - FPSRB_NAN);
+            }
+            else
+            {
+                *ptr++ = fcmpzd(fp_dst);
+                ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            }
         }
     }
     /* FABS */
@@ -2535,7 +2580,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
                 *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 3); // N | NAN -> N (== 0 only if N=0 && NAN=0)
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
+                *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
 #else
@@ -2614,7 +2659,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
                 *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSR, 1);
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
 #else
@@ -2977,10 +3022,25 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         (void)precision;
 
+        /* Was such a construct really necessary */
+#if 0
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = fcpyd(fp_dst, fp_src);
+#else
+        if ((opcode2 & 0x4000) == 0)
+        {
+            fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+            fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+            *ptr++ = fcpyd(fp_dst, fp_src);
+        }
+        else
+        {
+            fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+            ptr = FPU_FetchData(ptr, m68k_ptr, &fp_dst, opcode, opcode2, &ext_count);
+        }
+#endif
 
         RA_FreeFPURegister(&ptr, fp_src);
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
