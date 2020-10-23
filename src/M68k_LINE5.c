@@ -49,9 +49,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     uint8_t c_true = RA_AllocARMRegister(&ptr);
                     uint8_t c_false = RA_AllocARMRegister(&ptr);
 
-                    *ptr++ = add_immed(c_false, REG_PC, 2);
                     *ptr++ = add_immed(c_true, REG_PC, 4);
-                    *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
+                    *ptr++ = csel(REG_PC, c_true, REG_PC, arm_condition);
 
                     RA_FreeARMRegister(&ptr, c_true);
                     RA_FreeARMRegister(&ptr, c_false);
@@ -89,7 +88,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = add_immed(reg, REG_PC, 4);
                 *ptr++ = csel(REG_PC, reg, REG_PC, A64_CC_MI);
                 branch_2 = ptr;
-                *ptr++ = b_cc(A64_CC_MI, 2);
+                *ptr++ = b_cc(A64_CC_MI, 3);
 #else
                 *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 4);
                 branch_2 = ptr;
@@ -106,14 +105,16 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #endif
                 RA_FreeARMRegister(&ptr, reg);
 
+                *branch_2 = b_cc(A64_CC_MI, ptr - branch_2);
                 if (branch_1) {
 #ifdef __aarch64__
+                    *branch_1 = b_cc(arm_condition, ptr - branch_1);
 #else
                     *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + ((int)(branch_2 - branch_1) << 5));
 #endif
                     *ptr++ = (uint32_t)(uintptr_t)branch_1;
                 }
-
+                
                 *ptr++ = (uint32_t)(uintptr_t)branch_2;
                 *ptr++ = branch_1 == NULL ? 1 : 2;
                 *ptr++ = 0;
