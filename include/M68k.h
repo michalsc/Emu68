@@ -229,6 +229,8 @@ uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ..
 void M68K_PushReturnAddress(uint16_t *ret_addr);
 uint16_t *M68K_PopReturnAddress(uint8_t *success);
 void M68K_ResetReturnStack();
+int M68K_GetINSNLength(uint16_t *insn_stream);
+int M68K_IsBranch(uint16_t *insn_stream);
 
 uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);

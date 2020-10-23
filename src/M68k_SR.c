@@ -200,15 +200,13 @@ static struct SRMaskEntry *OpcodeMap[16] = {
     LineF_Map
 };
 
-static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t imm_size)
+static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
 {
-    uint16_t opcode;
-    uint8_t word_count = 1;
+    uint8_t word_count = 0;
     uint8_t mode, reg;
 
-    opcode = BE16(insn_stream[0]);
-    mode = (opcode >> 3) & 7;
-    reg = (opcode) & 7;
+    mode = (ea >> 3) & 7;
+    reg = ea & 7;
 
     /* modes 0, 1, 2, 3 and 4 do not have extra words */
     if (mode > 4)
@@ -218,7 +216,7 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t imm_size)
         else if (mode == 6 || (mode == 7 && reg == 3))
         {
             /* Reg- or PC-relative addressing mode */
-            uint16_t brief = BE16(insn_stream[1]);
+            uint16_t brief = BE16(insn_stream[0]);
 
             /* Brief word is here */
             word_count++;
@@ -264,8 +262,13 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t imm_size)
                         word_count++;
                         break;
                     case 4:
-                        word_count+= 2;
+                        word_count+=2;
                         break;
+                    case 8:
+                        word_count+=4;
+                        break;
+                    case 12:
+                        word_count+=6;
                     default:
                         break;
                 }
@@ -283,7 +286,7 @@ static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, int nest_level)
     uint8_t word_count;
 
     /* First calculate the EA length */
-    word_count = SR_GetEALength(insn_stream, 0);
+    word_count = 1 + SR_GetEALength(insn_stream + 1, BE16(*insn_stream) & 0x3f, 0);
 
     /* Get the opcode past current 2-byte instruction */
     next_opcode = BE16(insn_stream[word_count]);
@@ -321,10 +324,10 @@ static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, int nest_level)
     switch (opcode & 0x3000)
     {
         case 0x3000:
-            word_count = SR_GetEALength(insn_stream, 2);
+            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 2);
             break;
         case 0x2000:
-            word_count = SR_GetEALength(insn_stream, 4);
+            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 4);
             break;
         default:
             return 0;
@@ -368,10 +371,10 @@ static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, int nest_level)
     switch (opcode & 0x01c0)
     {
         case 0x00c0:
-            word_count = SR_GetEALength(insn_stream, 2);
+            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 2);
             break;
         case 0x01c0:
-            word_count = SR_GetEALength(insn_stream, 4);
+            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 4);
             break;
         default:
             return 0;
@@ -570,4 +573,903 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
     }
 
     return mask;
+}
+
+static int M68K_GetLine0Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 0;
+    int opsize = 4;
+
+    /* 00000000xxxxxxxx - ORI to CCR, ORI to SR, ORI */
+    if ((opcode & 0xff00) == 0x0000 && (opcode & 0x00c0) != 0x00c0)   /* 00000000xxxxxxxx - ORI to CCR, ORI to SR, ORI */
+    {
+        if (
+            (opcode & 0x00ff) == 0x003c ||
+            (opcode & 0x00ff) == 0x007c
+        ) 
+        {
+            length = 2;
+            need_ea = 0;
+        }
+        else
+        {
+            need_ea = 1;
+            switch (opcode & 0x00c0)
+            {
+                case 0x0000:
+                    opsize = 1;
+                    length = 2;
+                    break;
+                case 0x0040:
+                    opsize = 2;
+                    length = 2;
+                    break;
+                case 0x0080:
+                    opsize = 4;
+                    length = 3;
+                    break;
+            }
+        }
+    }
+    /* 00000010xxxxxxxx - ANDI to CCR, ANDI to SR, ANDI */
+    else if ((opcode & 0xff00) == 0x0200)   
+    {
+        if (
+            (opcode & 0x00ff) == 0x003c ||
+            (opcode & 0x00ff) == 0x007c
+        )
+        {
+            length = 2;
+            need_ea = 0;
+        }
+        else
+        {
+            need_ea = 1;
+            switch (opcode & 0x00c0)
+            {
+                case 0x0000:
+                    opsize = 1;
+                    length = 2;
+                    break;
+                case 0x0040:
+                    opsize = 2;
+                    length = 2;
+                    break;
+                case 0x0080:
+                    opsize = 4;
+                    length = 3;
+                    break;
+            }
+        }   
+    }
+    /* 00000100xxxxxxxx - SUBI */
+    else if ((opcode & 0xff00) == 0x0400)   
+    {
+        need_ea = 1;
+        switch (opcode & 0x00c0)
+        {
+            case 0x0000:
+                opsize = 1;
+                length = 2;
+                break;
+            case 0x0040:
+                opsize = 2;
+                length = 2;
+                break;
+            case 0x0080:
+                opsize = 4;
+                length = 3;
+                break;
+        }
+    }
+    /* 00000110xxxxxxxx - ADDI */
+    else if ((opcode & 0xff00) == 0x0600 && (opcode & 0x00c0) != 0x00c0)   
+    {
+        need_ea = 1;
+        switch (opcode & 0x00c0)
+        {
+            case 0x0000:
+                opsize = 1;
+                length = 2;
+                break;
+            case 0x0040:
+                opsize = 2;
+                length = 2;
+                break;
+            case 0x0080:
+                opsize = 4;
+                length = 3;
+                break;
+        }
+    }
+    /* 00000xx011xxxxxx - CMP2, CHK2 */
+    else if ((opcode & 0xf9c0) == 0x00c0)   
+    {
+        length = 2;
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
+    else if ((opcode & 0xff00) == 0x0a00)   
+    {
+        if (
+            (opcode & 0x00ff) == 0x003c ||
+            (opcode & 0x00ff) == 0x007c
+        )
+        {
+            length = 2;
+            need_ea = 0;
+        }
+        else
+        {
+            need_ea = 1;
+            switch (opcode & 0x00c0)
+            {
+                case 0x0000:
+                    opsize = 1;
+                    length = 2;
+                    break;
+                case 0x0040:
+                    opsize = 2;
+                    length = 2;
+                    break;
+                case 0x0080:
+                    opsize = 4;
+                    length = 3;
+                    break;
+            }
+        }   
+    }
+    /* 00001100xxxxxxxx - CMPI */
+    else if ((opcode & 0xff00) == 0x0c00)   
+    {
+        need_ea = 1;
+        switch (opcode & 0x00c0)
+        {
+            case 0x0000:
+                opsize = 1;
+                length = 2;
+                break;
+            case 0x0040:
+                opsize = 2;
+                length = 2;
+                break;
+            case 0x0080:
+                opsize = 4;
+                length = 3;
+                break;
+        }
+    }
+    else if ((opcode & 0xffc0) == 0x0800)   /* 0000100000xxxxxx - BTST */
+    {
+        length = 2;
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xffc0) == 0x0840)   /* 0000100001xxxxxx - BCHG */
+    {
+        length = 2;
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xffc0) == 0x0880)   /* 0000100010xxxxxx - BCLR */
+    {
+        length = 2;
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xffc0) == 0x08c0)   /* 0000100011xxxxxx - BSET */
+    {
+        length = 2;
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xff00) == 0x0e00)   /* 00001110xxxxxxxx - MOVES */
+    {
+        length = 2;
+        need_ea = 1;
+        opsize = 0;
+    }
+    else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
+    {
+        need_ea = 1;
+        opsize = 0;
+        if ((opcode & 0x3f) == 0x3c)
+        {
+            length = 3;
+        }
+        else
+        {
+            length = 2;
+        }
+    }
+    else if ((opcode & 0xf1c0) == 0x0100)   /* 0000xxx100xxxxxx - BTST */
+    {
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xf1c0) == 0x0140)   /* 0000xxx101xxxxxx - BCHG */
+    {
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xf1c0) == 0x0180)   /* 0000xxx110xxxxxx - BCLR */
+    {
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xf1c0) == 0x01c0)   /* 0000xxx111xxxxxx - BSET */
+    {
+        need_ea = 1;
+        opsize = 1;
+    }
+    else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
+    {
+        need_ea = 0;
+        length = 2;
+    }
+
+    if (need_ea)
+    {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLineELength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 0;
+
+    if (
+        (opcode & 0xf8c0) == 0xe0c0     // memory shift/rotate
+    )
+    {
+        length = 1;
+        need_ea = 1;
+    }
+    else if (
+        (opcode & 0xf8c0) == 0xe8c0     // bf* instructions
+    )
+    {
+        length = 2;
+        need_ea = 1;
+    }
+    else
+    {
+        length = 1;
+        need_ea = 0;
+    }
+
+    if (need_ea)
+    {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, 0);
+    }
+
+    return length;
+}
+
+int M68K_GetLine6Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    
+    if ((opcode & 0xff) == 0) {
+        length = 2;
+    }
+    else if ((opcode & 0xff) == 0xff) {
+        length = 3;
+    }
+
+    return length;
+}
+
+int M68K_GetLine8Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    if (
+        (opcode & 0xf0c0) == 0x80c0     // div word size
+    )
+    {
+        length = 1;
+        opsize = 2;
+        need_ea = 1;
+    }
+    else if (
+        (opcode & 0xf1f0) == 0x8100     // sbcd
+    )
+    {
+        length = 1;
+        need_ea = 0;
+    }
+    else if (
+        (opcode & 0xf1f0) == 0x8140 ||  // pack
+        (opcode & 0xf1f0) == 0x8180     // unpk
+    )
+    {
+        length = 2;
+        need_ea = 0;
+    }
+    else {
+        need_ea = 1;
+        opsize = 1 << ((opcode >> 6) & 3);
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLine9Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    /* SUBA */
+    if ((opcode & 0xf0c0) == 0x90c0)
+    {
+        opsize = (opcode & 0x0100) == 0x0100 ? 4 : 2;
+    }
+    /* SUBX */
+    else if ((opcode & 0xf130) == 0x9100)
+    {
+        need_ea = 0;
+    }
+    /* SUB */
+    else
+    {
+        opsize = 1 << ((opcode >> 6) & 3);
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLineBLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    /* 1011xxxx11xxxxxx - CMPA */
+    if ((opcode & 0xf0c0) == 0xb0c0)
+    {
+        opsize = ((opcode >> 8) & 1) ? 4 : 2;
+    }
+    /* 1011xxx1xx001xxx - CMPM */
+    else if ((opcode & 0xf138) == 0xb108)
+    {
+        need_ea = 0;
+    }
+    /* 1011xxx0xxxxxxxx - CMP */
+    else if ((opcode & 0xf100) == 0xb000)
+    {
+        opsize = 1 << ((opcode >> 6) & 3);
+    }
+    /* 1011xxxxxxxxxxxx - EOR */
+    else if ((opcode & 0xf000) == 0xb000)
+    {
+        opsize = 1 << ((opcode >> 6) & 3);
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLineCLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    /* 1100xxx011xxxxxx - MULU */
+    if ((opcode & 0xf1c0) == 0xc0c0)
+    {
+        opsize = 2;
+        need_ea = 1;
+    }
+    /* 1100xxx10000xxxx - ABCD */
+    else if ((opcode & 0xf1f0) == 0xc100)
+    {
+        need_ea = 0;
+    }
+    /* 1100xxx111xxxxxx - MULS */
+    else if ((opcode & 0xf1c0) == 0xc1c0)
+    {
+        opsize = 2;
+        need_ea = 1;
+    }
+    /* 1100xxx1xx00xxxx - EXG */
+    else if ((opcode & 0xf130) == 0xc100)
+    {
+        need_ea = 0;
+    }
+    /* 1100xxxxxxxxxxxx - AND */
+    else if ((opcode & 0xf000) == 0xc000)
+    {
+        opsize = 1 << ((opcode >> 6) & 3);
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLineDLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    /* ADDA */
+    if ((opcode & 0xf0c0) == 0xd0c0)
+    {
+        opsize = (opcode & 0x0100) == 0x0100 ? 4 : 2;
+    }
+    /* ADDX */
+    else if ((opcode & 0xf130) == 0xd100)
+    {
+        need_ea = 0;
+    }
+    /* ADD */
+    else
+    {
+        opsize = 1 << ((opcode >> 6) & 3);
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLine5Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    /* Scc/TRAPcc/DBcc */
+    if ((opcode & 0xf0c0) == 0x50c0)
+    {
+        /* DBcc */
+        if ((opcode & 0x38) == 0x08)
+        {
+            length = 2;
+            need_ea = 0;
+        }
+        /* TRAPcc */
+        else if ((opcode & 0x38) == 0x38)
+        {
+            need_ea = 0;
+            switch (opcode & 7)
+            {
+                case 4:
+                    length = 1;
+                    break;
+                case 2:
+                    length = 2;
+                    break;
+                case 3:
+                    length = 3;
+                    break;
+            }
+        }
+        /* Scc */
+        else
+        {
+            need_ea = 1;
+            opsize = 1;
+        }   
+    }
+    /* SUBQ */
+    else if ((opcode & 0xf100) == 0x5100)
+    {
+        need_ea = 1;
+        switch ((opcode >> 6) & 3)
+        {
+            case 0:
+                opsize = 1;
+                break;
+            case 1:
+                opsize = 2;
+                break;
+            case 2:
+                opsize = 4;
+                break;
+        }
+    }
+    /* ADDQ */
+    else if ((opcode & 0xf100) == 0x5000)
+    {
+        need_ea = 1;
+        switch ((opcode >> 6) & 3)
+        {
+            case 0:
+                opsize = 1;
+                break;
+            case 1:
+                opsize = 2;
+                break;
+            case 2:
+                opsize = 4;
+                break;
+        }
+    }  
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+int M68K_GetLine4Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int length = 1;
+    int need_ea = 1;
+    int opsize = 2;
+
+    /* 0100000011xxxxxx - MOVE from SR */
+    if ((opcode & 0xffc0) == 0x40c0)
+    {
+        need_ea = 1;
+        opsize = 2;
+    }
+    /* 0100001011xxxxxx - MOVE from CCR */
+    else if ((opcode &0xffc0) == 0x42c0)
+    {
+        need_ea = 1;
+        opsize = 2;
+    }
+    /* 01000000ssxxxxxx - NEGX */
+    else if ((opcode & 0xff00) == 0x4000 && (opcode & 0xc0) != 0xc0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 01000010ssxxxxxx - CLR */
+    else if ((opcode & 0xff00) == 0x4200 && (opcode & 0xc0) != 0xc0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100010011xxxxxx - MOVE to CCR */
+    else if ((opcode &0xffc0) == 0x44c0)
+    {
+        need_ea = 1;
+        opsize = 2;
+    }
+    /* 01000100ssxxxxxx - NEG */
+    else if ((opcode &0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100011011xxxxxx - MOVE to SR */
+    else if ((opcode &0xffc0) == 0x46c0)
+    {
+        need_ea = 1;
+        opsize = 2;
+    }
+    /* 01000110ssxxxxxx - NOT */
+    else if ((opcode &0xff00) == 0x4600 && (opcode & 0xc0) != 0xc0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100100xxx000xxx - EXT, EXTB */
+    else if ((opcode & 0xfeb8) == 0x4880)
+    {
+        need_ea = 0;
+    }
+    /* 0100100000001xxx - LINK - 32 bit offset */
+    else if ((opcode & 0xfff8) == 0x4808)
+    {
+        need_ea = 0;
+        length = 3;
+    }
+    /* 0100100000xxxxxx - NBCD */
+    else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100100001000xxx - SWAP */
+    else if ((opcode & 0xfff8) == 0x4840)
+    {
+        need_ea = 0;
+    }
+    /* 0100100001001xxx - BKPT */
+    else if ((opcode & 0xfff8) == 0x4848)
+    {
+        need_ea = 0;
+    }
+    /* 0100100001xxxxxx - PEA */
+    else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100101011111100 - ILLEGAL */
+    else if (opcode == 0x4afc)
+    {
+        need_ea = 0;
+    }
+    /* 0100101011xxxxxx - TAS */
+    else if ((opcode & 0xffc0) == 0x4ac0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100101011xxxxxx - TST */
+    else if ((opcode & 0xff00) == 0x4a00 && (opcode & 0xc0) != 0xc0)
+    {
+        need_ea = 1;
+        switch (opcode & 0x00c0)
+        {
+            case 0x0000:    /* Byte operation */
+                opsize = 1;
+                break;
+            case 0x0040:    /* Short operation */
+                opsize = 2;
+                break;
+            case 0x0080:    /* Long operation */
+                opsize = 4;
+                break;
+        }
+    }
+    /* 0100110000xxxxxx - MULU, MULS, DIVU, DIVUL, DIVS, DIVSL */
+    else if ((opcode & 0xff80) == 0x4c00 || (opcode == 0x83c0))
+    {
+        length = 2;
+        opsize = 4;
+        need_ea = 1;
+    }
+    /* 010011100100xxxx - TRAP */
+    else if ((opcode & 0xfff0) == 0x4e40)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001010xxx - LINK */
+    else if ((opcode & 0xfff8) == 0x4e50)
+    {
+        need_ea = 0;
+        length = 2;
+    }
+    /* 0100111001011xxx - UNLK */
+    else if ((opcode & 0xfff8) == 0x4e58)
+    {
+        need_ea = 0;
+    }
+    /* 010011100110xxxx - MOVE USP */
+    else if ((opcode & 0xfff0) == 0x4e60)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001110000 - RESET */
+    else if (opcode == 0x4e70)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001110000 - NOP */
+    else if (opcode == 0x4e71)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001110010 - STOP */
+    else if (opcode == 0x4e72)
+    {
+        need_ea = 0;
+        length = 2;
+    }
+    /* 0100111001110011 - RTE */
+    else if (opcode == 0x4e73)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001110100 - RTD */
+    else if (opcode == 0x4e74)
+    {
+        need_ea = 0;
+        length = 2;
+    }
+    /* 0100111001110101 - RTS */
+    else if (opcode == 0x4e75)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001110110 - TRAPV */
+    else if (opcode == 0x4e76)
+    {
+        need_ea = 0;
+    }
+    /* 0100111001110111 - RTR */
+    else if (opcode == 0x4e77)
+    {
+        need_ea = 0;
+    }
+    /* 010011100111101x - MOVEC */
+    else if ((opcode & 0xfffe) == 0x4e7a)
+    {
+        need_ea = 0;
+        length = 2;
+    }
+    /* 0100111010xxxxxx - JSR */
+    else if ((opcode & 0xffc0) == 0x4e80)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100111011xxxxxx - JMP */
+    else if ((opcode & 0xffc0) == 0x4ec0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 01001x001xxxxxxx - MOVEM */
+    else if ((opcode & 0xfb80) == 0x4880)
+    {
+        need_ea = 0;
+        length = 2;
+    }
+    /* 0100xxx111xxxxxx - LEA */
+    else if ((opcode & 0xf1c0) == 0x41c0)
+    {
+        need_ea = 1;
+        opsize = 0;
+    }
+    /* 0100xxx1x0xxxxxx - CHK */
+    else if ((opcode & 0xf140) == 0x4100)
+    {
+        need_ea = 1;
+        opsize = (opcode & 0x80) ? 2 : 4;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
+}
+
+/* Check if opcode is of branch kind or may result in a */
+int M68K_IsBranch(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+
+    if (
+        opcode == 0x007c            ||
+        opcode == 0x027c            ||
+        opcode == 0x0a7c            ||
+        (opcode & 0xffc0) == 0x40c0 ||
+        (opcode & 0xffc0) == 0x46c0 ||
+        (opcode & 0xfff8) == 0x4848 ||
+        opcode == 0x4afc            ||
+        (opcode & 0xfff0) == 0x4e40 ||
+        (opcode & 0xfff0) == 0x4e60 ||
+        opcode == 0x4e70            ||
+        opcode == 0x4e72            ||
+        opcode == 0x4e73            ||
+        opcode == 0x4e74            ||
+        opcode == 0x4e75            ||
+        opcode == 0x4e76            ||
+        opcode == 0x4e77            ||
+        (opcode & 0xfffe) == 0x4e7a ||
+        (opcode & 0xff80) == 0x4e80 ||
+        (opcode & 0xf000) == 0x5000 ||
+        (opcode & 0xf000) == 0x6000
+    )
+        return 1;
+    else
+        return 0;
+}
+
+int M68K_GetMoveLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    int size = 0;
+    int length = 1;
+    uint8_t ea = opcode & 0x3f;
+
+    if ((opcode & 0x3000) == 0x1000)
+        size = 1;
+    else if ((opcode & 0x3000) == 0x2000)
+        size = 4;
+    else
+        size = 2;
+
+    length += SR_GetEALength(&insn_stream[length], ea & 0x3f, size);
+
+    ea = (opcode >> 3) & 0x38;
+    ea |= (opcode >> 9) & 0x7;
+
+    length += SR_GetEALength(&insn_stream[length], ea, size);
+
+    return length;    
+}
+
+/* Get number of 16-bit words this instruction occupies */
+int M68K_GetINSNLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = *insn_stream;
+    int length = 0;
+
+//    kprintf("[SR] M68K_GetINSNLength() addr=%08x opcode=%04x", insn_stream, BE16(*insn_stream));
+
+    switch(opcode & 0xf000)
+    {
+        case 0x0000:
+            length = M68K_GetLine0Length(insn_stream);
+            break;
+        case 0x1000: /* Fallthrough */
+        case 0x2000: /* Fallthrough */
+        case 0x3000:
+            length = M68K_GetMoveLength(insn_stream);
+            break;
+        case 0x4000:
+            length = M68K_GetLine4Length(insn_stream);
+            break;
+        case 0x5000:
+            length = M68K_GetLine5Length(insn_stream);
+            break;
+        case 0x6000:
+            length = M68K_GetLine6Length(insn_stream);
+            break;
+        case 0x7000:
+            length = 1;
+            break;
+        case 0x8000:
+            length = M68K_GetLine8Length(insn_stream);
+            break;
+        case 0x9000:
+            length = M68K_GetLine9Length(insn_stream);
+            break;
+        case 0xa000:
+            length = 1;
+            break;
+        case 0xb000:
+            length = M68K_GetLineBLength(insn_stream);
+            break;
+        case 0xc000:
+            length = M68K_GetLineCLength(insn_stream);
+            break;
+        case 0xd000:
+            length = M68K_GetLineDLength(insn_stream);
+            break;
+        case 0xe000:
+            length = M68K_GetLineELength(insn_stream);
+        default:
+            break;
+    }
+
+//    kprintf(" = %d\n", length);
+
+    return length;
 }
