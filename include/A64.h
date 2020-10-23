@@ -580,18 +580,19 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     uint8_t exp_reg = RA_AllocARMRegister(&ptr);
     uint8_t mant_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t sign_reg = RA_AllocARMRegister(&ptr);
 
     *ptr++ = ldur_offset(base, exp_reg, offset9);
-    *ptr++ = mov_immed_u16(tmp_reg, 0xc400, 0);
-    *ptr++ = cmp_reg(exp_reg, 31, LSL, 0);
     *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
+    *ptr++ = mov_immed_u16(tmp_reg, 0xc400, 0);
+    *ptr++ = lsr(sign_reg, exp_reg, 31);
     *ptr++ = lsr64(mant_reg, mant_reg, 11);
     *ptr++ = add_reg(tmp_reg, tmp_reg, exp_reg, LSR, 16);
     *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
-    *ptr++ = cset(tmp_reg, A64_CC_MI);
-    *ptr++ = bfi64(mant_reg, tmp_reg, 63, 1);
+    *ptr++ = bfi64(mant_reg, sign_reg, 63, 1);
     *ptr++ = mov_reg_to_simd(fpreg, TS_D, 0, mant_reg);
 
+    RA_FreeARMRegister(&ptr, sign_reg);
     RA_FreeARMRegister(&ptr, exp_reg);
     RA_FreeARMRegister(&ptr, mant_reg);
     RA_FreeARMRegister(&ptr, tmp_reg);
@@ -605,19 +606,20 @@ uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_
     uint8_t exp_reg = RA_AllocARMRegister(&ptr);
     uint8_t mant_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t sign_reg = RA_AllocARMRegister(&ptr);
 
     *ptr++ = mov_simd_to_reg(exp_reg, fpreg, TS_D, 0);
-    *ptr++ = cmp64_reg(exp_reg, 31, LSL, 0);
+    *ptr++ = lsr64(sign_reg, exp_reg, 63);
     *ptr++ = lsl64(mant_reg, exp_reg, 11);
     *ptr++ = ubfx64(tmp_reg, exp_reg, 52, 11);
     *ptr++ = mov_immed_u16(exp_reg, 0x3c00, 1);
     *ptr++ = add_reg(exp_reg, exp_reg, tmp_reg, LSL, 16);
     *ptr++ = orr64_immed(mant_reg, mant_reg, 1, 1, 1);
-    *ptr++ = stur64_offset(base, mant_reg, offset9+4);
-    *ptr++ = cset(tmp_reg, A64_CC_MI);
-    *ptr++ = bfi(exp_reg, tmp_reg, 31, 1);
+    *ptr++ = orr_reg(exp_reg, exp_reg, sign_reg, ROR, 1);
     *ptr++ = stur_offset(base, exp_reg, offset9);
+    *ptr++ = stur64_offset(base, mant_reg, offset9+4);
 
+    RA_FreeARMRegister(&ptr, sign_reg);
     RA_FreeARMRegister(&ptr, exp_reg);
     RA_FreeARMRegister(&ptr, mant_reg);
     RA_FreeARMRegister(&ptr, tmp_reg);
