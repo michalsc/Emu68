@@ -498,6 +498,20 @@ int strcmp(const char *s1, const char *s2)
 	return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
 
+int strncmp(const char *s1, const char *s2, size_t n)
+{
+    if (n == 0) {
+        return 0;
+    }
+	while (*s1 == *s2++) {
+        if (--n == 0)
+            return 0;
+		if (*s1++ == '\0')
+			return 0;
+    }
+	return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
+}
+
 const char *remove_path(const char *in)
 {
     const char *p = &in[strlen(in)-1];
@@ -558,6 +572,24 @@ void *memmove(void *dst, const void *src, size_t sz)
 	    *d++ = *s++;
 
     return dst;
+}
+
+char * strstr(const char *s, const char *find)
+{
+    char c, sc;
+	size_t len;
+
+	if ((c = *find++) != '\0') {
+		len = strlen(find);
+		do {
+			do {
+				if ((sc = *s++) == '\0')
+					return (NULL);
+			} while (sc != c);
+		} while (strncmp(s, find, len) != 0);
+		s--;
+	}
+	return ((char *)s);
 }
 
 void * tlsf;
