@@ -682,16 +682,13 @@ void stub_ExecutionLoop()
 "       bl      M68K_LoadContext            \n"
 "       .align 4                            \n"
 "1:                                         \n"
-"       cmp     wzr, w%[reg_pc]             \n"
-"       b.eq    4f                          \n"
-"       mrs     x2, TPIDR_EL1               \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
+"       mrs     x2, TPIDR_EL1               \n"
+"       cbz     w%[reg_pc], 4f              \n"
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
 "       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
 "99:    ldr     w1, [x0, #%[cacr]]          \n"
-"       ands    wzr, w1, #%[cacr_ie]        \n"
-"       b.eq    2f                          \n"
-
+"       tbz     w1, #%[cacr_ie_bit], 2f     \n"
 "       cmp     w2, w%[reg_pc]              \n"
 "       b.ne    13f                         \n"
 #if EMU68_LOG_USES
@@ -805,35 +802,54 @@ void stub_ExecutionLoop()
 "       ldp     x29, x30, [sp], #128        \n"
 "       ret                                 \n"
 
-"9:     mrs     x1, TPIDR_EL0               \n" // Get SR
-"       mvn     w2, w1                      \n" // Negate IPM field
-"       ands    wzr, w2, #0x0700            \n" // Check if ~IMP == 0
-"       b.eq    93f                         \n" // At IMP7 ignore all interrupt requests
-"       ands    wzr, w1, #0x2000            \n" // Check if m68k was in supervisor mode already
-"       b.ne    91f                         \n" // Skip if already in supervisor
+"9:     mrs     x2, TPIDR_EL0               \n" // Get SR
+"       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
+"       mov     w4, #2                      \n"
+"       lsl     w4, w4, w3                  \n"
+"       sub     w4, w4, #1                  \n" // Build mask to clear PINT fields
+"       bic     w4, w4, #0x80               \n" // Always allow INT7 (NMI) !
+"       bic     w1, w1, w4                  \n" // Clear PINT bits
+"       cbz     w1, 93f                     \n" // Leave interrupt calling of no unmasked IRQs left
+"       tbnz    w2, #%[srb_s], 91f          \n" // Check if m68k was in supervisor mode already
 "       str     w%[reg_sp], [x0, #%[usp]]   \n" // Store USP
-"       ands    wzr, w1, #0x1000            \n" // Check if MSP is active
-"       b.ne    92f                         \n"
+"       tbnz    w2, #%[srb_m], 92f          \n" // Check if MSP is active
 "       ldr     w%[reg_sp], [x0, #%[isp]]   \n" // Load ISP
 "       b       91f                         \n"
 "92:    ldr     w%[reg_sp], [x0, #%[msp]]   \n" // Load MSP
-"91:    mov     w2, #0x0064                 \n" // Make INT Level 1 exception for now
-"       strh    w2, [x%[reg_sp], #-2]!      \n" // Push frame format 0
+"91:    mov     w4, #0x80                   \n" // Start checking with INT7
+"       mov     x3, #7                      \n" // At most 7 levels to check
+"95:    ands    wzr, w1, w4                 \n" 
+"       b.ne    94f                         \n" // Interrupt flag was set. Proceed there
+"       sub     w3, w3, #1                  \n" // Decrement level
+"       lsr     w4, w4, #1                  \n"
+"       cbnz    w3, 95b                     \n" // Continue checking if not INT0 is reached
+"94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
+"       str     w1, [x0, #%[pint]]          \n" // Store PINT
+"       mov     w5, w2                      \n" // Make a copy of SR
+"       bfi     w5, w3, %[srb_ipm], 3       \n" // Insert level to SR register
+"       lsl     w3, w3, #2                  \n"
+"       add     w3, w3, #0x60               \n" // Calculate vector offset
+"       strh    w3, [x%[reg_sp], #-2]!      \n" // Push frame format 0
 "       str     w%[reg_pc], [x%[reg_sp], #-4]! \n" // Push address of next instruction
-"       strh    w1, [x%[reg_sp], #-2]!      \n" // Push old SR
-"       bic     w1, w1, #0xc000             \n" // Clear T0 and T1
-"       orr     w1, w1, #0x2000             \n" // Set S bit
-"       msr     TPIDR_EL0, x1               \n" // Update SR
-"       str     wzr, [x0, #%[pint]]         \n" // Clear pending interrupt flag
+"       strh    w2, [x%[reg_sp], #-2]!      \n" // Push old SR
+"       bic     w5, w5, #0xc000             \n" // Clear T0 and T1
+"       orr     w5, w5, #0x2000             \n" // Set S bit
+"       msr     TPIDR_EL0, x5               \n" // Update SR
 "       ldr     w1, [x0, #%[vbr]]           \n"
-"       ldr     w%[reg_pc], [x1, #0x64]     \n" // Load new PC
-"93:    mrs     x0, TPIDRRO_EL0             \n" // Reload old values of x0 and x2
+"       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
+"93:                                        \n"
+//"       mrs     x0, TPIDRRO_EL0             \n" // Reload old values of x0 and x2
 "       mrs     x2, TPIDR_EL1               \n" // And branch back
 "       b       99b                         \n"
 :
 :[reg_pc]"i"(REG_PC),
  [reg_sp]"i"(REG_A7),
  [cacr_ie]"i"(CACR_IE),
+ [cacr_ie_bit]"i"(CACRB_IE),
+ [sr_ipm]"i"(SR_IPL),
+ [srb_ipm]"i"(SRB_IPL),
+ [srb_m]"i"(SRB_M),
+ [srb_s]"i"(SRB_S),
  [fcount]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_FetchCount)),
  [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
  [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
@@ -879,6 +895,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.ISP.u32 = BE32(BE32(__m68k.ISP.u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
+    __m68k.CACR = BE32(0x80008000);
     *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 
     kprintf("[JIT]\n");
@@ -951,4 +968,5 @@ void M68K_StartEmu(void *addr, void *fdt)
         asm volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
         kprintf("[JIT] Number of m68k JIT blocks executed: %lld\n", tmp);
     }
+        //kprintf("[BOOT] reg 0xf3000034 = %08x\n", LE32(*(volatile uint32_t *)0xf3000034));
 }
