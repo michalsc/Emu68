@@ -608,11 +608,12 @@ void M68K_PrintContext(struct M68KState *m68k)
     for (int i=0; i < 8; i++) {
         union {
             double d;
+            uint64_t u64;
             uint32_t u[2];
         } u;
         if (i==4)
             kprintf("\n[JIT] ");
-        u.d = m68k->FP[i];
+        u.u64 = m68k->FP[i].u64;
         kprintf("    FP%d = %08x%08x", i, u.u[0], u.u[1]);
     }
     kprintf("\n[JIT] ");
@@ -896,10 +897,9 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.ISP.u32 = BE32(BE32(__m68k.ISP.u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
     *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
-
     if (strstr(dt_find_property(dt_find_node("/chosen"), "bootargs")->op_value, "enable_cache"))
         __m68k.CACR = BE32(0x80008000);
-        
+
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
