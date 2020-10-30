@@ -8,7 +8,7 @@ get_verstring(VERSTRING)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
-set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64")
+set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
@@ -67,6 +67,12 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         install(FILES ${CMAKE_SOURCE_DIR}/blobs/rk3399-pinebookpro.dtb DESTINATION .)
         install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
         install(FILES ${CMAKE_SOURCE_DIR}/scripts/extlinux.conf DESTINATION extlinux/)
+    elseif(${TARGET} STREQUAL "virt")
+        list(APPEND TARGET_FILES
+            src/virt/start_virt.c
+            src/virt/support_virt.c
+        )
+        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
     endif()
 
     if (${TARGET} STREQUAL "raspi")
