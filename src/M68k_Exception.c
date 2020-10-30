@@ -26,15 +26,13 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     /* Check if we are changing stack due to user->supervisor transition */
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
-    *ptr++ = b_cc(A64_CC_NE, 7);
+    *ptr++ = tbnz(cc, SRB_S, 7);
 
     /* We were in user mode. Store A7 as USP */
     *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
 
     /* Check if we need to load ISP or MSP */
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_NE, 3);
+    *ptr++ = tbnz(cc, SRB_M, 3);
 
     /* Load ISP to A7 */
     *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));

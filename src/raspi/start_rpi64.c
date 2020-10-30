@@ -167,4 +167,6 @@ void platform_post_init()
     }
 
     display_logo();
+
+    //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);
 }

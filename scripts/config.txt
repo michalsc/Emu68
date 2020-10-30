@@ -16,7 +16,8 @@ hdmi_mode=82
 # Select some m68k code to run...
 # initramfs dhrystone
 # initramfs x
-initramfs Buddha
+#initramfs Buddha
 #initramfs SmallPT
 #initramfs Buddha_.elf
-#initramfs sysinfo
+initramfs sysinfo
+#initramfs aros-raspi-m68k-rom.elf

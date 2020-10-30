@@ -14,7 +14,7 @@ typedef struct {
 } features_t;
 
 typedef struct {
-    uint8_t M68K_TRANSLATION_DEPTH;
+    uint16_t M68K_TRANSLATION_DEPTH;
     uint8_t M68K_ALLOW_UNALIGNED_FPU;
 } options_t;
 

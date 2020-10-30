@@ -184,6 +184,7 @@ int strcmp(const char *s1, const char *s2);
 void *memmove(void *dst, const void *src, size_t sz);
 void *memcpy(void *dst, const void *src, size_t sz);
 void *memset(void *ptr, int fill, size_t sz);
+char *strstr(const char *str, const char *find);
 void bzero(void *ptr, size_t sz);
 void platform_init();
 void platform_post_init();

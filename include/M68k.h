@@ -82,7 +82,11 @@ struct M68KState
     uint32_t FPSR;
     uint32_t FPIAR;
     uint16_t FPCR;
-    double FP[8];   // Double precision! Extended is "emulated" in load/store only
+    union {
+        double d;
+        uint64_t u64;
+        uint32_t u32[2];
+    } FP[8];   // Double precision! Extended is "emulated" in load/store only
 
     /* Async IRQ part */
     uint32_t PINT;
