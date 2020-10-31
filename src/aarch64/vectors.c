@@ -285,9 +285,10 @@ void __stub_vectors()
 
 void SYSHandler(uint32_t vector)
 {
-    uint64_t elr, spsr, esr;
+    uint64_t elr, spsr, esr, far;
     asm volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
     asm volatile("mrs %0, ESR_EL1":"=r"(esr));
-    kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p\n", vector, elr, spsr, esr);
+    asm volatile("mrs %0, FAR_EL1":"=r"(far));
+    kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
     while(1);
 }
