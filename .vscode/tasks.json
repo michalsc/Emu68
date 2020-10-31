@@ -17,6 +17,18 @@
       },
       {
         "type": "shell",
+        "label": "build qemu virt",
+        "command": "make",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-virt"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
         "label": "build raspi64",
         "command": "make",
         "problemMatcher": [

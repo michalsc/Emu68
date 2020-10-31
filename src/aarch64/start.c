@@ -195,7 +195,7 @@ asm(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
 "move_kernel:                       \n" /* x0: from, x1: to */
-"       adrp    x2, _boot           \n"
+"       adrp    x2, _boot           \n" /* Clean stack */
 "       mov     w3, w2              \n"
 "1:     sub     x2, x2, #32         \n"
 "       dc      civac, x2           \n"
@@ -237,8 +237,8 @@ asm(
 
 "       adrp    x5, _boot           \n"
 "       adr     x2, 1f              \n"
-"       orr     x2, x2, 0xffffffff00000000  \n"
-"       add     x2, x2, x7          \n"
+"       and     x2, x2, 0xffffffff  \n"
+"       add     x2, x2, x1          \n"
 "       br      x2                  \n"
 "1:     mrs     x2, TTBR1_EL1       \n" /* Take address of L1 MMU map */
 "       and     x2, x2, 0xfffff000  \n" /* Discard the top 32 bits and lowest 12 bits */
