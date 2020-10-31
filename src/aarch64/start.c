@@ -809,21 +809,26 @@ void stub_ExecutionLoop()
 "       lsl     w4, w4, w3                  \n"
 "       sub     w4, w4, #1                  \n" // Build mask to clear PINT fields
 "       bic     w4, w4, #0x80               \n" // Always allow INT7 (NMI) !
-"       bic     w1, w1, w4                  \n" // Clear PINT bits
-"       cbz     w1, 93f                     \n" // Leave interrupt calling of no unmasked IRQs left
+"       bic     w3, w1, w4                  \n" // Clear PINT bits in a copy!
+"       cbz     w3, 93f                     \n" // Leave interrupt calling of no unmasked IRQs left
 "       tbnz    w2, #%[srb_s], 91f          \n" // Check if m68k was in supervisor mode already
 "       str     w%[reg_sp], [x0, #%[usp]]   \n" // Store USP
 "       tbnz    w2, #%[srb_m], 92f          \n" // Check if MSP is active
 "       ldr     w%[reg_sp], [x0, #%[isp]]   \n" // Load ISP
 "       b       91f                         \n"
 "92:    ldr     w%[reg_sp], [x0, #%[msp]]   \n" // Load MSP
-"91:    mov     w4, #0x80                   \n" // Start checking with INT7
-"       mov     x3, #7                      \n" // At most 7 levels to check
-"95:    ands    wzr, w1, w4                 \n" 
-"       b.ne    94f                         \n" // Interrupt flag was set. Proceed there
-"       sub     w3, w3, #1                  \n" // Decrement level
-"       lsr     w4, w4, #1                  \n"
-"       cbnz    w3, 95b                     \n" // Continue checking if not INT0 is reached
+"91:    clz     w3, w3                      \n" // Count number of zeros before first set bit is there
+"       neg     w3, w3                      \n" // 24 for level 7, 25 for level 6 and so on
+"       add     w3, w3, #31                 \n" // level = 31 - clz(w1)
+"       mov     w4, #1                      \n" // Make a mask for bit clear in PINT
+"       lsl     w4, w4, w3                  \n"
+//"91:    mov     w4, #0x80                   \n" // Start checking with INT7
+//"       mov     x3, #7                      \n" // At most 7 levels to check
+//"95:    ands    wzr, w1, w4                 \n" 
+//"       b.ne    94f                         \n" // Interrupt flag was set. Proceed there
+//"       sub     w3, w3, #1                  \n" // Decrement level
+//"       lsr     w4, w4, #1                  \n"
+//"       cbnz    w3, 95b                     \n" // Continue checking if not INT0 is reached
 "94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
 "       str     w1, [x0, #%[pint]]          \n" // Store PINT
 "       mov     w5, w2                      \n" // Make a copy of SR
