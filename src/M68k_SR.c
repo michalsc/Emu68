@@ -16,20 +16,20 @@ struct SRMaskEntry {
     uint16_t me_Opcode;
     uint8_t  me_Type;
     uint8_t  me_SRMask;
-    uint8_t  (*me_TestFunction)(uint16_t *stream, int nest_level);
+    uint8_t  (*me_TestFunction)(uint16_t *stream, uint32_t nest_level);
 };
 
 #define SME_MASK    1
 #define SME_FUNC    2
 #define SME_END     255
 
-static uint8_t SR_TestBranch(uint16_t *insn_stream, int nest_level);
-static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, int nest_level);
-static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, int nest_level);
-static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, int nest_level);
-static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, int nest_level);
-static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, int nest_level);
-static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, int nest_level);
+static uint8_t SR_TestBranch(uint16_t *insn_stream, uint32_t nest_level);
+static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, uint32_t nest_level);
+static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, uint32_t nest_level);
+static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, uint32_t nest_level);
+static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, uint32_t nest_level);
+static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, uint32_t nest_level);
+static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level);
 
 static struct SRMaskEntry Line0_Map[] = {
     { 0xffbf, 0x003c, SME_MASK, 0, NULL },                                /* ORI to CCR/SR - they rely on current CC! */
@@ -279,7 +279,7 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_siz
     return word_count;
 }
 
-static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, uint32_t nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -311,7 +311,7 @@ static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, int nest_level)
     return mask;
 }
 
-static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, uint32_t nest_level)
 {
     uint16_t opcode;
     uint16_t next_opcode;
@@ -358,7 +358,7 @@ static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, int nest_level)
     return mask;
 }
 
-static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level)
 {
     uint16_t opcode;
     uint16_t next_opcode;
@@ -405,7 +405,7 @@ static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, int nest_level)
     return mask;
 }
 
-static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, uint32_t nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -434,7 +434,7 @@ static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, int nest_level)
     return mask;
 }
 
-static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, uint32_t nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -463,7 +463,7 @@ static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, int nest_level)
     return mask;
 }
 
-static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, uint32_t nest_level)
 {
     uint16_t next_opcode;
     uint8_t mask = 0;
@@ -492,7 +492,7 @@ static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, int nest_level)
     return mask;
 }
 
-static uint8_t SR_TestBranch(uint16_t *insn_stream, int nest_level)
+static uint8_t SR_TestBranch(uint16_t *insn_stream, uint32_t nest_level)
 {
     /*
         At this point insn_stream points to the branch opcode.
