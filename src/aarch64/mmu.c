@@ -15,6 +15,9 @@
 #define DV2P(x) /* x */
 #define DMAP(x) /* x */
 
+/* Virtual base of physical address space at 0x0 (320GB) */
+static const uintptr_t PHYS_VIRT_OFFSET = 0xffffff9000000000;
+
 struct mmu_page
 {
     union
@@ -57,10 +60,10 @@ static void *get_4k_page()
             uintptr_t mmu_ploc = BE32(range[addr_pos]) + BE32(range[size_pos]);
 
             /*
-                Perform OR of the range address with 0xffffffff << 32, that way it will
+                Perform add of the range address with 0xffffff9000000000, that way it will
                 be 1:1 mapped to VA in an uncached region
             */
-            mmu_ploc |= 0xffffffff00000000;
+            mmu_ploc += PHYS_VIRT_OFFSET;
 
             /* Chain the new 512 4K pages in our page pool */
             mmu_free_pages = (void *)mmu_ploc;
@@ -109,11 +112,11 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
     if (addr & 0xffff000000000000) {
         DV2P(kprintf("selecting kernel tables\n"));
         asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((uintptr_t)tbl | 0xffffffff00000000);
+        tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
         DV2P(kprintf("selecting user tables\n"));
         asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((uintptr_t)tbl | 0xffffffff00000000);
+        tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
     DV2P(kprintf("L1 table: %p\n", tbl));
@@ -130,7 +133,7 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
     {
         DV2P(kprintf("is valid\n"));
         if (tmp & 2) {
-            tbl = (uint64_t *)((tmp & 0x0000fffffffff000) | 0xffffffff00000000);
+            tbl = (uint64_t *)((tmp & 0x0000fffffffff000) + PHYS_VIRT_OFFSET);
             DV2P(kprintf("L2 table at %p\n", tbl));
 
             tmp = tbl[idx_l2];
@@ -140,7 +143,7 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
                 DV2P(kprintf("is valid\n"));
                 if (tmp & 2)
                 {
-                    tbl = (uint64_t *)((tmp & 0x0000fffffffff000) | 0xffffffff00000000);
+                    tbl = (uint64_t *)((tmp & 0x0000fffffffff000) + PHYS_VIRT_OFFSET);
                     DV2P(kprintf("L3 table at %p\n", tbl));
 
                     tmp = tbl[idx_l3];
@@ -205,10 +208,10 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
     if (virt & 0xffff000000000000) {
         asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl | 0xffffffff00000000);
+        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
         asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl | 0xffffffff00000000);
+        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
     DMAP(kprintf("put_2m_page(%p, %p, %03x, %03x)\n", phys, virt, attr_low, attr_high));
@@ -228,8 +231,7 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = 0;
 
-        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
-
+        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
     }
     else if ((tbl_2 & 3) == 1)
     {
@@ -238,20 +240,20 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
-            p->mp_entries[i] = (tbl_2 & 0xc0000fff) + (i << 21);
+            p->mp_entries[i] = (tbl_2 & 0x7fc0000fff) + (i << 21);
 
-        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
+        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
     }
     else
     {
         DMAP(kprintf("L1 is a link to L2 directory. All ok\n"));
 
-        p = (struct mmu_page *)((tbl_2 & 0xfffff000) | 0xffffffff00000000);
+        p = (struct mmu_page *)((tbl_2 & 0x7ffffff000) + PHYS_VIRT_OFFSET);
     }
 
     if ((p->mp_entries[idx_l2] & 3) == 3)
     {
-        struct mmu_page *l3 = (struct mmu_page *)(0xffffffff00000000 | ((p->mp_entries[idx_l2] & 0xfffff000)));
+        struct mmu_page *l3 = (struct mmu_page *)((p->mp_entries[idx_l2] & 0x7ffffff000ULL) + PHYS_VIRT_OFFSET);
         DMAP(kprintf("L2 entry was pointing to L3 directory. Freeing it now \n"));
         free_4k_page(l3);
     }
@@ -270,10 +272,10 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
     if (virt & 0xffff000000000000) {
         asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl | 0xffffffff00000000);
+        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
         asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl | 0xffffffff00000000);
+        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
     DMAP(kprintf("put_4k_page(%p, %p, %03x, %03x)\n", phys, virt, attr_low, attr_high));
@@ -294,7 +296,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = 0;
 
-        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
+        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
 
     }
     else if ((tbl_2 & 3) == 1)
@@ -304,15 +306,15 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
-            p->mp_entries[i] = (tbl_2 & 0xc0000fff) + (i << 21);
+            p->mp_entries[i] = (tbl_2 & 0x7fc0000fff) + (i << 21);
 
-        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p & 0xffffffff);
+        tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
     }
     else
     {
         DMAP(kprintf("L1 is a link to L2 directory. All ok\n"));
 
-        p = (struct mmu_page *)((tbl_2 & 0xfffff000) | 0xffffffff00000000);
+        p = (struct mmu_page *)((tbl_2 & 0x7ffffff000) + PHYS_VIRT_OFFSET);
     }
 
     tbl = p;
@@ -329,7 +331,7 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         for (int i=0; i < 512; i++)
             p->mp_entries[i] = 0;
 
-        tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p & 0xffffffff);
+        tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
     }
     else if ((tbl_3 & 3) == 1)
     {
@@ -338,15 +340,15 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
         p = get_4k_page();
 
         for (int i=0; i < 512; i++)
-            p->mp_entries[i] = 3 | ((tbl_3 & 0xffe00fff) + (i << 12));
+            p->mp_entries[i] = 3 | ((tbl_3 & 0x7fffe00fff) + (i << 12));
 
-        tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p & 0xffffffff);
+        tbl->mp_entries[idx_l2] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
     }
     else
     {
         DMAP(kprintf("L2 is a link to L3 directory. All ok\n"));
 
-        p = (struct mmu_page *)((tbl_3 & 0xfffff000) | 0xffffffff00000000);
+        p = (struct mmu_page *)((tbl_3 & 0x7ffffff000) + PHYS_VIRT_OFFSET);
     }
 
     p->mp_entries[idx_l3] = phys & 0x0000fffffffff000;
@@ -397,5 +399,4 @@ void mmu_unmap(uintptr_t virt, uintptr_t length)
     (void)virt;
     (void)length;
     DMAP(kprintf("mmu_unmap(%p, %x)\n", virt, length));
-
 }

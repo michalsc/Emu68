@@ -98,6 +98,15 @@ asm("   .section .startup           \n"
 "       orr     x9, x17, #3         \n" /* valid + page table */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
+#if 1
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map of the address space from 0x0 at 0xffffff9000000000 (first 320GB) */
+"       mov     x18, 320            \n"
+"       add     x19, x16, #64*8     \n"
+"1:     str     x9, [x19], #8       \n"
+"       add     x9, x9, x10         \n"
+"       sub     x18, x18, #1        \n"
+"       cbnz    x18, 1b             \n"
+#else
 "       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map at the top of kernel address space */
 "       str     x9, [x16, #4064]    \n"
 "       add     x9, x9, x10         \n"
@@ -106,6 +115,7 @@ asm("   .section .startup           \n"
 "       str     x9, [x16, #4080]    \n"
 "       add     x9, x9, x10         \n"
 "       str     x9, [x16, #4088]    \n"
+#endif
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       and     x16, x16, #~((1 << 21) - 1) \n" /* get the 2MB page */
@@ -149,8 +159,8 @@ asm("   .section .startup           \n"
 
 "       ldr     x9, =__bss_start    \n"
 "       ldr     w10, =__bss_size    \n"
-"1:     cbz     w10, 2f             \n"
-"       str     xzr, [x9], #8       \n"
+"       cbz     w10, 2f             \n"
+"1:     str     xzr, [x9], #8       \n"
 "       sub     w10, w10, 8         \n"
 "       cbnz    w10, 1b             \n"
 "2:     ldr     x30, =boot          \n"
