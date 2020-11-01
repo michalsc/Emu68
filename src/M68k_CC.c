@@ -108,9 +108,14 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
 
         case M_CC_LS:   /* C == 1 || Z == 1 */
 #ifdef __aarch64__
+            cond_tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_C);
+            *ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
+/*
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
             *ptr++ = b_cc(A64_CC_NE, 2);
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+*/
             success_condition = A64_CC_NE;
 #else
             *ptr++ = tst_immed(REG_SR, SR_Z | SR_C);
@@ -120,9 +125,14 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
 
         case M_CC_HI:   /* C == 0 && Z == 0 */
 #ifdef __aarch64__
+            cond_tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_C);
+            *ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
+/*
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
             *ptr++ = b_cc(A64_CC_NE, 2);
             *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+*/
             success_condition = A64_CC_EQ;
 #else
             *ptr++ = tst_immed(REG_SR, SR_Z);
