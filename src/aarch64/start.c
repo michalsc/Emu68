@@ -98,7 +98,6 @@ asm("   .section .startup           \n"
 "       orr     x9, x17, #3         \n" /* valid + page table */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
-#if 1
 "       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map of the address space from 0x0 at 0xffffff9000000000 (first 320GB) */
 "       mov     x18, 320            \n"
 "       add     x19, x16, #64*8     \n"
@@ -106,16 +105,6 @@ asm("   .section .startup           \n"
 "       add     x9, x9, x10         \n"
 "       sub     x18, x18, #1        \n"
 "       cbnz    x18, 1b             \n"
-#else
-"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map at the top of kernel address space */
-"       str     x9, [x16, #4064]    \n"
-"       add     x9, x9, x10         \n"
-"       str     x9, [x16, #4072]    \n"
-"       add     x9, x9, x10         \n"
-"       str     x9, [x16, #4080]    \n"
-"       add     x9, x9, x10         \n"
-"       str     x9, [x16, #4088]    \n"
-#endif
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       and     x16, x16, #~((1 << 21) - 1) \n" /* get the 2MB page */
@@ -205,6 +194,7 @@ asm(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
 "move_kernel:                       \n" /* x0: from, x1: to */
+"       stp     x28, x29, [sp, #-16]! \n"
 "       adrp    x2, _boot           \n" /* Clean stack */
 "       mov     w3, w2              \n"
 "1:     sub     x2, x2, #32         \n"
@@ -212,10 +202,10 @@ asm(
 "       sub     w3, w3, #32         \n"
 "       cbnz    w3, 1b              \n"
 "       dsb     sy                  \n"
-"       movk    x0, #0xffff, lsl #32\n" /* x0: phys from in topmost part of addr space */
-"       movk    x0, #0xffff, lsl #48\n"
-"       movk    x1, #0xffff, lsl #32\n" /* x1: phys to in topmost part of addr space */
-"       movk    x1, #0xffff, lsl #48\n"
+"       movz    x28, #0xffff, lsl #48\n" /* 0xffffff9000000000 - this is where the phys starts from */
+"       movk    x28, #0xff90, lsl #32\n"
+"       add     x0, x0, x28         \n" /* x0: phys "from" in topmost part of addr space */
+"       add     x1, x1, x28         \n" /* x1: phys "to" in topmost part of addr space */
 "       mov     x2, #" xstr(KERNEL_SYS_PAGES << 21) "\n"
 "       mov     x3, x0              \n"
 "       mov     x4, x1              \n"
@@ -247,12 +237,12 @@ asm(
 
 "       adrp    x5, _boot           \n"
 "       adr     x2, 1f              \n"
-"       and     x2, x2, 0xffffffff  \n"
+"       and     x2, x2, 0x7fffffffff\n"
 "       add     x2, x2, x1          \n"
 "       br      x2                  \n"
 "1:     mrs     x2, TTBR1_EL1       \n" /* Take address of L1 MMU map */
-"       and     x2, x2, 0xfffff000  \n" /* Discard the top 32 bits and lowest 12 bits */
-"       orr     x2, x2, 0xffffffff00000000\n" /* Go to the 1:1 map at top of ram */
+"       and     x2, x2, 0x7ffffff000\n" /* Discard the top 25 bits and lowest 12 bits */
+"       add     x2, x2, x28         \n" /* Go to the 1:1 map at top of ram */
 "       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
 "       add     x3, x3, x7          \n" /* Add delta */
 "       str     x3, [x2]            \n" /* Store back */
@@ -260,9 +250,9 @@ asm(
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n"
-"       and     x2, x3, 0xfffff000  \n" /* Copy L2 pointer to x5, discard the top 32 bits and bottom 12 bits*/
-"       and     x5, x5, 0xffffffff00000000 \n"
-"       orr     x2, x2, 0xffffffff00000000 \n"
+"       and     x2, x3, 0x7ffffff000\n" /* Copy L2 pointer to x5, discard the top 25 bits and bottom 12 bits*/
+"       and     x5, x5, 0xffffff8000000000 \n"
+"       add     x2, x2, x28         \n"
 "       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
 "1:     ldr     x3, [x2]            \n" /* Get first entry - pointer to page */
 "       add     x3, x3, x7          \n" /* Add delta */
@@ -274,6 +264,7 @@ asm(
 "       add     x5, x5, #0x200000   \n"
 "       sub     x4, x4, #1          \n" /* Repeat for all kernel pages */
 "       cbnz    x4, 1b              \n"
+"       ldp     x28, x29, [sp], #16 \n"
 "       ret                         \n" /* Return! */
 );
 
@@ -350,19 +341,32 @@ void boot(void *dtree)
         uint32_t *range = p->op_value;
         int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
         int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
-        int addr_pos = address_cells - 1;
-        int size_pos = addr_pos + size_cells;
 
-        top_of_ram = BE32(range[addr_pos]) + BE32(range[size_pos]);
+        uintptr_t addr = 0;
+        uintptr_t size = 0;
+
+        for (int i=0; i < address_cells; i++)
+        {
+            addr = (addr << 32) | BE32(range[i]);
+        }
+        for (int i=0; i < size_cells; i++)
+        {
+            size = (size << 32) | BE32(range[i + address_cells]);
+        }
+
+        top_of_ram = addr + size;
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
-        intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0xffe00000;
+        intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0x7fffe00000;
         top_of_ram = kernel_new_loc - 0x1000;
 
-        range[size_pos] = BE32(BE32(range[size_pos])-(KERNEL_RSRVD_PAGES << 21));
+        for (int i=0; i < size_cells; i++)
+        {
+            range[address_cells + size_cells - 1 - i] = BE32(size >> (32 * i));
+        }
 
-        kprintf("[BOOT] System memory: %p-%p\n", BE32(range[addr_pos]), BE32(range[addr_pos]) + BE32(range[size_pos]) - 1);
+        kprintf("[BOOT] System memory: %p-%p\n", addr, addr + size - 1);
 
-        mmu_map(range[addr_pos], range[addr_pos], range[size_pos], MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+        mmu_map(addr, addr, size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
@@ -379,7 +383,7 @@ void boot(void *dtree)
             Copy the kernel memory block from origin to new destination, use the top of
             the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        arm_flush_cache((uintptr_t)_boot & 0xffffffff00000000, KERNEL_SYS_PAGES << 21);
+        arm_flush_cache((uintptr_t)_boot & 0xffffff8000000000, KERNEL_SYS_PAGES << 21);
 
         /*
             We use routine in assembler here, because we will move both kernel code *and* stack.

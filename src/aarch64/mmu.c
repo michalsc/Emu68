@@ -52,12 +52,28 @@ static void *get_4k_page()
             uint32_t *range = p->op_value;
             int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
             int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
-            int addr_pos = address_cells - 1;
-            int size_pos = address_cells + size_cells - 1;
+
+            uintptr_t addr = 0;
+            uintptr_t size = 0;
+
+            for (int i=0; i < address_cells; i++)
+            {
+                addr = (addr << 32) | BE32(range[i]);
+            }
+            for (int i=0; i < size_cells; i++)
+            {
+                size = (size << 32) | BE32(range[i + address_cells]);
+            }
 
             /* Decrease the size of memory block by 2MB */
-            range[size_pos] = BE32(BE32(range[size_pos])-(1 << 21));
-            uintptr_t mmu_ploc = BE32(range[addr_pos]) + BE32(range[size_pos]);
+            size -= (1 << 21);
+            uintptr_t mmu_ploc = addr + size;
+            
+            for (int i=0; i < size_cells; i++)
+            {
+                range[address_cells + size_cells - 1 - i] = BE32(size);
+                size >>= 32;
+            }
 
             /*
                 Perform add of the range address with 0xffffff9000000000, that way it will
