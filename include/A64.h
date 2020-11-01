@@ -726,9 +726,15 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
     *ptr++ = get_nzcv(tmp_reg);
+#if 0
     *ptr++ = bfxil(cc, tmp_reg, 28, 4);
     *ptr++ = bic_immed(cc, cc, 2, 0);
-
+#else
+    *ptr++ = lsr(tmp_reg, tmp_reg, 28);
+    *ptr++ = bic_immed(cc, cc, 4, 0);
+    *ptr++ = and_immed(tmp_reg, tmp_reg, 2, 30);
+    *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+#endif
     RA_FreeARMRegister(&ptr, tmp_reg);
 
     (*not_done) &= 0x10;
@@ -742,9 +748,15 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
     *ptr++ = get_nzcv(tmp_reg);
+#if 0
     *ptr++ = ror(tmp_reg, tmp_reg, 30);
     *ptr++ = bfi(cc, tmp_reg, 2, 2);
-
+#else
+    *ptr++ = lsr(tmp_reg, tmp_reg, 28);
+    *ptr++ = bic_immed(cc, cc, 2, 2);
+    *ptr++ = and_immed(tmp_reg, tmp_reg, 2, 30);
+    *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+#endif
     RA_FreeARMRegister(&ptr, tmp_reg);
 
     (*not_done) &= 0x13;
