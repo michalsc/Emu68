@@ -904,7 +904,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k_state = &__m68k;
 
     *(uint32_t*)4 = 0;
-
+    
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
     __m68k.D[2].u32 = BE32((uint32_t)fb_height);
@@ -916,8 +916,16 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.ISP.u32 = BE32(BE32(__m68k.ISP.u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
     *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
-    if (strstr(dt_find_property(dt_find_node("/chosen"), "bootargs")->op_value, "enable_cache"))
-        __m68k.CACR = BE32(0x80008000);
+    of_node_t *node = dt_find_node("/chosen");
+    if (node)
+    {
+        of_property_t * prop = dt_find_property(node, "bootargs");
+        if (prop)
+        {
+            if (strstr(prop->op_value, "enable_cache"))
+                __m68k.CACR = BE32(0x80008000);
+        }
+    }
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
