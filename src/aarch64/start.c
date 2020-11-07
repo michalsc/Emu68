@@ -298,7 +298,7 @@ void boot(void *dtree)
     uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
     uint64_t tmp;
     uintptr_t top_of_ram = 0;
-
+    of_property_t *p = NULL;
     of_node_t *e = NULL;
 
     /* Enable caches and cache maintenance instructions from EL0 */
@@ -324,6 +324,10 @@ void boot(void *dtree)
     setup_serial();
 
     kprintf("\033[2J[BOOT] Booting %s\n", bootstrapName);
+    p = dt_find_property(dt_find_node("/"), "model");
+    if (p) {
+        kprintf("[BOOT] Machine: %s\n", p->op_value);
+    }
     kprintf("[BOOT] Boot address is %p\n", _start);
 
     print_build_id();
@@ -341,32 +345,66 @@ void boot(void *dtree)
         uint32_t *range = p->op_value;
         int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
         int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+        int block_size = 4 * (size_cells + address_cells);
+        int block_count = p->op_length / block_size;
+        int block_top = 0;
 
-        uintptr_t addr = 0;
-        uintptr_t size = 0;
+        top_of_ram = 0;
 
-        for (int i=0; i < address_cells; i++)
+        for (int block=0; block < block_count; block++)
         {
-            addr = (addr << 32) | BE32(range[i]);
-        }
-        for (int i=0; i < size_cells; i++)
-        {
-            size = (size << 32) | BE32(range[i + address_cells]);
+            if (sys_memory[block].mb_Base + sys_memory[block].mb_Size > top_of_ram)
+            {
+                block_top = block;
+                top_of_ram = sys_memory[block].mb_Base + sys_memory[block].mb_Size;
+            }
+            
+            range += block_size / 4;
         }
 
-        top_of_ram = addr + size;
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
         intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0x7fffe00000;
-        top_of_ram = kernel_new_loc - 0x1000;
 
-        for (int i=0; i < size_cells; i++)
+        sys_memory[block_top].mb_Size -= (KERNEL_RSRVD_PAGES << 21);
+
+        range = p->op_value;
+        top_of_ram = 0;
+        for (int block=0; block < block_count; block++)
         {
-            range[address_cells + size_cells - 1 - i] = BE32(size >> (32 * i));
+            uintptr_t size = sys_memory[block].mb_Size;
+
+            for (int i=0; i < size_cells; i++)
+            {
+                range[address_cells + size_cells - 1 - i] = BE32(size);
+                size >>= 32;
+            }
+            
+            range += block_size / 4;
+            
+            kprintf("[BOOT] System memory: %p-%p (%d MiB)\n", 
+                    sys_memory[block].mb_Base,
+                    sys_memory[block].mb_Base + sys_memory[block].mb_Size - 1, 
+                    sys_memory[block].mb_Size >> 20);
+            
+            if (sys_memory[block].mb_Base < 0xf2000000)
+            {
+                uint64_t size = sys_memory[block].mb_Size;
+
+                if (sys_memory[block].mb_Base + size > 0xf2000000)
+                {
+                    size = 0xf2000000 - sys_memory[block].mb_Base;
+                }
+
+                mmu_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
+                        MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+
+                if (sys_memory[block].mb_Base + size > top_of_ram)
+                {
+                    top_of_ram = sys_memory[block].mb_Base + size;
+                }
+            }
         }
 
-        kprintf("[BOOT] System memory: %p-%p\n", addr, addr + size - 1);
-
-        mmu_map(addr, addr, size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
@@ -378,6 +416,7 @@ void boot(void *dtree)
                     0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
+        kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);
 
         /*
             Copy the kernel memory block from origin to new destination, use the top of
