@@ -193,6 +193,13 @@ void setup_serial();
 extern void * tlsf;
 extern void * jit_tlsf;
 
+struct MemoryBlock {
+    uintptr_t mb_Base;
+    uintptr_t mb_Size;
+};
+
+extern struct MemoryBlock *sys_memory;
+
 struct Result32 {
     uint32_t q;
     uint32_t r;
