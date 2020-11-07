@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include "mmu.h"
 #include "support.h"
+#include "tlsf.h"
 #include "devicetree.h"
 
 #define DV2P(x) /* x */
@@ -52,27 +53,37 @@ static void *get_4k_page()
             uint32_t *range = p->op_value;
             int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
             int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+            int block_size = 4 * (size_cells + address_cells);
+            int block_count = p->op_length / block_size;
+            int block_top = 0;
 
-            uintptr_t addr = 0;
-            uintptr_t size = 0;
+            uintptr_t top_of_ram = 0;
 
-            for (int i=0; i < address_cells; i++)
+            for (int block = 0; block < block_count; block++)
             {
-                addr = (addr << 32) | BE32(range[i]);
-            }
-            for (int i=0; i < size_cells; i++)
-            {
-                size = (size << 32) | BE32(range[i + address_cells]);
+                if (sys_memory[block].mb_Base + sys_memory[block].mb_Size > top_of_ram)
+                {
+                    block_top = block;
+                    top_of_ram = sys_memory[block].mb_Base + sys_memory[block].mb_Size;
+                }
             }
 
             /* Decrease the size of memory block by 2MB */
-            size -= (1 << 21);
-            uintptr_t mmu_ploc = addr + size;
+            sys_memory[block_top].mb_Size -= (1 << 21);
+            uintptr_t mmu_ploc = sys_memory[block_top].mb_Base + sys_memory[block_top].mb_Size;
             
-            for (int i=0; i < size_cells; i++)
+            /* Update reg property */
+            for (int block=0; block < block_count; block++)
             {
-                range[address_cells + size_cells - 1 - i] = BE32(size);
-                size >>= 32;
+                uintptr_t size = sys_memory[block].mb_Size;
+
+                for (int i=0; i < size_cells; i++)
+                {
+                    range[address_cells + size_cells - 1 - i] = BE32(size);
+                    size >>= 32;
+                }
+
+                range += block_size / 4;
             }
 
             /*
@@ -199,6 +210,8 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
     return phys;
 }
 
+struct MemoryBlock *sys_memory;
+
 void mmu_init()
 {
     /*
@@ -206,6 +219,42 @@ void mmu_init()
         space, so it is safe to adjust the MMU tables for lower region. Here, only peripherals are
         mapped, but the rest will come very soon.
     */
+
+    of_node_t *e = dt_find_node("/memory");
+
+    if (e)
+    {
+        of_property_t *p = dt_find_property(e, "reg");
+        uint32_t *range = p->op_value;
+        int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+        int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+        int block_size = 4 * (size_cells + address_cells);
+        int block_count = p->op_length / block_size;
+
+        sys_memory = tlsf_malloc(tlsf, (1 + block_count) * block_size);
+        for (int block=0; block < block_count; block++)
+        {
+            uintptr_t addr = 0;
+            uintptr_t size = 0;
+
+            for (int i=0; i < address_cells; i++)
+            {
+                addr = (addr << 32) | BE32(range[i]);
+            }
+            for (int i=0; i < size_cells; i++)
+            {
+                size = (size << 32) | BE32(range[i + address_cells]);
+            }
+
+            sys_memory[block].mb_Base = addr;
+            sys_memory[block].mb_Size = size;
+            
+            range += block_size / 4;
+        }
+
+        sys_memory[block_count].mb_Base = 0;
+        sys_memory[block_count].mb_Size = 0;
+    }
 
     mmu_user_L1.mp_entries[0] = 0;
     mmu_user_L1.mp_entries[1] = 0;
