@@ -207,9 +207,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint3
         switch (size)
         {
             case 4:
-                if (shift == 2)
-                    *ptr++ = ldr_regoffset(base, reg, index, SXTW, 1);
-                else if (shift) {
+                if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
                     *ptr++ = ldr_regoffset(base, reg, tmp, SXTW, 0);
@@ -219,9 +217,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint3
                     *ptr++ = ldr_regoffset(base, reg, index, SXTW, 0);
                 break;
             case 2:
-                if (shift == 1)
-                    *ptr++ = ldrh_regoffset(base, reg, index, SXTW, 1);
-                else if (shift) {
+                if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
                     *ptr++ = ldrh_regoffset(base, reg, tmp, SXTW, 0);
@@ -442,9 +438,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
         switch (size)
         {
             case 4:
-                if (shift == 2)
-                    *ptr++ = str_regoffset(base, reg, index, SXTW, 1);
-                else if (shift) {
+                if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
                     *ptr++ = str_regoffset(base, reg, tmp, SXTW, 0);
@@ -454,9 +448,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
                     *ptr++ = str_regoffset(base, reg, index, SXTW, 0);
                 break;
             case 2:
-                if (shift == 1)
-                    *ptr++ = strh_regoffset(base, reg, index, SXTW, 1);
-                else if (shift) {
+                if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
                     *ptr++ = strh_regoffset(base, reg, tmp, SXTW, 0);
