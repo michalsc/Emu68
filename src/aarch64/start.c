@@ -411,8 +411,8 @@ void boot(void *dtree)
         jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
 
         kprintf("[BOOT] Local memory pools:\n");
-        kprintf("[BOOT]    SYS: %p - %p (size: %5d kB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT: %p - %p (size: %5d kB)\n", 0xffffffe000000000,
+        kprintf("[BOOT]    SYS: %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
+        kprintf("[BOOT]    JIT: %p - %p (size: %5d KiB)\n", 0xffffffe000000000,
                     0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
