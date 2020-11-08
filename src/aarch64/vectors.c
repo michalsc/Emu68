@@ -15,86 +15,117 @@
 #include "tlsf.h"
 #include "M68k.h"
 
+#define FULL_CONTEXT 1
+
+#define SAVE_SHORT_CONTEXT \
+    "       stp x0, x1, [sp, -176]!         \n" \
+    "       stp x2, x3, [sp, #1*16]         \n" \
+    "       stp x4, x5, [sp, #2*16]         \n" \
+    "       stp x6, x7, [sp, #3*16]         \n" \
+    "       stp x8, x9, [sp, #4*16]         \n" \
+    "       stp x10, x11, [sp, #5*16]       \n" \
+    "       stp x12, x13, [sp, #6*16]       \n" \
+    "       stp x14, x15, [sp, #7*16]       \n" \
+    "       stp x16, x17, [sp, #8*16]       \n" \
+    "       stp x18, x30, [sp, #9*16]       \n"
+
+#define SAVE_FULL_CONTEXT \
+    "       stp x0, x1, [sp, -256]!         \n" \
+    "       stp x2, x3, [sp, #1*16]         \n" \
+    "       stp x4, x5, [sp, #2*16]         \n" \
+    "       stp x6, x7, [sp, #3*16]         \n" \
+    "       stp x8, x9, [sp, #4*16]         \n" \
+    "       stp x10, x11, [sp, #5*16]       \n" \
+    "       stp x12, x13, [sp, #6*16]       \n" \
+    "       stp x14, x15, [sp, #7*16]       \n" \
+    "       stp x16, x17, [sp, #8*16]       \n" \
+    "       stp x18, x19, [sp, #9*16]       \n" \
+    "       stp x20, x21, [sp, #10*16]      \n" \
+    "       stp x22, x23, [sp, #11*16]      \n" \
+    "       stp x24, x25, [sp, #12*16]      \n" \
+    "       stp x26, x27, [sp, #13*16]      \n" \
+    "       stp x28, x29, [sp, #14*16]      \n" \
+    "       str x30, [sp, #15*16]           \n"
+
+#define LOAD_FULL_CONTEXT \
+    "       ldp x2, x3, [sp, #1*16]         \n" \
+    "       ldp x4, x5, [sp, #2*16]         \n" \
+    "       ldp x6, x7, [sp, #3*16]         \n" \
+    "       ldp x8, x9, [sp, #4*16]         \n" \
+    "       ldp x10, x11, [sp, #5*16]       \n" \
+    "       ldp x12, x13, [sp, #6*16]       \n" \
+    "       ldp x14, x15, [sp, #7*16]       \n" \
+    "       ldp x16, x17, [sp, #8*16]       \n" \
+    "       ldp x18, x19, [sp, #9*16]       \n" \
+    "       ldp x20, x21, [sp, #10*16]      \n" \
+    "       ldp x22, x23, [sp, #11*16]      \n" \
+    "       ldp x24, x25, [sp, #12*16]      \n" \
+    "       ldp x26, x27, [sp, #13*16]      \n" \
+    "       ldp x28, x29, [sp, #14*16]      \n" \
+    "       ldr x30, [sp, #15*16]           \n" \
+    "       ldp x0, x1, [sp], #256          \n"
+
+#define LOAD_SHORT_CONTEXT \
+    "       ldp x2, x3, [sp, #1*16]         \n" \
+    "       ldp x4, x5, [sp, #2*16]         \n" \
+    "       ldp x6, x7, [sp, #3*16]         \n" \
+    "       ldp x8, x9, [sp, #4*16]         \n" \
+    "       ldp x10, x11, [sp, #5*16]       \n" \
+    "       ldp x12, x13, [sp, #6*16]       \n" \
+    "       ldp x14, x15, [sp, #7*16]       \n" \
+    "       ldp x16, x17, [sp, #8*16]       \n" \
+    "       ldp x18, x30, [sp, #9*16]       \n" \
+    "       ldp x0, x1, [sp], #176          \n"
+
+#if FULL_CONTEXT
+#define SAVE_CONTEXT    SAVE_FULL_CONTEXT
+#define LOAD_CONTEXT    LOAD_FULL_CONTEXT
+#else
+#define SAVE_CONTEXT    SAVE_SHORT_CONTEXT
+#define LOAD_CONTEXT    LOAD_SHORT_CONTEXT
+#endif
+
+
 void __stub_vectors()
 { asm(
 "       .section .vectors               \n"
 "       .balign 0x800                   \n"
 "curr_el_sp0_sync:                      \n" // The exception handler for a synchronous 
-"       stp x0, x1, [sp, -176]!         \n" // exception from the current EL using SP0.
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // exception from the current EL using SP0.
 "       mov x0, #0                      \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "curr_el_sp0_irq:                       \n" // The exception handler for an IRQ exception
-"       stp x0, x1, [sp, -176]!         \n" // from the current EL using SP0.
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // from the current EL using SP0.
 "       mov x0, #0x80                   \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "curr_el_sp0_fiq:                       \n" // The exception handler for an FIQ exception
-"       stp x0, x1, [sp, -176]!         \n" // from the current EL using SP0.
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // from the current EL using SP0.
 "       mov x0, #0x100                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "curr_el_sp0_serror:                    \n" // The exception handler for a System Error 
-"       stp x0, x1, [sp, -176]!         \n" // exception from the current EL using SP0.
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // exception from the current EL using SP0.
 "       mov x0, #0x180                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "curr_el_spx_sync:                      \n" // The exception handler for a synchrous 
-"       stp x0, x1, [sp, -176]!         \n" // exception from the current EL using the
-"       stp x2, x3, [sp, #1*16]         \n" // current SP.
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
-"       mov x0, #0x200                  \n"
+        SAVE_CONTEXT                        // exception from the current EL using the
+"       mov x0, #0x200                  \n" // current SP.
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
@@ -139,143 +170,70 @@ void __stub_vectors()
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch64_sync:                 \n" // The exception handler for a synchronous 
-"       stp x0, x1, [sp, -176]!         \n" // exception from a lower EL (AArch64).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // exception from a lower EL (AArch64).
 "       mov x0, #0x400                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch64_irq:                  \n" // The exception handler for an IRQ from a lower EL
-"       stp x0, x1, [sp, -176]!         \n" // (AArch64).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // (AArch64).
 "       mov x0, #0x480                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch64_fiq:                  \n" // The exception handler for an FIQ from a lower EL
-"       stp x0, x1, [sp, -176]!         \n" // (AArch64).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // (AArch64).
 "       mov x0, #0x500                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch64_serror:               \n" // The exception handler for a System Error 
-"       stp x0, x1, [sp, -176]!         \n" // exception from a lower EL(AArch64).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // exception from a lower EL(AArch64).
 "       mov x0, #0x580                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch32_sync:                 \n" // The exception handler for a synchronous 
-"       stp x0, x1, [sp, -176]!         \n" // exception from a lower EL (AArch32).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // exception from a lower EL (AArch32).
 "       mov x0, #0x600                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch32_irq:                  \n" // The exception handler for an IRQ from a lower EL
-"       stp x0, x1, [sp, -176]!         \n" // (AArch32).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // (AArch32).
 "       mov x0, #0x680                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch32_fiq:                  \n" // The exception handler for an FIQ from a lower EL
-"       stp x0, x1, [sp, -176]!         \n" // (AArch32).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // (AArch32).
 "       mov x0, #0x700                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "lower_el_aarch32_serror:               \n" // The exception handler for a System Error 
-"       stp x0, x1, [sp, -176]!         \n" // exception from a lower EL(AArch32).
-"       stp x2, x3, [sp, #1*16]         \n"
-"       stp x4, x5, [sp, #2*16]         \n"
-"       stp x6, x7, [sp, #3*16]         \n"
-"       stp x8, x9, [sp, #4*16]         \n"
-"       stp x10, x11, [sp, #5*16]       \n"
-"       stp x12, x13, [sp, #6*16]       \n"
-"       stp x14, x15, [sp, #7*16]       \n"
-"       stp x16, x17, [sp, #8*16]       \n"
-"       stp x18, x30, [sp, #9*16]       \n"
+        SAVE_CONTEXT                        // exception from a lower EL(AArch32).
 "       mov x0, #0x780                  \n"
+"       mov x1, sp                      \n"
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
 "ExceptionExit:                         \n"
-"       ldp x2, x3, [sp, #1*16]         \n"
-"       ldp x4, x5, [sp, #2*16]         \n"
-"       ldp x6, x7, [sp, #3*16]         \n"
-"       ldp x8, x9, [sp, #4*16]         \n"
-"       ldp x10, x11, [sp, #5*16]       \n"
-"       ldp x12, x13, [sp, #6*16]       \n"
-"       ldp x14, x15, [sp, #7*16]       \n"
-"       ldp x16, x17, [sp, #8*16]       \n"
-"       ldp x18, x30, [sp, #9*16]       \n"
-"       ldp x0, x1, [sp], #176          \n"
+        LOAD_CONTEXT
 "       eret                            \n"
 "                                       \n"
 "       .section .text                  \n"
@@ -283,12 +241,16 @@ void __stub_vectors()
 :[pint]"i"(__builtin_offsetof(struct M68KState, PINT))
 );}
 
-void SYSHandler(uint32_t vector)
+void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     uint64_t elr, spsr, esr, far;
     asm volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
     asm volatile("mrs %0, ESR_EL1":"=r"(esr));
     asm volatile("mrs %0, FAR_EL1":"=r"(far));
     kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
-    while(1);
+    for (int i=0; i < 16; i++)
+    {
+        kprintf("[JIT:SYS]  X%02d=0x%p   X%02d=0x%p\n", 2*i, ctx[2*i], 2*i+1, ctx[2*i+1]);
+    }
+    while(1) { asm volatile("wfe"); };
 }
