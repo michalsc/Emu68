@@ -250,7 +250,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
     kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
     for (int i=0; i < 16; i++)
     {
-        kprintf("[JIT:SYS]  X%02d=0x%p   X%02d=0x%p\n", 2*i, ctx[2*i], 2*i+1, ctx[2*i+1]);
+        kprintf("[JIT:SYS]  X%02d=%p   X%02d=%p\n", 2*i, ctx[2*i], 2*i+1, ctx[2*i+1]);
     }
     while(1) { asm volatile("wfe"); };
 }
