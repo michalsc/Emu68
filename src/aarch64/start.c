@@ -291,6 +291,8 @@ void print_build_id()
 void M68K_StartEmu(void *addr, void *fdt);
 void __vectors_start(void);
 extern int debug_cnt;
+int enable_cache = 0;
+int limit_2g = 0;
 
 void boot(void *dtree)
 {
@@ -313,6 +315,19 @@ void boot(void *dtree)
 
     /* Parse device tree */
     dt_parse((void*)dtree);
+
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        of_property_t * prop = dt_find_property(e, "bootargs");
+        if (prop)
+        {
+            if (strstr(prop->op_value, "enable_cache"))
+                enable_cache = 1;
+            if (strstr(prop->op_value, "limit_2g"))
+                limit_2g = 1;
+        }
+    }
 
     /* Prepare MMU */
     mmu_init();
@@ -390,9 +405,19 @@ void boot(void *dtree)
             {
                 uint64_t size = sys_memory[block].mb_Size;
 
-                if (sys_memory[block].mb_Base + size > 0xf2000000)
+                if (limit_2g)
                 {
-                    size = 0xf2000000 - sys_memory[block].mb_Base;
+                    if (sys_memory[block].mb_Base + size > 0x80000000)
+                    {
+                        size = 0x80000000 - sys_memory[block].mb_Base;
+                    }
+                }
+                else
+                {
+                    if (sys_memory[block].mb_Base + size > 0xf2000000)
+                    {
+                        size = 0xf2000000 - sys_memory[block].mb_Base;
+                    }
                 }
 
                 mmu_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
@@ -487,13 +512,14 @@ void boot(void *dtree)
             p = dt_find_property(e, "linux,initrd-end");
             image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
             uint32_t magic = BE32(*(uint32_t*)image_start);
+            void *ptr = NULL;
 
             if (magic == 0x3f3)
             {
                 kprintf("[BOOT] Loading HUNK executable from %p-%p\n", image_start, image_end);
                 void *hunks = LoadHunkFile(image_start);
                 (void)hunks;
-                M68K_StartEmu((void *)((intptr_t)hunks + 4), fdt);
+                ptr = (void *)((intptr_t)hunks + 4);
             }
             else if (magic == 0x7f454c46)
             {
@@ -507,10 +533,71 @@ void boot(void *dtree)
                     top_of_ram &= ~0x1fffff;
 
                     kprintf("[BOOT] Loading ELF executable from %p-%p to %p\n", image_start, image_end, top_of_ram);
-                    void *ptr = LoadELFFile(image_start, (void*)top_of_ram);
-                    M68K_StartEmu(ptr, fdt);
+                    ptr = LoadELFFile(image_start, (void*)top_of_ram);
                 }
             }
+
+            /* Fixup local device tree to exclude memory regions which souldn't be there */
+            e = dt_find_node("/memory");
+            of_property_t *p = dt_find_property(e, "reg");
+            /* Range starts at the copied device tree */
+            uint32_t *range = (uint32_t *)((uintptr_t)fdt + ((uintptr_t)p->op_value - (uintptr_t)dt_fdt_base()));
+            int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+            int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+            int block_size = (size_cells + address_cells);
+            int block_count = p->op_length / (4 * block_size);
+
+            kprintf("[BOOT] Adjusting memory blocks\n");
+            for (int b = 0; b < block_count; b++)
+            {
+                uintptr_t base = 0;
+                uintptr_t size = 0;
+
+                for (int j=0; j < address_cells; j++)
+                {
+                    base = (base << 32) | range[b * block_size + j];
+                }
+                for (int j=0; j < size_cells; j++)
+                {
+                    size = (size << 32) | range[b * block_size + address_cells + j];
+                }
+
+                kprintf("[BOOT]   %p - %p ", base, base + size - 1);
+
+                if (base + size < top_of_ram)
+                {
+                    kprintf("OK\n");
+                }
+                else if (base < top_of_ram)
+                {
+                    if (base + size <= top_of_ram)
+                    {
+                        kprintf("OK\n");
+                    }
+                    else
+                    {
+                        size = top_of_ram - base;
+                        kprintf("Trimming to %p - %p\n", base, base + size - 1);
+
+                        for (int j=size_cells-1; j >= 0; j--)
+                        {
+                            range[b * block_size + address_cells + j] = size;
+                            size >>= 32;
+                        }
+                    }
+                }
+                else
+                {
+                    kprintf("Out of range. Removing\n");
+                    for (int j=0; j < size_cells + address_cells; j++)
+                    {
+                        range[b*block_size + j] = 0;
+                    }
+                }
+            }
+
+            if (ptr)
+                M68K_StartEmu(ptr, fdt);
         }
         else
         {
@@ -527,6 +614,25 @@ void M68K_LoadContext(struct M68KState *ctx)
 {
     asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
 
+#if 0
+    asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
+    
+    asm volatile("ldr w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
+    asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
+#else
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
@@ -536,7 +642,7 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
-
+#endif
     asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
     asm volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
