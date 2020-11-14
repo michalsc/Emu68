@@ -1767,6 +1767,21 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = csel(reg, sp, tmp, A64_CC_EQ);
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
+                case 0xc00:
+                    *ptr++ = mrs(reg, 3, 3, 14, 0, 0);
+                    break;
+                case 0xc01:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
+                    *ptr++ = mov_reg(reg, tmp);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0xc02:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
+                    *ptr++ = lsr64(reg, tmp, 32);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
             }
             RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
         }

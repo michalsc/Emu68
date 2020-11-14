@@ -462,6 +462,9 @@ void boot(void *dtree)
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+    kprintf("[BOOT] Timer frequency: %d kHz\n", (tmp + 500) / 1000);
+
     if (debug_cnt)
     {
         uint64_t tmp;
