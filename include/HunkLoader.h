@@ -9,6 +9,6 @@ struct SegList {
     uint8_t         h_Data[];
 };
 
-void * LoadHunkFile(void *buffer);
+void * LoadHunkFile(void *buffer, void *base);
 
 #endif /* _HUNKLOADER_H */

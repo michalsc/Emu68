@@ -22,7 +22,7 @@ void * _my_malloc(size_t size)
 }
 #define malloc(s) _my_malloc(s)
 
-void * LoadHunkFile(void *buffer)
+void * LoadHunkFile(void *buffer, void *p)
 {
     uint32_t *words = buffer;
     struct SegList * hunks = NULL;
@@ -33,6 +33,8 @@ void * LoadHunkFile(void *buffer)
     uint32_t current_block = 0;
     intptr_t ref_base = 0;
     intptr_t base = 0;
+
+    pool = (char *)p;
 
     kprintf("[HUNK] Loading Hunk file from address %p\n", buffer);
 
@@ -49,6 +51,14 @@ void * LoadHunkFile(void *buffer)
     D(kprintf("[HUNK] Pre-allocating segments %d to %d\n", first_to_load, last_to_load));
 
     words = &words[5];
+    /* Adjust memory allocator */
+    for (unsigned i = 0; i < last_to_load - first_to_load + 1; i++)
+    {
+        uint32_t size = 4 * (BE32(words[i]) & 0x3fffffff) + sizeof(struct SegList) + 16;
+        pool -= (size + 31) & ~31;
+    }
+
+    D(kprintf("[HUNK] Memory pool starts at %08x\n", pool));
 
     /* Pre-allocate memory for all loadable hunks */
     for (unsigned i = 0; i < last_to_load - first_to_load + 1; i++)
