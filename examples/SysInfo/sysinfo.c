@@ -671,27 +671,30 @@ uint32_t       Begin_Time,
                 End_Time,
                 User_Time;
 uint32_t	Number_Of_Runs;
+uint32_t    Clock_Frequency;
 void _main (int n)
 {
+  asm volatile("movec #0xc00,%0":"=r"(Clock_Frequency));
+  Clock_Frequency = (Clock_Frequency + HZ / 2) / HZ;
   Number_Of_Runs = 2000000;
   kprintf("[SysInfo] Running BUSTEST (%d loops)\n", Number_Of_Runs);
   kprintf("[SysInfo] Execution starts\n");
-  Begin_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
+  asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
   SI_BusTest(Number_Of_Runs);
-  End_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
+  asm volatile("movec #0xc01,%0":"=r"(End_Time));
   kprintf("[SysInfo] Execution ends\n");
   User_Time = End_Time - Begin_Time;
-  kprintf("[SysInfo] Begin time: %d\n", Begin_Time);
-  kprintf("[SysInfo] End time: %d\n", End_Time);
-  kprintf("[SysInfo] User time: %d\n", User_Time);
+  kprintf("[SysInfo] Begin time: %d\n", Begin_Time / Clock_Frequency);
+  kprintf("[SysInfo] End time: %d\n", End_Time / Clock_Frequency);
+  kprintf("[SysInfo] User time: %d\n", User_Time / Clock_Frequency);
 
     double Microseconds;
     double Megabytes_Per_Second;
 
 
   {
-    Microseconds = (double)User_Time / (double)Number_Of_Runs;
-    Megabytes_Per_Second = (double)Number_Of_Runs * 128e6 / (double)User_Time;
+    Microseconds = ((double)User_Time / (double)Number_Of_Runs) / (double)Clock_Frequency;
+    Megabytes_Per_Second = (double)Clock_Frequency * (double)Number_Of_Runs * 128e6 / (double)User_Time;
     Megabytes_Per_Second = Megabytes_Per_Second / (1024 * 1024);
   }
 
@@ -700,21 +703,20 @@ void _main (int n)
   kprintf("[SysInfo] Execution starts\n");
   do {
     Number_Of_Runs = Number_Of_Runs << 2;
-    Begin_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
 
+    asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
     SI_Start_Nr(Number_Of_Runs);
-
-    End_Time = LE32(*(volatile uint32_t*)0xf2003004); // | (uint64_t)(*(volatile uint32_t *)0xf2003008) << 32;
+    asm volatile("movec #0xc01,%0":"=r"(End_Time));
 
     User_Time = End_Time - Begin_Time;
-  } while (User_Time < Too_Small_Time);
+  } while (User_Time/Clock_Frequency < Too_Small_Time);
 
   kprintf("[SysInfo] Execution ends, final loop count was %d\n", Number_Of_Runs);
 
 
-  kprintf("[SysInfo] Begin time: %d\n", Begin_Time);
-  kprintf("[SysInfo] End time: %d\n", End_Time);
-  kprintf("[SysInfo] User time: %d\n", User_Time);
+  kprintf("[SysInfo] Begin time: %d\n", Begin_Time / Clock_Frequency);
+  kprintf("[SysInfo] End time: %d\n", End_Time / Clock_Frequency);
+  kprintf("[SysInfo] User time: %d\n", User_Time / Clock_Frequency);
 
     kprintf ("[SysInfo] Microseconds for one run through BUSTEST:   ");
     kprintf ("%d.%03d \n", (uint32_t)(Microseconds), ((uint32_t)(Microseconds * 1000.0)) % 1000);
@@ -724,8 +726,8 @@ void _main (int n)
 
 
   {
-    double Microseconds = (double)User_Time / (double)Number_Of_Runs;
-    double Dhrystones_Per_Second = 1e6 * (double)Number_Of_Runs / (double)User_Time;
+    double Microseconds = ((double)User_Time / (double)Number_Of_Runs) / (double)Clock_Frequency;
+    double Dhrystones_Per_Second = (double)Clock_Frequency * 1e6 * (double)Number_Of_Runs / (double)User_Time;
     double MIPS = Dhrystones_Per_Second / 958.0;
 
     kprintf ("[SysInfo] Microseconds for one run through Dhrystone: ");
