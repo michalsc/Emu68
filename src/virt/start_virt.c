@@ -37,6 +37,9 @@ void platform_init()
         MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
     mmu_map(0x09000000, 0xf2201000, 0x00001000,
         MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
+
+    mmu_map(0x40000000, 0x00000000, 0x10000000,
+                        MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
 }
 
 void platform_post_init()
