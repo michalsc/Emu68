@@ -520,7 +520,7 @@ void boot(void *dtree)
             if (magic == 0x3f3)
             {
                 kprintf("[BOOT] Loading HUNK executable from %p-%p\n", image_start, image_end);
-                void *hunks = LoadHunkFile(image_start);
+                void *hunks = LoadHunkFile(image_start, (void*)top_of_ram);
                 (void)hunks;
                 ptr = (void *)((intptr_t)hunks + 4);
             }
@@ -1047,11 +1047,11 @@ void M68K_StartEmu(void *addr, void *fdt)
     M68K_InitializeCache();
 
     bzero(&__m68k, sizeof(__m68k));
-    bzero((void *)4, 1020);
+    //bzero((void *)4, 1020);
 
     __m68k_state = &__m68k;
 
-    *(uint32_t*)4 = 0;
+    //*(uint32_t*)4 = 0;
     
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
@@ -1080,7 +1080,7 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     kprintf("[JIT] Let it go...\n");
 
-    t1 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
@@ -1122,9 +1122,11 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     } while(m68k_pc != 0);
 #endif
-    t2 = LE32(*(volatile uint32_t*)0xf2003004) | (uint64_t)LE32(*(volatile uint32_t *)0xf2003008) << 32;
-
-    kprintf("[JIT] Time spent in m68k mode: %lld us\n", t2-t1);
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
+    uint64_t frq;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
+    frq = frq & 0xffffffff;
+    kprintf("[JIT] Time spent in m68k mode: %lld us\n", 1000000 * (t2-t1) / frq);
 
     kprintf("[JIT] Back from translated code\n");
 
