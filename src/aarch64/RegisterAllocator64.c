@@ -449,6 +449,12 @@ static uint8_t mod_FPCR = 0;
 static uint8_t reg_FPSR = 0xff;
 static uint8_t mod_FPSR = 0;
 
+uint8_t RA_TryCTX(uint32_t **ptr)
+{
+    (void)ptr;
+    return reg_CTX;
+}
+
 uint8_t RA_GetCTX(uint32_t **ptr)
 {
     if (reg_CTX == 0xff)

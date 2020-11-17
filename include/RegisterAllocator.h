@@ -44,6 +44,7 @@ void RA_SetDirtyFPURegister(uint32_t **arm_stream, uint8_t fpu_reg);
 void RA_FlushFPURegs(uint32_t **arm_stream);
 void RA_StoreDirtyFPURegs(uint32_t **arm_stream);
 
+uint8_t RA_TryCTX(uint32_t **ptr);
 uint8_t RA_GetCTX(uint32_t **ptr);
 void RA_FlushCTX(uint32_t **ptr);
 int RA_IsCCLoaded();
