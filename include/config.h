@@ -29,13 +29,14 @@
 #define EMU68_M68K_INSN_DEPTH   255
 #define EMU68_HOST_BIG_ENDIAN   1
 #define EMU68_HAS_SETEND        1
+#define EMU68_DEF_BRANCH_TAKEN  0
 
 #ifndef VERSION_STRING_DATE
 #define VERSION_STRING_DATE ""
 #endif
 
-#define KERNEL_SYS_PAGES        2
-#define KERNEL_JIT_PAGES        16
+#define KERNEL_SYS_PAGES        8
+#define KERNEL_JIT_PAGES        32
 #define KERNEL_RSRVD_PAGES      ((KERNEL_JIT_PAGES) + (KERNEL_SYS_PAGES))
 
 #define EMU68_LOG_FETCHES       0
