@@ -465,6 +465,14 @@ void boot(void *dtree)
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
     kprintf("[BOOT] Timer frequency: %d kHz\n", (tmp + 500) / 1000);
 
+    asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+    tmp |= 5; // Enable event counting and reset cycle counter
+    asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+    kprintf("[BOOT] PMCR=%08x\n", tmp);
+    tmp = 0x80000000; // Enable cycle counter
+    asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+   
+
     if (debug_cnt)
     {
         uint64_t tmp;
@@ -490,7 +498,8 @@ void boot(void *dtree)
         asm volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
         asm volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
 
-        tmp = 15;
+        asm volatile("mrs %0, PMCNTENSET_EL0; isb":"=r"(tmp));
+        tmp |= 15;
         asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
         asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
@@ -1043,6 +1052,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     struct M68KState __m68k;
     uint64_t t1=0, t2=0;
     uint32_t m68k_pc;
+    uint64_t cnt1 = 0, cnt2 = 0;
 
     M68K_InitializeCache();
 
@@ -1081,6 +1091,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     kprintf("[JIT] Let it go...\n");
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
 
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
@@ -1125,6 +1136,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
     uint64_t frq;
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
+    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
     frq = frq & 0xffffffff;
     kprintf("[JIT] Time spent in m68k mode: %lld us\n", 1000000 * (t2-t1) / frq);
 
@@ -1134,6 +1146,9 @@ void M68K_StartEmu(void *addr, void *fdt)
     M68K_PrintContext(&__m68k);
 
     M68K_DumpStats();
+
+    kprintf("[JIT] Number of m68k instructions executed (rough): %lld\n", __m68k.INSN_COUNT);
+    kprintf("[JIT] Number of ARM cpu cycles consumed: %lld\n", cnt2 - cnt1);
 
     if (debug_cnt & 1)
     {
