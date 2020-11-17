@@ -13,6 +13,8 @@
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
+extern uint32_t insn_count;
+
 uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_count = 0;
@@ -1779,6 +1781,36 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
                 case 0xc02:
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
+                    *ptr++ = lsr64(reg, tmp, 32);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0xc03:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+                    *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+                    if (insn_count & 0xfff000)
+                        *ptr++ = add64_immed_lsl12(tmp, tmp, insn_count >> 12);
+                    *ptr++ = mov_reg(reg, tmp);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0xc04:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+                    *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+                    if (insn_count & 0xfff000)
+                        *ptr++ = add64_immed_lsl12(tmp, tmp, insn_count >> 12);
+                    *ptr++ = lsr64(reg, tmp, 32);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0xc05:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
+                    *ptr++ = mov_reg(reg, tmp);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0xc06:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                     *ptr++ = lsr64(reg, tmp, 32);
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
