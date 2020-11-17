@@ -90,6 +90,7 @@ struct M68KState
 
     /* Async IRQ part */
     uint32_t PINT;
+    uint64_t INSN_COUNT;
 };
 
 #define CACR_DE 0x80000000
