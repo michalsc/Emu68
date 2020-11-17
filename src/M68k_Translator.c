@@ -370,12 +370,30 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                 RA_StoreFPCR(&end);
                 RA_StoreFPSR(&end);
 #endif
-                pop_update_loc[pop_cnt++] = end;
 #ifndef __aarch64__
+                pop_update_loc[pop_cnt++] = end;
                 *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
                 if (!lr_is_saved)
                     *end++ = bx_lr();
 #else
+                uint8_t ctx_free = 0;
+                uint8_t ctx = RA_TryCTX(&end);
+                uint8_t tmp = RA_AllocARMRegister(&end);
+                if (ctx == 0xff)
+                {
+                    ctx = RA_AllocARMRegister(&end);
+                    *end++ = mrs(ctx, 3, 3, 13, 0, 3);
+                    ctx_free = 1;
+                }
+                *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+                *end++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+                if (insn_count & 0xfff000)
+                    *end++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+                *end++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+                RA_FreeARMRegister(&end, tmp);
+                if (ctx_free)
+                    RA_FreeARMRegister(&end, ctx);
+                pop_update_loc[pop_cnt++] = end;
                 *end++ = bx_lr();
 #endif
             }
@@ -412,7 +430,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     RA_FlushCC(&end);
     RA_FlushFPCR(&end);
     RA_FlushFPSR(&end);
-    RA_FlushCTX(&end);
 #endif
     {
 #ifndef __aarch64__
@@ -421,7 +438,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         int i=1;
 
         while (pop_update_loc[i]) {
+#ifdef __aarch64__
+            i++;
+#else
             *pop_update_loc[i++] = bx_lr();
+#endif
         }
     }
 #ifndef __aarch64__
@@ -449,8 +470,19 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         }
     }
     if (!lr_is_saved)
-#endif
         *end++ = bx_lr();
+#else
+    uint8_t ctx = RA_GetCTX(&end);
+    uint8_t tmp = RA_AllocARMRegister(&end);
+    *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+    *end++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+    if (insn_count & 0xfff000)
+        *end++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+    *end++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+    RA_FreeARMRegister(&end, tmp);
+    RA_FlushCTX(&end);
+    *end++ = bx_lr();
+#endif
     epilogue_size += end - tmpptr;
 
     // Put a marker at the end of translation unit
