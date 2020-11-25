@@ -845,6 +845,8 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             uint8_t int_reg = 0xff;
             uint8_t val_reg = 0xff;
             uint8_t mode = (opcode & 0x0038) >> 3;
+            int8_t pre_sz = 0;
+            int8_t post_sz = 0;
 
             if (mode == 4 || mode == 3)
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0, NULL);
@@ -853,14 +855,19 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
             /* Pre index? Adjust base register accordingly */
             if (mode == 4) {
-                uint8_t pre_sz = FPUDataSize[size];
+                pre_sz = FPUDataSize[size];
 
                 if ((pre_sz == 1) && ((opcode & 7) == 7))
                     pre_sz = 2;
+                
+                pre_sz = -pre_sz;
+            }
+            /* Post index? Adjust base register accordingly */
+            else if (mode == 3) {
+                post_sz = FPUDataSize[size];
 
-                *ptr++ = sub_immed(int_reg, int_reg, pre_sz);
-
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                if ((post_sz == 1) && ((opcode & 7) == 7))
+                    post_sz = 2;
             }
 
             switch (size)
@@ -868,6 +875,10 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_X:
                     {
 #ifdef __aarch64__
+                        if (pre_sz)
+                        {
+                            *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                        }
                         if (imm_offset < -255 || imm_offset > 251) {
                             uint8_t off = RA_AllocARMRegister(&ptr);
 
@@ -894,6 +905,10 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         ptr = EMIT_Load96bitFP(ptr, *reg, int_reg, imm_offset);
 
+                        if (post_sz)
+                        {
+                            *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                        }
 #else
                         if (imm_offset < -4095 || imm_offset > 4095-8) {
                             uint8_t off = RA_AllocARMRegister(&ptr);
@@ -951,7 +966,15 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_D:
                     {
 #ifdef __aarch64__
-                        if (imm_offset >= -255 && imm_offset <= -255)
+                        if (pre_sz)
+                        {
+                            *ptr++ = fldd_preindex(*reg, int_reg, pre_sz);
+                        }
+                        else if (post_sz)
+                        {
+                            *ptr++ = fldd_postindex(*reg, int_reg, post_sz);
+                        }
+                        else if (imm_offset >= -255 && imm_offset <= -255)
                         {
                             *ptr++ = fldd(*reg, int_reg, imm_offset);
                         }
@@ -1027,7 +1050,15 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
                 case SIZE_S:
 #ifdef __aarch64__
-                        if (imm_offset >= -255 && imm_offset <= -255)
+                        if (pre_sz)
+                        {
+                            *ptr++ = flds_preindex(*reg, int_reg, pre_sz);
+                        }
+                        else if (post_sz)
+                        {
+                            *ptr++ = flds_postindex(*reg, int_reg, post_sz);
+                        }
+                        else if (imm_offset >= -255 && imm_offset <= -255)
                         {
                             *ptr++ = flds(*reg, int_reg, imm_offset);
                         }
@@ -1080,7 +1111,15 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 #ifdef __aarch64__
                     val_reg = RA_AllocARMRegister(&ptr);
 
-                    if (imm_offset >= -255 && imm_offset <= -255)
+                    if (pre_sz)
+                    {
+                        *ptr++ = ldr_offset_preindex(int_reg, val_reg, pre_sz);
+                    }
+                    else if (post_sz)
+                    {
+                        *ptr++ = ldr_offset_postindex(int_reg, val_reg, pre_sz);
+                    }
+                    else if (imm_offset >= -255 && imm_offset <= -255)
                     {
                         *ptr++ = ldur_offset(int_reg, val_reg, imm_offset);
                     }
@@ -1136,7 +1175,15 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 #ifdef __aarch64__
                     val_reg = RA_AllocARMRegister(&ptr);
 
-                    if (imm_offset >= -255 && imm_offset <= -255)
+                    if (pre_sz)
+                    {
+                        *ptr++ = ldrh_offset_preindex(int_reg, val_reg, pre_sz);
+                    }
+                    else if (post_sz)
+                    {
+                        *ptr++ = ldrh_offset_postindex(int_reg, val_reg, pre_sz);
+                    }
+                    else if (imm_offset >= -255 && imm_offset <= -255)
                     {
                         *ptr++ = ldurh_offset(int_reg, val_reg, imm_offset);
                     }
@@ -1192,7 +1239,15 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 #ifdef __aarch64__
                     val_reg = RA_AllocARMRegister(&ptr);
 
-                    if (imm_offset >= -255 && imm_offset <= -255)
+                    if (pre_sz)
+                    {
+                        *ptr++ = ldrb_offset_preindex(int_reg, val_reg, pre_sz);
+                    }
+                    else if (post_sz)
+                    {
+                        *ptr++ = ldrb_offset_postindex(int_reg, val_reg, pre_sz);
+                    }
+                    else if (imm_offset >= -255 && imm_offset <= -255)
                     {
                         *ptr++ = ldurb_offset(int_reg, val_reg, imm_offset);
                     }
@@ -1249,15 +1304,8 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
             }
 
-            /* Post index? Adjust base register accordingly */
-            if (mode == 3) {
-                uint8_t post_sz = FPUDataSize[size];
-
-                if ((post_sz == 1) && ((opcode & 7) == 7))
-                    post_sz = 2;
-
-                *ptr++ = add_immed(int_reg, int_reg, post_sz);
-
+            if ((mode == 4) || (mode == 3))
+            {
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
 
