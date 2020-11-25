@@ -871,12 +871,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         if (imm_offset < -255 || imm_offset > 251) {
                             uint8_t off = RA_AllocARMRegister(&ptr);
 
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
-
+                            if (imm_offset > -4096 && imm_offset < 0)
+                            {
+                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            }
+                            else if (imm_offset >= 0 && imm_offset < 4096)
+                            {
+                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                            }
+                            else
+                            {
+                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                                imm_offset >>= 16;
+                                if (imm_offset)
+                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            }
                             RA_FreeARMRegister(&ptr, int_reg);
                             int_reg = off;
                             imm_offset = 0;
@@ -952,11 +962,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         else
                         {
                             uint8_t off = RA_AllocARMRegister(&ptr);
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            if (imm_offset > -4096 && imm_offset < 0)
+                            {
+                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            }
+                            else if (imm_offset >= 0 && imm_offset < 4096)
+                            {
+                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                            }
+                            else
+                            {
+                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                                imm_offset >>= 16;
+                                if (imm_offset)
+                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            }
                             *ptr++ = fldd(*reg, off, 0);
                             RA_FreeARMRegister(&ptr, off);
                         }
@@ -1017,11 +1038,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         else
                         {
                             uint8_t off = RA_AllocARMRegister(&ptr);
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            if (imm_offset > -4096 && imm_offset < 0)
+                            {
+                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            }
+                            else if (imm_offset >= 0 && imm_offset < 4096)
+                            {
+                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                            }
+                            else
+                            {
+                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                                imm_offset >>= 16;
+                                if (imm_offset)
+                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            }
                             *ptr++ = flds(*reg, off, 0);
                             RA_FreeARMRegister(&ptr, off);
                         }
@@ -1059,11 +1091,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     else
                     {
                         uint8_t off = RA_AllocARMRegister(&ptr);
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        if (imm_offset > -4096 && imm_offset < 0)
+                        {
+                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 4096)
+                        {
+                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                        }
+                        else
+                        {
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        }
                         *ptr++ = ldr_offset(off, val_reg, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
@@ -1104,11 +1147,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     else
                     {
                         uint8_t off = RA_AllocARMRegister(&ptr);
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        if (imm_offset > -4096 && imm_offset < 0)
+                        {
+                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 4096)
+                        {
+                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                        }
+                        else
+                        {
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        }
                         *ptr++ = ldrh_offset(off, val_reg, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
@@ -1149,11 +1203,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     else
                     {
                         uint8_t off = RA_AllocARMRegister(&ptr);
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        if (imm_offset > -4096 && imm_offset < 0)
+                        {
+                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 4096)
+                        {
+                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                        }
+                        else
+                        {
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        }
                         *ptr++ = ldrb_offset(off, val_reg, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
@@ -1299,6 +1364,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         uint8_t val_reg = 0xff;
         uint8_t mode = (opcode & 0x0038) >> 3;
         uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
+        int8_t pre_sz = 0;
+        int8_t post_sz = 0;
 
         if (mode == 4 || mode == 3)
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0, NULL);
@@ -1307,14 +1374,19 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
         /* Pre index? Adjust base register accordingly */
         if (mode == 4) {
-            uint8_t pre_sz = FPUDataSize[size];
+            pre_sz = FPUDataSize[size];
 
             if ((pre_sz == 1) && ((opcode & 7) == 7))
                 pre_sz = 2;
+            
+            pre_sz = -pre_sz;
+        }
+        /* Post index? Adjust base register accordingly */
+        else if (mode == 3) {
+            post_sz = FPUDataSize[size];
 
-            *ptr++ = sub_immed(int_reg, int_reg, pre_sz);
-
-            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            if ((post_sz == 1) && ((opcode & 7) == 7))
+                post_sz = 2;
         }
 
         switch (size)
@@ -1323,6 +1395,10 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 {
                     kprintf("extended precision store to EA!\n");
 #ifdef __aarch64__
+                    if (pre_sz)
+                    {
+                        *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                    }
                     if (imm_offset >= -255 && imm_offset <= 251)
                     {
                         ptr = EMIT_Store96bitFP(ptr, reg, int_reg, imm_offset);
@@ -1330,13 +1406,29 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     else
                     {
                         uint8_t off = RA_AllocARMRegister(&ptr);
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        if (imm_offset > -4096 && imm_offset < 0)
+                        {
+                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 4096)
+                        {
+                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                        }
+                        else
+                        {
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        }
+
                         ptr = EMIT_Store96bitFP(ptr, reg, off, 0);
                         RA_FreeARMRegister(&ptr, off);
+                    }
+                    if (post_sz)
+                    {
+                        *ptr++ = add_immed(int_reg, int_reg, post_sz);
                     }
 #else
 #if 0
@@ -1381,7 +1473,15 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             case SIZE_D:
                 {
 #ifdef __aarch64__
-                    if (imm_offset >= -255 && imm_offset <= 255)
+                    if (pre_sz)
+                    {
+                        *ptr++ = fstd_preindex(reg, int_reg, pre_sz);
+                    }
+                    else if (post_sz)
+                    {
+                        *ptr++ = fstd_postindex(reg, int_reg, post_sz);
+                    }
+                    else if (imm_offset >= -255 && imm_offset <= 255)
                     {
                         *ptr++ = fstd(reg, int_reg, imm_offset);
                     }
@@ -1392,11 +1492,22 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     else
                     {
                         uint8_t off = RA_AllocARMRegister(&ptr);
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        if (imm_offset > -4096 && imm_offset < 0)
+                        {
+                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        }
+                        else if (imm_offset >= 0 && imm_offset < 4096)
+                        {
+                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                        }
+                        else
+                        {
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        }
                         *ptr++ = fstd(reg, off, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
@@ -1449,7 +1560,15 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             case SIZE_S:
 #ifdef __aarch64__
                 *ptr++ = fcvtsd(vfp_reg, reg);
-                if (imm_offset >= -255 && imm_offset <= 255)
+                if (pre_sz)
+                {
+                    *ptr++ = fsts_preindex(vfp_reg, int_reg, pre_sz);
+                }
+                else if (post_sz)
+                {
+                    *ptr++ = fsts_postindex(vfp_reg, int_reg, post_sz);
+                }
+                else if (imm_offset >= -255 && imm_offset <= 255)
                 {
                     *ptr++ = fsts(vfp_reg, int_reg, imm_offset);
                 }
@@ -1460,11 +1579,22 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 else
                 {
                     uint8_t off = RA_AllocARMRegister(&ptr);
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    if (imm_offset > -4096 && imm_offset < 0)
+                    {
+                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                    }
+                    else
+                    {
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    }
                     *ptr++ = fsts(vfp_reg, off, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
@@ -1491,7 +1621,15 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = fcvtzs_Dto32(val_reg, reg);
 
-                if (imm_offset >= -255 && imm_offset <= 255)
+                if (pre_sz)
+                {
+                    *ptr++ = str_offset_preindex(int_reg, val_reg, pre_sz);
+                }
+                else if (post_sz)
+                {
+                    *ptr++ = str_offset_postindex(int_reg, val_reg, post_sz);
+                }
+                else if (imm_offset >= -255 && imm_offset <= 255)
                 {
                     *ptr++ = stur_offset(int_reg, val_reg, imm_offset);
                 }
@@ -1502,11 +1640,22 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 else
                 {
                     uint8_t off = RA_AllocARMRegister(&ptr);
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    if (imm_offset > -4096 && imm_offset < 0)
+                    {
+                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                    }
+                    else
+                    {
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    }
                     *ptr++ = str_offset(off, val_reg, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
@@ -1535,7 +1684,15 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = fcvtzs_Dto32(val_reg, reg);
 
-                if (imm_offset >= -255 && imm_offset <= 255)
+                if (pre_sz)
+                {
+                    *ptr++ = strh_offset_preindex(int_reg, val_reg, pre_sz);
+                }
+                else if (post_sz)
+                {
+                    *ptr++ = strh_offset_postindex(int_reg, val_reg, post_sz);
+                }
+                else if (imm_offset >= -255 && imm_offset <= 255)
                 {
                     *ptr++ = sturh_offset(int_reg, val_reg, imm_offset);
                 }
@@ -1546,11 +1703,22 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 else
                 {
                     uint8_t off = RA_AllocARMRegister(&ptr);
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    if (imm_offset > -4096 && imm_offset < 0)
+                    {
+                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                    }
+                    else
+                    {
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    }
                     *ptr++ = strh_offset(off, val_reg, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
@@ -1579,7 +1747,15 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = fcvtzs_Dto32(val_reg, reg);
 
-                if (imm_offset >= -255 && imm_offset <= 255)
+                if (pre_sz)
+                {
+                    *ptr++ = strb_offset_preindex(int_reg, val_reg, pre_sz);
+                }
+                else if (post_sz)
+                {
+                    *ptr++ = strb_offset_postindex(int_reg, val_reg, post_sz);
+                }
+                else if (imm_offset >= -255 && imm_offset <= 255)
                 {
                     *ptr++ = sturb_offset(int_reg, val_reg, imm_offset);
                 }
@@ -1590,11 +1766,22 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 else
                 {
                     uint8_t off = RA_AllocARMRegister(&ptr);
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    if (imm_offset > -4096 && imm_offset < 0)
+                    {
+                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                    }
+                    else
+                    {
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    }
                     *ptr++ = strb_offset(off, val_reg, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
@@ -1622,15 +1809,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
         }
 
-        /* Post index? Adjust base register accordingly */
-        if (mode == 3) {
-            uint8_t post_sz = FPUDataSize[size];
-
-            if ((post_sz == 1) && ((opcode & 7) == 7))
-                post_sz = 2;
-
-            *ptr++ = add_immed(int_reg, int_reg, post_sz);
-
+        if ((mode == 4) || (mode == 3))
+        {
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
 
