@@ -382,18 +382,28 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                 break;
             case 0:
 #ifdef __aarch64__
-                if (offset_32bit) {
-                    *ptr++ = movw_immed_u16(reg_d16, offset);
-                    if ((offset >> 16) & 0xffff) {
-                        *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
-                    }
-                } else {
-                    if (offset > 0)
-                        *ptr++ = mov_immed_u16(reg_d16, offset, 0);
+                if (offset > -4096 && offset < 4096)
+                {
+                    if (offset < 0)
+                        *ptr++ = sub_immed(reg, base, -offset);
                     else
-                        *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                        *ptr++ = add_immed(reg, base, offset);
                 }
-                *ptr++ = add_reg(reg, base, reg_d16, LSL, 0);
+                else
+                {
+                    if (offset_32bit) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        }
+                    } else {
+                        if (offset > 0)
+                            *ptr++ = mov_immed_u16(reg_d16, offset, 0);
+                        else
+                            *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                    }
+                    *ptr++ = add_reg(reg, base, reg_d16, LSL, 0);
+                }
 #else
                 *ptr++ = add_reg(reg, base, reg_d16, 0);
 #endif
