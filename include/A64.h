@@ -508,7 +508,11 @@ static inline uint32_t fcvtds(uint8_t d_dst, uint8_t s_src) { return I32(0x1e22c
 static inline uint32_t fcvtsd(uint8_t s_dst, uint8_t d_src) { return I32(0x1e624000 | (s_dst & 31) | ((d_src & 31) << 5)); }
 static inline uint32_t fdivd(uint8_t v_dst, uint8_t v_dividend, uint8_t v_divisor) { return I32(0x1e601800 | (v_dst & 31) | ((v_dividend & 31) << 5) | ((v_divisor & 31) << 16)); }
 static inline uint32_t fldd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldd_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc400c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldd_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc400400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fldd_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xfd400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t flds_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t flds_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t flds(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t flds_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
 static inline uint32_t fldd_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x5c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
@@ -529,8 +533,12 @@ static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) {
 static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fsqrtd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e61c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e603800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+static inline uint32_t fstd_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstd_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstd_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xfd000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t fsts_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fsts_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
 
@@ -631,10 +639,17 @@ static inline __attribute__((always_inline))
 uint32_t * EMIT_GetFPUFlags(uint32_t * ptr, uint8_t fpsr)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+#if 1
+    *ptr++ = bic_immed(fpsr, fpsr, 4, 8);
+    *ptr++ = get_nzcv(tmp_reg);
+    *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
+    *ptr++ = orr_reg(fpsr, fpsr, tmp_reg, LSR, 4);
+#else
     *ptr++ = get_nzcv(tmp_reg);
     *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
     *ptr++ = ror(tmp_reg, tmp_reg, 28);
     *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
+#endif
     RA_FreeARMRegister(&ptr, tmp_reg);
 
     return ptr;
