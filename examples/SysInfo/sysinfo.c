@@ -7,6 +7,7 @@
 
 #define HZ 1000000
 
+extern void SI_BusTest2(unsigned long number_of_runs asm("d0"), void *buf asm("a0"));
 extern void SI_BusTest(unsigned long number_of_runs asm("d0"));
 extern void SI_Start();
 extern void SI_Start_Nr(unsigned long number_of_runs asm("d2"));
@@ -676,11 +677,12 @@ void _main (int n)
 {
   asm volatile("movec #0xc00,%0":"=r"(Clock_Frequency));
   Clock_Frequency = (Clock_Frequency + HZ / 2) / HZ;
-  Number_Of_Runs = 2000000;
-  kprintf("[SysInfo] Running BUSTEST (%d loops)\n", Number_Of_Runs);
+  Number_Of_Runs = 256000000;
+  kprintf("[SysInfo] Running BUSTEST (%d bytes)\n", Number_Of_Runs);
   kprintf("[SysInfo] Execution starts\n");
   asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
-  SI_BusTest(Number_Of_Runs);
+  //SI_BusTest(Number_Of_Runs / 128);
+  SI_BusTest2(Number_Of_Runs / 1000000, (void*)0);
   asm volatile("movec #0xc01,%0":"=r"(End_Time));
   kprintf("[SysInfo] Execution ends\n");
   User_Time = End_Time - Begin_Time;
@@ -693,8 +695,8 @@ void _main (int n)
 
 
   {
-    Microseconds = ((double)User_Time / (double)Number_Of_Runs) / (double)Clock_Frequency;
-    Megabytes_Per_Second = (double)Clock_Frequency * (double)Number_Of_Runs * 128e6 / (double)User_Time;
+    Microseconds = 1000*((double)User_Time / (double)Number_Of_Runs) / (double)Clock_Frequency;
+    Megabytes_Per_Second = (double)Clock_Frequency * (double)Number_Of_Runs * 1e6 / (double)User_Time;
     Megabytes_Per_Second = Megabytes_Per_Second / (1024 * 1024);
   }
 
@@ -718,7 +720,7 @@ void _main (int n)
   kprintf("[SysInfo] End time: %d\n", End_Time / Clock_Frequency);
   kprintf("[SysInfo] User time: %d\n", User_Time / Clock_Frequency);
 
-    kprintf ("[SysInfo] Microseconds for one run through BUSTEST:   ");
+    kprintf ("[SysInfo] Nanoseconds per byte in BUSTEST:            ");
     kprintf ("%d.%03d \n", (uint32_t)(Microseconds), ((uint32_t)(Microseconds * 1000.0)) % 1000);
 
     kprintf ("[SysInfo] Memory performance in BUSTEST:              ");

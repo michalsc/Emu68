@@ -2,6 +2,30 @@
     Perform BusTest - read 128 bytes in a row from memory
 */
 
+/* a0 - beginning of tested memory region, d0 - length of the region in 1e6 blocks */
+    .globl _SI_BusTest2
+_SI_BusTest2:
+    movem.l d0-d7/a0-a6,-(sp)
+    move.l  #3124, d6
+    move.l  a0, a6
+    move.l  d0, d5
+    subq.l  #1, d5
+outer_loop:
+    move.l  d6,d4
+inner_loop:
+    movem.l (a6)+,d0-d3/a0-a5 
+    movem.l (a6)+,d0-d3/a0-a5
+    movem.l (a6)+,d0-d3/a0-a5
+    movem.l (a6)+,d0-d3/a0-a5
+    movem.l (a6)+,d0-d3/a0-a5
+    movem.l (a6)+,d0-d3/a0-a5
+    movem.l (a6)+,d0-d3/a0-a5
+    movem.l (a6)+,d0-d3/a0-a5 
+    dbra    d4,inner_loop
+    dbra    d5,outer_loop
+    movem.l (sp)+,d0-d7/a0-a6
+    rts
+
 	.globl _SI_BusTest
 _SI_BusTest:
     movem.l d1/d2/a0,-(sp)
