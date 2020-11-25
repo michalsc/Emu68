@@ -65,9 +65,20 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                 *ptr++ = ldr_offset(base, reg, offset);
             else {
                 if (offset_32bit) {
-                    *ptr++ = movw_immed_u16(reg_d16, offset);
-                    if ((offset >> 16) & 0xffff) {
-                        *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                    if ((offset & 0xffff) != 0) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        }
+                    } else {
+                        if ((offset >> 16) & 0xffff)
+                        {
+                            *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                        }
+                        else
+                        {
+                            *ptr++ = mov_reg(reg_d16, 31);
+                        }
                     }
                 }
                 else {
@@ -93,9 +104,17 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                     *ptr++ = ldrh_offset(base, reg, offset);
                 else {
                     if (offset_32bit) {
-                        *ptr++ = movw_immed_u16(reg_d16, offset);
-                        if ((offset >> 16) & 0xffff) {
-                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        if (offset & 0xffff) {
+                            *ptr++ = movw_immed_u16(reg_d16, offset);
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                            }
+                        } else {
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                            } else {
+                                *ptr++ = mov_reg(reg_d16, 31);
+                            }
                         }
                     } else {
                         if (offset > 0)
@@ -120,9 +139,17 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                     *ptr++ = ldrb_offset(base, reg, offset);
                 else {
                     if (offset_32bit) {
-                        *ptr++ = movw_immed_u16(reg_d16, offset);
-                        if ((offset >> 16) & 0xffff) {
-                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        if (offset & 0xffff) {
+                            *ptr++ = movw_immed_u16(reg_d16, offset);
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                            }
+                        } else {
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                            } else {
+                                *ptr++ = mov_reg(reg_d16, 31);
+                            }
                         }
                     } else {
                         if (offset > 0)
@@ -151,9 +178,17 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                 else
                 {
                     if (offset_32bit) {
-                        *ptr++ = movw_immed_u16(reg_d16, offset);
-                        if ((offset >> 16) & 0xffff) {
-                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        if (offset & 0xffff) {
+                            *ptr++ = movw_immed_u16(reg_d16, offset);
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                            }
+                        } else {
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                            } else {
+                                *ptr++ = mov_reg(reg_d16, 31);
+                            }
                         }
                     } else {
                         if (offset > 0)
@@ -306,9 +341,17 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                 *ptr++ = str_offset(base, reg, offset);
             else {
                 if (offset_32bit) {
-                    *ptr++ = movw_immed_u16(reg_d16, offset);
-                    if ((offset >> 16) & 0xffff) {
-                        *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                    if (offset & 0xffff) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        }
+                    } else {
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                        } else {
+                            *ptr++ = mov_reg(reg_d16, 31);
+                        }
                     }
                 }
                 else {
@@ -334,9 +377,17 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                     *ptr++ = strh_offset(base, reg, offset);
                 else {
                     if (offset_32bit) {
-                        *ptr++ = movw_immed_u16(reg_d16, offset);
-                        if ((offset >> 16) & 0xffff) {
-                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        if (offset & 0xffff) {
+                            *ptr++ = movw_immed_u16(reg_d16, offset);
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                            }
+                        } else {
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                            } else {
+                                *ptr++ = mov_reg(reg_d16, 31);
+                            }
                         }
                     } else {
                         if (offset > 0)
@@ -361,10 +412,18 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                     *ptr++ = strb_offset(base, reg, offset);
                 else {
                     if (offset_32bit) {
-                        *ptr++ = movw_immed_u16(reg_d16, offset);
-                        if ((offset >> 16) & 0xffff) {
-                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        if (offset & 0xffff) {
+                            *ptr++ = movw_immed_u16(reg_d16, offset);
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                            }
+                        } else {
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                            } else {
+                                *ptr++ = mov_reg(reg_d16, 31);
                         }
+                    }
                     } else {
                         if (offset > 0)
                             *ptr++ = mov_immed_u16(reg_d16, offset, 0);
@@ -392,9 +451,17 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                 else
                 {
                     if (offset_32bit) {
-                        *ptr++ = movw_immed_u16(reg_d16, offset);
-                        if ((offset >> 16) & 0xffff) {
-                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        if (offset & 0xffff) {
+                            *ptr++ = movw_immed_u16(reg_d16, offset);
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                            }
+                        } else {
+                            if ((offset >> 16) & 0xffff) {
+                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                            } else {
+                                *ptr++ = mov_reg(reg_d16, 31);
+                            }
                         }
                     } else {
                         if (offset > 0)
