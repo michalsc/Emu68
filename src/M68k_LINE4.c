@@ -1613,13 +1613,11 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 0100111001110101 - RTS */
     else if (opcode == 0x4e75)
     {
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t sp = RA_MapM68kRegister(&ptr, 15);
 
         /* Fetch return address from stack */
-        *ptr++ = ldr_offset_postindex(sp, tmp, 4);
+        *ptr++ = ldr_offset_postindex(sp, REG_PC, 4);
         ptr = EMIT_ResetOffsetPC(ptr);
-        *ptr++ = mov_reg(REG_PC, tmp);
         RA_SetDirtyM68kRegister(&ptr, 15);
 
         /*
@@ -1633,7 +1631,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         }
         else
             *ptr++ = INSN_TO_LE(0xffffffff);
-        RA_FreeARMRegister(&ptr, tmp);
     }
     /* 0100111001110110 - TRAPV */
     else if (opcode == 0x4e76)
@@ -1674,9 +1671,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
         *ptr++ = orr_reg(REG_SR, REG_SR, tmp, 0);
 #endif
         /* Fetch return address from stack */
-        *ptr++ = ldr_offset_postindex(sp, tmp, 4);
+        *ptr++ = ldr_offset_postindex(sp, REG_PC, 4);
         ptr = EMIT_ResetOffsetPC(ptr);
-        *ptr++ = mov_reg(REG_PC, tmp);
         RA_SetDirtyM68kRegister(&ptr, 15);
         *ptr++ = INSN_TO_LE(0xffffffff);
         RA_FreeARMRegister(&ptr, mask);
