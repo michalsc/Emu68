@@ -694,11 +694,17 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             switch (size)
             {
                 case SIZE_S:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
 #ifdef __aarch64__
-                    *ptr++ = fmsr(*reg, int_reg);
+                {
+                    int8_t off = 4;
+                    ptr = EMIT_GetOffsetPC(ptr, &off);
+                    *ptr++ = flds(*reg, REG_PC, off);
                     *ptr++ = fcvtds(*reg, *reg);
+                    *ext_count += 2;
+                    break;
+                }
 #else
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fcvtds(*reg, *reg * 2);
 #endif
@@ -713,22 +719,34 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 #endif
                     break;
                 case SIZE_W:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
 #ifdef __aarch64__
-                    *ptr++ = sxth(int_reg, int_reg);
+                {
+                    int_reg = RA_AllocARMRegister(&ptr);
+                    int16_t imm = (int16_t)BE16((*m68k_ptr)[1]);
+                    *ptr++ = movw_immed_u16(int_reg, imm & 0xffff);
+                    if (imm < 0)
+                        *ptr++ = movt_immed_u16(int_reg, 0xffff);
                     *ptr++ = scvtf_32toD(*reg, int_reg);
+                    *ext_count += 1;
+                }
 #else
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
                     *ptr++ = sxth(int_reg, int_reg, 0);
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
 #endif
                     break;
                 case SIZE_B:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
 #ifdef __aarch64__
-                    *ptr++ = sxtb(int_reg, int_reg);
+                {
+                    int_reg = RA_AllocARMRegister(&ptr);
+                    int8_t imm = (int8_t)BE16((*m68k_ptr)[1]);
+                    *ptr++ = mov_immed_s8(int_reg, imm);
                     *ptr++ = scvtf_32toD(*reg, int_reg);
+                    *ext_count += 1;
+                }
 #else
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
                     *ptr++ = sxtb(int_reg, int_reg, 0);
                     *ptr++ = fmsr(*reg * 2, int_reg);
                     *ptr++ = fsitod(*reg, *reg * 2);
@@ -736,19 +754,13 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
 #ifdef __aarch64__
                 case SIZE_D:
-                    if (ea == 0x3c)
-                    {
-                        int8_t off = 4;
-                        ptr = EMIT_GetOffsetPC(ptr, &off);
-                        *ptr++ = fldd(*reg, REG_PC, off);
-                        *ext_count += 4;
-                    }
-                    else
-                    {
-                        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
-                        not_yet_done = 1;
-                    }
+                {
+                    int8_t off = 4;
+                    ptr = EMIT_GetOffsetPC(ptr, &off);
+                    *ptr++ = fldd(*reg, REG_PC, off);
+                    *ext_count += 4;
                     break;
+                }
 #endif
                 default:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
