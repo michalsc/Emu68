@@ -30,7 +30,7 @@ options_t Options = {
 };
 #endif
 
-const int debug = 0;
+const int debug = 1;
 const int debug_cnt = 0;
 
 struct List *ICache;
@@ -412,7 +412,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             epilogue_size += distance;
         }
         #if 1
-        if (orig_m68kcodeptr == m68kcodeptr)
+        if (!break_loop && (orig_m68kcodeptr == m68kcodeptr))
         {
             if (debug)
                 kprintf("[ICache]   Creating loop within translation unit\n");
