@@ -30,7 +30,7 @@ options_t Options = {
 };
 #endif
 
-const int debug = 1;
+const int debug = 0;
 const int debug_cnt = 0;
 
 struct List *ICache;

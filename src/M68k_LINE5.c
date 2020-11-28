@@ -28,6 +28,9 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             uint32_t *branch_1 = NULL;
             uint32_t *branch_2 = NULL;
             int32_t branch_offset = 2 + (int16_t)BE16(*(*m68k_ptr)++);
+            uint16_t *bra_rel_ptr = *m68k_ptr - 2;
+
+            //*ptr++ = b(0);
 
             /* Selcom case of DBT which does nothing */
             if (m68k_condition == M_CC_T)
@@ -36,7 +39,37 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             }
             else
             {
-                ptr = EMIT_FlushPC(ptr);
+                uint8_t c_true = RA_AllocARMRegister(&ptr);
+                uint8_t c_false = RA_AllocARMRegister(&ptr);
+                int8_t off8 = 0;
+                int32_t off = 4;
+                ptr = EMIT_GetOffsetPC(ptr, &off8);
+                off += off8;
+                ptr = EMIT_ResetOffsetPC(ptr);
+
+                *ptr++ = add_immed(c_true, REG_PC, off);
+
+                off = branch_offset + off8;
+
+                if (off > -4096 && off < 0)
+                {
+                    *ptr++ = sub_immed(c_false, REG_PC, -off);
+                }
+                else if (off > 0 && off < 4096)
+                {
+                    *ptr++ = add_immed(c_false, REG_PC, off);
+                }
+                else if (off != 0)
+                {
+                    uint8_t reg = RA_AllocARMRegister(&ptr);
+                    *ptr++ = movw_immed_u16(reg, off & 0xffff);
+                    *ptr++ = movt_immed_u16(reg, (off >> 16) & 0xffff);
+                    *ptr++ = add_reg(c_false, REG_PC, reg, LSL, 0);
+                    RA_FreeARMRegister(&ptr, reg);
+                } else /* branch_offset == 0 */
+                {
+                    *ptr++ = mov_reg(c_false, REG_PC);
+                }
 
                 /* If condition was not false check the condition and eventually break the loop */
                 if (m68k_condition != M_CC_F)
@@ -45,14 +78,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
                     /* Adjust PC, negated CC is loop condition, CC is loop break condition */
 #ifdef __aarch64__
-                    uint8_t c_true = RA_AllocARMRegister(&ptr);
-                    uint8_t c_false = RA_AllocARMRegister(&ptr);
-
-                    *ptr++ = add_immed(c_true, REG_PC, 4);
-                    *ptr++ = csel(REG_PC, c_true, REG_PC, arm_condition);
-
-                    RA_FreeARMRegister(&ptr, c_true);
-                    RA_FreeARMRegister(&ptr, c_false);
+                    *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
 #else
                     *ptr++ = add_cc_immed(arm_condition^1, REG_PC, REG_PC, 2);
                     *ptr++ = add_cc_immed(arm_condition, REG_PC, REG_PC, 4);
@@ -69,7 +95,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #else
                 *ptr++ = mov_reg_shift(reg, counter_reg, 16);
 #endif
-                /* Substract 0x10000 from temporary, copare with 0xffff0000 */
+                /* Substract 0x10000 from temporary, compare with 0xffff0000 */
 #ifdef __aarch64__
                 *ptr++ = subs_immed(reg, reg, 1);
 #else
@@ -84,30 +110,15 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 
                 /* If counter was 0xffff (temprary reg 0xffff0000) break the loop */
 #ifdef __aarch64__
-                *ptr++ = add_immed(reg, REG_PC, 4);
-                *ptr++ = csel(REG_PC, reg, REG_PC, A64_CC_MI);
+                *ptr++ = csel(REG_PC, c_true, c_false, A64_CC_MI);
                 branch_2 = ptr;
-                *ptr++ = b_cc(A64_CC_MI, 3);
+                *ptr++ = b_cc(A64_CC_PL, 3);
 #else
                 *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 4);
                 branch_2 = ptr;
                 *ptr++ = b_cc(ARM_CC_EQ, 2);
 #endif
 
-                if (branch_offset > -4096 && branch_offset < 0)
-                {
-                    *ptr++ = sub_immed(REG_PC, REG_PC, -branch_offset);
-                }
-                else if (branch_offset > 0 && branch_offset < 4096)
-                {
-                    *ptr++ = add_immed(REG_PC, REG_PC, branch_offset);
-                }
-                else if (branch_offset != 0)
-                {
-                    *ptr++ = movw_immed_u16(reg, branch_offset & 0xffff);
-                    *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
-                    *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
-                }
 #if 0
                 *ptr++ = add_immed(REG_PC, REG_PC, 2);
                 /* Load PC-relative offset */
@@ -120,7 +131,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
 #endif
                 RA_FreeARMRegister(&ptr, reg);
 
-                *branch_2 = b_cc(A64_CC_MI, ptr - branch_2);
+                *branch_2 = b_cc(A64_CC_PL, ptr - branch_2);
                 if (branch_1) {
 #ifdef __aarch64__
                     *branch_1 = b_cc(arm_condition, ptr - branch_1);
@@ -130,11 +141,15 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                     *ptr++ = (uint32_t)(uintptr_t)branch_1;
                 }
                 
+                *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
+
                 *ptr++ = (uint32_t)(uintptr_t)branch_2;
                 *ptr++ = branch_1 == NULL ? 1 : 2;
                 *ptr++ = 0;
                 *ptr++ = INSN_TO_LE(0xfffffffe);
 
+                RA_FreeARMRegister(&ptr, c_true);
+                RA_FreeARMRegister(&ptr, c_false);
                 RA_FreeARMRegister(&ptr, counter_reg);
             }
         }
