@@ -27,8 +27,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
             uint8_t arm_condition = 0;
             uint32_t *branch_1 = NULL;
             uint32_t *branch_2 = NULL;
-
-            (*m68k_ptr)++;
+            int32_t branch_offset = 2 + (int16_t)BE16(*(*m68k_ptr)++);
 
             /* Selcom case of DBT which does nothing */
             if (m68k_condition == M_CC_T)
@@ -95,6 +94,21 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = b_cc(ARM_CC_EQ, 2);
 #endif
 
+                if (branch_offset > -4096 && branch_offset < 0)
+                {
+                    *ptr++ = sub_immed(REG_PC, REG_PC, -branch_offset);
+                }
+                else if (branch_offset > 0 && branch_offset < 4096)
+                {
+                    *ptr++ = add_immed(REG_PC, REG_PC, branch_offset);
+                }
+                else if (branch_offset != 0)
+                {
+                    *ptr++ = movw_immed_u16(reg, branch_offset & 0xffff);
+                    *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
+                    *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
+                }
+#if 0
                 *ptr++ = add_immed(REG_PC, REG_PC, 2);
                 /* Load PC-relative offset */
                 *ptr++ = ldrsh_offset(REG_PC, reg, 0);
@@ -102,6 +116,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
 #else
                 *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
+#endif
 #endif
                 RA_FreeARMRegister(&ptr, reg);
 
