@@ -238,10 +238,17 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, pc_yes);
         RA_FreeARMRegister(&ptr, pc_no);
         tmpptr = ptr;
-#if M68K_DEF_BRANCH_TAKEN
+#if EMU68_DEF_BRANCH_AUTO
+        if (branch_target < (intptr_t)*m68k_ptr)
+            *ptr++ = b_cc(success_condition, 1);
+        else
+            *ptr++ = b_cc(success_condition^1, 1);
+#else
+#if EMU68_DEF_BRANCH_TAKEN
         *ptr++ = b_cc(success_condition, 1);
 #else
         *ptr++ = b_cc(success_condition^1, 1);
+#endif
 #endif
 #else
         if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
@@ -258,8 +265,13 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         *tmpptr = b_cc(success_condition, ptr-tmpptr-2);
 #endif
 
-#if M68K_DEF_BRANCH_TAKEN
+#if EMU68_DEF_BRANCH_AUTO
+        if (branch_target < (intptr_t)*m68k_ptr)
+            *m68k_ptr = (uint16_t *)branch_target;
+#else
+#if EMU68_DEF_BRANCH_TAKEN
         *m68k_ptr = (uint16_t *)branch_target;
+#endif
 #endif
 
         RA_FreeARMRegister(&ptr, reg);
