@@ -22,6 +22,38 @@ void * _my_malloc(size_t size)
 }
 #define malloc(s) _my_malloc(s)
 
+uint32_t GetHunkFileSize(void *buffer)
+{
+    uint32_t total_size = 0;
+    uint32_t first_to_load = 0;
+    uint32_t last_to_load = 0;
+    uint32_t *words = buffer;
+
+    kprintf("[HUNK] Loading Hunk file from address %p\n", buffer);
+
+    if (BE32(words[0]) != 0x3f3 || BE32(words[1]) != 0)
+    {
+        kprintf("[HUNK] FAILURE: Wrong header %08x:%08x.\n", BE32(words[0]), BE32(words[1]));
+        return 0;
+    }
+
+    /* Parse header */
+    first_to_load = BE32(words[3]);
+    last_to_load = BE32(words[4]);
+
+    D(kprintf("[HUNK] Pre-allocating segments %d to %d\n", first_to_load, last_to_load));
+
+    words = &words[5];
+    /* Adjust memory allocator */
+    for (unsigned i = 0; i < last_to_load - first_to_load + 1; i++)
+    {
+        uint32_t size = 4 * (BE32(words[i]) & 0x3fffffff) + sizeof(struct SegList) + 16;
+        total_size += (size + 31) & ~31;
+    }
+
+    return total_size;
+}
+
 void * LoadHunkFile(void *buffer, void *p)
 {
     uint32_t *words = buffer;
@@ -51,12 +83,6 @@ void * LoadHunkFile(void *buffer, void *p)
     D(kprintf("[HUNK] Pre-allocating segments %d to %d\n", first_to_load, last_to_load));
 
     words = &words[5];
-    /* Adjust memory allocator */
-    for (unsigned i = 0; i < last_to_load - first_to_load + 1; i++)
-    {
-        uint32_t size = 4 * (BE32(words[i]) & 0x3fffffff) + sizeof(struct SegList) + 16;
-        pool -= (size + 31) & ~31;
-    }
 
     D(kprintf("[HUNK] Memory pool starts at %08x\n", pool));
 

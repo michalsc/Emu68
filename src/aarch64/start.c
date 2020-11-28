@@ -529,6 +529,11 @@ void boot(void *dtree)
             if (magic == 0x3f3)
             {
                 kprintf("[BOOT] Loading HUNK executable from %p-%p\n", image_start, image_end);
+                int sz = GetHunkFileSize(image_start);
+                top_of_ram -= sz;
+                top_of_ram &= ~0x1fffff;
+                top_of_ram -= 8;
+
                 void *hunks = LoadHunkFile(image_start, (void*)top_of_ram);
                 (void)hunks;
                 ptr = (void *)((intptr_t)hunks + 4);

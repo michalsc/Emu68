@@ -10,5 +10,6 @@ struct SegList {
 };
 
 void * LoadHunkFile(void *buffer, void *base);
+uint32_t GetHunkFileSize(void *buffer);
 
 #endif /* _HUNKLOADER_H */
