@@ -155,6 +155,7 @@ static inline uint32_t sysl(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uin
 static inline uint32_t dc_ivac(uint8_t rt) { return sys(rt, 0, 7, 6, 1); }
 static inline uint32_t dc_civac(uint8_t rt) { return sys(rt, 3, 7, 14, 1); }
 static inline uint32_t dsb_sy() { return I32(0xd5033f9f); }
+static inline uint32_t nop() { return I32(0xd503201f); }
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
@@ -590,12 +591,12 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
     uint8_t sign_reg = RA_AllocARMRegister(&ptr);
 
-    *ptr++ = ldur_offset(base, exp_reg, offset9);
+    *ptr++ = ldurh_offset(base, exp_reg, offset9);
     *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
     *ptr++ = mov_immed_u16(tmp_reg, 0xc400, 0);
-    *ptr++ = lsr(sign_reg, exp_reg, 31);
+    *ptr++ = lsr(sign_reg, exp_reg, 15);
     *ptr++ = lsr64(mant_reg, mant_reg, 11);
-    *ptr++ = add_reg(tmp_reg, tmp_reg, exp_reg, LSR, 16);
+    *ptr++ = add_reg(tmp_reg, tmp_reg, exp_reg, LSL, 0);
     *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
     *ptr++ = bfi64(mant_reg, sign_reg, 63, 1);
     *ptr++ = mov_reg_to_simd(fpreg, TS_D, 0, mant_reg);
