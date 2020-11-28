@@ -222,6 +222,7 @@ void M68K_PrintContext(void *);
 
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
+    uint16_t *orig_m68kcodeptr = m68kcodeptr;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
     uint32_t pop_cnt=0;
@@ -276,6 +277,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     prologue_size = end - tmpptr;
 
     int break_loop = FALSE;
+    int inner_loop = FALSE;
 
     while (break_loop == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
@@ -409,6 +411,18 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
             epilogue_size += distance;
         }
+        #if 1
+        if (orig_m68kcodeptr == m68kcodeptr)
+        {
+            if (debug)
+                kprintf("[ICache]   Creating loop within translation unit\n");
+            
+            inner_loop = TRUE;
+            break;
+        }
+        #else
+        (void)orig_m68kcodeptr;
+        #endif
     }
     tmpptr = end;
     RA_FlushFPURegs(&end);
@@ -474,14 +488,29 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #else
     uint8_t ctx = RA_GetCTX(&end);
     uint8_t tmp = RA_AllocARMRegister(&end);
+    uint8_t tmp2 = RA_AllocARMRegister(&end);
+    if (inner_loop)
+    {
+        *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, PINT));
+    }
     *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
     *end++ = add64_immed(tmp, tmp, insn_count & 0xfff);
     if (insn_count & 0xfff000)
         *end++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
     *end++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+    if (inner_loop)
+    {
+        uint32_t *tmpptr = end;
+        *end++ = cbz(tmp2, arm_code - tmpptr);
+    }
+    *end++ = bx_lr();
+    
+    uint32_t *_tmpptr = end;
+    RA_FreeARMRegister(&end, tmp2);
     RA_FreeARMRegister(&end, tmp);
     RA_FlushCTX(&end);
-    *end++ = bx_lr();
+    end = _tmpptr;
+    
 #endif
     epilogue_size += end - tmpptr;
 
