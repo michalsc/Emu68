@@ -23,6 +23,7 @@
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 #include "md5.h"
+#include "disasm.h"
 
 void _start();
 void _boot();
@@ -351,6 +352,8 @@ void boot(void *dtree)
     kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
+
+    disasm_init();
 
     e = dt_find_node("/memory");
 
@@ -817,7 +820,8 @@ void stub_FindUnit()
 {
     asm volatile(
 "FindUnit:                                  \n"
-"       adr     x4, ICache                  \n"
+"       adrp    x4, ICache                  \n"
+"       add     x4, x4, :lo12:ICache        \n"
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       and     x0, x0, #0xffff             \n"
 "       ldr     x4, [x4]                    \n" // 1 -> 4
@@ -878,7 +882,8 @@ void stub_ExecutionLoop()
 "       b       1b                          \n"
 
 "13:                                        \n"
-"       adr     x4, ICache                  \n"
+"       adrp    x4, ICache                  \n"
+"       add     x4, x4, :lo12:ICache        \n"
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       and     x0, x0, #0xffff             \n"
 "       ldr     x4, [x4]                    \n" // 1 -> 4
