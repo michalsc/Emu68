@@ -87,7 +87,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                     else
                         *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                 }
-                *ptr++ = ldr_regoffset(base, reg, reg_d16, SXTW, 0);
+                *ptr++ = ldr_regoffset(base, reg, reg_d16, UXTW, 0);
             }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -122,7 +122,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = ldrh_regoffset(base, reg, reg_d16, SXTW, 0);
+                    *ptr++ = ldrh_regoffset(base, reg, reg_d16, UXTW, 0);
                 }
 #else
                 if (offset > -256 && offset < 256)
@@ -157,7 +157,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = ldrb_regoffset(base, reg, reg_d16, SXTW);
+                    *ptr++ = ldrb_regoffset(base, reg, reg_d16, UXTW);
                 }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -245,31 +245,31 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint3
                 if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = ldr_regoffset(base, reg, tmp, SXTW, 0);
+                    *ptr++ = ldr_regoffset(base, reg, tmp, UXTW, 0);
                     RA_FreeARMRegister(&ptr, tmp);
                 }
                 else
-                    *ptr++ = ldr_regoffset(base, reg, index, SXTW, 0);
+                    *ptr++ = ldr_regoffset(base, reg, index, UXTW, 0);
                 break;
             case 2:
                 if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = ldrh_regoffset(base, reg, tmp, SXTW, 0);
+                    *ptr++ = ldrh_regoffset(base, reg, tmp, UXTW, 0);
                     RA_FreeARMRegister(&ptr, tmp);
                 }
                 else
-                    *ptr++ = ldrh_regoffset(base, reg, index, SXTW, 0);
+                    *ptr++ = ldrh_regoffset(base, reg, index, UXTW, 0);
                 break;
             case 1:
                 if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = ldrb_regoffset(base, reg, tmp, SXTW);
+                    *ptr++ = ldrb_regoffset(base, reg, tmp, UXTW);
                     RA_FreeARMRegister(&ptr, tmp);
                 }
                 else
-                    *ptr++ = ldrb_regoffset(base, reg, index, SXTW);
+                    *ptr++ = ldrb_regoffset(base, reg, index, UXTW);
                 break;
             case 0:
                 *ptr++ = add_reg(reg, base, index, LSL, shift);
@@ -360,7 +360,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                     else
                         *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                 }
-                *ptr++ = str_regoffset(base, reg, reg_d16, SXTW, 0);
+                *ptr++ = str_regoffset(base, reg, reg_d16, UXTW, 0);
             }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -395,7 +395,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = strh_regoffset(base, reg, reg_d16, SXTW, 0);
+                    *ptr++ = strh_regoffset(base, reg, reg_d16, UXTW, 0);
                 }
 #else
                 if (offset > -256 && offset < 256)
@@ -430,7 +430,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = strb_regoffset(base, reg, reg_d16, SXTW);
+                    *ptr++ = strb_regoffset(base, reg, reg_d16, UXTW);
                 }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -518,31 +518,31 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
                 if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = str_regoffset(base, reg, tmp, SXTW, 0);
+                    *ptr++ = str_regoffset(base, reg, tmp, UXTW, 0);
                     RA_FreeARMRegister(&ptr, tmp);
                 }
                 else
-                    *ptr++ = str_regoffset(base, reg, index, SXTW, 0);
+                    *ptr++ = str_regoffset(base, reg, index, UXTW, 0);
                 break;
             case 2:
                 if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = strh_regoffset(base, reg, tmp, SXTW, 0);
+                    *ptr++ = strh_regoffset(base, reg, tmp, UXTW, 0);
                     RA_FreeARMRegister(&ptr, tmp);
                 }
                 else
-                    *ptr++ = strh_regoffset(base, reg, index, SXTW, 0);
+                    *ptr++ = strh_regoffset(base, reg, index, UXTW, 0);
                 break;
             case 1:
                 if (shift) {
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = strb_regoffset(base, reg, tmp, SXTW);
+                    *ptr++ = strb_regoffset(base, reg, tmp, UXTW);
                     RA_FreeARMRegister(&ptr, tmp);
                 }
                 else
-                    *ptr++ = strb_regoffset(base, reg, index, SXTW);
+                    *ptr++ = strb_regoffset(base, reg, index, UXTW);
                 break;
             case 0:
                 *ptr++ = add_reg(reg, base, index, LSL, shift);
@@ -814,9 +814,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 if (brief & (1 << 11))
                 {
                     if (brief & 0x8000)
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                     else
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                 }
                 else
                 {
@@ -860,9 +860,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     if (brief & (1 << 11))
                     {
                         if (brief & 0x8000)
-                            index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                     }
                     else
                     {
@@ -954,7 +954,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
                         else
 #ifdef __aarch64__
-                            *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, SXTW, 0);
+                            *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, UXTW, 0);
 #else
                             *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, 0);
 #endif
@@ -1060,9 +1060,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     if (brief & (1 << 11))
                     {
                         if (brief & 0x8000)
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                     }
                     else
                     {
@@ -1110,9 +1110,9 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         if (brief & (1 << 11))
                         {
                             if (brief & 0x8000)
-                                index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                             else
-                                index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                         }
                         else
                         {
@@ -1201,7 +1201,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
                             else
 #ifdef __aarch64__
-                                *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, SXTW, 0);
+                                *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, UXTW, 0);
                             if (outer_reg != 0xff)
                                 *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
 #else
@@ -1222,7 +1222,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 }
                                 else
 #ifdef __aarch64__
-                                    *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, SXTW, 0);
+                                    *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, UXTW, 0);
 #else
                                     *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, 0);
 #endif
@@ -1612,9 +1612,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 if (brief & (1 << 11))
                 {
                     if (brief & 0x8000)
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                     else
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                 }
                 else
                 {
@@ -1655,9 +1655,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     if (brief & (1 << 11))
                     {
                         if (brief & 0x8000)
-                            index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                     }
                     else
                     {
@@ -1749,7 +1749,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
                         else
 #ifdef __aarch64__
-                            *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, SXTW, 0);
+                            *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, UXTW, 0);
                         if (outer_reg != 0xff)
                             *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
 #else
@@ -1771,7 +1771,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             }
                             else
 #ifdef __aarch64__
-                                *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, SXTW, 0);
+                                *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, UXTW, 0);
 #else
                                 *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, 0);
 #endif
@@ -1847,9 +1847,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     if (brief & (1 << 11))
                     {
                         if (brief & 0x8000)
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                     }
                     else
                     {
@@ -1899,9 +1899,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         if (brief & (1 << 11))
                         {
                             if (brief & 0x8000)
-                                index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg); // RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                             else
-                                index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, extra_reg); // RA_CopyFromM68kRegister(&ptr, extra_reg);
                         }
                         else
                         {
