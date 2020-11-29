@@ -137,7 +137,9 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
         uint8_t m68k_condition = (opcode >> 8) & 15;
         uint8_t success_condition = 0;
 
+#ifndef __aarch64__
         success_condition = EMIT_TestCondition(&ptr, m68k_condition);
+#endif
 
         int8_t local_pc_off = 2;
 
@@ -234,6 +236,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
             *ptr++ = add_reg(pc_no, REG_PC, reg, LSL, 0);
         }
+        success_condition = EMIT_TestCondition(&ptr, m68k_condition);
         *ptr++ = csel(REG_PC, pc_yes, pc_no, success_condition);
         RA_FreeARMRegister(&ptr, pc_yes);
         RA_FreeARMRegister(&ptr, pc_no);
