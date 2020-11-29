@@ -113,6 +113,13 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 *ptr++ = csel(REG_PC, c_true, c_false, A64_CC_MI);
                 branch_2 = ptr;
                 *ptr++ = b_cc(A64_CC_PL, 3);
+                if (branch_1) {
+#ifdef __aarch64__
+                    *branch_1 = b_cc(arm_condition, ptr - branch_1);
+#else
+                    *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + ((int)(branch_2 - branch_1) << 5));
+#endif
+                }
 #else
                 *ptr++ = add_cc_immed(ARM_CC_EQ, REG_PC, REG_PC, 4);
                 branch_2 = ptr;
@@ -132,19 +139,11 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
                 RA_FreeARMRegister(&ptr, reg);
 
                 *branch_2 = b_cc(A64_CC_PL, ptr - branch_2);
-                if (branch_1) {
-#ifdef __aarch64__
-                    *branch_1 = b_cc(arm_condition, ptr - branch_1);
-#else
-                    *branch_1 = INSN_TO_LE(INSN_TO_LE(*branch_1) + ((int)(branch_2 - branch_1) << 5));
-#endif
-                    *ptr++ = (uint32_t)(uintptr_t)branch_1;
-                }
                 
                 *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
 
                 *ptr++ = (uint32_t)(uintptr_t)branch_2;
-                *ptr++ = branch_1 == NULL ? 1 : 2;
+                *ptr++ = 1;
                 *ptr++ = 0;
                 *ptr++ = INSN_TO_LE(0xfffffffe);
 
