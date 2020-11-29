@@ -19,6 +19,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t size = 0;
     uint16_t lo16;
     uint32_t u32;
+    int immediate = 0;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
@@ -49,10 +50,17 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0080:    /* Long operation */
             u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
             u32 |= BE16((*m68k_ptr)[ext_count++]);
-            u32 = -u32;
-            *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
-            if (((u32 >> 16) & 0xffff) != 0)
-                *ptr++ = movt_immed_u16(immed, u32 >> 16);
+            if (u32 < 4096)
+            {
+                immediate = 1;
+            }
+            else
+            {
+                u32 = -u32;
+                *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
+                if (((u32 >> 16) & 0xffff) != 0)
+                    *ptr++ = movt_immed_u16(immed, u32 >> 16);
+            }
             size = 4;
             break;
     }
@@ -68,7 +76,10 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             case 4:
-                *ptr++ = adds_reg(31, immed, dest, LSL, 0);
+                if (immediate)
+                    *ptr++ = cmp_immed(dest, u32);
+                else
+                    *ptr++ = adds_reg(31, immed, dest, LSL, 0);
                 break;
             case 2:
                 *ptr++ = adds_reg(31, immed, dest, LSL, 16);
@@ -100,7 +111,10 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
         case 4:
             /* Perform calcualtion */
-            *ptr++ = adds_reg(31, immed, dest, LSL, 0);
+            if (immediate)
+                *ptr++ = cmp_immed(dest, u32);
+            else
+                *ptr++ = adds_reg(31, immed, dest, LSL, 0);
             break;
         case 2:
             /* Perform calcualtion */
@@ -161,6 +175,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t size = 0;
     uint16_t lo16;
     uint32_t u32;
+    int immediate = 0;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
@@ -191,10 +206,16 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0080:    /* Long operation */
             u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
             u32 |= BE16((*m68k_ptr)[ext_count++]);
-            u32 = -u32;
-            *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
-            if (((u32 >> 16) & 0xffff) != 0)
-                *ptr++ = movt_immed_u16(immed, u32 >> 16);
+            if (u32 < 4096)
+            {
+                immediate = 1;
+            }
+            else {
+                u32 = -u32;
+                *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
+                if (((u32 >> 16) & 0xffff) != 0)
+                    *ptr++ = movt_immed_u16(immed, u32 >> 16);
+            }
             size = 4;
             break;
     }
@@ -213,7 +234,10 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             case 4:
-                *ptr++ = adds_reg(dest, immed, dest, LSL, 0);
+                if (immediate)
+                    *ptr++ = subs_immed(dest, dest, u32 & 0xffff);
+                else
+                    *ptr++ = adds_reg(dest, immed, dest, LSL, 0);
                 break;
             case 2:
                 *ptr++ = adds_reg(immed, immed, dest, LSL, 16);
@@ -265,7 +289,10 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             /* Perform calcualtion */
 #ifdef __aarch64__
-            *ptr++ = adds_reg(immed, immed, tmp, LSL, 0);
+            if (immediate)
+                *ptr++ = subs_immed(immed, tmp, u32);
+            else
+                *ptr++ = adds_reg(immed, immed, tmp, LSL, 0);
 #else
             *ptr++ = adds_reg(immed, immed, tmp, 0);
 #endif
@@ -375,7 +402,8 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t dest = 0xff;
     uint8_t size = 0;
     uint16_t lo16;
-    uint32_t u32;
+    uint32_t u32 = 0;
+    int add_immediate = 0;
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
@@ -406,9 +434,27 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0080:    /* Long operation */
             u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
             u32 |= BE16((*m68k_ptr)[ext_count++]);
+#ifdef __aarch64__
+            if (u32 < 4096)
+            {
+                add_immediate = 1;
+            }
+            else
+            {
+                if (u32 & 0xffff) {
+                    *ptr++ = mov_immed_u16(immed, u32 & 0xffff, 0);
+                    if ((u32 >> 16) & 0xffff) {
+                        *ptr++ = movk_immed_u16(immed, u32 >> 16, 1);
+                    }
+                } else if (u32 & 0xffff0000) {
+                    *ptr++ = mov_immed_u16(immed, u32 >> 16, 1);
+                }
+            }
+#else
             *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
             if (((u32 >> 16) & 0xffff) != 0)
                 *ptr++ = movt_immed_u16(immed, u32 >> 16);
+#endif
             size = 4;
             break;
     }
@@ -427,7 +473,10 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
 #ifdef __aarch64__
             case 4:
-                *ptr++ = adds_reg(dest, immed, dest, LSL, 0);
+                if (add_immediate)
+                    *ptr++ = adds_immed(dest, dest, u32);
+                else
+                    *ptr++ = adds_reg(dest, immed, dest, LSL, 0);
                 break;
             case 2:
                 *ptr++ = adds_reg(immed, immed, dest, LSL, 16);
@@ -479,7 +528,10 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
                 /* Perform calcualtion */
 #ifdef __aarch64__
-                *ptr++ = adds_reg(immed, immed, tmp, LSL, 0);
+                if (add_immediate)
+                    *ptr++ = adds_immed(immed, tmp, u32);
+                else
+                    *ptr++ = adds_reg(immed, immed, tmp, LSL, 0);
 #else
                 *ptr++ = adds_reg(immed, immed, tmp, 0);
 #endif
