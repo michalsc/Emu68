@@ -23,6 +23,7 @@ set(BASE_FILES
     src/HunkLoader.c
     src/ElfLoader.c
     src/md5.c
+    src/disasm.c
 )
 set(EMU68_FILES
     src/M68k_Translator.c
@@ -85,13 +86,14 @@ else()
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -pedantic -pedantic-errors -Wall -Wextra -Werror)
+add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -pedantic -Wall -Wextra)
 
 if(${TARGET_ARCH} STREQUAL "armhf")
     list(APPEND ARCH_FILES
         src/armhf/start.c
         src/armhf/RegisterAllocator.c
     )
+    set(CAPSTONE_ARM_SUPPORT ON CACHE BOOL "CAPSTONE_ARM_SUPPORT")
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be.lds)
     add_link_options(-Wl,--be8 -Wl,--format=elf32-bigarm -T ${LINKER_SCRIPT})
     add_compile_options(-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -O3 -ffixed-r11 -fomit-frame-pointer)
@@ -102,6 +104,7 @@ else()
         src/aarch64/RegisterAllocator64.c
         src/aarch64/vectors.c
     )
+    set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
     add_link_options(-Wl,-EB -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
     add_compile_options(-fomit-frame-pointer -O3 -ffixed-x12)
@@ -122,6 +125,19 @@ add_custom_command(
 
 add_subdirectory(external/tiny-stl)
 
-target_link_libraries(Emu68.elf tinystl)
-target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include)
+set(CAPSTONE_BUILD_STATIC_RUNTIME OFF CACHE BOOL "Embed static runtime")
+set(CAPSTONE_BUILD_STATIC ON CACHE BOOL "Build static library")
+set(CAPSTONE_BUILD_SHARED OFF CACHE BOOL "Build shared library")
+set(CAPSTONE_BUILD_DIET OFF CACHE BOOL "Build diet library")
+set(CAPSTONE_BUILD_TESTS OFF CACHE BOOL "Build tests")
+set(CAPSTONE_BUILD_CSTOOL OFF CACHE BOOL "Build cstool")
+set(CAPSTONE_USE_DEFAULT_ALLOC OFF CACHE BOOL "Use default memory allocation functions")
+set(CAPSTONE_ARCHITECTURE_DEFAULT OFF CACHE BOOL "Whether architectures are enabled by default")
+set(CAPSTONE_INSTALL OFF CACHE BOOL "Generate install target")
+set(CAPSTONE_M68K_SUPPORT ON CACHE BOOL "CAPSTONE_M68K_SUPPORT")
+
+add_subdirectory(external/capstone)
+
+target_link_libraries(Emu68.elf tinystl capstone-static)
+target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 target_compile_definitions(Emu68.elf PRIVATE VERSION_STRING="${VERSTRING}")
