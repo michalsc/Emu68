@@ -30,8 +30,8 @@ options_t Options = {
 };
 #endif
 
-const int disasm = 1;
-const int debug = 1;
+const int disasm = 0;
+const int debug = 0;
 const int debug_cnt = 0;
 
 struct List *ICache;
