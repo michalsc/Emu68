@@ -17,7 +17,7 @@
 #include "tlsf.h"
 #include "config.h"
 #include "DuffCopy.h"
-
+#include "disasm.h"
 
 #if SET_FEATURES_AT_RUNTIME
 features_t Features;
@@ -30,7 +30,8 @@ options_t Options = {
 };
 #endif
 
-const int debug = 0;
+const int disasm = 1;
+const int debug = 1;
 const int debug_cnt = 0;
 
 struct List *ICache;
@@ -227,6 +228,10 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
     uint32_t pop_cnt=0;
 
+    if (disasm) {
+        disasm_open();
+    }
+
     for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
         pop_update_loc[i] = (uint32_t *)0;
 
@@ -281,6 +286,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     while (break_loop == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
+        uint16_t *in_code = m68kcodeptr;
+        uint32_t *out_code = end;
+
         if (insn_count && ((uintptr_t)m68kcodeptr < (uintptr_t)local_state[insn_count-1].mls_M68kPtr))
         {
             int found = -1;
@@ -423,7 +431,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         #else
         (void)orig_m68kcodeptr;
         #endif
+
+        if (disasm)
+            disasm_print(in_code, 20, out_code, 4*(end - out_code), temporary_arm_code);
     }
+    uint32_t *out_code = end;
     tmpptr = end;
     RA_FlushFPURegs(&end);
     RA_FlushM68kRegs(&end);
@@ -513,6 +525,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     
 #endif
     epilogue_size += end - tmpptr;
+
+    if (disasm) {
+        disasm_print((uint16_t *)0, 0, out_code, 4*(end - out_code), temporary_arm_code);
+        disasm_close();
+    }
 
     // Put a marker at the end of translation unit
     *end++ = 0xffffffff;
