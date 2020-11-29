@@ -742,7 +742,7 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
     *ptr++ = get_nzcv(tmp_reg);
-#if 0
+#if 1
     *ptr++ = bfxil(cc, tmp_reg, 28, 4);
     *ptr++ = bic_immed(cc, cc, 2, 0);
 #else
@@ -764,7 +764,7 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
     *ptr++ = get_nzcv(tmp_reg);
-#if 0
+#if 1
     *ptr++ = ror(tmp_reg, tmp_reg, 30);
     *ptr++ = bfi(cc, tmp_reg, 2, 2);
 #else
