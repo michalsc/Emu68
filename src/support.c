@@ -484,7 +484,7 @@ void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
 
 #endif
 
-void putc_s(void *data, char *c)
+void putc_s(void *data, char c)
 {
     char **ppchr = data;
     char *pchr = *ppchr;
