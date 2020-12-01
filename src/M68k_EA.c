@@ -87,7 +87,8 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                     else
                         *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                 }
-                *ptr++ = ldr_regoffset(base, reg, reg_d16, UXTW, 0);
+                *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                *ptr++ = ldr_offset(reg_d16, reg, 0);
             }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -122,7 +123,8 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = ldrh_regoffset(base, reg, reg_d16, UXTW, 0);
+                    *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                    *ptr++ = ldrh_offset(reg_d16, reg, 0);
                 }
 #else
                 if (offset > -256 && offset < 256)
@@ -157,7 +159,8 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = ldrb_regoffset(base, reg, reg_d16, UXTW);
+                    *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                    *ptr++ = ldrb_offset(reg_d16, reg, 0);
                 }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -213,8 +216,6 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr_offse
 
 static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, uint8_t index, uint8_t shift)
 {
-    uint8_t tmp;
-
     if (index == 0xff)
     {
         switch (size)
@@ -239,37 +240,20 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint3
     else
     {
 #ifdef __aarch64__
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
         switch (size)
         {
             case 4:
-                if (shift) {
-                    tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = ldr_regoffset(base, reg, tmp, UXTW, 0);
-                    RA_FreeARMRegister(&ptr, tmp);
-                }
-                else
-                    *ptr++ = ldr_regoffset(base, reg, index, UXTW, 0);
+                *ptr++ = add_reg(tmp, base, index, LSL, shift);
+                *ptr++ = ldr_offset(tmp, reg, 0);
                 break;
             case 2:
-                if (shift) {
-                    tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = ldrh_regoffset(base, reg, tmp, UXTW, 0);
-                    RA_FreeARMRegister(&ptr, tmp);
-                }
-                else
-                    *ptr++ = ldrh_regoffset(base, reg, index, UXTW, 0);
+                *ptr++ = add_reg(tmp, base, index, LSL, shift);
+                *ptr++ = ldrh_offset(tmp, reg, 0);
                 break;
             case 1:
-                if (shift) {
-                    tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = ldrb_regoffset(base, reg, tmp, UXTW);
-                    RA_FreeARMRegister(&ptr, tmp);
-                }
-                else
-                    *ptr++ = ldrb_regoffset(base, reg, index, UXTW);
+                *ptr++ = add_reg(tmp, base, index, LSL, shift);
+                *ptr++ = ldrb_offset(tmp, reg, 0);
                 break;
             case 0:
                 *ptr++ = add_reg(reg, base, index, LSL, shift);
@@ -278,6 +262,7 @@ static inline __attribute__((always_inline)) uint32_t * load_reg_from_addr(uint3
                 kprintf("Unknown size opcode\n");
                 break;
         }
+        RA_FreeARMRegister(&ptr, tmp);
 #else
         switch (size)
         {
@@ -360,7 +345,8 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                     else
                         *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                 }
-                *ptr++ = str_regoffset(base, reg, reg_d16, UXTW, 0);
+                *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                *ptr++ = str_offset(reg_d16, reg, 0);
             }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -395,7 +381,8 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = strh_regoffset(base, reg, reg_d16, UXTW, 0);
+                    *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                    *ptr++ = strh_offset(reg_d16, reg, 0);
                 }
 #else
                 if (offset > -256 && offset < 256)
@@ -430,7 +417,8 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                         else
                             *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                     }
-                    *ptr++ = strb_regoffset(base, reg, reg_d16, UXTW);
+                    *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                    *ptr++ = strb_offset(reg_d16, reg, 0);
                 }
 #else
                 if (offset > -4096 && offset < 4096)
@@ -486,8 +474,6 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
 
 static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32_t *ptr, uint8_t size, uint8_t base, uint8_t reg, uint8_t index, uint8_t shift)
 {
-    uint8_t tmp;
-
     if (index == 0xff)
     {
         switch (size)
@@ -512,37 +498,20 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
     else
     {
 #ifdef __aarch64__
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
         switch (size)
         {
             case 4:
-                if (shift) {
-                    tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = str_regoffset(base, reg, tmp, UXTW, 0);
-                    RA_FreeARMRegister(&ptr, tmp);
-                }
-                else
-                    *ptr++ = str_regoffset(base, reg, index, UXTW, 0);
+                *ptr++ = add_reg(tmp, base, index, LSL, shift);
+                *ptr++ = str_offset(tmp, reg, 0);
                 break;
             case 2:
-                if (shift) {
-                    tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = strh_regoffset(base, reg, tmp, UXTW, 0);
-                    RA_FreeARMRegister(&ptr, tmp);
-                }
-                else
-                    *ptr++ = strh_regoffset(base, reg, index, UXTW, 0);
+                *ptr++ = add_reg(tmp, base, index, LSL, shift);
+                *ptr++ = strh_offset(tmp, reg, 0);
                 break;
             case 1:
-                if (shift) {
-                    tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = lsl(tmp, index, shift);
-                    *ptr++ = strb_regoffset(base, reg, tmp, UXTW);
-                    RA_FreeARMRegister(&ptr, tmp);
-                }
-                else
-                    *ptr++ = strb_regoffset(base, reg, index, UXTW);
+                *ptr++ = add_reg(tmp, base, index, LSL, shift);
+                *ptr++ = strb_offset(tmp, reg, 0);
                 break;
             case 0:
                 *ptr++ = add_reg(reg, base, index, LSL, shift);
@@ -551,6 +520,7 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
                 kprintf("Unknown size opcode\n");
                 break;
         }
+        RA_FreeARMRegister(&ptr, tmp);
 #else
         switch (size)
         {
