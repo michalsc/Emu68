@@ -3320,14 +3320,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
-
-        if (FPSR_Update_Needed(m68k_ptr))
-        {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
-
-            *ptr++ = fcmpzd(fp_src);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
-        }
     }
     /* FMOVE from special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
