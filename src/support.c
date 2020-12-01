@@ -10,6 +10,65 @@
 #include <stdarg.h>
 #include "support.h"
 
+#define LOG2_10 3.321928094887362
+
+static double pow10_tab[] = {
+    1e00, 1e01, 1e02, 1e03, 1e04, 1e05, 1e06, 1e07, 1e08,
+    1e09, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16, 1e17,
+    1e18, 1e19, 1e20, 1e21, 1e22, 1e23, 1e24, 1e25, 1e26, 
+    1e27, 1e28, 1e29, 1e30, 1e31
+};
+
+static double pow10_32tab[] = {
+    1e00, 1e32, 1e64, 1e96, 1e128, 1e160, 1e192, 1e224, 1e256, 1e288
+};
+
+static double pow10_neg32tab[] = {
+    1e-00, 1e-32, 1e-64, 1e-96, 1e-128, 1e-160, 1e-192, 1e-224, 1e-256, 1e-288, 1e-320,
+};
+
+double my_pow10(int exp)
+{
+    if (exp >= 0 && exp < 308) {
+        return (pow10_tab[exp % 32] * pow10_32tab[exp / 32]);
+    } else if (exp >= -323 && exp < 0) {
+        return (pow10_neg32tab[-exp/32] / pow10_tab[(-exp) % 32]);
+    }
+    else return 0;
+}
+
+int my_log10(double v)
+{
+    const int maxp = 308;
+    const int minp = -323;
+    int min = minp;
+    int max = maxp; 
+    int mid = (max + min) / 2;
+    
+    do {
+        double p = my_pow10(mid);
+        
+        /* If 10^mid == v then return mid */
+        if (v == p) return mid;
+        else
+        {
+            /* If p > v then select lower half */
+            if (p > v)
+            {
+                max = mid;
+            }
+            /* Otherwise select upper half */
+            else
+            {
+                min = mid;
+            }
+            mid = (max + min) / 2;
+        } 
+    } while ((max - min) > 1);
+
+    return mid;
+}
+
 static int int_strlen(char *buf)
 {
     int len = 0;
@@ -87,6 +146,40 @@ static void int_itoa(char *buf, char base, uintptr_t value, char zero_pad, int p
     }
 
     buf[length] = 0;
+}
+
+static void int_ftoa(char *buf, double value)
+{
+    int exp = 0;
+    char c;
+
+    if (value < 0)
+    {
+        *buf++ = '-';
+        value = -value;
+    }
+
+    exp = my_log10(value);
+    value /= my_pow10(exp);
+
+    c = (int)value;
+    *buf++ = '0' + c;
+    *buf++ = '.';
+
+    for(int i=0; i < 5; i++)
+    {
+        value = (value - c) * 10;
+        c = (int)value;
+        *buf++ = '0' + c;
+    }
+    
+    *buf++ = 'E';
+    if (exp < 0)
+    {
+        *buf++ = '-';
+        exp = -exp;
+    }
+    int_itoa(buf, 10, exp, 0, 0, 0, 0, 0, 0, 0);
 }
 
 void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, va_list args)
@@ -198,6 +291,15 @@ void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format
 
                 case '%':
                     putc_f(putc_data, '%');
+                    break;
+
+                case 'f':
+                    int_ftoa(tmpbuf, va_arg(args, double));
+                    str = tmpbuf;
+                    size_mod -= int_strlen(str);
+                    while (*str) {
+                        putc_f(putc_data, *str++);
+                    }
                     break;
 
                 case 'p':
