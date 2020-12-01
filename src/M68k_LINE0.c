@@ -1679,6 +1679,7 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t bit_mask = 0xff;
     int imm_shift = 0;
     int immediate = 0;
+    uint32_t *tst_pos;
 
     /* Get the bit number either as immediate or from register */
     if ((opcode & 0xffc0) == 0x0840)
@@ -1703,12 +1704,14 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (immediate)
         {
 #ifdef __aarch64__
+            tst_pos = ptr;
             *ptr++ = tst_immed(dest, 1, 31 & (32 - imm_shift));
             *ptr++ = eor_immed(dest, dest, 1, 31 & (32 - imm_shift));
 #else
             int shifter_operand = imm_shift & 1 ? 2:1;
             shifter_operand |= ((16 - (imm_shift >> 1)) & 15) << 8;
 
+            tst_pos = ptr;
             *ptr++ = tst_immed(dest, shifter_operand);
             *ptr++ = eor_immed(dest, dest, shifter_operand);
 #endif
@@ -1719,12 +1722,14 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = and_immed(bit_number, bit_number, 5, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(dest, bit_mask, LSL, 0);
             *ptr++ = eor_reg(dest, dest, bit_mask, LSL, 0);
 #else
             *ptr++ = and_immed(bit_number, bit_number, 31);
             *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(dest, bit_mask, 0);
             *ptr++ = eor_reg(dest, dest, bit_mask, 0);
 #endif
@@ -1749,10 +1754,12 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (immediate)
         {
 #ifdef __aarch64__
+            tst_pos = ptr;
             *ptr++ = tst_immed(tmp, 1, 31 & (32 - (imm_shift & 7)));
             *ptr++ = eor_immed(tmp, tmp, 1, 31 & (32 - (imm_shift & 7)));
 #else
             int shifter_operand = 1 << (imm_shift & 7);
+            tst_pos = ptr;
             *ptr++ = tst_immed(tmp, shifter_operand);
             *ptr++ = eor_immed(tmp, tmp, shifter_operand);
 #endif
@@ -1763,12 +1770,14 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = and_immed(bit_number, bit_number, 3, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(tmp, bit_mask, LSL, 0);
             *ptr++ = eor_reg(tmp, tmp, bit_mask, LSL, 0);
 #else
             *ptr++ = and_immed(bit_number, bit_number, 7);
             *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(tmp, bit_mask, 0);
             *ptr++ = eor_reg(tmp, tmp, bit_mask, 0);
 #endif
@@ -1802,6 +1811,10 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ptr = EMIT_ClearFlags(ptr, cc, update_mask);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+    } else {
+        for (uint32_t *p = tst_pos; p < ptr; p++)
+            p[0] = p[1];
+        ptr--;
     }
 
     return ptr;
@@ -1815,6 +1828,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t bit_mask = 0xff;
     int imm_shift = 0;
     int immediate = 0;
+    uint32_t *tst_pos;
 
     /* Get the bit number either as immediate or from register */
     if ((opcode & 0xffc0) == 0x0880)
@@ -1839,12 +1853,14 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (immediate)
         {
 #ifdef __aarch64__
+            tst_pos = ptr;
             *ptr++ = tst_immed(dest, 1, 31 & (32 - imm_shift));
             *ptr++ = bic_immed(dest, dest, 1, 31 & (32 - imm_shift));
 #else
             int shifter_operand = imm_shift & 1 ? 2:1;
             shifter_operand |= ((16 - (imm_shift >> 1)) & 15) << 8;
 
+            tst_pos = ptr;
             *ptr++ = tst_immed(dest, shifter_operand);
             *ptr++ = bic_immed(dest, dest, shifter_operand);
 #endif
@@ -1855,12 +1871,14 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = and_immed(bit_number, bit_number, 3, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(dest, bit_mask, LSL, 0);
             *ptr++ = bic_reg(dest, dest, bit_mask, LSL, 0);
 #else
             *ptr++ = and_immed(bit_number, bit_number, 31);
             *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(dest, bit_mask, 0);
             *ptr++ = bic_reg(dest, dest, bit_mask);
 #endif
@@ -1885,10 +1903,12 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (immediate)
         {
 #ifdef __aarch64__
+            tst_pos = ptr;
             *ptr++ = tst_immed(tmp, 1, 31 & (32 - (imm_shift & 7)));
             *ptr++ = bic_immed(tmp, tmp, 1, 31 & (32 - (imm_shift & 7)));
 #else
             int shifter_operand = 1 << (imm_shift & 7);
+            tst_pos = ptr;
             *ptr++ = tst_immed(tmp, shifter_operand);
             *ptr++ = bic_immed(tmp, tmp, shifter_operand);
 #endif
@@ -1899,12 +1919,14 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = and_immed(bit_number, bit_number, 3, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(tmp, bit_mask, LSL, 0);
             *ptr++ = bic_reg(tmp, tmp, bit_mask, LSL, 0);
 #else
             *ptr++ = and_immed(bit_number, bit_number, 7);
             *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(tmp, bit_mask, 0);
             *ptr++ = bic_reg(tmp, tmp, bit_mask);
 #endif
@@ -1938,6 +1960,10 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ptr = EMIT_ClearFlags(ptr, cc, update_mask);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+    } else {
+        for (uint32_t *p = tst_pos; p < ptr; p++)
+            p[0] = p[1];
+        ptr--;
     }
 
     return ptr;
@@ -1951,6 +1977,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t bit_mask = 0xff;
     int imm_shift = 0;
     int immediate = 0;
+    uint32_t *tst_pos;
 
     /* Get the bit number either as immediate or from register */
     if ((opcode & 0xffc0) == 0x08c0)
@@ -1975,12 +2002,14 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (immediate)
         {
 #ifdef __aarch64__
+            tst_pos = ptr;
             *ptr++ = tst_immed(dest, 1, 31 & (32 - imm_shift));
             *ptr++ = orr_immed(dest, dest, 1, 31 & (32 - imm_shift));
 #else
             int shifter_operand = imm_shift & 1 ? 2:1;
             shifter_operand |= ((16 - (imm_shift >> 1)) & 15) << 8;
 
+            tst_pos = ptr;
             *ptr++ = tst_immed(dest, shifter_operand);
             *ptr++ = orr_immed(dest, dest, shifter_operand);
 #endif
@@ -1991,12 +2020,14 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = and_immed(bit_number, bit_number, 3, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(dest, bit_mask, LSL, 0);
             *ptr++ = orr_reg(dest, dest, bit_mask, LSL, 0);
 #else
             *ptr++ = and_immed(bit_number, bit_number, 31);
             *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(dest, bit_mask, 0);
             *ptr++ = orr_reg(dest, dest, bit_mask, 0);
 #endif
@@ -2021,10 +2052,12 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (immediate)
         {
 #ifdef __aarch64__
+            tst_pos = ptr;
             *ptr++ = tst_immed(tmp, 1, 31 & (32 - (imm_shift & 7)));
             *ptr++ = orr_immed(tmp, tmp, 1, 31 & (32 - (imm_shift & 7)));
 #else
             int shifter_operand = 1 << (imm_shift & 7);
+            tst_pos = ptr;
             *ptr++ = tst_immed(tmp, shifter_operand);
             *ptr++ = orr_immed(tmp, tmp, shifter_operand);
 #endif
@@ -2035,12 +2068,14 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = and_immed(bit_number, bit_number, 3, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
+            tst_pos = ptr;
             *ptr++ = tst_reg(tmp, bit_mask, LSL, 0);
             *ptr++ = orr_reg(tmp, tmp, bit_mask, LSL, 0);
 #else
             *ptr++ = and_immed(bit_number, bit_number, 7);
             *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
-
+            
+            tst_pos = ptr;
             *ptr++ = tst_reg(tmp, bit_mask, 0);
             *ptr++ = orr_reg(tmp, tmp, bit_mask, 0);
 #endif
@@ -2074,6 +2109,10 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ptr = EMIT_ClearFlags(ptr, cc, update_mask);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+    } else {
+        for (uint32_t *p = tst_pos; p < ptr; p++)
+            p[0] = p[1];
+        ptr--;
     }
 
     return ptr;
