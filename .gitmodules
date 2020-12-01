@@ -3,4 +3,4 @@
 	url = https://github.com/michalsc/tiny-std.git
 [submodule "external/capstone"]
 	path = external/capstone
-	url = https://github.com/aquynh/capstone.git
+	url = https://github.com/michalsc/capstone.git
