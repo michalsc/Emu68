@@ -1043,4 +1043,25 @@ uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, u
 }
 #endif
 
+static inline __attribute__((always_inline))
+uint32_t number_to_mask(uint32_t number)
+{
+    unsigned shift = 0;
+    unsigned width = 0;
+
+    if (number == 0)
+        return 0;
+
+    shift = __builtin_ctz(number);
+
+    number = number >> shift;
+
+    width = 32 - __builtin_clz(number);
+
+    if (number == ((1ULL << width) - 1))
+        return (width << 16) | shift;
+    else
+        return 0xffffffff;
+}
+
 #endif /* _A64_H */
