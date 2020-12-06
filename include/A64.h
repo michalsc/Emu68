@@ -593,12 +593,12 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
 
     *ptr++ = ldurh_offset(base, exp_reg, offset9);
     *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
-    *ptr++ = mov_immed_u16(tmp_reg, 0xc400, 0);
+    *ptr++ = mov_immed_u16(tmp_reg, 0x3c00, 0);
     *ptr++ = lsr(sign_reg, exp_reg, 15);
     *ptr++ = lsr64(mant_reg, mant_reg, 11);
-    *ptr++ = add_reg(tmp_reg, tmp_reg, exp_reg, LSL, 0);
-    *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
+    *ptr++ = sub_reg(tmp_reg, exp_reg, tmp_reg, LSL, 0);
     *ptr++ = bfi64(mant_reg, sign_reg, 63, 1);
+    *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
     *ptr++ = mov_reg_to_simd(fpreg, TS_D, 0, mant_reg);
 
     RA_FreeARMRegister(&ptr, sign_reg);

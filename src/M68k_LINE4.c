@@ -1857,11 +1857,10 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
     else if ((opcode & 0xffc0) == 0x4ec0)
     {
         uint8_t ext_words = 0;
-        uint8_t ea = 0xff;
+        uint8_t ea = REG_PC;
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 0, NULL);
         ptr = EMIT_ResetOffsetPC(ptr);
-        *ptr++ = mov_reg(REG_PC, ea);
         (*m68k_ptr) += ext_words;
         RA_FreeARMRegister(&ptr, ea);
         *ptr++ = INSN_TO_LE(0xffffffff);
