@@ -16,6 +16,8 @@ struct SRMaskEntry {
     uint16_t me_Opcode;
     uint8_t  me_Type;
     uint8_t  me_SRMask;
+    uint8_t  me_SRNeeds;
+    uint8_t  me_SRSets;
     uint8_t  (*me_TestFunction)(uint16_t *stream, uint32_t nest_level);
 };
 
@@ -32,9 +34,9 @@ static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, uint32_t nest_level);
 static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level);
 
 static struct SRMaskEntry Line0_Map[] = {
-    { 0xffbf, 0x003c, SME_MASK, 0, NULL },                                /* ORI to CCR/SR - they rely on current CC! */
-    { 0xff00, 0x0000, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* ORI */
-    { 0xffbf, 0x023c, SME_MASK, 0, NULL },                                /* ANDI to CCR/SR - they rely on current CC! */
+    { 0xffbf, 0x003c, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V | SR_X, SR_C | SR_Z | SR_N | SR_V | SR_X , NULL }, /* ORI to CCR/SR - needs all falgs, sets all flags */
+    { 0xff00, 0x0000, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, SR_C | SR_Z | SR_N | SR_V, NULL },                /* ORI */
+    { 0xffbf, 0x023c, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V | SR_X, SR_C | SR_Z | SR_N | SR_V | SR_X , NULL }, /* ANDI to CCR/SR - needs all falgs, sets all flags */
     { 0xf9c0, 0x00c0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CHK2/CMP2 */
     { 0xff00, 0x0200, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* ANDI */
     { 0xff00, 0x0400, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* SUBI */
@@ -43,9 +45,9 @@ static struct SRMaskEntry Line0_Map[] = {
     { 0xffbf, 0x0a3c, SME_MASK, 0, NULL },                                /* EORI to CCR/SR - they rely on current CC! */
     { 0xff00, 0x0a00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* EORI */
     { 0xff00, 0x0c00, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CMPI */
-    { 0xff00, 0x0800, SME_MASK, SR_Z, NULL },                             /* BTST/BSET/BCLR/BCHG */
+    { 0xff00, 0x0800, SME_MASK, SR_Z, 0, SR_Z, NULL },                    /* BTST/BSET/BCLR/BCHG */
     { 0xf9c0, 0x08c0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CAS/CAS2 */
-    { 0xf100, 0x0100, SME_MASK, SR_Z, NULL },                             /* BTST/BSET/BCLR/BCHG */
+    { 0xf100, 0x0100, SME_MASK, SR_Z, 0, SR_Z, NULL },                    /* BTST/BSET/BCLR/BCHG */
     { 0x0000, 0x0000, SME_END,  0, NULL }
 };
 
