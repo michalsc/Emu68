@@ -65,7 +65,7 @@ static struct SRMaskEntry Line0_Map[] = {
     { 0xff00, 0x0800, 1, 1, SME_MASK, 0, SR_Z, NULL },                    /* BTST/BSET/BCLR/BCHG - reg */
     { 0xf9ff, 0x08fc, 3, 0, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CAS2 */
     { 0xf9c0, 0x08c0, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CAS */
-    { 0xf100, 0x0100, 2, 1, SME_MASK, 0, SR_Z, 0, SR_Z, NULL },                    /* BTST/BSET/BCLR/BCHG - imm */
+    { 0xf100, 0x0100, 2, 1, SME_MASK, 0, SR_Z, NULL },                    /* BTST/BSET/BCLR/BCHG - imm */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
@@ -82,7 +82,7 @@ static struct SRMaskEntry Line4_Map[] = {
     { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, 0, NULL }, /* MOVE from CCR/SR */
     { 0xff00, 0x4000, 1, 1, SME_MASK, SR_X, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* NEGX */
     { 0xff00, 0x4200, 1, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CLR */
-    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, 0, NULL }, /* MOVE to CCR */
+    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* MOVE to CCR */
     { 0xff00, 0x4400, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* NEG */
     { 0xffc0, 0x46c0, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* MOVE to SR */
     { 0xff00, 0x4600, 1, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* NOT */
@@ -132,6 +132,18 @@ static struct SRMaskEntry Line6_Map[] = {
     { 0xfeff, 0x6000, 2, 0, SME_FUNC,  0, 0, SR_TestBranch },                      /* BRA.W/BSR.W */
     { 0xfeff, 0x60ff, 3, 0, SME_FUNC,  0, 0, SR_TestBranch },                      /* BRA.L/BSR.L */
     { 0xfe00, 0x6000, 1, 0, SME_FUNC,  0, 0, SR_TestBranch },                      /* BRA.B/BSR.B */
+    { 0xfeff, 0x6600, 2, 0, SME_MASK,  SR_Z, 0, NULL },                            /* BNE.W/BEQ.W */
+    { 0xfeff, 0x66ff, 3, 0, SME_MASK,  SR_Z, 0, NULL },                            /* BNE.L/BEQ.L */
+    { 0xfe00, 0x6600, 1, 0, SME_MASK,  SR_Z, 0, NULL },                            /* BNE.B/BEQ.B */
+    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_C, 0, NULL },                            /* BCC.W/BCS.W */
+    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_C, 0, NULL },                            /* BCC.L/BCS.L */
+    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_C, 0, NULL },                            /* BCC.B/BCS.B */
+    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_N, 0, NULL },                            /* BPL.W/BMI.W */
+    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_N, 0, NULL },                            /* BPL.L/BMI.L */
+    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_N, 0, NULL },                            /* BPL.B/BMI.B */
+    { 0xfeff, 0x6800, 2, 0, SME_MASK,  SR_V, 0, NULL },                            /* BVC.W/BVS.W */
+    { 0xfeff, 0x68ff, 3, 0, SME_MASK,  SR_V, 0, NULL },                            /* BVC.L/BVS.L */
+    { 0xfe00, 0x6800, 1, 0, SME_MASK,  SR_V, 0, NULL },                            /* BVC.B/BVS.B */
     { 0xf0ff, 0x6000, 2, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },       /* Bcc.W */
     { 0xf0ff, 0x60ff, 3, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },       /* Bcc.L */
     { 0xf000, 0x6000, 1, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },       /* Bcc.B */
@@ -2176,14 +2188,180 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         scan_depth++;
 
         /* If instruction is a branch break the scan */
-        if (M68K_IsBranch(insn_stream)) {
-            D(kprintf("[JIT]   %02d: check breaks on branch\n", scan_depth));
-            break;
-        }
-            
+        if (M68K_IsBranch(insn_stream))
+        {
+            /* Check if BRA/BSR and follow if possible */
+            if ((opcode & 0xfe00) == 0x6000)
+            {
+                int32_t branch_offset = (int8_t)(opcode & 0xff);
 
-        /* Advance to subsequent instruction */
-        insn_stream += M68K_GetINSNLength(insn_stream);
+                if ((opcode & 0xff) == 0) {
+                    branch_offset = (int16_t)BE16(insn_stream[1]);
+                } else if ((opcode & 0xff) == 0xff) {
+                    uint16_t lo16, hi16;
+                    hi16 = BE16(insn_stream[1]);
+                    lo16 = BE16(insn_stream[2]);
+                    branch_offset = lo16 | (hi16 << 16);
+                }
+
+                insn_stream = insn_stream + 1 + (branch_offset >> 1);
+
+                D(kprintf("[JIT]   %02d: PC-relative jump by %d bytes to %08x\n", scan_depth, branch_offset, insn_stream));
+            }
+            /* Check if JMP/JSR and follow if possible */
+            else if ((opcode & 0xffbe) == 0x4eb8)
+            {
+                if (opcode & 1) {
+                    uint16_t lo16, hi16;
+                    hi16 = BE16(insn_stream[1]);
+                    lo16 = BE16(insn_stream[2]);
+                    insn_stream = (uint16_t*)(uintptr_t)(lo16 | (hi16 << 16));
+                } else {
+                    insn_stream = (uint16_t*)(uintptr_t)((uint32_t)BE16(insn_stream[1]));
+                }
+
+                D(kprintf("[JIT]   %02d: Absolute jump to %08x\n", scan_depth, insn_stream));
+            }
+            else if ((opcode & 0xf000) == 0x6000)
+            {
+                int32_t branch_offset = (int8_t)(opcode & 0xff);
+                uint16_t *insn_stream_2 = insn_stream + 1;
+
+                if ((opcode & 0xff) == 0) {
+                    branch_offset = (int16_t)BE16(insn_stream[1]);
+                    insn_stream_2++;
+                } else if ((opcode & 0xff) == 0xff) {
+                    uint16_t lo16, hi16;
+                    hi16 = BE16(insn_stream[1]);
+                    lo16 = BE16(insn_stream[2]);
+                    branch_offset = lo16 | (hi16 << 16);
+                    insn_stream_2+=2;
+                }
+
+                insn_stream = insn_stream + 1 + (branch_offset >> 1);
+
+                D(kprintf("[JIT]   %02d: Splitting into two paths %08x and %08x\n", scan_depth, insn_stream, insn_stream_2));
+
+                uint8_t mask1 = mask;
+                uint8_t mask2 = mask;
+                uint8_t needed1 = needed;
+                uint8_t needed2 = needed;
+                scan_depth = max_scan_depth - 1 - (max_scan_depth - scan_depth) / 2;
+                int scan_depth_tmp = scan_depth;
+
+                while(mask1 && scan_depth < max_scan_depth)
+                {
+                    scan_depth++;
+
+                    /* If instruction is a branch break the scan */
+                    if (M68K_IsBranch(insn_stream))
+                        break;
+
+                    /* Get opcode */
+                    opcode = BE16(*insn_stream);
+
+                    D(kprintf("[JIT]   %02d.1: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
+
+                    e = OpcodeMap[opcode >> 12];
+                    found = 0;
+
+                    /* Search within table until SME_END is found */
+                    while (e->me_Type != SME_END)
+                    {
+                        if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
+                        {
+                            found = 1;
+                            D(kprintf("SRneeds=%x, SRSets=%x\n", e->me_SRNeeds, e->me_SRSets));
+
+                            /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                            if (mask1 & e->me_SRNeeds) {
+                                needed1 |= (mask1 & e->me_SRNeeds);
+                            }
+
+                            /* Clear flags which this instruction sets */
+                            mask1 = mask1 & ~e->me_SRSets;
+                            
+                            break;
+                        }
+
+                        e++;
+                    }
+
+                    if (!found)
+                    {
+                        D(kprintf("opcode not found!\n"));
+                        break;
+                    }
+
+                    /* Advance to subsequent instruction */
+                    insn_stream += M68K_GetINSNLength(insn_stream);
+                }
+
+                scan_depth = scan_depth_tmp;
+
+                while(mask2 && scan_depth < max_scan_depth)
+                {
+                    scan_depth++;
+
+                    /* If instruction is a branch break the scan */
+                    if (M68K_IsBranch(insn_stream_2))
+                        break;
+
+                    /* Get opcode */
+                    opcode = BE16(*insn_stream_2);
+
+                    D(kprintf("[JIT]   %02d.2: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream_2));
+
+                    e = OpcodeMap[opcode >> 12];
+                    found = 0;
+
+                    /* Search within table until SME_END is found */
+                    while (e->me_Type != SME_END)
+                    {
+                        if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
+                        {
+                            found = 1;
+                            D(kprintf("SRneeds=%x, SRSets=%x\n", e->me_SRNeeds, e->me_SRSets));
+
+                            /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                            if (mask2 & e->me_SRNeeds) {
+                                needed2 |= (mask2 & e->me_SRNeeds);
+                            }
+
+                            /* Clear flags which this instruction sets */
+                            mask2 = mask2 & ~e->me_SRSets;
+                            
+                            break;
+                        }
+
+                        e++;
+                    }
+
+                    if (!found)
+                    {
+                        D(kprintf("opcode not found!\n"));
+                        break;
+                    }
+
+                    /* Advance to subsequent instruction */
+                    insn_stream_2 += M68K_GetINSNLength(insn_stream_2);
+                }
+
+                D(kprintf("[JIT]   joining masks %x and %x to %x\n", mask1 | needed1, mask2 | needed2, mask1 | needed1 | mask2 | needed2));
+
+                return mask1 | needed1 | mask2 | needed2;
+            }
+            else 
+            {
+                D(kprintf("[JIT]   %02d: check breaks on branch\n", scan_depth));
+                break;
+            }
+        }
+        else          
+        {
+            /* Advance to subsequent instruction */
+            insn_stream += M68K_GetINSNLength(insn_stream);
+        }
         
         /* Get opcode */
         opcode = BE16(*insn_stream);
