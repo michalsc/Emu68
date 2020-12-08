@@ -82,6 +82,7 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
     /* 1100xxxxxxxxxxxx - AND */
     else if ((opcode & 0xf000) == 0xc000)
     {
+        uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
         uint8_t size = 1 << ((opcode >> 6) & 3);
         uint8_t direction = (opcode >> 8) & 1;
         uint8_t ext_words = 0;
@@ -235,9 +236,6 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         (*m68k_ptr) += ext_words;
-
-        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-        uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
         {

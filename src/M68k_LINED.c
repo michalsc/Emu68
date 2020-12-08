@@ -52,6 +52,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
     /* ADDX */
     else if ((opcode & 0xf130) == 0xd100)
     {
+        uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
 #ifdef __aarch64__
         uint8_t cc = RA_GetCC(&ptr);
         *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
@@ -197,9 +198,6 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2);
 
-        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-        uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
-
         if (update_mask)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
@@ -227,6 +225,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
     /* ADD */
     else if ((opcode & 0xf000) == 0xd000)
     {
+        uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
         uint8_t size = 1 << ((opcode >> 6) & 3);
         uint8_t direction = (opcode >> 8) & 1; // 0: Ea+Dn->Dn, 1: Ea+Dn->Ea
         uint8_t ext_words = 0;
@@ -388,9 +387,6 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         (*m68k_ptr) += ext_words;
-
-        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-        uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
         {

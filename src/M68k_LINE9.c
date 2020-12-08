@@ -15,6 +15,7 @@
 
 uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
 
@@ -195,9 +196,6 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
         }
 
         ptr = EMIT_AdvancePC(ptr, 2);
-
-        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-        uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
         {
@@ -386,9 +384,6 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr)
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
         (*m68k_ptr) += ext_words;
-
-        uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-        uint8_t update_mask = (SR_X | SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
         if (update_mask)
         {

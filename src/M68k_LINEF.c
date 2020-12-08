@@ -2238,8 +2238,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, buf3);
         RA_FreeARMRegister(&ptr, buf4);
 #endif
-
-        ptr = EMIT_AdvancePC(ptr, 2);
+        (*m68k_ptr)++;
+        ptr = EMIT_AdvancePC(ptr, 4);
     }
     /* MOVE16 other variations */
     else if ((opcode & 0xffe0) == 0xf600)

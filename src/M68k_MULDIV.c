@@ -113,6 +113,7 @@ struct Result64 sldiv(int64_t n, int64_t d)
 
 uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t reg;
     uint8_t src = 0xff;
     uint8_t ext_words = 0;
@@ -141,9 +142,6 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
-    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
-
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
@@ -164,6 +162,7 @@ uint32_t *EMIT_MULS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t reg;
     uint8_t src = 0xff;
     uint8_t ext_words = 0;
@@ -191,9 +190,6 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
-    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
-
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
@@ -214,6 +210,7 @@ uint32_t *EMIT_MULU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t reg_dl;
     uint8_t reg_dh = 0xff;
     uint8_t src = 0xff;
@@ -256,9 +253,6 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
-
-    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
     {
@@ -315,6 +309,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t reg_a = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t reg_q = 0xff;
     uint8_t reg_quot = RA_AllocARMRegister(&ptr);
@@ -398,8 +393,6 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (*m68k_ptr) += ext_words;
 
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
     if (update_mask)
@@ -449,6 +442,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t reg_a = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t reg_q = 0xff;
     uint8_t reg_quot = RA_AllocARMRegister(&ptr);
@@ -527,8 +521,6 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (*m68k_ptr) += ext_words;
 
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     /* if temporary register was 0 the division was successful, otherwise overflow occured! */
     if (update_mask)
@@ -583,6 +575,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t sig = (opcode2 & (1 << 11)) != 0;
     uint8_t div64 = (opcode2 & (1 << 10)) != 0;
@@ -831,9 +824,6 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* Set Dr dirty if it was used/changed */
     if (reg_dr != 0xff)
         RA_SetDirtyM68kRegister(&ptr, opcode2 & 7);
-
-    uint8_t mask = M68K_GetSRMask(*m68k_ptr);
-    uint8_t update_mask = (SR_C | SR_V | SR_Z | SR_N) & ~mask;
 
     if (update_mask)
     {
