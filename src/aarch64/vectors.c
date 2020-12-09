@@ -241,16 +241,226 @@ void __stub_vectors()
 :[pint]"i"(__builtin_offsetof(struct M68KState, PINT))
 );}
 
+static int getOPsize(uint32_t opcode)
+{
+    int size = 0;
+    switch (opcode & 0xc0000000)
+    {
+        case 0x00000000:
+            size = 1;
+            break;
+        case 0x40000000:
+            size = 2;
+            break;
+        case 0x80000000:
+            size = 4;
+            break;
+        case 0xc0000000:
+            size = 8;
+            break;
+    }
+    return size;
+}
+
+#undef D(x)
+#define D(x)  x 
+
+int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
+{
+    kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far);
+    
+    return 1;
+}
+
+#undef D(x)
+#define D(x) x  
+
+int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
+{
+    int writeFault = (esr & (1 << 6)) != 0;
+    int handled = 0;
+    int size = 0;
+    uint64_t value = 0;
+    uint32_t opcode = LE32(*(uint32_t *)elr);
+    (void)vector;
+    (void)spsr;
+
+    D(kprintf("[JIT:SYS] Fage fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far));
+
+    if (writeFault)
+    {
+        if ((opcode & 0x3fe00c00) == 0x38000000)
+        {
+            size = getOPsize(opcode);
+
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            handled = SYSWriteValToAddr(value, size, far);
+        }
+        else if ((opcode & 0x3fe00c00) == 0x38000400)
+        {
+            size = getOPsize(opcode);
+            int16_t offset = ((int16_t)(opcode >> 9)) >> 3;
+
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            ctx[(opcode >> 5) & 31] += offset;
+
+            handled = SYSWriteValToAddr(value, size, far);
+        }
+        else if ((opcode & 0x3fe00c00) == 0x38000c00)
+        {
+            size = getOPsize(opcode);
+            int16_t offset = ((int16_t)(opcode >> 9)) >> 3;
+
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            ctx[(opcode >> 5) & 31] += offset;
+
+            handled = SYSWriteValToAddr(value, size, far);
+        }
+        else if ((opcode & 0x3fc00000) == 0x39000000)
+        {
+            size = getOPsize(opcode);
+            
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            handled = SYSWriteValToAddr(value, size, far);
+        }
+        else if ((opcode & 0x3fe00c00) == 0x38200800)
+        {
+            size = getOPsize(opcode);
+            
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            handled = SYSWriteValToAddr(value, size, far);
+        }
+        else if ((opcode & 0x7fc00000) == 0x29000000)
+        {
+            if (opcode & 0x80000000)
+                size = 8;
+            else
+                size = 4;
+            
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            handled = SYSWriteValToAddr(value, size, far);
+
+            if (((opcode >> 10) & 31) == 31)
+                value = 0;
+            else
+                value = ctx[(opcode >> 10) & 31];
+            
+            handled = SYSWriteValToAddr(value, size, far + size);
+        }
+        else if ((opcode & 0x7fc00000) == 0x28800000)
+        {
+            int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
+            if (opcode & 0x80000000)
+                size = 8;
+            else
+                size = 4;
+
+            offset *= size;
+            
+            ctx[(opcode >> 5) & 31] += offset;
+
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            handled = SYSWriteValToAddr(value, size, far);
+
+            if (((opcode >> 10) & 31) == 31)
+                value = 0;
+            else
+                value = ctx[(opcode >> 10) & 31];
+            
+            handled = SYSWriteValToAddr(value, size, far + size);
+        }
+        else if ((opcode & 0x7fc00000) == 0x29800000)
+        {
+            int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
+            if (opcode & 0x80000000)
+                size = 8;
+            else
+                size = 4;
+
+            offset *= size;
+            
+            ctx[(opcode >> 5) & 31] += offset;
+            
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            handled = SYSWriteValToAddr(value, size, far);
+
+            if (((opcode >> 10) & 31) == 31)
+                value = 0;
+            else
+                value = ctx[(opcode >> 10) & 31];
+            
+            handled = SYSWriteValToAddr(value, size, far + size);
+        }
+    }
+    else
+    {
+
+    }
+
+
+    elr += 4;
+    asm volatile("msr ELR_EL1, %0"::"r"(elr));
+
+    return handled;
+}
+
+#undef D(x)
+#define D(x)  x 
+
 void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
+    int handled = 0;
     uint64_t elr, spsr, esr, far;
     asm volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
     asm volatile("mrs %0, ESR_EL1":"=r"(esr));
     asm volatile("mrs %0, FAR_EL1":"=r"(far));
-    kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
-    for (int i=0; i < 16; i++)
+
+    if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x90000000)
     {
-        kprintf("[JIT:SYS]  X%02d=%p   X%02d=%p\n", 2*i, ctx[2*i], 2*i+1, ctx[2*i+1]);
+        handled = SYSPageFaultHandler(vector, ctx, elr, spsr, esr, far);
     }
-    while(1) { asm volatile("wfe"); };
+
+    if (!handled)
+    {
+        kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
+
+        for (int i=0; i < 16; i++)
+        {
+            kprintf("[JIT:SYS]  X%02d=%p   X%02d=%p\n", 2*i, ctx[2*i], 2*i+1, ctx[2*i+1]);
+        }
+        
+        while(1) { asm volatile("wfe"); };
+    }
 }
