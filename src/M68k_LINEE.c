@@ -241,7 +241,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
         if ((opcode & 0x0038) == 0)
         {
             uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
-            *ptr++ = mov_reg(tmp, src);
+            
             RA_FreeARMRegister(&ptr, src);
 
             /* Direct offset and width */
@@ -259,7 +259,11 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     /* width == width - 1 */
                     width = (width == 0) ? 31 : width-1;
                     offset = 31 - (offset + width);
-                    *ptr++ = sbfx(tmp, tmp, offset, width+1);
+                    *ptr++ = sbfx(tmp, src, offset, width+1);
+                }
+                else
+                {
+                    *ptr++ = mov_reg(tmp, src);
                 }
             }
             /* Direct offset, width in reg */
@@ -268,7 +272,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 uint8_t offset = (opcode2 >> 6) & 0x1f;
                 uint8_t width_reg_t = RA_MapM68kRegister(&ptr, opcode2 & 7);
                 uint8_t width_reg = RA_AllocARMRegister(&ptr);
-
+                *ptr++ = mov_reg(tmp, src);
 #ifdef __aarch64__
                 *ptr++ = neg_reg(width_reg, width_reg_t, LSL, 0);
                 *ptr++ = add_immed(width_reg, width_reg, 32);
@@ -400,8 +404,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 uint8_t offset = (opcode2 >> 6) & 0x1f;
                 uint8_t width = (opcode2) & 0x1f;
 
-                *ptr++ = mov_reg(tmp, src);
-
                 RA_FreeARMRegister(&ptr, src);
                 /*
                     If offset == 0 and width == 0 the register value from Dn is already extracted bitfield,
@@ -412,7 +414,11 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     /* width == width - 1 */
                     width = (width == 0) ? 31 : width-1;
                     offset = 31 - (offset + width);
-                    *ptr++ = ubfx(tmp, tmp, offset, width+1);
+                    *ptr++ = ubfx(tmp, src, offset, width+1);
+                }
+                else
+                {
+                    *ptr++ = mov_reg(tmp, src);
                 }
             }
         }
@@ -484,8 +490,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                 uint8_t offset = (opcode2 >> 6) & 0x1f;
                 uint8_t width = (opcode2) & 0x1f;
 
-                *ptr++ = mov_reg(tmp, src);
-
                 RA_FreeARMRegister(&ptr, src);
                 /*
                     If offset == 0 and width == 0 the register value from Dn is already extracted bitfield,
@@ -496,7 +500,11 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
                     /* width == width - 1 */
                     width = (width == 0) ? 31 : width-1;
                     offset = 31 - (offset + width);
-                    *ptr++ = sbfx(tmp, tmp, offset, width+1);
+                    *ptr++ = sbfx(tmp, src, offset, width+1);
+                }
+                else
+                {
+                    *ptr++ = mov_reg(tmp, src);
                 }
             }
         }
