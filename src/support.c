@@ -603,6 +603,16 @@ void sprintf(char *buf, const char * restrict format, ...)
     va_end(v);
 }
 
+void __sprintf_chk(char *buf, int flag, size_t strlen, const char *format, ...)
+{
+    (void)flag;
+    (void)strlen;
+    va_list v;
+    va_start(v, format);
+    vkprintf_pc(putc_s, &buf, format, v);
+    va_end(v);
+}
+
 size_t strlen(const char *c)
 {
     size_t result = 0;
