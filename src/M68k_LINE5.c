@@ -11,11 +11,12 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     if ((opcode & 0xf0c0) == 0x50c0)
     {

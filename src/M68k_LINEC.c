@@ -13,10 +13,11 @@
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
-uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     /* 1100xxx011xxxxxx - MULU */
     if ((opcode & 0xf1c0) == 0xc0c0)

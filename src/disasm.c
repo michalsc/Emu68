@@ -95,36 +95,33 @@ void disasm_close()
     cs_close(&h_arm);
 }
 
-void disasm_print(uint16_t *m68k_addr, size_t m68k_size, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
+void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
 {
     cs_insn *insn_m68k;
     cs_insn *insn_arm;
     size_t count_m68k = 0;
     size_t count_arm = 0;
-    size_t max_count = 0;
 
     if (m68k_addr)
-        count_m68k = cs_disasm(h_m68k, (const uint8_t *)m68k_addr, m68k_size, (uintptr_t)m68k_addr, 1, &insn_m68k);
+        count_m68k = cs_disasm(h_m68k, (const uint8_t *)m68k_addr, 20*m68k_count, (uintptr_t)m68k_addr, m68k_count, &insn_m68k);
     if (arm_addr)
         count_arm = cs_disasm(h_arm, (const uint8_t *)arm_addr, arm_size, (uintptr_t)arm_addr - (uintptr_t)arm_start, 0, &insn_arm);
 
-    max_count = (count_arm > count_m68k) ? count_arm : count_m68k;
-
-    for (size_t i=0; i < max_count; i++)
+    for (size_t i=0; i < count_m68k; i++)
     {
-        if (i < count_m68k)
-        {
-            kprintf("[JIT] %08x: %7s %21s", insn_m68k[i].address, insn_m68k[i].mnemonic, insn_m68k[i].op_str);
-        }
-        else
-            kprintf("[JIT]                                        ");
-
-        if (i < count_arm)
-        {
-            kprintf("-> %08x: %7s %s\n", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
-        }
-        else
+        kprintf("[JIT] %08x: %7s %21s", insn_m68k[i].address, insn_m68k[i].mnemonic, insn_m68k[i].op_str);
+        if (i != count_m68k - 1)
             kprintf("\n");
+    }
+
+    if (count_m68k == 0)
+        kprintf("[JIT]                                        ");
+
+    for (size_t i=0; i < count_arm; i++)
+    {
+        if (i > 0)
+            kprintf("[JIT]                                        ");
+        kprintf("-> %08x: %7s %s\n", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
     }
 
     if (count_m68k)

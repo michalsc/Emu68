@@ -2192,12 +2192,13 @@ void __attribute__((naked)) trampoline_icache_invalidate(void)
 #endif
 
 
-uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint16_t opcode2 = BE16((*m68k_ptr)[1]);
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     /* MOVE16 (Ax)+, (Ay)+ */
     if ((opcode & 0xfff8) == 0xf620 && (opcode2 & 0x8fff) == 0x8000)

@@ -114,7 +114,7 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     return arm_ptr;
 }
 
-static uint32_t * (*line_array[16])(uint32_t *arm_ptr, uint16_t **m68k_ptr) = {
+static uint32_t * (*line_array[16])(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed) = {
     EMIT_line0,
     EMIT_move,
     EMIT_move,
@@ -133,7 +133,7 @@ static uint32_t * (*line_array[16])(uint32_t *arm_ptr, uint16_t **m68k_ptr) = {
     EMIT_lineF
 };
 
-static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
+static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint32_t *ptr = arm_ptr;
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -158,7 +158,7 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr)
     }
 #endif
 
-    ptr = line_array[group](ptr, m68k_ptr);
+    ptr = line_array[group](ptr, m68k_ptr, insn_consumed);
 
     return ptr;
 }
@@ -286,6 +286,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     while (break_loop == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
+        uint16_t insn_consumed;
         uint16_t *in_code = m68kcodeptr;
         uint32_t *out_code = end;
 
@@ -325,8 +326,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         for (int r=0; r < 16; r++)
             local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
 #endif
-        end = EmitINSN(end, &m68kcodeptr);
-        insn_count++;
+        end = EmitINSN(end, &m68kcodeptr, &insn_consumed);
+        insn_count+=insn_consumed;
         if (end[-1] == INSN_TO_LE(0xfffffff0))
         {
             lr_is_saved = 1;
@@ -433,7 +434,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         #endif
 
         if (disasm)
-            disasm_print(in_code, 20, out_code, 4*(end - out_code), temporary_arm_code);
+            disasm_print(in_code, insn_consumed, out_code, 4*(end - out_code), temporary_arm_code);
     }
     uint32_t *out_code = end;
     tmpptr = end;

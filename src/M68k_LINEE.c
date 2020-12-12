@@ -11,11 +11,12 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     /* 1110000x11xxxxxx - ASL, ASR - memory */
     if ((opcode & 0xfec0) == 0xe0c0)
@@ -1212,6 +1213,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr)
     {
         uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
         RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        *insn_consumed = 3;
 
         *ptr++ = rev(reg, reg);
 

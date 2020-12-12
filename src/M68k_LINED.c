@@ -13,10 +13,11 @@
 
 /* Line9 is one large ADDX/ADD/ADDA */
 
-uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     /* ADDA */
     if ((opcode & 0xf0c0) == 0xd0c0)

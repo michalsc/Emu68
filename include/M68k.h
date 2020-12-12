@@ -213,19 +213,19 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words);
 uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...);
 
-uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr);
-uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr);
+uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 
 uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
 uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args);

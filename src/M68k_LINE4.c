@@ -882,10 +882,11 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     /* 0100000011xxxxxx - MOVE from SR */
     if ((opcode & 0xffc0) == 0x40c0)

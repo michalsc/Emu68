@@ -11,13 +11,14 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     int8_t value = opcode & 0xff;
     uint8_t reg = (opcode >> 9) & 7;
     uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
+    *insn_consumed = 1;
 
     (*m68k_ptr)++;
 
@@ -39,7 +40,7 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr)
     return ptr;
 }
 
-uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
@@ -51,7 +52,86 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     int is_load_immediate = 0;
     uint32_t immediate_value = 0;
     int loaded_in_dest = 0;
+    *insn_consumed = 1;
+    int done = 0;
 
+    /* Quick fusing tests */
+    if ((opcode & 0x31f8) == 0x2018 || (opcode & 0x31f8) == 0x2020 || (opcode & 0x31f8) == 0x20c0 || (opcode & 0x31f8) == 0x2100)
+    {
+        uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+
+        if ((opcode2 & 0x31f8) == 0x2018 && (opcode & 0x7) == (opcode2 & 0x7))
+        {
+            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
+            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, (opcode & 0x0e00) >> 9);
+            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, (opcode2 & 0x0e00) >> 9);
+
+            /* Two subsequent (An)+ moves to register */
+            (*m68k_ptr)++;
+            update_mask = M68K_GetSRMask(*m68k_ptr);
+            (*m68k_ptr)++;
+
+            *ptr++ = ldp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
+
+            done = 1;
+            ptr = EMIT_AdvancePC(ptr, 4);
+            *insn_consumed = 2;
+        }
+        else if ((opcode2 & 0x31f8) == 0x2020 && (opcode & 0x7) == (opcode2 & 0x7))
+        {
+            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
+            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, (opcode & 0x0e00) >> 9);
+            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, (opcode2 & 0x0e00) >> 9);
+
+            /* Two subsequent -(An) moves to register */
+            (*m68k_ptr)++;
+            update_mask = M68K_GetSRMask(*m68k_ptr);
+            (*m68k_ptr)++;
+
+            *ptr++ = ldp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
+
+            done = 1;
+            ptr = EMIT_AdvancePC(ptr, 4);
+            *insn_consumed = 2;
+        }
+        else if ((opcode2 & 0x31f8) == 0x20c0 && (opcode & 0x7) == (opcode2 & 0x7))
+        {
+            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
+            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 7);
+            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+            /* Two subsequent register moves to (An)+ */
+            (*m68k_ptr)++;
+            update_mask = M68K_GetSRMask(*m68k_ptr);
+            (*m68k_ptr)++;
+
+            *ptr++ = stp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
+
+            done = 1;
+            ptr = EMIT_AdvancePC(ptr, 4);
+            *insn_consumed = 2;
+        }
+        else if ((opcode2 & 0x31f8) == 0x2100 && (opcode & 0x0e00) == (opcode2 & 0x0e00))
+        {
+            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
+            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 7);
+            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+            /* Two subsequent register moves to -(An) */
+            (*m68k_ptr)++;
+            update_mask = M68K_GetSRMask(*m68k_ptr);
+            (*m68k_ptr)++;
+
+            *ptr++ = stp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
+
+            done = 1;
+            ptr = EMIT_AdvancePC(ptr, 4);
+            *insn_consumed = 2;
+        }
+    }
+
+    if (!done)
+    {
     /* Reverse destination mode, since this one is reversed in MOVE instruction */
     tmp = (opcode >> 6) & 0x3f;
     tmp = ((tmp & 7) << 3) | (tmp >> 3);
@@ -133,6 +213,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr)
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
 
     (*m68k_ptr) += ext_count;
+    }
 
     if (!is_movea)
     {

@@ -13,11 +13,12 @@
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
-uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+    *insn_consumed = 1;
 
     /* 1000xxx011xxxxxx - DIVU */
     if ((opcode & 0xf1c0) == 0x80c0)
