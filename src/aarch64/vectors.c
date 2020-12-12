@@ -263,17 +263,56 @@ static int getOPsize(uint32_t opcode)
 }
 
 #undef D(x)
-#define D(x)  x 
+#define D(x) /* x */
 
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
-    kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far);
+    D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
     
+    switch(size)
+    {
+        case 1:
+            *(uint8_t*)(far + 0xffffff9000000000) = value;
+            break;
+        case 2:
+            *(uint16_t*)(far + 0xffffff9000000000) = value;
+            break;
+        case 4:
+            *(uint32_t*)(far + 0xffffff9000000000) = value;
+            break;
+        case 8:
+            *(uint64_t*)(far + 0xffffff9000000000) = value;
+            break;
+    }
+
+    return 1;
+}
+
+int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
+{
+    D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
+    
+    switch(size)
+    {
+        case 1:
+            *value = *(uint8_t*)(far + 0xffffff9000000000);
+            break;
+        case 2:
+            *value = *(uint16_t*)(far + 0xffffff9000000000);
+            break;
+        case 4:
+            *value = *(uint32_t*)(far + 0xffffff9000000000);
+            break;
+        case 8:
+            *value = *(uint64_t*)(far + 0xffffff9000000000);
+            break;
+    }
+
     return 1;
 }
 
 #undef D(x)
-#define D(x) x  
+#define D(x) /* x  */
 
 int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
 {
@@ -285,14 +324,14 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
     (void)vector;
     (void)spsr;
 
+    size = getOPsize(opcode);
+
     D(kprintf("[JIT:SYS] Fage fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far));
 
     if (writeFault)
     {
         if ((opcode & 0x3fe00c00) == 0x38000000)
         {
-            size = getOPsize(opcode);
-
             if ((opcode & 31) == 31)
                 value = 0;
             else
@@ -302,8 +341,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         else if ((opcode & 0x3fe00c00) == 0x38000400)
         {
-            size = getOPsize(opcode);
-            int16_t offset = ((int16_t)(opcode >> 9)) >> 3;
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
 
             if ((opcode & 31) == 31)
                 value = 0;
@@ -316,8 +354,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         else if ((opcode & 0x3fe00c00) == 0x38000c00)
         {
-            size = getOPsize(opcode);
-            int16_t offset = ((int16_t)(opcode >> 9)) >> 3;
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
 
             if ((opcode & 31) == 31)
                 value = 0;
@@ -330,8 +367,6 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         else if ((opcode & 0x3fc00000) == 0x39000000)
         {
-            size = getOPsize(opcode);
-            
             if ((opcode & 31) == 31)
                 value = 0;
             else
@@ -341,8 +376,6 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         else if ((opcode & 0x3fe00c00) == 0x38200800)
         {
-            size = getOPsize(opcode);
-            
             if ((opcode & 31) == 31)
                 value = 0;
             else
@@ -350,6 +383,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             handled = SYSWriteValToAddr(value, size, far);
         }
+        /* STP */
         else if ((opcode & 0x7fc00000) == 0x29000000)
         {
             if (opcode & 0x80000000)
@@ -371,6 +405,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             
             handled = SYSWriteValToAddr(value, size, far + size);
         }
+        /* STP post index */
         else if ((opcode & 0x7fc00000) == 0x28800000)
         {
             int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
@@ -397,6 +432,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             
             handled = SYSWriteValToAddr(value, size, far + size);
         }
+        /* STP pre index */
         else if ((opcode & 0x7fc00000) == 0x29800000)
         {
             int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
@@ -426,9 +462,217 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
     }
     else
     {
+        /* LDP */
+        if ((opcode & 0x7fc00000) == 0x29400000)
+        {
+            if (opcode & 0x80000000)
+                size = 8;
+            else
+                size = 4;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);    
+        }
+        /* LDP post- and pre-index */
+        else if ((opcode & 0x7ec00000) == 0x28c00000)
+        {
+            int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
+            if (opcode & 0x80000000)
+                size = 8;
+            else
+                size = 4;
 
+            offset *= size;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
+                
+            ctx[(opcode >> 5) & 31] += offset;
+        }
+        /* LDPSW */
+        if ((opcode & 0xffc00000) == 0x69400000)
+        {
+            size = 4;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                if (ctx[opcode & 31] & 0x80000000)
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+            }
+            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
+            if (handled) {
+                if (ctx[(opcode >> 10) & 31] & 0x80000000)
+                    ctx[(opcode >> 10) & 31] |= 0xffffffff00000000ULL;
+            }  
+        }
+        /* LDPSW post index */
+        else if ((opcode & 0xffc00000) == 0x68c00000)
+        {
+            int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
+            size = 4;
+            offset *= size;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                if (ctx[opcode & 31] & 0x80000000)
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+            }
+            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
+            if (handled) {
+                if (ctx[(opcode >> 10) & 31] & 0x80000000)
+                    ctx[(opcode >> 10) & 31] |= 0xffffffff00000000ULL;
+            }
+            ctx[(opcode >> 5) & 31] += offset;
+        }
+        /* LDPSW pre index */
+        else if ((opcode & 0xffc00000) == 0x69c00000)
+        {
+            int16_t offset = ((int16_t)(opcode >> 6)) >> 9;
+            size = 4;
+            offset *= size;
+
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                if (ctx[opcode & 31] & 0x80000000)
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+            }
+            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
+            if (handled) {
+                if (ctx[(opcode >> 10) & 31] & 0x80000000)
+                    ctx[(opcode >> 10) & 31] |= 0xffffffff00000000ULL;
+            }
+            ctx[(opcode >> 5) & 31] += offset;
+        }
+        /* LDR (literal) */
+        else if ((opcode & 0x3f000000) == 0x18000000)
+        {
+            int sext = 0;
+            if (opcode & 0x40000000)
+                size = 8;
+            else
+                size = 4;
+            if (opcode & 0x80000000)
+                sext = 1;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled & sext) {
+                if (ctx[opcode & 31] & 0x80000000)
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+            }
+        }
+        /* LDR register */
+        else if ((opcode & 0x3fe00c00) == 0x38600800)
+        {
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+        }
+        /* LDR immediate */
+        else if ((opcode & 0x3fc00000) == 0x39400000)
+        {
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+        }
+        /* LDR immediate, post- and pre-index */
+        else if ((opcode & 0x3fe00400) == 0x38400400)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled)
+                ctx[(opcode >> 5) & 31] += offset;
+        }
+        /* LDRSW/LDRSB/LDRSH register */
+        else if ((opcode & 0x3fa00c00) == 0x38a00800)
+        {
+            int sext64 = 1;
+            if (opcode & (1 << 22))
+                sext64 = 0;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                int sext = 0;
+                switch (size)
+                {
+                    case 1:
+                        sext = ctx[opcode & 31] & 0x80;
+                        ctx[opcode & 31] |= 0xffffff00;
+                        break;
+                    case 2:
+                        sext = ctx[opcode & 31] & 0x8000;
+                        ctx[opcode & 31] |= 0xffff0000;
+                        break;
+                    case 4:
+                        sext = ctx[opcode & 31] & 0x80000000;
+                        break;
+                }
+
+                if (sext && sext64) {
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+                }
+            }
+        }
+        /* LDRSW/LDRSB/LDRSH immediate */
+        else if ((opcode & 0x3f800000) == 0x39800000)
+        {
+            int sext64 = 1;
+            if (opcode & (1 << 22))
+                sext64 = 0;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                int sext = 0;
+                switch (size)
+                {
+                    case 1:
+                        sext = ctx[opcode & 31] & 0x80;
+                        ctx[opcode & 31] |= 0xffffff00;
+                        break;
+                    case 2:
+                        sext = ctx[opcode & 31] & 0x8000;
+                        ctx[opcode & 31] |= 0xffff0000;
+                        break;
+                    case 4:
+                        sext = ctx[opcode & 31] & 0x80000000;
+                        break;
+                }
+
+                if (sext && sext64) {
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+                }
+            }
+        }
+        /* LDRSW/LDRSB/LDRSH post- and pre-index */
+        else if ((opcode & 0x3fa000400) == 0x38800400)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+            int sext64 = 1;
+            if (opcode & (1 << 22))
+                sext64 = 0;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                int sext = 0;
+                switch (size)
+                {
+                    case 1:
+                        sext = ctx[opcode & 31] & 0x80;
+                        ctx[opcode & 31] |= 0xffffff00;
+                        break;
+                    case 2:
+                        sext = ctx[opcode & 31] & 0x8000;
+                        ctx[opcode & 31] |= 0xffff0000;
+                        break;
+                    case 4:
+                        sext = ctx[opcode & 31] & 0x80000000;
+                        break;
+                }
+
+                if (sext && sext64) {
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+                }
+
+                ctx[(opcode >> 5) & 31] += offset;
+            }
+        }
     }
-
 
     elr += 4;
     asm volatile("msr ELR_EL1, %0"::"r"(elr));
