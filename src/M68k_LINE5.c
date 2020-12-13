@@ -148,6 +148,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 *ptr++ = 1;
                 *ptr++ = 0;
                 *ptr++ = INSN_TO_LE(0xfffffffe);
+                *ptr++ = INSN_TO_LE(0xfffffff1);
 
                 RA_FreeARMRegister(&ptr, c_true);
                 RA_FreeARMRegister(&ptr, c_false);

@@ -283,8 +283,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     int break_loop = FALSE;
     int inner_loop = FALSE;
+    int soft_break = FALSE;
 
-    while (break_loop == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    while (break_loop == FALSE && soft_break == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
         uint16_t insn_consumed;
         uint16_t *in_code = m68kcodeptr;
@@ -337,6 +338,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         {
             end--;
             break_loop = TRUE;
+        }
+        if (end[-1] == INSN_TO_LE(0xfffffff1))
+        {
+            end--;
+            soft_break = TRUE;
         }
         if (end[-1] == INSN_TO_LE(0xfffffffe))
         {
@@ -420,6 +426,10 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
             epilogue_size += distance;
         }
+
+        if (disasm)
+            disasm_print(in_code, insn_consumed, out_code, 4*(end - out_code), temporary_arm_code);
+
         #if 1
         if (!break_loop && (orig_m68kcodeptr == m68kcodeptr))
         {
@@ -433,8 +443,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         (void)orig_m68kcodeptr;
         #endif
 
-        if (disasm)
-            disasm_print(in_code, insn_consumed, out_code, 4*(end - out_code), temporary_arm_code);
     }
     uint32_t *out_code = end;
     tmpptr = end;
