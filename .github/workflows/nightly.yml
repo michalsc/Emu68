@@ -66,9 +66,7 @@ jobs:
     - name: Archive
       working-directory: ${{runner.workspace}}/install
       shell: bash
-      run: |
-        pwd
-        zip -r ./Emu68.zip . -i .
+      run: zip -r ./Emu68.zip .
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
