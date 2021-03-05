@@ -54,13 +54,13 @@ jobs:
       run: ctest -C $BUILD_TYPE
     
     - name: Install
-      working-directory: ${{github.workspace}}/build
+      working-directory: ${{runner.workspace}}/build
       shell: bash
       # Create ARIX directory structure and generate initrd file
       run: cmake --install .
 
     - name: Archive
-      working-directory: ${{github.workspace}}/install
+      working-directory: ${{runner.workspace}}/install
       shell: bash
       run: zip -r ./Emu68.zip .
 
@@ -68,7 +68,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: emu68-archive
-        path: ${{github.workspace}}/install/Emu68.zip
+        path: ${{runner.workspace}}/install/Emu68.zip
         retention-days: 5
 
   deploy:
@@ -79,12 +79,12 @@ jobs:
       uses: actions/download-artifact@v2
       with:
         name: emu68-archive
-        path: ${{github.workspace}}/uploads
+        path: ${{runner.workspace}}/uploads
     
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: ${{github.workspace}}/uploads/**
+        files: ${{runner.workspace}}/uploads/**
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
