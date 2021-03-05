@@ -64,7 +64,7 @@ jobs:
       shell: bash
       run: |
         pwd
-        zip -r ./Emu68.zip .
+        zip -r ./Emu68.zip . -i .
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
