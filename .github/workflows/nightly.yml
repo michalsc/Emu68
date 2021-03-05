@@ -66,13 +66,13 @@ jobs:
     - name: Archive
       working-directory: ${{runner.workspace}}/install
       shell: bash
-      run: zip -r ./Emu68.zip .
+      run: zip -r ./Emu68-raspi.zip .
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
         name: emu68-archive
-        path: ${{runner.workspace}}/install/Emu68.zip
+        path: ${{runner.workspace}}/install/Emu68-raspi.zip
         retention-days: 5
 
   deploy:
