@@ -89,7 +89,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         tag_name: nightly
-        files: ${{github.workspace}}/uploads/**
+        files: ${{runner.workspace}}/uploads/**
         prerelease: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
