@@ -3,7 +3,7 @@ name: CMake Nightly Build
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 10 * * *"
+    - cron: "10 0 * * *"
 
 
 env:
