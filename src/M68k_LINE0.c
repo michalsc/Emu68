@@ -2162,7 +2162,96 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     *insn_consumed = 1;
     (*m68k_ptr)++;
 
-    if ((opcode & 0xff00) == 0x0000 && (opcode & 0x00c0) != 0x00c0)   /* 00000000xxxxxxxx - ORI to CCR, ORI to SR, ORI */
+    if ((opcode & 0xf138) == 0x0108)   /* 0000xxx1xx001xxx - MOVEP */
+    {
+#ifdef __aarch64__
+        int16_t offset = BE16((*m68k_ptr)[0]);
+        uint8_t addr;
+        uint8_t an = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        /* For offset == 0 just use the m68k register */
+        if (offset == 0) {
+            addr = an;
+        }
+        else {
+            /* For all other offsets get a temporary reg for address */
+            addr = RA_AllocARMRegister(&ptr);
+            if (offset > 0) {
+                if (offset & 0xfff) {
+                    *ptr++ = add_immed(addr, an, offset & 0xfff);
+                }
+                if (offset & 0x7000) {
+                    *ptr++ = add_immed_lsl12(addr, an, offset >> 12);
+                }
+            }
+            else {
+                offset = -offset;
+                if (offset & 0xfff) {
+                    *ptr++ = sub_immed(addr, an, offset & 0xfff);
+                }
+                if (offset & 0x7000) {
+                    *ptr++ = sub_immed_lsl12(addr, an, offset >> 12);
+                }
+            }
+        }
+
+        /* Register to memory transfer */
+        if (opcode & 0x80) {
+            /* Long mode */
+            if (opcode & 0x40) {
+                *ptr++ = lsr(tmp, dn, 24);
+                *ptr++ = strb_offset(addr, tmp, 0);
+                *ptr++ = lsr(tmp, dn, 16);
+                *ptr++ = strb_offset(addr, tmp, 2);
+                *ptr++ = lsr(tmp, dn, 8);
+                *ptr++ = strb_offset(addr, tmp, 4);
+                *ptr++ = strb_offset(addr, dn, 6);
+            }
+            /* Word mode */
+            else {
+                *ptr++ = lsr(tmp, dn, 8);
+                *ptr++ = strb_offset(addr, tmp, 0);
+                *ptr++ = strb_offset(addr, dn, 2);
+            }
+        }
+        /* Memory to register transfer */
+        else {
+            RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+            
+            /* Long mode */
+            if (opcode & 0x40) {
+                *ptr++ = ldrb_offset(addr, dn, 0);
+                *ptr++ = ldrb_offset(addr, tmp, 2);
+                *ptr++ = lsl(dn, dn, 24);
+                *ptr++ = orr_reg(dn, dn, tmp, LSL, 16);
+                *ptr++ = ldrb_offset(addr, tmp, 4);
+                *ptr++ = orr_reg(dn, dn, tmp, LSL, 8);
+                *ptr++ = ldrb_offset(addr, tmp, 6);
+                *ptr++ = orr_reg(dn, dn, tmp, LSL, 0);
+            }
+            /* Word mode */
+            else {
+                *ptr++ = bic_immed(dn, dn, 16, 0);
+                *ptr++ = ldrb_offset(addr, tmp, 0);
+                *ptr++ = orr_reg(dn, dn, tmp, LSL, 8);
+                *ptr++ = ldrb_offset(addr, tmp, 2);
+                *ptr++ = orr_reg(dn, dn, tmp, LSL, 0);
+            }
+        }
+
+        RA_FreeARMRegister(&ptr, addr);
+        RA_FreeARMRegister(&ptr, tmp);
+        ptr = EMIT_AdvancePC(ptr, 4);
+        (*m68k_ptr)++;
+#else
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEP at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
+        *ptr++ = udf(opcode);
+#endif
+    }
+    else if ((opcode & 0xff00) == 0x0000 && (opcode & 0x00c0) != 0x00c0)   /* 00000000xxxxxxxx - ORI to CCR, ORI to SR, ORI */
     {
         if ((opcode & 0x00ff) == 0x003c)
             ptr = EMIT_ORI_TO_CCR(ptr, opcode, m68k_ptr);
@@ -2250,12 +2339,6 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     else if ((opcode & 0xf1c0) == 0x01c0)   /* 0000xxx111xxxxxx - BSET */
     {
         ptr = EMIT_BSET(ptr, opcode, m68k_ptr);
-    }
-    else if ((opcode & 0xf038) == 0x0008)   /* 0000xxxxxx001xxx - MOVEP */
-    {
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVEP at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
     }
     else
     {
