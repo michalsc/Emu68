@@ -79,17 +79,21 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:  
+        
     - name: Download Artifact
       uses: actions/download-artifact@v2
       with:
         name: emu68-archive
         path: ${{runner.workspace}}/uploads
     
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: nightly
-        files: ${{runner.workspace}}/uploads/**
-        prerelease: true
+    - name: Deploy Raspi release
+      uses: WebFreak001/deploy-nightly@v1.1.0
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # automatically provided by github actions
+      with:
+        upload_url: https://uploads.github.com/repos/michalsc/Emu68/releases/39641306/assets{?name,label} # find out this value by opening https://api.github.com/repos/<owner>/<repo>/releases in your browser and copy the full "upload_url" value including the {?name,label} part
+        release_id: 39641306 # same as above (id can just be taken out the upload_url, it's used to find old releases)
+        asset_path: ${{runner.workspace}}/uploads/Emu68-raspi.zip # path to archive to upload
+        asset_name: Emu68-raspi-$$.zip # name to upload the release as, use $$ to insert date (YYYYMMDD) and 6 letter commit hash
+        asset_content_type: application/zip # required by GitHub API
+        max_releases: 7 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
