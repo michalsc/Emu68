@@ -30,7 +30,7 @@
       {
         "type": "shell",
         "label": "build raspi64",
-        "command": "make",
+        "command": "ninja",
         "problemMatcher": [
             "$gcc"
         ],
@@ -42,7 +42,7 @@
       {
         "type": "shell",
         "label": "install raspi64",
-        "command": "make",
+        "command": "ninja",
         "problemMatcher": [
             "$gcc"
         ],
