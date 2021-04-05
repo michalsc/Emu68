@@ -2166,36 +2166,52 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
 #ifdef __aarch64__
         int16_t offset = BE16((*m68k_ptr)[0]);
-        uint8_t addr = -1;
         uint8_t an = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t addr = an;
 
         /* For offset == 0 just use the m68k register */
-        if (offset == 0) {
-            addr = an;
-        }
-        else {
+        if (offset != 0) {
             /* For all other offsets get a temporary reg for address */
-            addr = RA_AllocARMRegister(&ptr);
             if (offset > 0) {
                 if ((offset & 0xfff) && (offset > 0xfff-8)) {
+                    if (addr == an) {
+                        addr = RA_AllocARMRegister(&ptr);
+                    }
                     *ptr++ = add_immed(addr, an, offset & 0xfff);
                     offset &= 0xf000;
                 }
                 if (offset & 0x7000) {
-                    *ptr++ = add_immed_lsl12(addr, an, offset >> 12);
+                    if (addr == an) {
+                        addr = RA_AllocARMRegister(&ptr);
+                        *ptr++ = add_immed_lsl12(addr, an, offset >> 12);
+                    }
+                    else
+                    {
+                        *ptr++ = add_immed_lsl12(addr, addr, offset >> 12);
+                    }
                     offset &= 0xfff;
                 }
             }
             else {
                 offset = -offset;
                 if (offset & 0xfff) {
+                    if (addr == an) {
+                        addr = RA_AllocARMRegister(&ptr);
+                    }
                     *ptr++ = sub_immed(addr, an, offset & 0xfff);
                     offset &= 0xf000;
                 }
                 if (offset & 0x7000) {
-                    *ptr++ = sub_immed_lsl12(addr, an, offset >> 12);
+                    if (addr == an) {
+                        addr = RA_AllocARMRegister(&ptr);
+                        *ptr++ = sub_immed_lsl12(addr, an, offset >> 12);
+                    }
+                    else
+                    {
+                        *ptr++ = sub_immed_lsl12(addr, addr, offset >> 12);
+                    }
                     offset &= 0xfff;
                 }
             }
