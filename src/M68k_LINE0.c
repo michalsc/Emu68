@@ -2280,7 +2280,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         else
             ptr = EMIT_ORI(ptr, opcode, m68k_ptr);
     }
-    else if ((opcode & 0xff00) == 0x0200)   /* 00000010xxxxxxxx - ANDI to CCR, ANDI to SR, ANDI */
+    else if ((opcode & 0xff00) == 0x0200 && (opcode & 0x00c0) != 0x00c0)   /* 00000010xxxxxxxx - ANDI to CCR, ANDI to SR, ANDI */
     {
         if ((opcode & 0x00ff) == 0x003c)
             ptr = EMIT_ANDI_TO_CCR(ptr, opcode, m68k_ptr);
@@ -2289,7 +2289,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         else
             ptr = EMIT_ANDI(ptr, opcode, m68k_ptr);
     }
-    else if ((opcode & 0xff00) == 0x0400)   /* 00000100xxxxxxxx - SUBI */
+    else if ((opcode & 0xff00) == 0x0400 && (opcode & 0x00c0) != 0x00c0)   /* 00000100xxxxxxxx - SUBI */
     {
         ptr = EMIT_SUBI(ptr, opcode, m68k_ptr);
     }
@@ -2299,9 +2299,104 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {
+#ifdef __aarch64__
+        uint8_t update_mask = SR_Z | SR_C;
+        uint8_t ext_words = 1;
+        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+        uint8_t ea = -1;
+        uint8_t lower = RA_AllocARMRegister(&ptr);
+        uint8_t higher = RA_AllocARMRegister(&ptr);
+        uint8_t reg = RA_MapM68kRegister(&ptr, opcode2 >> 12);
+
+        /* Get address of bounds */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+        /* load bounds into registers */
+        switch ((opcode >> 9) & 3)
+        {
+            case 0:
+                *ptr++ = ldrsb_offset(ea, lower, 0);
+                *ptr++ = ldrsb_offset(ea, higher, 1);
+                break;
+            case 1:
+                *ptr++ = ldrsh_offset(ea, lower, 0);
+                *ptr++ = ldrsh_offset(ea, higher, 2);
+                break;
+            case 2:
+                *ptr++ = ldp(ea, lower, higher, 0);
+                break;
+        }
+
+        /* If data register, extend the 8 or 16 bit */
+        if ((opcode2 & 0x8000) == 0)
+        {
+            uint8_t tmp = -1;
+            switch((opcode >> 9) & 3)
+            {
+                case 0:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sxtb(tmp, reg);
+                    reg = tmp;
+                    break;
+                case 1:
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sxth(tmp, reg);
+                    reg = tmp;
+                    break;
+            }
+        }
+
+        *ptr++ = subs_reg(31, reg, lower, LSL, 0);
+        *ptr++ = b_cc(A64_CC_LE, 2);
+        *ptr++ = subs_reg(31, higher, reg,  LSL, 0);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+
+        if (update_mask)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+
+            if (__builtin_popcount(update_mask) > 1)
+                ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+            else
+                ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+                
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+        }
+
+        RA_FreeARMRegister(&ptr, ea);
+        RA_FreeARMRegister(&ptr, reg);
+        RA_FreeARMRegister(&ptr, lower);
+        RA_FreeARMRegister(&ptr, higher);
+
+        /* If CHK2 opcode then emit exception if tested value was out of range (C flag set) */
+        if (opcode2 & (1 << 11))
+        {
+            /* Flush program counter, since it might be pushed on the stack when
+            exception is generated */
+            ptr = EMIT_FlushPC(ptr);
+
+            /* Skip exception if tested value is in range */
+            uint32_t *t = ptr;
+            *ptr++ = b_cc(A64_CC_CS, 0);
+
+            /* Emit CHK exception */
+            ptr = EMIT_Exception(ptr, VECTOR_CHK, 0);
+            *t = b_cc(A64_CC_CS, ptr - t);
+            *ptr++ = (uint32_t)(uintptr_t)t;
+            *ptr++ = 1;
+            *ptr++ = 0;
+            *ptr++ = INSN_TO_LE(0xfffffffe);
+        }
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] CMP2/CHK2 at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     else if ((opcode & 0xff00) == 0x0a00)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
     {
