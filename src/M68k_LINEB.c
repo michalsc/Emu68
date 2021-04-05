@@ -149,15 +149,15 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         {
 #ifdef __aarch64__
             case 4:
-                *ptr++ = subs_reg(tmp, dst, src, LSL, 0);
+                *ptr++ = subs_reg(31, dst, src, LSL, 0);
                 break;
             case 2:
                 *ptr++ = lsl(tmp, dst, 16);
-                *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
+                *ptr++ = subs_reg(31, tmp, src, LSL, 16);
                 break;
             case 1:
                 *ptr++ = lsl(tmp, dst, 24);
-                *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
+                *ptr++ = subs_reg(31, tmp, src, LSL, 24);
                 break;
 #else
             case 4:
