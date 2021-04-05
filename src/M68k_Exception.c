@@ -26,7 +26,7 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     /* Check if we are changing stack due to user->supervisor transition */
-    *ptr++ = tbnz(cc, SRB_S, 7);
+    *ptr++ = tbnz(cc, SRB_S, 6);
 
     /* We were in user mode. Store A7 as USP */
     *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
