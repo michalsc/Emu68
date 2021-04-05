@@ -16,10 +16,16 @@
 uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
 {
     va_list args;
-    uint8_t ctx = RA_GetCTX(&ptr);
+    uint8_t ctx = RA_TryCTX(&ptr); //RA_GetCTX(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint8_t vbr = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
+    int need_free_ctx = 0;
+    
+    if (ctx == 0xff) {
+        need_free_ctx = 1;
+        ctx = RA_GetCTX(&ptr);
+    }
 
     va_start(args, format);
 
@@ -83,6 +89,10 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
     *ptr++ = ldr_offset(vbr, REG_PC, exception);
 
     RA_FreeARMRegister(&ptr, vbr);
+    
+    if (need_free_ctx) {
+        RA_FlushCTX(&ptr);
+    }
 
     va_end(args);
 
