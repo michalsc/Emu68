@@ -2502,13 +2502,13 @@ kprintf("CAS");
             switch (size)
             {
                 case 1:
-                    *ptr++ = stxrb(ea, du, status);
+                    *ptr++ = stlxrb(ea, du, status);
                     break;
                 case 2:
-                    *ptr++ = stxrh(ea, du, status);
+                    *ptr++ = stlxrh(ea, du, status);
                     break;
                 case 3:
-                    *ptr++ = stxr(ea, du, status);
+                    *ptr++ = stlxr(ea, du, status);
                     break;
             }
 
