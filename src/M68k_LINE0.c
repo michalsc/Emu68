@@ -2431,7 +2431,107 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
     {
 #ifdef __aarch64__
-kprintf("CAS");
+
+#define CAS_ATOMIC() do { \
+            uint32_t *l0 = ptr; \
+            switch (size) \
+            { \
+                case 1:\
+                    *ptr++ = ldxrb(ea, tmp);\
+                    *ptr++ = lsl(tmp, tmp, 24);\
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 24);\
+                    break;\
+                case 2:\
+                    *ptr++ = ldxrh(ea, tmp);\
+                    *ptr++ = lsl(tmp, tmp, 16);\
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 16);\
+                    break;\
+                case 3:\
+                    *ptr++ = ldxr(ea, tmp);\
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 0);\
+                    break;\
+            }\
+            uint32_t *b0 = ptr;\
+            *ptr++ = b_cc(A64_CC_NE, 0);\
+            switch (size)\
+            {\
+                case 1:\
+                    *ptr++ = stlxrb(ea, du, status);\
+                    break;\
+                case 2:\
+                    *ptr++ = stlxrh(ea, du, status);\
+                    break;\
+                case 3:\
+                    *ptr++ = stlxr(ea, du, status);\
+                    break;\
+            }\
+            *ptr = cbnz(status, l0 - ptr);\
+            ptr++;\
+            *ptr++ = b(2);\
+            *b0 = b_cc(A64_CC_NE, ptr - b0);\
+            switch (size) \
+            {\
+                case 1:\
+                    *ptr++ = bfxil(dc, tmp, 24, 8);\
+                    break;\
+                case 2:\
+                    *ptr++ = bfxil(dc, tmp, 16, 16);\
+                    break;\
+                case 3:\
+                    *ptr++ = mov_reg(dc, tmp);\
+                    break;\
+            }\
+} while(0)
+
+#define CAS_UNSAFE() do { \
+            uint32_t *l0 = ptr; \
+            switch (size) \
+            { \
+                case 1:\
+                    *ptr++ = ldrb_offset(ea, tmp, 0);\
+                    *ptr++ = lsl(tmp, tmp, 24);\
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 24);\
+                    break;\
+                case 2:\
+                    *ptr++ = ldrh_offset(ea, tmp, 0);\
+                    *ptr++ = lsl(tmp, tmp, 16);\
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 16);\
+                    break;\
+                case 3:\
+                    *ptr++ = ldr_offset(ea, tmp, 0);\
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 0);\
+                    break;\
+            }\
+            uint32_t *b0 = ptr;\
+            *ptr++ = b_cc(A64_CC_NE, 0);\
+            switch (size)\
+            {\
+                case 1:\
+                    *ptr++ = strb_offset(ea, du, 0);\
+                    break;\
+                case 2:\
+                    *ptr++ = strh_offset(ea, du, 0);\
+                    break;\
+                case 3:\
+                    *ptr++ = str_offset(ea, du, 0);\
+                    break;\
+            }\
+            *ptr++ = b(2);\
+            *b0 = b_cc(A64_CC_NE, ptr - b0);\
+            switch (size) \
+            {\
+                case 1:\
+                    *ptr++ = bfxil(dc, tmp, 24, 8);\
+                    break;\
+                case 2:\
+                    *ptr++ = bfxil(dc, tmp, 16, 16);\
+                    break;\
+                case 3:\
+                    *ptr++ = mov_reg(dc, tmp);\
+                    break;\
+            }\
+} while(0)
+
         /* CAS2 */
         if ((opcode & 0xfdff) == 0x0cfc)
         {
@@ -2476,60 +2576,67 @@ kprintf("CAS");
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
 
-            uint32_t *l0 = ptr;
-
-            switch (size)
+            if (size == 1)
             {
-                case 1:
-                    *ptr++ = ldxrb(ea, tmp);
-                    *ptr++ = lsl(tmp, tmp, 24);
-                    *ptr++ = subs_reg(31, tmp, dc, LSL, 24);
-                    break;
-                case 2:
-                    *ptr++ = ldxrh(ea, tmp);
-                    *ptr++ = lsl(tmp, tmp, 16);
-                    *ptr++ = subs_reg(31, tmp, dc, LSL, 16);
-                    break;
-                case 3:
-                    *ptr++ = ldxr(ea, tmp);
-                    *ptr++ = subs_reg(31, tmp, dc, LSL, 0);
-                    break;
+                CAS_ATOMIC();
             }
-
-            uint32_t *b0 = ptr;
-            *ptr++ = b_cc(A64_CC_NE, 0);
-
-            switch (size)
+            else if ((opcode & 0x3f) == 0x38)
             {
-                case 1:
-                    *ptr++ = stlxrb(ea, du, status);
-                    break;
-                case 2:
-                    *ptr++ = stlxrh(ea, du, status);
-                    break;
-                case 3:
-                    *ptr++ = stlxr(ea, du, status);
-                    break;
+                switch(size)
+                {
+                    case 2:
+                        if (BE16((*m68k_ptr)[1]) & 1)
+                            CAS_UNSAFE();
+                        else
+                            CAS_ATOMIC();
+                        break;
+                    case 3:
+                        if ((BE16((*m68k_ptr)[1]) & 3) == 0)
+                            CAS_ATOMIC();
+                        else
+                            CAS_UNSAFE();
+                }
             }
-
-            *ptr = cbnz(status, l0 - ptr);
-            ptr++;
-
-            *ptr++ = b(2);
-
-            *b0 = b_cc(A64_CC_NE, ptr - b0);
-
-            switch (size)
+            else if ((opcode & 0x3f) == 0x39)
             {
-                case 1:
-                    *ptr++ = bfxil(dc, tmp, 24, 8);
-                    break;
-                case 2:
-                    *ptr++ = bfxil(dc, tmp, 16, 16);
-                    break;
-                case 3:
-                    *ptr++ = mov_reg(dc, tmp);
-                    break;
+                switch(size)
+                {
+                    case 2:
+                        if (BE16((*m68k_ptr)[2]) & 1)
+                            CAS_UNSAFE();
+                        else
+                            CAS_ATOMIC();
+                        break;
+                    case 3:
+                        if ((BE16((*m68k_ptr)[2]) & 3) == 0)
+                            CAS_ATOMIC();
+                        else
+                            CAS_UNSAFE();
+                }
+            }
+            else
+            {
+                uint32_t *b_eq;
+                uint32_t *b_;
+
+                switch(size)
+                {
+                    case 3:
+                        *ptr++ = ands_immed(31, ea, 2, 0);
+                        break;
+                    case 2:
+                        *ptr++ = ands_immed(31, ea, 1, 0);
+                        break;
+                }
+
+                b_eq = ptr;
+                *ptr++ = b_cc(A64_CC_EQ, 0);
+                CAS_UNSAFE();
+                b_ = ptr;
+                *ptr++ = b(0);
+                CAS_ATOMIC();
+                *b_ = b(ptr - b_);
+                *b_eq = b_cc(A64_CC_EQ, 1 + b_ - b_eq);
             }
 
             *ptr++ = dmb_ish();
