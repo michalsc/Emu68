@@ -155,6 +155,7 @@ static inline uint32_t sysl(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uin
 static inline uint32_t dc_ivac(uint8_t rt) { return sys(rt, 0, 7, 6, 1); }
 static inline uint32_t dc_civac(uint8_t rt) { return sys(rt, 3, 7, 14, 1); }
 static inline uint32_t dsb_sy() { return I32(0xd5033f9f); }
+static inline uint32_t dmb_ish() { return I32(0xd5033bbf); }
 static inline uint32_t nop() { return I32(0xd503201f); }
 
 /* Load PC-relatve address */
