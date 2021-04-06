@@ -2158,6 +2158,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     *insn_consumed = 1;
     (*m68k_ptr)++;
@@ -2427,15 +2428,164 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_BSET(ptr, opcode, m68k_ptr);
     }
+    else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
+    {
+#ifdef __aarch64__
+kprintf("CAS");
+        /* CAS2 */
+        if ((opcode & 0xfdff) == 0x0cfc)
+        {
+
+        }
+        /* CAS */
+        else
+        {
+            uint8_t ext_words = 1;
+            uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+            uint8_t ea = -1;
+            uint8_t du = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+            uint8_t dc = RA_MapM68kRegister(&ptr, opcode2 & 7);
+            uint8_t status = RA_AllocARMRegister(&ptr);
+            RA_SetDirtyM68kRegister(&ptr, opcode2 & 7);
+
+            uint8_t size = (opcode >> 9) & 3;
+            uint8_t mode = (opcode >> 3) & 7;
+
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            /* Load effective address */
+            if (mode == 4 || mode == 3)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+            if (mode == 4)
+            {
+                if (size == 2 || (size == 1 && (opcode & 7) == 7))
+                {
+                    *ptr++ = sub_immed(ea, ea, 2);
+                }
+                else if (size == 3)
+                {
+                    *ptr++ = sub_immed(ea, ea, 4);
+                }
+                else
+                {
+                    *ptr++ = sub_immed(ea, ea, 1);
+                }
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+
+            uint32_t *l0 = ptr;
+
+            switch (size)
+            {
+                case 1:
+                    *ptr++ = ldxrb(ea, tmp);
+                    *ptr++ = lsl(tmp, tmp, 24);
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 24);
+                    break;
+                case 2:
+                    *ptr++ = ldxrh(ea, tmp);
+                    *ptr++ = lsl(tmp, tmp, 16);
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 16);
+                    break;
+                case 3:
+                    *ptr++ = ldxr(ea, tmp);
+                    *ptr++ = subs_reg(31, tmp, dc, LSL, 0);
+                    break;
+            }
+
+            uint32_t *b0 = ptr;
+            *ptr++ = b_cc(A64_CC_NE, 0);
+
+            switch (size)
+            {
+                case 1:
+                    *ptr++ = stxrb(ea, du, status);
+                    break;
+                case 2:
+                    *ptr++ = stxrh(ea, du, status);
+                    break;
+                case 3:
+                    *ptr++ = stxr(ea, du, status);
+                    break;
+            }
+
+            *ptr = cbnz(status, l0 - ptr);
+            ptr++;
+
+            *ptr++ = b(2);
+
+            *b0 = b_cc(A64_CC_NE, ptr - b0);
+
+            switch (size)
+            {
+                case 1:
+                    *ptr++ = bfxil(dc, tmp, 24, 8);
+                    break;
+                case 2:
+                    *ptr++ = bfxil(dc, tmp, 16, 16);
+                    break;
+                case 3:
+                    *ptr++ = mov_reg(dc, tmp);
+                    break;
+            }
+
+            *ptr++ = dsb_sy();
+
+            if (mode == 3)
+            {
+                if (size == 2 || (size == 1 && (opcode & 7) == 7))
+                {
+                    *ptr++ = add_immed(ea, ea, 2);
+                }
+                else if (size == 3)
+                {
+                    *ptr++ = add_immed(ea, ea, 4);
+                }
+                else
+                {
+                    *ptr++ = add_immed(ea, ea, 1);
+                }
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+
+            ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+            (*m68k_ptr) += ext_words;
+
+            if (update_mask)
+            {
+                uint8_t cc = RA_ModifyCC(&ptr);
+
+                if (__builtin_popcount(update_mask) > 1)
+                    ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+                else
+                    ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+                    
+                if (update_mask & SR_Z)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                if (update_mask & SR_N)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                if (update_mask & SR_V)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+                if (update_mask & SR_C)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+            }
+
+            RA_FreeARMRegister(&ptr, ea);
+            RA_FreeARMRegister(&ptr, status);
+            RA_FreeARMRegister(&ptr, tmp);
+        }
+#else
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] CAS/CAS2 at %08x not implemented\n", *m68k_ptr - 1);
+        ptr = EMIT_InjectPrintContext(ptr);
+        *ptr++ = udf(opcode);
+#endif
+    }
     else if ((opcode & 0xff00) == 0x0e00)   /* 00001110xxxxxxxx - MOVES */
     {
         ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVES at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
-    }
-    else if ((opcode & 0xf9c0) == 0x08c0)   /* 00001xx011xxxxxx - CAS, CAS2 */
-    {
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] CAS/CAS2 at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
     }
