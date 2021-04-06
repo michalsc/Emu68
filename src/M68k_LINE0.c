@@ -2668,6 +2668,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                             CAS_ATOMIC();
                         else
                             CAS_UNSAFE();
+                        break;
                 }
             }
             else if ((opcode & 0x3f) == 0x39)
@@ -2685,6 +2686,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                             CAS_ATOMIC();
                         else
                             CAS_UNSAFE();
+                        break;
                 }
             }
             else
