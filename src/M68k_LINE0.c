@@ -2399,7 +2399,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = udf(opcode);
 #endif
     }
-    else if ((opcode & 0xff00) == 0x0a00)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
+    else if ((opcode & 0xff00) == 0x0a00 && (opcode & 0x00c0) != 0x00c0)   /* 00001010xxxxxxxx - EORI to CCR, EORI to SR, EORI */
     {
         if ((opcode & 0x00ff) == 0x003c)
             ptr = EMIT_EORI_TO_CCR(ptr, opcode, m68k_ptr);
@@ -2408,7 +2408,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         else
             ptr = EMIT_EORI(ptr, opcode, m68k_ptr);
     }
-    else if ((opcode & 0xff00) == 0x0c00)   /* 00001100xxxxxxxx - CMPI */
+    else if ((opcode & 0xff00) == 0x0c00 && (opcode & 0x00c0) != 0x00c0)   /* 00001100xxxxxxxx - CMPI */
     {
         ptr = EMIT_CMPI(ptr, opcode, m68k_ptr);
     }
@@ -2532,7 +2532,7 @@ kprintf("CAS");
                     break;
             }
 
-            *ptr++ = dsb_sy();
+            *ptr++ = dmb_ish();
 
             if (mode == 3)
             {
