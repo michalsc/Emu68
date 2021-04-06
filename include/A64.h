@@ -224,6 +224,36 @@ static inline uint32_t strb_offset(uint8_t rn, uint8_t rt, uint16_t offset12) { 
 static inline uint32_t strb_offset_postindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000400 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t strb_offset_preindex(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0x38000c00 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
 
+/* Load/Store exclusive */
+static inline uint32_t ldxr(uint8_t rn, uint8_t rt) { return I32(0x885f7c00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldxr64(uint8_t rn, uint8_t rt) { return I32(0xc85f7c00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldxrh(uint8_t rn, uint8_t rt) { return I32(0x485f7c00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldxrb(uint8_t rn, uint8_t rt) { return I32(0x085f7c00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldxp(uint8_t rn, uint8_t rt, uint8_t rt2) { return I32(0x887f0000 | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldxp64(uint8_t rn, uint8_t rt, uint8_t rt2) { return I32(0xc87f0000 | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+
+static inline uint32_t stxr(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0x88007c00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stxr64(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0xc8007c00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stxrh(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0x48007c00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stxrb(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0x08007c00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stxp(uint8_t rn, uint8_t rt, uint8_t rt2, uint8_t rs) { return I32(0x88200000 | ((rs & 31) << 16) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stxp64(uint8_t rn, uint8_t rt, uint8_t rt2, uint8_t rs) { return I32(0xc8200000 | ((rs & 31) << 16) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+
+/* Load-Acquire/Store-Release exclusive */
+static inline uint32_t ldaxr(uint8_t rn, uint8_t rt) { return I32(0x885ffc00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldaxr64(uint8_t rn, uint8_t rt) { return I32(0xc85ffc00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldaxrh(uint8_t rn, uint8_t rt) { return I32(0x485ffc00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldaxrb(uint8_t rn, uint8_t rt) { return I32(0x085ffc00 | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldaxp(uint8_t rn, uint8_t rt, uint8_t rt2) { return I32(0x887f8000 | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t ldaxp64(uint8_t rn, uint8_t rt, uint8_t rt2) { return I32(0xc87f8000 | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+
+static inline uint32_t stlxr(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0x8800fc00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stlxr64(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0xc800fc00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stlxrh(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0x4800fc00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stlxrb(uint8_t rn, uint8_t rt, uint8_t rs) { return I32(0x0800fc00 | ((rs & 31) << 16) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stlxp(uint8_t rn, uint8_t rt, uint8_t rt2, uint8_t rs) { return I32(0x88208000 | ((rs & 31) << 16) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+static inline uint32_t stlxp64(uint8_t rn, uint8_t rt, uint8_t rt2, uint8_t rs) { return I32(0xc8208000 | ((rs & 31) << 16) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (rt & 31)); } 
+
 /* Load/Store pair */
 static inline uint32_t ldp(uint8_t rn, uint8_t rt1, uint8_t rt2, int16_t imm) { return I32(0x29400000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
 static inline uint32_t ldp64(uint8_t rn, uint8_t rt1, uint8_t rt2, int16_t imm) { return I32(0xa9400000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
@@ -237,16 +267,6 @@ static inline uint32_t stp_postindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int16
 static inline uint32_t stp64_postindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int16_t imm) { return I32(0xa8800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
 static inline uint32_t stp_preindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int16_t imm) { return I32(0x29800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 4) & 0x7f) << 15)); }
 static inline uint32_t stp64_preindex(uint8_t rn, uint8_t rt1, uint8_t rt2, int16_t imm) { return I32(0xa9800000 | (rt1 & 31) | ((rt2 & 31) << 10) | ((rn & 31) << 5) | (((imm / 8) & 0x7f) << 15)); }
-
-/* Load/Store exclusive */
-static inline uint32_t ldxr(uint8_t rt, uint8_t rn) { return I32(0x885f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t ldxr64(uint8_t rt, uint8_t rn) { return I32(0xc85f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t ldxrb(uint8_t rt, uint8_t rn) { return I32(0x085f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t ldxrh(uint8_t rt, uint8_t rn) { return I32(0x485f7c00 | (rt & 31) | ((rn & 31) << 5)); }
-static inline uint32_t stxr(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0x88007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
-static inline uint32_t stxr64(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0xc8007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
-static inline uint32_t stxrb(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0x08007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
-static inline uint32_t stxrh(uint8_t rt, uint8_t rn, uint8_t rs) { return I32(0x48007c00 | (rt & 31) | ((rn & 31) << 5) | ((rs & 31) << 16)); }
 
 /* Load/Store with unscaled offset */
 static inline uint32_t ldur_offset(uint8_t rn, uint8_t rt, int16_t offset9) { return I32(0xb8400000 | (rt & 31) | ((rn & 31) << 5) | ((offset9 & 0x1ff) << 12)); }
