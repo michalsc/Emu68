@@ -2484,7 +2484,6 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 } while(0)
 
 #define CAS_UNSAFE() do { \
-            uint32_t *l0 = ptr; \
             switch (size) \
             { \
                 case 1:\
@@ -2535,7 +2534,81 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* CAS2 */
         if ((opcode & 0xfdff) == 0x0cfc)
         {
+            uint8_t ext_words = 2;
+            uint8_t size = (opcode >> 9) & 3;
+            uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+            uint16_t opcode3 = BE16((*m68k_ptr)[1]);
 
+            uint8_t rn1 = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 15);
+            uint8_t rn2 = RA_MapM68kRegister(&ptr, (opcode3 >> 12) & 15);
+            uint8_t du1 = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+            uint8_t du2 = RA_MapM68kRegister(&ptr, (opcode3 >> 6) & 7);
+            uint8_t dc1 = RA_MapM68kRegister(&ptr, (opcode2) & 7);
+            uint8_t dc2 = RA_MapM68kRegister(&ptr, (opcode3) & 7);
+
+            RA_SetDirtyM68kRegister(&ptr, (opcode2) & 7);
+            RA_SetDirtyM68kRegister(&ptr, (opcode3) & 7);
+
+            uint8_t val1 = RA_AllocARMRegister(&ptr);
+            uint8_t val2 = RA_AllocARMRegister(&ptr);
+
+            if (size==2)
+            {
+                *ptr++ = ldrh_offset(rn1, val1, 0);
+                *ptr++ = ldrh_offset(rn2, val2, 0);
+                *ptr++ = lsl(val1, val1, 16);
+                *ptr++ = lsl(val2, val2, 16);
+                *ptr++ = subs_reg(31, val1, dc1, LSL, 16);
+                *ptr++ = b_cc(A64_CC_NE, 6);
+                *ptr++ = subs_reg(31, val2, dc2, LSL, 16);
+                *ptr++ = b_cc(A64_CC_NE, 4);
+                *ptr++ = strh_offset(rn1, du1, 0);
+                *ptr++ = strh_offset(rn2, du2, 0);
+                *ptr++ = b(3);
+                *ptr++ = bfxil(dc1, val1, 16, 16);
+                *ptr++ = bfxil(dc2, val2, 16, 16);
+            }
+            else
+            {
+                *ptr++ = ldr_offset(rn1, val1, 0);
+                *ptr++ = ldr_offset(rn2, val2, 0);
+                *ptr++ = subs_reg(31, val1, dc1, LSL, 0);
+                *ptr++ = b_cc(A64_CC_NE, 6);
+                *ptr++ = subs_reg(31, val2, dc2, LSL, 0);
+                *ptr++ = b_cc(A64_CC_NE, 4);
+                *ptr++ = str_offset(rn1, du1, 0);
+                *ptr++ = str_offset(rn2, du2, 0);
+                *ptr++ = b(3);
+                *ptr++ = mov_reg(dc1, val1);
+                *ptr++ = mov_reg(dc2, val2);
+            }
+
+            *ptr++ = dmb_ish();
+
+            ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+            (*m68k_ptr) += ext_words;
+
+            if (update_mask)
+            {
+                uint8_t cc = RA_ModifyCC(&ptr);
+
+                if (__builtin_popcount(update_mask) > 1)
+                    ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+                else
+                    ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+                    
+                if (update_mask & SR_Z)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                if (update_mask & SR_N)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                if (update_mask & SR_V)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+                if (update_mask & SR_C)
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+            }
+
+            RA_FreeARMRegister(&ptr, val1);
+            RA_FreeARMRegister(&ptr, val2);
         }
         /* CAS */
         else
