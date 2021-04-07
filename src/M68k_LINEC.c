@@ -27,9 +27,91 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 1100xxx10000xxxx - ABCD */
     else if ((opcode & 0xf1f0) == 0xc100)
     {
+#ifdef __aarch64__
+        uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+        uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t src = -1;
+        uint8_t dst = -1;
+
+        /* Memory to memory */
+        if (opcode & 8)
+        {
+            src = RA_AllocARMRegister(&ptr);
+            dst = RA_AllocARMRegister(&ptr);
+            uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+            uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+            if ((opcode & 7) == 7) {
+                *ptr++ = ldrb_offset_preindex(an_src, src, -2);
+            }
+            else {
+                *ptr++ = ldrb_offset_preindex(an_src, src, -1);
+            }
+
+            if (((opcode >> 9) & 7) == 7) {
+                *ptr++ = ldrb_offset_preindex(an_dst, dst, -2);
+            }
+            else {
+                *ptr++ = ldrb_offset_preindex(an_dst, dst, -1);
+            }
+        }
+        /* Register to register */
+        else
+        {
+            src = RA_MapM68kRegister(&ptr, opcode & 7);
+            dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+            RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+        }
+
+        /* Lower nibble */
+        *ptr++ = ubfx(tmp_a, src, 0, 4);
+        *ptr++ = ubfx(tmp_b, dst, 0, 4);
+        *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+        *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+        *ptr++ = cmp_immed(tmp_a, 9);
+        *ptr++ = b_cc(A64_CC_LS, 2);
+        *ptr++ = add_immed(tmp_a, tmp_a, 6);
+        *ptr++ = bfi(dst, tmp_a, 0, 4);
+
+        /* Higher nibble */
+        *ptr++ = ubfx(tmp_a, src, 4, 4);
+        *ptr++ = ubfx(tmp_b, dst, 4, 4);
+        *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+        *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_LS);
+        *ptr++ = cmp_immed(tmp_a, 9);
+        *ptr++ = b_cc(A64_CC_LS, 2);
+        *ptr++ = add_immed(tmp_a, tmp_a, 6);
+        *ptr++ = bfi(dst, tmp_a, 4, 4);
+        *ptr++ = mov_reg(tmp_a, dst);
+
+        if (opcode & 8)
+        {
+            uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+            *ptr++ = strb_offset(an_dst, dst, 0);
+        }
+
+        /* After addition, if A64_CC_HI then there was a carry */
+        *ptr++ = cset(tmp_b, A64_CC_HI);
+        *ptr++ = bfi(cc, tmp_b, 0, 1);
+        *ptr++ = cmp_reg(31, tmp_a, LSL, 24);
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+
+        /* Copy C to X */
+        *ptr++ = bfi(cc, cc, 4, 1);
+
+        RA_FreeARMRegister(&ptr, tmp_a);
+        RA_FreeARMRegister(&ptr, tmp_b);
+        RA_FreeARMRegister(&ptr, src);
+        RA_FreeARMRegister(&ptr, dst);
+        ptr = EMIT_AdvancePC(ptr, 2);
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 1100xxx111xxxxxx - MULS */
     else if ((opcode & 0xf1c0) == 0xc1c0)
