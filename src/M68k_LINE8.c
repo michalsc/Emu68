@@ -42,9 +42,67 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 1000xxx11000xxxx - UNPK */
     else if ((opcode & 0xf1f0) == 0x8180)
     {
+#ifdef __aarch64__
+        uint16_t addend = BE16((*m68k_ptr)[0]);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t mask = RA_AllocARMRegister(&ptr);
+        uint8_t src = -1;
+
+        *ptr++ = mov_immed_u16(mask, 0x0f0f, 0);
+
+        if (opcode & 8)
+        {
+            uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+            src = RA_AllocARMRegister(&ptr);
+
+            if ((opcode & 7) == 7) {
+                *ptr++ = ldrsb_offset_preindex(an_src, src, -2);
+            }
+            else {
+                *ptr++ = ldrsb_offset_preindex(an_src, src, -1);
+            }
+
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+        {
+            src = RA_MapM68kRegister(&ptr, opcode & 7);
+        }
+
+        *ptr++ = orr_reg(tmp, src, src, LSL, 4);
+        *ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
+
+        if (addend & 0xfff) {
+            *ptr++ = add_immed(tmp, tmp, addend & 0xfff);
+        }
+        if (addend & 0xf000) {
+            *ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
+        }
+
+        if (opcode & 8)
+        {
+            uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+            RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+            *ptr++ = strh_offset_preindex(dst, tmp, -2);
+        }
+        else
+        {
+            uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+            RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+            *ptr++ = bfi(dst, tmp, 0, 16);
+        }
+
+        (*m68k_ptr)++;
+        ptr = EMIT_AdvancePC(ptr, 4);
+
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, mask);
+        RA_FreeARMRegister(&ptr, src);
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 1000xxx111xxxxxx - DIVS */
     else if ((opcode & 0xf1c0) == 0x81c0)
