@@ -35,9 +35,62 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 1000xxx10100xxxx - PACK */
     else if ((opcode & 0xf1f0) == 0x8140)
     {
+#ifdef __aarch64__
+        uint16_t addend = BE16((*m68k_ptr)[0]);
+        uint8_t tmp = -1;
+
+        if (opcode & 8)
+        {
+            uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+            tmp = RA_AllocARMRegister(&ptr);
+            
+            *ptr++ = ldrsh_offset_preindex(an_src, tmp, -2);
+
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+        else
+        {
+            tmp = RA_CopyFromM68kRegister(&ptr, opcode & 7);
+        }
+
+        if (addend & 0xfff) {
+            *ptr++ = add_immed(tmp, tmp, addend & 0xfff);
+        }
+        if (addend & 0xf000) {
+            *ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
+        }
+
+        *ptr++ = bfi(tmp, tmp, 4, 4);
+
+        if (opcode & 8)
+        {
+            uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+            RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+            *ptr++ = lsr(tmp, tmp, 4);
+            if (((opcode >> 9) & 7) == 7) {
+                *ptr++ = strb_offset_preindex(dst, tmp, -2);
+            }
+            else {
+                *ptr++ = strb_offset_preindex(dst, tmp, -1);
+            }
+        }
+        else
+        {
+            uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+            RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+            *ptr++ = bfxil(dst, tmp, 4, 8);
+        }
+
+        (*m68k_ptr)++;
+        ptr = EMIT_AdvancePC(ptr, 4);
+
+        RA_FreeARMRegister(&ptr, tmp);
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] PACK at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 1000xxx11000xxxx - UNPK */
     else if ((opcode & 0xf1f0) == 0x8180)
