@@ -2102,9 +2102,66 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 0100xxx1x0xxxxxx - CHK */
     else if ((opcode & 0xf140) == 0x4100)
     {
+#ifdef __aarch64__
+        uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
+        uint8_t ext_words = 0;
+        uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+        uint8_t src = -1;
+        uint8_t cc = RA_ModifyCC(&ptr);
+
+        /* word operation */
+        if (opcode & 0x80)
+        {
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+            *ptr++ = lsl(src, src, 16);
+        }
+        else
+        {
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+        }
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
+
+        ptr = EMIT_FlushPC(ptr);
+
+        /* Check if Dn < 0 */
+        if (opcode & 0x80)
+            *ptr++ = adds_reg(31, 31, dn, LSL, 16); 
+        else
+            *ptr++ = adds_reg(31, 31, dn, LSL, 0); 
+
+        /* Jump to exception generator if negative */
+        *ptr++ = b_cc(A64_CC_MI, 5);
+        
+        /* Check if Dn > src */
+        if (opcode & 0x80)
+            *ptr++ = subs_reg(31, src, dn, LSL, 16);
+        else
+            *ptr++ = subs_reg(31, src, dn, LSL, 0);
+        
+        uint32_t *tmp = ptr;
+        *ptr++ = b_cc(A64_CC_GE, 0);
+        *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_N));
+        *ptr++ = b(2);
+
+        *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_N));
+
+        ptr = EMIT_Exception(ptr, VECTOR_CHK, 2, opcode_address);
+
+        RA_FreeARMRegister(&ptr, src);
+
+        *tmp = b_cc(A64_CC_GE, ptr - tmp);
+        *ptr++ = (uint32_t)(uintptr_t)tmp;
+        *ptr++ = 1;
+        *ptr++ = 0;
+        *ptr++ = INSN_TO_LE(0xfffffffe);
+        
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] CHK at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     else
     {
