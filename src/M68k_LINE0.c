@@ -2301,6 +2301,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     else if ((opcode & 0xf9c0) == 0x00c0)   /* 00000xx011xxxxxx - CMP2, CHK2 */
     {
 #ifdef __aarch64__
+        uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
         uint8_t update_mask = SR_Z | SR_C;
         uint8_t ext_words = 1;
         uint16_t opcode2 = BE16((*m68k_ptr)[0]);
@@ -2386,7 +2387,7 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             *ptr++ = b_cc(A64_CC_CS, 0);
 
             /* Emit CHK exception */
-            ptr = EMIT_Exception(ptr, VECTOR_CHK, 0);
+            ptr = EMIT_Exception(ptr, VECTOR_CHK, 2, opcode_address);
             *t = b_cc(A64_CC_CS, ptr - t);
             *ptr++ = (uint32_t)(uintptr_t)t;
             *ptr++ = 1;
