@@ -1432,7 +1432,7 @@ int M68K_IsBranch(uint16_t *insn_stream)
         opcode == 0x4e77            ||
         (opcode & 0xfffe) == 0x4e7a ||
         (opcode & 0xff80) == 0x4e80 ||
-        (opcode & 0xf000) == 0x5000 ||
+        (opcode & 0xf0f8) == 0x50c8 ||
         (opcode & 0xf000) == 0x6000
     )
         return 1;
