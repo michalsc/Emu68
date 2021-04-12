@@ -7,6 +7,7 @@
 
 #define HZ 1000000
 
+extern void pjit_bogomips(unsigned long number_of_runs asm("d0"));
 extern void SI_BusTest2(unsigned long number_of_runs asm("d0"), void *buf asm("a0"));
 extern void SI_BusTest(unsigned long number_of_runs asm("d0"));
 extern void SI_Start();
@@ -678,6 +679,7 @@ void _main (int n)
   asm volatile("movec #0xc00,%0":"=r"(Clock_Frequency));
   Clock_Frequency = (Clock_Frequency + HZ / 2) / HZ;
   Number_Of_Runs = 256000000;
+  kprintf("[SysInfo] Clock frequency: %d MHz\n", Clock_Frequency);
   kprintf("[SysInfo] Running BUSTEST (%d bytes)\n", Number_Of_Runs);
   kprintf("[SysInfo] Execution starts\n");
   asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
@@ -699,6 +701,27 @@ void _main (int n)
     Megabytes_Per_Second = (double)Clock_Frequency * (double)Number_Of_Runs * 1e6 / (double)User_Time;
     Megabytes_Per_Second = Megabytes_Per_Second / (1024 * 1024);
   }
+
+    kprintf("[SysInfo] Starting BogoMIPS like benchmark (PJIT).\n[SysInfo] Performing %d loops\n", n);
+    Number_Of_Runs = n;
+    kprintf("[SysInfo] Execution starts\n");
+    do {
+        Number_Of_Runs = Number_Of_Runs << 1;
+
+        asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
+        pjit_bogomips(Number_Of_Runs);
+        asm volatile("movec #0xc01,%0":"=r"(End_Time));
+
+        User_Time = End_Time - Begin_Time;
+    } while (User_Time/Clock_Frequency < HZ);
+
+    kprintf("[SysInfo] Execution ends, final loop count was %d\n", Number_Of_Runs);
+
+    double BogoMIPS = (double)Clock_Frequency * 2 * (double)Number_Of_Runs / (double)User_Time;
+
+    kprintf("[SysInfo] Begin time: %d\n", Begin_Time / Clock_Frequency);
+  kprintf("[SysInfo] End time: %d\n", End_Time / Clock_Frequency);
+  kprintf("[SysInfo] User time: %d\n", User_Time / Clock_Frequency);
 
   kprintf("[SysInfo] Starting SysInfo like Dhrystone benchmark.\n[SysInfo] Performing %d loops\n", n);
   Number_Of_Runs = n;
@@ -738,6 +761,9 @@ void _main (int n)
     kprintf ("%d \n", (uint32_t)Dhrystones_Per_Second);
     kprintf ("[SysInfo] SysInfo MIPS      :                         ");
     kprintf ("%d.%02d \n", (uint32_t)MIPS, ((uint32_t)(MIPS * 10.0) % 10));
+    kprintf ("[SysInfo] BogoMIPS          :                         ");
+    kprintf ("%d.%02d \n", (uint32_t)BogoMIPS, ((uint32_t)(BogoMIPS * 10.0) % 10));
+
     if (User_Time < Too_Small_Time)
     {
         kprintf ("[SysInfo]   Measured time too small to obtain meaningful results\n");
