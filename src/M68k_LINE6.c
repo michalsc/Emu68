@@ -7,6 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#include "config.h"
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
