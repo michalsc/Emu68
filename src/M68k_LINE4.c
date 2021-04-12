@@ -1176,9 +1176,106 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 0100100000xxxxxx - NBCD */
     else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
     {
+#ifdef __aarch64__
+        uint8_t ext_words = 0;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t nib = RA_AllocARMRegister(&ptr);
+        uint8_t ea = -1;
+        uint8_t cc = RA_ModifyCC(&ptr);
+
+        *ptr++ = mov_immed_u16(tmp, 0x99, 0);
+
+        /* Dn mode */
+        if ((opcode & 0x38) == 0)
+        {
+            uint8_t dn = RA_MapM68kRegister(&ptr, opcode & 7);
+
+            *ptr++ = sub_reg(tmp, tmp, dn, LSL, 0);
+        }
+        else
+        {
+            uint8_t t = RA_AllocARMRegister(&ptr);
+
+            /* Load EA */
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+
+            /* -(An) mode? Decrease EA */
+            if ((opcode & 0x38) == 0x10)
+            {
+                if ((opcode & 7) == 7) {
+                    *ptr++ = ldrb_offset_preindex(ea, t, -2);
+                }
+                else {
+                    *ptr++ = ldrb_offset_preindex(ea, t, -1);
+                }
+            }
+            else {
+                *ptr++ = ldrb_offset(ea, t, 0);
+            }
+
+            *ptr++ = sub_reg(tmp, tmp, t, LSL, 0);
+
+            RA_FreeARMRegister(&ptr, t);
+        }
+
+        uint32_t *tbz_pos = ptr;
+        *ptr++ = tbnz(cc, SRB_X, 0); // Is X bit set? If yes, skip the adjustment
+
+        *ptr++ = and_immed(nib, tmp, 4, 0); // Extract lower nibble
+        *ptr++ = add_immed(nib, nib, 1);    // Increase by 1
+        *ptr++ = cmp_immed(nib, 9);         // Overflow?
+        *ptr++ = b_cc(A64_CC_LS, 2);        // No
+        *ptr++ = add_immed(nib, nib, 6);    // Overflow - adjust nibble
+        *ptr++ = bfi(tmp, nib, 0, 4);       // Insert back
+        *ptr++ = b_cc(A64_CC_LS, 7);        // No overflow - skip the rest
+        *ptr++ = bfxil(nib, tmp, 4, 4);     // Extract higher nibble
+        *ptr++ = add_immed(nib, nib, 1);    // Increase
+        *ptr++ = cmp_immed(nib, 9);         // Check for overflow
+        *ptr++ = b_cc(A64_CC_LS, 2);
+        *ptr++ = add_immed(nib, nib, 6);
+        *ptr++ = bfi(tmp, nib, 4, 4);
+
+        *tbz_pos = tbnz(cc, SRB_X, ptr - tbz_pos);
+
+        /* Dn mode */
+        if ((opcode & 0x38) == 0)
+        {
+            uint8_t dn = RA_MapM68kRegister(&ptr, opcode & 7);
+
+            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+            *ptr++ = bfi(dn, tmp, 0, 8);
+        }
+        else
+        {
+            /* Load EA */
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+
+            /* -(An) mode? Decrease EA */
+            if ((opcode & 0x38) == 0x18)
+            {
+                if ((opcode & 7) == 7) {
+                    *ptr++ = strb_offset_postindex(ea, tmp, 2);
+                }
+                else {
+                    *ptr++ = strb_offset_postindex(ea, tmp, 1);
+                }
+            }
+            else {
+                *ptr++ = strb_offset(ea, tmp, 0);
+            }
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, nib);
+
+        (*m68k_ptr) += ext_words;
+        ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 1));
+#else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] NBCD at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
         *ptr++ = udf(opcode);
+#endif
     }
     /* 0100100001000xxx - SWAP */
     else if ((opcode & 0xfff8) == 0x4840)
