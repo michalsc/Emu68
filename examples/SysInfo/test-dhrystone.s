@@ -1,10 +1,15 @@
     .globl _pjit_bogomips
 _pjit_bogomips:
+1:  subq.l #1, d0 
+    jcc 1b
+    rts
+/*
 2:  tst.l d0
     blt.s 1f
     subq.l #1, d0
     bra.s 2b
 1:  rts
+*/
 
 /*
     Perform BusTest - read 128 bytes in a row from memory
