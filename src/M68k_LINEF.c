@@ -3044,7 +3044,10 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         RA_FreeARMRegister(&ptr, pc_no);
         tmpptr = ptr;
 #if EMU68_DEF_BRANCH_AUTO
-        if (branch_target < (intptr_t)*m68k_ptr)
+        if(
+            branch_target < (intptr_t)*m68k_ptr &&
+            ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+        )
             *ptr++ = b_cc(success_condition, 1);
         else
             *ptr++ = b_cc(success_condition^1, 1);
@@ -3072,7 +3075,10 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #endif
 
 #if EMU68_DEF_BRANCH_AUTO
-        if (branch_target < (intptr_t)*m68k_ptr)
+        if(
+            branch_target < (intptr_t)*m68k_ptr &&
+            ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+        )
             *m68k_ptr = (uint16_t *)branch_target;
 #else
 #if EMU68_DEF_BRANCH_TAKEN
