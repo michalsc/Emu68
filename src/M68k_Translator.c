@@ -393,6 +393,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                 if (!lr_is_saved)
                     *end++ = bx_lr();
 #else
+
+#if EMU68_INSN_COUNTER
                 uint8_t ctx_free = 0;
                 uint8_t ctx = RA_TryCTX(&end);
                 uint8_t tmp = RA_AllocARMRegister(&end);
@@ -407,9 +409,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                 if (insn_count & 0xfff000)
                     *end++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
                 *end++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
                 RA_FreeARMRegister(&end, tmp);
                 if (ctx_free)
                     RA_FreeARMRegister(&end, ctx);
+#endif
                 pop_update_loc[pop_cnt++] = end;
                 *end++ = bx_lr();
 #endif
@@ -514,11 +518,13 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     {
         *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, PINT));
     }
+#if EMU68_INSN_COUNTER
     *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
     *end++ = add64_immed(tmp, tmp, insn_count & 0xfff);
     if (insn_count & 0xfff000)
         *end++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
     *end++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+#endif
     if (inner_loop)
     {
         uint32_t *tmpptr = end;
