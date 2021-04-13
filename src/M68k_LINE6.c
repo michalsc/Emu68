@@ -188,7 +188,10 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
             *ptr++ = add_reg(pc_yes, REG_PC, reg, LSL, 0);
         }
-        else { *ptr++ = mov_reg(pc_yes, REG_PC); }
+        else { 
+            RA_FreeARMRegister(&ptr, pc_yes);
+            pc_yes = REG_PC;
+        }
 #else
         if (branch_offset > 0 && branch_offset < 255)
             *ptr++ = add_cc_immed(success_condition, REG_PC, REG_PC, branch_offset);
@@ -209,7 +212,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #endif
         branch_target += branch_offset - local_pc_off;
 
-        int16_t local_pc_off_16 = local_pc_off - 2;
+        intptr_t local_pc_off_16 = local_pc_off - 2;
 
         /* Adjust PC accordingly */
         if ((opcode & 0x00ff) == 0x00)
@@ -237,6 +240,11 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             if ((local_pc_off_16 >> 16) & 0xffff)
                 *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
             *ptr++ = add_reg(pc_no, REG_PC, reg, LSL, 0);
+        }
+        else
+        {
+            RA_FreeARMRegister(&ptr, pc_no);
+            pc_no = REG_PC;
         }
         success_condition = EMIT_TestCondition(&ptr, m68k_condition);
         *ptr++ = csel(REG_PC, pc_yes, pc_no, success_condition);
