@@ -73,6 +73,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
             *ptr++ = ldp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
 
+            tmp_reg = src_reg_2;
+
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
@@ -90,6 +92,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
             *ptr++ = ldp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
 
+            tmp_reg = src_reg_2;
+
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
@@ -106,6 +110,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             (*m68k_ptr)++;
 
             *ptr++ = stp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
+            
+            tmp_reg = src_reg_2;
 
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
@@ -124,6 +130,8 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
             *ptr++ = stp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
 
+            tmp_reg = src_reg_2;
+            
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
