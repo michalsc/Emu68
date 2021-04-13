@@ -222,7 +222,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, (opcode2 >> 12) & 7);
 
     // Fetch 32-bit multiplicant
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     if (opcode2 & (1 << 10))
     {
@@ -589,7 +589,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         reg_dr = RA_MapM68kRegister(&ptr, opcode2 & 7);
 
     // Load divisor
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     // Check if division by 0
 #ifdef __aarch64__
