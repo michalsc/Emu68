@@ -12,6 +12,10 @@ set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
+set(SUPPORTED_VARIANTS "none" "pistorm")
+set(VARIANT "none" CACHE STRING "Compilation variant: ${SUPPORTED_VARIANTS}")
+set_property(CACHE VARIANT PROPERTY STRINGS ${SUPPORTED_VARIANTS})
+
 set(ARCH_FILES "")
 set(TARGET_FILES "")
 set(BASE_FILES
@@ -83,6 +87,24 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     endif()
 else()
     message(FATAL_ERROR "Wrong target machine specified: ${TARGET}")
+endif()
+
+if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
+    message("-- Selected variant: ${VARIANT}")
+    if(${VARIANT} STREQUAL "pistorm")
+        if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
+            add_compile_definitions(PISTORM)
+            include_directories(src/pistorm)
+            list(APPEND TARGET_FILES
+                src/pistorm/ps_protocol.c
+            )
+        else()
+            message(FATAL_ERROR "PiStorm variant is supported on raspi targets, only.")
+        endif()
+    endif()
+    
+else()
+    message(FATAL_ERROR "Wrong variant selected: ${VARIANT}")
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
