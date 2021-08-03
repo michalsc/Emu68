@@ -92,6 +92,10 @@ void display_logo()
 
 uintptr_t top_of_ram;
 
+#ifdef PISTORM
+#include "ps_protocol.h"
+#endif
+
 void platform_init()
 {
     of_node_t *e = NULL;
@@ -141,6 +145,12 @@ void platform_init()
             ranges += addr_bus_len + addr_cpu_len + size_bus_len;
         }
     }
+
+#ifdef PISTORM
+    ps_setup_protocol();
+    ps_reset_state_machine();
+    ps_pulse_reset();
+#endif
 }
 
 void platform_post_init()
