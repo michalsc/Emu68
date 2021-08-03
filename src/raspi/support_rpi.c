@@ -13,6 +13,10 @@
 #include "support_rpi.h"
 #include "mmu.h"
 
+#ifdef PISTORM
+#include "ps_protocol.h"
+#endif
+
 #ifdef __aarch64__
 
 #else
@@ -52,6 +56,35 @@ static int serial_up = 0;
 
 #define ARM_PERIIOBASE ((intptr_t)io_base)
 
+#ifdef PISTORM
+
+static inline void waitSerOUT(void *io_base)
+{
+    (void)io_base;
+    
+    while(1)
+        if (ps_read_16(0xdff018) & (1 << 12))
+            break;
+}
+
+static inline void putByte(void *io_base, char chr)
+{
+    if (serial_up)
+    {
+        waitSerOUT(io_base);
+
+        if (chr == '\n')
+        {
+            ps_write_16(0xdff030, 0x100 + '\r');
+            waitSerOUT(io_base);
+        }
+        ps_write_16(0xdff030, 0x100 + (uint8_t)chr);
+        waitSerOUT(io_base);
+    }
+}
+
+#else
+
 static inline void waitSerOUT(void *io_base)
 {
     while(1)
@@ -75,6 +108,8 @@ static inline void putByte(void *io_base, char chr)
         waitSerOUT(io_base);
     }
 }
+
+#endif
 
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE 0xf2000000
@@ -356,6 +391,17 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 #define GPPUD                                           (GPIO_BASE + 0x94)
 #define GPPUDCLK0                                       (GPIO_BASE + 0x98)
 
+#ifdef PISTORM
+
+void setup_serial()
+{
+    ps_write_16(0xdff09e, 0x0800);
+    ps_write_16(0xdff032, 30); // 30 Set up serial port for 115200 bps transmission
+    serial_up = 1;
+}
+
+#else
+
 void setup_serial()
 {
     unsigned int        uartvar;
@@ -398,3 +444,5 @@ void setup_serial()
 
     serial_up = 1;
 }
+
+#endif
