@@ -246,6 +246,13 @@ void mmu_init()
                 size = (size << 32) | BE32(range[i + address_cells]);
             }
 
+#ifdef PISTORM
+            if (addr < 0x01000000) {
+                size -= 0x01000000 - addr;
+                addr = 0x01000000;
+            }
+#endif
+
             sys_memory[block].mb_Base = addr;
             sys_memory[block].mb_Size = size;
             
@@ -264,6 +271,12 @@ void mmu_init()
     arm_flush_cache((intptr_t)&mmu_user_L1, sizeof(mmu_user_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L1, sizeof(mmu_kernel_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L2, sizeof(mmu_kernel_L2));
+
+    asm volatile(
+"       dsb     ish                 \n"
+"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       isb                         \n");
 }
 
 void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
