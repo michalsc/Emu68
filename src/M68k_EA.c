@@ -603,7 +603,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 break;
             case 0:
 #ifdef __aarch64__
-                kprintf("Load form EA: Dn with wrong operand size!\n");
+                kprintf("Load form EA: Dn with wrong operand size! Opcode %04x at %08x\n", BE16(m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
 #else
                 *arm_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, D[src_reg]));
@@ -627,7 +627,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 break;
             case 0:
 #ifdef __aarch64__
-                kprintf("Load form EA: Dn with wrong operand size!\n");
+                kprintf("Load form EA: An with wrong operand size! Opcode %04x at %08x\n", BE16(m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
 #else
                 *arm_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, A[src_reg]));
@@ -793,7 +793,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     if (brief & 0x8000)
                         tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
                     else
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                        tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
 #ifdef __aarch64__
                     *ptr++ = sxth(tmp2, tmp2);
 #else
