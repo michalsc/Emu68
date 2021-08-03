@@ -295,6 +295,10 @@ extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
 
+#ifdef PISTORM
+#include "ps_protocol.h"
+#endif PISTORM
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -511,6 +515,7 @@ void boot(void *dtree)
 
     platform_post_init();
 
+#ifndef PISTORM
     e = dt_find_node("/chosen");
 
     if (e)
@@ -625,6 +630,12 @@ void boot(void *dtree)
             kprintf("[BOOT] No executable to run...\n");
         }
     }
+
+#else
+
+    M68K_StartEmu(0, NULL);
+
+#endif
 
     while(1) asm volatile("wfe");
 }
@@ -1072,7 +1083,13 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k_state = &__m68k;
 
     //*(uint32_t*)4 = 0;
-    
+
+#ifdef PISTORM
+    __m68k.ISP.u32 = BE32(ps_read_32(0x00000000));
+    __m68k.PC = BE32(ps_read_32(0x00000004));
+    __m68k.SR = BE16(SR_S | SR_IPL);
+#else
+
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
     __m68k.D[2].u32 = BE32((uint32_t)fb_height);
@@ -1094,6 +1111,7 @@ void M68K_StartEmu(void *addr, void *fdt)
                 __m68k.CACR = BE32(0x80008000);
         }
     }
+#endif
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
