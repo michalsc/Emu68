@@ -262,8 +262,64 @@ static int getOPsize(uint32_t opcode)
     return size;
 }
 
-#undef D(x)
+#undef D
 #define D(x) /* x */
+
+#ifdef PISTORM
+
+#include "ps_protocol.h"
+
+int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
+{
+    D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
+
+    switch(size)
+    {
+        case 1:
+            ps_write_8(far, value);
+            break;
+        case 2:
+            ps_write_16(far, value);
+            break;
+        case 4:
+            ps_write_32(far, value);
+            break;
+        case 8:
+            ps_write_32(far, value >> 32);
+            ps_write_32(far + 4, value & 0xffffffff);
+            break;
+    }
+    return 1;
+}
+
+int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
+{  
+    D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
+
+    uint64_t a, b;
+
+    switch(size)
+    {
+        case 1:
+            *value = ps_read_8(far);
+            break;
+        case 2:
+            *value = ps_read_16(far);
+            break;
+        case 4:
+            *value = ps_read_32(far);
+            break;
+        case 8:
+            a = ps_read_32(far);
+            b = ps_read_32(far + 4);
+            *value = (a << 32) | b;
+            break;
+    }
+
+    return 1;
+}
+
+#else
 
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
@@ -310,8 +366,9 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
 
     return 1;
 }
+#endif
 
-#undef D(x)
+#undef D
 #define D(x) /* x  */
 
 int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
@@ -570,6 +627,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         {
             handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
         }
+        /* LDUR(B/W) */
+        else if ((opcode & 0x3fe00c00) == 0x38400000)
+        {
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+        }
         /* LDR immediate, post- and pre-index */
         else if ((opcode & 0x3fe00400) == 0x38400400)
         {
@@ -593,11 +655,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
                 {
                     case 1:
                         sext = ctx[opcode & 31] & 0x80;
-                        ctx[opcode & 31] |= 0xffffff00;
+                        if (sext) ctx[opcode & 31] |= 0xffffff00;
                         break;
                     case 2:
                         sext = ctx[opcode & 31] & 0x8000;
-                        ctx[opcode & 31] |= 0xffff0000;
+                        if (sext) ctx[opcode & 31] |= 0xffff0000;
                         break;
                     case 4:
                         sext = ctx[opcode & 31] & 0x80000000;
@@ -623,11 +685,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
                 {
                     case 1:
                         sext = ctx[opcode & 31] & 0x80;
-                        ctx[opcode & 31] |= 0xffffff00;
+                        if (sext) ctx[opcode & 31] |= 0xffffff00;
                         break;
                     case 2:
                         sext = ctx[opcode & 31] & 0x8000;
-                        ctx[opcode & 31] |= 0xffff0000;
+                        if (sext) ctx[opcode & 31] |= 0xffff0000;
                         break;
                     case 4:
                         sext = ctx[opcode & 31] & 0x80000000;
@@ -640,7 +702,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             }
         }
         /* LDRSW/LDRSB/LDRSH post- and pre-index */
-        else if ((opcode & 0x3fa000400) == 0x38800400)
+        else if ((opcode & 0x3fa00400) == 0x38800400)
         {
             int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
             int sext64 = 1;
@@ -654,11 +716,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
                 {
                     case 1:
                         sext = ctx[opcode & 31] & 0x80;
-                        ctx[opcode & 31] |= 0xffffff00;
+                        if (sext) ctx[opcode & 31] |= 0xffffff00;
                         break;
                     case 2:
                         sext = ctx[opcode & 31] & 0x8000;
-                        ctx[opcode & 31] |= 0xffff0000;
+                        if (sext) ctx[opcode & 31] |= 0xffff0000;
                         break;
                     case 4:
                         sext = ctx[opcode & 31] & 0x80000000;
@@ -674,13 +736,18 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
     }
 
+    if (!handled)
+    {    
+        kprintf("[JIT:SYS] Unhandled page fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far);
+    }
+
     elr += 4;
     asm volatile("msr ELR_EL1, %0"::"r"(elr));
 
     return handled;
 }
 
-#undef D(x)
+#undef D
 #define D(x)  x 
 
 void SYSHandler(uint32_t vector, uint64_t *ctx)
