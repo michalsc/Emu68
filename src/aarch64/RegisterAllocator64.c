@@ -510,11 +510,14 @@ void RA_StoreFPCR(uint32_t **ptr)
 
 void RA_FlushFPCR(uint32_t **ptr)
 {
-    if (reg_FPCR != 0xff && mod_FPCR)
+    if (reg_FPCR != 0xff)
     {
-        uint8_t reg_CTX = RA_GetCTX(ptr);
-        **ptr = strh_offset(reg_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
-        (*ptr)++;
+        if (mod_FPCR)
+        {
+            uint8_t reg_CTX = RA_GetCTX(ptr);
+            **ptr = strh_offset(reg_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
+            (*ptr)++;
+        }
         RA_FreeARMRegister(ptr, reg_FPCR);
     }
     reg_FPCR = 0xff;
@@ -556,9 +559,12 @@ void RA_FlushFPSR(uint32_t **ptr)
 {
     if (reg_FPSR != 0xff && mod_FPSR)
     {
-        uint8_t reg_CTX = RA_GetCTX(ptr);
-        **ptr = str_offset(reg_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
-        (*ptr)++;
+        if (mod_FPSR)
+        {
+            uint8_t reg_CTX = RA_GetCTX(ptr);
+            **ptr = str_offset(reg_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
+            (*ptr)++;
+        }
         RA_FreeARMRegister(ptr, reg_FPSR);
     }
     reg_FPSR = 0xff;
@@ -600,12 +606,15 @@ void RA_StoreCC(uint32_t **ptr)
 
 void RA_FlushCC(uint32_t **ptr)
 {
-    if (reg_CC != 0xff && mod_CC)
+    if (reg_CC != 0xff)
     {
+        if (mod_CC)
+        {
 //        uint8_t reg_CTX = RA_GetCTX(ptr);
 //        **ptr = strh_offset(reg_CTX, reg_CC, __builtin_offsetof(struct M68KState, SR));
-        **ptr = msr(reg_CC, 3, 3, 13, 0, 2);
-        (*ptr)++;
+            **ptr = msr(reg_CC, 3, 3, 13, 0, 2);
+            (*ptr)++;
+        }
         RA_FreeARMRegister(ptr, reg_CC);
     }
     reg_CC = 0xff;
