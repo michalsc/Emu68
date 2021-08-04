@@ -228,6 +228,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
     uint32_t pop_cnt=0;
 
+    if (RA_GetTempAllocMask())
+        kprintf("[ICache] Temporary register alloc mask on translate start is non-zero %x\n", RA_GetTempAllocMask());
+
     if (disasm) {
         disasm_open();
     }
