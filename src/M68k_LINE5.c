@@ -155,7 +155,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 RA_FreeARMRegister(&ptr, counter_reg);
             }
         }
-        else if ((opcode & 0x38) == 0x38)
+        else if ((opcode & 0x3e) == 0x3a || (opcode & 0x3f) == 0x3c)
         {
             uint32_t source = (uint32_t)(uintptr_t)(*m68k_ptr - 1);
             uint8_t arm_condition = 0xff;
@@ -174,7 +174,7 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     (*m68k_ptr)+=2;
                     break;
                 default:
-                    ptr = EMIT_InjectDebugString(ptr, "[JIT] Illegal OPMODE in TRAPcc at %08x\n", source);
+                    ptr = EMIT_InjectDebugString(ptr, "[JIT] Illegal OPMODE %d in TRAPcc at %08x. Opcode %04x\n", opcode & 7, source, opcode);
                     ptr = EMIT_InjectPrintContext(ptr);
                     *ptr++ = udf(opcode);
                     break;
