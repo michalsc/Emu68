@@ -1070,6 +1070,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         RA_FreeARMRegister(&ptr, src);
         RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, changed);
 
         *ptr++ = (uint32_t)(uintptr_t)tmpptr;
         *ptr++ = 1;
@@ -1461,7 +1462,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 0100111001110000 - RESET */
     else if (opcode == 0x4e70)
     {
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] RESET opcode at %08x\n", *m68k_ptr - 1);
 #ifdef __aarch64__
         uint32_t *tmp;
         ptr = EMIT_FlushPC(ptr);
@@ -1480,6 +1480,37 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
         *tmp = b_cc(A64_CC_AL, ptr - tmp);
+
+#ifdef PISTORM
+
+        void do_reset();
+
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        u.u64 = (uintptr_t)do_reset;
+
+        *ptr++ = stp64_preindex(31, 0, 1, -256);
+        for (int i=2; i < 30; i += 2)
+            *ptr++ = stp64(31, i, i+1, i*8);
+        *ptr++ = str64_offset(31, 30, 240);
+
+        *ptr++ = adr(30, 16);
+        *ptr++ = ldr64_pcrel(1, 2);
+        *ptr++ = br(1);
+
+        *ptr++ = BE32(u.u32[0]);
+        *ptr++ = BE32(u.u32[1]);
+
+        for (int i=2; i < 30; i += 2)
+            *ptr++ = ldp64(31, i, i+1, i*8);
+        *ptr++ = ldr64_offset(31, 30, 240);
+        *ptr++ = ldp64_postindex(31, 0, 1, 256);
+
+#endif
+
         *ptr++ = (uint32_t)(uintptr_t)tmp;
         *ptr++ = 1;
         *ptr++ = 0;
@@ -1557,7 +1588,9 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = b(2);
         *ptr++ = msr_imm(3, 6, 7);
 
+#ifndef PISTORM
         *ptr++ = wfi();
+#endif
 
         *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
         tmpptr = ptr;
@@ -2269,3 +2302,14 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
     return ptr;
 }
+
+#ifdef PISTORM
+void do_reset()
+{
+    void ps_pulse_reset();
+    extern uint32_t overlay;
+
+    ps_pulse_reset();
+    overlay = 1;
+}
+#endif
