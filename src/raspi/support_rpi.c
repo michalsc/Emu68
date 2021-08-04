@@ -62,9 +62,10 @@ static inline void waitSerOUT(void *io_base)
 {
     (void)io_base;
     
-    while(1)
+    while(1) {
         if (ps_read_16(0xdff018) & (1 << 12))
             break;
+    }
 }
 
 static inline void putByte(void *io_base, char chr)
