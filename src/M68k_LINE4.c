@@ -2308,8 +2308,10 @@ void do_reset()
 {
     void ps_pulse_reset();
     extern uint32_t overlay;
+    extern uint32_t z2_ram_autoconf;
 
     ps_pulse_reset();
     overlay = 1;
+    z2_ram_autoconf = 1;
 }
 #endif

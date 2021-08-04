@@ -271,6 +271,8 @@ static int getOPsize(uint32_t opcode)
 
 uint32_t rom_mapped = 0;
 uint32_t overlay = 1;
+uint32_t z2_ram_autoconf = 1;
+uint64_t z2_ram_base = 0;
 
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
@@ -284,6 +286,23 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
             kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);
             overlay = value & 1;
         }
+    }
+
+    if (far >= 0xe80000 && far <= 0xe8ffff && z2_ram_autoconf)
+    {
+        if (far == 0xe8004a)
+            z2_ram_base = (value & 0xf0) << 12;
+        else if (far == 0xe80048) {
+            z2_ram_base |= (value & 0xf0) << 16;
+            kprintf("[JIT:SYS] Z2 RAM autoconfigured for address 0x%08x\n", z2_ram_base);
+            mmu_map(z2_ram_base, z2_ram_base, 8 << 20, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+            z2_ram_autoconf = 0;
+        }
+        else if (far == 0xe8004c || far == 0xe8004e) {
+            z2_ram_autoconf = 0;
+        }
+ 
+        return 1;
     }
 
     switch(size)
@@ -305,11 +324,43 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     return 1;
 }
 
+uint8_t z2_autoconf[] = {
+    0xc | 0x2,  // Z2 board, link to memory list
+    0x0,        // Size 8 MB
+    0x6, 0x9,   // Product ID
+    0x8, 0x0,   // ERT MEMSPACE - want to be in 8MB Z2 region
+    0x0, 0x0,   // Reserved - must be 0
+    0xb, 0xe, 0xe, 0xf, // Manufacturer ID
+    0xc, 0xa, 0xf, 0xe, 0xb, 0xa, 0xb, 0xe, // Serial number
+    0x0, 0x0, 0x0, 0x0, // Diag area missing
+};
+
 int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
 {  
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
 
     uint64_t a, b;
+
+    if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
+    {       
+        if (z2_ram_autoconf) {
+            if (far & 1)
+                *value = 0xff;
+            else
+            {
+                uint64_t off = far - 0xe80000;
+                off >>= 1;
+                
+                if (off < sizeof(z2_autoconf))
+                    *value = z2_autoconf[off] << 4;
+
+                if (off > 1)
+                    *value ^= 0xff;                
+            }
+
+            return 1;
+        }
+    }
 
     if (rom_mapped && overlay)
     {
