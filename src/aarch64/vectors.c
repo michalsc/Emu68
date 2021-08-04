@@ -269,9 +269,22 @@ static int getOPsize(uint32_t opcode)
 
 #include "ps_protocol.h"
 
+uint32_t rom_mapped = 0;
+uint32_t overlay = 1;
+
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
+
+    if (far == 0xdff032 && size == 2)
+        return 1;
+
+    if (far == 0xBFE001 && size == 1) {
+        if ((value & 1) != overlay) {
+            kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);
+            overlay = value & 1;
+        }
+    }
 
     switch(size)
     {
@@ -297,6 +310,30 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
 
     uint64_t a, b;
+
+    if (rom_mapped && overlay)
+    {
+        if (far < 0x80000)
+        {
+            switch (size)
+            {
+                case 1:
+                    *value = *(uint8_t*)(0xffffff9000f80000 + far);
+                    break;
+                case 2:
+                    *value = *(uint16_t*)(0xffffff9000f80000 + far);
+                    break;
+                case 4:
+                    *value = *(uint32_t*)(0xffffff9000f80000 + far);
+                    break;
+                case 8:
+                    *value = *(uint64_t*)(0xffffff9000f80000 + far);
+                    break;
+            }
+
+            return 1;
+        }
+    }
 
     switch(size)
     {
