@@ -5,6 +5,7 @@ include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
 get_verstring(VERSTRING)
 
+set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
@@ -108,7 +109,7 @@ else()
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -pedantic -Wall -Wextra)
+add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra)
 
 if(${TARGET_ARCH} STREQUAL "armhf")
     list(APPEND ARCH_FILES
