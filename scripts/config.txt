@@ -19,5 +19,8 @@ hdmi_mode=82
 #initramfs Buddha
 #initramfs SmallPT
 #initramfs Buddha_.elf
-initramfs sysinfo
+#initramfs sysinfo
 #initramfs aros-raspi-m68k-rom.elf
+
+# PiStorm variant - use initramfs to map selected rom
+#initramfs DiagROM
