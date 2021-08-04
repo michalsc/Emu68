@@ -268,8 +268,8 @@ void ps_pulse_reset() {
 }
 
 unsigned int ps_get_ipl_zero() {
-  unsigned int value = LE32(*(gpio + 13));
-  return value & (1 << PIN_IPL_ZERO);
+  unsigned int value = (*(gpio + 13));
+  return value & LE32(1 << PIN_IPL_ZERO);
 }
 
 #define INT2_ENABLED 1
