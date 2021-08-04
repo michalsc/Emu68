@@ -633,6 +633,38 @@ void boot(void *dtree)
 
 #else
 
+    e = dt_find_node("/chosen");
+
+    if (e)
+    {
+        extern uint32_t rom_mapped;
+
+        void *image_start, *image_end;
+        of_property_t *p = dt_find_property(e, "linux,initrd-start");
+
+        // Check if initrd was given. If yes, use it as a new ROM
+        if (p)
+        {
+            image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+            p = dt_find_property(e, "linux,initrd-end");
+            image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+
+            mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            
+            if ((uintptr_t)image_end - (uintptr_t)image_start == 262144)
+            {
+                DuffCopy((void*)0xffffff9000f80000, image_start, 262144 / 4);
+                DuffCopy((void*)0xffffff9000fc0000, image_start, 262144 / 4);
+            }
+            else
+            {
+                DuffCopy((void*)0xffffff9000f80000, image_start, 524288 / 4);
+            }
+
+            rom_mapped = 1;
+        }
+    }
+        
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -877,8 +909,15 @@ void stub_ExecutionLoop()
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
 "       cbz     w%[reg_pc], 4f              \n"
+#ifdef PISTORM
+"       mov     x1, #0x34                   \n" // Read IPL0 flag from GPIO
+"       movk    x1, #0xf220, lsl #16        \n"
+"       ldr     w1, [x1]                    \n"
+"       tbz     w1, #25, 9f                 \n" // If IPL0 flag is not set, go to interrupt handling
+#else
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
 "       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
+#endif
 "99:    ldr     w1, [x0, #%[cacr]]          \n"
 "       tbz     w1, #%[cacr_ie_bit], 2f     \n"
 "       cmp     w2, w%[reg_pc]              \n"
@@ -995,6 +1034,55 @@ void stub_ExecutionLoop()
 "       ldp     x29, x30, [sp], #128        \n"
 "       ret                                 \n"
 
+#ifdef PISTORM
+"9:     movz    x2, #0xf220, lsl #16        \n" // GPIO base address
+"       mov     w1, #0x0c000000             \n"
+"       mov     w3, #0x40000000             \n"
+
+"       str     w1, [x2, 4*7]               \n" // Read status register
+"       str     w3, [x2, 4*7]               \n"
+"       movz    w1, #0xff00                 \n"
+"       movk    w1, #0xecff, lsl #16        \n"
+"       str     w3, [x2, 4*7]               \n"
+"       str     w3, [x2, 4*7]               \n"
+"       str     w3, [x2, 4*7]               \n"
+"       ldr     w3, [x2, 4*13]              \n" // Get status register into w3 - note! value read was little endian
+"       str     w1, [x2, 4*10]              \n"
+"       ubfx    w1, w3, #13, #3             \n" // Extract IPL to w1
+"       mrs     x2, TPIDR_EL0               \n" // Get SR
+"       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
+"       cmp     w1, #7                      \n" // Was it level 7 interrpt?
+"       b.eq    91f                         \n" // Yes - process immediately
+"       cmp     w1, w3                      \n" // Check highest masked level
+"       b.gt    91f                         \n" // IPL higher than IPM? Make an interrupt
+
+"92:    mrs     x2, TPIDR_EL1               \n" // Only masked interrupts. Restore old contents of x2 and
+"       b       99b                         \n" // branch back
+
+// Process the interrupt here
+"91:    tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
+"       str     w%[reg_sp], [x0, #%[usp]]   \n" // Store USP
+"       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
+"       ldr     w%[reg_sp], [x0, #%[isp]]   \n" // Load ISP
+"       b       93f                         \n"
+"94:    ldr     w%[reg_sp], [x0, #%[msp]]   \n" // Load MSP
+
+"93:    mov     w5, w2                      \n" // Make a copy of SR
+"       bfi     w5, w1, %[srb_ipm], 3       \n" // Insert IPL level to SR register IPM field
+"       lsl     w3, w1, #2                  \n" // Calculate vector offset
+"       add     w3, w3, #0x60               \n" 
+"       strh    w3, [x%[reg_sp], #-2]!      \n" // Push frame format 0
+"       str     w%[reg_pc], [x%[reg_sp], #-4]! \n" // Push address of next instruction
+"       strh    w2, [x%[reg_sp], #-2]!      \n" // Push old SR
+"       bic     w5, w5, #0xc000             \n" // Clear T0 and T1
+"       orr     w5, w5, #0x2000             \n" // Set S bit
+"       msr     TPIDR_EL0, x5               \n" // Update SR
+"       ldr     w1, [x0, #%[vbr]]           \n"
+"       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
+
+"       mrs     x2, TPIDR_EL1               \n" // Restore old contents of x2 and
+"       b       99b                         \n" // branch back
+#else
 "9:     mrs     x2, TPIDR_EL0               \n" // Get SR
 "       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
 "       mov     w4, #2                      \n"
@@ -1039,6 +1127,7 @@ void stub_ExecutionLoop()
 //"       mrs     x0, TPIDRRO_EL0             \n" // Reload old values of x0 and x2
 "       mrs     x2, TPIDR_EL1               \n" // And branch back
 "       b       99b                         \n"
+#endif
 :
 :[reg_pc]"i"(REG_PC),
  [reg_sp]"i"(REG_A7),
@@ -1085,11 +1174,14 @@ void M68K_StartEmu(void *addr, void *fdt)
     //*(uint32_t*)4 = 0;
 
 #ifdef PISTORM
-    __m68k.ISP.u32 = BE32(ps_read_32(0x00000000));
-    __m68k.PC = BE32(ps_read_32(0x00000004));
-    __m68k.SR = BE16(SR_S | SR_IPL);
-#else
 
+    asm volatile("mov %0, #0":"=r"(addr));
+
+    __m68k.ISP.u32 = BE32(*((uint32_t*)addr));
+    __m68k.PC = BE32(*((uint32_t*)addr+1));
+    __m68k.SR = BE16(SR_S | SR_IPL);
+    __m68k.FPCR = 0xffff;
+#else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
     __m68k.D[2].u32 = BE32((uint32_t)fb_height);
@@ -1101,6 +1193,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.ISP.u32 = BE32(BE32(__m68k.ISP.u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
     *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
+#endif
     of_node_t *node = dt_find_node("/chosen");
     if (node)
     {
@@ -1111,7 +1204,6 @@ void M68K_StartEmu(void *addr, void *fdt)
                 __m68k.CACR = BE32(0x80008000);
         }
     }
-#endif
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
