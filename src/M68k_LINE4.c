@@ -2384,8 +2384,8 @@ static EMIT_Function JumpTable[4096] = {
     [0x280 ... 0x287] = EMIT_CLR,
     
     [0x210 ... 0x239] = EMIT_CLR,
-    [0x250 ... 0x277] = EMIT_CLR,
-    [0x290 ... 0x2b7] = EMIT_CLR,
+    [0x250 ... 0x279] = EMIT_CLR,
+    [0x290 ... 0x2b9] = EMIT_CLR,
 
     [0x400 ... 0x407] = EMIT_NEG,
     [0x440 ... 0x447] = EMIT_NEG,
@@ -2427,11 +2427,11 @@ static EMIT_Function JumpTable[4096] = {
     [0x8d0 ... 0x8d7] = EMIT_MOVEM,
     [0x8e0 ... 0x8f9] = EMIT_MOVEM,
     
-    [0xc90 ... 0xc97] = EMIT_MOVEM,
-    [0xca0 ... 0xcb9] = EMIT_MOVEM,
+    [0xc90 ... 0xc9f] = EMIT_MOVEM,
+    [0xca8 ... 0xcbb] = EMIT_MOVEM,
     
-    [0xcd0 ... 0xcd7] = EMIT_MOVEM,
-    [0xce0 ... 0xcf9] = EMIT_MOVEM,
+    [0xcd0 ... 0xcdf] = EMIT_MOVEM,
+    [0xce8 ... 0xcfb] = EMIT_MOVEM,
     
     [0x1d0 ... 0x1d7] = EMIT_LEA,
     [0x1e8 ... 0x1fb] = EMIT_LEA,
