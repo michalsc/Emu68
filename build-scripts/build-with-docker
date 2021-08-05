@@ -21,7 +21,7 @@ Help()
    printf -- "-v\t\tSets which Emu68 variant to build (none|pistorm).\n"
    printf -- "-c\t\tCleans build directory before building.\n"
    printf -- "-b\t\tBuilds example programs to run in Emu68.\n"
-   printf -- "-h|--help\tPrint this Help.\n"
+   printf -- "-h\t\tPrint this Help.\n"
  
    echo
 }
