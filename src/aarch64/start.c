@@ -75,7 +75,8 @@ asm("   .section .startup           \n"
     we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
 */
 
-"       adr     x9, __mmu_start     \n" /* First clear the memory for MMU tables, in case there was a trash */
+"       adrp    x9, __mmu_start     \n" /* First clear the memory for MMU tables, in case there was a trash */
+"       add     x9, x9, :lo12:__mmu_start       \n"
 "       ldr     w10, =__mmu_size    \n"
 "1:     str     xzr, [x9], #8       \n"
 "       sub     w10, w10, 8         \n"
