@@ -4,6 +4,7 @@ shopt -s extglob
 # Variables
 SCRIPTNAME=$(basename $0)
 CLEANUP=FALSE
+BUILD_EXAMPLES=FALSE
 BUILDDIR=${PWD}
 SCRIPTDIR=$( dirname "${BASH_SOURCE[0]}" )
 SRCDIR=$( dirname ${PWD} )
@@ -14,29 +15,35 @@ Help()
    # Display Help
    echo "Helper script to build Emu68 with docker"
    echo
-   echo "Syntax: ${SCRIPTNAME} [-t|v|h]"
+   echo "Syntax: ${SCRIPTNAME} [-t|v|c|b|h]"
    echo "Options:"
-   printf -- "-t|\t\tSets which Emu68 target to build.\n"
-   printf -- "-v\t\tSets which Emu68 variant to build.\n"
+   printf -- "-t\t\tSets which Emu68 target to build (raspi|raspi64|virt).\n"
+   printf -- "-v\t\tSets which Emu68 variant to build (none|pistorm).\n"
+   printf -- "-c\t\tCleans build directory before building.\n"
+   printf -- "-b\t\tBuilds example programs to run in Emu68.\n"
    printf -- "-h|--help\tPrint this Help.\n"
  
    echo
 }
 
 # Get the options
-while getopts ":t:v:ch:" option; do
+while getopts ":t:v:cbh?" option; do
     case $option in
-        h) # display Help
-            Help
-            exit;;
         t) # target
             TARGET=$OPTARG;;
         v) # variant
             VARIANT=$OPTARG;;
         c) # cleanup
             CLEANUP=TRUE;;
+        b) # build examples
+            BUILD_EXAMPLES=TRUE;;
+        h) # display Help
+            Help
+            exit;;
         \?) # Invalid option
             echo "Error: Invalid option"
+            echo "---------------------"
+            Help
             exit;;
     esac
 done
@@ -54,6 +61,9 @@ fi
 # Build Emu68
 ${SCRIPTDIR}/build-aarch64 cmake --build . -- -j`nproc`
 
-# Build examples
-mkdir -p ${SRCDIR}/Build && cd ${SRCDIR}/examples && ${SCRIPTDIR}/build-m68k-amigaos make && cp -v ${SRCDIR}/Build/* ${BUILDDIR}/
-cd ${BUILDDIR} 
+if [[ "${BUILD_EXAMPLES}" == "TRUE" ]]; then
+    # Build examples
+    mkdir -p ${SRCDIR}/Build && cd ${SRCDIR}/examples && ${SCRIPTDIR}/build-m68k-amigaos make && cp -v ${SRCDIR}/Build/* ${BUILDDIR}/
+fi
+
+cd ${BUILDDIR}
