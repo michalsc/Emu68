@@ -41,6 +41,31 @@
       },
       {
         "type": "shell",
+        "label": "build pistorm",
+        "command": "ninja",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/build-pistorm"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
+        "label": "install pistorm",
+        "command": "ninja",
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "args": ["install"],
+        "options": {
+          "cwd": "${workspaceFolder}/build-pistorm"
+        },
+        "group": "build"
+      },
+      {
+        "type": "shell",
         "label": "install raspi64",
         "command": "ninja",
         "problemMatcher": [
