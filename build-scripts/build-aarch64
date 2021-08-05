@@ -1,0 +1,6 @@
+#!/bin/bash
+if [ ! -v TTY_ENABLED ]; then
+	export TTY_ENABLED="-it"
+fi
+
+docker run --rm ${TTY_ENABLED} -u $(id -u):$(id -g) -v $(dirname "${PWD}"):$(dirname "${PWD}") -w $PWD amigadev/crosstools:aarch64-linux-gnu "$@"

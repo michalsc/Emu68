@@ -1,6 +1,7 @@
 # Build directory
 build/
 build*/
+!build-scripts/
 
 # Prerequisites
 *.d

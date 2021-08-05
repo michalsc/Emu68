@@ -1,0 +1,53 @@
+#!/bin/bash
+shopt -s extglob
+
+# Variables
+SCRIPTNAME=$(basename $0)
+CLEANUP=FALSE
+SCRIPTDIR=$( dirname "${BASH_SOURCE[0]}" )
+
+# Help
+Help()
+{
+   # Display Help
+   echo "Helper script to build Emu68 with docker"
+   echo
+   echo "Syntax: ${SCRIPTNAME} [-t|v|h]"
+   echo "Options:"
+   printf -- "-t|\t\tSets which Emu68 target to build.\n"
+   printf -- "-v\t\tSets which Emu68 variant to build.\n"
+   printf -- "-h|--help\tPrint this Help.\n"
+ 
+   echo
+}
+
+# Get the options
+while getopts ":t:v:ch:" option; do
+    case $option in
+        h) # display Help
+            Help
+            exit;;
+        t) # target
+            TARGET=$OPTARG;;
+        v) # variant
+            VARIANT=$OPTARG;;
+        c) # cleanup
+            CLEANUP=TRUE;;
+        \?) # Invalid option
+            echo "Error: Invalid option"
+            exit;;
+    esac
+done
+
+if [[ "${CLEANUP}" == "TRUE" ]]; then
+    # Clean build directory
+	rm -rv !("build-aarch64"|"build-with-docker");
+fi
+
+if [[ ! -f "build.ninja" ]]; then
+    # Generate build files
+    ${SCRIPTDIR}/build-aarch64 cmake .. -GNinja $(if [[ ! -z "${TARGET}" ]]; then echo "-DTARGET=${TARGET}"; fi) $(if [[ ! -z "${VARIANT}" ]]; then echo "-DVARIANT=${VARIANT}"; fi)
+fi
+
+# Build Emu68
+${SCRIPTDIR}/build-aarch64 cmake --build . -- -j`nproc`
