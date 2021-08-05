@@ -4,7 +4,9 @@ shopt -s extglob
 # Variables
 SCRIPTNAME=$(basename $0)
 CLEANUP=FALSE
+BUILDDIR=${PWD}
 SCRIPTDIR=$( dirname "${BASH_SOURCE[0]}" )
+SRCDIR=$( dirname ${PWD} )
 
 # Help
 Help()
@@ -51,3 +53,7 @@ fi
 
 # Build Emu68
 ${SCRIPTDIR}/build-aarch64 cmake --build . -- -j`nproc`
+
+# Build examples
+mkdir -p ${SRCDIR}/Build && cd ${SRCDIR}/examples && ${SCRIPTDIR}/build-m68k-amigaos make && cp -v ${SRCDIR}/Build/* ${BUILDDIR}/
+cd ${BUILDDIR} 
