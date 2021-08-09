@@ -2248,7 +2248,15 @@ static uint32_t *EMIT_LEA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
     /* On AArch64 we can always map destination reg for write - it is always there! */
     dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
+
+    /* Mode 2, (An) in case of LEA is a special case - just move the reg to destination */
+    if ((opcode & 0x38) == 0x10)
+    {
+        uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = mov_reg(dest, src);
+    }
+    else
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
 #else
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
     dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
@@ -2501,191 +2509,6 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     if (JumpTable[opcode & 0xfff]) {
         ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr);
     }
-#if 0
-    else
-    /* 0100000011xxxxxx - MOVE from SR */
-    if ((opcode & 0xffc0) == 0x40c0)
-    {
-        ptr = EMIT_MOVEfromSR(ptr, opcode, m68k_ptr);
-    }
-    /* 0100001011xxxxxx - MOVE from CCR */
-    else if ((opcode &0xffc0) == 0x42c0)
-    {
-    }
-    /* 01000000ssxxxxxx - NEGX */
-    else if ((opcode & 0xff00) == 0x4000 && (opcode & 0xc0) != 0xc0)
-    {
-        ptr = EMIT_NEGX(ptr, opcode, m68k_ptr);
-    }
-    /* 01000010ssxxxxxx - CLR */
-    else if ((opcode & 0xff00) == 0x4200 && (opcode & 0xc0) != 0xc0)
-    {
-        ptr = EMIT_CLR(ptr, opcode, m68k_ptr);
-    }
-    /* 0100010011xxxxxx - MOVE to CCR */
-    else if ((opcode &0xffc0) == 0x44c0)
-    {
-        ptr = EMIT_MOVEtoCCR(ptr, opcode, m68k_ptr);
-    }
-    /* 01000100ssxxxxxx - NEG */
-    else if ((opcode &0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
-    {
-        ptr = EMIT_NEG(ptr, opcode, m68k_ptr);
-    }
-    /* 0100011011xxxxxx - MOVE to SR */
-    else if ((opcode &0xffc0) == 0x46c0)
-    {
-        ptr = EMIT_MOVEtoSR(ptr, opcode, m68k_ptr);
-    }
-    /* 01000110ssxxxxxx - NOT */
-    else if ((opcode &0xff00) == 0x4600 && (opcode & 0xc0) != 0xc0)
-    {
-        ptr = EMIT_NOT(ptr, opcode, m68k_ptr);
-    }
-    /* 0100100xxx000xxx - EXT, EXTB */
-    else if ((opcode & 0xfeb8) == 0x4880)
-    {
-        ptr = EMIT_EXT(ptr, opcode, m68k_ptr);
-    }
-    /* 0100100000001xxx - LINK - 32 bit offset */
-    else if ((opcode & 0xfff8) == 0x4808)
-    {
-        ptr = EMIT_LINK32(ptr, opcode, m68k_ptr);
-    }
-    /* 0100100000xxxxxx - NBCD */
-    else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
-    {
-        ptr = EMIT_NBCD(ptr, opcode, m68k_ptr);
-    }
-    /* 0100100001000xxx - SWAP */
-    else if ((opcode & 0xfff8) == 0x4840)
-    {
-        ptr = EMIT_SWAP(ptr, opcode, m68k_ptr);
-    }
-    /* 0100100001001xxx - BKPT */
-    else if ((opcode & 0xfff8) == 0x4848)
-    {
-        ptr = EMIT_FlushPC(ptr);
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] BKPT at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
-    }
-    /* 0100100001xxxxxx - PEA */
-    else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
-    {
-        ptr = EMIT_PEA(ptr, opcode, m68k_ptr);
-    }
-    /* 0100101011111100 - ILLEGAL */
-    else if (opcode == 0x4afc)
-    {
-        ptr = EMIT_ILLEGAL(ptr, opcode, m68k_ptr);
-    }
-    /* 0100101011xxxxxx - TAS */
-    else if ((opcode & 0xffc0) == 0x4ac0)
-    {
-        ptr = EMIT_TAS(ptr, opcode, m68k_ptr);
-    }
-    /* 0100101011xxxxxx - TST */
-    else if ((opcode & 0xff00) == 0x4a00 && (opcode & 0xc0) != 0xc0)
-    {
-        ptr = EMIT_TST(ptr, opcode, m68k_ptr);
-    }
-    /* 0100110000xxxxxx - MULU, MULS, DIVU, DIVUL, DIVS, DIVSL */
-    else if ((opcode & 0xff80) == 0x4c00 || (opcode == 0x83c0))
-    {
-        ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
-    }
-    /* 010011100100xxxx - TRAP */
-    else if ((opcode & 0xfff0) == 0x4e40)
-    {
-        ptr = EMIT_TRAP(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001010xxx - LINK */
-    else if ((opcode & 0xfff8) == 0x4e50)
-    {
-        ptr = EMIT_LINK16(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001011xxx - UNLK */
-    else if ((opcode & 0xfff8) == 0x4e58)
-    {
-        ptr = EMIT_UNLK(ptr, opcode, m68k_ptr);
-    }
-    /* 010011100110xxxx - MOVE USP */
-    else if ((opcode & 0xfff0) == 0x4e60)
-    {
-        ptr = EMIT_MOVEUSP(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110000 - RESET */
-    else if (opcode == 0x4e70)
-    {
-        ptr = EMIT_RESET(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110000 - NOP */
-    else if (opcode == 0x4e71)
-    {
-        ptr = EMIT_NOP(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110010 - STOP */
-    else if (opcode == 0x4e72)
-    {
-        ptr = EMIT_STOP(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110011 - RTE */
-    else if (opcode == 0x4e73)
-    {
-        ptr = EMIT_RTE(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110100 - RTD */
-    else if (opcode == 0x4e74)
-    {
-        ptr = EMIT_RTD(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110101 - RTS */
-    else if (opcode == 0x4e75)
-    {
-        ptr = EMIT_RTS(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110110 - TRAPV */
-    else if (opcode == 0x4e76)
-    {
-        ptr = EMIT_TRAPV(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111001110111 - RTR */
-    else if (opcode == 0x4e77)
-    {
-        ptr = EMIT_RTR(ptr, opcode, m68k_ptr);
-    }
-    /* 010011100111101x - MOVEC */
-    else if ((opcode & 0xfffe) == 0x4e7a)
-    {
-        ptr = EMIT_MOVEC(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111010xxxxxx - JSR */
-    else if ((opcode & 0xffc0) == 0x4e80)
-    {
-        ptr = EMIT_JSR(ptr, opcode, m68k_ptr);
-    }
-    /* 0100111011xxxxxx - JMP */
-    else if ((opcode & 0xffc0) == 0x4ec0)
-    {
-        ptr = EMIT_JMP(ptr, opcode, m68k_ptr);
-    }
-    /* 01001x001xxxxxxx - MOVEM */
-    else if ((opcode & 0xfb80) == 0x4880)
-    {
-        ptr = EMIT_MOVEM(ptr, opcode, m68k_ptr);
-    }
-    /* 0100xxx111xxxxxx - LEA */
-    else if ((opcode & 0xf1c0) == 0x41c0)
-    {
-        ptr = EMIT_LEA(ptr, opcode, m68k_ptr);
-    }
-    /* 0100xxx1x0xxxxxx - CHK */
-    else if ((opcode & 0xf140) == 0x4100)
-    {
-        ptr = EMIT_CHK(ptr, opcode, m68k_ptr);
-    }
-#endif
     else
     {
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
