@@ -519,7 +519,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint8_t tmp2 = RA_AllocARMRegister(&end);
     if (inner_loop)
     {
+#ifdef PISTORM
+        *end++ = mov_immed_u16(tmp2, 0xf220, 1);
+        *end++ = ldr_offset(tmp2, tmp2, 0x34);
+#else
         *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, PINT));
+#endif
     }
 #if EMU68_INSN_COUNTER
     *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
@@ -530,8 +535,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #endif
     if (inner_loop)
     {
+#ifdef PISTORM
         uint32_t *tmpptr = end;
+        *end++ = tbnz(tmp2, 25, arm_code - tmpptr);
+#else
         *end++ = cbz(tmp2, arm_code - tmpptr);
+#endif
     }
     *end++ = bx_lr();
     
