@@ -420,3 +420,159 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
     return ptr;
 }
+
+/*
+static EMIT_Function JumpTable[4096] = {
+[00000 ... 00007] = EMIT_SUB,  //D0 Destination
+[00020 ... 00074] = EMIT_SUB,
+[00100 ... 00107] = EMIT_SUB,
+[00120 ... 00174] = EMIT_SUB,
+[00200 ... 00207] = EMIT_SUB,
+[00220 ... 00274] = EMIT_SUB,
+
+[00300 ... 00374] = EMIT_SUBA, //Word
+
+[00400 ... 00417] = EMIT_SUBX, //R0
+[00600 ... 00517] = EMIT_SUBX,
+[00600 ... 00617] = EMIT_SUBX,
+
+[00420 ... 00471] = EMIT_SUB,  //D0 Source
+[00520 ... 00571] = EMIT_SUB,
+[00620 ... 00671] = EMIT_SUB,
+
+[00700 ... 00774] = EMIT_SUBA, //Long
+
+[01000 ... 01007] = EMIT_SUB,  //D1 Destination
+[01020 ... 01074] = EMIT_SUB,
+[01100 ... 01107] = EMIT_SUB,
+[01120 ... 01174] = EMIT_SUB,
+[01200 ... 01207] = EMIT_SUB,
+[01220 ... 01274] = EMIT_SUB,
+
+[01300 ... 01374] = EMIT_SUBA, //Word
+
+[01400 ... 01417] = EMIT_SUBX, //R1
+[01600 ... 01517] = EMIT_SUBX,
+[01600 ... 01617] = EMIT_SUBX,
+
+[01420 ... 01471] = EMIT_SUB,  //D1 Source
+[01520 ... 01571] = EMIT_SUB,
+[01620 ... 01671] = EMIT_SUB,
+
+[01700 ... 01774] = EMIT_SUBA, //Long
+
+[02000 ... 02007] = EMIT_SUB,  //D2 Destination
+[02020 ... 02074] = EMIT_SUB,
+[02100 ... 02107] = EMIT_SUB,
+[02120 ... 02174] = EMIT_SUB,
+[02200 ... 02207] = EMIT_SUB,
+[02220 ... 02274] = EMIT_SUB,
+
+[02300 ... 02374] = EMIT_SUBA, //Word
+
+[02400 ... 02417] = EMIT_SUBX, //R2
+[02600 ... 02517] = EMIT_SUBX,
+[02600 ... 02617] = EMIT_SUBX,
+
+[02420 ... 02471] = EMIT_SUB,  //D2 Source
+[02520 ... 02571] = EMIT_SUB,
+[02620 ... 02671] = EMIT_SUB,
+
+[02700 ... 02774] = EMIT_SUBA, //Long
+
+[03000 ... 03007] = EMIT_SUB,  //D3 Destination
+[03020 ... 03074] = EMIT_SUB,
+[03100 ... 03107] = EMIT_SUB,
+[03120 ... 03174] = EMIT_SUB,
+[03200 ... 03207] = EMIT_SUB,
+[03220 ... 03274] = EMIT_SUB,
+
+[03300 ... 03374] = EMIT_SUBA, //Word
+
+[03400 ... 03417] = EMIT_SUBX, //R3
+[03600 ... 03517] = EMIT_SUBX,
+[03600 ... 03617] = EMIT_SUBX,
+
+[03420 ... 03471] = EMIT_SUB,  //D3 Source
+[03520 ... 03571] = EMIT_SUB,
+[03620 ... 03671] = EMIT_SUB,
+
+[03700 ... 03774] = EMIT_SUBA, //Long
+
+[04000 ... 04007] = EMIT_SUB,  //D4 Destination
+[04020 ... 04074] = EMIT_SUB,
+[04100 ... 04107] = EMIT_SUB,
+[04120 ... 04174] = EMIT_SUB,
+[04200 ... 04207] = EMIT_SUB,
+[04220 ... 04274] = EMIT_SUB,
+
+[04300 ... 04374] = EMIT_SUBA, //Word
+
+[04400 ... 04417] = EMIT_SUBX, //R4
+[04600 ... 04517] = EMIT_SUBX,
+[04600 ... 04617] = EMIT_SUBX,
+
+[04420 ... 04471] = EMIT_SUB,  //D4 Source
+[04520 ... 04571] = EMIT_SUB,
+[04620 ... 04671] = EMIT_SUB,
+
+[04700 ... 04774] = EMIT_SUBA, //Long
+
+[05000 ... 05007] = EMIT_SUB,  //D5 Destination
+[05020 ... 05074] = EMIT_SUB,
+[05100 ... 05107] = EMIT_SUB,
+[05120 ... 05174] = EMIT_SUB,
+[05200 ... 05207] = EMIT_SUB,
+[05220 ... 05274] = EMIT_SUB,
+
+[05300 ... 05374] = EMIT_SUBA, //Word
+
+[05400 ... 05417] = EMIT_SUBX, //R5
+[05600 ... 05517] = EMIT_SUBX,
+[05600 ... 05617] = EMIT_SUBX,
+
+[05420 ... 05471] = EMIT_SUB,  //D5 Source
+[05520 ... 05571] = EMIT_SUB,
+[05620 ... 05671] = EMIT_SUB,
+
+[05700 ... 05774] = EMIT_SUBA, //Long
+
+[06000 ... 06007] = EMIT_SUB,  //D6 Destination
+[06020 ... 06074] = EMIT_SUB,
+[06100 ... 06107] = EMIT_SUB,
+[06120 ... 06174] = EMIT_SUB,
+[06200 ... 06207] = EMIT_SUB,
+[06220 ... 06274] = EMIT_SUB,
+
+[06300 ... 06374] = EMIT_SUBA, //Word
+
+[06400 ... 06417] = EMIT_SUBX, //R6
+[06600 ... 06517] = EMIT_SUBX,
+[06600 ... 06617] = EMIT_SUBX,
+
+[06420 ... 06471] = EMIT_SUB,  //D6 Source
+[06520 ... 06571] = EMIT_SUB,
+[06620 ... 06671] = EMIT_SUB,
+
+[06700 ... 06774] = EMIT_SUBA, //Long
+
+[07000 ... 07007] = EMIT_SUB,  //D7 Destination
+[07020 ... 07074] = EMIT_SUB,
+[07100 ... 07107] = EMIT_SUB,
+[07120 ... 07174] = EMIT_SUB,
+[07200 ... 07207] = EMIT_SUB,
+[07220 ... 07274] = EMIT_SUB,
+
+[07300 ... 07374] = EMIT_SUBA, //Word
+
+[07400 ... 07417] = EMIT_SUBX, //R7
+[07600 ... 07517] = EMIT_SUBX,
+[07600 ... 07617] = EMIT_SUBX,
+
+[07420 ... 07471] = EMIT_SUB,  //D7 Source
+[07520 ... 07571] = EMIT_SUB,
+[07620 ... 07671] = EMIT_SUB,
+
+[07700 ... 07774] = EMIT_SUBA, //Long
+}
+*/
