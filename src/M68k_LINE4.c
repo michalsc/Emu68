@@ -1165,19 +1165,32 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int8_t pc_off;
+    int16_t offset = BE16((*m68k_ptr)[0]);
 
     displ = RA_AllocARMRegister(&ptr);
-    pc_off = 2;
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-    *ptr++ = ldrsh_offset(REG_PC, displ, pc_off);
+
     sp = RA_MapM68kRegister(&ptr, 15);
     reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
     *ptr++ = mov_reg(reg, sp);
     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
 #ifdef __aarch64__
-    *ptr++ = add_reg(sp, sp, displ, LSL, 0);
+    if (offset > 0 && offset < 4096)
+    {
+        *ptr++ = add_immed(sp, sp, offset);
+    }
+    else if (offset < 0 && offset > -4096)
+    {
+        *ptr++ = sub_immed(sp, sp, -offset);
+    }
+    else if (offset != 0)
+    {
+        *ptr++ = mov_immed_u16(displ, offset, 0);
+        if (offset < 0)
+            *ptr++ = movk_immed_u16(displ, 0xffff, 1);
+        *ptr++ = add_reg(sp, sp, displ, LSL, 0);
+    }
+    
 #else
     *ptr++ = add_reg(sp, sp, displ, 0);
 #endif
