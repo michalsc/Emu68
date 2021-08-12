@@ -1403,6 +1403,8 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* Now do what stop does - wait for interrupt */
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
 
+
+#ifndef PISTORM
     *ptr++ = mvn_reg(changed, cc, LSL, 0);
     *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
     *ptr++ = b_cc(A64_CC_EQ, 3);
@@ -1410,9 +1412,19 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = b(2);
     *ptr++ = msr_imm(3, 6, 7);
 
-#ifndef PISTORM
     *ptr++ = wfi();
+#else
+    uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+    uint32_t *start, *end;
+    start = ptr;
+    *ptr++ = mov_immed_u16(tmpreg, 0xf220, 1);
+    *ptr++ = ldr_offset(tmpreg, tmpreg, 0x34);
+    end = ptr;
+    *ptr++ = tbnz(tmpreg, 25, start - end);
+
+    RA_FreeARMRegister(&ptr, tmpreg);
 #endif
+
 
     *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
     tmpptr = ptr;
