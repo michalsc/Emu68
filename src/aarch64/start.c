@@ -298,7 +298,7 @@ int limit_2g = 0;
 
 #ifdef PISTORM
 #include "ps_protocol.h"
-#endif PISTORM
+#endif
 
 void boot(void *dtree)
 {
@@ -910,10 +910,10 @@ void stub_ExecutionLoop()
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
 "       cbz     w%[reg_pc], 4f              \n"
+
 #ifdef PISTORM
-"       mov     x1, #0x34                   \n" // Read IPL0 flag from GPIO
-"       movk    x1, #0xf220, lsl #16        \n"
-"       ldr     w1, [x1]                    \n"
+"       mov     x1, #0xf2200000             \n" // Read IPL0 flag from GPIO
+"       ldr     w1, [x1, 0x34]              \n"
 "       tbz     w1, #25, 9f                 \n" // If IPL0 flag is not set, go to interrupt handling
 #else
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
@@ -1036,23 +1036,30 @@ void stub_ExecutionLoop()
 "       ret                                 \n"
 
 #ifdef PISTORM
-"9:     movz    x2, #0xf220, lsl #16        \n" // GPIO base address
+"9:     mov     x2, #0xf2200000             \n" // GPIO base address
+
 "       mov     w1, #0x0c000000             \n"
 "       mov     w3, #0x40000000             \n"
 
-"       str     w1, [x2, 4*7]               \n" // Read status register
-"       str     w3, [x2, 4*7]               \n"
-"       movz    w1, #0xff00                 \n"
-"       movk    w1, #0xecff, lsl #16        \n"
-"       str     w3, [x2, 4*7]               \n"
-"       str     w3, [x2, 4*7]               \n"
-"       str     w3, [x2, 4*7]               \n"
+"       str     w1, [x2, #28]               \n" // Read status register
+"       str     w3, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+
 "       ldr     w3, [x2, 4*13]              \n" // Get status register into w3 - note! value read was little endian
+
+"       mov     w1, #0xff00                 \n"
+"       movk    w1, #0xecff, lsl #16        \n"
 "       str     w1, [x2, 4*10]              \n"
-"       ubfx    w1, w3, #13, #3             \n" // Extract IPL to w1
+
+"       rev     w3, w3                      \n"
+"       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
+
 "       mrs     x2, TPIDR_EL0               \n" // Get SR
 "       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
 "       cmp     w1, #7                      \n" // Was it level 7 interrpt?
+
 "       b.eq    91f                         \n" // Yes - process immediately
 "       cmp     w1, w3                      \n" // Check highest masked level
 "       b.gt    91f                         \n" // IPL higher than IPM? Make an interrupt
@@ -1206,6 +1213,10 @@ void M68K_StartEmu(void *addr, void *fdt)
         }
     }
 
+    asm volatile("svc #0x100");
+    asm volatile("svc #0x110");
+    asm volatile("svc #0x0");
+
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
@@ -1285,3 +1296,4 @@ void M68K_StartEmu(void *addr, void *fdt)
     }
         //kprintf("[BOOT] reg 0xf3000034 = %08x\n", LE32(*(volatile uint32_t *)0xf3000034));
 }
+
