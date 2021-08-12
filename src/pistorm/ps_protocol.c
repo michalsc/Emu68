@@ -117,7 +117,7 @@ void ps_write_16(unsigned int address, unsigned int data) {
 
 void ps_write_8(unsigned int address, unsigned int data) {
   if ((address & 1) == 0)
-    data = data + (data << 8);  // EVEN, A0=0,UDS
+    data = (data & 0xff) | (data << 8);  // EVEN, A0=0,UDS
   else
     data = data & 0xff;  // ODD , A0=1,LDS
 

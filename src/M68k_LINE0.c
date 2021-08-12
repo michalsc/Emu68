@@ -1631,7 +1631,7 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 3);
+        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 7);
         bit_mask = RA_AllocARMRegister(&ptr);
         *ptr++ = mov_immed_u8(bit_mask, 1);
     }
@@ -1734,7 +1734,7 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 3);
+        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 7);
         bit_mask = RA_AllocARMRegister(&ptr);
         *ptr++ = mov_immed_u8(bit_mask, 1);
     }
@@ -1881,7 +1881,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 3);
+        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 7);
         bit_mask = RA_AllocARMRegister(&ptr);
         *ptr++ = mov_immed_u8(bit_mask, 1);
     }
@@ -2133,7 +2133,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 3);
+        bit_number = RA_CopyFromM68kRegister(&ptr, (opcode >> 9) & 7);
         bit_mask = RA_AllocARMRegister(&ptr);
         *ptr++ = mov_immed_u8(bit_mask, 1);
     }

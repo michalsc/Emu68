@@ -53,10 +53,20 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* ADDX */
     else if ((opcode & 0xf130) == 0xd100)
     {
+        uint8_t size = (opcode >> 6) & 3;
         uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
 #ifdef __aarch64__
         uint8_t cc = RA_GetCC(&ptr);
-        *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        if (size == 2) {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = ror(tmp, cc, 7);
+            *ptr++ = set_nzcv(tmp);
+
+            RA_FreeARMRegister(&ptr, tmp);
+        } else {
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        }
 #else
         M68K_GetCC(&ptr);
         *ptr++ = tst_immed(REG_SR, SR_X);
@@ -64,7 +74,6 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* Register to register */
         if ((opcode & 0x0008) == 0)
         {
-            uint8_t size = (opcode >> 6) & 3;
             uint8_t regx = RA_MapM68kRegister(&ptr, opcode & 7);
             uint8_t regy = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
             uint8_t tmp = 0;
@@ -77,6 +86,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = cset(tmp, A64_CC_NE);
+                    *ptr++ = lsl(tmp, tmp, 24);
                     *ptr++ = add_reg(tmp, tmp, regy, LSL, 24);
                     *ptr++ = adds_reg(tmp, tmp, regx, LSL, 24);
                     *ptr++ = bfxil(regy, tmp, 24, 8);
@@ -95,6 +105,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = cset(tmp, A64_CC_NE);
+                    *ptr++ = lsl(tmp, tmp, 16);
                     *ptr++ = add_reg(tmp, tmp, regy, LSL, 16);
                     *ptr++ = adds_reg(tmp, tmp, regx, LSL, 16);
                     *ptr++ = bfxil(regy, tmp, 16, 16);
@@ -112,9 +123,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 case 2: /* Long */
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = cset(tmp, A64_CC_NE);
-                    *ptr++ = add_reg(regy, regy, tmp, LSL, 0);
-                    *ptr++ = adds_reg(regy, regy, regx, LSL, 0);
+                    *ptr++ = adcs(regy, regy, regx);
                     RA_FreeARMRegister(&ptr, tmp);
 #else
                     *ptr++ = add_cc_immed(ARM_CC_NE, regy, regy, 1);
@@ -126,7 +135,6 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* memory to memory */
         else
         {
-            uint8_t size = (opcode >> 6) & 3;
             uint8_t regx = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
             uint8_t regy = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
             uint8_t dest = RA_AllocARMRegister(&ptr);
@@ -143,6 +151,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
                     uint8_t tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = cset(tmp, A64_CC_NE);
+                    *ptr++ = lsl(tmp, tmp, 24);
                     *ptr++ = add_reg(dest, tmp, dest, LSL, 24);
                     *ptr++ = adds_reg(dest, dest, src, LSL, 24);
                     *ptr++ = lsr(dest, dest, 24);
@@ -162,6 +171,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
                     *ptr++ = cset(tmp, A64_CC_NE);
+                    *ptr++ = lsl(tmp, tmp, 16);
                     *ptr++ = add_reg(dest, tmp, dest, LSL, 16);
                     *ptr++ = adds_reg(dest, dest, src, LSL, 16);
                     *ptr++ = lsr(dest, dest, 16);
@@ -180,9 +190,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     *ptr++ = ldr_offset_preindex(regy, dest, -4);
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = cset(tmp, A64_CC_NE);
-                    *ptr++ = add_reg(dest, tmp, dest, LSL, 0);
-                    *ptr++ = adds_reg(dest, dest, src, LSL, 0);
+                    *ptr++ = adcs(dest, dest, src);
                     *ptr++ = str_offset(regy, dest, 0);
                     RA_FreeARMRegister(&ptr, tmp);
 #else

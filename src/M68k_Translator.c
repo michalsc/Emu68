@@ -100,10 +100,12 @@ uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr)
     return ptr;
 }
 
-uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr)
+uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
+
+    (*insn_consumed)++;
 
     arm_ptr = EMIT_FlushPC(arm_ptr);
     arm_ptr = EMIT_InjectDebugString(arm_ptr, "[JIT] LINE A exception (opcode %04x) at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -519,7 +521,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint8_t tmp2 = RA_AllocARMRegister(&end);
     if (inner_loop)
     {
+#ifdef PISTORM
+        *end++ = mov_immed_u16(tmp2, 0xf220, 1);
+        *end++ = ldr_offset(tmp2, tmp2, 0x34);
+#else
         *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, PINT));
+#endif
     }
 #if EMU68_INSN_COUNTER
     *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
@@ -530,8 +537,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #endif
     if (inner_loop)
     {
+#ifdef PISTORM
         uint32_t *tmpptr = end;
+        *end++ = tbnz(tmp2, 25, arm_code - tmpptr);
+#else
         *end++ = cbz(tmp2, arm_code - tmpptr);
+#endif
     }
     *end++ = bx_lr();
     

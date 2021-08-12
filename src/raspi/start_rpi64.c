@@ -145,7 +145,6 @@ void platform_init()
             ranges += addr_bus_len + addr_cpu_len + size_bus_len;
         }
     }
-
 #ifdef PISTORM
     ps_setup_protocol();
     ps_reset_state_machine();
@@ -176,6 +175,12 @@ void platform_post_init()
     }
 
     display_logo();
+
+
+#ifdef PISTORM
+    kprintf("[BOOT] sending RESET signal to Amiga\n");
+    ps_pulse_reset();
+#endif
 
     //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);
 }
