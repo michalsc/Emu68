@@ -873,6 +873,27 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         {
             if (!shift) shift = 8;
 
+#ifdef __aarch64__
+            if (update_mask & (SR_C | SR_X)) {
+                if (direction) {
+                    switch (size) {
+                        case 4:
+                            *ptr++ = tst_immed(reg, 1, shift);
+                            break;
+                        case 2:
+                            *ptr++ = tst_immed(reg, 1, 16 + shift);
+                            break;
+                        case 1:
+                            *ptr++ = tst_immed(reg, 1, 31 & (24 + shift));
+                            break;
+                    }
+                }
+                else {
+                    *ptr++ = tst_immed(reg, 1, 31 & (33 - shift));
+                }
+            }
+#endif
+
             if (direction)
             {
                 switch (size)
@@ -948,34 +969,38 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
 
-            switch(size)
-            {
-                case 4:
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
-                    break;
-                case 2:
-                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
-                    break;
-                case 1:
-                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
-                    break;
-            }
-
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
             if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+                *ptr++ = b_cc(A64_CC_EQ, 3);
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+            }
+
+            if (update_mask & (SR_Z | SR_N))
+            {
+                switch(size)
+                {
+                    case 4:
+                        *ptr++ = cmn_reg(31, reg, LSL, 0);
+                        break;
+                    case 2:
+                        *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                        break;
+                    case 1:
+                        *ptr++ = cmn_reg(31, tmp, LSL, 24);
+                        break;
+                }
+
+                if (update_mask & SR_Z) {
+                    *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                }
+                if (update_mask & SR_N) {
+                    *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                }
             }
 #else
             M68K_ModifyCC(&ptr);
@@ -1080,6 +1105,27 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             if (!shift)
                 shift = 8;
 
+#ifdef __aarch64__
+            if (update_mask & (SR_C | SR_X)) {
+                if (direction) {
+                    switch (size) {
+                        case 4:
+                            *ptr++ = tst_immed(reg, 1, shift);
+                            break;
+                        case 2:
+                            *ptr++ = tst_immed(reg, 1, 16 + shift);
+                            break;
+                        case 1:
+                            *ptr++ = tst_immed(reg, 1, 31 & (24 + shift));
+                            break;
+                    }
+                }
+                else {
+                    *ptr++ = tst_immed(reg, 1, 31 & (33 - shift));
+                }
+            }
+#endif
+
             if (direction)
             {
                 switch (size)
@@ -1155,34 +1201,38 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
 
-            switch(size)
-            {
-                case 4:
-                    *ptr++ = cmn_reg(31, reg, LSL, 0);
-                    break;
-                case 2:
-                    *ptr++ = cmn_reg(31, tmp, LSL, 16);
-                    break;
-                case 1:
-                    *ptr++ = cmn_reg(31, tmp, LSL, 24);
-                    break;
-            }
-
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
             if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+                *ptr++ = b_cc(A64_CC_EQ, 3);
                 *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+            }
+
+            if (update_mask & (SR_Z | SR_N))
+            {
+                switch(size)
+                {
+                    case 4:
+                        *ptr++ = cmn_reg(31, reg, LSL, 0);
+                        break;
+                    case 2:
+                        *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                        break;
+                    case 1:
+                        *ptr++ = cmn_reg(31, tmp, LSL, 24);
+                        break;
+                }
+
+                if (update_mask & SR_Z) {
+                    *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                }
+                if (update_mask & SR_N) {
+                    *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                }
             }
 #else
             M68K_ModifyCC(&ptr);
