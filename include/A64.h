@@ -157,6 +157,7 @@ static inline uint32_t dc_civac(uint8_t rt) { return sys(rt, 3, 7, 14, 1); }
 static inline uint32_t dsb_sy() { return I32(0xd5033f9f); }
 static inline uint32_t dmb_ish() { return I32(0xd5033bbf); }
 static inline uint32_t nop() { return I32(0xd503201f); }
+static inline uint32_t svc(uint16_t code) { return I32(0xd4000001 | (code << 5)); }
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
