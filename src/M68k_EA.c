@@ -791,15 +791,18 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 else
                 {
                     if (brief & 0x8000)
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                     else
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
+                    
+                    uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                    *ptr++ = sxth(tmp2, tmp2);
+                    *ptr++ = sxth(tmp3, tmp2);
 #else
-                    *ptr++ = sxth(tmp2, tmp2, 0);
+                    *ptr++ = sxth(tmp3, tmp2, 0);
 #endif
-
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    tmp2 = tmp3;
                 }
 
                 ptr = load_reg_from_addr(ptr, size, displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
@@ -837,14 +840,18 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     else
                     {
                         if (brief & 0x8000)
-                            index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, extra_reg);
+
+                        uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                        *ptr++ = sxth(index_reg, index_reg);
+                        *ptr++ = sxth(tmp3, index_reg);
 #else
-                        *ptr++ = sxth(index_reg, index_reg, 0);
+                        *ptr++ = sxth(tmp3, index_reg, 0);
 #endif
+                        RA_FreeARMRegister(&ptr, index_reg);
+                        index_reg = tmp3;
                     }
                 }
 
@@ -1037,14 +1044,18 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     else
                     {
                         if (brief & 0x8000)
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
+
+                        uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                        *ptr++ = sxth(tmp2, tmp2);
+                        *ptr++ = sxth(tmp3, tmp2);
 #else
-                        *ptr++ = sxth(tmp2, tmp2, 0);
+                        *ptr++ = sxth(tmp3, tmp2, 0);
 #endif
+                        RA_FreeARMRegister(&ptr, tmp2);
+                        tmp2 = tmp3;
                     }
 
                     ptr = load_reg_from_addr(ptr, size, tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
@@ -1087,14 +1098,18 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         else
                         {
                             if (brief & 0x8000)
-                                index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                             else
-                                index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, extra_reg);
+
+                            uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                            *ptr++ = sxth(index_reg, index_reg);
+                            *ptr++ = sxth(tmp3, index_reg);
 #else
-                            *ptr++ = sxth(index_reg, index_reg, 0);
+                            *ptr++ = sxth(tmp3, index_reg, 0);
 #endif
+                            RA_FreeARMRegister(&ptr, index_reg);
+                            index_reg = tmp3;
                         }
                     }
 
@@ -1589,14 +1604,18 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 else
                 {
                     if (brief & 0x8000)
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                     else
-                        tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                        tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
+
+                    uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                    *ptr++ = sxth(tmp2, tmp2);
+                    *ptr++ = sxth(tmp3, tmp2);
 #else
-                    *ptr++ = sxth(tmp2, tmp2, 0);
+                    *ptr++ = sxth(tmp3, tmp2, 0);
 #endif
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    tmp2 = tmp3;
                 }
 
                 ptr = store_reg_to_addr(ptr, size, displ ? tmp1 : reg_An, *arm_reg, tmp2, (brief >> 9) & 3);
@@ -1632,14 +1651,18 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     else
                     {
                         if (brief & 0x8000)
-                            index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            index_reg = RA_MapM68kRegister(&ptr, extra_reg);
+
+                        uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                        *ptr++ = sxth(index_reg, index_reg);
+                        *ptr++ = sxth(tmp3, index_reg);
 #else
-                        *ptr++ = sxth(index_reg, index_reg, 0);
+                        *ptr++ = sxth(tmp3, index_reg, 0);
 #endif
+                        RA_FreeARMRegister(&ptr, index_reg);
+                        index_reg = tmp3;
                     }
                 }
                 uint16_t lo16, hi16;
@@ -1824,14 +1847,18 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     else
                     {
                         if (brief & 0x8000)
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                         else
-                            tmp2 = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                            tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
+
+                        uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                        *ptr++ = sxth(tmp2, tmp2);
+                        *ptr++ = sxth(tmp3, tmp2);
 #else
-                        *ptr++ = sxth(tmp2, tmp2, 0);
+                        *ptr++ = sxth(tmp3, tmp2, 0);
 #endif
+                        RA_FreeARMRegister(&ptr, tmp2);
+                        tmp2 = tmp3;
                     }
 
                     ptr = store_reg_to_addr(ptr, size, tmp1, *arm_reg, tmp2, (brief >> 9) & 3);
@@ -1876,14 +1903,18 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         else
                         {
                             if (brief & 0x8000)
-                                index_reg = RA_CopyFromM68kRegister(&ptr, 8 + extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, 8 + extra_reg);
                             else
-                                index_reg = RA_CopyFromM68kRegister(&ptr, extra_reg);
+                                index_reg = RA_MapM68kRegister(&ptr, extra_reg);
+
+                            uint8_t tmp3 = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                            *ptr++ = sxth(index_reg, index_reg);
+                            *ptr++ = sxth(tmp3, index_reg);
 #else
-                            *ptr++ = sxth(index_reg, index_reg, 0);
+                            *ptr++ = sxth(tmp3, index_reg, 0);
 #endif
+                            RA_FreeARMRegister(&ptr, index_reg);
+                            index_reg = tmp3;
                         }
                     }
 
