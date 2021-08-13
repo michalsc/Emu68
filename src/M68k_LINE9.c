@@ -433,7 +433,7 @@ static EMIT_Function JumpTable[4096] = {
 [00300 ... 00374] = EMIT_SUBA, //Word
 
 [00400 ... 00417] = EMIT_SUBX, //R0
-[00600 ... 00517] = EMIT_SUBX,
+[00500 ... 00517] = EMIT_SUBX,
 [00600 ... 00617] = EMIT_SUBX,
 
 [00420 ... 00471] = EMIT_SUB,  //D0 Source
@@ -452,7 +452,7 @@ static EMIT_Function JumpTable[4096] = {
 [01300 ... 01374] = EMIT_SUBA, //Word
 
 [01400 ... 01417] = EMIT_SUBX, //R1
-[01600 ... 01517] = EMIT_SUBX,
+[01500 ... 01517] = EMIT_SUBX,
 [01600 ... 01617] = EMIT_SUBX,
 
 [01420 ... 01471] = EMIT_SUB,  //D1 Source
@@ -471,7 +471,7 @@ static EMIT_Function JumpTable[4096] = {
 [02300 ... 02374] = EMIT_SUBA, //Word
 
 [02400 ... 02417] = EMIT_SUBX, //R2
-[02600 ... 02517] = EMIT_SUBX,
+[02500 ... 02517] = EMIT_SUBX,
 [02600 ... 02617] = EMIT_SUBX,
 
 [02420 ... 02471] = EMIT_SUB,  //D2 Source
@@ -490,7 +490,7 @@ static EMIT_Function JumpTable[4096] = {
 [03300 ... 03374] = EMIT_SUBA, //Word
 
 [03400 ... 03417] = EMIT_SUBX, //R3
-[03600 ... 03517] = EMIT_SUBX,
+[03500 ... 03517] = EMIT_SUBX,
 [03600 ... 03617] = EMIT_SUBX,
 
 [03420 ... 03471] = EMIT_SUB,  //D3 Source
@@ -509,7 +509,7 @@ static EMIT_Function JumpTable[4096] = {
 [04300 ... 04374] = EMIT_SUBA, //Word
 
 [04400 ... 04417] = EMIT_SUBX, //R4
-[04600 ... 04517] = EMIT_SUBX,
+[04500 ... 04517] = EMIT_SUBX,
 [04600 ... 04617] = EMIT_SUBX,
 
 [04420 ... 04471] = EMIT_SUB,  //D4 Source
@@ -528,7 +528,7 @@ static EMIT_Function JumpTable[4096] = {
 [05300 ... 05374] = EMIT_SUBA, //Word
 
 [05400 ... 05417] = EMIT_SUBX, //R5
-[05600 ... 05517] = EMIT_SUBX,
+[05500 ... 05517] = EMIT_SUBX,
 [05600 ... 05617] = EMIT_SUBX,
 
 [05420 ... 05471] = EMIT_SUB,  //D5 Source
@@ -547,7 +547,7 @@ static EMIT_Function JumpTable[4096] = {
 [06300 ... 06374] = EMIT_SUBA, //Word
 
 [06400 ... 06417] = EMIT_SUBX, //R6
-[06600 ... 06517] = EMIT_SUBX,
+[06500 ... 06517] = EMIT_SUBX,
 [06600 ... 06617] = EMIT_SUBX,
 
 [06420 ... 06471] = EMIT_SUB,  //D6 Source
@@ -566,7 +566,7 @@ static EMIT_Function JumpTable[4096] = {
 [07300 ... 07374] = EMIT_SUBA, //Word
 
 [07400 ... 07417] = EMIT_SUBX, //R7
-[07600 ... 07517] = EMIT_SUBX,
+[07500 ... 07517] = EMIT_SUBX,
 [07600 ... 07617] = EMIT_SUBX,
 
 [07420 ... 07471] = EMIT_SUB,  //D7 Source
