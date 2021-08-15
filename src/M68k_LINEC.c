@@ -352,3 +352,182 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
     return ptr;
 }
+/*
+    static EMIT_Function JumpTable[4096] = {
+        [00000 ... 00007] = EMIT_AND,  //D0 Destination
+        [00020 ... 00074] = EMIT_AND,
+        [00100 ... 00107] = EMIT_AND,
+        [00120 ... 00174] = EMIT_AND,
+        [00200 ... 00207] = EMIT_AND,
+        [00220 ... 00274] = EMIT_AND,
+        
+        [00300 ... 00307] = EMIT_MULU, //D0 Destination
+        [00320 ... 00374] = EMIT_MULU,
+        
+        [00400 ... 00417] = EMIT_ABCD, //D0 Destination
+        [00420 ... 00471] = EMIT_AND,  //D0 Source
+        
+        [00500 ... 00517] = EMIT_EXT,  //R0 Source
+        [00520 ... 00571] = EMIT_AND,
+        
+        [00610 ... 00617] = EMIT_EXT,  //D0 Source
+        [00620 ... 00671] = EMIT_AND,
+        
+        [00700 ... 00707] = EMIT_MULS, //D0 Destination
+        [00720 ... 00774] = EMIT_MULS,
+        
+        [01000 ... 01007] = EMIT_AND,  //D1 Destination
+        [01020 ... 01074] = EMIT_AND,
+        [01100 ... 01107] = EMIT_AND,
+        [01120 ... 01174] = EMIT_AND,
+        [01200 ... 01207] = EMIT_AND,
+        [01220 ... 01274] = EMIT_AND,
+        
+        [01300 ... 01307] = EMIT_MULU, //D1 Destination
+        [01320 ... 01374] = EMIT_MULU,
+        
+        [01400 ... 01417] = EMIT_ABCD, //D1 Destination
+        [01420 ... 01471] = EMIT_AND,  //D1 Source
+        
+        [01500 ... 01517] = EMIT_EXT,  //R1 Source
+        [01520 ... 01571] = EMIT_AND,
+        
+        [01610 ... 01617] = EMIT_EXT,  //D1 Source
+        [01620 ... 01671] = EMIT_AND,
+        
+        [01700 ... 01707] = EMIT_MULS, //D1 Destination
+        [01720 ... 01774] = EMIT_MULS,
+        
+        [02000 ... 02007] = EMIT_AND,  //D2 Destination
+        [02020 ... 02074] = EMIT_AND,
+        [02100 ... 02107] = EMIT_AND,
+        [02120 ... 02174] = EMIT_AND,
+        [02200 ... 02207] = EMIT_AND,
+        [02220 ... 02274] = EMIT_AND,
+        
+        [02300 ... 02307] = EMIT_MULU, //D2 Destination
+        [02320 ... 02374] = EMIT_MULU,
+        
+        [02400 ... 02417] = EMIT_ABCD, //D2 Destination
+        [02420 ... 02471] = EMIT_AND,  //D2 Source
+        
+        [02500 ... 02517] = EMIT_EXT,  //R2 Source
+        [02520 ... 02571] = EMIT_AND,
+        
+        [02610 ... 02617] = EMIT_EXT,  //D2 Source
+        [02620 ... 02671] = EMIT_AND,
+        
+        [02700 ... 02707] = EMIT_MULS, //D2 Destination
+        [02720 ... 02774] = EMIT_MULS,
+        
+        [03000 ... 03007] = EMIT_AND,  //D3 Destination
+        [03020 ... 03074] = EMIT_AND,
+        [03100 ... 03107] = EMIT_AND,
+        [03120 ... 03174] = EMIT_AND,
+        [03200 ... 03207] = EMIT_AND,
+        [03220 ... 03274] = EMIT_AND,
+        
+        [03300 ... 03307] = EMIT_MULU, //D3 Destination
+        [03320 ... 03374] = EMIT_MULU,
+        
+        [03400 ... 03417] = EMIT_ABCD, //D3 Destination
+        [03420 ... 03471] = EMIT_AND,  //D3 Source
+        
+        [03500 ... 03517] = EMIT_EXT,  //R3 Source
+        [03520 ... 03571] = EMIT_AND,
+        
+        [03610 ... 03617] = EMIT_EXT,  //D3 Source
+        [03620 ... 03671] = EMIT_AND,
+        
+        [03700 ... 03707] = EMIT_MULS, //D3 Destination
+        [03720 ... 03774] = EMIT_MULS,
+        
+        [04000 ... 04007] = EMIT_AND,  //D4 Destination
+        [04020 ... 04074] = EMIT_AND,
+        [04100 ... 04107] = EMIT_AND,
+        [04120 ... 04174] = EMIT_AND,
+        [04200 ... 04207] = EMIT_AND,
+        [04220 ... 04274] = EMIT_AND,
+        
+        [04300 ... 04307] = EMIT_MULU, //D4 Destination
+        [04320 ... 04374] = EMIT_MULU,
+        
+        [04400 ... 04417] = EMIT_ABCD, //D4 Destination
+        [04420 ... 04471] = EMIT_AND,  //D4 Source
+        
+        [04500 ... 04517] = EMIT_EXT,  //R4 Source
+        [04520 ... 04571] = EMIT_AND,
+        
+        [04610 ... 04617] = EMIT_EXT,  //D4 Source
+        [04620 ... 04671] = EMIT_AND,
+        
+        [04700 ... 04707] = EMIT_MULS, //D4 Destination
+        [04720 ... 04774] = EMIT_MULS,
+        
+        [05000 ... 05007] = EMIT_AND,  //D5 Destination
+        [05020 ... 05074] = EMIT_AND,
+        [05100 ... 05107] = EMIT_AND,
+        [05120 ... 05174] = EMIT_AND,
+        [05200 ... 05207] = EMIT_AND,
+        [05220 ... 05274] = EMIT_AND,
+        
+        [05300 ... 05307] = EMIT_MULU, //D5 Destination
+        [05320 ... 05374] = EMIT_MULU,
+        
+        [05400 ... 05417] = EMIT_ABCD, //D5 Destination
+        [05420 ... 05471] = EMIT_AND,  //D5 Source
+        
+        [05500 ... 05517] = EMIT_EXT,  //R5 Source
+        [05520 ... 05571] = EMIT_AND,
+        
+        [05610 ... 05617] = EMIT_EXT,  //D5 Source
+        [05620 ... 05671] = EMIT_AND,
+        
+        [05700 ... 05707] = EMIT_MULS, //D5 Destination
+        [05720 ... 05774] = EMIT_MULS,
+        
+        [06000 ... 06007] = EMIT_AND,  //D6 Destination
+        [06020 ... 06074] = EMIT_AND,
+        [06100 ... 06107] = EMIT_AND,
+        [06120 ... 06174] = EMIT_AND,
+        [06200 ... 06207] = EMIT_AND,
+        [06220 ... 06274] = EMIT_AND,
+        
+        [06300 ... 06307] = EMIT_MULU, //D6 Destination
+        [06320 ... 06374] = EMIT_MULU,
+        
+        [06400 ... 06417] = EMIT_ABCD, //D6 Destination
+        [06420 ... 06471] = EMIT_AND,  //D6 Source
+        
+        [06500 ... 06517] = EMIT_EXT,  //R6 Source
+        [06520 ... 06571] = EMIT_AND,
+        
+        [06610 ... 06617] = EMIT_EXT,  //D6 Source
+        [06620 ... 06671] = EMIT_AND,
+        
+        [06700 ... 06707] = EMIT_MULS, //D6 Destination
+        [06720 ... 06774] = EMIT_MULS,
+        
+        [07000 ... 07007] = EMIT_AND,  //D7 Destination
+        [07020 ... 07074] = EMIT_AND,
+        [07100 ... 07107] = EMIT_AND,
+        [07120 ... 07174] = EMIT_AND,
+        [07200 ... 07207] = EMIT_AND,
+        [07220 ... 07274] = EMIT_AND,
+        
+        [07300 ... 07307] = EMIT_MULU, //D7 Destination
+        [07320 ... 07374] = EMIT_MULU,
+        
+        [07400 ... 07417] = EMIT_ABCD, //D7 Destination
+        [07420 ... 07471] = EMIT_AND,  //D7 Source
+        
+        [07500 ... 07517] = EMIT_EXT,  //R7 Source
+        [07520 ... 07571] = EMIT_AND,
+        
+        [07610 ... 07617] = EMIT_EXT,  //D7 Source
+        [07620 ... 07671] = EMIT_AND,
+        
+        [07700 ... 07707] = EMIT_MULS, //D7 Destination
+        [07720 ... 07774] = EMIT_MULS,
+    }
+*/
