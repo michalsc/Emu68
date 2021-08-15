@@ -2087,7 +2087,11 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     }
                     else
                     {
-                        *ptr++ = strh_offset(base, reg, offset);
+                        if (offset == 0)
+                            *ptr++ = strh_offset_preindex(base, reg, -block_size);
+                        else
+                            *ptr++ = strh_offset(base, reg, offset);
+
                         offset += 2;
                     }
                 }
