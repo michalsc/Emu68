@@ -1911,7 +1911,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
 #ifdef __aarch64__
-            *ptr++ = and_immed(bit_number, bit_number, 3, 0);
+            *ptr++ = and_immed(bit_number, bit_number, 5, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
             tst_pos = ptr;
@@ -2163,7 +2163,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
 #ifdef __aarch64__
-            *ptr++ = and_immed(bit_number, bit_number, 3, 0);
+            *ptr++ = and_immed(bit_number, bit_number, 5, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
             tst_pos = ptr;

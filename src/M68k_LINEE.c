@@ -29,6 +29,17 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         *ptr++ = ldrsh_offset(dest, tmp, 0);
 
+#ifdef __aarch64__
+        if (update_mask & (SR_C | SR_X)) {
+            if (direction) {
+                *ptr++ = tst_immed(dest, 1, 32 - 15);
+            }
+            else {
+                *ptr++ = tst_immed(dest, 1, 0);
+            }
+        }
+#endif
+
         if (direction)
         {
 #ifdef __aarch64__
@@ -51,27 +62,38 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = strh_offset(dest, tmp, 0);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
 
         if (update_mask)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+            
+            *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
             if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                *ptr++ = b_cc(A64_CC_EQ, 3);
+                *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
+            }
+
+            RA_FreeARMRegister(&ptr, tmp2);
+
+            if (update_mask & (SR_Z | SR_N))
+            {
+                *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            
+                if (update_mask & SR_Z) {
+                    *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                }
+                if (update_mask & SR_N) {
+                    *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                }
             }
 #else
             M68K_ModifyCC(&ptr);
@@ -98,6 +120,17 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         *ptr++ = ldrh_offset(dest, tmp, 0);
 
+#ifdef __aarch64__
+        if (update_mask & (SR_C | SR_X)) {
+            if (direction) {
+                *ptr++ = tst_immed(dest, 1, 32 - 15);
+            }
+            else {
+                *ptr++ = tst_immed(dest, 1, 0);
+            }
+        }
+#endif
+
         if (direction)
         {
 #ifdef __aarch64__
@@ -120,27 +153,38 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = strh_offset(dest, tmp, 0);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
 
         if (update_mask)
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
-            *ptr++ = cmn_reg(31, tmp, LSL, 16);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+            
+            *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
-            if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
-            }
-            if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
-            }
             if (update_mask & (SR_C | SR_X)) {
-                *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                *ptr++ = b_cc(A64_CC_EQ, 3);
+                *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
+            }
+
+            RA_FreeARMRegister(&ptr, tmp2);
+
+            if (update_mask & (SR_Z | SR_N))
+            {
+                *ptr++ = cmn_reg(31, tmp, LSL, 16);
+                *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            
+                if (update_mask & SR_Z) {
+                    *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                }
+                if (update_mask & SR_N) {
+                    *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                }
             }
 #else
             M68K_ModifyCC(&ptr);
@@ -195,6 +239,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = strh_offset(dest, tmp, 0);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+        (*m68k_ptr) += ext_words;
 
         if (update_mask)
         {
