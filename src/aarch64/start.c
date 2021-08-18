@@ -654,12 +654,12 @@ void boot(void *dtree)
             
             if ((uintptr_t)image_end - (uintptr_t)image_start == 262144)
             {
-                DuffCopy((void*)0xffffff9000f80000, image_start, 262144 / 4);
-                DuffCopy((void*)0xffffff9000fc0000, image_start, 262144 / 4);
+                DuffCopy((void*)0xffffff9000f80000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 262144 / 4);
+                DuffCopy((void*)0xffffff9000fc0000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 262144 / 4);
             }
             else
             {
-                DuffCopy((void*)0xffffff9000f80000, image_start, 524288 / 4);
+                DuffCopy((void*)0xffffff9000f80000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 524288 / 4);
             }
 
             rom_mapped = 1;
