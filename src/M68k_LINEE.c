@@ -32,10 +32,10 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
         if (update_mask & (SR_C | SR_X)) {
             if (direction) {
-                *ptr++ = tst_immed(dest, 1, 32 - 15);
+                *ptr++ = tst_immed(tmp, 1, 32 - 15);
             }
             else {
-                *ptr++ = tst_immed(dest, 1, 0);
+                *ptr++ = tst_immed(tmp, 1, 0);
             }
         }
 #endif
@@ -123,10 +123,10 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
         if (update_mask & (SR_C | SR_X)) {
             if (direction) {
-                *ptr++ = tst_immed(dest, 1, 32 - 15);
+                *ptr++ = tst_immed(tmp, 1, 32 - 15);
             }
             else {
-                *ptr++ = tst_immed(dest, 1, 0);
+                *ptr++ = tst_immed(tmp, 1, 0);
             }
         }
 #endif
