@@ -1213,10 +1213,6 @@ void M68K_StartEmu(void *addr, void *fdt)
         }
     }
 
-    asm volatile("svc #0x100");
-    asm volatile("svc #0x110");
-    asm volatile("svc #0x0");
-
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
