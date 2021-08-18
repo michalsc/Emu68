@@ -654,12 +654,12 @@ void boot(void *dtree)
             
             if ((uintptr_t)image_end - (uintptr_t)image_start == 262144)
             {
-                DuffCopy((void*)0xffffff9000f80000, image_start, 262144 / 4);
-                DuffCopy((void*)0xffffff9000fc0000, image_start, 262144 / 4);
+                DuffCopy((void*)0xffffff9000f80000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 262144 / 4);
+                DuffCopy((void*)0xffffff9000fc0000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 262144 / 4);
             }
             else
             {
-                DuffCopy((void*)0xffffff9000f80000, image_start, 524288 / 4);
+                DuffCopy((void*)0xffffff9000f80000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 524288 / 4);
             }
 
             rom_mapped = 1;
@@ -1212,10 +1212,6 @@ void M68K_StartEmu(void *addr, void *fdt)
                 __m68k.CACR = BE32(0x80008000);
         }
     }
-
-    asm volatile("svc #0x100");
-    asm volatile("svc #0x110");
-    asm volatile("svc #0x0");
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);

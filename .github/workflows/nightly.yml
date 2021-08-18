@@ -18,6 +18,10 @@ jobs:
     # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
     runs-on: ubuntu-20.04
 
+    strategy:
+      matrix:
+        targ: [raspi, pistorm]
+
     steps:
     - uses: actions/checkout@v2
       with: 
@@ -34,7 +38,8 @@ jobs:
         cmake -E make_directory ${{runner.workspace}}/build
         cmake -E make_directory ${{runner.workspace}}/install
 
-    - name: Configure CMake
+    - name: Configure CMake - RasPi
+      if: ${{ matrix.targ == 'raspi' }}
       # Use a bash shell so we can use the same syntax for environment variable
       # access regardless of the host operating system
       shell: bash
@@ -43,6 +48,17 @@ jobs:
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
+
+    - name: Configure CMake - PiStorm
+      if: ${{ matrix.targ == 'pistorm' }}
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DVARIANT=pistorm -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
@@ -66,20 +82,24 @@ jobs:
     - name: Archive
       working-directory: ${{runner.workspace}}/install
       shell: bash
-      run: zip -r ./Emu68-raspi.zip .
-
+      run: zip -r ./Emu68-${{matrix.targ}}.zip .
+      
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
         name: emu68-archive
-        path: ${{runner.workspace}}/install/Emu68-raspi.zip
+        path: ${{runner.workspace}}/install/Emu68-${{matrix.targ}}.zip
         retention-days: 5
 
   deploy:
     runs-on: ubuntu-20.04
     needs: build
+    
+    strategy:
+      matrix:
+        targ: [raspi, pistorm]
+    
     steps:  
-        
     - name: Download Artifact
       uses: actions/download-artifact@v2
       with:
@@ -93,7 +113,7 @@ jobs:
       with:
         upload_url: https://uploads.github.com/repos/michalsc/Emu68/releases/39641306/assets{?name,label} # find out this value by opening https://api.github.com/repos/<owner>/<repo>/releases in your browser and copy the full "upload_url" value including the {?name,label} part
         release_id: 39641306 # same as above (id can just be taken out the upload_url, it's used to find old releases)
-        asset_path: ${{runner.workspace}}/uploads/Emu68-raspi.zip # path to archive to upload
-        asset_name: Emu68-raspi-$$.zip # name to upload the release as, use $$ to insert date (YYYYMMDD) and 6 letter commit hash
+        asset_path: ${{runner.workspace}}/uploads/Emu68-${{matrix.targ}}.zip # path to archive to upload
+        asset_name: Emu68-${{matrix.targ}}-$$.zip # name to upload the release as, use $$ to insert date (YYYYMMDD) and 6 letter commit hash
         asset_content_type: application/zip # required by GitHub API
         max_releases: 7 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
