@@ -39,7 +39,7 @@ jobs:
         cmake -E make_directory ${{runner.workspace}}/install
 
     - name: Configure CMake - RasPi
-      if: ${{ matrix.targ == 'raspi' }}$
+      if: ${{ matrix.targ == 'raspi' }}
       # Use a bash shell so we can use the same syntax for environment variable
       # access regardless of the host operating system
       shell: bash
@@ -50,7 +50,7 @@ jobs:
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
 
     - name: Configure CMake - PiStorm
-      if: ${{ matrix.targ == 'pistorm' }}$
+      if: ${{ matrix.targ == 'pistorm' }}
       # Use a bash shell so we can use the same syntax for environment variable
       # access regardless of the host operating system
       shell: bash
@@ -82,13 +82,13 @@ jobs:
     - name: Archive
       working-directory: ${{runner.workspace}}/install
       shell: bash
-      run: zip -r ./Emu68-${{matrix.targ}}$.zip .
+      run: zip -r ./Emu68-${{matrix.targ}}.zip .
       
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
         name: emu68-archive
-        path: ${{runner.workspace}}/install/Emu68-${{matrix.targ}}$.zip
+        path: ${{runner.workspace}}/install/Emu68-${{matrix.targ}}.zip
         retention-days: 5
 
   deploy:
