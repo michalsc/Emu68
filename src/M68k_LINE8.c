@@ -352,3 +352,182 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
     return ptr;
 }
+/*
+    static EMIT_Function JumpTable[4096] = {
+        [00000 ... 00007] = EMIT_OR,    //D0 Destination
+        [00020 ... 00074] = EMIT_OR,
+        [00100 ... 00107] = EMIT_OR,
+        [00120 ... 00174] = EMIT_OR,
+        [00200 ... 00207] = EMIT_OR,
+        [00220 ... 00274] = EMIT_OR,
+        
+        [00300 ... 00307] = EMIT_DIVU,  //D0 Destination, DIVU.W
+        [00320 ... 00374] = EMIT_DIVU,
+        
+        [00400 ... 00417] = EMIT_SBCD,  //R0 Destination
+        [00420 ... 00474] = EMIT_OR,    //D0 Source
+        
+        [00500 ... 00517] = EMIT_PACK,  //R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [00520 ... 00574] = EMIT_OR,
+        
+        [00600 ... 00617] = EMIT_UNPK,  //R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [00620 ... 00674] = EMIT_OR,
+        
+        [00700 ... 00707] = EMIT_DIVS,  //D0 Destination, DIVS.W
+        [00720 ... 00774] = EMIT_DIVS,
+        
+        [01000 ... 01007] = EMIT_OR,    //D1 Destination
+        [01020 ... 01074] = EMIT_OR,
+        [01100 ... 01107] = EMIT_OR,
+        [01120 ... 01174] = EMIT_OR,
+        [01200 ... 01207] = EMIT_OR,
+        [01220 ... 01274] = EMIT_OR,
+        
+        [01300 ... 01307] = EMIT_DIVU,  //D1 Destination, DIVU.W
+        [01320 ... 01374] = EMIT_DIVU,
+        
+        [01400 ... 01417] = EMIT_SBCD,  //R1 Destination
+        [01420 ... 01474] = EMIT_OR,    //D1 Source
+        
+        [01500 ... 01517] = EMIT_PACK,  //R1 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [01520 ... 01574] = EMIT_OR,
+        
+        [01600 ... 01617] = EMIT_UNPK,  //R1 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [01620 ... 01674] = EMIT_OR,
+        
+        [01700 ... 01707] = EMIT_DIVS,  //D1 Destination, DIVS.W
+        [01720 ... 01774] = EMIT_DIVS,
+        
+        [02000 ... 02007] = EMIT_OR,    //D2 Destination
+        [02020 ... 02074] = EMIT_OR,
+        [02100 ... 02107] = EMIT_OR,
+        [02120 ... 02174] = EMIT_OR,
+        [02200 ... 02207] = EMIT_OR,
+        [02220 ... 02274] = EMIT_OR,
+        
+        [02300 ... 02307] = EMIT_DIVU,  //D2 Destination, DIVU.W
+        [02320 ... 02374] = EMIT_DIVU,
+        
+        [02400 ... 02417] = EMIT_SBCD,  //R2 Destination
+        [02420 ... 02474] = EMIT_OR,    //D2 Source
+        
+        [02500 ... 02517] = EMIT_PACK,  //R2 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [02520 ... 02574] = EMIT_OR,
+        
+        [02600 ... 02617] = EMIT_UNPK,  //R2 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [02620 ... 02674] = EMIT_OR,
+        
+        [02700 ... 02707] = EMIT_DIVS,  //D2 Destination, DIVS.W
+        [02720 ... 02774] = EMIT_DIVS,
+        
+        [03000 ... 03007] = EMIT_OR,    //D3 Destination
+        [03020 ... 03074] = EMIT_OR,
+        [03100 ... 03107] = EMIT_OR,
+        [03120 ... 03174] = EMIT_OR,
+        [03200 ... 03207] = EMIT_OR,
+        [03220 ... 03274] = EMIT_OR,
+        
+        [03300 ... 03307] = EMIT_DIVU,  //D3 Destination, DIVU.W
+        [03320 ... 03374] = EMIT_DIVU,
+        
+        [03400 ... 03417] = EMIT_SBCD,  //R3 Destination
+        [03420 ... 03474] = EMIT_OR,    //D3 Source
+        
+        [03500 ... 03517] = EMIT_PACK,  //R3 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [03520 ... 03574] = EMIT_OR,
+        
+        [03600 ... 03617] = EMIT_UNPK,  //R3 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [03620 ... 03674] = EMIT_OR,
+        
+        [03700 ... 03707] = EMIT_DIVS,  //D3 Destination, DIVS.W
+        [03720 ... 03774] = EMIT_DIVS,
+        
+        [04000 ... 04007] = EMIT_OR,    //D4 Destination
+        [04020 ... 04074] = EMIT_OR,
+        [04100 ... 04107] = EMIT_OR,
+        [04120 ... 04174] = EMIT_OR,
+        [04200 ... 04207] = EMIT_OR,
+        [04220 ... 04274] = EMIT_OR,
+        
+        [04300 ... 04307] = EMIT_DIVU,  //D4 Destination, DIVU.W
+        [04320 ... 04374] = EMIT_DIVU,
+        
+        [04400 ... 04417] = EMIT_SBCD,  //R4 Destination
+        [04420 ... 04474] = EMIT_OR,    //D4 Source
+        
+        [04500 ... 04517] = EMIT_PACK,  //R4 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [04520 ... 04574] = EMIT_OR,
+        
+        [04600 ... 04617] = EMIT_UNPK,  //R4 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [04620 ... 04674] = EMIT_OR,
+        
+        [04700 ... 04707] = EMIT_DIVS,  //D4 Destination, DIVS.W
+        [04720 ... 04774] = EMIT_DIVS,
+        
+        [05000 ... 05007] = EMIT_OR,    //D5 Destination
+        [05020 ... 05074] = EMIT_OR,
+        [05100 ... 05107] = EMIT_OR,
+        [05120 ... 05174] = EMIT_OR,
+        [05200 ... 05207] = EMIT_OR,
+        [05220 ... 05274] = EMIT_OR,
+        
+        [05300 ... 05307] = EMIT_DIVU,  //D5 Destination, DIVU.W
+        [05320 ... 05374] = EMIT_DIVU,
+        
+        [05400 ... 05417] = EMIT_SBCD,  //R5 Destination
+        [05420 ... 05474] = EMIT_OR,    //D5 Source
+        
+        [05500 ... 05517] = EMIT_PACK,  //R5 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [05520 ... 05574] = EMIT_OR,
+        
+        [05600 ... 05617] = EMIT_UNPK,  //R5 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [05620 ... 05674] = EMIT_OR,
+        
+        [05700 ... 05707] = EMIT_DIVS,  //D5 Destination, DIVS.W
+        [05720 ... 05774] = EMIT_DIVS,
+        
+        [06000 ... 06007] = EMIT_OR,    //D6 Destination
+        [06020 ... 06074] = EMIT_OR,
+        [06100 ... 06107] = EMIT_OR,
+        [06120 ... 06174] = EMIT_OR,
+        [06200 ... 06207] = EMIT_OR,
+        [06220 ... 06274] = EMIT_OR,
+        
+        [06300 ... 06307] = EMIT_DIVU,  //D6 Destination, DIVU.W
+        [06320 ... 06374] = EMIT_DIVU,
+        
+        [06400 ... 06417] = EMIT_SBCD,  //R6 Destination
+        [06420 ... 06474] = EMIT_OR,    //D6 Source
+        
+        [06500 ... 06517] = EMIT_PACK,  //R6 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [06520 ... 06574] = EMIT_OR,
+        
+        [06600 ... 06617] = EMIT_UNPK,  //R6 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [06620 ... 06674] = EMIT_OR,
+        
+        [06700 ... 06707] = EMIT_DIVS,  //D6 Destination, DIVS.W
+        [06720 ... 06774] = EMIT_DIVS,
+        
+        [07000 ... 07007] = EMIT_OR,    //D7 Destination
+        [07020 ... 07074] = EMIT_OR,
+        [07100 ... 07107] = EMIT_OR,
+        [07120 ... 07174] = EMIT_OR,
+        [07200 ... 07207] = EMIT_OR,
+        [07220 ... 07274] = EMIT_OR,
+        
+        [07300 ... 07307] = EMIT_DIVU,  //D7 Destination, DIVU.W
+        [07320 ... 07374] = EMIT_DIVU,
+        
+        [07400 ... 07417] = EMIT_SBCD,  //R7 Destination
+        [07420 ... 07474] = EMIT_OR,    //D7 Source
+        
+        [07500 ... 07517] = EMIT_PACK,  //R7 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [07520 ... 07574] = EMIT_OR,
+        
+        [07600 ... 07617] = EMIT_UNPK,  //R7 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [07620 ... 07674] = EMIT_OR,
+        
+        [07700 ... 07707] = EMIT_DIVS,  //D7 Destination, DIVS.W
+        [07720 ... 07774] = EMIT_DIVS,
+    }
+*/
