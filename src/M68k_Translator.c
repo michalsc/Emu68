@@ -230,6 +230,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
     uint32_t pop_cnt=0;
 
+    uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
+
     if (RA_GetTempAllocMask())
         kprintf("[ICache] Temporary register alloc mask on translate start is non-zero %x\n", RA_GetTempAllocMask());
 
@@ -289,6 +291,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int break_loop = FALSE;
     int inner_loop = FALSE;
     int soft_break = FALSE;
+    int max_rev_jumps = 0;
 
     while (break_loop == FALSE && soft_break == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
@@ -438,6 +441,23 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
         if (disasm)
             disasm_print(in_code, insn_consumed, out_code, 4*(end - out_code), temporary_arm_code);
+
+        if (in_code > m68kcodeptr)
+        {
+            if (debug)
+                kprintf("[ICache]   Going backwards to location %08x\n", m68kcodeptr);
+            if (last_rev_jump == m68kcodeptr) {
+                if (--max_rev_jumps == 0) {
+                    if (debug)
+                        kprintf("[ICache] Going backwards to the same location oft enough. Loop candidate. Breaking here\n");
+                    break;
+                }
+            }
+            else {
+                last_rev_jump = m68kcodeptr;
+                max_rev_jumps = EMU68_MAX_LOOP_COUNT - 1;
+            }
+        }
 
         #if 1
         if (!break_loop && (orig_m68kcodeptr == m68kcodeptr))
