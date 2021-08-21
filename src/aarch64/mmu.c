@@ -470,6 +470,12 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
         virt += 4096;
         length -= 4096;
     }
+
+        asm volatile(
+"       dsb     ish                 \n"
+"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       isb                         \n");
 }
 
 void mmu_unmap(uintptr_t virt, uintptr_t length)
