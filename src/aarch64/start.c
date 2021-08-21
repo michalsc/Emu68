@@ -308,6 +308,8 @@ void boot(void *dtree)
     uintptr_t top_of_ram = 0;
     of_property_t *p = NULL;
     of_node_t *e = NULL;
+    void *initramfs_loc = NULL;
+    uintptr_t initramfs_size = 0;
 
     /* Enable caches and cache maintenance instructions from EL0 */
     asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
@@ -332,6 +334,30 @@ void boot(void *dtree)
                 enable_cache = 1;
             if (strstr(prop->op_value, "limit_2g"))
                 limit_2g = 1;
+        }
+    }
+
+    /*
+        At this place we have local memory manager but no MMU set up yet. 
+        Nevertheless, attempt to copy initrd image to safe location since it is not guarded in RAM
+    */
+    e = dt_find_node("/chosen");
+
+    if (e)
+    {
+        void *image_start, *image_end;
+        of_property_t *p = dt_find_property(e, "linux,initrd-start");
+
+        if (p)
+        {
+            image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+            p = dt_find_property(e, "linux,initrd-end");
+            image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+
+            initramfs_size = (uintptr_t)image_end - (uintptr_t)image_start;
+            initramfs_loc = tlsf_malloc(tlsf, initramfs_size);
+
+            DuffCopy(initramfs_loc, (void*)(0xffffff9000000000 + (uintptr_t)image_start), initramfs_size / 4);
         }
     }
 
@@ -517,21 +543,17 @@ void boot(void *dtree)
     platform_post_init();
 
 #ifndef PISTORM
-    e = dt_find_node("/chosen");
-
-    if (e)
+    if (initramfs_loc != NULL && initramfs_size != 0)
     {
         void *image_start, *image_end;
-        of_property_t *p = dt_find_property(e, "linux,initrd-start");
         void *fdt = (void*)(top_of_ram - ((dt_total_size() + 4095) & ~4095));
         memcpy(fdt, dt_fdt_base(), dt_total_size());
         top_of_ram -= (dt_total_size() + 4095) & ~4095;
 
-        if (p)
+        if (initramfs_loc)
         {
-            image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
-            p = dt_find_property(e, "linux,initrd-end");
-            image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
+            image_start = initramfs_loc;
+            image_end = (void*)((intptr_t)initramfs_loc + initramfs_size);
             uint32_t magic = BE32(*(uint32_t*)image_start);
             void *ptr = NULL;
 
@@ -622,6 +644,8 @@ void boot(void *dtree)
                 }
             }
 
+            tlsf_free(tlsf, initramfs_loc);
+
             if (ptr)
                 M68K_StartEmu(ptr, fdt);
         }
@@ -634,36 +658,26 @@ void boot(void *dtree)
 
 #else
 
-    e = dt_find_node("/chosen");
-
-    if (e)
+    if (initramfs_loc != NULL && initramfs_size != 0)
     {
         extern uint32_t rom_mapped;
 
-        void *image_start, *image_end;
-        of_property_t *p = dt_find_property(e, "linux,initrd-start");
-
-        // Check if initrd was given. If yes, use it as a new ROM
-        if (p)
-        {
-            image_start = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
-            p = dt_find_property(e, "linux,initrd-end");
-            image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
-
-            mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        kprintf("[BOOT] Loading ROM from %p\n", initramfs_loc);
+        mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             
-            if ((uintptr_t)image_end - (uintptr_t)image_start == 262144)
-            {
-                DuffCopy((void*)0xffffff9000f80000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 262144 / 4);
-                DuffCopy((void*)0xffffff9000fc0000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 262144 / 4);
-            }
-            else
-            {
-                DuffCopy((void*)0xffffff9000f80000, (void*)(0xffffff9000000000 + (uintptr_t)image_start), 524288 / 4);
-            }
-
-            rom_mapped = 1;
+        if (initramfs_size == 262144)
+        {
+            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 262144 / 4);
+            DuffCopy((void*)0xffffff9000fc0000, initramfs_loc, 262144 / 4);
         }
+        else
+        {
+            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+        }
+
+        rom_mapped = 1;
+
+        tlsf_free(tlsf, initramfs_loc);
     }
         
     M68K_StartEmu(0, NULL);
