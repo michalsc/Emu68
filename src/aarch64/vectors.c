@@ -952,6 +952,10 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
 
         if ((esr & 0xffff) == 0x101)
         {
+            uint64_t sr;
+
+            asm volatile("mrs %0, tpidr_el0":"=r"(sr));
+
             kprintf("[JIT:SYS] M68k RegDump:\n[JIT] ");
             int reg_dn[] = {REG_D0, REG_D1, REG_D2, REG_D3, REG_D4, REG_D5, REG_D6, REG_D7};
             int reg_an[] = {REG_A0, REG_A1, REG_A2, REG_A3, REG_A4, REG_A5, REG_A6, REG_A7};
@@ -971,9 +975,6 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             kprintf("\n[JIT] ");
 
             kprintf("    PC = 0x%08x    SR = ", BE32(ctx[REG_PC]));
-            uint64_t sr;
-
-            asm volatile("mrs %0, tpidr_el0":"=r"(sr));
 
             kprintf("T%d|", sr >> 14);
     
