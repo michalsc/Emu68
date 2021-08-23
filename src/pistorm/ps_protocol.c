@@ -88,31 +88,53 @@ void ps_setup_protocol() {
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 }
 
+static inline void DELAY()
+{
+  asm volatile("dsb sy");
+#if 0
+  for (int i=0; i < 4; i++)
+    asm volatile("nop");
+#endif
+}
+
 void ps_write_16(unsigned int address, unsigned int data) {
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 7) = LE32(((0x0000 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
+  DELAY();
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -126,25 +148,38 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 7) = LE32(((0x0100 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
+  DELAY();
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -158,24 +193,36 @@ unsigned int ps_read_16(unsigned int address) {
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 7) = LE32(((0x0200 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   *(gpio + 7) = LE32(REG_DATA << PIN_A0);
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_RD);
+  DELAY();
 
   while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
+  DELAY();
   unsigned int value = LE32(*(gpio + 13));
+  DELAY();
 
   *(gpio + 10) = LE32(0xffffec);
 
@@ -188,24 +235,36 @@ unsigned int ps_read_8(unsigned int address) {
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 7) = LE32(((0x0300 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(1 << PIN_WR);
+  DELAY();
   *(gpio + 10) = LE32(0xffffec);
+  DELAY();
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   *(gpio + 7) = LE32(REG_DATA << PIN_A0);
+  DELAY();
   *(gpio + 7) = LE32(1 << PIN_RD);
+  DELAY();
 
   while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
+  DELAY();
   unsigned int value = LE32(*(gpio + 13));
+  DELAY();
 
   *(gpio + 10) = LE32(0xffffec);
 
@@ -263,7 +322,7 @@ void ps_reset_state_machine() {
 
 void ps_pulse_reset() {
   ps_write_status_reg(0);
-  usleep(100000);
+  usleep(300000);
   ps_write_status_reg(STATUS_BIT_RESET);
 }
 
