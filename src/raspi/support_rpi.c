@@ -397,7 +397,7 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 void setup_serial()
 {
     ps_write_16(0xdff09e, 0x0800);
-    ps_write_16(0xdff032, 30); // 30 Set up serial port for 115200 bps transmission
+    ps_write_16(0xdff032, 14); // 30 Set up serial port for 115200 bps transmission
     serial_up = 1;
 }
 
