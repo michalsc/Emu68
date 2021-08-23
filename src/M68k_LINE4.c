@@ -1249,7 +1249,7 @@ static uint32_t *EMIT_ILLEGAL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 static uint32_t *EMIT_TRAP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     /* Correct implementation is missing */
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAP #%02d at %08x\n", opcode & 15, (*m68k_ptr) - 1);
+    //ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAP #%02d at %08x\n", opcode & 15, (*m68k_ptr) - 1);
 
     ptr = EMIT_AdvancePC(ptr, 2);
     ptr = EMIT_FlushPC(ptr);
