@@ -1295,10 +1295,122 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* 1110xxxxxxx10xxx - ROXL, ROXR */
     else if ((opcode & 0xf018) == 0xe010)
     {
+        int dir = opcode & 0x100;
+        uint8_t cc = RA_ModifyCC(&ptr);
 
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
+        int size = (opcode >> 6) & 3;
+        uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+
+        if (opcode & 0x20) {
+            kprintf("reg/reg mode\n");
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR at %08x (%04x) not implemented\n", *m68k_ptr - 1, (*m68k_ptr)[-1]);
+            ptr = EMIT_InjectPrintContext(ptr);
+            *ptr++ = svc(0x101);
+            *ptr++ = udf(opcode);
+        }
+        else {
+            int amount = (opcode >> 9) & 7;
+            if (amount == 0)
+                amount = 8;
+
+            void *start = ptr;
+
+            if (dir) {
+                // rotate left
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+                switch (size)
+                {
+                    case 0: // byte
+                        *ptr++ = mov_reg(tmp, dest);
+                        *ptr++ = bfi(tmp, dest, 23, 8);
+                        *ptr++ = tbz(cc, SRB_X, 4);
+                        *ptr++ = orr_immed(tmp, tmp, 1, 1);
+                        *ptr++ = b(2);
+                        *ptr++ = bic_immed(tmp, tmp, 1, 1);
+                        *ptr++ = ror(tmp, tmp, 32 - amount);
+                        *ptr++ = bfi(dest, tmp, 0, 8);
+                        if (update_mask & (SR_C || SR_X))
+                        {
+                            bfxil(cc, tmp, 31, 1);
+                            bfi(cc, cc, 4, 1);
+                        }
+                        break;
+                    case 1: // word
+                        *ptr++ = lsl(tmp, dest, 15);
+                        *ptr++ = bfi(tmp, dest, 0, 16);
+                        *ptr++ = tbz(cc, SRB_X, 4);
+                        *ptr++ = orr_immed(tmp, tmp, 1, 1);
+                        *ptr++ = b(2);
+                        *ptr++ = bic_immed(tmp, tmp, 1, 1);
+                        *ptr++ = ror(tmp, tmp, 32 - amount);
+                        *ptr++ = bfi(dest, tmp, 0, 16);
+                        if (update_mask & (SR_C || SR_X))
+                        {
+                            bfxil(cc, tmp, 31, 1);
+                            bfi(cc, cc, 4, 1);
+                        }
+                        break;
+                    case 2: // long
+                        
+                        break;
+                }
+
+                RA_FreeARMRegister(&ptr, tmp);
+            }
+            else {
+                // rotate right
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+                switch (size)
+                {
+                    case 0: // byte
+                        *ptr++ = mov_reg(tmp, dest);
+                        *ptr++ = bfi(tmp, dest, 9, 8);
+                        *ptr++ = tbz(cc, SRB_X, 4);
+                        *ptr++ = orr_immed(tmp, tmp, 1, 32 - 8);
+                        *ptr++ = b(2);
+                        *ptr++ = bic_immed(tmp, tmp, 1, 32 - 8);
+                        *ptr++ = ror(tmp, tmp, amount);
+                        *ptr++ = bfi(dest, tmp, 0, 8);
+                        if (update_mask & (SR_C || SR_X))
+                        {
+                            bfxil(cc, tmp, 8, 1);
+                            bfi(cc, cc, 4, 1);
+                        }
+                        break;
+                    case 1: // word
+                        *ptr++ = lsl(tmp, dest, 17);
+                        *ptr++ = bfi(tmp, dest, 0, 16);
+                        *ptr++ = tbz(cc, SRB_X, 4);
+                        *ptr++ = orr_immed(tmp, tmp, 1, 16);
+                        *ptr++ = b(2);
+                        *ptr++ = bic_immed(tmp, tmp, 1, 16);
+                        *ptr++ = ror(tmp, tmp, amount);
+                        *ptr++ = bfi(dest, tmp, 0, 16);
+                        if (update_mask & (SR_C || SR_X))
+                        {
+                            bfxil(cc, tmp, 16, 1);
+                            bfi(cc, cc, 4, 1);
+                        }
+                        break;
+                    case 2: // long
+                        
+                        break;
+                }
+
+                RA_FreeARMRegister(&ptr, tmp);
+            }
+
+            void *end = ptr;
+            uint8_t *bstart = start;
+            while (bstart != end)
+                kprintf("%02x ", *bstart++);
+            kprintf("\n");
+
+            ptr = EMIT_AdvancePC(ptr, 2);
+        }
     }
     /* Special case: the combination of RO(R/L).W #8, Dn; SWAP Dn; RO(R/L).W, Dn
        this is replaced by REV instruction */
