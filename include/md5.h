@@ -8,5 +8,6 @@ struct MD5 {
 };
 
 struct MD5 CalcMD5(void *_start, void *_end);
+uint32_t CalcCRC32(void *_start, void *_end);
 
 #endif /* _MD5_H */
