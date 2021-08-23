@@ -96,7 +96,7 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
         if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
             add_compile_definitions(PISTORM)
             include_directories(src/pistorm)
-            list(APPEND TARGET_FILES
+            list(APPEND BASE_FILES
                 src/pistorm/ps_protocol.c
             )
         else()
