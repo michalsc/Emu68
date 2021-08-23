@@ -47,7 +47,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
     int new_offset = _pc_rel + *offset;
 
     // If overflow would occur then compute PC and get new offset
-    while (new_offset > 127 || new_offset < -127)
+    if (new_offset > 127 || new_offset < -127)
     {
         if (_pc_rel > 0)
             *ptr++ = add_immed(REG_PC, REG_PC, _pc_rel);
@@ -55,6 +55,7 @@ uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset)
             *ptr++ = sub_immed(REG_PC, REG_PC, -_pc_rel);
 
         _pc_rel = 0;
+        new_offset = *offset;
     }
 
     *offset = new_offset;
@@ -191,7 +192,8 @@ uint16_t *M68K_PopReturnAddress(uint8_t *success)
 {
     uint16_t *ptr;
 
-    if (ReturnStackDepth > 0) {
+    // Disable call stack for now - for some reason it is not stable enough
+    if (0) {//ReturnStackDepth > 0) {
 
         ptr = ReturnStack[--ReturnStackDepth];
 
@@ -630,16 +632,11 @@ void *M68K_TranslateNoCache(uint16_t *m68kcodeptr)
 */
 struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 {
-    struct MD5 m;
-
     if (unit)
     {
-        m = CalcMD5(unit->mt_M68kLow, unit->mt_M68kHigh);
+        uint32_t crc = CalcCRC32(unit->mt_M68kLow, unit->mt_M68kHigh);
 
-        if (m.a != unit->mt_MD5.a ||
-            m.b != unit->mt_MD5.b ||
-            m.c != unit->mt_MD5.c ||
-            m.d != unit->mt_MD5.d)
+        if (crc != unit->mt_CRC32)
         {
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
@@ -758,7 +755,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_M68kAddress = orig_m68kcodeptr;
         unit->mt_M68kLow = m68k_low;
         unit->mt_M68kHigh = m68k_high;
-        unit->mt_MD5 = CalcMD5(m68k_low, m68k_high);
+        unit->mt_CRC32 = CalcCRC32(m68k_low, m68k_high);
         unit->mt_PrologueSize = prologue_size;
         unit->mt_EpilogueSize = epilogue_size;
         unit->mt_Conditionals = conditionals_count;
@@ -768,13 +765,12 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
         if (debug) {
-            struct MD5 m = unit->mt_MD5;
-            kprintf("[ICache]   Block checksum: %08x%08x%08x%08x\n", m.a, m.b, m.c, m.d);
+            kprintf("[ICache]   Block checksum: %08x\n", unit->mt_CRC32);
             kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
         }
 
-        arm_flush_cache((uintptr_t)&unit->mt_ARMCode, 4 * unit->mt_ARMInsnCnt);
-        arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, 4 * unit->mt_ARMInsnCnt);
+        arm_flush_cache((uintptr_t)&unit->mt_ARMCode, line_length);
+        arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, line_length);
 
         if (debug)
         {
