@@ -1013,15 +1013,18 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+            *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
             if (update_mask & (SR_C | SR_X)) {
                 *ptr++ = b_cc(A64_CC_EQ, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
             }
+
+            RA_FreeARMRegister(&ptr, tmp2);
 
             if (update_mask & (SR_Z | SR_N))
             {
@@ -1245,15 +1248,18 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         {
 #ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+            *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
             if (update_mask & (SR_C | SR_X)) {
                 *ptr++ = b_cc(A64_CC_EQ, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
-                *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
+                *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+                *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
             }
+
+            RA_FreeARMRegister(&ptr, tmp2);
 
             if (update_mask & (SR_Z | SR_N))
             {
