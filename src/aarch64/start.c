@@ -1224,6 +1224,12 @@ void M68K_StartEmu(void *addr, void *fdt)
         {
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
+            if (strstr(prop->op_value, "enable_c0_slow"))
+                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+            if (strstr(prop->op_value, "enable_c8_slow"))
+                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+            if (strstr(prop->op_value, "enable_d0_slow"))
+                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
         }
     }
 
