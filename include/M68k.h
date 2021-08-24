@@ -39,7 +39,7 @@ struct M68KTranslationUnit {
     uint64_t        mt_FetchCount;
     void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
-    struct MD5      mt_MD5;
+    uint32_t        mt_CRC32;
     uint32_t        mt_ARMCode[]
 #ifdef __aarch64__
     __attribute__((aligned(64)));

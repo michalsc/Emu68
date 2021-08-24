@@ -1249,7 +1249,7 @@ static uint32_t *EMIT_ILLEGAL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 static uint32_t *EMIT_TRAP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     /* Correct implementation is missing */
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAP #%02d at %08x\n", opcode & 15, (*m68k_ptr) - 1);
+    //ptr = EMIT_InjectDebugString(ptr, "[JIT] TRAP #%02d at %08x\n", opcode & 15, (*m68k_ptr) - 1);
 
     ptr = EMIT_AdvancePC(ptr, 2);
     ptr = EMIT_FlushPC(ptr);
@@ -1700,9 +1700,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 0x002:
                 tmp = RA_AllocARMRegister(&ptr);
-                /**ptr++ = bic_immed(tmp, reg, 15, 0);
+                *ptr++ = bic_immed(tmp, reg, 15, 0);
                 *ptr++ = bic_immed(tmp, tmp, 15, 16);
-                *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, CACR));*/
+                *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, CACR));
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x803:

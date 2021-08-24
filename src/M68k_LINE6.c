@@ -115,7 +115,7 @@ uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, reg);
 
     /* If branch is done within +- 4KB, try to inline it instead of breaking up the translation unit */
-    if (bra_off >= -4096 && bra_off <= 4096) {
+    if (bra_off >= -EMU68_BRANCH_INLINE_DISTANCE && bra_off <= EMU68_BRANCH_INLINE_DISTANCE) {
         if (bsr) {
             M68K_PushReturnAddress(*m68k_ptr);
         }

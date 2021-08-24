@@ -96,7 +96,7 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
         if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
             add_compile_definitions(PISTORM)
             include_directories(src/pistorm)
-            list(APPEND TARGET_FILES
+            list(APPEND BASE_FILES
                 src/pistorm/ps_protocol.c
             )
         else()
@@ -130,7 +130,7 @@ else()
     set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
     add_link_options(-Wl,-EB -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-    add_compile_options(-fomit-frame-pointer -O3 -ffixed-x12)
+    add_compile_options(-march=armv8.1-a -fomit-frame-pointer -O3 -ffixed-x12)
 endif()
 
 add_executable(Emu68.elf

@@ -60,7 +60,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     {
         uint16_t opcode2 = BE16((*m68k_ptr)[1]);
 
-        if ((opcode2 & 0x31f8) == 0x2018 && (opcode & 0x7) == (opcode2 & 0x7))
+        if ((opcode2 & 0xf1f8) == 0x2018 && (opcode & 0x7) == (opcode2 & 0x7))
         {
             uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
             uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, (opcode & 0x0e00) >> 9);
@@ -80,7 +80,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             *insn_consumed = 2;
             size = 4;
         }
-        else if ((opcode2 & 0x31f8) == 0x2020 && (opcode & 0x7) == (opcode2 & 0x7))
+        else if ((opcode2 & 0xf1f8) == 0x2020 && (opcode & 0x7) == (opcode2 & 0x7))
         {
             uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
             uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, (opcode & 0x0e00) >> 9);
@@ -100,7 +100,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             *insn_consumed = 2;
             size = 4;
         }
-        else if ((opcode2 & 0x31f8) == 0x20c0 && (opcode & 0x7) == (opcode2 & 0x7))
+        else if ((opcode2 & 0xf1f8) == 0x20c0 && (opcode & 0x7) == (opcode2 & 0x7))
         {
             uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
             uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 7);
@@ -120,7 +120,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             *insn_consumed = 2;
             size = 4;
         }
-        else if ((opcode2 & 0x31f8) == 0x2100 && (opcode & 0x0e00) == (opcode2 & 0x0e00))
+        else if ((opcode2 & 0xf1f8) == 0x2100 && (opcode & 0x0e00) == (opcode2 & 0x0e00))
         {
             uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
             uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 7);
