@@ -78,6 +78,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
+            size = 4;
         }
         else if ((opcode2 & 0x31f8) == 0x2020 && (opcode & 0x7) == (opcode2 & 0x7))
         {
@@ -97,6 +98,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
+            size = 4;
         }
         else if ((opcode2 & 0x31f8) == 0x20c0 && (opcode & 0x7) == (opcode2 & 0x7))
         {
@@ -116,6 +118,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
+            size = 4;
         }
         else if ((opcode2 & 0x31f8) == 0x2100 && (opcode & 0x0e00) == (opcode2 & 0x0e00))
         {
@@ -135,6 +138,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             done = 1;
             ptr = EMIT_AdvancePC(ptr, 4);
             *insn_consumed = 2;
+            size = 4;
         }
     }
 
