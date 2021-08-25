@@ -60,7 +60,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (size == 2) {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = ror(tmp, cc, 7);
+            *ptr++ = ror(tmp, cc, 3);
             *ptr++ = set_nzcv(tmp);
 
             RA_FreeARMRegister(&ptr, tmp);

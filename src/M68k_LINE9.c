@@ -52,10 +52,20 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* SUBX */
     else if ((opcode & 0xf130) == 0x9100)
     {
+        uint8_t size = (opcode >> 6) & 3;
         /* Move negated C flag to ARM flags */
 #ifdef __aarch64__
         uint8_t cc = RA_GetCC(&ptr);
-        *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        if (size == 2) {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = mvn_reg(tmp, cc, ROR, 3);
+            *ptr++ = set_nzcv(tmp);
+
+            RA_FreeARMRegister(&ptr, tmp);
+        } else {
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        }
 #else
         M68K_GetCC(&ptr);
         *ptr++ = tst_immed(REG_SR, SR_X);
@@ -63,7 +73,6 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* Register to register */
         if ((opcode & 0x0008) == 0)
         {
-            uint8_t size = (opcode >> 6) & 3;
             uint8_t regx = RA_MapM68kRegister(&ptr, opcode & 7);
             uint8_t regy = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
             uint8_t tmp = 0;
@@ -125,7 +134,6 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* memory to memory */
         else
         {
-            uint8_t size = (opcode >> 6) & 3;
             uint8_t regx = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
             uint8_t regy = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
             uint8_t dest = RA_AllocARMRegister(&ptr);
