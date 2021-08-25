@@ -55,7 +55,16 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* Move negated C flag to ARM flags */
 #ifdef __aarch64__
         uint8_t cc = RA_GetCC(&ptr);
-        *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        if (size == 2) {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = mvn_reg(tmp, cc, ROR, 3);
+            *ptr++ = set_nzcv(tmp);
+
+            RA_FreeARMRegister(&ptr, tmp);
+        } else {
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        }
 #else
         M68K_GetCC(&ptr);
         *ptr++ = tst_immed(REG_SR, SR_X);
