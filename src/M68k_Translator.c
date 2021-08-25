@@ -30,8 +30,8 @@ options_t Options = {
 };
 #endif
 
-const int disasm = 0;
-const int debug = 0;
+int disasm = 0;
+int debug = 0;
 const int debug_cnt = 0;
 
 struct List *ICache;
@@ -141,7 +141,20 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_
     uint32_t *ptr = arm_ptr;
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint8_t group = opcode >> 12;
+#if 0
+    if (*m68k_ptr == 0xf8c514) {
+        *ptr++ = svc(0x101);
+        *ptr++ = svc(0x102);
+        *ptr++ = 0x00203220;
+        *ptr++ = 4;
+        
+    }
 
+    if (*m68k_ptr == 0xf8c126) {
+        debug = 1;
+        disasm = 1;
+    }
+#endif
 #ifdef __aarch64__
     if (debug > 2)
     {

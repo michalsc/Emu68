@@ -679,7 +679,7 @@ void boot(void *dtree)
 
         tlsf_free(tlsf, initramfs_loc);
     }
-        
+
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -1230,13 +1230,32 @@ void M68K_StartEmu(void *addr, void *fdt)
                 mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
             if (strstr(prop->op_value, "enable_d0_slow"))
                 mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
-        }
+
+
+            extern int disasm;
+            extern int debug;
+
+            if (strstr(prop->op_value, "debug"))
+                debug = 1;
+                
+            if (strstr(prop->op_value, "disassemble"))
+                disasm = 1;
+        }       
     }
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
     kprintf("[JIT] Let it go...\n");
+
+
+    clear_entire_dcache();
+
+asm volatile(
+"       dsb     ish                 \n"
+"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       isb                         \n");
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
