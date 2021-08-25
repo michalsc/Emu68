@@ -59,7 +59,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (size == 2) {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = mvn_reg(tmp, cc, ROR, 3);
+            *ptr++ = mvn_reg(tmp, cc, LSL, 21);
             *ptr++ = set_nzcv(tmp);
 
             RA_FreeARMRegister(&ptr, tmp);
@@ -120,9 +120,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 case 2: /* Long */
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = csetm(tmp, A64_CC_NE);
-                    *ptr++ = add_reg(regy, regy, tmp, LSL, 0);
-                    *ptr++ = subs_reg(regy, regy, regx, LSL, 0);
+                    *ptr++ = sbcs(regy, regy, regx);
                     RA_FreeARMRegister(&ptr, tmp);
 #else
                     *ptr++ = sub_cc_immed(ARM_CC_NE, regy, regy, 1);
@@ -187,9 +185,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     *ptr++ = ldr_offset_preindex(regy, dest, -4);
 #ifdef __aarch64__
                     tmp = RA_AllocARMRegister(&ptr);
-                    *ptr++ = csetm(tmp, A64_CC_NE);
-                    *ptr++ = add_reg(dest, tmp, dest, LSL, 0);
-                    *ptr++ = subs_reg(dest, dest, src, LSL, 0);
+                    *ptr++ = sbcs(dest, dest, src);
                     *ptr++ = str_offset(regy, dest, 0);
                     RA_FreeARMRegister(&ptr, tmp);
 #else

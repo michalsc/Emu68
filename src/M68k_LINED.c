@@ -38,7 +38,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         *ptr++ = add_reg(reg, reg, tmp, LSL, 0);
 #else
-        if (size == 2)
+        if (size == 2)396
             *ptr++ = sxth(tmp, tmp, 0);
 
         *ptr++ = add_reg(reg, reg, tmp, 0);
@@ -60,7 +60,7 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (size == 2) {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = ror(tmp, cc, 3);
+            *ptr++ = lsl(tmp, cc, 21);
             *ptr++ = set_nzcv(tmp);
 
             RA_FreeARMRegister(&ptr, tmp);
