@@ -845,7 +845,10 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         if (regshift)
         {
-            shift = RA_MapM68kRegister(&ptr, shift);
+            uint8_t shiftreg = RA_MapM68kRegister(&ptr, shift);
+            shift = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = and_immed(shift, shiftreg, 6, 0);
 
             if (direction)
             {
@@ -913,6 +916,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                         break;
                 }
             }
+
+            RA_FreeARMRegister(&ptr, shift);
         }
         else
         {
@@ -1077,7 +1082,10 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         if (regshift)
         {
-            shift = RA_MapM68kRegister(&ptr, shift);
+            uint8_t shiftreg = RA_MapM68kRegister(&ptr, shift);
+            shift = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = and_immed(shift, shiftreg, 6, 0);
 
             if (direction)
             {
@@ -1147,6 +1155,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     break;
                 }
             }
+
+            RA_FreeARMRegister(&ptr, shift);
         }
         else
         {
