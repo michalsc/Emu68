@@ -1888,6 +1888,7 @@ void clear_entire_dcache(void);
 void __clear_entire_dcache(void)
 {
     asm volatile(
+"       .globl clear_entire_dcache      \n"
 "clear_entire_dcache:                   \n"
 "       stp     x0, x1, [sp, #-112]!    \n"
 "       stp     x2, x3, [sp, #16]       \n"
