@@ -12,6 +12,9 @@
 #include "RegisterAllocator.h"
 #include "EmuFeatures.h"
 
+uint32_t *EMIT_MULU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_MUL_DIV")));
+uint32_t *EMIT_MULS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_MUL_DIV")));
+
 /* AArch64 has both multiply and divide. No need to have them in C form */
 #ifndef __aarch64__
 struct Result32 uidiv(uint32_t n, uint32_t d)
