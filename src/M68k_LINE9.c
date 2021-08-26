@@ -59,7 +59,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (size == 2) {
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = mvn_reg(tmp, cc, LSL, 21);
+            *ptr++ = mvn_reg(tmp, cc, ROR, 7);
             *ptr++ = set_nzcv(tmp);
 
             RA_FreeARMRegister(&ptr, tmp);
