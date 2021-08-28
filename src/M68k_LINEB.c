@@ -12,7 +12,13 @@
 #include "RegisterAllocator.h"
 
 static uint32_t *EMIT_CMPA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-{
+__attribute__((alias("EMIT_CMPA_reg")));
+static uint32_t *EMIT_CMPA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_CMPA_mem")));
+static uint32_t *EMIT_CMPA_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_CMPA_ext")));
+static uint32_t *EMIT_CMPA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+ {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t size = ((opcode >> 8) & 1) ? 4 : 2;
     uint8_t src = 0xff;
@@ -136,6 +142,12 @@ static uint32_t *EMIT_CMPM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 
 static uint32_t *EMIT_CMP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_CMP_reg")));
+static uint32_t *EMIT_CMP_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_CMP_mem")));
+static uint32_t *EMIT_CMP_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_CMP_ext")));
+static uint32_t *EMIT_CMP_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
@@ -205,6 +217,12 @@ static uint32_t *EMIT_CMP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 
 static uint32_t *EMIT_EOR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_EOR_reg")));
+static uint32_t *EMIT_EOR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_EOR_mem")));
+static uint32_t *EMIT_EOR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_EOR_ext")));
+static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
@@ -396,24 +414,36 @@ static uint32_t *EMIT_EOR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 
 static EMIT_Function JumpTable[4096] = {
-    [00000 ... 00007] = EMIT_CMP, //D0
-    [00020 ... 00074] = EMIT_CMP,
-    [00100 ... 00174] = EMIT_CMP,
-    [00200 ... 00274] = EMIT_CMP,
+    [00000 ... 00007] = EMIT_CMP_reg, //D0 destination, Byte
+    [00020 ... 00047] = EMIT_CMP_mem, //(An)
+    [00050 ... 00074] = EMIT_CMP_ext, //memory indirect
+    [00100 ... 00117] = EMIT_CMP_reg, //register, Word
+    [00120 ... 00147] = EMIT_CMP_mem, //(An)
+    [00150 ... 00174] = EMIT_CMP_ext, //memory indirect
+    [00200 ... 00217] = EMIT_CMP_reg, //register Long
+    [00220 ... 00247] = EMIT_CMP_mem, //(An)
+    [00250 ... 00274] = EMIT_CMP_ext, //memory indirect
 
-    [00300 ... 00374] = EMIT_CMPA,
+    [00300 ... 00317] = EMIT_CMPA_reg, //A0, Word
+    [00320 ... 00347] = EMIT_CMPA_mem, //(An)
+    [00350 ... 00374] = EMIT_CMPA_ext, //memory indirect
 
-    [00400 ... 00407] = EMIT_EOR,
+    [00400 ... 00407] = EMIT_EOR_reg, //D0, Byte
     [00410 ... 00417] = EMIT_CMPM,
-    [00420 ... 00471] = EMIT_EOR,
-    [00500 ... 00507] = EMIT_EOR,
+    [00420 ... 00447] = EMIT_EOR_mem,
+    [00450 ... 00471] = EMIT_EOR_ext,
+    [00500 ... 00507] = EMIT_EOR_reg, //D0, Word
     [00510 ... 00517] = EMIT_CMPM,
-    [00520 ... 00571] = EMIT_EOR,
-    [00600 ... 00607] = EMIT_EOR,
-    [00610 ... 00617] = EMIT_CMPM,
-    [00620 ... 00671] = EMIT_EOR,
+    [00520 ... 00547] = EMIT_EOR_mem,
+    [00550 ... 00571] = EMIT_EOR_ext,
+    [00600 ... 00607] = EMIT_EOR_reg, //D0, Long
+    [00610 ... 00617] = EMIT_CMPM, 
+    [00620 ... 00647] = EMIT_EOR_mem,
+    [00650 ... 00671] = EMIT_EOR_ext,
         
-    [00700 ... 00774] = EMIT_CMPA,
+    [00700 ... 00717] = EMIT_CMPA_reg, //A0, Long
+    [00720 ... 00747] = EMIT_CMPA_mem, //(An)
+    [00750 ... 00774] = EMIT_CMPA_ext, //memory indirect
 
     [01000 ... 01007] = EMIT_CMP, //D1
     [01020 ... 01074] = EMIT_CMP,
