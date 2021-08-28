@@ -491,6 +491,21 @@ void boot(void *dtree)
         move_kernel(kernel_old_loc, kernel_new_loc);
 
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
+
+        const uint32_t tlb_flusher[] = {
+            LE32(0xd5033b9f),       // dsb   ish
+            LE32(0xd508831f),       // tlbi  vmalle1is
+            LE32(0xd5033f9f),       // dsb   sy
+            LE32(0xd5033fdf),       // isb
+            LE32(0xd65f03c0)        // ret
+        };
+
+        void *addr = tlsf_malloc(jit_tlsf, 4*5);
+        void (*flusher)() = (void (*)())((uintptr_t)addr | 0x1000000000);
+        DuffCopy(addr, tlb_flusher, 5);
+        arm_flush_cache((uintptr_t)addr, 4*5);
+        flusher();
+        tlsf_free(jit_tlsf, addr);
     }
 
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
@@ -908,6 +923,9 @@ void stub_FindUnit()
 ::[reg_pc]"i"(REG_PC));
 }
 
+uint32_t last_pc;
+
+
 void stub_ExecutionLoop()
 {
     asm volatile(
@@ -924,6 +942,11 @@ void stub_ExecutionLoop()
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
 "       cbz     w%[reg_pc], 4f              \n"
+
+"       adrp    x1, last_pc                 \n"
+"       add     x1, x1, :lo12:last_pc       \n"
+"       str     w18, [x1]                   \n"
+
 
 #ifdef PISTORM
 "       mov     x1, #0xf2200000             \n" // Read IPL0 flag from GPIO
@@ -1307,7 +1330,7 @@ asm volatile(
     frq = frq & 0xffffffff;
     kprintf("[JIT] Time spent in m68k mode: %lld us\n", 1000000 * (t2-t1) / frq);
 
-    kprintf("[JIT] Back from translated code\n");
+    kprintf("[JIT] Back from translated code, last valid PC=%08x\n", last_pc);
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
