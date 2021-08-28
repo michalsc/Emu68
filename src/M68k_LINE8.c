@@ -354,27 +354,38 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 }
 /*
     static EMIT_Function JumpTable[4096] = {
-        [00000 ... 00007] = EMIT_OR,    //D0 Destination
-        [00020 ... 00074] = EMIT_OR,
-        [00100 ... 00107] = EMIT_OR,
-        [00120 ... 00174] = EMIT_OR,
-        [00200 ... 00207] = EMIT_OR,
-        [00220 ... 00274] = EMIT_OR,
+        [00000 ... 00007] = EMIT_OR_reg,    //D0 Destination
+        [00020 ... 00047] = EMIT_OR_mem,
+        [00050 ... 00074] = EMIT_OR_ext,
+        [00100 ... 00107] = EMIT_OR_reg,
+        [00120 ... 00147] = EMIT_OR_mem,
+        [00150 ... 00174] = EMIT_OR_ext,
+        [00200 ... 00207] = EMIT_OR_reg,
+        [00220 ... 00247] = EMIT_OR_mem,
+        [00250 ... 00274] = EMIT_OR_ext,
         
-        [00300 ... 00307] = EMIT_DIVU,  //D0 Destination, DIVU.W
-        [00320 ... 00374] = EMIT_DIVU,
+        [00300 ... 00307] = EMIT_DIVU_reg,  //D0 Destination, DIVU.W
+        [00320 ... 00347] = EMIT_DIVU_mem,
+        [00350 ... 00374] = EMIT_DIVU_ext,
         
-        [00400 ... 00417] = EMIT_SBCD,  //R0 Destination
-        [00420 ... 00474] = EMIT_OR,    //D0 Source
+        [00400 ... 00407] = EMIT_SBCD_reg,
+        [00410 ... 00417] = EMIT_SBCD_mem,  //R0 Destination
+        [00420 ... 00447] = EMIT_OR_mem,
+        [00450 ... 00474] = EMIT_OR_ext,    //D0 Source
         
-        [00500 ... 00517] = EMIT_PACK,  //R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
-        [00520 ... 00574] = EMIT_OR,
+        [00500 ... 00507] = EMIT_PACK_reg,
+        [00510 ... 00517] = EMIT_PACK_mem,  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [00520 ... 00547] = EMIT_OR_mem, 
+        [00550 ... 00574] = EMIT_OR_ext,
         
-        [00600 ... 00617] = EMIT_UNPK,  //R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
-        [00620 ... 00674] = EMIT_OR,
+        [00600 ... 00607] = EMIT_UNPK_reg,
+        [00610 ... 00617] = EMIT_UNPK_mem,  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+        [00620 ... 00647] = EMIT_OR_mem, 
+        [00650 ... 00674] = EMIT_OR_ext,
         
-        [00700 ... 00707] = EMIT_DIVS,  //D0 Destination, DIVS.W
-        [00720 ... 00774] = EMIT_DIVS,
+        [00700 ... 00707] = EMIT_DIVS_reg,  //D0 Destination, DIVS.W
+        [00720 ... 00747] = EMIT_DIVS_mem,
+        [00750 ... 00774] = EMIT_DIVS_ext,
         
         [01000 ... 01007] = EMIT_OR,    //D1 Destination
         [01020 ... 01074] = EMIT_OR,
