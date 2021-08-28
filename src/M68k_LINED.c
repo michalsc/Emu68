@@ -14,6 +14,12 @@
 /* Line9 is one large ADDX/ADD/ADDA */
 
 static uint32_t *EMIT_ADD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADD_reg")));
+static uint32_t *EMIT_ADD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADD_mem")));
+static uint32_t *EMIT_ADD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADD_ext")));
+static uint32_t *EMIT_ADD_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
@@ -205,6 +211,12 @@ static uint32_t *EMIT_ADD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static uint32_t *EMIT_ADDA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADDA_reg")));
+static uint32_t *EMIT_ADDA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADDA_mem")));
+static uint32_t *EMIT_ADDA_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADDA_ext")));
+static uint32_t *EMIT_ADDA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t ext_words = 0;
     uint8_t size = (opcode & 0x0100) == 0x0100 ? 4 : 2;
@@ -238,6 +250,10 @@ static uint32_t *EMIT_ADDA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static uint32_t *EMIT_ADDX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADDX_reg")));
+static uint32_t *EMIT_ADDX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ADDX_mem")));
+static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t size = (opcode >> 6) & 3;
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -421,20 +437,33 @@ static uint32_t *EMIT_ADDX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static EMIT_Function JumpTable[4096] = {
-    [00000 ... 00007] = EMIT_ADD,  //D0 Destination, Byte
-    [00020 ... 00074] = EMIT_ADD,
-    [00100 ... 00117] = EMIT_ADD,  //Word
-    [00120 ... 00174] = EMIT_ADD,
-    [00200 ... 00217] = EMIT_ADD,  //Long
-    [00220 ... 00274] = EMIT_ADD,
-    [00300 ... 00374] = EMIT_ADDA, //Word
-    [00400 ... 00417] = EMIT_ADDX, //R0
-    [00500 ... 00517] = EMIT_ADDX, //Word
-    [00600 ... 00617] = EMIT_ADDX, //Long
-    [00420 ... 00471] = EMIT_ADD,  //D0 Source
-    [00520 ... 00571] = EMIT_ADD,  //Word
-    [00620 ... 00671] = EMIT_ADD,  //Long
-    [00700 ... 00774] = EMIT_ADDA, //Long
+    [00000 ... 00007] = EMIT_ADD_reg,  //Dn Destination, Byte
+    [00020 ... 00047] = EMIT_ADD_mem,
+    [00050 ... 00074] = EMIT_ADD_ext,
+    [00100 ... 00117] = EMIT_ADD_reg,  //Word
+    [00120 ... 00147] = EMIT_ADD_mem,
+    [00150 ... 00174] = EMIT_ADD_ext,
+    [00200 ... 00217] = EMIT_ADD_reg,  //Long
+    [00220 ... 00247] = EMIT_ADD_mem,
+    [00250 ... 00274] = EMIT_ADD_ext,
+    [00300 ... 00317] = EMIT_ADDA_reg, //Word
+    [00320 ... 00347] = EMIT_ADDA_mem,
+    [00350 ... 00374] = EMIT_ADDA_ext,
+    [00400 ... 00407] = EMIT_ADDX_reg, //Byte
+    [00410 ... 00417] = EMIT_ADDX_mem, 
+    [00500 ... 00507] = EMIT_ADDX_reg, //Word
+    [00510 ... 00517] = EMIT_ADDX_mem,
+    [00600 ... 00607] = EMIT_ADDX_reg, //Long
+    [00610 ... 00617] = EMIT_ADDX_mem,
+    [00420 ... 00447] = EMIT_ADD_mem,  //Dn Source, Byte
+    [00450 ... 00471] = EMIT_ADD_ext,
+    [00520 ... 00547] = EMIT_ADD_mem,  //Word
+    [00550 ... 00571] = EMIT_ADD_ext,
+    [00620 ... 00647] = EMIT_ADD_mem,  //Long
+    [00650 ... 00671] = EMIT_ADD_ext,
+    [00700 ... 00717] = EMIT_ADDA_reg,
+    [00720 ... 00747] = EMIT_ADDA_mem,
+    [00750 ... 00774] = EMIT_ADDA_ext, //Long
 
     [01000 ... 01007] = EMIT_ADD,  //D1 Destination, Byte
     [01020 ... 01074] = EMIT_ADD,
