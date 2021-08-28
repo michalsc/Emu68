@@ -424,27 +424,52 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
     return ptr;
 }
+/*
+1st octet Rn
 
+2nd octet
+[0|1|2] = SUB including Dn,Dn
+[3] = SUBA.W
+[4|5|6] = SUB Dn,Dn range been cannibalized for SUBX
+[7] = SUBA.L
+
+3rd octet mode select
+
+4th octet reg/mode
+*/
 /*
 static EMIT_Function JumpTable[4096] = {
-[00000 ... 00007] = EMIT_SUB,  //D0 Destination
-[00020 ... 00074] = EMIT_SUB,
-[00100 ... 00107] = EMIT_SUB,
-[00120 ... 00174] = EMIT_SUB,
-[00200 ... 00207] = EMIT_SUB,
-[00220 ... 00274] = EMIT_SUB,
+	[00000 ... 00007] = EMIT_SUB_reg,  //D0 Destination
+	[00020 ... 00047] = EMIT_SUB_mem,
+	[00050 ... 00074] = EMIT_SUB_ext,
+	[00100 ... 00107] = EMIT_SUB_reg,
+	[00120 ... 00147] = EMIT_SUB_mem,
+	[00150 ... 00174] = EMIT_SUB_ext,
+	[00200 ... 00207] = EMIT_SUB_reg,
+	[00220 ... 00247] = EMIT_SUB_mem,
+	[00250 ... 00274] = EMIT_SUB_ext,
 
-[00300 ... 00374] = EMIT_SUBA, //Word
+	[00300 ... 00317] = EMIT_SUBA_reg,
+	[00320 ... 00347] = EMIT_SUBA_mem,
+	[00350 ... 00374] = EMIT_SUBA_ext, //Word
 
-[00400 ... 00417] = EMIT_SUBX, //R0
-[00500 ... 00517] = EMIT_SUBX,
-[00600 ... 00617] = EMIT_SUBX,
+	[00400 ... 00407] = EMIT_SUBX_reg,
+	[00410 ... 00417] = EMIT_SUBX_mem, //R0
+	[00500 ... 00507] = EMIT_SUBX_reg,
+	[00510 ... 00517] = EMIT_SUBX_mem,
+	[00600 ... 00607] = EMIT_SUBX_reg,
+	[00610 ... 00617] = EMIT_SUBX_mem,
 
-[00420 ... 00471] = EMIT_SUB,  //D0 Source
-[00520 ... 00571] = EMIT_SUB,
-[00620 ... 00671] = EMIT_SUB,
+	[00420 ... 00447] = EMIT_SUB_mem,
+	[00450 ... 00471] = EMIT_SUB_ext,  //D0 Source
+	[00520 ... 00547] = EMIT_SUB_mem,
+	[00550 ... 00571] = EMIT_SUB_ext,
+	[00620 ... 00647] = EMIT_SUB_mem,
+	[00650 ... 00671] = EMIT_SUB_ext,
 
-[00700 ... 00774] = EMIT_SUBA, //Long
+	[00700 ... 00717] = EMIT_SUBA_reg,
+	[00720 ... 00747] = EMIT_SUBA_mem,
+	[00750 ... 00774] = EMIT_SUBA_ext, //Long
 
 [01000 ... 01007] = EMIT_SUB,  //D1 Destination
 [01020 ... 01074] = EMIT_SUB,
