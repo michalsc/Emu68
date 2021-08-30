@@ -141,20 +141,7 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_
     uint32_t *ptr = arm_ptr;
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint8_t group = opcode >> 12;
-#if 0
-    if (*m68k_ptr == 0xf8c514) {
-        *ptr++ = svc(0x101);
-        *ptr++ = svc(0x102);
-        *ptr++ = 0x00203220;
-        *ptr++ = 4;
-        
-    }
 
-    if (*m68k_ptr == 0xf8c126) {
-        debug = 1;
-        disasm = 1;
-    }
-#endif
 #ifdef __aarch64__
     if (debug > 2)
     {
@@ -205,9 +192,8 @@ uint16_t *M68K_PopReturnAddress(uint8_t *success)
 {
     uint16_t *ptr;
 
-    // Disable call stack for now - for some reason it is not stable enough
-    if (0) {//ReturnStackDepth > 0) {
-
+    if (EMU68_USE_RETURN_STACK && ReturnStackDepth > 0)
+    {
         ptr = ReturnStack[--ReturnStackDepth];
 
         if (success)
@@ -572,8 +558,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 #endif
     if (inner_loop)
     {
-#ifdef PISTORM
         uint32_t *tmpptr = end;
+#ifdef PISTORM
         *end++ = tbnz(tmp2, 25, arm_code - tmpptr);
 #else
         *end++ = cbz(tmp2, arm_code - tmpptr);
