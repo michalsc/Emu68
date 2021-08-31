@@ -279,7 +279,7 @@ double TrimDoubleRange(double a)
 #ifdef __aarch64__
 
 void PolySine(void);
-void stub_PolySine(void)
+void  __attribute__((used)) stub_PolySine(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -313,7 +313,7 @@ void stub_PolySine(void)
 }
 
 void PolySineSingle(void);
-void stub_PolySineSingle(void)
+void  __attribute__((used)) stub_PolySineSingle(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -341,7 +341,7 @@ void stub_PolySineSingle(void)
 }
 
 void PolyCosine(void);
-void stub_PolyCosine(void)
+void  __attribute__((used)) stub_PolyCosine(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -374,7 +374,7 @@ void stub_PolyCosine(void)
 }
 
 void PolyCosineSingle(void);
-void stub_PolyCosineSingle(void)
+void  __attribute__((used)) stub_PolyCosineSingle(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -402,7 +402,7 @@ void stub_PolyCosineSingle(void)
 #else
 
 void PolySine(void);
-void stub_PolySine(void)
+void  __attribute__((used)) stub_PolySine(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -435,7 +435,7 @@ void stub_PolySine(void)
 }
 
 void PolySineSingle(void);
-void stub_PolySineSingle(void)
+void  __attribute__((used)) stub_PolySineSingle(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -462,7 +462,7 @@ void stub_PolySineSingle(void)
 }
 
 void PolyCosine(void);
-void stub_PolyCosine(void)
+void  __attribute__((used)) stub_PolyCosine(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -496,7 +496,7 @@ void stub_PolyCosine(void)
 }
 
 void PolyCosineSingle(void);
-void stub_PolyCosineSingle(void)
+void  __attribute__((used)) stub_PolyCosineSingle(void)
 {
     asm volatile(
         "   .align 4                \n"
@@ -1885,7 +1885,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 #ifdef __aarch64__
 void clear_entire_dcache(void);
 /* Clean and invalidate entire data cache, code after ARMv8 architecture reference manual */
-void __clear_entire_dcache(void)
+void  __attribute__((used)) __clear_entire_dcache(void)
 {
     asm volatile(
 "       .globl clear_entire_dcache      \n"
@@ -1946,7 +1946,7 @@ void __clear_entire_dcache(void)
 
 void invalidate_entire_dcache(void);
 /* Invalidate entire data cache, code after ARMv8 architecture reference manual */
-void __invalidate_entire_dcache(void)
+void __attribute__((used)) __invalidate_entire_dcache(void)
 {
     asm volatile(
 "invalidate_entire_dcache:              \n"
@@ -2181,7 +2181,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 
 #ifdef __aarch64__
 void trampoline_icache_invalidate(void);
-void __trampoline_icache_invalidate(void)
+void  __attribute__((used)) __trampoline_icache_invalidate(void)
 {
     asm volatile("\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
 }

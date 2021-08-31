@@ -889,7 +889,7 @@ struct M68KTranslationUnit *_FindUnit(uint16_t *ptr)
     return M68K_FindTranslationUnit(ptr);
 }
 
-void stub_FindUnit()
+void  __attribute__((used)) stub_FindUnit()
 {
     asm volatile(
 "FindUnit:                                  \n"
@@ -926,7 +926,7 @@ void stub_FindUnit()
 uint32_t last_pc;
 
 
-void stub_ExecutionLoop()
+void  __attribute__((used)) stub_ExecutionLoop()
 {
     asm volatile(
 "ExecutionLoop:                             \n"

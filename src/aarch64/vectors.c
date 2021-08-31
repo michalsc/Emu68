@@ -87,7 +87,7 @@
 #endif
 
 
-void __stub_vectors()
+void  __attribute__((used)) __stub_vectors()
 { asm volatile(
 "       .section .vectors               \n"
 "       .balign 0x800                   \n"
