@@ -898,8 +898,8 @@ uint32_t *EMIT_InjectPrintContext(uint32_t *ptr)
     *ptr++ = ldr64_pcrel(1, 2);
     *ptr++ = br(1);
 
-    *ptr++ = BE32(u.u32[0]);
-    *ptr++ = BE32(u.u32[1]);
+    *ptr++ = u.u32[0];
+    *ptr++ = u.u32[1];
 
     *ptr++ = ldp64(31, 2, 3, 16);
     *ptr++ = ldp64(31, 4, 5, 32);
@@ -947,8 +947,8 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
     *ptr++ = ldr64_pcrel(1, 2);
     *ptr++ = br(1);
 
-    *ptr++ = BE32(u.u32[0]);
-    *ptr++ = BE32(u.u32[1]);
+    *ptr++ = u.u32[0];
+    *ptr++ = u.u32[1];
 
     for (int i=2; i < 30; i += 2)
         *ptr++ = ldp64(31, i, i+1, i*8);

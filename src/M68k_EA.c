@@ -628,6 +628,12 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             case 0:
 #ifdef __aarch64__
                 kprintf("Load form EA: An with wrong operand size! Opcode %04x at %08x\n", BE16(m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
+                {
+                    uint16_t *ptr = &m68k_ptr[-*ext_words] - 8;
+                    for (int i=0; i < 16; i++)
+                        kprintf("%04x ", ptr[i]);
+                    kprintf("\n");
+                }
 #else
                 *arm_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, A[src_reg]));

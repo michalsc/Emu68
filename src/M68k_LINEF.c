@@ -2181,7 +2181,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 
 #ifdef __aarch64__
 void trampoline_icache_invalidate(void);
-void  __attribute__((used)) __trampoline_icache_invalidate(void)
+void __attribute__((used)) __trampoline_icache_invalidate(void)
 {
     asm volatile("\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
 }
@@ -2386,8 +2386,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                         *ptr++ = blr(0);
                         *ptr++ = ldp64_postindex(31, 0, 30, 16);
                         *ptr++ = b(3);
-                        *ptr++ = BE32(u.u32[0]);
-                        *ptr++ = BE32(u.u32[1]);
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
                     }
 #else
                     *ptr++ = push(0x0f | (1 << 12));
@@ -2429,8 +2429,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             *ptr++ = ldr64_pcrel(3, 3);
             *ptr++ = br(3);
             *ptr++ = b(3);
-            *ptr++ = BE32(u.u32[0]);
-            *ptr++ = BE32(u.u32[1]);
+            *ptr++ = u.u32[0];
+            *ptr++ = u.u32[1];
 
             for (int i=2; i < 20; i+=2)
                 *ptr++ = ldp64(31, i, i + 1, i * 8);
@@ -2553,8 +2553,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                         *ptr++ = blr(0);
                         *ptr++ = ldp64_postindex(31, 0, 30, 16);
                         *ptr++ = b(3);
-                        *ptr++ = BE32(u.u32[0]);
-                        *ptr++ = BE32(u.u32[1]);
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
                     }
 #else
                     *ptr++ = push(0x0f | (1 << 12));
@@ -2596,8 +2596,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             *ptr++ = ldr64_pcrel(3, 3);
             *ptr++ = br(3);
             *ptr++ = b(3);
-            *ptr++ = BE32(u.u32[0]);
-            *ptr++ = BE32(u.u32[1]);
+            *ptr++ = u.u32[0];
+            *ptr++ = u.u32[1];
 
             for (int i=2; i < 20; i+=2)
                 *ptr++ = ldp64(31, i, i + 1, i * 8);
@@ -2662,8 +2662,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 #ifdef __aarch64__
             *ptr++ = fldd_pcrel(fp_dst, 2);
             *ptr++ = b(3);
-            *ptr++ = BE32(u.u32[0]);
-            *ptr++ = BE32(u.u32[1]);
+            *ptr++ = u.u32[0];
+            *ptr++ = u.u32[1];
 #else
             *ptr++ = fldd(fp_dst, 15, 0);
             *ptr++ = b_cc(ARM_CC_AL, 1);
@@ -3237,8 +3237,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = ldr64_pcrel(0, 2);
         *ptr++ = br(0);
 
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3956,16 +3956,16 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = ldr64_pcrel(base_reg, 2);
         *ptr++ = b(7);
         u.u64 = (uintptr_t)(&constants[0]);
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
         adr_sin = ptr;
         u.u64 = (uintptr_t)(PolySine);
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
         adr_cos = ptr;
         u.u64 = (uintptr_t)(PolyCosine);
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
 
         /* sin(x)=-sin(-x) -> tmp1 = |x| */
         *ptr++ = fabsd(fp_tmp1, fp_src);
@@ -4206,16 +4206,16 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = ldr64_pcrel(base_reg, 2);
         *ptr++ = b(7);
         u.u64 = (uintptr_t)(&constants[0]);
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
         adr_sin = ptr;
         u.u64 = (uintptr_t)(PolySine);
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
         adr_cos = ptr;
         u.u64 = (uintptr_t)(PolyCosine);
-        *ptr++ = BE32(u.u32[0]);
-        *ptr++ = BE32(u.u32[1]);
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
 
         /* cos(x)=-cos(x) -> tmp1 = |x| */
         *ptr++ = fabsd(fp_tmp1, fp_src);
