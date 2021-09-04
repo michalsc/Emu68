@@ -1326,8 +1326,8 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = ldr64_pcrel(1, 2);
     *ptr++ = br(1);
 
-    *ptr++ = BE32(u.u32[0]);
-    *ptr++ = BE32(u.u32[1]);
+    *ptr++ = u.u32[0];
+    *ptr++ = u.u32[1];
 
     for (int i=2; i < 30; i += 2)
         *ptr++ = ldp64(31, i, i+1, i*8);
@@ -2454,9 +2454,9 @@ static EMIT_Function JumpTable[4096] = {
     [0xad0 ... 0xaf9] = EMIT_TAS,
 
     [0xc00 ... 0xc07] = EMIT_MUL_DIV,
-    [0xc10 ... 0xc3b] = EMIT_MUL_DIV,
+    [0xc10 ... 0xc3c] = EMIT_MUL_DIV,
     [0xc40 ... 0xc47] = EMIT_MUL_DIV,
-    [0xc50 ... 0xc7b] = EMIT_MUL_DIV,
+    [0xc50 ... 0xc7c] = EMIT_MUL_DIV,
 
     [0x890 ... 0x897] = EMIT_MOVEM,
     [0x8a0 ... 0x8b9] = EMIT_MOVEM,

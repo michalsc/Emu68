@@ -45,7 +45,8 @@
     "       stp x24, x25, [sp, #12*16]      \n" \
     "       stp x26, x27, [sp, #13*16]      \n" \
     "       stp x28, x29, [sp, #14*16]      \n" \
-    "       str x30, [sp, #15*16]           \n"
+    "       mov x0, sp                      \n" \
+    "       stp x30, x0, [sp, #15*16]       \n"
 
 #define LOAD_FULL_CONTEXT \
     "       ldp x2, x3, [sp, #1*16]         \n" \
@@ -86,8 +87,8 @@
 #endif
 
 
-void __stub_vectors()
-{ asm(
+void  __attribute__((used)) __stub_vectors()
+{ asm volatile(
 "       .section .vectors               \n"
 "       .balign 0x800                   \n"
 "curr_el_sp0_sync:                      \n" // The exception handler for a synchronous 

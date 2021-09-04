@@ -299,10 +299,10 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-static EMIT_Function JumpTable[4096] = {
-    [0x000 ... 0x0ff] = EMIT_BRA,
-    [0x100 ... 0x1ff] = EMIT_BSR,
-    [0x200 ... 0xfff] = EMIT_Bcc,
+static EMIT_Function JumpTable[16] = {
+    [0]         = EMIT_BRA,
+    [1]         = EMIT_BSR,
+    [2 ... 15]  = EMIT_Bcc,
 };
 
 uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -311,7 +311,7 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     *insn_consumed = 1;
     (*m68k_ptr)++;
 
-    ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr);
+    ptr = JumpTable[(opcode >> 8) & 15](ptr, opcode, m68k_ptr);
 
     return ptr;
 }
