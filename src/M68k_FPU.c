@@ -1,5 +1,5 @@
 /*EA decoding & format, Table 0; bits[22:10]*/
-static EMIT_Format JumpTable[4096] = {
+static EMIT_Funtion JumpTableCase0[4096] = {
 [00000 ... 00007] = EMIT_FORMAT_X	//FPm,FPn
 //D0
 [00020] = EMIT_FORMAT_L	//Dn,FPn
@@ -2721,7 +2721,7 @@ static EMIT_Format JumpTable[4096] = {
 
 
 /* FPU Instruction 0 table [6:0]*/
-static EMIT_Function JumpTable[128] = {
+static EMIT_Function JumpTableOp[128] = {
 [0x00] = EMIT_FMOVE
 [0x01] = EMIT_FINT
 [0x02] = EMIT_FSINH
@@ -2781,7 +2781,48 @@ static EMIT_Function JumpTable[128] = {
 [0x68] = EMIT_FSUB_S	//rounded to single
 [0x6C] = EMIT_FSUB_D	//rounded to double
 }
-
-
-
-
+/* CC instructions, table 1; bits[22:16]*/
+static EMIT_Function JumpTableCase1[64] = {
+[000 ... 007] = EMIT_FSCC_reg
+[010 ... 017] = EMIT_FDBCC
+[020 ... 047] = EMIT_FSCC_mem
+{050 ... 071] = EMIT_FSCC_ext
+[072 ... 074] = EMIT_FTRAPCC
+}
+/* Branch, Table 2 & 3; bits [5:0]*/
+static EMIT_Function JumpTableCase2[64] = {
+[000] = EMIT_FBF
+[001] = EMIT_FBEQ
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+[000] = EMIT_FB
+}
