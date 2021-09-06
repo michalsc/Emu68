@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "registerallocator.h": "c",
-        "m68k.h": "c",
-        "stdlib.h": "c",
-        "arm.h": "c"
-    }
-}
