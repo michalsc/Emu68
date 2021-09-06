@@ -1,3 +1,7 @@
+# VSCode
+.vscode/c_cpp_properties.json
+.vscode/settings.json
+
 # Build directory
 build/
 Build/
