@@ -1496,7 +1496,7 @@ static EMIT_Function JumpTableOp[128] = {
 [0x68] = EMIT_FSUB_S,	//rounded to single
 [0x6C] = EMIT_FSUB_D,	//rounded to double
 }
-/* CC instructions, table 1; bits[22:16]*/
+/* CC instructions, table 1; bits[5:0]*/
 static EMIT_Function JumpTableCase1[64] = {
 [000 ... 007] = EMIT_FSCC_reg,
 [010 ... 017] = EMIT_FDBCC,
