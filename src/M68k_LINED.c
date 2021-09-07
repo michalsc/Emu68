@@ -437,138 +437,33 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 }
 
 static EMIT_Function JumpTable[4096] = {
-    [00000 ... 00007] = EMIT_ADD_reg,  //Dn Destination, Byte
-    [00020 ... 00047] = EMIT_ADD_mem,
-    [00050 ... 00074] = EMIT_ADD_ext,
-    [00100 ... 00117] = EMIT_ADD_reg,  //Word
-    [00120 ... 00147] = EMIT_ADD_mem,
-    [00150 ... 00174] = EMIT_ADD_ext,
-    [00200 ... 00217] = EMIT_ADD_reg,  //Long
-    [00220 ... 00247] = EMIT_ADD_mem,
-    [00250 ... 00274] = EMIT_ADD_ext,
-    [00300 ... 00317] = EMIT_ADDA_reg, //Word
-    [00320 ... 00347] = EMIT_ADDA_mem,
-    [00350 ... 00374] = EMIT_ADDA_ext,
-    [00400 ... 00407] = EMIT_ADDX_reg, //Byte
-    [00410 ... 00417] = EMIT_ADDX_mem, 
-    [00500 ... 00507] = EMIT_ADDX_reg, //Word
-    [00510 ... 00517] = EMIT_ADDX_mem,
-    [00600 ... 00607] = EMIT_ADDX_reg, //Long
-    [00610 ... 00617] = EMIT_ADDX_mem,
-    [00420 ... 00447] = EMIT_ADD_mem,  //Dn Source, Byte
-    [00450 ... 00471] = EMIT_ADD_ext,
-    [00520 ... 00547] = EMIT_ADD_mem,  //Word
-    [00550 ... 00571] = EMIT_ADD_ext,
-    [00620 ... 00647] = EMIT_ADD_mem,  //Long
-    [00650 ... 00671] = EMIT_ADD_ext,
-    [00700 ... 00717] = EMIT_ADDA_reg,
-    [00720 ... 00747] = EMIT_ADDA_mem,
-    [00750 ... 00774] = EMIT_ADDA_ext, //Long
-
-    [01000 ... 01007] = EMIT_ADD,  //D1 Destination, Byte
-    [01020 ... 01074] = EMIT_ADD,
-    [01100 ... 01117] = EMIT_ADD,  //Word
-    [01120 ... 01174] = EMIT_ADD,
-    [01200 ... 01217] = EMIT_ADD,  //Long
-    [01220 ... 01274] = EMIT_ADD,
-    [01300 ... 01374] = EMIT_ADDA, //Word
-    [01400 ... 01417] = EMIT_ADDX, //R1, Byte
-    [01500 ... 01517] = EMIT_ADDX, //Word
-    [01600 ... 01617] = EMIT_ADDX, //Long
-    [01420 ... 01471] = EMIT_ADD,  //D1 Source, Byte
-    [01520 ... 01571] = EMIT_ADD,  //Word
-    [01620 ... 01671] = EMIT_ADD,  //Long
-    [01700 ... 01774] = EMIT_ADDA, //Long
-    
-    [02000 ... 02007] = EMIT_ADD,  //D2 Destination
-    [02020 ... 02074] = EMIT_ADD,
-    [02100 ... 02117] = EMIT_ADD,
-    [02120 ... 02174] = EMIT_ADD,
-    [02200 ... 02217] = EMIT_ADD,
-    [02220 ... 02274] = EMIT_ADD,
-    [02300 ... 02374] = EMIT_ADDA, //Word
-    [02400 ... 02417] = EMIT_ADDX, //R2
-    [02500 ... 02517] = EMIT_ADDX,
-    [02600 ... 02617] = EMIT_ADDX,
-    [02420 ... 02471] = EMIT_ADD,  //D2 Source
-    [02520 ... 02571] = EMIT_ADD,
-    [02620 ... 02671] = EMIT_ADD,
-    [02700 ... 02774] = EMIT_ADDA, //Long
-
-    [03000 ... 03007] = EMIT_ADD,  //D3 Destination
-    [03020 ... 03074] = EMIT_ADD,
-    [03100 ... 03117] = EMIT_ADD,
-    [03120 ... 03174] = EMIT_ADD,
-    [03200 ... 03217] = EMIT_ADD,
-    [03220 ... 03274] = EMIT_ADD,
-    [03300 ... 03374] = EMIT_ADDA, //Word
-    [03400 ... 03417] = EMIT_ADDX, //R3
-    [03500 ... 03517] = EMIT_ADDX,
-    [03600 ... 03617] = EMIT_ADDX,
-    [03420 ... 03471] = EMIT_ADD,  //D3 Source
-    [03520 ... 03571] = EMIT_ADD,
-    [03620 ... 03671] = EMIT_ADD,
-    [03700 ... 03774] = EMIT_ADDA, //Long
-
-    [04000 ... 04007] = EMIT_ADD,  //D4 Destination
-    [04020 ... 04074] = EMIT_ADD,
-    [04100 ... 04117] = EMIT_ADD,
-    [04120 ... 04174] = EMIT_ADD,
-    [04200 ... 04217] = EMIT_ADD,
-    [04220 ... 04274] = EMIT_ADD,
-    [04300 ... 04374] = EMIT_ADDA, //Word
-    [04400 ... 04417] = EMIT_ADDX, //R4
-    [04500 ... 04517] = EMIT_ADDX,
-    [04600 ... 04617] = EMIT_ADDX,
-    [04420 ... 04471] = EMIT_ADD,  //D4 Source
-    [04520 ... 04571] = EMIT_ADD,
-    [04620 ... 04671] = EMIT_ADD,
-    [04700 ... 04774] = EMIT_ADDA, //Long
-    
-    [05000 ... 05007] = EMIT_ADD,  //D5 Destination
-    [05020 ... 05074] = EMIT_ADD,
-    [05100 ... 05117] = EMIT_ADD,
-    [05120 ... 05174] = EMIT_ADD,
-    [05200 ... 05217] = EMIT_ADD,
-    [05220 ... 05274] = EMIT_ADD,
-    [05300 ... 05374] = EMIT_ADDA, //Word
-    [05400 ... 05417] = EMIT_ADDX, //R5
-    [05500 ... 05517] = EMIT_ADDX,
-    [05600 ... 05617] = EMIT_ADDX,
-    [05420 ... 05471] = EMIT_ADD,  //D5 Source
-    [05520 ... 05571] = EMIT_ADD,
-    [05620 ... 05671] = EMIT_ADD,
-    [05700 ... 05774] = EMIT_ADDA, //Long
-
-    [06000 ... 06007] = EMIT_ADD,  //D6 Destination
-    [06020 ... 06074] = EMIT_ADD,
-    [06100 ... 06117] = EMIT_ADD,
-    [06120 ... 06174] = EMIT_ADD,
-    [06200 ... 06217] = EMIT_ADD,
-    [06220 ... 06274] = EMIT_ADD,
-    [06300 ... 06374] = EMIT_ADDA, //Word
-    [06400 ... 06417] = EMIT_ADDX, //R6
-    [06500 ... 06517] = EMIT_ADDX,
-    [06600 ... 06617] = EMIT_ADDX,
-    [06420 ... 06471] = EMIT_ADD,  //D6 Source
-    [06520 ... 06571] = EMIT_ADD,
-    [06620 ... 06671] = EMIT_ADD,
-    [06700 ... 06774] = EMIT_ADDA, //Long
-
-    [07000 ... 07007] = EMIT_ADD,  //D7 Destination
-    [07020 ... 07074] = EMIT_ADD,
-    [07100 ... 07117] = EMIT_ADD,
-    [07120 ... 07174] = EMIT_ADD,
-    [07200 ... 07217] = EMIT_ADD,
-    [07220 ... 07274] = EMIT_ADD,
-    [07300 ... 07374] = EMIT_ADDA, //Word
-    [07400 ... 07417] = EMIT_ADDX, //R7
-    [07500 ... 07517] = EMIT_ADDX,
-    [07600 ... 07617] = EMIT_ADDX,
-    [07420 ... 07471] = EMIT_ADD,  //D7 Source
-    [07520 ... 07571] = EMIT_ADD,
-    [07620 ... 07671] = EMIT_ADD,
-    [07700 ... 07774] = EMIT_ADDA, //Long
+    [0000 ... 00007] = EMIT_ADD_reg,  //Dn Destination, Byte
+    [0020 ... 00047] = EMIT_ADD_mem,
+    [0050 ... 00074] = EMIT_ADD_ext,
+    [0100 ... 00117] = EMIT_ADD_reg,  //Word
+    [0120 ... 00147] = EMIT_ADD_mem,
+    [0150 ... 00174] = EMIT_ADD_ext,
+    [0200 ... 00217] = EMIT_ADD_reg,  //Long
+    [0220 ... 00247] = EMIT_ADD_mem,
+    [0250 ... 00274] = EMIT_ADD_ext,
+    [0300 ... 00317] = EMIT_ADDA_reg, //Word
+    [0320 ... 00347] = EMIT_ADDA_mem,
+    [0350 ... 00374] = EMIT_ADDA_ext,
+    [0400 ... 00407] = EMIT_ADDX_reg, //Byte
+    [0410 ... 00417] = EMIT_ADDX_mem, 
+    [0500 ... 00507] = EMIT_ADDX_reg, //Word
+    [0510 ... 00517] = EMIT_ADDX_mem,
+    [0600 ... 00607] = EMIT_ADDX_reg, //Long
+    [0610 ... 00617] = EMIT_ADDX_mem,
+    [0420 ... 00447] = EMIT_ADD_mem,  //Dn Source, Byte
+    [0450 ... 00471] = EMIT_ADD_ext,
+    [0520 ... 00547] = EMIT_ADD_mem,  //Word
+    [0550 ... 00571] = EMIT_ADD_ext,
+    [0620 ... 00647] = EMIT_ADD_mem,  //Long
+    [0650 ... 00671] = EMIT_ADD_ext,
+    [0700 ... 00717] = EMIT_ADDA_reg,
+    [0720 ... 00747] = EMIT_ADDA_mem,
+    [0750 ... 00774] = EMIT_ADDA_ext, //Long
 };
 
 
@@ -578,9 +473,9 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    if (JumpTable[opcode & 0xfff])
+    if (JumpTable[opcode & 00777])
     {
-        ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr);
+        ptr = JumpTable[opcode & 00777](ptr, opcode, m68k_ptr);
     }
     else
     {
