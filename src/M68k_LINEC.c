@@ -15,6 +15,12 @@ uint32_t *EMIT_MULU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 uint32_t *EMIT_MULS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
 uint32_t *EMIT_AND(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_AND_reg")));
+static uint32_t *EMIT_AND_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_AND_mem")));
+static uint32_t *EMIT_AND_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_AND_ext")));
+static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
@@ -245,6 +251,10 @@ uint32_t *EMIT_EXG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 
 uint32_t *EMIT_ABCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ABCD_reg")));
+static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+__attribute__((alias("EMIT_ABCD_mem")));
+static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
     uint8_t tmp_a = RA_AllocARMRegister(&ptr);
@@ -336,27 +346,36 @@ uint32_t *EMIT_ABCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static EMIT_Function JumpTable[4096] = {
-    [00000 ... 00007] = EMIT_AND,  //D0 Destination
-    [00020 ... 00074] = EMIT_AND,
-    [00100 ... 00107] = EMIT_AND,
-    [00120 ... 00174] = EMIT_AND,
-    [00200 ... 00207] = EMIT_AND,
-    [00220 ... 00274] = EMIT_AND,
+    [00000 ... 00007] = EMIT_AND_reg,  //D0 Destination, Byte
+    [00020 ... 00047] = EMIT_AND_mem,
+    [00050 ... 00074] = EMIT_AND_ext,
+    [00100 ... 00107] = EMIT_AND_reg, //Word
+    [00120 ... 00147] = EMIT_AND_mem,
+    [00150 ... 00174] = EMIT_AND_ext,
+    [00200 ... 00207] = EMIT_AND_reg, //Long
+    [00220 ... 00247] = EMIT_AND_mem,
+    [00250 ... 00274] = EMIT_AND_ext,
     
-    [00300 ... 00307] = EMIT_MULU, //D0 Destination
-    [00320 ... 00374] = EMIT_MULU,
+    [00300 ... 00307] = EMIT_MULU, //_reg, //D0 Destination
+    [00320 ... 00347] = EMIT_MULU, //_mem,
+    [00350 ... 00374] = EMIT_MULU, //_ext,
     
-    [00400 ... 00417] = EMIT_ABCD, //D0 Destination
-    [00420 ... 00471] = EMIT_AND,  //D0 Source
+    [00400 ... 00407] = EMIT_ABCD_reg, //D0 Destination
+    [00410 ... 00417] = EMIT_ABCD_mem, //-Ax),-(Ay)
+    [00420 ... 00447] = EMIT_AND_mem, //Byte
+    [00450 ... 00471] = EMIT_AND_ext, //D0 Source
     
-    [00500 ... 00517] = EMIT_EXG,  //R0 Source
-    [00520 ... 00571] = EMIT_AND,
+    [00500 ... 00517] = EMIT_EXG, //R0 Source, unsized always the full register
+    [00520 ... 00547] = EMIT_AND_mem, //Word
+    [00550 ... 00571] = EMIT_AND_ext, 
     
     [00610 ... 00617] = EMIT_EXG,  //D0 Source
-    [00620 ... 00671] = EMIT_AND,
+    [00620 ... 00647] = EMIT_AND_mem, //Long
+    [00650 ... 00671] = EMIT_AND_ext,
     
-    [00700 ... 00707] = EMIT_MULS, //D0 Destination
-    [00720 ... 00774] = EMIT_MULS,
+    [00700 ... 00707] = EMIT_MULS, //_reg, //D0 Destination
+    [00720 ... 00747] = EMIT_MULS, //_mem,
+    [00750 ... 00774] = EMIT_MULS, //_ext,
     
     [01000 ... 01007] = EMIT_AND,  //D1 Destination
     [01020 ... 01074] = EMIT_AND,
