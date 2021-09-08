@@ -437,33 +437,33 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 }
 
 static EMIT_Function JumpTable[4096] = {
-    [0000 ... 00007] = EMIT_ADD_reg,  //Dn Destination, Byte
-    [0020 ... 00047] = EMIT_ADD_mem,
-    [0050 ... 00074] = EMIT_ADD_ext,
-    [0100 ... 00117] = EMIT_ADD_reg,  //Word
-    [0120 ... 00147] = EMIT_ADD_mem,
-    [0150 ... 00174] = EMIT_ADD_ext,
-    [0200 ... 00217] = EMIT_ADD_reg,  //Long
-    [0220 ... 00247] = EMIT_ADD_mem,
-    [0250 ... 00274] = EMIT_ADD_ext,
-    [0300 ... 00317] = EMIT_ADDA_reg, //Word
-    [0320 ... 00347] = EMIT_ADDA_mem,
-    [0350 ... 00374] = EMIT_ADDA_ext,
-    [0400 ... 00407] = EMIT_ADDX_reg, //Byte
-    [0410 ... 00417] = EMIT_ADDX_mem, 
-    [0500 ... 00507] = EMIT_ADDX_reg, //Word
-    [0510 ... 00517] = EMIT_ADDX_mem,
-    [0600 ... 00607] = EMIT_ADDX_reg, //Long
-    [0610 ... 00617] = EMIT_ADDX_mem,
-    [0420 ... 00447] = EMIT_ADD_mem,  //Dn Source, Byte
-    [0450 ... 00471] = EMIT_ADD_ext,
-    [0520 ... 00547] = EMIT_ADD_mem,  //Word
-    [0550 ... 00571] = EMIT_ADD_ext,
-    [0620 ... 00647] = EMIT_ADD_mem,  //Long
-    [0650 ... 00671] = EMIT_ADD_ext,
-    [0700 ... 00717] = EMIT_ADDA_reg,
-    [0720 ... 00747] = EMIT_ADDA_mem,
-    [0750 ... 00774] = EMIT_ADDA_ext, //Long
+    [0000 ... 0007] = EMIT_ADD_reg,  //Dn Destination, Byte
+    [0020 ... 0047] = EMIT_ADD_mem,
+    [0050 ... 0074] = EMIT_ADD_ext,
+    [0100 ... 0117] = EMIT_ADD_reg,  //Word
+    [0120 ... 0147] = EMIT_ADD_mem,
+    [0150 ... 0174] = EMIT_ADD_ext,
+    [0200 ... 0217] = EMIT_ADD_reg,  //Long
+    [0220 ... 0247] = EMIT_ADD_mem,
+    [0250 ... 0274] = EMIT_ADD_ext,
+    [0300 ... 0317] = EMIT_ADDA_reg, //Word
+    [0320 ... 0347] = EMIT_ADDA_mem,
+    [0350 ... 0374] = EMIT_ADDA_ext,
+    [0400 ... 0407] = EMIT_ADDX_reg, //Byte
+    [0410 ... 0417] = EMIT_ADDX_mem, 
+    [0500 ... 0507] = EMIT_ADDX_reg, //Word
+    [0510 ... 0517] = EMIT_ADDX_mem,
+    [0600 ... 0607] = EMIT_ADDX_reg, //Long
+    [0610 ... 0617] = EMIT_ADDX_mem,
+    [0420 ... 0447] = EMIT_ADD_mem,  //Dn Source, Byte
+    [0450 ... 0471] = EMIT_ADD_ext,
+    [0520 ... 0547] = EMIT_ADD_mem,  //Word
+    [0550 ... 0571] = EMIT_ADD_ext,
+    [0620 ... 0647] = EMIT_ADD_mem,  //Long
+    [0650 ... 0671] = EMIT_ADD_ext,
+    [0700 ... 0717] = EMIT_ADDA_reg,
+    [0720 ... 0747] = EMIT_ADDA_mem,
+    [0750 ... 0774] = EMIT_ADDA_ext, //Long
 };
 
 
