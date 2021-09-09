@@ -104,6 +104,7 @@ struct M68KState
 #define SR_Z    0x0004
 #define SR_N    0x0008
 #define SR_X    0x0010
+#define SR_CCR  0x001F
 #define SR_IPL  0x0700
 #define SR_M    0x1000
 #define SR_S    0x2000
