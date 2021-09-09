@@ -205,6 +205,8 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
 uint32_t *EMIT_EXG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    (void)m68k_ptr;
+
     uint8_t reg1 = 0xff;
     uint8_t reg2 = 0xff;
     uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -257,6 +259,7 @@ __attribute__((alias("EMIT_ABCD_mem")));
 static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
+    (void)m68k_ptr;
     uint8_t tmp_a = RA_AllocARMRegister(&ptr);
     uint8_t tmp_b = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
