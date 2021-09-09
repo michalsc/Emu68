@@ -101,10 +101,21 @@ struct M68KState
 
 #define SR_C    0x0001
 #define SR_V    0x0002
+#define SR_VC   0x0003
 #define SR_Z    0x0004
+#define SR_ZC   0x0005
+#define SR_ZV   0x0006
+#define SR_ZVC  0x0007
 #define SR_N    0x0008
+#define SR_NC   0x0009
+#define SR_NV   0x000a
+#define SR_NVC  0x000b
+#define SR_NZ   0x000c
+#define SR_NZC  0x000d
+#define SR_NZV  0x000e
+#define SR_NZCC 0x000f
 #define SR_X    0x0010
-#define SR_CCR  0x001F
+#define SR_CCR  0x001f
 #define SR_IPL  0x0700
 #define SR_M    0x1000
 #define SR_S    0x2000
