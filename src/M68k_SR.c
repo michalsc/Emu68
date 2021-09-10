@@ -45,10 +45,10 @@ static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level);
 #endif
 
 static struct SRMaskEntry Line0_Map[] = {
-    { 0xffbf, 0x003c, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V | SR_X, SR_C | SR_Z | SR_N | SR_V | SR_X , NULL }, /* ORI to CCR/SR - needs all falgs, sets all flags */
+    { 0xffbf, 0x003c, 2, 0, SME_MASK, SR_CCR, SR_CCR , NULL }, /* ORI to CCR/SR - needs all falgs, sets all flags */
     { 0xff80, 0x0000, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },                /* ORI.B / ORI.W */
     { 0xffc0, 0x0080, 3, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },                /* ORI.L */
-    { 0xffbf, 0x023c, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V | SR_X, SR_C | SR_Z | SR_N | SR_V | SR_X , NULL }, /* ANDI to CCR/SR - needs all falgs, sets all flags */
+    { 0xffbf, 0x023c, 2, 0, SME_MASK, SR_CCR, SR_CCR , NULL }, /* ANDI to CCR/SR - needs all falgs, sets all flags */
     { 0xf9c0, 0x00c0, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CHK2/CMP2 */
     { 0xff80, 0x0200, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* ANDI.B / ANDI.W */
     { 0xffc0, 0x0280, 3, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* ANDI.L */
@@ -57,7 +57,7 @@ static struct SRMaskEntry Line0_Map[] = {
     { 0xffc0, 0x06c0, 1, 0, SME_MASK, 0, 0, NULL },                                /* RTM/CALLM */
     { 0xff80, 0x0600, 2, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* ADDI.B / ADDI.W */
     { 0xffc0, 0x0680, 3, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* ADDI.L */
-    { 0xffbf, 0x0a3c, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V | SR_X, SR_C | SR_Z | SR_N | SR_V | SR_X, NULL }, /* EORI to CCR/SR - they rely on current CC! */
+    { 0xffbf, 0x0a3c, 2, 0, SME_MASK, SR_CCR, SR_CCR, NULL }, /* EORI to CCR/SR - they rely on current CC! */
     { 0xff80, 0x0a00, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* EORI.B / EORI.W */
     { 0xffc0, 0x0a80, 3, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* EORI.L */
     { 0xff80, 0x0c00, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CMPI.B / CMPI.W */
@@ -79,12 +79,12 @@ static struct SRMaskEntry Line2_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)
 static struct SRMaskEntry Line3_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)] __attribute__((alias("Line1_Map")));
 
 static struct SRMaskEntry Line4_Map[] = {
-    { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, 0, NULL }, /* MOVE from CCR/SR */
+    { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_CCR, 0, NULL }, /* MOVE from CCR/SR */
     { 0xff00, 0x4000, 1, 1, SME_MASK, SR_X, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* NEGX */
     { 0xff00, 0x4200, 1, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* CLR */
-    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* MOVE to CCR */
+    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_CCR, NULL }, /* MOVE to CCR */
     { 0xff00, 0x4400, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* NEG */
-    { 0xffc0, 0x46c0, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* MOVE to SR */
+    { 0xffc0, 0x46c0, 1, 1, SME_MASK, 0, SR_CCR, NULL }, /* MOVE to SR *///this one should check other SR_ flags as well
     { 0xff00, 0x4600, 1, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* NOT */
     { 0xfeb8, 0x4880, 1, 0, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },        /* EXT/EXTB */
     { 0xfff8, 0x4808, 3, 0, SME_FUNC, 0, 0, SR_TestOpcode48B },                    /* LINK */
@@ -102,7 +102,7 @@ static struct SRMaskEntry Line4_Map[] = {
     { 0xfff0, 0x4e60, 1, 0, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, 0, NULL }, /* MOVE USP */
     { 0xffff, 0x4e70, 1, 0, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, 0, NULL }, /* RESET */
     { 0xffff, 0x4e71, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },                    /* NOP */
-    { 0xffff, 0x4e72, 2, 0, SME_MASK, SR_X | SR_C | SR_Z | SR_N | SR_V, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* STOP */
+    { 0xffff, 0x4e72, 2, 0, SME_MASK, SR_CCR, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* STOP */
     { 0xffff, 0x4e73, 1, 0, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL }, /* RTE */
     { 0xffff, 0x4e74, 2, 0, SME_MASK, 0, 0, NULL },                                /* RTD */
     { 0xffff, 0x4e75, 1, 0, SME_MASK, 0, 0, NULL },                                /* RTS */
