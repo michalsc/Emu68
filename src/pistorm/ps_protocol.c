@@ -23,6 +23,57 @@ unsigned int gpfsel0_o;
 unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
 
+#define BITBANG_DELAY 21
+
+static inline void ticksleep(uint64_t ticks)
+{
+  uint64_t t0 = 0, t1 = 0;
+  asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+  t0 += ticks;
+  do {
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+  } while(t1 < t0);
+}
+
+#define TXD_BIT (1 << 26)
+
+void bitbang_putByte(uint8_t byte)
+{
+  if (!gpio)
+    gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+
+  uint64_t t0 = 0, t1 = 0;
+  asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+  *(gpio + 10) = LE32(TXD_BIT); // Start bit - 0
+  
+  do {
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+  } while(t1 < (t0 + BITBANG_DELAY));
+  
+  for (int i=0; i < 8; i++) {
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+    if (byte & 1)
+      *(gpio + 7) = LE32(TXD_BIT);
+    else
+      *(gpio + 10) = LE32(TXD_BIT);
+    byte = byte >> 1;
+
+    do {
+      asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+    } while(t1 < (t0 + BITBANG_DELAY));
+  }
+  asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+  *(gpio + 7) = LE32(TXD_BIT);  // Stop bit - 1
+
+  do {
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+  } while(t1 < (t0 + 3*BITBANG_DELAY / 2));
+  
+}
+
 static void usleep(uint64_t delta)
 {
     uint64_t hi = LE32(*(volatile uint32_t*)0xf2003008);
@@ -86,6 +137,8 @@ void ps_setup_protocol() {
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
+
+  *(gpio + 7) = LE32(TXD_BIT);
 }
 
 static inline void DELAY()
