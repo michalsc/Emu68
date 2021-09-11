@@ -2183,7 +2183,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 void trampoline_icache_invalidate(void);
 void __attribute__((used)) __trampoline_icache_invalidate(void)
 {
-    asm volatile("\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
+    asm volatile(".globl trampoline_icache_invalidate\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
 }
 #else
 void __attribute__((naked)) trampoline_icache_invalidate(void)
@@ -2410,6 +2410,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 uint32_t u32[2];
             } u;
             u.u64 = (uintptr_t)trampoline_icache_invalidate;
+
+kprintf("address of trampoline: %p\n", u.u64);
 
             *ptr++ = stp64_preindex(31, 0, 1, -176);
             for (int i=2; i < 20; i+=2)
