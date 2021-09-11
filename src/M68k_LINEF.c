@@ -2411,8 +2411,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             } u;
             u.u64 = (uintptr_t)trampoline_icache_invalidate;
 
-kprintf("address of trampoline: %p\n", u.u64);
-
             *ptr++ = stp64_preindex(31, 0, 1, -176);
             for (int i=2; i < 20; i+=2)
                 *ptr++ = stp64(31, i, i + 1, i * 8);
