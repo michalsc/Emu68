@@ -68,7 +68,7 @@ static struct SRMaskEntry Line0_Map[] = {
     { 0xf9ff, 0x08fc, 3, 0, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },			/* CAS2 */
     { 0xf9c0, 0x08c0, 2, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },			/* CAS */
     { 0xf100, 0x0100, 2, 1, SME_MASK, 0, SR_Z, NULL },								/* BTST/BSET/BCLR/BCHG - reg */
-	{ 0xf138, 0x0108, 2, 1, SME_MASK, 0, 0, NULL },									/* MOVEP.W MOVEP.L - no effect to flags here for completion */
+	{ 0xf138, 0x0108, 2, 0, SME_MASK, 0, 0, NULL },									/* MOVEP.W MOVEP.L - no effect to flags here for completion */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
@@ -84,12 +84,12 @@ static struct SRMaskEntry Line3_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)
 static struct SRMaskEntry Line4_Map[] = {
     { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_CCR, 0, NULL },							/* MOVE from CCR/SR */
     { 0xff00, 0x4000, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NEGX */
-    { 0xff00, 0x4200, 1, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },			/* CLR */
+    { 0xff00, 0x4200, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CLR */
     { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* MOVE to CCR */
-    { 0xff00, 0x4400, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_Z | SR_N | SR_V, NULL },	/* NEG */
+    { 0xff00, 0x4400, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* NEG */
     { 0xffc0, 0x46c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* MOVE to SR *///this one should check other SR_ flags as well
-    { 0xff00, 0x4600, 1, 1, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },			/* NOT */
-    { 0xfeb8, 0x4880, 1, 0, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },			/* EXT/EXTB */
+    { 0xff00, 0x4600, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* NOT */
+    { 0xfeb8, 0x4880, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* EXT/EXTB */
     { 0xfff8, 0x4808, 3, 0, SME_FUNC, 0, 0, SR_TestOpcode48B },						/* LINK */
     { 0xffc0, 0x4800, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NBCD */
     { 0xfff8, 0x4840, 1, 0, SME_MASK, 0, SR_C | SR_Z | SR_N | SR_V, NULL },			/* SWAP */
@@ -121,57 +121,57 @@ static struct SRMaskEntry Line4_Map[] = {
 };
 
 static struct SRMaskEntry Line5_Map[] = {
-    { 0xf0f8, 0x50c8, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },        /* DBcc */
-    { 0xf0ff, 0x50fc, 1, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },        /* TRAPcc */
-    { 0xf0ff, 0x50fa, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },        /* TRAPcc.W */
-    { 0xf0ff, 0x50fb, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },        /* TRAPcc.L */
-    { 0xf0c0, 0x50c0, 1, 1, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },        /* Scc */
-    { 0xf038, 0x5008, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },                    /* SUBQ/ADDQ with An */
-    { 0xf000, 0x5000, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUBQ/ADDQ */
+    { 0xf0f8, 0x50c8, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, SR_Z, NULL },		/* DBcc - subtracting 1 from Dn will eventually trigger SR_Z*/
+    { 0xf0ff, 0x50fc, 1, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },			/* TRAPcc */
+    { 0xf0ff, 0x50fa, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },			/* TRAPcc.W */
+    { 0xf0ff, 0x50fb, 2, 0, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },	`		/* TRAPcc.L */
+    { 0xf0c0, 0x50c0, 1, 1, SME_MASK, SR_C | SR_Z | SR_N | SR_V, 0, NULL },			/* Scc */
+    { 0xf038, 0x5008, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* SUBQ/ADDQ with An */
+    { 0xf000, 0x5000, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL },	/* SUBQ/ADDQ */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry Line6_Map[] = {
-    { 0xfeff, 0x6000, 2, 0, SME_FUNC,  0, 0, SR_TestBranch },                      /* BRA.W/BSR.W */
-    { 0xfeff, 0x60ff, 3, 0, SME_FUNC,  0, 0, SR_TestBranch },                      /* BRA.L/BSR.L */
-    { 0xfe00, 0x6000, 1, 0, SME_FUNC,  0, 0, SR_TestBranch },                      /* BRA.B/BSR.B */
-    { 0xfeff, 0x6600, 2, 0, SME_MASK,  SR_Z, 0, NULL },                            /* BNE.W/BEQ.W */
-    { 0xfeff, 0x66ff, 3, 0, SME_MASK,  SR_Z, 0, NULL },                            /* BNE.L/BEQ.L */
-    { 0xfe00, 0x6600, 1, 0, SME_MASK,  SR_Z, 0, NULL },                            /* BNE.B/BEQ.B */
-    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_C, 0, NULL },                            /* BCC.W/BCS.W */
-    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_C, 0, NULL },                            /* BCC.L/BCS.L */
-    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_C, 0, NULL },                            /* BCC.B/BCS.B */
-    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_N, 0, NULL },                            /* BPL.W/BMI.W */
-    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_N, 0, NULL },                            /* BPL.L/BMI.L */
-    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_N, 0, NULL },                            /* BPL.B/BMI.B */
-    { 0xfeff, 0x6800, 2, 0, SME_MASK,  SR_V, 0, NULL },                            /* BVC.W/BVS.W */
-    { 0xfeff, 0x68ff, 3, 0, SME_MASK,  SR_V, 0, NULL },                            /* BVC.L/BVS.L */
-    { 0xfe00, 0x6800, 1, 0, SME_MASK,  SR_V, 0, NULL },                            /* BVC.B/BVS.B */
-    { 0xf0ff, 0x6000, 2, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },       /* Bcc.W */
-    { 0xf0ff, 0x60ff, 3, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },       /* Bcc.L */
-    { 0xf000, 0x6000, 1, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },       /* Bcc.B */
+    { 0xfeff, 0x6000, 2, 0, SME_FUNC,  0, 0, SR_TestBranch },						/* BRA.W/BSR.W */
+    { 0xfeff, 0x60ff, 3, 0, SME_FUNC,  0, 0, SR_TestBranch },						/* BRA.L/BSR.L */
+    { 0xfe00, 0x6000, 1, 0, SME_FUNC,  0, 0, SR_TestBranch },						/* BRA.B/BSR.B */
+    { 0xfeff, 0x6600, 2, 0, SME_MASK,  SR_Z, 0, NULL },								/* BNE.W/BEQ.W */
+    { 0xfeff, 0x66ff, 3, 0, SME_MASK,  SR_Z, 0, NULL },								/* BNE.L/BEQ.L */
+    { 0xfe00, 0x6600, 1, 0, SME_MASK,  SR_Z, 0, NULL },								/* BNE.B/BEQ.B */
+    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_C, 0, NULL },								/* BCC.W/BCS.W */
+    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_C, 0, NULL },								/* BCC.L/BCS.L */
+    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_C, 0, NULL },								/* BCC.B/BCS.B */
+    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_N, 0, NULL },								/* BPL.W/BMI.W */
+    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_N, 0, NULL },								/* BPL.L/BMI.L */
+    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_N, 0, NULL },								/* BPL.B/BMI.B */
+    { 0xfeff, 0x6800, 2, 0, SME_MASK,  SR_V, 0, NULL },								/* BVC.W/BVS.W */
+    { 0xfeff, 0x68ff, 3, 0, SME_MASK,  SR_V, 0, NULL },								/* BVC.L/BVS.L */
+    { 0xfe00, 0x6800, 1, 0, SME_MASK,  SR_V, 0, NULL },								/* BVC.B/BVS.B */
+    { 0xf0ff, 0x6000, 2, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },		/* Bcc.W */
+    { 0xf0ff, 0x60ff, 3, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },		/* Bcc.L */
+    { 0xf000, 0x6000, 1, 0, SME_MASK,  SR_C | SR_Z | SR_N | SR_V, 0, NULL },		/* Bcc.B */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry Line7_Map[] = {
-    { 0xf000, 0x7000, 1, 0, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* MOVEQ */
+    { 0xf000, 0x7000, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* MOVEQ */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry Line8_Map[] = {
-    { 0xf1c0, 0x80c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* DIVU */
-    { 0xf1f0, 0x8100, 1, 0, SME_MASK, SR_X, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SBCD */
-    { 0xf1f0, 0x8140, 2, 0, SME_MASK, 0, 0, NULL },                                /* PACK */
-    { 0xf1f0, 0x8180, 2, 0, SME_MASK, 0, 0, NULL },                                /* UNPK */
-    { 0xf1c0, 0x81c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* DIVS */
-    { 0xf000, 0x8000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* OR */
+    { 0xf1c0, 0x80c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVU */
+    { 0xf1f0, 0x8100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* SBCD */
+    { 0xf1f0, 0x8140, 2, 0, SME_MASK, 0, 0, NULL },									/* PACK */
+    { 0xf1f0, 0x8180, 2, 0, SME_MASK, 0, 0, NULL },									/* UNPK */
+    { 0xf1c0, 0x81c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVS */
+    { 0xf000, 0x8000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* OR */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry Line9_Map[] = {
-    { 0xf0c0, 0x90c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeADDA },                   /* SUBA */
-    { 0xf130, 0x9100, 1, 0, SME_MASK, SR_X, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUBX */
-    { 0xf000, 0x9000, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* SUB */
+    { 0xf0c0, 0x90c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeADDA },					/* SUBA */
+    { 0xf130, 0x9100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* SUBX */
+    { 0xf000, 0x9000, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUB */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
@@ -180,29 +180,29 @@ static struct SRMaskEntry LineA_Map[] = {
 };
 
 static struct SRMaskEntry LineB_Map[] = {
-    { 0xf1b8, 0xb108, 1, 0, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },  /* CMPM.(B|W) */
-    { 0xf1f8, 0xb188, 1, 0, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },  /* CMPM.L */
-    { 0xf0c0, 0xb0c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },  /* CMPA */
-    { 0xf180, 0xb000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },  /* CMP.(B|W) */
-    { 0xf1c0, 0xb080, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },  /* CMP.L */
-    { 0xf000, 0xb000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },  /* EOR */
+    { 0xf1b8, 0xb108, 1, 0, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* CMPM.(B|W) */
+    { 0xf1f8, 0xb188, 1, 0, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* CMPM.L */
+    { 0xf0c0, 0xb0c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* CMPA */
+    { 0xf180, 0xb000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* CMP.(B|W) */
+    { 0xf1c0, 0xb080, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* CMP.L */
+    { 0xf000, 0xb000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* EOR */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry LineC_Map[] = {
-    { 0xf1c0, 0xc0c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* MULU */
-    { 0xf1f0, 0xc100, 1, 0, SME_MASK, SR_X, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ABCD */
-    { 0xf1c0, 0xc1c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* MULS */
-    { 0xf1f0, 0xc140, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },                    /* EXG Dx,Dy / EXG Ax,Ay */
-    { 0xf1f0, 0xc180, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },                    /* EXG Dx,Ay */
-    { 0xf000, 0xc000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },        /* AND */
+    { 0xf1c0, 0xc0c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* MULU */
+    { 0xf1f0, 0xc100, 1, 0, SME_MASK, SR_X, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL },	/* ABCD */
+    { 0xf1c0, 0xc1c0, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* MULS */
+    { 0xf1f0, 0xc140, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Dy / EXG Ax,Ay */
+    { 0xf1f0, 0xc180, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Ay */
+    { 0xf000, 0xc000, 1, 1, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* AND */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry LineD_Map[] = {
-    { 0xf0c0, 0xd0c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeADDA },                   /* ADDA */
-    { 0xf130, 0xd100, 1, 0, SME_MASK, SR_X, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL },        /* ADDX - reqires X and modifies X! */
-    { 0xf000, 0xd000, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL }, /* ADD */
+    { 0xf0c0, 0xd0c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeADDA },					/* ADDA */
+    { 0xf130, 0xd100, 1, 0, SME_MASK, SR_X, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL },	/* ADDX - reqires X and modifies X! */
+    { 0xf000, 0xd000, 1, 1, SME_MASK, 0, SR_X | SR_C | SR_V | SR_Z | SR_N, NULL },	/* ADD */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, NULL }
 };
 
