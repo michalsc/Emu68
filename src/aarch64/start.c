@@ -311,38 +311,12 @@ asm(
 "       b.eq    _sec_leave_EL2      \n" /* In case of EL2 or EL3 switch back to EL1 */
 "       b.gt    _sec_leave_EL3      \n"
 "_sec_continue_boot:                \n"
-#if EMU68_HOST_BIG_ENDIAN
-"       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
-"       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
-"       msr     SCTLR_EL1, x10      \n"
-#endif
-"       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
-"       msr     CPACR_EL1, x10      \n"
-"       isb     sy                  \n"
-"       isb     sy                  \n" /* Drain the insn queue */
-"       ic      IALLU               \n" /* Invalidate entire instruction cache */
-"       isb     sy                  \n"
-                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
-"       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
-"       msr     TCR_EL1, x10        \n"
-
-"       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
-"       msr     TTBR0_EL1, x10      \n" /* Initially only 4GB in each region is mapped, the rest comes later */
-"       adrp    x10, mmu_kernel_L1  \n"
-"       msr     TTBR1_EL1, x10      \n"
-
-"       isb     sy                  \n"
-"       mrs     x10, SCTLR_EL1      \n"
-"       orr     x10, x10, #1        \n"
-"       msr     SCTLR_EL1, x10      \n"
-"       isb     sy                  \n"
-
-"       ldr     x9, =temp_stack     \n" /* Set up stack */
+"       adrp    x9, temp_stack      \n" /* Set up stack */
+"       add     x9, x9, #:lo12:temp_stack\n"
 "       ldr     x9, [x9]            \n"
 "       mov     sp, x9              \n"
+
 "2:     ldr     x30, =secondary_boot\n"
 "       br      x30                 \n"
 
@@ -363,6 +337,9 @@ asm(
 "       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL2, x10      \n"
+"       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
+"       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
+"       msr     SCTLR_EL1, x10      \n"
 #endif
 "       mrs     x10, MDCR_EL2       \n" /* Enable event counters */
 "       orr     x10, x10, #0x80     \n"
@@ -371,30 +348,67 @@ asm(
 "       msr     CNTHCTL_EL2, x10    \n"
 "       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
 "       msr     HCR_EL2, x10        \n"
-"       adr     x10, _sec_continue_boot  \n" /* Fallback to continue_boot in EL1 */
+"       ldr     x10, =_sec_continue_boot  \n" /* Fallback to continue_boot in EL1 */
 "       msr     ELR_EL2, x10        \n"
 "       ldr     w10, =0x000003c5    \n"
 "       msr     SPSR_EL2, x10       \n"
+
+"       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
+"       msr     CPACR_EL1, x10      \n"
+                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
+"       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
+
+"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
+"       msr     TCR_EL1, x10        \n"
+
+"       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
+"       msr     TTBR0_EL1, x10      \n"
+"       adrp    x10, mmu_kernel_L1  \n"
+"       msr     TTBR1_EL1, x10      \n"
+
+"       mrs     x10, SCTLR_EL1      \n"
+"       orr     x10, x10, #1        \n"
+"       msr     SCTLR_EL1, x10      \n"
+
 "       eret                        \n"
 "       .ltorg                      \n"
 );
 
-uint64_t temp_stack;
-volatile uint8_t boot_lock = 1;
+volatile uint64_t temp_stack;
+volatile uint8_t boot_lock;
 
 void secondary_boot(void)
 {
     uint64_t cpu_id;
+    uint64_t tmp;
 
     asm volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
-    
+   
     cpu_id &= 3;
     
-    kprintf("[BOOT] Started CPU%d", cpu_id);
+    /* Enable caches and cache maintenance instructions from EL0 */
+    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
+    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
+    tmp &= ~0x18;                   // Disable stack alignment check
+    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
+    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
+    asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+    tmp |= 5; // Enable event counting and reset cycle counter
+    asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+    tmp = 0x80000000; // Enable cycle counter
+    asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+
+    kprintf("[BOOT] Started CPU%d\n", cpu_id);
+   
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-    while(1) { asm volatile("wfe"); kprintf("sleep\n"); }
+    while(1) { asm volatile("wfe"); }
 }
 
 void boot(void *dtree)
@@ -590,6 +604,12 @@ void boot(void *dtree)
 
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
 
+        uint64_t TTBR0, TTBR1;
+
+        asm volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
+
+        kprintf("[BOOT] MMU tables at %p and %p\n", TTBR0, TTBR1);
+
         const uint32_t tlb_flusher[] = {
             LE32(0xd5033b9f),       // dsb   ish
             LE32(0xd508831f),       // tlbi  vmalle1is
@@ -609,15 +629,15 @@ void boot(void *dtree)
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint32_t *)0xffffff90000000e0 = LE32(mmu_virt2phys((intptr_t)_secondary_start));
-    *(uint32_t *)0xffffff90000000e8 = LE32(mmu_virt2phys((intptr_t)_secondary_start));
-    *(uint32_t *)0xffffff90000000f0 = LE32(mmu_virt2phys((intptr_t)_secondary_start));
-    arm_flush_cache(0xffffff9000000000, 256);
-    
+    *(uint64_t *)0xffffff90000000e0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    clear_entire_dcache();
+        
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
 
-//    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("sev");
-//    __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
+    asm volatile("sev");
+
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
