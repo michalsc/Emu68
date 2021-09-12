@@ -348,7 +348,7 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     return ptr;
 }
 
-static EMIT_Function JumpTable[4096] = {
+static EMIT_Function JumpTable[512] = {
     [0000 ... 0007] = EMIT_AND_reg,  //D0 Destination, Byte
     [0020 ... 0047] = EMIT_AND_mem,
     [0050 ... 0074] = EMIT_AND_ext,
