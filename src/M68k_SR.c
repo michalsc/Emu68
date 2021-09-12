@@ -126,7 +126,8 @@ static struct SRMaskEntry Line5_Map[] = {
     { 0xf0ff, 0x50fa, 2, 0, SME_MASK, SR_NZVC, 0, NULL },							/* TRAPcc.W */
     { 0xf0ff, 0x50fb, 2, 0, SME_MASK, SR_NZVC, 0, NULL },	`						/* TRAPcc.L */
     { 0xf0c0, 0x50c0, 1, 1, SME_MASK, SR_NZVC, 0, NULL },							/* Scc */
-    { 0xf038, 0x5008, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* SUBQ/ADDQ with An */
+    { 0xf078, 0x5048, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* SUBQ/ADDQ.W with An */
+	{ 0xf0f8, 0x5088, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* SUBQ/ADDQ.L with An */
     { 0xf000, 0x5000, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUBQ/ADDQ */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
@@ -159,12 +160,12 @@ static struct SRMaskEntry Line7_Map[] = {
 };
 
 static struct SRMaskEntry Line8_Map[] = {
-    { 0xf1c0, 0x80c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVU */
+    { 0xf1c0, 0x80c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVU.W <ea>,Dn */
     { 0xf1f0, 0x8100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* SBCD */
     { 0xf1f0, 0x8140, 2, 0, SME_MASK, 0, 0, NULL },									/* PACK */
     { 0xf1f0, 0x8180, 2, 0, SME_MASK, 0, 0, NULL },									/* UNPK */
-    { 0xf1c0, 0x81c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVS */
-    { 0xf000, 0x8000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* OR */
+    { 0xf1c0, 0x81c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVS.W <ea>,Dn */
+    { 0xf000, 0x8000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* OR *///PACK & UNPK are located in this space.
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
@@ -185,17 +186,19 @@ static struct SRMaskEntry LineB_Map[] = {
     { 0xf0c0, 0xb0c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMPA */
     { 0xf180, 0xb000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMP.(B|W) */
     { 0xf1c0, 0xb080, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMP.L */
-    { 0xf000, 0xb000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EOR */
+    { 0xf180, 0xb100, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EOR.(B|W) */
+	{ 0xf1c0, 0xb180, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EOR.L */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry LineC_Map[] = {
-    { 0xf1c0, 0xc0c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULU */
+    { 0xf1c0, 0xc0c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULU.W */
     { 0xf1f0, 0xc100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* ABCD */
-    { 0xf1c0, 0xc1c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULS */
+    { 0xf1c0, 0xc1c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULS.W */
     { 0xf1f0, 0xc140, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Dy / EXG Ax,Ay */
-    { 0xf1f0, 0xc180, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Ay */
+    { 0xf1f8, 0xc188, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Ay */
     { 0xf000, 0xc000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* AND */
+	
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
