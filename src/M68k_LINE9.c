@@ -438,7 +438,7 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 4th octet reg/mode
 */
 /*
-static EMIT_Function JumpTable[4096] = {
+static EMIT_Function JumpTable[512] = {
 	[0000 ... 0007] = EMIT_SUB_reg,  //D0 Destination
 	[0020 ... 0047] = EMIT_SUB_mem,
 	[0050 ... 0074] = EMIT_SUB_ext,
