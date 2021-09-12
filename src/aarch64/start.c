@@ -609,9 +609,9 @@ void boot(void *dtree)
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint32_t *)0xffffff90000000e0 = LE32(mmu_virt2phys(_secondary_start));
-    *(uint32_t *)0xffffff90000000e8 = LE32(mmu_virt2phys(_secondary_start));
-    *(uint32_t *)0xffffff90000000f0 = LE32(mmu_virt2phys(_secondary_start));
+    *(uint32_t *)0xffffff90000000e0 = LE32(mmu_virt2phys((intptr_t)_secondary_start));
+    *(uint32_t *)0xffffff90000000e8 = LE32(mmu_virt2phys((intptr_t)_secondary_start));
+    *(uint32_t *)0xffffff90000000f0 = LE32(mmu_virt2phys((intptr_t)_secondary_start));
     arm_flush_cache(0xffffff9000000000, 256);
     
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
