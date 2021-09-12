@@ -125,17 +125,29 @@ static inline void putByte(void *io_base, char chr)
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE 0xf2000000
 
+volatile unsigned char print_lock = 0;
+
 void kprintf(const char * restrict format, ...)
 {
     va_list v;
     va_start(v, format);
+
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, v);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
     va_end(v);
 }
 
 void vkprintf(const char * restrict format, va_list args)
 {
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, args);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
 }
 
 /* status register flags */
