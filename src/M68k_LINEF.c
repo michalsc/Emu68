@@ -283,6 +283,7 @@ void  __attribute__((used)) stub_PolySine(void)
 {
     asm volatile(
         "   .align 4                \n"
+        "   .globl PolySine         \n"
         "PolySine:                  \n"
         "   stp d1, d2, [sp, #-16]! \n"
         "   str d3, [sp, #-8]!      \n"
@@ -317,6 +318,7 @@ void  __attribute__((used)) stub_PolySineSingle(void)
 {
     asm volatile(
         "   .align 4                \n"
+        "   .globl PolySineSingle   \n"
         "PolySineSingle:            \n"
         "   stp d1, d2, [sp, #-16]! \n"
         "   str d3, [sp, #-8]!      \n"
@@ -345,6 +347,7 @@ void  __attribute__((used)) stub_PolyCosine(void)
 {
     asm volatile(
         "   .align 4                \n"
+        "   .globl PolyConsine      \n"
         "PolyCosine:                \n"
         "   stp d1, d2, [sp, #-16]! \n"
         "   str x0, [sp, #-8]!      \n"
@@ -378,6 +381,7 @@ void  __attribute__((used)) stub_PolyCosineSingle(void)
 {
     asm volatile(
         "   .align 4                \n"
+        "   .globl PolyCosineSingle \n"
         "PolyCosineSingle:          \n"
         "   stp d1, d2, [sp, #-16]! \n"
         "   str x0, [sp, #-8]!      \n"
@@ -1949,6 +1953,7 @@ void invalidate_entire_dcache(void);
 void __attribute__((used)) __invalidate_entire_dcache(void)
 {
     asm volatile(
+"       .globl  invalidate_entire_dcache\n"
 "invalidate_entire_dcache:              \n"
 "       stp     x0, x1, [sp, #-112]!    \n"
 "       stp     x2, x3, [sp, #16]       \n"
@@ -2183,7 +2188,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 void trampoline_icache_invalidate(void);
 void __attribute__((used)) __trampoline_icache_invalidate(void)
 {
-    asm volatile("\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
+    asm volatile(".globl trampoline_icache_invalidate\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
 }
 #else
 void __attribute__((naked)) trampoline_icache_invalidate(void)

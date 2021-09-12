@@ -12,6 +12,7 @@
 
 #include "support_rpi.h"
 #include "mmu.h"
+#include "tlsf.h"
 
 #ifdef PISTORM
 #include "ps_protocol.h"
@@ -58,30 +59,39 @@ static int serial_up = 0;
 
 #ifdef PISTORM
 
-static inline void waitSerOUT(void *io_base)
+uint8_t *q_buffer;
+volatile uint64_t q_head;
+volatile uint64_t q_tail;
+#define Q_SIZE (2*1024*1024)
+
+void q_push(uint8_t data)
 {
-    (void)io_base;
+    while(q_tail + Q_SIZE <= q_head)
+        asm volatile("yield");
     
-    while(1) {
-        if (ps_read_16(0xdff018) & (1 << 12))
-            break;
+    q_buffer[q_head & (Q_SIZE - 1)] = data;
+    __sync_add_and_fetch(&q_head, 1);
+    asm volatile("sev");
+}
+
+uint8_t q_pop()
+{
+    while (q_tail == q_head) {
+        asm volatile("wfe");
     }
+
+    uint8_t data = q_buffer[q_tail & (Q_SIZE - 1)];
+    __sync_add_and_fetch(&q_head, 1);
+    return data;
 }
 
 static inline void putByte(void *io_base, char chr)
 {
-    if (serial_up)
-    {
-        waitSerOUT(io_base);
+    (void)io_base;
 
-        if (chr == '\n')
-        {
-            ps_write_16(0xdff030, 0x100 + '\r');
-            waitSerOUT(io_base);
-        }
-        ps_write_16(0xdff030, 0x100 + (uint8_t)chr);
-        waitSerOUT(io_base);
-    }
+    if (chr == '\n')
+        bitbang_putByte('\r');
+    bitbang_putByte(chr);
 }
 
 #else
@@ -396,9 +406,11 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 
 void setup_serial()
 {
-    ps_write_16(0xdff09e, 0x0800);
-    ps_write_16(0xdff032, 14); // 30 Set up serial port for 115200 bps transmission
     serial_up = 1;
+
+    q_buffer = tlsf_malloc(tlsf, Q_SIZE);
+    q_head = 0;
+    q_tail = 0;
 }
 
 #else
