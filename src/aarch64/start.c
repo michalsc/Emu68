@@ -423,8 +423,10 @@ void secondary_boot(void)
     
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
+#ifdef PISTORM
     if (async_log)
         serial_writer();
+#endif
 
     while(1) { asm volatile("wfe"); }
 }
