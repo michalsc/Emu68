@@ -378,10 +378,14 @@ asm(
 volatile uint64_t temp_stack;
 volatile uint8_t boot_lock;
 
+void serial_writer();
+
 void secondary_boot(void)
 {
     uint64_t cpu_id;
     uint64_t tmp;
+    of_node_t *e = NULL;
+    int async_log = 0;
 
     asm volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
    
@@ -406,7 +410,21 @@ void secondary_boot(void)
 
     kprintf("[BOOT] Started CPU%d\n", cpu_id);
    
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        of_property_t * prop = dt_find_property(e, "bootargs");
+        if (prop)
+        {
+            if (strstr(prop->op_value, "async_log"))
+                async_log = 1;
+        }
+    }
+    
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
+
+    if (async_log)
+        serial_writer();
 
     while(1) { asm volatile("wfe"); }
 }
