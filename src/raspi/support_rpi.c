@@ -62,7 +62,7 @@ static int serial_up = 0;
 uint8_t *q_buffer;
 volatile uint64_t q_head;
 volatile uint64_t q_tail;
-#define Q_SIZE (2*1024*1024)
+#define Q_SIZE (8*1024*1024)
 
 void q_push(uint8_t data)
 {
@@ -81,17 +81,37 @@ uint8_t q_pop()
     }
 
     uint8_t data = q_buffer[q_tail & (Q_SIZE - 1)];
-    __sync_add_and_fetch(&q_head, 1);
+    __sync_add_and_fetch(&q_tail, 1);
     return data;
 }
+
+int redirect = 0;
 
 static inline void putByte(void *io_base, char chr)
 {
     (void)io_base;
 
-    if (chr == '\n')
-        bitbang_putByte('\r');
-    bitbang_putByte(chr);
+    if (redirect)
+    {
+        if (chr == '\n')
+            q_push('\r');
+        q_push(chr);
+    }
+    else
+    {
+        if (chr == '\n')
+            bitbang_putByte('\r');
+        bitbang_putByte(chr);
+    }
+}
+
+void serial_writer()
+{
+    redirect = 1;
+
+    while(1) {
+        bitbang_putByte(q_pop());
+    }
 }
 
 #else
