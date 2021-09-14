@@ -26,7 +26,7 @@
 #endif
 
 #define EMU68_ARM_CACHE_SIZE    (4*1024*1024)
-#define EMU68_M68K_INSN_DEPTH   32
+#define EMU68_M68K_INSN_DEPTH   1
 #define EMU68_HOST_BIG_ENDIAN   1
 #define EMU68_HAS_SETEND        1
 #define EMU68_DEF_BRANCH_TAKEN  0
@@ -41,7 +41,7 @@
 #define VERSION_STRING_DATE ""
 #endif
 
-#define KERNEL_SYS_PAGES        8
+#define KERNEL_SYS_PAGES        16
 #define KERNEL_JIT_PAGES        32
 #define KERNEL_RSRVD_PAGES      ((KERNEL_JIT_PAGES) + (KERNEL_SYS_PAGES))
 
