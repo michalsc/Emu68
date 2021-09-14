@@ -25,6 +25,36 @@ unsigned int gpfsel2_o;
 
 #define BITBANG_DELAY 21
 
+volatile uint8_t gpio_lock;
+
+static void usleep(uint64_t delta)
+{
+    uint64_t hi = LE32(*(volatile uint32_t*)0xf2003008);
+    uint64_t lo = LE32(*(volatile uint32_t*)0xf2003004);
+    uint64_t t1, t2;
+
+    if (hi != LE32(*(volatile uint32_t*)0xf2003008))
+    {
+        hi = LE32(*(volatile uint32_t*)0xf2003008);
+        lo = LE32(*(volatile uint32_t*)0xf2003004);
+    }
+
+    t1 = (hi << 32) | lo;
+    t1 += delta;
+    t2 = 0;
+
+    do {
+        hi = LE32(*(volatile uint32_t*)0xf2003008);
+        lo = LE32(*(volatile uint32_t*)0xf2003004);
+        if (hi != LE32(*(volatile uint32_t*)0xf2003008))
+        {
+            hi = LE32(*(volatile uint32_t*)0xf2003008);
+            lo = LE32(*(volatile uint32_t*)0xf2003004);
+        }
+        t2 = (hi << 32) | lo;
+    } while (t2 < t1);
+}
+
 static inline void ticksleep(uint64_t ticks)
 {
   uint64_t t0 = 0, t1 = 0;
@@ -71,36 +101,8 @@ void bitbang_putByte(uint8_t byte)
   do {
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
   } while(t1 < (t0 + 3*BITBANG_DELAY / 2));
-  
 }
 
-static void usleep(uint64_t delta)
-{
-    uint64_t hi = LE32(*(volatile uint32_t*)0xf2003008);
-    uint64_t lo = LE32(*(volatile uint32_t*)0xf2003004);
-    uint64_t t1, t2;
-
-    if (hi != LE32(*(volatile uint32_t*)0xf2003008))
-    {
-        hi = LE32(*(volatile uint32_t*)0xf2003008);
-        lo = LE32(*(volatile uint32_t*)0xf2003004);
-    }
-
-    t1 = (hi << 32) | lo;
-    t1 += delta;
-    t2 = 0;
-
-    do {
-        hi = LE32(*(volatile uint32_t*)0xf2003008);
-        lo = LE32(*(volatile uint32_t*)0xf2003004);
-        if (hi != LE32(*(volatile uint32_t*)0xf2003008))
-        {
-            hi = LE32(*(volatile uint32_t*)0xf2003008);
-            lo = LE32(*(volatile uint32_t*)0xf2003004);
-        }
-        t2 = (hi << 32) | lo;
-    } while (t2 < t1);
-}
 
 static void pistorm_setup_io() {
   gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
@@ -144,10 +146,6 @@ void ps_setup_protocol() {
 static inline void DELAY()
 {
   asm volatile("dsb sy");
-#if 0
-  for (int i=0; i < 4; i++)
-    asm volatile("nop");
-#endif
 }
 
 void ps_write_16(unsigned int address, unsigned int data) {

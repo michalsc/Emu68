@@ -62,7 +62,7 @@ static int serial_up = 0;
 uint8_t *q_buffer;
 volatile uint64_t q_head;
 volatile uint64_t q_tail;
-#define Q_SIZE (2*1024*1024)
+#define Q_SIZE (8*1024*1024)
 
 void q_push(uint8_t data)
 {
@@ -81,17 +81,37 @@ uint8_t q_pop()
     }
 
     uint8_t data = q_buffer[q_tail & (Q_SIZE - 1)];
-    __sync_add_and_fetch(&q_head, 1);
+    __sync_add_and_fetch(&q_tail, 1);
     return data;
 }
+
+int redirect = 0;
 
 static inline void putByte(void *io_base, char chr)
 {
     (void)io_base;
 
-    if (chr == '\n')
-        bitbang_putByte('\r');
-    bitbang_putByte(chr);
+    if (redirect)
+    {
+        if (chr == '\n')
+            q_push('\r');
+        q_push(chr);
+    }
+    else
+    {
+        if (chr == '\n')
+            bitbang_putByte('\r');
+        bitbang_putByte(chr);
+    }
+}
+
+void serial_writer()
+{
+    redirect = 1;
+
+    while(1) {
+        bitbang_putByte(q_pop());
+    }
 }
 
 #else
@@ -125,17 +145,29 @@ static inline void putByte(void *io_base, char chr)
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE 0xf2000000
 
+volatile unsigned char print_lock = 0;
+
 void kprintf(const char * restrict format, ...)
 {
     va_list v;
     va_start(v, format);
+
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, v);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
     va_end(v);
 }
 
 void vkprintf(const char * restrict format, va_list args)
 {
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, args);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
 }
 
 /* status register flags */

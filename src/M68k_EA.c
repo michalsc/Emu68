@@ -692,23 +692,30 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
 
                 RA_SetDirtyM68kRegister(&ptr, 8 + src_reg);
 
-                switch (size)
+                /* Rare case where source and dest are the same register and size == 4 */
+                if (size == 4 && reg_An == *arm_reg) {
+                    *ptr++ = ldr_offset(reg_An, *arm_reg, 0);
+                }
+                else
                 {
-                    case 4:
-                        *ptr++ = ldr_offset_postindex(reg_An, *arm_reg, 4);
-                        break;
-                    case 2:
-                        *ptr++ = ldrh_offset_postindex(reg_An, *arm_reg, 2);
-                        break;
-                    case 1:
-                        if (src_reg == 7)
-                            *ptr++ = ldrb_offset_postindex(reg_An, *arm_reg, 2);
-                        else
-                            *ptr++ = ldrb_offset_postindex(reg_An, *arm_reg, 1);
-                        break;
-                    default:
-                        kprintf("Unknown size opcode\n");
-                        break;
+                    switch (size)
+                    {
+                        case 4:
+                            *ptr++ = ldr_offset_postindex(reg_An, *arm_reg, 4);
+                            break;
+                        case 2:
+                            *ptr++ = ldrh_offset_postindex(reg_An, *arm_reg, 2);
+                            break;
+                        case 1:
+                            if (src_reg == 7)
+                                *ptr++ = ldrb_offset_postindex(reg_An, *arm_reg, 2);
+                            else
+                                *ptr++ = ldrb_offset_postindex(reg_An, *arm_reg, 1);
+                            break;
+                        default:
+                            kprintf("Unknown size opcode\n");
+                            break;
+                    }
                 }
             }
         }
@@ -723,23 +730,30 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
                 RA_SetDirtyM68kRegister(&ptr, 8 + src_reg);
 
-                switch (size)
+                /* Rare case where source and dest are the same register and size == 4 */
+                if (size == 4 && reg_An == *arm_reg) {
+                    *ptr++ = ldr_offset(reg_An, *arm_reg, -4);
+                }
+                else
                 {
-                    case 4:
-                        *ptr++ = ldr_offset_preindex(reg_An, *arm_reg, -4);
-                        break;
-                    case 2:
-                        *ptr++ = ldrh_offset_preindex(reg_An, *arm_reg, -2);
-                        break;
-                    case 1:
-                        if (src_reg == 7)
-                            *ptr++ = ldrb_offset_preindex(reg_An, *arm_reg, -2);
-                        else
-                            *ptr++ = ldrb_offset_preindex(reg_An, *arm_reg, -1);
-                        break;
-                    default:
-                        kprintf("Unknown size opcode\n");
-                        break;
+                    switch (size)
+                    {
+                        case 4:
+                            *ptr++ = ldr_offset_preindex(reg_An, *arm_reg, -4);
+                            break;
+                        case 2:
+                            *ptr++ = ldrh_offset_preindex(reg_An, *arm_reg, -2);
+                            break;
+                        case 1:
+                            if (src_reg == 7)
+                                *ptr++ = ldrb_offset_preindex(reg_An, *arm_reg, -2);
+                            else
+                                *ptr++ = ldrb_offset_preindex(reg_An, *arm_reg, -1);
+                            break;
+                        default:
+                            kprintf("Unknown size opcode\n");
+                            break;
+                    }
                 }
             }
         }
