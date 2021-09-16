@@ -964,6 +964,12 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             switch (size)
             {
+
+                // Rotate left byte, 1 to 8 positions
+                // temporary register layout
+                // X7654321 0....... ........ 76543210
+                // After rotation copy the 31th bit into X and C
+
                 case 0: // byte
                     *ptr++ = mov_reg(tmp, dest);
                     *ptr++ = bfi(tmp, dest, 23, 8);
@@ -973,12 +979,18 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = bic_immed(tmp, tmp, 1, 1);
                     *ptr++ = ror(tmp, tmp, 32 - amount);
                     *ptr++ = bfi(dest, tmp, 0, 8);
-                    if (update_mask & (SR_C || SR_X))
+                    if (update_mask & (SR_C | SR_X))
                     {
-                        bfxil(cc, tmp, 31, 1);
-                        bfi(cc, cc, 4, 1);
+                        *ptr++ = bfxil(cc, tmp, 31, 1);
+                        *ptr++ = bfi(cc, cc, 4, 1);
                     }
                     break;
+                
+                // Rotate left word, 1 to 8 positions
+                // temporary register layout
+                // Xfedcba9 87654321 fedcba98 76543210
+                // After rotation copy the 31th bit into X and C
+
                 case 1: // word
                     *ptr++ = lsl(tmp, dest, 15);
                     *ptr++ = bfi(tmp, dest, 0, 16);
@@ -988,14 +1000,31 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = bic_immed(tmp, tmp, 1, 1);
                     *ptr++ = ror(tmp, tmp, 32 - amount);
                     *ptr++ = bfi(dest, tmp, 0, 16);
-                    if (update_mask & (SR_C || SR_X))
+                    if (update_mask & (SR_C | SR_X))
                     {
-                        bfxil(cc, tmp, 31, 1);
-                        bfi(cc, cc, 4, 1);
+                        *ptr++ = bfxil(cc, tmp, 31, 1);
+                        *ptr++ = bfi(cc, cc, 4, 1);
                     }
                     break;
+
+                // Rotate left long, 1 to 8 positions
+                // Use 64bit temporary register for the operation
+                // bits 64-32: X(1f)(1e)...(00)
+                // bits 31-0: source register
                 case 2: // long
-                    
+                    *ptr++ = lsl64(tmp, dest, 31);
+                    *ptr++ = bfi64(tmp, dest, 0, 32);
+                    *ptr++ = tbz(cc, SRB_X, 4);
+                    *ptr++ = orr64_immed(tmp, tmp, 1, 1, 1);
+                    *ptr++ = b(2);
+                    *ptr++ = bic64_immed(tmp, tmp, 1, 1, 1);
+                    *ptr++ = ror(tmp, tmp, 32 - amount);
+                    *ptr++ = mov_reg(dest, tmp);
+                    if (update_mask & (SR_C | SR_X))
+                    {
+                        *ptr++ = bfxil64(cc, tmp, 63, 1);
+                        *ptr++ = bfi(cc, cc, 4, 1);
+                    }
                     break;
             }
 
@@ -1016,10 +1045,10 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = bic_immed(tmp, tmp, 1, 32 - 8);
                     *ptr++ = ror(tmp, tmp, amount);
                     *ptr++ = bfi(dest, tmp, 0, 8);
-                    if (update_mask & (SR_C || SR_X))
+                    if (update_mask & (SR_C | SR_X))
                     {
-                        bfxil(cc, tmp, 8, 1);
-                        bfi(cc, cc, 4, 1);
+                        *ptr++ = bfxil(cc, tmp, 8, 1);
+                        *ptr++ = bfi(cc, cc, 4, 1);
                     }
                     break;
                 case 1: // word
@@ -1029,16 +1058,28 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = orr_immed(tmp, tmp, 1, 16);
                     *ptr++ = b(2);
                     *ptr++ = bic_immed(tmp, tmp, 1, 16);
-                    *ptr++ = ror(tmp, tmp, amount);
+                    *ptr++ = ror64(tmp, tmp, amount);
                     *ptr++ = bfi(dest, tmp, 0, 16);
-                    if (update_mask & (SR_C || SR_X))
+                    if (update_mask & (SR_C | SR_X))
                     {
-                        bfxil(cc, tmp, 16, 1);
-                        bfi(cc, cc, 4, 1);
+                        *ptr++ = bfxil(cc, tmp, 16, 1);
+                        *ptr++ = bfi(cc, cc, 4, 1);
                     }
                     break;
                 case 2: // long
-                    
+                    *ptr++ = lsl64(tmp, dest, 33);
+                    *ptr++ = bfi64(tmp, dest, 0, 32);
+                    *ptr++ = tbz(cc, SRB_X, 4);
+                    *ptr++ = orr64_immed(tmp, tmp, 1, 32, 1);
+                    *ptr++ = b(2);
+                    *ptr++ = bic64_immed(tmp, tmp, 1, 32, 1);
+                    *ptr++ = ror64(tmp, tmp, amount);
+                    *ptr++ = mov_reg(dest, tmp);
+                    if (update_mask & (SR_C | SR_X))
+                    {
+                        *ptr++ = bfxil64(cc, tmp, 32, 1);
+                        *ptr++ = bfi(cc, cc, 4, 1);
+                    }
                     break;
             }
 
