@@ -17,8 +17,8 @@ struct SRMaskEntry {
     uint8_t  me_BaseLength;
     uint8_t  me_HasEA;
     uint8_t  me_Type;
-    uint8_t  me_SRNeeds;
-    uint8_t  me_SRSets;
+    uint8_t  me_SRNeeds;	/* Consider the full Supervisor register */
+    uint8_t  me_SRSets;		/* CCR */
     uint8_t  (*me_TestFunction)(uint16_t *stream, uint32_t nest_level);
 };
 
@@ -45,10 +45,10 @@ static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level);
 #endif
 
 static struct SRMaskEntry Line0_Map[] = {
-    { 0xffbf, 0x003c, 2, 0, SME_MASK, SR_CCR, SR_CCR , NULL },						/* ORI to CCR/SR - needs all flags, sets all flags */
+    { 0xffbf, 0x003c, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* ORI to CCR/SR - needs all flags, sets all flags */
     { 0xff80, 0x0000, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ORI.B / ORI.W */
     { 0xffc0, 0x0080, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ORI.L */
-    { 0xffbf, 0x023c, 2, 0, SME_MASK, SR_CCR, SR_CCR , NULL },						/* ANDI to CCR/SR - needs all flags, sets all flags */
+    { 0xffbf, 0x023c, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* ANDI to CCR/SR - needs all flags, sets all flags */
     { 0xff80, 0x0200, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ANDI.B / ANDI.W */
     { 0xffc0, 0x0280, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ANDI.L */
     { 0xff80, 0x0400, 2, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUBI.B / SUBI.W */
@@ -57,14 +57,14 @@ static struct SRMaskEntry Line0_Map[] = {
     { 0xff80, 0x0600, 2, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADDI.B / ADDI.W */
     { 0xffc0, 0x0680, 3, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADDI.L */
     { 0xf9c0, 0x00c0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK2/CMP2 */
-    { 0xffbf, 0x0a3c, 2, 0, SME_MASK, SR_CCR, SR_CCR, NULL },						/* EORI to CCR/SR - they rely on current CC! */
+    { 0xffbf, 0x0a3c, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* EORI to CCR/SR - they rely on current CC! */
     { 0xff80, 0x0a00, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EORI.B / EORI.W */
     { 0xffc0, 0x0a80, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EORI.L */
     { 0xff80, 0x0c00, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMPI.B / CMPI.W */
     { 0xffc0, 0x0c80, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMPI.L */
     { 0xff00, 0x0800, 1, 1, SME_MASK, 0, SR_Z, NULL },								/* BTST/BSET/BCLR/BCHG - imm */
-	{ 0xff80, 0x0e00, 2, 1, SME_MASK, 0, 0, NULL },									/* MOVES.B MOVES.W - no effect to flags here for completion */
-	{ 0xffc0, 0x0e80, 2, 1, SME_MASK, 0, 0, NULL },									/* MOVES.L - no effect to flags here for completion */
+	{ 0xff80, 0x0e00, 2, 1, SME_MASK, SR_S, 0, NULL },								/* MOVES.B MOVES.W - no effect to CCR flags */
+	{ 0xffc0, 0x0e80, 2, 1, SME_MASK, SR_S, 0, NULL },								/* MOVES.L - no effect to CCR flags */
     { 0xf9ff, 0x08fc, 3, 0, SME_MASK, 0, SR_NZVC, NULL },							/* CAS2 */
     { 0xf9c0, 0x08c0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CAS */
     { 0xf100, 0x0100, 2, 1, SME_MASK, 0, SR_Z, NULL },								/* BTST/BSET/BCLR/BCHG - reg */
@@ -74,7 +74,7 @@ static struct SRMaskEntry Line0_Map[] = {
 
 static struct SRMaskEntry Line1_Map[] = {
     { 0xe1c0, 0x2040, 1, 2, SME_FUNC, 0, 0, SR_TestOpcodeMOVEA },					/* MOVEA case - destination is An; Word & Long ONLY!!! */
-    { 0xc000, 0x0000, 1, 2, SME_MASK, 0, SR_C | SR_V | SR_Z | SR_N, NULL },			/* All other moves change CC */
+    { 0xc000, 0x0000, 1, 2, SME_MASK, 0, SR_NZVC, NULL },							/* All other moves change CC */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
@@ -82,41 +82,48 @@ static struct SRMaskEntry Line2_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)
 static struct SRMaskEntry Line3_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)] __attribute__((alias("Line1_Map")));
 
 static struct SRMaskEntry Line4_Map[] = {
-    { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_CCR, 0, NULL },							/* MOVE from CCR/SR */
-    { 0xff00, 0x4000, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NEGX */
-    { 0xff00, 0x4200, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CLR */
-    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* MOVE to CCR */
-    { 0xff00, 0x4400, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* NEG */
+    { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_CCR | SR_S, 0, NULL },						/* MOVE from CCR/SR *///careful pick which CPU generation is intended
+    { 0xff80, 0x4000, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NEGX.B|.W */
+    { 0xffc0, 0x4080, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NEGX.l */
+	{ 0xff80, 0x4200, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CLR.B|.W */
+	{ 0xffc0, 0x4280, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CLR.L */
+    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_CCR | SR_S, NULL },						/* MOVE to CCR */
+    { 0xff80, 0x4400, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* NEG.B|.W */
+	{ 0xffc0, 0x4480, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* NEG.L */
     { 0xffc0, 0x46c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* MOVE to SR *///this one should check other SR_ flags as well
-    { 0xff00, 0x4600, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* NOT */
+    { 0xff80, 0x4600, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* NOT */
+	{ 0xffc0, 0x4680, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* NOT */
     { 0xfeb8, 0x4880, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* EXT/EXTB */
-    { 0xfff8, 0x4808, 3, 0, SME_FUNC, 0, 0, SR_TestOpcode48B },						/* LINK */
+    { 0xfff8, 0x4808, 3, 0, SME_FUNC, 0, 0, SR_TestOpcode48B },						/* LINK.L */
     { 0xffc0, 0x4800, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NBCD */
     { 0xfff8, 0x4840, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* SWAP */
     { 0xfff8, 0x4848, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* BKPT */
     { 0xffc0, 0x4840, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeEA },						/* PEA */
     { 0xffff, 0x4afc, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* ILLEGAL */
-    { 0xff00, 0x4a00, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TAS/TST */
-    { 0xffc0, 0x4c00, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULU/MULS */
+    { 0xffc0, 0x4ac0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TAS */
+	{ 0xff80, 0x4a00, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TST,B|.W */
+	{ 0xffc0, 0x4a80, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TST.L */
+    { 0xffc0, 0x4c00, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULU/MULS */
     { 0xffc0, 0x4c40, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVU/DIVS */
     { 0xfff0, 0x4e40, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* TRAP */
-    { 0xfff8, 0x4e50, 2, 0, SME_FUNC, 0, 0, SR_TestOpcode32B },						/* LINK */
+    { 0xfff8, 0x4e50, 2, 0, SME_FUNC, 0, 0, SR_TestOpcode32B },						/* LINK.W */
     { 0xfff8, 0x4e58, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* UNLK */
-    { 0xfff0, 0x4e60, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* MOVE USP */
-    { 0xffff, 0x4e70, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* RESET */
+    { 0xfff0, 0x4e60, 1, 0, SME_MASK, SR_CCR | SR_S, 0, NULL },						/* MOVE USP */
+    { 0xffff, 0x4e70, 1, 0, SME_MASK, SR_S, 0, NULL },								/* RESET *///Does not effect internal processor state Except PC which is incremented. After a 'grace period' (CPU model dependent), continue execution at next instruction.
     { 0xffff, 0x4e71, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* NOP */
-    { 0xffff, 0x4e72, 2, 0, SME_MASK, SR_CCR, SR_CCR, NULL },						/* STOP */
-    { 0xffff, 0x4e73, 1, 0, SME_MASK, 0, SR_CCR, NULL },							/* RTE */
+    { 0xffff, 0x4e72, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* STOP *///The Imm effects the full SR
+    { 0xffff, 0x4e73, 1, 0, SME_MASK, SR_S, SR_CCR, NULL },							/* RTE *///Restores SR from (MSP)
     { 0xffff, 0x4e74, 2, 0, SME_MASK, 0, 0, NULL },									/* RTD */
     { 0xffff, 0x4e75, 1, 0, SME_MASK, 0, 0, NULL },									/* RTS */
     { 0xffff, 0x4e76, 1, 0, SME_MASK, SR_V, 0, NULL },								/* TRAPV */
     { 0xffff, 0x4e77, 1, 0, SME_MASK, 0, SR_CCR, NULL },							/* RTR */
-    { 0xfffe, 0x4e7a, 2, 0, SME_MASK, SR_CCR, 0, NULL },							/* MOVEC */
+    { 0xfffe, 0x4e7a, 2, 0, SME_MASK, SR_CCR | SR_S, 0, NULL },						/* MOVEC */
     { 0xffc0, 0x4e80, 1, 1, SME_MASK, 0, 0, NULL },									/* JSR */
     { 0xffc0, 0x4ec0, 1, 1, SME_MASK, 0, 0, NULL },									/* JMP */
     { 0xfb80, 0x4880, 2, 1, SME_FUNC, 0, 0, SR_TestOpcode32B },						/* MOVEM */
     { 0xf1c0, 0x41c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeEA },						/* LEA */
-    { 0xf140, 0x4100, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK */
+    { 0xf140, 0x4000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK.B|.W */
+	{ 0xf1c0, 0x4100, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK.L */
     { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
