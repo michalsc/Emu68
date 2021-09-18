@@ -12,6 +12,7 @@
 
 #include "support_rpi.h"
 #include "mmu.h"
+#include "tlsf.h"
 
 #ifdef PISTORM
 #include "ps_protocol.h"
@@ -58,29 +59,58 @@ static int serial_up = 0;
 
 #ifdef PISTORM
 
-static inline void waitSerOUT(void *io_base)
+uint8_t *q_buffer;
+volatile uint64_t q_head;
+volatile uint64_t q_tail;
+#define Q_SIZE (8*1024*1024)
+
+void q_push(uint8_t data)
 {
-    (void)io_base;
+    while(q_tail + Q_SIZE <= q_head)
+        asm volatile("yield");
     
-    while(1) {
-        if (ps_read_16(0xdff018) & (1 << 12))
-            break;
-    }
+    q_buffer[q_head & (Q_SIZE - 1)] = data;
+    __sync_add_and_fetch(&q_head, 1);
+    asm volatile("sev");
 }
+
+uint8_t q_pop()
+{
+    while (q_tail == q_head) {
+        asm volatile("wfe");
+    }
+
+    uint8_t data = q_buffer[q_tail & (Q_SIZE - 1)];
+    __sync_add_and_fetch(&q_tail, 1);
+    return data;
+}
+
+int redirect = 0;
 
 static inline void putByte(void *io_base, char chr)
 {
-    if (serial_up)
-    {
-        waitSerOUT(io_base);
+    (void)io_base;
 
+    if (redirect)
+    {
         if (chr == '\n')
-        {
-            ps_write_16(0xdff030, 0x100 + '\r');
-            waitSerOUT(io_base);
-        }
-        ps_write_16(0xdff030, 0x100 + (uint8_t)chr);
-        waitSerOUT(io_base);
+            q_push('\r');
+        q_push(chr);
+    }
+    else
+    {
+        if (chr == '\n')
+            bitbang_putByte('\r');
+        bitbang_putByte(chr);
+    }
+}
+
+void serial_writer()
+{
+    redirect = 1;
+
+    while(1) {
+        bitbang_putByte(q_pop());
     }
 }
 
@@ -115,17 +145,29 @@ static inline void putByte(void *io_base, char chr)
 #undef ARM_PERIIOBASE
 #define ARM_PERIIOBASE 0xf2000000
 
+volatile unsigned char print_lock = 0;
+
 void kprintf(const char * restrict format, ...)
 {
     va_list v;
     va_start(v, format);
+
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, v);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
     va_end(v);
 }
 
 void vkprintf(const char * restrict format, va_list args)
 {
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, args);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
 }
 
 /* status register flags */
@@ -396,9 +438,11 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 
 void setup_serial()
 {
-    ps_write_16(0xdff09e, 0x0800);
-    ps_write_16(0xdff032, 14); // 30 Set up serial port for 115200 bps transmission
     serial_up = 1;
+
+    q_buffer = tlsf_malloc(tlsf, Q_SIZE);
+    q_head = 0;
+    q_tail = 0;
 }
 
 #else

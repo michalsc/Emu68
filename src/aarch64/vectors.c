@@ -287,9 +287,6 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         return 1;
     }
 
-    if (far == 0xdff032 && size == 2)
-        return 1;
-
     if (far == 0xBFE001 && size == 1) {
         if ((value & 1) != overlay) {
             kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);
@@ -844,6 +841,36 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         /* LDRSW/LDRSB/LDRSH immediate */
         else if ((opcode & 0x3f800000) == 0x39800000)
+        {
+            int sext64 = 1;
+            if (opcode & (1 << 22))
+                sext64 = 0;
+            
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            if (handled) {
+                int sext = 0;
+                switch (size)
+                {
+                    case 1:
+                        sext = ctx[opcode & 31] & 0x80;
+                        if (sext) ctx[opcode & 31] |= 0xffffff00;
+                        break;
+                    case 2:
+                        sext = ctx[opcode & 31] & 0x8000;
+                        if (sext) ctx[opcode & 31] |= 0xffff0000;
+                        break;
+                    case 4:
+                        sext = ctx[opcode & 31] & 0x80000000;
+                        break;
+                }
+
+                if (sext && sext64) {
+                    ctx[opcode & 31] |= 0xffffffff00000000ULL;
+                }
+            }
+        }
+        /* LDURSW/LDURSB/LDURSH immediate */
+        else if ((opcode & 0x3fa00c00) == 0x38800000)
         {
             int sext64 = 1;
             if (opcode & (1 << 22))

@@ -413,170 +413,37 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
 
 
-static EMIT_Function JumpTable[4096] = {
-    [00000 ... 00007] = EMIT_CMP_reg, //D0 destination, Byte
-    [00020 ... 00047] = EMIT_CMP_mem, //(An)
-    [00050 ... 00074] = EMIT_CMP_ext, //memory indirect
-    [00100 ... 00117] = EMIT_CMP_reg, //register, Word
-    [00120 ... 00147] = EMIT_CMP_mem, //(An)
-    [00150 ... 00174] = EMIT_CMP_ext, //memory indirect
-    [00200 ... 00217] = EMIT_CMP_reg, //register Long
-    [00220 ... 00247] = EMIT_CMP_mem, //(An)
-    [00250 ... 00274] = EMIT_CMP_ext, //memory indirect
+static EMIT_Function JumpTable[512] = {
+    [0000 ... 0007] = EMIT_CMP_reg, //D0 destination, Byte
+    [0020 ... 0047] = EMIT_CMP_mem, //(An)
+    [0050 ... 0074] = EMIT_CMP_ext, //memory indirect
+    [0100 ... 0117] = EMIT_CMP_reg, //register, Word
+    [0120 ... 0147] = EMIT_CMP_mem, //(An)
+    [0150 ... 0174] = EMIT_CMP_ext, //memory indirect
+    [0200 ... 0217] = EMIT_CMP_reg, //register Long
+    [0220 ... 0247] = EMIT_CMP_mem, //(An)
+    [0250 ... 0274] = EMIT_CMP_ext, //memory indirect
 
-    [00300 ... 00317] = EMIT_CMPA_reg, //A0, Word
-    [00320 ... 00347] = EMIT_CMPA_mem, //(An)
-    [00350 ... 00374] = EMIT_CMPA_ext, //memory indirect
+    [0300 ... 0317] = EMIT_CMPA_reg, //A0, Word
+    [0320 ... 0347] = EMIT_CMPA_mem, //(An)
+    [0350 ... 0374] = EMIT_CMPA_ext, //memory indirect
 
-    [00400 ... 00407] = EMIT_EOR_reg, //D0, Byte
-    [00410 ... 00417] = EMIT_CMPM,
-    [00420 ... 00447] = EMIT_EOR_mem,
-    [00450 ... 00471] = EMIT_EOR_ext,
-    [00500 ... 00507] = EMIT_EOR_reg, //D0, Word
-    [00510 ... 00517] = EMIT_CMPM,
-    [00520 ... 00547] = EMIT_EOR_mem,
-    [00550 ... 00571] = EMIT_EOR_ext,
-    [00600 ... 00607] = EMIT_EOR_reg, //D0, Long
-    [00610 ... 00617] = EMIT_CMPM, 
-    [00620 ... 00647] = EMIT_EOR_mem,
-    [00650 ... 00671] = EMIT_EOR_ext,
+    [0400 ... 0407] = EMIT_EOR_reg, //D0, Byte
+    [0410 ... 0417] = EMIT_CMPM,
+    [0420 ... 0447] = EMIT_EOR_mem,
+    [0450 ... 0471] = EMIT_EOR_ext,
+    [0500 ... 0507] = EMIT_EOR_reg, //D0, Word
+    [0510 ... 0517] = EMIT_CMPM,
+    [0520 ... 0547] = EMIT_EOR_mem,
+    [0550 ... 0571] = EMIT_EOR_ext,
+    [0600 ... 0607] = EMIT_EOR_reg, //D0, Long
+    [0610 ... 0617] = EMIT_CMPM, 
+    [0620 ... 0647] = EMIT_EOR_mem,
+    [0650 ... 0671] = EMIT_EOR_ext,
         
-    [00700 ... 00717] = EMIT_CMPA_reg, //A0, Long
-    [00720 ... 00747] = EMIT_CMPA_mem, //(An)
-    [00750 ... 00774] = EMIT_CMPA_ext, //memory indirect
-
-    [01000 ... 01007] = EMIT_CMP, //D1
-    [01020 ... 01074] = EMIT_CMP,
-    [01100 ... 01174] = EMIT_CMP,
-    [01200 ... 01274] = EMIT_CMP,
-
-    [01300 ... 01374] = EMIT_CMPA,
-
-    [01400 ... 01407] = EMIT_EOR,
-    [01410 ... 01417] = EMIT_CMPM,
-    [01420 ... 01471] = EMIT_EOR,
-    [01500 ... 01507] = EMIT_EOR,
-    [01510 ... 01517] = EMIT_CMPM,
-    [01520 ... 01571] = EMIT_EOR,
-    [01600 ... 01607] = EMIT_EOR,
-    [01610 ... 01617] = EMIT_CMPM,
-    [01620 ... 01671] = EMIT_EOR,
-        
-    [01700 ... 01774] = EMIT_CMPA,
-
-    [02000 ... 02007] = EMIT_CMP, //D2
-    [02020 ... 02074] = EMIT_CMP,
-    [02100 ... 02174] = EMIT_CMP,
-    [02200 ... 02274] = EMIT_CMP,
-
-    [02300 ... 02374] = EMIT_CMPA,
-
-    [02400 ... 02407] = EMIT_EOR,
-    [02410 ... 02417] = EMIT_CMPM,
-    [02420 ... 02471] = EMIT_EOR,
-    [02500 ... 02507] = EMIT_EOR,
-    [02510 ... 02517] = EMIT_CMPM,
-    [02520 ... 02571] = EMIT_EOR,
-    [02600 ... 02607] = EMIT_EOR,
-    [02610 ... 02617] = EMIT_CMPM,
-    [02620 ... 02671] = EMIT_EOR,
-        
-    [02700 ... 02774] = EMIT_CMPA,
-
-    [03000 ... 03007] = EMIT_CMP, //D3
-    [03020 ... 03074] = EMIT_CMP,
-    [03100 ... 03174] = EMIT_CMP,
-    [03200 ... 03274] = EMIT_CMP,
-
-    [03300 ... 03374] = EMIT_CMPA,
-
-    [03400 ... 03407] = EMIT_EOR,
-    [03410 ... 03417] = EMIT_CMPM,
-    [03420 ... 03471] = EMIT_EOR,
-    [03500 ... 03507] = EMIT_EOR,
-    [03510 ... 03517] = EMIT_CMPM,
-    [03520 ... 03571] = EMIT_EOR,
-    [03600 ... 03607] = EMIT_EOR,
-    [03610 ... 03617] = EMIT_CMPM,
-    [03620 ... 03671] = EMIT_EOR,
-        
-    [03700 ... 03774] = EMIT_CMPA,
-
-    [04000 ... 04007] = EMIT_CMP, //D4
-    [04020 ... 04074] = EMIT_CMP,
-    [04100 ... 04174] = EMIT_CMP,
-    [04200 ... 04274] = EMIT_CMP,
-
-    [04300 ... 04374] = EMIT_CMPA,
-
-    [04400 ... 04407] = EMIT_EOR,
-    [04410 ... 04417] = EMIT_CMPM,
-    [04420 ... 04471] = EMIT_EOR,
-    [04500 ... 04507] = EMIT_EOR,
-    [04510 ... 04517] = EMIT_CMPM,
-    [04520 ... 04571] = EMIT_EOR,
-    [04600 ... 04607] = EMIT_EOR,
-    [04610 ... 04617] = EMIT_CMPM,
-    [04620 ... 04671] = EMIT_EOR,
-        
-    [04700 ... 04774] = EMIT_CMPA,
-
-    [05000 ... 05007] = EMIT_CMP, //D5
-    [05020 ... 05074] = EMIT_CMP,
-    [05100 ... 05174] = EMIT_CMP,
-    [05200 ... 05274] = EMIT_CMP,
-
-    [05300 ... 05374] = EMIT_CMPA,
-
-    [05400 ... 05407] = EMIT_EOR,
-    [05410 ... 05417] = EMIT_CMPM,
-    [05420 ... 05471] = EMIT_EOR,
-    [05500 ... 05507] = EMIT_EOR,
-    [05510 ... 05517] = EMIT_CMPM,
-    [05520 ... 05571] = EMIT_EOR,
-    [05600 ... 05607] = EMIT_EOR,
-    [05610 ... 05617] = EMIT_CMPM,
-    [05620 ... 05671] = EMIT_EOR,
-        
-    [05700 ... 05774] = EMIT_CMPA,
-
-    [06000 ... 06007] = EMIT_CMP, //D6
-    [06020 ... 06074] = EMIT_CMP,
-    [06100 ... 06174] = EMIT_CMP,
-    [06200 ... 06274] = EMIT_CMP,
-
-    [06300 ... 06374] = EMIT_CMPA,
-
-    [06400 ... 06407] = EMIT_EOR,
-    [06410 ... 06417] = EMIT_CMPM,
-    [06420 ... 06471] = EMIT_EOR,
-    [06500 ... 06507] = EMIT_EOR,
-    [06510 ... 06517] = EMIT_CMPM,
-    [06520 ... 06571] = EMIT_EOR,
-    [06600 ... 06607] = EMIT_EOR,
-    [06610 ... 06617] = EMIT_CMPM,
-    [06620 ... 06671] = EMIT_EOR,
-        
-    [06700 ... 06774] = EMIT_CMPA,
-
-    [07000 ... 07007] = EMIT_CMP, //D7
-    [07020 ... 07074] = EMIT_CMP,
-    [07100 ... 07174] = EMIT_CMP,
-    [07200 ... 07274] = EMIT_CMP,
-
-    [07300 ... 07374] = EMIT_CMPA,
-
-    [07400 ... 07407] = EMIT_EOR,
-    [07410 ... 07417] = EMIT_CMPM,
-    [07420 ... 07471] = EMIT_EOR,
-    [07500 ... 07507] = EMIT_EOR,
-    [07510 ... 07517] = EMIT_CMPM,
-    [07520 ... 07571] = EMIT_EOR,
-    [07600 ... 07607] = EMIT_EOR,
-    [07610 ... 07617] = EMIT_CMPM,
-    [07620 ... 07671] = EMIT_EOR,
-        
-    [07700 ... 07774] = EMIT_CMPA,
+    [0700 ... 0717] = EMIT_CMPA_reg, //A0, Long
+    [0720 ... 0747] = EMIT_CMPA_mem, //(An)
+    [0750 ... 0774] = EMIT_CMPA_ext, //memory indirect
 };
 
 uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -586,9 +453,9 @@ uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     *insn_consumed = 1;
 
     /* 1011xxxx11xxxxxx - CMPA */
-    if (JumpTable[opcode & 0xfff])
+    if (JumpTable[opcode & 00777])
     {
-        ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr);
+        ptr = JumpTable[opcode & 00777](ptr, opcode, m68k_ptr);
     }
     else
     {
