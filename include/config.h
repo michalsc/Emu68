@@ -41,7 +41,7 @@
 #define VERSION_STRING_DATE ""
 #endif
 
-#define KERNEL_SYS_PAGES        8
+#define KERNEL_SYS_PAGES        16
 #define KERNEL_JIT_PAGES        32
 #define KERNEL_RSRVD_PAGES      ((KERNEL_JIT_PAGES) + (KERNEL_SYS_PAGES))
 

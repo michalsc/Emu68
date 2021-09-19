@@ -313,6 +313,7 @@ static inline uint32_t cmn64_immed_lsl12(uint8_t rn, uint16_t imm12) { return ad
 static inline uint32_t and_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x12000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t and64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0x92000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t bic_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return and_immed(rd, rn, 32 - width, ror - width); }
+static inline uint32_t bic64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return and64_immed(rd, rn, 64 - width, ror - width, n); }
 static inline uint32_t ands_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return I32(0x72000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t ands64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { return I32(0xf2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 static inline uint32_t bics_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { return ands_immed(rd, rn, 32 - width, ror - width); }

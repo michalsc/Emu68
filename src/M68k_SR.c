@@ -2189,7 +2189,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         return 0;
     }
 
-    D(kprintf(" SRSets = %x\n", mask));
+    D(kprintf(" SRNeeds = %x, SRSets = %x\n", e->me_SRNeeds, mask));
 
     /*
         Check as long as there are still some flags to be set by the opcode and the depth
@@ -2239,6 +2239,21 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
             {
                 int32_t branch_offset = (int8_t)(opcode & 0xff);
                 uint16_t *insn_stream_2 = insn_stream + 1;
+                uint8_t condition = (opcode >> 9) & 7;
+                // List of masks which the condition code needs by itself
+                const uint8_t masks[] = {
+                    0,                  // T, F
+                    SR_C | SR_Z,        // HI, LS
+                    SR_C,               // CC, CS
+                    SR_Z,               // NE, EQ
+                    SR_V,               // VC, VS
+                    SR_N,               // MI, PL
+                    SR_N | SR_V,        // GE, LT
+                    SR_N | SR_V | SR_Z  // GT, LE
+                };
+
+                // Mark the flags which conditional jump needs by itself
+                needed |= mask & masks[condition];
 
                 if ((opcode & 0xff) == 0) {
                     branch_offset = (int16_t)BE16(insn_stream[1]);
