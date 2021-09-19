@@ -9,6 +9,8 @@
 /*  												*/
 /****************************************************/
 
+#include "M68k.h"
+
 /* 
 Index
 	EA decoding & format,
@@ -20,14 +22,6 @@ Index
 		D5
 		D6
 		D7
-		A0
-		A1
-		A2
-		A3
-		A4
-		A5
-		A6
-		A7
 		(A0)
 		(A1)
 		(A2)
@@ -1627,6 +1621,7 @@ static EMIT_Function JumpTableCase2[32] = {
 
 uint32_t *EMIT_FMOVECR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k) /* FMOVECR only pulls extended-precision constants to a FP register */
 
+/* Any format function should preload specified registers according to format and jump to FPU Instruction table. */
 uint32_t *EMIT_FORMAT_B_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
 uint32_t *EMIT_FORMAT_B_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
 uint32_t *EMIT_FORMAT_B(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
@@ -1655,6 +1650,7 @@ uint32_t *EMIT_FORMAT_X_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, ui
 uint32_t *EMIT_FORMAT_X_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
 uint32_t *EMIT_FORMAT_X(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
 
+/* any and all FMOVE instructions, this can 2 or 3 nested jumps depending on the encoding */
 uint32_t *EMIT_FMOVE_B_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
 uint32_t *EMIT_FMOVE_B_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
 uint32_t *EMIT_FMOVE_B(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
@@ -1690,3 +1686,8 @@ uint32_t *EMIT_FMOVEM_L(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16
 uint32_t *EMIT_FMOVEM_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
 uint32_t *EMIT_FMOVEM_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
 uint32_t *EMIT_FMOVEM(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+/* FPU Instructions */
+uint32_t *EMIT_FABS(uint32_t *ptr, uint16_t **ptr_m68k, uint16_t FPCR)
+uint32_t *EMIT_FABS_S(uint32_t *ptr, uint16_t **ptr_m68k)
+uint32_t *EMIT_FABS_D(uint32_t *ptr, uint16_t **ptr_m68k)
