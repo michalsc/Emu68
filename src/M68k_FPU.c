@@ -1,11 +1,94 @@
-/*EA decoding & format, Table 0; bits[22:10]*/
+/****************************************************/
+/* FPU Instruction opcodes and condition fields.	*/
+/*													*/
+/* This part holds all tables,						*/
+/* Header according to the following format.		*/
+/* Table Name.										*/
+/* Assumed depth.									*/
+/* The bits used [x:y]								*/
+/*  												*/
+/****************************************************/
+
+/* 
+Index
+	EA decoding & format,
+		D0
+		D1
+		D2
+		D3
+		D4
+		D5
+		D6
+		D7
+		A0
+		A1
+		A2
+		A3
+		A4
+		A5
+		A6
+		A7
+		(A0)
+		(A1)
+		(A2)
+		(A3)
+		(A4)
+		(A5)
+		(A6)
+		(A7)
+		(A0)+
+		(A1)+
+		(A2)+
+		(A3)+
+		(A4)+
+		(A5)+
+		(A6)+
+		(A7)+
+		-(A0)
+		-(A1)
+		-(A2)
+		-(A3)
+		-(A4)
+		-(A5)
+		-(A6)
+		-(A7)
+		(d16,A0)
+		(d16,A1)
+		(d16,A2)
+		(d16,A3)
+		(d16,A4)
+		(d16,A5)
+		(d16,A6)
+		(d16,A7)
+		(A0,Xn)
+		(A1,Xn)
+		(A2,Xn)
+		(A3,Xn)
+		(A4,Xn)
+		(A5,Xn)
+		(A6,Xn)
+		(A7,Xn)
+		(xxx).W
+		(xxx).L
+		(d16,PC)
+		(PC,Xn)
+		#<data>
+	
+	FPU Instructions,
+	CC Instructions,
+	Branch,
+		Misc tests
+		IEEE Aware tests
+		IEEE Nonaware tests
+*/		
+/*EA decoding & format, Table 1; bits[22:10]*/
 static EMIT_Funtion JumpTableCase0[4096] = {
 [00000 ... 00007] = EMIT_FORMAT_X,	//FPm,FPn
 //D0
 [00020] = EMIT_FORMAT_L,	//Dn,FPn
 [00021] = EMIT_FORMAT_S,	//Dn,FPn
 [00024] = EMIT_FORMAT_W,	//Dn,FPn
-[00026] = EMIT_FORMAT_,B	//Dn,FPn
+[00026] = EMIT_FORMAT_B,	//Dn,FPn
 [00027] = EMIT_FMOVECR,
 [00030] = EMIT_FMOVE_L,	//FPn,Dn
 [00031] = EMIT_FMOVE_S,	//FPn,Dn
@@ -1416,7 +1499,6 @@ static EMIT_Funtion JumpTableCase0[4096] = {
 [07364] = EMIT_FMOVEM_ext,	//static, postincrement
 [07366] = EMIT_FMOVEM_ext,	//dynamic. postincrement
 //#<data>
-
 [07420] = EMIT_FORMAT_L_ext,
 [07421] = EMIT_FORMAT_S_ext,
 [07422] = EMIT_FORMAT_X_ext,
@@ -1435,8 +1517,8 @@ static EMIT_Funtion JumpTableCase0[4096] = {
 [07466] = EMIT_FMOVEM_ext,	//dynamic. postincrement
 }
 
-/* FPU Instruction, table [6:0]*/
-static EMIT_Function JumpTableOp[128] = {
+/* FPU Instructions, Table 2; bits[6:0]*/
+static EMIT_Function JumpTableOp[64] = {
 [0x00] = EMIT_FMOVE,
 [0x01] = EMIT_FINT,
 [0x02] = EMIT_FSINH,
@@ -1496,7 +1578,7 @@ static EMIT_Function JumpTableOp[128] = {
 [0x68] = EMIT_FSUB_S,	//rounded to single
 [0x6C] = EMIT_FSUB_D,	//rounded to double
 }
-/* CC instructions, table 1; bits[5:0]*/
+/* CC instructions, Table 1; bits[5:0]*/
 static EMIT_Function JumpTableCase1[64] = {
 [000 ... 007] = EMIT_FSCC_reg,
 [010 ... 017] = EMIT_FDBCC,
@@ -1504,40 +1586,107 @@ static EMIT_Function JumpTableCase1[64] = {
 {050 ... 071] = EMIT_FSCC_ext,
 [072 ... 074] = EMIT_FTRAPCC,
 }
-/* Branch, Table 2 & 3; bits [4:0]*/
+/* Branch, Table 1; bits [4:0]*///bit 5 of the CC is always 0
 static EMIT_Function JumpTableCase2[32] = {
+//Misc tests
 [000] = EMIT_FBF,
+[017] = EMIT_FBT,
+[020] = EMIT_FBSF,
+[021] = EMIT_FBSEQ,
+[036] = EMIT_FBSNE,
+[037] = EMIT_FBST,
+//IEEE Aware tests
 [001] = EMIT_FBEQ,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
-[000] = EMIT_FB,
+[002] = EMIT_FBOGT,
+[003] = EMIT_FBOGE,
+[004] = EMIT_FBOLT,
+[005] = EMIT_FBOLE,
+[006] = EMIT_FBOGL,
+[007] = EMIT_FBOR,
+[010] = EMIT_FBUN,
+[011] = EMIT_FBUEQ,
+[012] = EMIT_FBUGT,
+[013] = EMIT_FBUGE,
+[014] = EMIT_FBULT,
+[015] = EMIT_FBULE,
+[016] = EMIT_FBNE,
+//IEEE Nonaware tests
+[022] = EMIT_FBGT,
+[023] = EMIT_FBGE,
+[024] = EMIT_FBLT,
+[025] = EMIT_FBLE,
+[026] = EMIT_FBGL,
+[027] = EMIT_FBGLE,
+[030] = EMIT_FBNGLE,
+[031] = EMIT_FBNGL,
+[032] = EMIT_FBNLE,
+[033] = EMIT_FBNLT,
+[034] = EMIT_FBNGE,
+[035] = EMIT_FBNGT,
 }
+
+uint32_t *EMIT_FMOVECR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k) /* FMOVECR only pulls extended-precision constants to a FP register */
+
+uint32_t *EMIT_FORMAT_B_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_B_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_B(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FORMAT_D_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_D_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FORMAT_L_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_L_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_L(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FORMAT_P_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_P_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_P(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FORMAT_S_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_S_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FORMAT_W_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_W_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_W(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FORMAT_X_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_X_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FORMAT_X(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_B_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_B_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_B(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_D_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_D_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_L_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_L_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_L(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_P_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_P_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_P(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_S_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_S_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_W_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_W_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_W(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVE_X_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_X_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVE_X(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVEM_L_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVEM_L_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVEM_L(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+
+uint32_t *EMIT_FMOVEM_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVEM_mem(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
+uint32_t *EMIT_FMOVEM(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k)
