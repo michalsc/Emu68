@@ -62,7 +62,7 @@ static int serial_up = 0;
 uint8_t *q_buffer;
 volatile uint64_t q_head;
 volatile uint64_t q_tail;
-#define Q_SIZE (8*1024*1024)
+#define Q_SIZE (16*1024*1024)
 
 void q_push(uint8_t data)
 {
