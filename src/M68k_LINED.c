@@ -324,9 +324,7 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                 break;
             case 2: /* Long */
 #ifdef __aarch64__
-                tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = adcs(regy, regy, regx);
-                RA_FreeARMRegister(&ptr, tmp);
 #else
                 *ptr++ = add_cc_immed(ARM_CC_NE, regy, regy, 1);
                 *ptr++ = adds_reg(regy, regy, regx, 0);
