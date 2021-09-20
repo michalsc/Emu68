@@ -266,7 +266,7 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
         }
-        
+
         if (update_mask & (SR_C | SR_X)) {
             if (direction) {
                 *ptr++ = tst_immed(tmp, 1, 0);
@@ -578,7 +578,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 2:
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lslv(reg, reg, shiftreg);
+                *ptr++ = lslv64(reg, reg, shiftreg);
                 if (update_mask & (SR_C | SR_X)) {
                     *ptr++ = tst_immed(tmp, 1, 16);
                 }
@@ -592,7 +592,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lslv(reg, reg, shiftreg);
+                *ptr++ = lslv64(reg, reg, shiftreg);
                 if (update_mask & (SR_C | SR_X)) {
                     *ptr++ = tst_immed(tmp, 1, 24);
                 }
@@ -612,7 +612,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 4:
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lsrv(tmp, tmp, shiftreg);
+                *ptr++ = lsrv64(tmp, tmp, shiftreg);
                 *ptr++ = mov_reg(reg, tmp);
 #else
                 *ptr++ = lsrs_reg(reg, reg, shiftreg);
@@ -621,7 +621,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 2:
 #ifdef __aarch64__
                 *ptr++ = uxth(tmp, reg);
-                *ptr++ = lsrv(tmp, tmp, shiftreg);
+                *ptr++ = lsrv64(tmp, tmp, shiftreg);
 #else
                 *ptr++ = uxth(tmp, reg, 0);
                 *ptr++ = lsrs_reg(tmp, tmp, shiftreg);
@@ -631,7 +631,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
 #ifdef __aarch64__
                 *ptr++ = uxtb(tmp, reg);
-                *ptr++ = lsrv(tmp, tmp, shiftreg);
+                *ptr++ = lsrv64(tmp, tmp, shiftreg);
 #else
                 *ptr++ = uxtb(tmp, reg, 0);
                 *ptr++ = lsrs_reg(tmp, tmp, shiftreg);
