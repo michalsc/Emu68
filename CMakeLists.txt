@@ -130,7 +130,7 @@ else()
     set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
     set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
     add_link_options(-Wl,-EB -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-    add_compile_options(-march=armv8-a+crc -fomit-frame-pointer -O3 -ffixed-x12)
+    add_compile_options(-march=armv8-a+crc -fomit-frame-pointer -O3 -ffixed-x12 -mno-outline-atomics)
 endif()
 
 add_executable(Emu68.elf
