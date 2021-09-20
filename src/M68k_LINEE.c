@@ -554,7 +554,11 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
             case 4:
 #ifdef __aarch64__
-                *ptr++ = lslv(reg, reg, shiftreg);
+                *ptr++ = lslv64(tmp, reg, shiftreg);
+                *ptr++ = mov_reg(reg, tmp);
+                if (update_mask & (SR_C | SR_X)) {
+                    *ptr++ = tst64_immed(tmp, 1, 32, 1);
+                }
 #else
                 *ptr++ = lsls_reg(reg, reg, shiftreg);
 #endif
@@ -563,6 +567,9 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
                 *ptr++ = lslv(reg, reg, shiftreg);
+                if (update_mask & (SR_C | SR_X)) {
+                    *ptr++ = tst_immed(tmp, 1, 16);
+                }
 #else
                 *ptr++ = mov_reg_shift(tmp, reg, 16);
                 *ptr++ = lsls_reg(tmp, tmp, shiftreg);
@@ -574,6 +581,9 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
                 *ptr++ = lslv(reg, reg, shiftreg);
+                if (update_mask & (SR_C | SR_X)) {
+                    *ptr++ = tst_immed(tmp, 1, 24);
+                }
 #else
                 *ptr++ = mov_reg_shift(tmp, reg, 24);
                 *ptr++ = lsls_reg(tmp, tmp, shiftreg);
