@@ -547,9 +547,6 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (regshift)
     {
         uint8_t shiftreg = RA_MapM68kRegister(&ptr, shift);
-        shift = RA_AllocARMRegister(&ptr);
-
-        *ptr++ = and_immed(shift, shiftreg, 6, 0);
 
         if (direction)
         {
@@ -557,18 +554,18 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
             case 4:
 #ifdef __aarch64__
-                *ptr++ = lslv(reg, reg, shift);
+                *ptr++ = lslv(reg, reg, shiftreg);
 #else
-                *ptr++ = lsls_reg(reg, reg, shift);
+                *ptr++ = lsls_reg(reg, reg, shiftreg);
 #endif
                 break;
             case 2:
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lslv(reg, reg, shift);
+                *ptr++ = lslv(reg, reg, shiftreg);
 #else
                 *ptr++ = mov_reg_shift(tmp, reg, 16);
-                *ptr++ = lsls_reg(tmp, tmp, shift);
+                *ptr++ = lsls_reg(tmp, tmp, shiftreg);
                 *ptr++ = lsr_immed(tmp, tmp, 16);
 #endif
                 *ptr++ = bfi(reg, tmp, 0, 16);
@@ -576,10 +573,10 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
 #ifdef __aarch64__
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lslv(reg, reg, shift);
+                *ptr++ = lslv(reg, reg, shiftreg);
 #else
                 *ptr++ = mov_reg_shift(tmp, reg, 24);
-                *ptr++ = lsls_reg(tmp, tmp, shift);
+                *ptr++ = lsls_reg(tmp, tmp, shiftreg);
                 *ptr++ = lsr_immed(tmp, tmp, 24);
 #endif
                 *ptr++ = bfi(reg, tmp, 0, 8);
@@ -592,35 +589,33 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
             case 4:
 #ifdef __aarch64__
-                *ptr++ = lsrv(reg, reg, shift);
+                *ptr++ = lsrv(reg, reg, shiftreg);
 #else
-                *ptr++ = lsrs_reg(reg, reg, shift);
+                *ptr++ = lsrs_reg(reg, reg, shiftreg);
 #endif
                 break;
             case 2:
 #ifdef __aarch64__
                 *ptr++ = uxth(tmp, reg);
-                *ptr++ = lsrv(tmp, tmp, shift);
+                *ptr++ = lsrv(tmp, tmp, shiftreg);
 #else
                 *ptr++ = uxth(tmp, reg, 0);
-                *ptr++ = lsrs_reg(tmp, tmp, shift);
+                *ptr++ = lsrs_reg(tmp, tmp, shiftreg);
 #endif
                 *ptr++ = bfi(reg, tmp, 0, 16);
                 break;
             case 1:
 #ifdef __aarch64__
                 *ptr++ = uxtb(tmp, reg);
-                *ptr++ = lsrv(tmp, tmp, shift);
+                *ptr++ = lsrv(tmp, tmp, shiftreg);
 #else
                 *ptr++ = uxtb(tmp, reg, 0);
-                *ptr++ = lsrs_reg(tmp, tmp, shift);
+                *ptr++ = lsrs_reg(tmp, tmp, shiftreg);
 #endif
                 *ptr++ = bfi(reg, tmp, 0, 8);
                 break;
             }
         }
-
-        RA_FreeARMRegister(&ptr, shift);
     }
     else
     {
