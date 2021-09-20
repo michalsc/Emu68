@@ -101,9 +101,35 @@ struct M68KState
 
 #define SR_C    0x0001
 #define SR_V    0x0002
+#define SR_VC   0x0003
 #define SR_Z    0x0004
+#define SR_ZC   0x0005
+#define SR_ZV   0x0006
+#define SR_ZVC  0x0007
 #define SR_N    0x0008
+#define SR_NC   0x0009
+#define SR_NV   0x000a
+#define SR_NVC  0x000b
+#define SR_NZ   0x000c
+#define SR_NZC  0x000d
+#define SR_NZV  0x000e
+#define SR_NZVC 0x000f
 #define SR_X    0x0010
+#define SR_XC   0x0011
+#define SR_XV   0x0012
+#define SR_XVC  0x0013
+#define SR_XZ   0x0014
+#define SR_XZC  0x0015
+#define SR_XZV  0x0016
+#define SR_XZVC 0x0017
+#define SR_XN   0x0018
+#define SR_XNC  0x0019
+#define SR_XNV  0x001a
+#define SR_XNVC 0x001b
+#define SR_XNZ  0x001c
+#define SR_XNZC 0x001d
+#define SR_XNZV 0x001e
+#define SR_CCR  0x001f
 #define SR_IPL  0x0700
 #define SR_M    0x1000
 #define SR_S    0x2000
@@ -121,10 +147,24 @@ struct M68KState
 #define SRB_T0   14
 #define SRB_T1   15
 
+#define FPSR_INEX	0x00000008
+#define FPSR_IOP	0x00000080
+#define FPSR_INEX1	0x00000100
+#define FPSR_INEX2	0x00000200
+#define FPSR_DZ		0x00000410	//these also appear in AEXC
+#define FPSR_UNFL	0x00000820	//these also appear in AEXC
+#define FPSR_OVFL	0x00001040	//these also appear in AEXC
+#define FPSR_OPERR	0x00002000
+#define FPSR_SNAN	0x00004000
+#define FPSR_BSUN	0x00008000
+#define FPSR_Q		0x007F0000
+#define FPSR_S		0x00800000
 #define FPSR_N      0x08000000
 #define FPSR_Z      0x04000000
 #define FPSR_I      0x02000000
 #define FPSR_NAN    0x01000000
+
+#define	FPSRB_S		23
 #define FPSRB_N     27
 #define FPSRB_Z     26
 #define FPSRB_I     25
