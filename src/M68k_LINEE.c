@@ -601,7 +601,9 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
             case 4:
 #ifdef __aarch64__
-                *ptr++ = lsrv(reg, reg, shiftreg);
+                *ptr++ = mov_reg(tmp, reg);
+                *ptr++ = lsrv(tmp, tmp, shiftreg);
+                *ptr++ = mov_reg(reg, tmp);
 #else
                 *ptr++ = lsrs_reg(reg, reg, shiftreg);
 #endif
