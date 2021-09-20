@@ -251,7 +251,10 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     {
 #ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
-        *ptr++ = cmn_reg(31, tmp, LSL, 16);
+        if (update_mask & (SR_Z | SR_N))
+        {
+            *ptr++ = cmn_reg(31, tmp, LSL, 16);
+        }
         *ptr++ = mov_immed_u16(tmp, update_mask, 0);
         *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
@@ -263,8 +266,15 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
             *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
         }
+        
         if (update_mask & (SR_C | SR_X)) {
-            *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
+            if (direction) {
+                *ptr++ = tst_immed(tmp, 1, 0);
+            }
+            else {
+                *ptr++ = tst_immed(tmp, 1, 1);
+            }
+            *ptr++ = b_cc(A64_CC_EQ, 3);
             *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
         }
