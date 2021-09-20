@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#include "devicetree.h"
 #include "support_rpi.h"
 #include "mmu.h"
 #include "tlsf.h"
@@ -86,6 +87,7 @@ uint8_t q_pop()
 }
 
 int redirect = 0;
+int fast_serial = 0;
 
 static inline void putByte(void *io_base, char chr)
 {
@@ -99,9 +101,16 @@ static inline void putByte(void *io_base, char chr)
     }
     else
     {
-        if (chr == '\n')
-            bitbang_putByte('\r');
-        bitbang_putByte(chr);
+        if (fast_serial) {
+            if (chr == '\n')
+                fastSerial_putByte('\r');
+            fastSerial_putByte(chr);
+        }
+        else {
+            if (chr == '\n')
+                bitbang_putByte('\r');
+            bitbang_putByte(chr);
+        }
     }
 }
 
@@ -109,8 +118,15 @@ void serial_writer()
 {
     redirect = 1;
 
-    while(1) {
-        bitbang_putByte(q_pop());
+    if (fast_serial) {
+        while(1) {
+            fastSerial_putByte(q_pop());
+        }
+    }
+    else {
+        while(1) {
+            bitbang_putByte(q_pop());
+        }
     }
 }
 
@@ -438,7 +454,22 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 
 void setup_serial()
 {
+    of_node_t *e = NULL;
+
     serial_up = 1;
+
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        of_property_t * prop = dt_find_property(e, "bootargs");
+        if (prop)
+        {
+            if (strstr(prop->op_value, "fast_serial"))
+                fast_serial = 1;
+            else
+                fast_serial = 0;
+        }
+    }
 
     q_buffer = tlsf_malloc(tlsf, Q_SIZE);
     q_head = 0;

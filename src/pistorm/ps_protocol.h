@@ -60,11 +60,11 @@
 
 #define GPFSEL0_INPUT 0x0024c240
 #define GPFSEL1_INPUT 0x00000000
-#define GPFSEL2_INPUT (0x00000000 | (1 << 18))
+#define GPFSEL2_INPUT (0x00000000 | (1 << 18) | (1 << 21))
 
 #define GPFSEL0_OUTPUT 0x0924c240
 #define GPFSEL1_OUTPUT 0x09249249
-#define GPFSEL2_OUTPUT (0x00000249 | (1 << 18))
+#define GPFSEL2_OUTPUT (0x00000249 | (1 << 18) | (1 << 21))
 
 #endif
 
@@ -84,6 +84,7 @@ void ps_reset_state_machine();
 void ps_pulse_reset();
 
 void bitbang_putByte(uint8_t byte);
+void fastSerial_putByte(uint8_t byte);
 
 unsigned int ps_get_ipl_zero();
 

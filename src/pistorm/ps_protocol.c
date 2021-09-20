@@ -103,6 +103,59 @@ void bitbang_putByte(uint8_t byte)
   } while(t1 < (t0 + 3*BITBANG_DELAY / 2));
 }
 
+#define FS_CLK  (1 << 26)
+#define FS_DO   (1 << 27)
+#define FS_CTS  (1 << 25)
+
+void fastSerial_putByte(uint8_t byte)
+{
+  if (!gpio)
+    gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+  
+  /* Wait for CTS to go high */
+  //while (0 == (*(gpio + 13) & LE32(FS_CTS))) {}
+
+  /* Start bit */
+  *(gpio + 10) = LE32(FS_DO);
+
+  /* Clock down */
+  *(gpio + 10) = LE32(FS_CLK);
+  //*(gpio + 10) = LE32(FS_CLK);
+  /* Clock up */
+  *(gpio + 7) = LE32(FS_CLK);
+  //*(gpio + 7) = LE32(FS_CLK);
+
+
+  for (int i=0; i < 8; i++) {
+    if (byte & 1)
+      *(gpio + 7) = LE32(FS_DO);
+    else
+      *(gpio + 10) = LE32(FS_DO);
+
+    /* Clock down */
+    *(gpio + 10) = LE32(FS_CLK);
+    //*(gpio + 10) = LE32(FS_CLK);
+    /* Clock up */
+    *(gpio + 7) = LE32(FS_CLK);
+    //*(gpio + 7) = LE32(FS_CLK);
+    
+    byte = byte >> 1;
+  }
+
+  /* DEST bit (0) */
+  *(gpio + 10) = LE32(FS_DO);
+
+  /* Clock down */
+  *(gpio + 10) = LE32(FS_CLK);
+  //*(gpio + 10) = LE32(FS_CLK);
+  /* Clock up */
+  *(gpio + 7) = LE32(FS_CLK);
+  *(gpio + 7) = LE32(FS_CLK);
+
+  /* Leave FS_CLK and FS_DO high */
+  *(gpio + 7) = LE32(FS_CLK);
+  *(gpio + 7) = LE32(FS_DO);
+}
 
 static void pistorm_setup_io() {
   gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
