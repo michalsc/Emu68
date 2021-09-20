@@ -350,7 +350,9 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             {
                 case 4:
 #ifdef __aarch64__
-                    *ptr++ = asrv(reg, reg, shiftreg);
+                    *ptr++ = sxtw64(tmp, reg);
+                    *ptr++ = asrv64(tmp, tmp, shiftreg);
+                    *ptr++ = mov_reg(reg, tmp);
 #else
                     *ptr++ = asrs_reg(reg, reg, shiftreg);
 #endif
