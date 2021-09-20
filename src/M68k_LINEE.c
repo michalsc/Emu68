@@ -925,9 +925,9 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        if (update_mask & SR_N) {
+        if (update_mask & SR_C) {
 #ifdef __aarch64__
-            if (direction) {
+            if (!direction) {
                 switch(size) {
                     case 4:
                         *ptr++ = bfxil(cc, reg, 31, 1);
@@ -941,10 +941,7 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 }
             }
             else {
-                if (size == 4)
-                    *ptr++ = bfi(cc, reg, 0, 1);
-                else
-                    *ptr++ = bfi(cc, tmp, 0, 1);
+                *ptr++ = bfi(cc, reg, 0, 1);
             }
 #else
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
