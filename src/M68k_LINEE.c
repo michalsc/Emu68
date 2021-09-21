@@ -328,7 +328,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     break;
                 case 2:
 #ifdef __aarch64__
-                    *ptr++ = lslv(tmp, reg, shiftreg);
+                    *ptr++ = lslv64(tmp, reg, shiftreg);
                     if (update_mask & (SR_C | SR_X)) {
                         *ptr++ = tst_immed(tmp, 1, 16);
                     }
@@ -341,7 +341,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     break;
                 case 1:
 #ifdef __aarch64__
-                    *ptr++ = lslv(tmp, reg, shiftreg);
+                    *ptr++ = lslv64(tmp, reg, shiftreg);
                     if (update_mask & (SR_C | SR_X)) {
                         *ptr++ = tst_immed(tmp, 1, 24);
                     }
@@ -369,8 +369,8 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     break;
                 case 2:
 #ifdef __aarch64__
-                    *ptr++ = sxth(tmp, reg);
-                    *ptr++ = asrv(tmp, tmp, shiftreg);
+                    *ptr++ = sxth64(tmp, reg);
+                    *ptr++ = asrv64(tmp, tmp, shiftreg);
 #else
                     *ptr++ = sxth(tmp, reg, 0);
                     *ptr++ = asrs_reg(tmp, tmp, shiftreg);
@@ -379,8 +379,8 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     break;
                 case 1:
 #ifdef __aarch64__
-                    *ptr++ = sxtb(tmp, reg);
-                    *ptr++ = asrv(tmp, tmp, shiftreg);
+                    *ptr++ = sxtb64(tmp, reg);
+                    *ptr++ = asrv64(tmp, tmp, shiftreg);
 #else
                     *ptr++ = sxtb(tmp, reg, 0);
                     *ptr++ = asrs_reg(tmp, tmp, shiftreg);
@@ -577,8 +577,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
 #ifdef __aarch64__
-                *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lslv64(reg, reg, shiftreg);
+                *ptr++ = lslv64(tmp, reg, shiftreg);
                 if (update_mask & (SR_C | SR_X)) {
                     *ptr++ = tst_immed(tmp, 1, 16);
                 }
@@ -591,8 +590,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 1:
 #ifdef __aarch64__
-                *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = lslv64(reg, reg, shiftreg);
+                *ptr++ = lslv64(tmp, reg, shiftreg);
                 if (update_mask & (SR_C | SR_X)) {
                     *ptr++ = tst_immed(tmp, 1, 24);
                 }
