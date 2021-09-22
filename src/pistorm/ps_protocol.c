@@ -241,7 +241,8 @@ void ps_write_16(unsigned int address, unsigned int data) {
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -274,7 +275,8 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -309,7 +311,8 @@ unsigned int ps_read_16(unsigned int address) {
 
   *(gpio + 10) = LE32(0xffffec);
 
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 
   return (value >> 8) & 0xffff;
 }
@@ -343,7 +346,8 @@ unsigned int ps_read_8(unsigned int address) {
 
   value = (value >> 8) & 0xffff;
 
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
