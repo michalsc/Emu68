@@ -87,8 +87,8 @@ struct M68KState
 		uint16_t W;
 		uint32_t L;
 		double d;
-        uint64_t u64;
-        uint32_t u32[2];
+		uint64_t u64;
+		uint32_t u32[2];
 		union realS { //WARNING!! ASUMPTION on float structure, might be reversedmust check MSB and LSB compiler since both ARM and M68K are BE
 			struct { 
 				uint32_t sign:1;
