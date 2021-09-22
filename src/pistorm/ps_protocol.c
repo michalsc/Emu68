@@ -107,6 +107,25 @@ void bitbang_putByte(uint8_t byte)
 #define FS_DO   (1 << 27)
 #define FS_CTS  (1 << 25)
 
+void fastSerial_init()
+{
+  if (!gpio)
+    gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+  
+  /* Leave FS_CLK and FS_DO high */
+  *(gpio + 7) = LE32(FS_CLK);
+  *(gpio + 7) = LE32(FS_DO);
+
+  for (int i=0; i < 16; i++) {
+    /* Clock down */
+    *(gpio + 10) = LE32(FS_CLK);
+    //*(gpio + 10) = LE32(FS_CLK);
+    /* Clock up */
+    *(gpio + 7) = LE32(FS_CLK);
+    //*(gpio + 7) = LE32(FS_CLK);
+  }
+}
+
 void fastSerial_putByte(uint8_t byte)
 {
   if (!gpio)

@@ -85,6 +85,7 @@ void ps_pulse_reset();
 
 void bitbang_putByte(uint8_t byte);
 void fastSerial_putByte(uint8_t byte);
+void fastSerial_init();
 
 unsigned int ps_get_ipl_zero();
 
