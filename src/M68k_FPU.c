@@ -1690,7 +1690,7 @@ uint32_t *EMIT_FMOVEM(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t
 /* FPU Instructions */
 uint32_t *EMIT_FABS(uint32_t *ptr, uint16_t **ptr_m68k)
 {
-	uint32_t FPCR
+	uint16_t FPCR
 }
 uint32_t *EMIT_FABS_S(uint32_t *ptr, uint16_t **ptr_m68k)
 uint32_t *EMIT_FABS_D(uint32_t *ptr, uint16_t **ptr_m68k)
