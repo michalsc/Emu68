@@ -1621,7 +1621,7 @@ static EMIT_Function JumpTableCase2[32] = {
 
 uint32_t *EMIT_FMOVECR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k) /* FMOVECR only pulls extended-precision constants to a FP register */
 {
-	 uint8_t FPn = (opcode2 && 0x0380);
+	 uint8_t FPn = (( opcode2 && 0x0380) >> 7);
 }
 /* Any format function should preload specified registers according to format and jump to FPU Instruction table. */
 uint32_t *EMIT_FORMAT_B_ext(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t ext, uint16_t **ptr_m68k)
