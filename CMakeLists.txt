@@ -109,7 +109,7 @@ else()
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra)
+add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
 
 if(${TARGET_ARCH} STREQUAL "armhf")
     list(APPEND ARCH_FILES
