@@ -102,6 +102,7 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
     cs_insn *insn_arm;
     size_t count_m68k = 0;
     size_t count_arm = 0;
+	char fixed_op_str[200];
 
     if (m68k_addr)
         count_m68k = cs_disasm(h_m68k, (const uint8_t *)m68k_addr, 20*m68k_count, (uintptr_t)m68k_addr, m68k_count, &insn_m68k);
@@ -120,9 +121,67 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
 
     for (size_t i=0; i < count_arm; i++)
     {
+		char last_char = 0;
+		char size = 0;
+		char num = 0;
+		int p = 0;
+		static const char *regnames[] = {
+			"A0", "A1", "A2", "A3", "A4", "PC", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "A5", "A6", "A7"
+		};
+
+		for (int j=0; j < 160; j++) {
+			if (insn_arm[i].op_str[j] == 0) {
+				fixed_op_str[p] = 0;
+				break;
+			}
+			
+			if (insn_arm[i].op_str[j] == 'w')
+				size = 'w';
+			else if (insn_arm[i].op_str[j] == 'x' && last_char != '0')
+				size = 'x';
+			else
+				size = 0;
+
+			if (size) {
+				char c1 = insn_arm[i].op_str[j + 1];
+				char c2 = insn_arm[i].op_str[j + 2];
+
+				if (
+					(insn_arm[i].op_str[j + 3] < '0' || insn_arm[i].op_str[j + 3] > '9') &&
+					(insn_arm[i].op_str[j + 3] < 'a' || insn_arm[i].op_str[j + 3] > 'f'))
+				{
+					num = (c1-'0')*10 + (c2-'0');
+					const char *src;
+
+					if (num < 13 || num > 29) {
+						size = 0;
+					}
+					else {
+						src = regnames[num - 13];
+						fixed_op_str[p++] = *src++;
+						fixed_op_str[p++] = *src++;
+
+						if (size == 'x') {
+							fixed_op_str[p++] = ':';
+							fixed_op_str[p++] = '6';
+							fixed_op_str[p++] = '4';
+						}
+
+						j += 2;
+					}
+				}
+			}
+
+			if (!size) {
+				fixed_op_str[p++] = insn_arm[i].op_str[j];
+			}
+
+			last_char = insn_arm[i].op_str[j];
+		}
+
         if (i > 0)
             kprintf("[JIT]                                        ");
-        kprintf("-> %08x: %7s %s\n", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+        kprintf("-> %08x: %7s %s\n", insn_arm[i].address, insn_arm[i].mnemonic, fixed_op_str); /*insn_arm[i].op_str);*/
     }
 
     if (count_m68k)
