@@ -426,6 +426,8 @@ void secondary_boot(void)
 #ifdef PISTORM
     if (async_log)
         serial_writer();
+#else
+    (void)async_log;
 #endif
 
     while(1) { asm volatile("wfe"); }
