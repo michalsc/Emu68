@@ -1327,6 +1327,7 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
 #ifdef __aarch64__
     uint32_t *tmp;
+    uint32_t *tmp2;
     ptr = EMIT_FlushPC(ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
 
@@ -1341,6 +1342,9 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     /* No supervisor. Update USP, generate exception */
     ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+
+    tmp2 = ptr;
+    *ptr++ = b_cc(A64_CC_AL, 0);
 
     *tmp = b_cc(A64_CC_AL, ptr - tmp);
 
@@ -1360,7 +1364,7 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         *ptr++ = stp64(31, i, i+1, i*8);
     *ptr++ = str64_offset(31, 30, 240);
 
-    *ptr++ = adr(30, 16);
+    *ptr++ = adr(30, 20);
     *ptr++ = ldr64_pcrel(1, 2);
     *ptr++ = br(1);
 
@@ -1374,7 +1378,9 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
 #endif
 
-    *ptr++ = (uint32_t)(uintptr_t)tmp;
+    *tmp2 = b_cc(A64_CC_AL, ptr - tmp2);
+
+    *ptr++ = (uint32_t)(uintptr_t)tmp2;
     *ptr++ = 1;
     *ptr++ = 0;
     *ptr++ = INSN_TO_LE(0xfffffffe);
