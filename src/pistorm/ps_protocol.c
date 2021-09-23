@@ -420,6 +420,7 @@ void ps_update_irq() {
     ipl = (status & 0xe000) >> 13;
   }
 
+  (void)ipl;
   /*if (ipl < 2 && INT2_ENABLED && emu_int2_req()) {
     ipl = 2;
   }*/

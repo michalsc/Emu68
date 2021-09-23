@@ -17,8 +17,8 @@ struct SRMaskEntry {
     uint8_t  me_BaseLength;
     uint8_t  me_HasEA;
     uint8_t  me_Type;
-    uint8_t  me_SRNeeds;	/* Consider the full Supervisor register */
-    uint8_t  me_SRSets;		/* CCR */
+    uint16_t me_SRNeeds;	/* Consider the full Supervisor register */
+    uint16_t me_SRSets;		/* CCR */
     uint8_t  (*me_TestFunction)(uint16_t *stream, uint32_t nest_level);
 };
 
@@ -219,7 +219,7 @@ static struct SRMaskEntry LineD_Map[] = {
     { 0xf1f0, 0xd180, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* ADDX.L */
 	{ 0xf080, 0xd000, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADD>(B|W) */
 	{ 0xf0c0, 0xd080, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADD.L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, NULL }
+    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
 };
 
 static struct SRMaskEntry LineE_Map[] = {

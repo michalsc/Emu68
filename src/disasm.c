@@ -87,6 +87,7 @@ void disasm_open()
 #else
     err = cs_open(CS_ARCH_ARM, CS_MODE_BIG_ENDIAN | CS_MODE_ARM, h_arm);
 #endif
+    (void)err;
 }
 
 void disasm_close()
