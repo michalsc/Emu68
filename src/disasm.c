@@ -147,6 +147,7 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
 				char c2 = insn_arm[i].op_str[j + 2];
 
 				if (
+					(c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9') &&
 					(insn_arm[i].op_str[j + 3] < '0' || insn_arm[i].op_str[j + 3] > '9') &&
 					(insn_arm[i].op_str[j + 3] < 'a' || insn_arm[i].op_str[j + 3] > 'f'))
 				{
@@ -170,6 +171,7 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
 						j += 2;
 					}
 				}
+				else size = 0;
 			}
 
 			if (!size) {
