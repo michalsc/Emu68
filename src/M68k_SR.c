@@ -287,27 +287,29 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_siz
             /* Brief word is here */
             word_count++;
 
-            switch (brief & 3)
+            if (brief & 0x100)
             {
-                case 2:
-                    word_count++;       /* Word outer displacement */
-                    break;
-                case 3:
-                    word_count += 2;    /* Long outer displacement */
-                    break;
+                /* Full brief format */
+                switch (brief & 3)
+                {
+                    case 2:
+                        word_count++;       /* Word outer displacement */
+                        break;
+                    case 3:
+                        word_count += 2;    /* Long outer displacement */
+                        break;
+                }
+
+                switch (brief & 0x30)
+                {
+                    case 0x20:
+                        word_count++;       /* Word base displacement */
+                        break;
+                    case 0x30:
+                        word_count += 2;    /* Long base displacement */
+                        break;
+                }
             }
-
-            switch (brief & 0x30)
-            {
-                case 0x20:
-                    word_count++;       /* Word base displacement */
-                    break;
-                case 0x30:
-                    word_count += 2;    /* Long base displacement */
-                    break;
-            }
-
-
         }
         else if (mode == 7)
         {
