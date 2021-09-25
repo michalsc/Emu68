@@ -475,7 +475,7 @@ void ps_housekeeper()
 
       }
 
-      ticksleep_wfe(19);
+      ticksleep(19);
     }
   }
 }
