@@ -446,6 +446,7 @@ void ps_update_irq() {
 #define PM_RSTC_FULLRST 0x00000020
 
 volatile int housekeeper_enabled = 0;
+volatile int ipl0 = 0;
 
 void ps_housekeeper() 
 {
@@ -464,6 +465,7 @@ void ps_housekeeper()
     if (housekeeper_enabled)
     {
       uint32_t pin = LE32(*(gpio + 13));
+      ipl0 = pin & (1 << PIN_IPL_ZERO);
 
       if ((pin & (1 << PIN_RESET)) == 0) {
 
@@ -480,6 +482,10 @@ void ps_housekeeper()
 
       }
 
+      /*
+        Wait for event. It can happen that the CPU is flooded with them for some reason, but
+        nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
+      */
       asm volatile("wfe");
     }
   }

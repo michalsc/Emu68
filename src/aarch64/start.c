@@ -1100,7 +1100,7 @@ void  __attribute__((used)) stub_FindUnit()
 }
 
 uint32_t last_pc;
-
+extern volatile int ipl0;
 
 void  __attribute__((used)) stub_ExecutionLoop()
 {
@@ -1125,9 +1125,12 @@ void  __attribute__((used)) stub_ExecutionLoop()
 
 
 #ifdef PISTORM
-"       mov     x1, #0xf2200000             \n" // Read IPL0 flag from GPIO
-"       ldr     w1, [x1, 0x34]              \n"
-"       tbz     w1, #25, 9f                 \n" // If IPL0 flag is not set, go to interrupt handling
+"       adrp    x1, ipl0                    \n"
+"       ldr     w1, [x1, :lo12:ipl0]        \n"
+"       cbz     w1, 9f                      \n"
+//"       mov     x1, #0xf2200000             \n" // Read IPL0 flag from GPIO
+//"       ldr     w1, [x1, 0x34]              \n"
+//"       tbz     w1, #25, 9f                 \n" // If IPL0 flag is not set, go to interrupt handling
 #else
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
 "       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
