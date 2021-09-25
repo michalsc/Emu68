@@ -455,6 +455,11 @@ void ps_housekeeper()
   kprintf("[HKEEP] Housekeeper activated\n");
   kprintf("[HKEEP] Please note we are burning the cpu with busyloops now\n");
 
+  /* Configure timer-based event stream */
+  /* Enable timer regs from EL0, enable event stream on posedge, monitor 3th bit */
+  /* This gives a frequency of 1.2MHz for a 19.2MHz timer */
+  asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+
   for(;;) {
     if (housekeeper_enabled)
     {
@@ -475,7 +480,7 @@ void ps_housekeeper()
 
       }
 
-      ticksleep(19);
+      asm volatile("wfe");
     }
   }
 }
