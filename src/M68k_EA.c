@@ -732,7 +732,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
 
                 /* Rare case where source and dest are the same register and size == 4 */
                 if (size == 4 && reg_An == *arm_reg) {
-                    *ptr++ = ldr_offset(reg_An, *arm_reg, -4);
+                    *ptr++ = ldur_offset(reg_An, *arm_reg, -4);
                 }
                 else
                 {

@@ -107,6 +107,25 @@ void bitbang_putByte(uint8_t byte)
 #define FS_DO   (1 << 27)
 #define FS_CTS  (1 << 25)
 
+void fastSerial_init()
+{
+  if (!gpio)
+    gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+  
+  /* Leave FS_CLK and FS_DO high */
+  *(gpio + 7) = LE32(FS_CLK);
+  *(gpio + 7) = LE32(FS_DO);
+
+  for (int i=0; i < 16; i++) {
+    /* Clock down */
+    *(gpio + 10) = LE32(FS_CLK);
+    //*(gpio + 10) = LE32(FS_CLK);
+    /* Clock up */
+    *(gpio + 7) = LE32(FS_CLK);
+    //*(gpio + 7) = LE32(FS_CLK);
+  }
+}
+
 void fastSerial_putByte(uint8_t byte)
 {
   if (!gpio)
@@ -222,7 +241,8 @@ void ps_write_16(unsigned int address, unsigned int data) {
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -255,7 +275,8 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -290,7 +311,8 @@ unsigned int ps_read_16(unsigned int address) {
 
   *(gpio + 10) = LE32(0xffffec);
 
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 
   return (value >> 8) & 0xffff;
 }
@@ -324,7 +346,8 @@ unsigned int ps_read_8(unsigned int address) {
 
   value = (value >> 8) & 0xffff;
 
-  ticksleep(12);
+  if (address >= 0x200000)
+    ticksleep(12);
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
@@ -397,6 +420,7 @@ void ps_update_irq() {
     ipl = (status & 0xe000) >> 13;
   }
 
+  (void)ipl;
   /*if (ipl < 2 && INT2_ENABLED && emu_int2_req()) {
     ipl = 2;
   }*/

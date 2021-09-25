@@ -464,8 +464,10 @@ void setup_serial()
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
-            if (strstr(prop->op_value, "fast_serial"))
+            if (strstr(prop->op_value, "fast_serial")) {
                 fast_serial = 1;
+                fastSerial_init();
+            }
             else
                 fast_serial = 0;
         }

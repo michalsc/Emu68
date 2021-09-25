@@ -426,6 +426,8 @@ void secondary_boot(void)
 #ifdef PISTORM
     if (async_log)
         serial_writer();
+#else
+    (void)async_log;
 #endif
 
     while(1) { asm volatile("wfe"); }
@@ -1370,7 +1372,8 @@ void M68K_StartEmu(void *addr, void *fdt)
     //*(uint32_t*)4 = 0;
 
 #ifdef PISTORM
-
+    (void)fdt;
+    
     asm volatile("mov %0, #0":"=r"(addr));
 
     __m68k.ISP.u32 = BE32(*((uint32_t*)addr));

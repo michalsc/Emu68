@@ -109,7 +109,7 @@ else()
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra)
+add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
 
 if(${TARGET_ARCH} STREQUAL "armhf")
     list(APPEND ARCH_FILES
@@ -150,20 +150,7 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_subdirectory(external/tiny-stl)
-
-set(CAPSTONE_BUILD_STATIC_RUNTIME OFF CACHE BOOL "Embed static runtime")
-set(CAPSTONE_BUILD_STATIC ON CACHE BOOL "Build static library")
-set(CAPSTONE_BUILD_SHARED OFF CACHE BOOL "Build shared library")
-set(CAPSTONE_BUILD_DIET OFF CACHE BOOL "Build diet library")
-set(CAPSTONE_BUILD_TESTS OFF CACHE BOOL "Build tests")
-set(CAPSTONE_BUILD_CSTOOL OFF CACHE BOOL "Build cstool")
-set(CAPSTONE_USE_DEFAULT_ALLOC OFF CACHE BOOL "Use default memory allocation functions")
-set(CAPSTONE_ARCHITECTURE_DEFAULT OFF CACHE BOOL "Whether architectures are enabled by default")
-set(CAPSTONE_INSTALL OFF CACHE BOOL "Generate install target")
-set(CAPSTONE_M68K_SUPPORT ON CACHE BOOL "CAPSTONE_M68K_SUPPORT")
-
-add_subdirectory(external/capstone)
+add_subdirectory(external)
 
 target_link_libraries(Emu68.elf tinystl capstone-static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)

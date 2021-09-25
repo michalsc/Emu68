@@ -19,6 +19,9 @@
 #include "ARM.h"
 #endif
 
+#ifdef NULL
+#undef NULL
+#endif
 #define NULL ((void*)0)
 #define TRUE 1
 #define FALSE 0
@@ -124,6 +127,7 @@ void kprintf(const char * format, ...);
 void arm_flush_cache(uintptr_t addr, uint32_t length);
 void arm_icache_invalidate(uintptr_t addr, uint32_t length);
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length);
+void clear_entire_dcache();
 const char *remove_path(const char *in);
 size_t strlen(const char *c);
 int strcmp(const char *s1, const char *s2);
