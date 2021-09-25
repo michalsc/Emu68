@@ -975,8 +975,6 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (amount == 0)
             amount = 8;
 
-        void *start = ptr;
-
         if (dir) {
             // rotate left
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -1104,12 +1102,6 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             RA_FreeARMRegister(&ptr, tmp);
         }
-
-        void *end = ptr;
-        uint8_t *bstart = start;
-        while (bstart != end)
-            kprintf("%02x ", *bstart++);
-        kprintf("\n");
 
         ptr = EMIT_AdvancePC(ptr, 2);
     }
