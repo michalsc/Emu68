@@ -90,6 +90,7 @@ struct M68KState
 
     /* Async IRQ part */
     uint32_t PINT;
+    uint32_t IPL0;
     uint64_t INSN_COUNT;
 };
 
