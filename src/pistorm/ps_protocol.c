@@ -9,8 +9,10 @@
 #define PS_PROTOCOL_IMPL
 
 #include <stdint.h>
+
 #include "support.h"
 #include "ps_protocol.h"
+#include "m68k.h"
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
@@ -446,7 +448,7 @@ void ps_update_irq() {
 #define PM_RSTC_FULLRST 0x00000020
 
 volatile int housekeeper_enabled = 0;
-volatile int ipl0 = 0;
+extern struct M68KState *__m68k_state;
 
 void ps_housekeeper() 
 {
@@ -465,7 +467,8 @@ void ps_housekeeper()
     if (housekeeper_enabled)
     {
       uint32_t pin = LE32(*(gpio + 13));
-      ipl0 = pin & (1 << PIN_IPL_ZERO);
+      __m68k_state->IPL0 = pin & (1 << PIN_IPL_ZERO);
+      asm volatile("":::"memory");
 
       if ((pin & (1 << PIN_RESET)) == 0) {
 
