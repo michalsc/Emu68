@@ -12,7 +12,7 @@
 
 #include "support.h"
 #include "ps_protocol.h"
-#include "m68k.h"
+#include "M68k.h"
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
