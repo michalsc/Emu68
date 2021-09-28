@@ -1773,6 +1773,10 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mov_reg(sp, reg);
                 *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, ISP));                    
                 break;
+            default:
+//                ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+//                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
+                break;
         }
     }
     else
@@ -1848,6 +1852,10 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
+                break;
+            default:
+//                ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+//                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
                 break;
         }
         RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
