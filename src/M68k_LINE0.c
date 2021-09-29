@@ -347,7 +347,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             /* Perform calcualtion */
 #ifdef __aarch64__
             *ptr++ = lsl(tmp, tmp, 24);
-            *ptr++ = adds_reg(immed, tmp, immed, LSL, 0);
+            *ptr++ = subs_reg(immed, tmp, immed, LSL, 0);
             *ptr++ = lsr(immed, immed, 24);
 #else
             *ptr++ = adds_reg(immed, immed, tmp, 24);
