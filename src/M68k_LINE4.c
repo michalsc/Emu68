@@ -828,7 +828,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
 
         *ptr++ = mov_reg(tmpresult, dest);
 #ifdef __aarch64__
-        *ptr++ = orr_immed(dest, dest, 1, 24);
+        *ptr++ = orr_immed(dest, dest, 1, 25);
 #else
         *ptr++ = orr_immed(dest, dest, 0x80);
 #endif
@@ -848,7 +848,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
         }
 #ifdef __aarch64__
         *ptr++ = ldxrb(dest, tmpresult);
-        *ptr++ = orr_immed(tmpreg, tmpresult, 1, 24);
+        *ptr++ = orr_immed(tmpreg, tmpresult, 1, 25);
         *ptr++ = stxrb(dest, tmpreg, tmpstate);
         *ptr++ = cmp_reg(31, tmpstate, LSL, 0);
         *ptr++ = b_cc(A64_CC_NE, -4);
