@@ -1168,11 +1168,11 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int8_t pc_off;
+    int32_t offset = BE16((*m68k_ptr)[0]) | BE16((*m68k_ptr)[1]);
+
     displ = RA_AllocARMRegister(&ptr);
-    pc_off = 2;
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-    *ptr++ = ldr_offset(REG_PC, displ, pc_off);
+    *ptr++ = movw_immed_u16(displ, offset & 0xffff);
+    *ptr++ = movt_immed_u16(displ, (offset >> 16) & 0xffff);
     sp = RA_MapM68kRegister(&ptr, 15);
     reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
@@ -1773,6 +1773,10 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mov_reg(sp, reg);
                 *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, ISP));                    
                 break;
+            default:
+//                ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+//                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
+                break;
         }
     }
     else
@@ -1848,6 +1852,10 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
+                break;
+            default:
+//                ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+//                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
                 break;
         }
         RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);

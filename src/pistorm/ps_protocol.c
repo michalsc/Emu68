@@ -9,8 +9,10 @@
 #define PS_PROTOCOL_IMPL
 
 #include <stdint.h>
+
 #include "support.h"
 #include "ps_protocol.h"
+#include "M68k.h"
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
@@ -62,6 +64,17 @@ static inline void ticksleep(uint64_t ticks)
   t0 += ticks;
   do {
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+  } while(t1 < t0);
+}
+
+static inline void ticksleep_wfe(uint64_t ticks)
+{
+  uint64_t t0 = 0, t1 = 0;
+  asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+  t0 += ticks;
+  do {
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+    asm volatile("wfe");
   } while(t1 < t0);
 }
 
@@ -217,32 +230,40 @@ void ps_setup_protocol() {
 
 
 void ps_write_16(unsigned int address, unsigned int data) {
-  *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
-  *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-  *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
+  if (address & 1)
+  {
+    ps_write_8(address, data >> 8);
+    ps_write_8(address + 1, data & 0xff);
+  }
+  else
+  {
+    *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
+    *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
+    *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
-  *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
-  *(gpio + 7) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(0xffffec);
+    *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
+    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(0xffffec);
 
-  *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
-  *(gpio + 7) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(0xffffec);
+    *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
+    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(0xffffec);
 
-  *(gpio + 7) = LE32(((0x0000 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
-  *(gpio + 7) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(0xffffec);
+    *(gpio + 7) = LE32(((0x0000 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(0xffffec);
 
-  *(gpio + 0) = LE32(GPFSEL0_INPUT);
-  *(gpio + 1) = LE32(GPFSEL1_INPUT);
-  *(gpio + 2) = LE32(GPFSEL2_INPUT);
+    *(gpio + 0) = LE32(GPFSEL0_INPUT);
+    *(gpio + 1) = LE32(GPFSEL1_INPUT);
+    *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
-  while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-  if (address >= 0x200000)
-    ticksleep(12);
+    while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
+    if (address >= 0x200000)
+      ticksleep(12);
+  }
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -280,41 +301,62 @@ void ps_write_8(unsigned int address, unsigned int data) {
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
-  ps_write_16(address, value >> 16);
-  ps_write_16(address + 2, value);
+  if (address & 1)
+  {
+    ps_write_8(address, value >> 24);
+    ps_write_16(address + 1, value >> 8);
+    ps_write_8(address + 3, value & 0xff);
+  }
+  else
+  {
+    ps_write_16(address, value >> 16);
+    ps_write_16(address + 2, value);
+  }
 }
 
 unsigned int ps_read_16(unsigned int address) {
-  *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
-  *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-  *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
+  if (address & 1)
+  {
+    unsigned int value;
 
-  *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
-  *(gpio + 7) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(0xffffec);
+    value = ps_read_8(address) << 8;
+    value |= ps_read_8(address + 1);
 
-  *(gpio + 7) = LE32(((0x0200 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
-  *(gpio + 7) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(1 << PIN_WR);
-  *(gpio + 10) = LE32(0xffffec);
+    return value;
+  }
+  else
+  {
+    *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
+    *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
+    *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
-  *(gpio + 0) = LE32(GPFSEL0_INPUT);
-  *(gpio + 1) = LE32(GPFSEL1_INPUT);
-  *(gpio + 2) = LE32(GPFSEL2_INPUT);
+    *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
+    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(0xffffec);
 
-  *(gpio + 7) = LE32(REG_DATA << PIN_A0);
-  *(gpio + 7) = LE32(1 << PIN_RD);
+    *(gpio + 7) = LE32(((0x0200 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(0xffffec);
 
-  while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
-  unsigned int value = LE32(*(gpio + 13));
+    *(gpio + 0) = LE32(GPFSEL0_INPUT);
+    *(gpio + 1) = LE32(GPFSEL1_INPUT);
+    *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
-  *(gpio + 10) = LE32(0xffffec);
+    *(gpio + 7) = LE32(REG_DATA << PIN_A0);
+    *(gpio + 7) = LE32(1 << PIN_RD);
 
-  if (address >= 0x200000)
-    ticksleep(12);
+    while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
+    unsigned int value = LE32(*(gpio + 13));
 
-  return (value >> 8) & 0xffff;
+    *(gpio + 10) = LE32(0xffffec);
+
+    if (address >= 0x200000)
+      ticksleep(12);
+
+    return (value >> 8) & 0xffff;
+  }
 }
 
 unsigned int ps_read_8(unsigned int address) {
@@ -356,9 +398,20 @@ unsigned int ps_read_8(unsigned int address) {
 }
 
 unsigned int ps_read_32(unsigned int address) {
-  unsigned int a = ps_read_16(address);
-  unsigned int b = ps_read_16(address + 2);
-  return (a << 16) | b;
+  if (address & 1)
+  {
+    unsigned int value;
+    value = ps_read_8(address) << 24;
+    value |= ps_read_16(address + 1) << 8;
+    value |= ps_read_8(address + 3);
+    return value;
+  }
+  else
+  {
+    unsigned int a = ps_read_16(address);
+    unsigned int b = ps_read_16(address + 2);
+    return (a << 16) | b;
+  }
 }
 
 void ps_write_status_reg(unsigned int value) {
@@ -426,4 +479,57 @@ void ps_update_irq() {
   }*/
 
   //m68k_set_irq(ipl);
+}
+
+#define PM_RSTC         ((volatile unsigned int*)(0xf2000000 + 0x0010001c))
+#define PM_RSTS         ((volatile unsigned int*)(0xf2000000 + 0x00100020))
+#define PM_WDOG         ((volatile unsigned int*)(0xf2000000 + 0x00100024))
+#define PM_WDOG_MAGIC   0x5a000000
+#define PM_RSTC_FULLRST 0x00000020
+
+volatile int housekeeper_enabled = 0;
+extern struct M68KState *__m68k_state;
+
+void ps_housekeeper() 
+{
+  if (!gpio)
+    gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+
+  kprintf("[HKEEP] Housekeeper activated\n");
+  kprintf("[HKEEP] Please note we are burning the cpu with busyloops now\n");
+
+  /* Configure timer-based event stream */
+  /* Enable timer regs from EL0, enable event stream on posedge, monitor 3th bit */
+  /* This gives a frequency of 1.2MHz for a 19.2MHz timer */
+  asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+
+  for(;;) {
+    if (housekeeper_enabled)
+    {
+      uint32_t pin = LE32(*(gpio + 13));
+      __m68k_state->IPL0 = pin & (1 << PIN_IPL_ZERO);
+      asm volatile("":::"memory");
+
+      if ((pin & (1 << PIN_RESET)) == 0) {
+
+        kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
+
+        unsigned int r;
+        // trigger a restart by instructing the GPU to boot from partition 0
+        r = LE32(*PM_RSTS); r &= ~0xfffffaaa;
+        *PM_RSTS = LE32(PM_WDOG_MAGIC | r);   // boot from partition 0
+        *PM_WDOG = LE32(PM_WDOG_MAGIC | 10);
+        *PM_RSTC = LE32(PM_WDOG_MAGIC | PM_RSTC_FULLRST);
+
+        while(1);
+
+      }
+
+      /*
+        Wait for event. It can happen that the CPU is flooded with them for some reason, but
+        nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
+      */
+      asm volatile("wfe");
+    }
+  }
 }

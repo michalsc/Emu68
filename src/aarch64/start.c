@@ -409,23 +409,33 @@ void secondary_boot(void)
     asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
     kprintf("[BOOT] Started CPU%d\n", cpu_id);
-   
-    e = dt_find_node("/chosen");
-    if (e)
+    
+    if (cpu_id == 1)
     {
-        of_property_t * prop = dt_find_property(e, "bootargs");
-        if (prop)
+        e = dt_find_node("/chosen");
+        if (e)
         {
-            if (strstr(prop->op_value, "async_log"))
-                async_log = 1;
+            of_property_t * prop = dt_find_property(e, "bootargs");
+            if (prop)
+            {
+                if (strstr(prop->op_value, "async_log"))
+                    async_log = 1;
+            }
         }
     }
-    
+
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
 #ifdef PISTORM
-    if (async_log)
-        serial_writer();
+    if (cpu_id == 1)
+    {
+        if (async_log)
+            serial_writer();
+    }
+    else if (cpu_id == 2)
+    {
+        ps_housekeeper();
+    }
 #else
     (void)async_log;
 #endif
@@ -659,6 +669,17 @@ void boot(void *dtree)
     asm volatile("sev");
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
+    kprintf("[BOOT] Waking up CPU 2\n");
+    temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
+    *(uint64_t *)0xffffff90000000e8 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    clear_entire_dcache();
+        
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
+
+    asm volatile("sev");
+
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
@@ -848,6 +869,8 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
+    extern volatile int housekeeper_enabled;
+    housekeeper_enabled = 1;
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -1045,6 +1068,7 @@ struct M68KTranslationUnit *_FindUnit(uint16_t *ptr)
 void  __attribute__((used)) stub_FindUnit()
 {
     asm volatile(
+"       .align  5                           \n"
 "FindUnit:                                  \n"
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
@@ -1078,7 +1102,6 @@ void  __attribute__((used)) stub_FindUnit()
 
 uint32_t last_pc;
 
-
 void  __attribute__((used)) stub_ExecutionLoop()
 {
     asm volatile(
@@ -1090,21 +1113,21 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       stp     x21, x22, [sp, #4*16]       \n"
 "       stp     x19, x20, [sp, #5*16]       \n"
 "       bl      M68K_LoadContext            \n"
-"       .align 4                            \n"
+"       .align 6                            \n"
 "1:                                         \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
+#ifndef PISTORM
 "       cbz     w%[reg_pc], 4f              \n"
+#endif
 
 "       adrp    x1, last_pc                 \n"
 "       add     x1, x1, :lo12:last_pc       \n"
 "       str     w18, [x1]                   \n"
 
-
 #ifdef PISTORM
-"       mov     x1, #0xf2200000             \n" // Read IPL0 flag from GPIO
-"       ldr     w1, [x1, 0x34]              \n"
-"       tbz     w1, #25, 9f                 \n" // If IPL0 flag is not set, go to interrupt handling
+"       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
+"       cbz     w1, 9f                      \n"
 #else
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
 "       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
@@ -1341,6 +1364,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
  [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
         __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
  [pint]"i"(__builtin_offsetof(struct M68KState, PINT)),
+ [ipl0]"i"(__builtin_offsetof(struct M68KState, IPL0)),
  [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
  [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
  [isp]"i"(__builtin_offsetof(struct M68KState, ISP)),

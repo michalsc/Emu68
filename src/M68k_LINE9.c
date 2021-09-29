@@ -205,13 +205,18 @@ uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (update_mask)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
-            if (update_mask & SR_X)
-                ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
-            else
-                ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
 
-            if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            /* If result is non-zero, clear Z flag, leave unchanged otherwise */
+            if (update_mask & SR_Z) {
+#ifdef __aarch64__
+                *ptr++ = b_cc(ARM_CC_EQ, 2);
+                *ptr++ = bic_immed(cc, cc, 1, 30);
+#endif
+                update_mask &= ~SR_Z;
+            }
+            
+            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+
             if (update_mask & SR_N)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)

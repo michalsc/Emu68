@@ -330,13 +330,15 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     return 1;
 }
 
+#define MANUFACTURER_ID 0x6d73
+
 uint8_t z2_autoconf[] = {
     0xc | 0x2,  // Z2 board, link to memory list
     0x0,        // Size 8 MB
-    0x6, 0x9,   // Product ID
+    0x1, 0x0,   // Product ID
     0x8, 0x0,   // ERT MEMSPACE - want to be in 8MB Z2 region
     0x0, 0x0,   // Reserved - must be 0
-    0xb, 0xe, 0xe, 0xf, // Manufacturer ID
+    (MANUFACTURER_ID >> 12) & 15, (MANUFACTURER_ID >> 8) & 15, (MANUFACTURER_ID >> 4) & 15, MANUFACTURER_ID & 15, // Manufacturer ID
     0xc, 0xa, 0xf, 0xe, 0xb, 0xa, 0xb, 0xe, // Serial number
     0x0, 0x0, 0x0, 0x0, // Diag area missing
 };

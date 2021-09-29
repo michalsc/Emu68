@@ -180,7 +180,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = -BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
@@ -189,7 +189,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = -BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(immed, lo16, 1);
 #else
@@ -210,7 +210,6 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 immediate = 1;
             }
             else {
-                u32 = -u32;
                 *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
                 if (((u32 >> 16) & 0xffff) != 0)
                     *ptr++ = movt_immed_u16(immed, u32 >> 16);
@@ -222,6 +221,9 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* handle adding to register here */
     if ((opcode & 0x0038) == 0)
     {
+        /* Temporary register for 8/16 bit operations */
+        uint8_t temp = RA_AllocARMRegister(&ptr);
+
         /* Fetch m68k register */
         dest = RA_MapM68kRegister(&ptr, opcode & 7);
 
@@ -236,15 +238,17 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 if (immediate)
                     *ptr++ = subs_immed(dest, dest, u32 & 0xffff);
                 else
-                    *ptr++ = adds_reg(dest, immed, dest, LSL, 0);
+                    *ptr++ = subs_reg(dest, dest, immed, LSL, 0);
                 break;
             case 2:
-                *ptr++ = adds_reg(immed, immed, dest, LSL, 16);
-                *ptr++ = bfxil(dest, immed, 16, 16);
+                *ptr++ = lsl(temp, dest, 16);
+                *ptr++ = subs_reg(temp, temp, immed, LSL, 0);
+                *ptr++ = bfxil(dest, temp, 16, 16);
                 break;
             case 1:
-                *ptr++ = adds_reg(immed, immed, dest, LSL, 24);
-                *ptr++ = bfxil(dest, immed, 24, 8);
+                *ptr++ = lsl(temp, dest, 24);
+                *ptr++ = subs_reg(temp, temp, immed, LSL, 0);
+                *ptr++ = bfxil(dest, temp, 24, 8);
                 break;
 #else
             case 4:
@@ -262,6 +266,8 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
 #endif
         }
+
+        RA_FreeARMRegister(&ptr, temp);
     }
     else
     {
@@ -291,7 +297,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             if (immediate)
                 *ptr++ = subs_immed(immed, tmp, u32);
             else
-                *ptr++ = adds_reg(immed, immed, tmp, LSL, 0);
+                *ptr++ = subs_reg(immed, tmp, immed, LSL, 0);
 #else
             *ptr++ = adds_reg(immed, immed, tmp, 0);
 #endif
@@ -314,7 +320,8 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = ldrh_offset(dest, tmp, 0);
             /* Perform calcualtion */
 #ifdef __aarch64__
-            *ptr++ = adds_reg(immed, immed, tmp, LSL, 16);
+            *ptr++ = lsl(tmp, tmp, 16);
+            *ptr++ = subs_reg(immed, tmp, immed, LSL, 0);
             *ptr++ = lsr(immed, immed, 16);
 #else
             *ptr++ = adds_reg(immed, immed, tmp, 16);
@@ -339,7 +346,8 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = ldrb_offset(dest, tmp, 0);
             /* Perform calcualtion */
 #ifdef __aarch64__
-            *ptr++ = adds_reg(immed, immed, tmp, LSL, 24);
+            *ptr++ = lsl(tmp, tmp, 24);
+            *ptr++ = adds_reg(immed, tmp, immed, LSL, 0);
             *ptr++ = lsr(immed, immed, 24);
 #else
             *ptr++ = adds_reg(immed, immed, tmp, 24);
