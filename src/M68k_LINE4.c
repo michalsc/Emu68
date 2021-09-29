@@ -1652,7 +1652,28 @@ static uint32_t *EMIT_RTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint16_t *ret_addr = M68K_PopReturnAddress(NULL);
     if (ret_addr != (uint16_t *)0xffffffff)
     {
+        /* 
+            If return stack is used, make sure that the code below is at the address we were expecting
+            This must not be the case - it would be sufficient if code has modified the return address on the stack
+        */
+        uint8_t reg = RA_AllocARMRegister(&ptr);
+        uint32_t *tmp;
+        *ptr++ = ldr_pcrel(reg, 4);
+        *ptr++ = cmp_reg(reg, REG_PC, LSL, 0);
+        tmp = ptr;
+        *ptr++ = b_cc(ARM_CC_EQ, 0);
+        *ptr++ = b(2);
+        *ptr++ = (uint32_t)(uintptr_t)ret_addr;
+
         *m68k_ptr = ret_addr;
+
+        RA_FreeARMRegister(&ptr, reg);
+
+        *tmp = b_cc(ARM_CC_EQ, ptr - tmp);
+        *ptr++ = (uint32_t)(uintptr_t)tmp;
+        *ptr++ = 1;
+        *ptr++ = 0;
+        *ptr++ = INSN_TO_LE(0xfffffffe);
     }
     else
         *ptr++ = INSN_TO_LE(0xffffffff);
