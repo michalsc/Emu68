@@ -402,8 +402,9 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
 
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+
         if (update_mask & SR_V) {
-            ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
         }
         if (update_mask & (SR_Z | SR_N))
@@ -530,28 +531,26 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
 
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+
         if (update_mask & SR_V) {
-            ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
+            
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
         }
 
         if (update_mask & (SR_Z | SR_N))
         {
-            if (update_mask & SR_Z) {
 #ifdef __aarch64__
-                *ptr++ = cmn_reg(31, reg_quot, LSL, 16);
+            *ptr++ = cmn_reg(31, reg_quot, LSL, 16);
 #else
-                *ptr++ = cmp_immed(reg_quot, 0);
+            *ptr++ = cmp_immed(reg_quot, 0);
 #endif
+            ptr = EMIT_GetNZxx(ptr, cc, &update_mask);
+            if (update_mask & SR_Z) {
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             }
             if (update_mask & SR_N) {
-#ifdef __aarch64__
-                *ptr++ = tst_immed(reg_quot, 1, 32-15);
-#else
-                *ptr++ = tst_immed(reg_quot, 0x902);
-#endif
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_NE);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             }
         }
     }
