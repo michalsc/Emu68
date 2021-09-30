@@ -238,14 +238,16 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             /* Fetch m68k register */
             uint8_t dest = RA_MapM68kRegister(&ptr, (opcode & 7));
             RA_SetDirtyM68kRegister(&ptr, (opcode & 7));
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
             switch ((opcode >> 6) & 3)
             {
             case 0:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                *ptr++ = mov_immed_u16(tmp, (-data) << 8, 1);
-                *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
+                *ptr++ = lsl(tmp2, dest, 24);
+                *ptr++ = mov_immed_u16(tmp, data << 8, 1);
+                *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
                 *ptr++ = bfxil(dest, tmp, 24, 8);
 #else
                 *ptr++ = lsl_immed(tmp, dest, 24);
@@ -259,8 +261,9 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                *ptr++ = mov_immed_u16(tmp, -data, 1);
-                *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
+                *ptr++ = lsl(tmp2, dest, 16);
+                *ptr++ = mov_immed_u16(tmp, data, 1);
+                *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
                 *ptr++ = bfxil(dest, tmp, 16, 16);
 #else
                 *ptr++ = lsl_immed(tmp, dest, 16);
@@ -275,6 +278,8 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = subs_immed(dest, dest, data);
                 break;
             }
+
+            RA_FreeARMRegister(&ptr, tmp2);
         }
         else
         {
@@ -312,8 +317,9 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             /* Perform calcualtion */
 #ifdef __aarch64__
             uint8_t immed = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(immed, (-data) << 8, 1);
-            *ptr++ = adds_reg(tmp, immed, tmp, LSL, 24);
+            *ptr++ = lsl(tmp, tmp, 24);
+            *ptr++ = mov_immed_u16(immed, data << 8, 1);
+            *ptr++ = subs_reg(tmp, tmp, immed, LSL, 0);
             *ptr++ = lsr(tmp, tmp, 24);
             RA_FreeARMRegister(&ptr, immed);
 #else
@@ -342,8 +348,9 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             /* Perform calcualtion */
 #ifdef __aarch64__
             immed = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(immed, -data, 1);
-            *ptr++ = adds_reg(tmp, immed, tmp, LSL, 16);
+            *ptr++ = lsl(tmp, tmp, 16);
+            *ptr++ = mov_immed_u16(immed, data, 1);
+            *ptr++ = subs_reg(tmp, tmp, immed, LSL, 0);
             *ptr++ = lsr(tmp, tmp, 16);
             RA_FreeARMRegister(&ptr, immed);
 #else

@@ -21,6 +21,10 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     uint8_t ext_words = 0;
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
+    /* Pre-decrement mode */
+    if ((opcode & 0x38) == 0x20)
+        *ptr++ = sub_immed(dest, dest, 2);
+
     *ptr++ = ldrsh_offset(dest, tmp, 0);
 
 #ifdef __aarch64__
@@ -54,6 +58,10 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     }
 
     *ptr++ = strh_offset(dest, tmp, 0);
+
+    /* Post-increment mode */
+    if ((opcode & 0x38) == 0x18)
+        *ptr++ = add_immed(dest, dest, 2);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
@@ -116,6 +124,10 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     uint8_t ext_words = 0;
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
+    /* Pre-decrement mode */
+    if ((opcode & 0x38) == 0x20)
+        *ptr++ = sub_immed(dest, dest, 2);
+
     *ptr++ = ldrh_offset(dest, tmp, 0);
 
 #ifdef __aarch64__
@@ -150,6 +162,10 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     *ptr++ = strh_offset(dest, tmp, 0);
 
+    /* Post-increment mode */
+    if ((opcode & 0x38) == 0x18)
+        *ptr++ = add_immed(dest, dest, 2);
+        
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
 
