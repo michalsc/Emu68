@@ -321,6 +321,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
     ptr = EMIT_FlushPC(ptr);
+    RA_GetCC(&ptr);
 
 #ifdef __aarch64__
     uint32_t *tmp_ptr = ptr;
@@ -501,6 +502,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
     ptr = EMIT_FlushPC(ptr);
+    RA_GetCC(&ptr);
 
 #ifdef __aarch64__
     uint32_t *tmp_ptr = ptr;
@@ -684,6 +686,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     // Load divisor
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
     ptr = EMIT_FlushPC(ptr);
+    RA_GetCC(&ptr);
 
     // Check if division by 0
 #ifdef __aarch64__
