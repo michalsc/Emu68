@@ -320,15 +320,63 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t ext_words = 0;
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_FlushPC(ptr);
+    RA_GetCC(&ptr);
 
 #ifdef __aarch64__
-    *ptr++ = cbnz(reg_q, 2);
+    *ptr++ = ands_immed(31, reg_q, 16, 0);
+    uint32_t *tmp_ptr = ptr;
+    *ptr++ = b_cc(A64_CC_NE, 2);
+
+    if (1)
+    {
+        /*
+            This is a point of no return. Issue division by zero exception here
+        */
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        ptr = EMIT_Exception(ptr, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(*m68k_ptr - 1));
+
+        RA_StoreDirtyFPURegs(&ptr);
+        RA_StoreDirtyM68kRegs(&ptr);
+
+        RA_StoreCC(&ptr);
+        RA_StoreFPCR(&ptr);
+        RA_StoreFPSR(&ptr);
+        
+#if EMU68_INSN_COUNTER
+        extern uint32_t insn_count;
+        uint8_t ctx_free = 0;
+        uint8_t ctx = RA_TryCTX(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        if (ctx == 0xff)
+        {
+            ctx = RA_AllocARMRegister(&ptr);
+            *ptr++ = mrs(ctx, 3, 3, 13, 0, 3);
+            ctx_free = 1;
+        }
+        *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+        *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+        if (insn_count & 0xfff000)
+            *ptr++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+        *ptr++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
+        RA_FreeARMRegister(&ptr, tmp);
+        if (ctx_free)
+            RA_FreeARMRegister(&ptr, ctx);
+#endif
+        /* Return here */
+        *ptr++ = bx_lr();
+    }
+    /* Update branch to the continuation */
+    *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
-#endif
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
+#endif
+
 
 #ifdef __aarch64__
     *ptr++ = sxth(reg_rem, reg_q);
@@ -402,8 +450,9 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
 
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+
         if (update_mask & SR_V) {
-            ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
         }
         if (update_mask & (SR_Z | SR_N))
@@ -422,6 +471,16 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
         }
     }
+
+#ifdef __aarch64__
+    if (update_mask & SR_V) {
+        uint8_t cc = RA_GetCC(&ptr);
+        *ptr++ = tbnz(cc, SRB_V, 3);
+    }
+    else {
+        *ptr++ = b_cc(A64_CC_NE, 3);
+    }
+#endif
 
     /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
     *ptr++ = mov_reg(reg_a, reg_quot);
@@ -453,15 +512,62 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t ext_words = 0;
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_FlushPC(ptr);
+    RA_GetCC(&ptr);
 
 #ifdef __aarch64__
-    *ptr++ = cbnz(reg_q, 2);
+    *ptr++ = ands_immed(31, reg_q, 16, 0);
+    uint32_t *tmp_ptr = ptr;
+    *ptr++ = b_cc(A64_CC_NE, 2);
+
+    if (1)
+    {
+        /*
+            This is a point of no return. Issue division by zero exception here
+        */
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        ptr = EMIT_Exception(ptr, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(*m68k_ptr - 1));
+
+        RA_StoreDirtyFPURegs(&ptr);
+        RA_StoreDirtyM68kRegs(&ptr);
+
+        RA_StoreCC(&ptr);
+        RA_StoreFPCR(&ptr);
+        RA_StoreFPSR(&ptr);
+        
+#if EMU68_INSN_COUNTER
+        extern uint32_t insn_count;
+        uint8_t ctx_free = 0;
+        uint8_t ctx = RA_TryCTX(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        if (ctx == 0xff)
+        {
+            ctx = RA_AllocARMRegister(&ptr);
+            *ptr++ = mrs(ctx, 3, 3, 13, 0, 3);
+            ctx_free = 1;
+        }
+        *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+        *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+        if (insn_count & 0xfff000)
+            *ptr++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+        *ptr++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
+        RA_FreeARMRegister(&ptr, tmp);
+        if (ctx_free)
+            RA_FreeARMRegister(&ptr, ctx);
+#endif
+        /* Return here */
+        *ptr++ = bx_lr();
+    }
+    /* Update branch to the continuation */
+    *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
-#endif
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
+#endif
 
 #ifdef __aarch64__
     *ptr++ = uxth(reg_rem, reg_q);
@@ -530,31 +636,39 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
 
+        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+
         if (update_mask & SR_V) {
-            ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
+            
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
         }
 
         if (update_mask & (SR_Z | SR_N))
         {
-            if (update_mask & SR_Z) {
 #ifdef __aarch64__
-                *ptr++ = cmn_reg(31, reg_quot, LSL, 16);
+            *ptr++ = cmn_reg(31, reg_quot, LSL, 16);
 #else
-                *ptr++ = cmp_immed(reg_quot, 0);
+            *ptr++ = cmp_immed(reg_quot, 0);
 #endif
+            ptr = EMIT_GetNZxx(ptr, cc, &update_mask);
+            if (update_mask & SR_Z) {
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             }
             if (update_mask & SR_N) {
-#ifdef __aarch64__
-                *ptr++ = tst_immed(reg_quot, 1, 32-15);
-#else
-                *ptr++ = tst_immed(reg_quot, 0x902);
-#endif
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_NE);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             }
         }
     }
+
+#ifdef __aarch64__
+    if (update_mask & SR_V) {
+        uint8_t cc = RA_GetCC(&ptr);
+        *ptr++ = tbnz(cc, SRB_V, 3);
+    }
+    else {
+        *ptr++ = b_cc(A64_CC_NE, 3);
+    }
+#endif
 
     /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
     *ptr++ = mov_reg(reg_a, reg_quot);
@@ -593,16 +707,63 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     // Load divisor
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    ptr = EMIT_FlushPC(ptr);
+    RA_GetCC(&ptr);
 
     // Check if division by 0
 #ifdef __aarch64__
+    uint32_t *tmp_ptr = ptr;
     *ptr++ = cbnz(reg_q, 2);
+
+    if (1)
+    {
+        /*
+            This is a point of no return. Issue division by zero exception here
+        */
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        ptr = EMIT_Exception(ptr, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(*m68k_ptr - 1));
+
+        RA_StoreDirtyFPURegs(&ptr);
+        RA_StoreDirtyM68kRegs(&ptr);
+
+        RA_StoreCC(&ptr);
+        RA_StoreFPCR(&ptr);
+        RA_StoreFPSR(&ptr);
+        
+#if EMU68_INSN_COUNTER
+        extern uint32_t insn_count;
+        uint8_t ctx_free = 0;
+        uint8_t ctx = RA_TryCTX(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        if (ctx == 0xff)
+        {
+            ctx = RA_AllocARMRegister(&ptr);
+            *ptr++ = mrs(ctx, 3, 3, 13, 0, 3);
+            ctx_free = 1;
+        }
+        *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+        *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+        if (insn_count & 0xfff000)
+            *ptr++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+        *ptr++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
+        RA_FreeARMRegister(&ptr, tmp);
+        if (ctx_free)
+            RA_FreeARMRegister(&ptr, ctx);
+#endif
+        /* Return here */
+        *ptr++ = bx_lr();
+    }
+    /* Update branch to the continuation */
+    *tmp_ptr = cbnz(reg_q, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
-#endif
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
+#endif
+
 
 #ifdef __aarch64__
     if (div64)

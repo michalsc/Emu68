@@ -543,8 +543,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     if (inner_loop)
     {
 #ifdef PISTORM
-        *end++ = mov_immed_u16(tmp2, 0xf220, 1);
-        *end++ = ldr_offset(tmp2, tmp2, 0x34);
+        //*end++ = mov_immed_u16(tmp2, 0xf220, 1);
+        //*end++ = ldr_offset(tmp2, tmp2, 0x34);
+        *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, IPL0));
 #else
         *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, PINT));
 #endif
@@ -560,7 +561,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     {
         uint32_t *tmpptr = end;
 #ifdef PISTORM
-        *end++ = tbnz(tmp2, 25, arm_code - tmpptr);
+        *end++ = cbnz(tmp2, arm_code - tmpptr);
+        //*end++ = tbnz(tmp2, 25, arm_code - tmpptr);
 #else
         *end++ = cbz(tmp2, arm_code - tmpptr);
 #endif
