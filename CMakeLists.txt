@@ -98,6 +98,8 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
             include_directories(src/pistorm)
             list(APPEND BASE_FILES
                 src/pistorm/ps_protocol.c
+                src/boards/devicetree.c
+                src/boards/z2ram.c
             )
         else()
             message(FATAL_ERROR "PiStorm variant is supported on raspi targets, only.")
