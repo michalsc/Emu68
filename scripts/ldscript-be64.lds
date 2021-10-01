@@ -25,6 +25,12 @@ SECTIONS
         *(.rodata)
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
+
+        __boards_start = .;
+        *(.boards.z2)
+        *(.boards.z3)
+        *(.boards)
+        QUAD(0)
     }
     .rodata1 : { *(.rodata1) }
 
