@@ -452,10 +452,20 @@ void ps_reset_state_machine() {
   usleep(100);
 }
 
+#include <boards.h>
+extern struct ExpansionBoard **board;
+extern struct ExpansionBoard *__boards_start;
+extern int board_idx;
+extern uint32_t overlay;
+
 void ps_pulse_reset() {
   ps_write_status_reg(0);
   usleep(300000);
   ps_write_status_reg(STATUS_BIT_RESET);
+  
+  overlay = 1;
+  board = &__boards_start;
+  board_idx = 0;
 }
 
 unsigned int ps_get_ipl_zero() {
