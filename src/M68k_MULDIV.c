@@ -320,15 +320,61 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t ext_words = 0;
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_FlushPC(ptr);
 
 #ifdef __aarch64__
+    uint32_t *tmp_ptr = ptr;
     *ptr++ = cbnz(reg_q, 2);
+
+    if (1)
+    {
+        /*
+            This is a point of no return. Issue division by zero exception here
+        */
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        ptr = EMIT_Exception(ptr, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(*m68k_ptr - 1));
+
+        RA_StoreDirtyFPURegs(&ptr);
+        RA_StoreDirtyM68kRegs(&ptr);
+
+        RA_StoreCC(&ptr);
+        RA_StoreFPCR(&ptr);
+        RA_StoreFPSR(&ptr);
+        
+#if EMU68_INSN_COUNTER
+        extern uint32_t insn_count;
+        uint8_t ctx_free = 0;
+        uint8_t ctx = RA_TryCTX(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        if (ctx == 0xff)
+        {
+            ctx = RA_AllocARMRegister(&ptr);
+            *ptr++ = mrs(ctx, 3, 3, 13, 0, 3);
+            ctx_free = 1;
+        }
+        *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+        *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+        if (insn_count & 0xfff000)
+            *ptr++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+        *ptr++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
+        RA_FreeARMRegister(&ptr, tmp);
+        if (ctx_free)
+            RA_FreeARMRegister(&ptr, ctx);
+#endif
+        /* Return here */
+        *ptr++ = bx_lr();
+    }
+    /* Update branch to the continuation */
+    *tmp_ptr = cbnz(reg_q, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
-#endif
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
+#endif
+
 
 #ifdef __aarch64__
     *ptr++ = sxth(reg_rem, reg_q);
@@ -454,15 +500,60 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t ext_words = 0;
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_FlushPC(ptr);
 
 #ifdef __aarch64__
+    uint32_t *tmp_ptr = ptr;
     *ptr++ = cbnz(reg_q, 2);
+
+    if (1)
+    {
+        /*
+            This is a point of no return. Issue division by zero exception here
+        */
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        ptr = EMIT_Exception(ptr, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(*m68k_ptr - 1));
+
+        RA_StoreDirtyFPURegs(&ptr);
+        RA_StoreDirtyM68kRegs(&ptr);
+
+        RA_StoreCC(&ptr);
+        RA_StoreFPCR(&ptr);
+        RA_StoreFPSR(&ptr);
+        
+#if EMU68_INSN_COUNTER
+        extern uint32_t insn_count;
+        uint8_t ctx_free = 0;
+        uint8_t ctx = RA_TryCTX(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        if (ctx == 0xff)
+        {
+            ctx = RA_AllocARMRegister(&ptr);
+            *ptr++ = mrs(ctx, 3, 3, 13, 0, 3);
+            ctx_free = 1;
+        }
+        *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+        *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+        if (insn_count & 0xfff000)
+            *ptr++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+        *ptr++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
+        RA_FreeARMRegister(&ptr, tmp);
+        if (ctx_free)
+            RA_FreeARMRegister(&ptr, ctx);
+#endif
+        /* Return here */
+        *ptr++ = bx_lr();
+    }
+    /* Update branch to the continuation */
+    *tmp_ptr = cbnz(reg_q, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
-#endif
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
+#endif
 
 #ifdef __aarch64__
     *ptr++ = uxth(reg_rem, reg_q);
@@ -592,16 +683,62 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     // Load divisor
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    ptr = EMIT_FlushPC(ptr);
 
     // Check if division by 0
 #ifdef __aarch64__
+    uint32_t *tmp_ptr = ptr;
     *ptr++ = cbnz(reg_q, 2);
+
+    if (1)
+    {
+        /*
+            This is a point of no return. Issue division by zero exception here
+        */
+        *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_words + 1));
+
+        ptr = EMIT_Exception(ptr, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(*m68k_ptr - 1));
+
+        RA_StoreDirtyFPURegs(&ptr);
+        RA_StoreDirtyM68kRegs(&ptr);
+
+        RA_StoreCC(&ptr);
+        RA_StoreFPCR(&ptr);
+        RA_StoreFPSR(&ptr);
+        
+#if EMU68_INSN_COUNTER
+        extern uint32_t insn_count;
+        uint8_t ctx_free = 0;
+        uint8_t ctx = RA_TryCTX(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        if (ctx == 0xff)
+        {
+            ctx = RA_AllocARMRegister(&ptr);
+            *ptr++ = mrs(ctx, 3, 3, 13, 0, 3);
+            ctx_free = 1;
+        }
+        *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+        *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
+        if (insn_count & 0xfff000)
+            *ptr++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
+        *ptr++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+
+        RA_FreeARMRegister(&ptr, tmp);
+        if (ctx_free)
+            RA_FreeARMRegister(&ptr, ctx);
+#endif
+        /* Return here */
+        *ptr++ = bx_lr();
+    }
+    /* Update branch to the continuation */
+    *tmp_ptr = cbnz(reg_q, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
-#endif
     /* At this place handle exception - division by zero! */
     *ptr++ = udf(0);
+#endif
+
 
 #ifdef __aarch64__
     if (div64)
