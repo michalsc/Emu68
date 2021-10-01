@@ -324,9 +324,9 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_GetCC(&ptr);
 
 #ifdef __aarch64__
-    *ptr++ = sxth(reg_rem, reg_q);
+    *ptr++ = ands_immed(31, reg_q, 16, 0);
     uint32_t *tmp_ptr = ptr;
-    *ptr++ = cbnz(reg_q, 2);
+    *ptr++ = b_cc(A64_CC_NE, 2);
 
     if (1)
     {
@@ -369,7 +369,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = bx_lr();
     }
     /* Update branch to the continuation */
-    *tmp_ptr = cbnz(reg_q, ptr - tmp_ptr);
+    *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
@@ -379,6 +379,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 
 #ifdef __aarch64__
+    *ptr++ = sxth(reg_rem, reg_q);
     *ptr++ = sdiv(reg_quot, reg_a, reg_rem);
     *ptr++ = msub(reg_rem, reg_a, reg_quot, reg_rem);
 #else
@@ -471,6 +472,16 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
     }
 
+#ifdef __aarch64__
+    if (update_mask & SR_V) {
+        uint8_t cc = RA_GetCC(&ptr);
+        *ptr++ = tbnz(cc, SRB_V, 3);
+    }
+    else {
+        *ptr++ = b_cc(A64_CC_NE, 3);
+    }
+#endif
+
     /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
     *ptr++ = mov_reg(reg_a, reg_quot);
     *ptr++ = bfi(reg_a, reg_rem, 16, 16);
@@ -505,9 +516,9 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_GetCC(&ptr);
 
 #ifdef __aarch64__
-    *ptr++ = uxth(reg_rem, reg_q);
+    *ptr++ = ands_immed(31, reg_q, 16, 0);
     uint32_t *tmp_ptr = ptr;
-    *ptr++ = cbnz(reg_q, 2);
+    *ptr++ = b_cc(A64_CC_NE, 2);
 
     if (1)
     {
@@ -550,7 +561,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = bx_lr();
     }
     /* Update branch to the continuation */
-    *tmp_ptr = cbnz(reg_q, ptr - tmp_ptr);
+    *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 #else
     *ptr++ = cmp_immed(reg_q, 0);
     *ptr++ = b_cc(ARM_CC_NE, 0);
@@ -559,6 +570,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
 
 #ifdef __aarch64__
+    *ptr++ = uxth(reg_rem, reg_q);
     *ptr++ = udiv(reg_quot, reg_a, reg_rem);
     *ptr++ = msub(reg_rem, reg_a, reg_quot, reg_rem);
 #else
@@ -647,6 +659,16 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
         }
     }
+
+#ifdef __aarch64__
+    if (update_mask & SR_V) {
+        uint8_t cc = RA_GetCC(&ptr);
+        *ptr++ = tbnz(cc, SRB_V, 3);
+    }
+    else {
+        *ptr++ = b_cc(A64_CC_NE, 3);
+    }
+#endif
 
     /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
     *ptr++ = mov_reg(reg_a, reg_quot);
