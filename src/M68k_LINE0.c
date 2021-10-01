@@ -347,7 +347,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             /* Perform calcualtion */
 #ifdef __aarch64__
             *ptr++ = lsl(tmp, tmp, 24);
-            *ptr++ = adds_reg(immed, tmp, immed, LSL, 0);
+            *ptr++ = subs_reg(immed, tmp, immed, LSL, 0);
             *ptr++ = lsr(immed, immed, 24);
 #else
             *ptr++ = adds_reg(immed, immed, tmp, 24);
@@ -805,18 +805,18 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 else
                     *ptr++ = orr_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, dest, LSL, 0);
+                *ptr++ = cmn_reg(31, dest, LSL, 0);
                 break;
             case 2:
                 *ptr++ = orr_reg(immed, immed, dest, LSL, 16);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = orr_reg(immed, immed, dest, LSL, 24);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
@@ -866,7 +866,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 else
                     *ptr++ = orr_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
 #else
                 *ptr++ = orrs_reg(immed, immed, tmp, 0);
 #endif
@@ -891,7 +891,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = orr_reg(immed, immed, tmp, LSL, 16);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = lsr(immed, immed, 16);
 #else
                 *ptr++ = orrs_reg(immed, immed, tmp, 16);
@@ -918,7 +918,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = orr_reg(immed, immed, tmp, LSL, 24);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = lsr(immed, immed, 24);
 #else
                 *ptr++ = orrs_reg(immed, immed, tmp, 24);
@@ -1464,18 +1464,18 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 else
                     *ptr++ = eor_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, dest, LSL, 0);
+                *ptr++ = cmn_reg(31, dest, LSL, 0);
                 break;
             case 2:
                 *ptr++ = eor_reg(immed, immed, dest, LSL, 16);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = bfxil(dest, immed, 16, 16);
                 break;
             case 1:
                 *ptr++ = eor_reg(immed, immed, dest, LSL, 24);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = bfxil(dest, immed, 24, 8);
                 break;
 #else
@@ -1525,7 +1525,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 else
                     *ptr++ = eor_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
 #else
                 *ptr++ = eors_reg(immed, immed, tmp, 0);
 #endif
@@ -1550,7 +1550,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = eor_reg(immed, immed, tmp, LSL, 16);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = lsr(immed, immed, 16);
 #else
                 *ptr++ = eors_reg(immed, immed, tmp, 16);
@@ -1577,7 +1577,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 *ptr++ = eor_reg(immed, immed, tmp, LSL, 24);
                 tst_pos = ptr;
-                *ptr++ = cmp_reg(31, immed, LSL, 0);
+                *ptr++ = cmn_reg(31, immed, LSL, 0);
                 *ptr++ = lsr(immed, immed, 24);
 #else
                 *ptr++ = eors_reg(immed, immed, tmp, 24);
