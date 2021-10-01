@@ -324,6 +324,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_GetCC(&ptr);
 
 #ifdef __aarch64__
+    *ptr++ = sxth(reg_rem, reg_q);
     uint32_t *tmp_ptr = ptr;
     *ptr++ = cbnz(reg_q, 2);
 
@@ -378,7 +379,6 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 
 #ifdef __aarch64__
-    *ptr++ = sxth(reg_rem, reg_q);
     *ptr++ = sdiv(reg_quot, reg_a, reg_rem);
     *ptr++ = msub(reg_rem, reg_a, reg_quot, reg_rem);
 #else
@@ -505,6 +505,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_GetCC(&ptr);
 
 #ifdef __aarch64__
+    *ptr++ = uxth(reg_rem, reg_q);
     uint32_t *tmp_ptr = ptr;
     *ptr++ = cbnz(reg_q, 2);
 
@@ -558,7 +559,6 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
 
 #ifdef __aarch64__
-    *ptr++ = uxth(reg_rem, reg_q);
     *ptr++ = udiv(reg_quot, reg_a, reg_rem);
     *ptr++ = msub(reg_rem, reg_a, reg_quot, reg_rem);
 #else
