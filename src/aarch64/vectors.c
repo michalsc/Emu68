@@ -288,9 +288,6 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         kprintf("Z3 write access with far %08x\n", far);
     }
 
-    if (size > 1 && (far & 1))
-        kprintf("UNALIGNED WORD/LONG write to %08x\n");
-
     if (far > (0x1000000ULL - size)) {
         kprintf("Illegal FAR %08x\n", far);
         return 1;
@@ -353,9 +350,6 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
 
     uint64_t a, b;
-
-    if (size > 1 && (far & 1))
-        kprintf("UNALIGNED WORD/LONG read from %08x\n", far);
 
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);
