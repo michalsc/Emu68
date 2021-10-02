@@ -4,6 +4,12 @@
 #include <devicetree.h>
 #include <support.h>
 
+/*
+    This is a Z2 RAM expansion installed in the 0x200000 ... 0x9fffff space. No ROM required, the board just maps
+    physical RAM in that region and thus removes the need for page fault handler. This FAST RAM is accessible to 
+    the cpu only, at full speed of physically instaled memory.
+*/
+
 static void map(struct ExpansionBoard *board)
 {
     kprintf("[BOARD] Mapping ZII RAM board at address %08x\n", board->map_base);
@@ -13,6 +19,9 @@ static void map(struct ExpansionBoard *board)
 #define PRODUCT_ID      0x10
 #define MANUFACTURER_ID 0x6d73
 #define RAM_SERIAL      0x1e0aeb68
+
+/* No real ROM is used, so synthesize your own here */
+
 
 static uint16_t z2_ram[32] = {
     0xe000, 0x0000,                             // Z2 board, link it to memory list, // Size: 8MB
