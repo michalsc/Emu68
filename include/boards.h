@@ -8,6 +8,7 @@ struct ExpansionBoard {
     uint32_t        rom_size;
     uint32_t        map_base;
     uint32_t        is_z3;
+    uint32_t        enabled;
     void            (*map)(struct ExpansionBoard *);
 };
 

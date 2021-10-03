@@ -48,7 +48,48 @@ static struct ExpansionBoard board = {
     8*1024*1024,
     0,
     0,
+    1,
     map
 };
+
+static void init()
+{
+    of_node_t *e = NULL;
+
+    kprintf("[BOOT] Initlializing Z2 RAM expansion\n");
+
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        of_property_t * prop = dt_find_property(e, "bootargs");
+        if (prop)
+        {
+            if (strstr(prop->op_value, "z2_ram_size=4")) {
+                board.rom_size = 4*1024*1024;
+                z2_ram[1] = 0x7000;
+                kprintf("[BOOT]   use 4MB expansion RAM\n");
+            }
+            else if (strstr(prop->op_value, "z2_ram_size=2")) {
+                board.rom_size = 2*1024*1024;
+                z2_ram[1] = 0x6000;
+                kprintf("[BOOT]   use 2MB expansion RAM\n");
+            }
+            else if (strstr(prop->op_value, "z2_ram_size=1")) {
+                board.rom_size = 1*1024*1024;
+                z2_ram[1] = 0x5000;
+                kprintf("[BOOT]   use 1MB expansion RAM\n");
+            }
+            else if (strstr(prop->op_value, "z2_ram_size=0")) {
+                board.enabled = 0;
+                kprintf("[BOOT]   disable ZorroII expansion RAM\n");
+            }
+            else {
+                kprintf("[BOOT]   use 8MB expansion RAM\n");
+            }
+        }
+    }
+}
+
+static void * __attribute__((used, section(".init"))) _init = &init;
 
 static void * __attribute__((used, section(".boards.z2"))) _board = &board;

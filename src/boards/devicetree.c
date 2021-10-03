@@ -23,6 +23,7 @@ static struct ExpansionBoard board = {
     4096,
     0,
     1,
+    1,
     map
 };
 
