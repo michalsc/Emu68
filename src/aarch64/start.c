@@ -731,6 +731,14 @@ void boot(void *dtree)
 
     platform_post_init();
 
+    extern void (*__init_start)();
+    void (**InitFunctions)() = &__init_start;
+    while(*InitFunctions)
+    {
+        (*InitFunctions)();
+        InitFunctions++;
+    }
+
 #ifndef PISTORM
     if (initramfs_loc != NULL && initramfs_size != 0)
     {
