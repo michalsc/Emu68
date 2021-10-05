@@ -3,6 +3,8 @@
 #include <A64.h>
 #include <devicetree.h>
 #include <support.h>
+
+__attribute__((aligned(4096)))
 #include "./devicetree.h"
 
 /*

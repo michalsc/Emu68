@@ -2,6 +2,8 @@
 #include <mmu.h>
 #include <A64.h>
 #include <support.h>
+
+__attribute__((aligned(4096)))
 #include "./sdcard.h"
 
 /*
@@ -17,7 +19,7 @@ static void map(struct ExpansionBoard *board)
 }
 
 static struct ExpansionBoard board = {
-    sdcard_bin,
+    brcm_sdhc_bin,
     4096,
     0,
     1,
