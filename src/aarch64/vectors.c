@@ -373,9 +373,14 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     }
 
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
-    {       
+    {
+        while(board[board_idx] && !board[board_idx]->enabled) {
+            board_idx++;
+        }
+
         if (board[board_idx])
         {
+            
             const uint8_t *rom = board[board_idx]->rom_file;
             *value = rom[far - 0xe80000];
 

@@ -26,6 +26,12 @@ SECTIONS
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
 
+        . = ALIGN(32);
+        __init_start = .;
+        *(.init)
+        QUAD(0)
+
+        . = ALIGN(32);
         __boards_start = .;
         *(.boards.z2)
         *(.boards.z3)
