@@ -284,6 +284,14 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
 
+    /*
+        Allow single wrap around the address space. This provides mirror areas for
+        simplified aarch64 pointer arithmetic
+    */
+    if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
+        far &= 0xffffffff;
+    }
+
     if (far >= 0xff000000) {
         kprintf("Z3 write access with far %08x\n", far);
     }
@@ -350,6 +358,14 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
 
     uint64_t a, b;
+
+    /*
+        Allow single wrap around the address space. This provides mirror areas for
+        simplified aarch64 pointer arithmetic
+    */
+    if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
+        far &= 0xffffffff;
+    }
 
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);

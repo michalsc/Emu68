@@ -279,6 +279,30 @@ void mmu_init()
 "       isb                         \n");
 }
 
+void mirror_page(uintptr_t virt)
+{
+    int idx_l1 = (virt >> 30) & 0x1ff;
+
+    /* For 0..4GB create a shadow in the 4..8GB and -4..0GB areas */
+    if (0 == (virt  & 0xffff000000000000))
+    {
+        if (idx_l1 < 4) {
+            struct mmu_page *tbl_kernel;
+            struct mmu_page *tbl;
+
+            /* Update user space area */
+            asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+            tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
+            tbl->mp_entries[idx_l1 + 4] = tbl->mp_entries[idx_l1];
+            
+            /* Now fetch kernel table and update the topmost region, too */
+            asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl_kernel));
+            tbl_kernel = (struct mmu_page *)((uintptr_t)tbl_kernel + PHYS_VIRT_OFFSET);
+            tbl_kernel->mp_entries[508 + idx_l1] = tbl->mp_entries[idx_l1];
+        }
+    }
+}
+
 void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
 {
     struct mmu_page *tbl;
@@ -310,6 +334,9 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = 0;
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
+
+        /* Mirror the l2 if necessary */
+        mirror_page(virt);
     }
     else if ((tbl_2 & 3) == 1)
     {
@@ -321,6 +348,9 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = (tbl_2 & 0x7fc0000fff) + (i << 21);
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
+
+        /* Mirror the l2 if necessary */
+        mirror_page(virt);
     }
     else
     {
@@ -376,6 +406,8 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
 
+        /* Mirror the l2 if necessary */
+        mirror_page(virt);
     }
     else if ((tbl_2 & 3) == 1)
     {
@@ -387,6 +419,9 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = (tbl_2 & 0x7fc0000fff) + (i << 21);
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
+
+        /* Mirror the l2 if necessary */
+        mirror_page(virt);
     }
     else
     {
