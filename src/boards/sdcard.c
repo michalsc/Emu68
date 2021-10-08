@@ -20,7 +20,7 @@ static void map(struct ExpansionBoard *board)
 
 static struct ExpansionBoard board = {
     brcm_sdhc_bin,
-    4096,
+    12288,
     0,
     1,
     1,
