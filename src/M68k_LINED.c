@@ -327,7 +327,6 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                     *ptr++ = and_immed(tmp_cc_1, tmp_cc_1, 2, 4);
                 }
                 *ptr++ = adds_reg(tmp, tmp, regx, LSL, 16);
-                *ptr++ = adds_reg(tmp, tmp, regx, LSL, 24);
                 if (update_mask & SR_VC) {
                     *ptr++ = get_nzcv(tmp_cc_2);
                     *ptr++ = orr_reg(tmp_cc_1, tmp_cc_1, tmp_cc_2, LSL, 0);
