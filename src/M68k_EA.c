@@ -1014,7 +1014,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             {
                 if (imm_offset && size == 0 && read_only)
                 {
-                    int8_t off8 = 2;
+                    int8_t off8 = 2 + 2*(*ext_words);
                     ptr = EMIT_GetOffsetPC(ptr, &off8);
                     RA_FreeARMRegister(&ptr, *arm_reg);
                     *arm_reg = REG_PC;
@@ -1022,7 +1022,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 }
                 else
                 {
-                    int8_t off8 = 2;
+                    int8_t off8 = 2 + 2*(*ext_words);
                     ptr = EMIT_GetOffsetPC(ptr, &off8);
                     int32_t off = off8 + (int16_t)(BE16(m68k_ptr[(*ext_words)++]));
 
@@ -1039,7 +1039,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     uint8_t tmp1 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp2 = 0xff;
                     int8_t displ = brief & 0xff;
-                    int8_t off = 2;
+                    int8_t off = 2 + 2*(*ext_words - 1);
                     int16_t full_off = 0;
                     ptr = EMIT_GetOffsetPC(ptr, &off);
 
@@ -1095,7 +1095,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     {
                         /* Base register in use. Alloc it and load its contents */
                         base_reg = RA_AllocARMRegister(&ptr);
-                        int8_t off = 2;
+                        int8_t off = 2 + 2*(*ext_words - 1);
                         //ptr = EMIT_FlushPC(ptr);
                         ptr = EMIT_GetOffsetPC(ptr, &off);
                         if (off > 0)
