@@ -279,6 +279,8 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
         uint8_t regx = RA_MapM68kRegister(&ptr, opcode & 7);
         uint8_t regy = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
         uint8_t tmp = 0;
+        uint8_t tmp_cc_1 = RA_AllocARMRegister(&ptr);
+        uint8_t tmp_cc_2 = RA_AllocARMRegister(&ptr);
 
         RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
@@ -289,8 +291,18 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = cset(tmp, A64_CC_NE);
                 *ptr++ = lsl(tmp, tmp, 24);
-                *ptr++ = add_reg(tmp, tmp, regy, LSL, 24);
+                *ptr++ = adds_reg(tmp, tmp, regy, LSL, 24);
+                /* Need to update V or C? take condition codes, clear NZ and or them with subsequent ones */
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_1);
+                    *ptr++ = and_immed(tmp_cc_1, tmp_cc_1, 2, 4);
+                }
                 *ptr++ = adds_reg(tmp, tmp, regx, LSL, 24);
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_2);
+                    *ptr++ = orr_reg(tmp_cc_1, tmp_cc_1, tmp_cc_2, LSL, 0);
+                    *ptr++ = set_nzcv(tmp_cc_1);
+                }
                 *ptr++ = bfxil(regy, tmp, 24, 8);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
@@ -308,8 +320,19 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = cset(tmp, A64_CC_NE);
                 *ptr++ = lsl(tmp, tmp, 16);
-                *ptr++ = add_reg(tmp, tmp, regy, LSL, 16);
+                *ptr++ = adds_reg(tmp, tmp, regy, LSL, 16);
+                /* Need to update V or C? take condition codes, clear NZ and or them with subsequent ones */
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_1);
+                    *ptr++ = and_immed(tmp_cc_1, tmp_cc_1, 2, 4);
+                }
                 *ptr++ = adds_reg(tmp, tmp, regx, LSL, 16);
+                *ptr++ = adds_reg(tmp, tmp, regx, LSL, 24);
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_2);
+                    *ptr++ = orr_reg(tmp_cc_1, tmp_cc_1, tmp_cc_2, LSL, 0);
+                    *ptr++ = set_nzcv(tmp_cc_1);
+                }
                 *ptr++ = bfxil(regy, tmp, 16, 16);
                 RA_FreeARMRegister(&ptr, tmp);
 #else
@@ -331,6 +354,8 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 #endif
                 break;
         }
+        RA_FreeARMRegister(&ptr, tmp_cc_1);
+        RA_FreeARMRegister(&ptr, tmp_cc_2);
     }
     /* memory to memory */
     else
@@ -339,6 +364,8 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
         uint8_t regy = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
         uint8_t dest = RA_AllocARMRegister(&ptr);
         uint8_t src = RA_AllocARMRegister(&ptr);
+        uint8_t tmp_cc_1 = RA_AllocARMRegister(&ptr);
+        uint8_t tmp_cc_2 = RA_AllocARMRegister(&ptr);
 
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
@@ -352,8 +379,18 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                 uint8_t tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = cset(tmp, A64_CC_NE);
                 *ptr++ = lsl(tmp, tmp, 24);
-                *ptr++ = add_reg(dest, tmp, dest, LSL, 24);
+                *ptr++ = adds_reg(dest, tmp, dest, LSL, 24);
+                /* Need to update V or C? take condition codes, clear NZ and or them with subsequent ones */
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_1);
+                    *ptr++ = and_immed(tmp_cc_1, tmp_cc_1, 2, 4);
+                }
                 *ptr++ = adds_reg(dest, dest, src, LSL, 24);
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_2);
+                    *ptr++ = orr_reg(tmp_cc_1, tmp_cc_1, tmp_cc_2, LSL, 0);
+                    *ptr++ = set_nzcv(tmp_cc_1);
+                }
                 *ptr++ = lsr(dest, dest, 24);
                 *ptr++ = strb_offset(regy, dest, 0);
                 RA_FreeARMRegister(&ptr, tmp);
@@ -372,8 +409,18 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = cset(tmp, A64_CC_NE);
                 *ptr++ = lsl(tmp, tmp, 16);
-                *ptr++ = add_reg(dest, tmp, dest, LSL, 16);
+                *ptr++ = adds_reg(dest, tmp, dest, LSL, 16);
+                /* Need to update V or C? take condition codes, clear NZ and or them with subsequent ones */
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_1);
+                    *ptr++ = and_immed(tmp_cc_1, tmp_cc_1, 2, 4);
+                }
                 *ptr++ = adds_reg(dest, dest, src, LSL, 16);
+                if (update_mask & SR_VC) {
+                    *ptr++ = get_nzcv(tmp_cc_2);
+                    *ptr++ = orr_reg(tmp_cc_1, tmp_cc_1, tmp_cc_2, LSL, 0);
+                    *ptr++ = set_nzcv(tmp_cc_1);
+                }
                 *ptr++ = lsr(dest, dest, 16);
                 *ptr++ = strh_offset(regy, dest, 0);
                 RA_FreeARMRegister(&ptr, tmp);
@@ -403,6 +450,8 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
         RA_FreeARMRegister(&ptr, dest);
         RA_FreeARMRegister(&ptr, src);
+        RA_FreeARMRegister(&ptr, tmp_cc_1);
+        RA_FreeARMRegister(&ptr, tmp_cc_2);
     }
 
     ptr = EMIT_AdvancePC(ptr, 2);
