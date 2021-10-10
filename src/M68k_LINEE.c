@@ -390,7 +390,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = sxtw64(tmp, reg);
                     if (update_mask & (SR_C | SR_X))
                     {
-                        *ptr++ = ands_reg(31, tmp, mask, LSL, 0);
+                        *ptr++ = ands64_reg(31, tmp, mask, LSL, 0);
                     }
                     *ptr++ = asrv64(tmp, tmp, shiftreg);
                     *ptr++ = mov_reg(reg, tmp);
@@ -403,7 +403,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = sxth64(tmp, reg);
                     if (update_mask & (SR_C | SR_X))
                     {
-                        *ptr++ = ands_reg(31, tmp, mask, LSL, 0);
+                        *ptr++ = ands64_reg(31, tmp, mask, LSL, 0);
                     }
                     *ptr++ = asrv64(tmp, tmp, shiftreg);
 #else
@@ -417,7 +417,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = sxtb64(tmp, reg);
                     if (update_mask & (SR_C | SR_X))
                     {
-                        *ptr++ = ands_reg(31, tmp, mask, LSL, 0);
+                        *ptr++ = ands64_reg(31, tmp, mask, LSL, 0);
                     }
                     *ptr++ = asrv64(tmp, tmp, shiftreg);
 #else
