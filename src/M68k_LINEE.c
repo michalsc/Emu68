@@ -222,7 +222,7 @@ static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     (void)update_mask;
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR at %08x not implemented\n", *m68k_ptr - 1);
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR mem mode at %08x not implemented\n", *m68k_ptr - 1);
     ptr = EMIT_InjectPrintContext(ptr);
     *ptr++ = udf(opcode);
     return ptr;
