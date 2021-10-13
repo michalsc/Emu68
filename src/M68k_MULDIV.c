@@ -992,9 +992,9 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        if (div64) {
-            if (update_mask & SR_V) {
-                ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
+        if (update_mask & SR_VC) {
+            ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
+            if (div64) {
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
             }
         }
