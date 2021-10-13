@@ -97,33 +97,31 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
 #ifdef __aarch64__
         uint16_t addend = BE16((*m68k_ptr)[0]);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
-        uint8_t mask = RA_AllocARMRegister(&ptr);
-        uint8_t src = -1;
-
-        *ptr++ = mov_immed_u16(mask, 0x0f0f, 0);
+        uint8_t tmp = -1;
 
         if (opcode & 8)
         {
             uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-            src = RA_AllocARMRegister(&ptr);
+            tmp = RA_AllocARMRegister(&ptr);
 
             if ((opcode & 7) == 7) {
-                *ptr++ = ldrsb_offset_preindex(an_src, src, -2);
+                *ptr++ = ldrsb_offset_preindex(an_src, tmp, -2);
             }
             else {
-                *ptr++ = ldrsb_offset_preindex(an_src, src, -1);
+                *ptr++ = ldrsb_offset_preindex(an_src, tmp, -1);
             }
 
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
         else
         {
-            src = RA_MapM68kRegister(&ptr, opcode & 7);
+            uint8_t src_reg = RA_MapM68kRegister(&ptr, opcode & 7);
+            tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = and_immed(tmp, src_reg, 8, 0);
         }
 
-        *ptr++ = orr_reg(tmp, src, src, LSL, 4);
-        *ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
+        *ptr++ = orr_reg(tmp, tmp, tmp, LSL, 4);
+        *ptr++ = and_immed(tmp, tmp, 28, 24);
 
         if (addend & 0xfff) {
             *ptr++ = add_immed(tmp, tmp, addend & 0xfff);
@@ -149,8 +147,6 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         ptr = EMIT_AdvancePC(ptr, 4);
 
         RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, mask);
-        RA_FreeARMRegister(&ptr, src);
 #else
         ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
         ptr = EMIT_InjectPrintContext(ptr);
