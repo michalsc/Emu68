@@ -292,6 +292,11 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         far &= 0xffffffff;
     }
 
+    if (far == 0xdeadbeef && size == 1) {
+        kprintf("%c", value);
+        return 1;
+    }
+
     if (far >= 0xff000000) {
         kprintf("Z3 write access with far %08x\n", far);
     }

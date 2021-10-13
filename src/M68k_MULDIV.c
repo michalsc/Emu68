@@ -797,8 +797,10 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = mov_reg(reg_dq, tmp);
         }
 
-        *ptr++ = sxtw64(tmp, reg_dq);
-        *ptr++ = cmp64_reg(tmp, reg_dq, LSL, 0);
+        if (update_mask & SR_V) {
+            *ptr++ = sxtw64(tmp, reg_dq);
+            *ptr++ = cmp64_reg(tmp, reg_dq, LSL, 0);
+        }
 
         RA_FreeARMRegister(&ptr, tmp);
     }
