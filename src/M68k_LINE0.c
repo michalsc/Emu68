@@ -26,7 +26,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = -BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
@@ -35,7 +35,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = -BE16((*m68k_ptr)[ext_count++]);
+            lo16 = BE16((*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(immed, lo16, 1);
 #else
@@ -57,7 +57,6 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
             else
             {
-                u32 = -u32;
                 *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
                 if (((u32 >> 16) & 0xffff) != 0)
                     *ptr++ = movt_immed_u16(immed, u32 >> 16);
@@ -71,6 +70,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         /* Fetch m68k register */
         dest = RA_MapM68kRegister(&ptr, opcode & 7);
+        uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
         /* Perform add operation */
         switch (size)
@@ -80,13 +80,15 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 if (immediate)
                     *ptr++ = cmp_immed(dest, u32);
                 else
-                    *ptr++ = adds_reg(31, immed, dest, LSL, 0);
+                    *ptr++ = cmp_reg(dest, immed, LSL, 0);
                 break;
             case 2:
-                *ptr++ = adds_reg(31, immed, dest, LSL, 16);
+                *ptr++ = lsl(tmpreg, dest, 16);
+                *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
                 break;
             case 1:
-                *ptr++ = adds_reg(31, immed, dest, LSL, 24);
+                *ptr++ = lsl(tmpreg, dest, 24);
+                *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
                 break;
 #else
             case 4:
@@ -100,11 +102,13 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
 #endif
         }
+        RA_FreeARMRegister(&ptr, tmpreg);
     }
     else
     {
         /* Load effective address */
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+        uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -115,15 +119,17 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             if (immediate)
                 *ptr++ = cmp_immed(dest, u32);
             else
-                *ptr++ = adds_reg(31, immed, dest, LSL, 0);
+                *ptr++ = cmp_reg(dest, immed, LSL, 0);
             break;
         case 2:
             /* Perform calcualtion */
-            *ptr++ = adds_reg(31, immed, dest, LSL, 16);
+            *ptr++ = lsl(tmpreg, dest, 16);
+            *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
             break;
         case 1:
             /* Perform calcualtion */
-            *ptr++ = adds_reg(31, immed, dest, LSL, 24);
+            *ptr++ = lsl(tmpreg, dest, 24);
+            *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
             break;
 #else
         case 4:
@@ -140,6 +146,8 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             break;
 #endif
         }
+
+        RA_FreeARMRegister(&ptr, tmpreg);
     }
 
     RA_FreeARMRegister(&ptr, immed);

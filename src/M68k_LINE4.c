@@ -2641,11 +2641,7 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 void do_reset()
 {
     void ps_pulse_reset();
-    extern uint32_t overlay;
-    extern uint32_t z2_ram_autoconf;
 
     ps_pulse_reset();
-    overlay = 1;
-    z2_ram_autoconf = 1;
 }
 #endif

@@ -115,7 +115,7 @@ of_node_t * dt_parse(void *dt)
         D(kprintf("[BOOT] off_mem_rsvmap=%d\n", BE32(hdr->off_mem_rsvmap)));
 
         /* Device tree is assumed to be valid. Move it into our own memory */
-        dt = tlsf_malloc(tlsf, (BE32(hdr->totalsize) + 3) & ~3);
+        dt = tlsf_malloc_aligned(tlsf, (BE32(hdr->totalsize) + 3) & ~3, 4096);
         DuffCopy(dt, (void *)hdr, (BE32(hdr->totalsize) + 3) >> 2);
         hdr = dt;
 

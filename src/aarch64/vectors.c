@@ -270,6 +270,11 @@ static int getOPsize(uint32_t opcode)
 
 #include "ps_protocol.h"
 
+#include <boards.h>
+
+int board_idx;
+struct ExpansionBoard **board;
+
 uint32_t rom_mapped = 0;
 uint32_t overlay = 1;
 uint32_t z2_ram_autoconf = 1;
@@ -279,8 +284,22 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
 
-    if (size > 1 && (far & 1))
-        kprintf("UNALIGNED WORD/LONG write to %08x\n");
+    /*
+        Allow single wrap around the address space. This provides mirror areas for
+        simplified aarch64 pointer arithmetic
+    */
+    if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
+        far &= 0xffffffff;
+    }
+
+    if (far == 0xdeadbeef && size == 1) {
+        kprintf("%c", value);
+        return 1;
+    }
+
+    if (far >= 0xff000000) {
+        kprintf("Z3 write access with far %08x\n", far);
+    }
 
     if (far > (0x1000000ULL - size)) {
         kprintf("Illegal FAR %08x\n", far);
@@ -294,18 +313,27 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         }
     }
 
-    if (far >= 0xe80000 && far <= 0xe8ffff && z2_ram_autoconf)
+    if (far >= 0xe80000 && far <= 0xe8ffff && board[board_idx])
     {
-        if (far == 0xe8004a)
-            z2_ram_base = (value & 0xf0) << 12;
-        else if (far == 0xe80048) {
-            z2_ram_base |= (value & 0xf0) << 16;
-            kprintf("[JIT:SYS] Z2 RAM autoconfigured for address 0x%08x\n", z2_ram_base);
-            mmu_map(z2_ram_base, z2_ram_base, 8 << 20, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
-            z2_ram_autoconf = 0;
+        if (board[board_idx]->is_z3)
+        {
+            if (far == 0xe80044) {
+                board[board_idx]->map_base = (value & 0xffff) << 16;
+                board[board_idx]->map(board[board_idx]);
+                board_idx++;
+            }
         }
-        else if (far == 0xe8004c || far == 0xe8004e) {
-            z2_ram_autoconf = 0;
+        else
+        {
+            if (far == 0xe80048) {
+                board[board_idx]->map_base = (value & 0xff) << 16;
+                board[board_idx]->map(board[board_idx]);
+                board_idx++;
+            }
+        }
+        
+        if (far == 0xe8004c || far == 0xe8004e) {
+            board_idx++;
         }
  
         return 1;
@@ -330,27 +358,19 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     return 1;
 }
 
-#define MANUFACTURER_ID 0x6d73
-
-uint8_t z2_autoconf[] = {
-    0xc | 0x2,  // Z2 board, link to memory list
-    0x0,        // Size 8 MB
-    0x1, 0x0,   // Product ID
-    0x8, 0x0,   // ERT MEMSPACE - want to be in 8MB Z2 region
-    0x0, 0x0,   // Reserved - must be 0
-    (MANUFACTURER_ID >> 12) & 15, (MANUFACTURER_ID >> 8) & 15, (MANUFACTURER_ID >> 4) & 15, MANUFACTURER_ID & 15, // Manufacturer ID
-    0xc, 0xa, 0xf, 0xe, 0xb, 0xa, 0xb, 0xe, // Serial number
-    0x0, 0x0, 0x0, 0x0, // Diag area missing
-};
-
 int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
 {  
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
 
     uint64_t a, b;
 
-    if (size > 1 && (far & 1))
-        kprintf("UNALIGNED WORD/LONG read from %08x\n", far);
+    /*
+        Allow single wrap around the address space. This provides mirror areas for
+        simplified aarch64 pointer arithmetic
+    */
+    if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
+        far &= 0xffffffff;
+    }
 
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);
@@ -358,21 +378,16 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     }
 
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
-    {       
-        if (z2_ram_autoconf) {
-            if (far & 1)
-                *value = 0xff;
-            else
-            {
-                uint64_t off = far - 0xe80000;
-                off >>= 1;
-                
-                if (off < sizeof(z2_autoconf))
-                    *value = z2_autoconf[off] << 4;
+    {
+        while(board[board_idx] && !board[board_idx]->enabled) {
+            board_idx++;
+        }
 
-                if (off > 1)
-                    *value ^= 0xff;                
-            }
+        if (board[board_idx])
+        {
+            
+            const uint8_t *rom = board[board_idx]->rom_file;
+            *value = rom[far - 0xe80000];
 
             return 1;
         }
