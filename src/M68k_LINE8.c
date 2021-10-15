@@ -13,7 +13,27 @@
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
-/* 1000xxx011xxxxxx - DIVU.W */
+/****************************************************************************/
+/*	1000xxx011xxxxxx - DIVU.W												*/
+/****************************************************************************/
+/*	DIVU.W <ea>,Dn 		32/16 → 16r-16q										*/
+/*																			*/
+/*	Operation: dest ÷ src → dest											*/
+/*		 X|N|Z|V|C															*/
+/*	CC: (-|*|*|*|0)															*/
+/*	SR_NZ are undefined if overflow or divide by 0 occures					*/
+/*																			*/
+/*	Description: Divides the dest operand by the src operant and stores		*/
+/*	the result in the dest. This instruction divides a long by a word. The	*/
+/*	result is a quotient in the lower word(LSB) and a remainder in the upper*/
+/*	word(MSB).																*/
+/*																			*/
+/*	Exceptions:																*/
+/*			1.	Division By Zero, this cause a Trap, Exception vector 0x14	*/
+/*			2.	Overflow may be detected and set before the operation		*/
+/*				completes. If the instruction detects an overflow, it sets	*/
+/*				SR_V flag, and the operands are uneffected.					*/
+/****************************************************************************/
 
 uint32_t *EMIT_DIVU_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 __attribute__((alias("EMIT_DIVU_mem")))
@@ -23,7 +43,27 @@ uint32_t *EMIT_DIVU_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
 }
 
-/* 1000xxx111xxxxxx - DIVS.W */
+/****************************************************************************/
+/*	1000xxx111xxxxxx - DIVS.W												*/
+/****************************************************************************/
+/*	DIVS.W <ea>,Dn 		32/16 → 16r-16q										*/
+/*																			*/
+/*	Operation: dest ÷ src → dest											*/
+/*		 X|N|Z|V|C															*/
+/*	CC: (-|*|*|*|0)															*/
+/*	SR_NZ are undefined if overflow or divide by 0 occures					*/
+/*																			*/
+/*	Description: Divides the dest operand by the src operant and stores		*/
+/*	the result in the dest. This instruction divides a long by a word. The	*/
+/*	result is a quotient in the lower word(LSB) and a remainder in the upper*/
+/*	word(MSB).																*/
+/*																			*/
+/*	Exceptions:																*/
+/*			1.	Division By Zero, this cause a Trap, Exception vector 0x14	*/
+/*			2.	Overflow may be detected and set before the operation		*/
+/*				completes. If the instruction detects an overflow, it sets	*/
+/*				SR_V flag, and the operands are uneffected.					*/
+/****************************************************************************/
 
 uint32_t *EMIT_DIVS_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 __attribute__((alias("EMIT_DIVS_mem")))
@@ -33,28 +73,99 @@ uint32_t *EMIT_DIVS_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 		ptr = EMIT_MUL_DIV(ptr, opcode, m68k_ptr);
 }
 
-/* 1000xxx10000xxxx - SBCD */
+/****************************************************************************/
+/*	1000xxx100001xxx - SBCD (An)											*/
+/****************************************************************************/
+/*	SBCD -(Ax),-(Ay)														*/
+/*																			*/
+/*	Operation: dest₁₀ - src₁₀ - SR_X → dest₁₀								*/
+/*		 X|N|Z|V|C															*/
+/*	CC: (*|U|*|U|*)															*/
+/*	SR_Z is cleared if nonzero; otherwise unaltered							*/
+/*																			*/
+/*	Description: Predecrements src operand address before fetching operant	*/
+/*	subtracting it and SR_X from the dest operand which is fetched also		*/
+/*	from a predecremented address, before storing it back into dest address.*/
+/*																			*/
+/*	this operation operates on bytes only!									*/
+/****************************************************************************/
 
 uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 __attribute__((alias("EMIT_SBCD_reg")))
+
+/****************************************************************************/
+/*	1000xxx100000xxx - SBCD Dn												*/
+/****************************************************************************/
+/*	SBCD Dx,Dy																*/
+/*																			*/
+/*	Operation: dest₁₀ - src₁₀ - SR_X → dest₁₀								*/
+/*		 X|N|Z|V|C															*/
+/*	CC: (*|U|*|U|*)															*/
+/*	SR_Z is cleared if nonzero; otherwise unaltered							*/
+/*																			*/
+/*	Description: Subtracts the src operand and SR_X from dest operand and	*/
+/*	stores the result in the dest location. the subtraction is performed	*/
+/*	following BCD arithmatic; the operants are stored in BCD format.		*/
+/*																			*/
+/*	this operation operates on bytes only!									*/
+/****************************************************************************/
+/*
+	SBCD  a NAÏve attempt 
+	dest - ((SR_X + src) & mask) if dest <= -1 (overflow) add 0x9, carry 1; else  do nothing, repeat on the second nyble0.
+
+	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
+	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+	uint8_t mask = RA_AllocARMRegister(&ptr);
+	uint8_t tmp = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+	uint8_t cc = RA_GetCC(&ptr);
+#endif
+	/* first iteration */
+/*
+	*ptr++ = mov_immed_u16(mask, 0xf, 0);
+#ifdef __aarch64__ //get SR_X for SBCD
+	*ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+#else
+	M68K_GetCC(&ptr);
+	*ptr++ = tst_immed(REG_SR, SR_X);
+#endif
+	*ptr++ = 
+	*ptr++ = add_reg(tmp, src, mask, LSL, 0);
+	*ptr++ = subs_reg(tmp, dest, mask, LSL, 0);
+	*ptr++ = addlt_immed(tmp, #9);
+}
+
+*/
 uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	ptr = EMIT_InjectDebugString(ptr, "[JIT] SBCD at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
 	*ptr++ = udf(opcode);
 }
 
-/* 1000xxx101000xxx - PACK Dn */
+/****************************************************************************/
+/*	1000xxx101000xxx - PACK Dn												*/
+/****************************************************************************/
+/*	PACK Dx,Dy,#<adjustment>												*/
+/*																			*/
+/*	Operation: src(Unpacked BCD) + Adjustment → dest(Packed BCD)			*/
+/*																			*/
+/*	Description: Adjusts the lower nybles of each byte into a single byte.	*/
+/*	The adjustment is added to the value contained in the src reg. Bits		*/
+/*	11:8 and 3:0 of the intermediate result are concatenated and placed in	*/
+/*	bits 7:0 of the dest reg. The remainder of the dest reg is unaffected.	*/
+/*																			*/
+/****************************************************************************/
 
 uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
 #ifdef __aarch64__
-	uint16_t addend = BE16((*m68k_ptr)[0]);
-	uint8_t tmp = RA_CopyFromM68kRegister(&ptr, opcode & 7);
-	uint8_t dest = reg;
+	uint16_t	addend = BE16((*m68k_ptr)[0]); //for ANSII & EBCDIC this value will be 0x0, other values are valid!
+	uint8_t		tmp = RA_CopyFromM68kRegister(&ptr, opcode & 7);
+	uint8_t		dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 	
-	if (addend & 0xfff)
+	if (addend & 0xfff) //will never trigger if used modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 
-	if (addend & 0xf000)
+	if (addend & 0xf000) //will never trigger if used modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
 	*ptr++ = bfi(tmp, tmp, 4, 4);
@@ -74,11 +185,23 @@ uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uin
 #endif
 }
 
-/* 1000xxx101001xxx - PACK (An) */
+/****************************************************************************/
+/*	1000xxx101001xxx - PACK (An)											*/
+/****************************************************************************/
+/*	PACK -(Ax),-(Ay),#<adjustment>											*/
+/*																			*/
+/*	Operation: src(Unpacked BCD) + Adjustment → dest(Packed BCD)			*/
+/*																			*/
+/*	Description: Adjusts the lower nybles of each byte into a single byte.	*/
+/*	The adjustment is added to the value contained in the src address. Bits	*/
+/*	11:8 and 3:0 of the intermediate result are concatenated and placed in	*/
+/*	bits 7:0 of the dest adress. The remainder of the dest address is		*/
+/*	unaffected.																*/
+/****************************************************************************/
 
 uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
-	uint16_t addend = BE16((*m68k_ptr)[0]);
+	uint16_t addend = BE16((*m68k_ptr)[0]); //for ANSII & EBCDIC this value will be 0x0, other values are valid!
 	uint8_t tmp = RA_AllocARMRegister(&ptr);
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
 	uint8_t dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
@@ -87,10 +210,10 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 	RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
 
-	if (addend & 0xfff)
+	if (addend & 0xfff) //will never trigger if used modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 
-	if (addend & 0xf000)
+	if (addend & 0xf000) //will never trigger if used modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
 	*ptr++ = bfi(tmp, tmp, 4, 4);
@@ -116,24 +239,41 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #endif
 }
 
-/* 1000xxx11000oxxx - UNPK Dn */
+/****************************************************************************/
+/*	1000xxx110000xxx - UNPK Dn												*/
+/****************************************************************************/
+/*	UNPK Dy,Dx 																*/
+/*																			*/
+/*	Operation: dest ⋁ src(Packed BCD) → dest(Unpacked BCD)					*/
+/*																			*/
+/*	Description: Divides the dest operand by the src operant and stores		*/
+/*	the result in the dest. This instruction divides a long by a word. The	*/
+/*	result is a quotient in the lower word(LSB) and a remainder in the upper*/
+/*	word(MSB).																*/
+/*																			*/
+/*	Exceptions:																*/
+/*			1.	Division By Zero, this cause a Trap, Exception vector 0x14	*/
+/*			2.	Overflow may be detected and set before the operation		*/
+/*				completes. If the instruction detects an overflow, it sets	*/
+/*				SR_V flag, and the operands are uneffected.					*/
+/****************************************************************************/
 
-uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
+uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
-	uint16_t addend = BE16((*m68k_ptr)[0]);
-	uint8_t tmp = RA_AllocARMRegister(&ptr);
-	uint8_t mask = RA_AllocARMRegister(&ptr);
+	uint16_t addend = BE16((*m68k_ptr)[0]); //Constants used for, ANCII 0x3030; EBCDIC 0xf0f0; EMCA-1 0x1010.
+	uint8_t tmp = RA_AllocARMRegister(&ptr); //Helper register
+	uint8_t mask = RA_AllocARMRegister(&ptr); //This is an const why do we use a register here?
 	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
-	uint8_t dest = reg;
+	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 
-	*ptr++ = mov_immed_u16(mask, 0x0f0f, 0);
+	*ptr++ = mov_immed_u16(mask, 0x0f0f, 0); //This is loading a const var
 	*ptr++ = orr_reg(tmp, src, src, LSL, 4);
 	*ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
 
-	if (addend & 0xfff)
+	if (addend & 0xfff) //This will always trigger when the instruction ran modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 
-	if (addend & 0xf000)
+	if (addend & 0xf000) //This will always trigger when the instruction ran modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
 	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
@@ -155,16 +295,14 @@ uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint
 
 uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
-	uint16_t addend = BE16((*m68k_ptr)[0]);
+	uint16_t addend = BE16((*m68k_ptr)[0]); //const used for, ANCII 0x3030; EBCDIC 0xf0f0.
 	uint8_t tmp = RA_AllocARMRegister(&ptr);
 	uint8_t mask = RA_AllocARMRegister(&ptr);
-	uint8_t src = -1;
+	uint8_t src = RA_AllocARMRegister(&ptr);
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
 	uint8_t dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
 	*ptr++ = mov_immed_u16(mask, 0x0f0f, 0);
-
-	src = RA_AllocARMRegister(&ptr);
 
 	if ((opcode & 7) == 7)
 		*ptr++ = ldrsb_offset_preindex(an_src, src, -2);
@@ -176,10 +314,10 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	*ptr++ = orr_reg(tmp, src, src, LSL, 4);
 	*ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
 
-	if (addend & 0xfff)
+	if (addend & 0xfff) //this will always trigger when this instruction is used modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 		
-	if (addend & 0xf000)
+	if (addend & 0xf000) //this will always trigger when this instruction is used modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
 	RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
@@ -198,13 +336,13 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #endif
 }
 
-/* 1000xxxxxx000xxx - OR Dn */
+/* 1000xxx0xx000xxx - OR Dn */
 
 uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
-	uint8_t size = 1 << ((opcode >> 6) & 3);
+	uint8_t size = 1 << ((opcode >> 6) & 3); //This makes a bit mask where only 1 bit is valid
 	uint8_t ext_words = 0;
-	uint8_t test_register = 0xff;
-	uint8_t dest = reg;
+	uint8_t test_register = 0xff; //Used only in __aarch64__ code for now.
+	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 	uint8_t src = 0xff;
 
 	test_register = dest;
@@ -228,7 +366,7 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 		*ptr++ = orr_reg(src, src, dest, LSL, 0);
 		*ptr++ = bfi(dest, src, 0, 8);
 		break;
-#else
+#else //on __aarch32__ this shift used to set SR_N propperly
 	case 4:
 		*ptr++ = orrs_reg(dest, dest, src, 0);
 		break;
@@ -266,7 +404,7 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 		}
 #endif
 		uint8_t cc = RA_ModifyCC(&ptr);
-		ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+		ptr = EMIT_GetNZ00(ptr, cc, &update_mask); //This might be silly, but if SR_Z is true, then SR_N can never be true. And vice versa.
 
 		if (update_mask & SR_Z)
 			ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
@@ -279,16 +417,16 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 
 /* 1000xxxxxxxxxxxx - OR <ea> */
 
-uint32_t *EMIT_OR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68kptr, uint8_t reg)
+uint32_t *EMIT_OR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68kptr)
 __attribute__((alias("EMIT_OR_mem")));
-uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
+uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	uint8_t size = 1 << ((opcode >> 6) & 3);
 	uint8_t direction = (opcode >> 8) & 1; // 0: Ea+Dn->Dn, 1: Ea+Dn->Ea
 	uint8_t ext_words = 0;
-	uint8_t test_register = 0xff;
+	uint8_t test_register = 0xff; //only used in __aarch64__ code for now
 
 	if (direction == 0){
-		uint8_t dest = reg;
+		uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 		uint8_t src = 0xff;
 
 		test_register = dest;
@@ -335,7 +473,7 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 	}
 	else{
 		uint8_t dest = 0xff;
-		uint8_t src = reg;
+		uint8_t src = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 		uint8_t tmp = RA_AllocARMRegister(&ptr);
 		uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -346,7 +484,7 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 		else
 			ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
-		/* Fetch data into temporary register, perform add, store it back */
+		/* Fetch data into temporary register, perform operation, store it back */
 
 		switch (size){
 		case 4:
@@ -500,14 +638,13 @@ static EMIT_Function JumpTable[512] = {
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
 	uint16_t opcode = BE16((*m68k_ptr)[0]);
-	uint8_t reg = RA_MapM68kRegister((opcode >> 9) & 7);
 	(*m68k_ptr)++;
 	*insn_consumed = 1;
 
 	/* Line8 */
 
 	if (JumpTable[opcode & 0777]){
-		ptr = JumpTable[opcode & 0777](ptr, opcode, m68k_ptr, reg);
+		ptr = JumpTable[opcode & 0777](ptr, opcode, m68k_ptr);
 	}
 	else{
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
