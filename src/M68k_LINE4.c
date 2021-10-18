@@ -1829,22 +1829,26 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = csel(reg, sp, tmp, A64_CC_EQ);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc00:
+            case 0x0e0: /* Fallthrough */
+            case 0xc00: /* CNTFRQ - speed of counter clock in Hz */
                 *ptr++ = mrs(reg, 3, 3, 14, 0, 0);
                 break;
-            case 0xc01:
+            case 0x0e1: /* Fallthrough */                
+            case 0xc01: /* CNTVALLO - lower 32 bits of the counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
                 *ptr++ = mov_reg(reg, tmp);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc02:
+            case 0x0e2: /* Fallthrough */
+            case 0xc02: /* CNTVALHI - higher 32 bits of the counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc03:
+            case 0x0e3: /* Fallthrough */
+            case 0xc03: /* INSNCNTLO - lower 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
                 *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
@@ -1853,7 +1857,8 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mov_reg(reg, tmp);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc04:
+            case 0x0e4: /* Fallthrough */
+            case 0xc04: /* INSNCNTHI - higher 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
                 *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
@@ -1862,13 +1867,15 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc05:
+            case 0x0e5: /* Fallthrough */
+            case 0xc05: /* ARMCNTLO - lower 32 bits of ARM instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = mov_reg(reg, tmp);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc06:
+            case 0x0e6: /* Fallthrough */
+            case 0xc06: /* ARMCNTHI - higher 32 bits of ARM instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = lsr64(reg, tmp, 32);
