@@ -1168,7 +1168,7 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int32_t offset = BE16((*m68k_ptr)[0]) | BE16((*m68k_ptr)[1]);
+    int32_t offset = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
 
     displ = RA_AllocARMRegister(&ptr);
     *ptr++ = movw_immed_u16(displ, offset & 0xffff);
