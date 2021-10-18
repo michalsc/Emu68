@@ -1282,6 +1282,21 @@ static uint32_t *EMIT_ILLEGAL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     return ptr;
 }
 
+static uint32_t *EMIT_BKPT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+{
+    (void)insn_consumed;
+    (void)opcode;
+    (void)m68k_ptr;
+
+    /* Illegal generates exception. Always */
+    ptr = EMIT_AdvancePC(ptr, 2);
+    ptr = EMIT_FlushPC(ptr);
+    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+    *ptr++ = INSN_TO_LE(0xffffffff);
+
+    return ptr;
+}
+
 static uint32_t *EMIT_TRAP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
@@ -2495,7 +2510,7 @@ static EMIT_MultiFunction JumpTable[4096] = {
     [0xe77]           = EMIT_RTR,
     [0xe7a ... 0xe7b] = EMIT_MOVEC,
     [0xe60 ... 0xe6f] = EMIT_MOVEUSP,
-    [0x848 ... 0x84f] = NULL,           // BKPT
+    [0x848 ... 0x84f] = EMIT_BKPT,      // BKPT
     [0xafa]           = NULL,           // BGND
 
     [0xed0 ... 0xed7] = EMIT_JMP,
