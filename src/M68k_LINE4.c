@@ -1272,10 +1272,10 @@ static uint32_t *EMIT_ILLEGAL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 {
     (void)insn_consumed;
     (void)opcode;
+    (void)m68k_ptr;
 
     /* Illegal generates exception. Always */
     ptr = EMIT_FlushPC(ptr);
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ILLEGAL opcode at %08x\n", *m68k_ptr - 1);
     ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
     *ptr++ = INSN_TO_LE(0xffffffff);
 
