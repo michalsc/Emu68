@@ -2551,9 +2551,9 @@ static EMIT_MultiFunction JumpTable[4096] = {
     [0x650 ... 0x679] = EMIT_NOT,
     [0x690 ... 0x6b9] = EMIT_NOT,
 
-    [0xa00 ... 0xa3b] = EMIT_TST,
-    [0xa40 ... 0xa7b] = EMIT_TST,
-    [0xa80 ... 0xabb] = EMIT_TST,
+    [0xa00 ... 0xa3c] = EMIT_TST,
+    [0xa40 ... 0xa7c] = EMIT_TST,
+    [0xa80 ... 0xabc] = EMIT_TST,
 
     [0x800 ... 0x807] = EMIT_NBCD,
     [0x810 ... 0x839] = EMIT_NBCD,
