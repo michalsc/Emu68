@@ -2153,6 +2153,8 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     (*m68k_ptr)++;
 
+    ptr = EMIT_AdvancePC(ptr, 2);
+
     for (int i=0; i < 16; i++)
     {
         if (mask & (1 << i))
@@ -2372,7 +2374,7 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         RA_FreeARMRegister(&ptr, base);
     }
 
-    ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 2));
+    ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 1));
     (*m68k_ptr) += ext_words;
 
     return ptr;
