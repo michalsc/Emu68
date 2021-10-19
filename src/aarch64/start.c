@@ -872,6 +872,19 @@ void boot(void *dtree)
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
         }
 
+        /* Check if ROM is byte-swapped */
+        {
+            uint8_t *rom_start = (uint8_t *)0xffffff9000f80000;
+            if (rom_start[2] == 0xf9 && rom_start[3] == 0x4e) {
+                kprintf("[BOOT] Byte-swapped ROM detected. Fixing...\n");
+                for (int i=0; i < 524288; i+=2) {
+                    uint8_t tmp = rom_start[i];
+                    rom_start[i] = rom_start[i + 1];
+                    rom_start[i+1] = tmp;
+                }
+            }
+        }
+
         rom_mapped = 1;
 
         tlsf_free(tlsf, initramfs_loc);

@@ -241,7 +241,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = smull(reg_dl, reg_dl, src);
     else
         *ptr++ = umull(reg_dl, reg_dl, src);
-    if (opcode2 & (1 << 10))
+    if (opcode2 & (1 << 10) && (reg_dh != reg_dl))
     {
         *ptr++ = add64_reg(reg_dh, 31, reg_dl, LSR, 32);
     }
@@ -262,7 +262,12 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t cc = RA_ModifyCC(&ptr);
 
 #ifdef __aarch64__
-        *ptr++ = cmn64_reg(31, reg_dl, LSL, 0);
+        if (opcode2 & (1 << 10) && (reg_dh != reg_dl)) {
+            *ptr++ = cmn64_reg(31, reg_dl, LSL, 0);
+        }
+        else {
+            *ptr++ = cmn_reg(31, reg_dl, LSL, 0);
+        }
 #endif
         uint8_t old_mask = update_mask & SR_V;
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
@@ -278,8 +283,13 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             ptr = EMIT_ClearFlags(ptr, cc, SR_V);
 #ifdef __aarch64__
             uint8_t tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = cmn_reg(reg_dl, 31, LSL, 0);
-            *ptr++ = csetm(tmp, A64_CC_MI);
+            /* If signed multiply check higher 32bit against 0 or -1. For unsigned multiply upper 32 bit must be zero */
+            if (opcode2 & (1 << 11)) {
+                *ptr++ = cmn_reg(reg_dl, 31, LSL, 0);
+                *ptr++ = csetm(tmp, A64_CC_MI);
+            } else {
+                *ptr++ = mov_immed_u16(tmp, 0, 0);
+            }
             *ptr++ = cmp64_reg(tmp, reg_dl, LSR, 32);
             RA_FreeARMRegister(&ptr, tmp);
 #else

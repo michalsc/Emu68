@@ -1168,7 +1168,7 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int32_t offset = BE16((*m68k_ptr)[0]) | BE16((*m68k_ptr)[1]);
+    int32_t offset = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
 
     displ = RA_AllocARMRegister(&ptr);
     *ptr++ = movw_immed_u16(displ, offset & 0xffff);
@@ -1272,10 +1272,25 @@ static uint32_t *EMIT_ILLEGAL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 {
     (void)insn_consumed;
     (void)opcode;
+    (void)m68k_ptr;
 
     /* Illegal generates exception. Always */
     ptr = EMIT_FlushPC(ptr);
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ILLEGAL opcode at %08x\n", *m68k_ptr - 1);
+    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+    *ptr++ = INSN_TO_LE(0xffffffff);
+
+    return ptr;
+}
+
+static uint32_t *EMIT_BKPT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+{
+    (void)insn_consumed;
+    (void)opcode;
+    (void)m68k_ptr;
+
+    /* Illegal generates exception. Always */
+    ptr = EMIT_AdvancePC(ptr, 2);
+    ptr = EMIT_FlushPC(ptr);
     ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
     *ptr++ = INSN_TO_LE(0xffffffff);
 
@@ -1829,22 +1844,26 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = csel(reg, sp, tmp, A64_CC_EQ);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc00:
+            case 0x0e0: /* Fallthrough */
+            case 0xc00: /* CNTFRQ - speed of counter clock in Hz */
                 *ptr++ = mrs(reg, 3, 3, 14, 0, 0);
                 break;
-            case 0xc01:
+            case 0x0e1: /* Fallthrough */                
+            case 0xc01: /* CNTVALLO - lower 32 bits of the counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
                 *ptr++ = mov_reg(reg, tmp);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc02:
+            case 0x0e2: /* Fallthrough */
+            case 0xc02: /* CNTVALHI - higher 32 bits of the counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 14, 0, 1);
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc03:
+            case 0x0e3: /* Fallthrough */
+            case 0xc03: /* INSNCNTLO - lower 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
                 *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
@@ -1853,7 +1872,8 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mov_reg(reg, tmp);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc04:
+            case 0x0e4: /* Fallthrough */
+            case 0xc04: /* INSNCNTHI - higher 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
                 *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
@@ -1862,13 +1882,15 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc05:
+            case 0x0e5: /* Fallthrough */
+            case 0xc05: /* ARMCNTLO - lower 32 bits of ARM instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = mov_reg(reg, tmp);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
-            case 0xc06:
+            case 0x0e6: /* Fallthrough */
+            case 0xc06: /* ARMCNTHI - higher 32 bits of ARM instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = lsr64(reg, tmp, 32);
@@ -2131,6 +2153,8 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     (*m68k_ptr)++;
 
+    ptr = EMIT_AdvancePC(ptr, 2);
+
     for (int i=0; i < 16; i++)
     {
         if (mask & (1 << i))
@@ -2350,7 +2374,7 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         RA_FreeARMRegister(&ptr, base);
     }
 
-    ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 2));
+    ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 1));
     (*m68k_ptr) += ext_words;
 
     return ptr;
@@ -2488,7 +2512,7 @@ static EMIT_MultiFunction JumpTable[4096] = {
     [0xe77]           = EMIT_RTR,
     [0xe7a ... 0xe7b] = EMIT_MOVEC,
     [0xe60 ... 0xe6f] = EMIT_MOVEUSP,
-    [0x848 ... 0x84f] = NULL,           // BKPT
+    [0x848 ... 0x84f] = EMIT_BKPT,      // BKPT
     [0xafa]           = NULL,           // BGND
 
     [0xed0 ... 0xed7] = EMIT_JMP,
@@ -2518,20 +2542,20 @@ static EMIT_MultiFunction JumpTable[4096] = {
     [0x480 ... 0x487] = EMIT_NEG,
     
     [0x410 ... 0x439] = EMIT_NEG,
-    [0x450 ... 0x477] = EMIT_NEG,
-    [0x490 ... 0x4b7] = EMIT_NEG,
+    [0x450 ... 0x479] = EMIT_NEG,
+    [0x490 ... 0x4b9] = EMIT_NEG,
 
     [0x600 ... 0x607] = EMIT_NOT,
     [0x640 ... 0x647] = EMIT_NOT,
     [0x680 ... 0x687] = EMIT_NOT,
     
     [0x610 ... 0x639] = EMIT_NOT,
-    [0x650 ... 0x677] = EMIT_NOT,
-    [0x690 ... 0x6b7] = EMIT_NOT,
+    [0x650 ... 0x679] = EMIT_NOT,
+    [0x690 ... 0x6b9] = EMIT_NOT,
 
-    [0xa00 ... 0xa3b] = EMIT_TST,
-    [0xa40 ... 0xa7b] = EMIT_TST,
-    [0xa80 ... 0xabb] = EMIT_TST,
+    [0xa00 ... 0xa3c] = EMIT_TST,
+    [0xa40 ... 0xa7c] = EMIT_TST,
+    [0xa80 ... 0xabc] = EMIT_TST,
 
     [0x800 ... 0x807] = EMIT_NBCD,
     [0x810 ... 0x839] = EMIT_NBCD,
