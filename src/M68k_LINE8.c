@@ -341,9 +341,10 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
     else
     {
+        ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
 
     return ptr;
