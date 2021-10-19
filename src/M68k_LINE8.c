@@ -90,8 +90,75 @@ uint32_t *EMIT_DIVS_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 /*	this operation operates on bytes only!									*/
 /****************************************************************************/
 
-uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_SBCD_reg")))
+uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
+#ifdef __aarch64__
+	/* variable declaration */
+	(void)m68k_ptr;
+	uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+	uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+	uint8_t cc = RA_ModifyCC(&ptr);
+	uint8_t src = RA_AllocARMRegister(&ptr);
+	uint8_t dest = RA_AllocARMRegister(&ptr);
+	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+	uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+	/* predecremented address, special case if SP */
+	if ((opcode & 7) == 7)
+		*ptr++ = ldrb_offset_preindex(an_src, src, -2);
+	else
+		*ptr++ = ldrb_offset_preindex(an_src, src, -1);
+	if (((opcode >> 9) & 7) == 7)
+		*ptr++ = ldrb_offset_preindex(an_dest, dest, -2);
+	else
+		*ptr++ = ldrb_offset_preindex(an_dest, dest, -1);
+
+	/* Operation */
+	/* Lower nibble */
+	*ptr++ = ubfx(tmp_a, src, 0, 4);
+	*ptr++ = ubfx(tmp_b, dest, 0, 4);
+	*ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+	*ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+	*ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_EQ);
+	*ptr++ = cmp_immed(tmp_a, 0);
+	*ptr++ = b_cc(A64_CC_HS, 2);
+	*ptr++ = add_immed(tmp_a, tmp_a, 9);
+	*ptr++ = bfi(dest, tmp_a, 0, 4);
+
+	/* Higher nibble */
+	*ptr++ = ubfx(tmp_a, src, 4, 4);
+	*ptr++ = ubfx(tmp_b, dest, 4, 4);
+	*ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+	*ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_HS);
+	*ptr++ = cmp_immed(tmp_a, 0);
+	*ptr++ = b_cc(A64_CC_HS, 2);
+	*ptr++ = add_immed(tmp_a, tmp_a, 9);
+	*ptr++ = bfi(dest, tmp_a, 4, 4);
+	*ptr++ = mov_reg(tmp_a, dest);
+
+	/* storing result */
+	*ptr++ = strb_offset(an_dest, dest, 0);
+
+	/* , if A64_CC_LT then there was a carry */
+	*ptr++ = cset(tmp_b, A64_CC_LO);
+	*ptr++ = bfi(cc, tmp_b, 0, 1);
+	*ptr++ = cmp_reg(31, tmp_a, LSL, 24);
+	*ptr++ = b_cc(A64_CC_EQ, 2);
+	*ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+
+	/* update X flag*/
+	*ptr++ = bfi(cc, cc, 4, 1);
+
+	RA_FreeARMRegister(&ptr, tmp_a);
+	RA_FreeARMRegister(&ptr, tmp_b);
+	RA_FreeARMRegister(&ptr, src);
+	RA_FreeARMRegister(&ptr, dst);
+	ptr = EMIT_AdvancePC(ptr, 2);
+#else
+	ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
+	ptr = EMIT_InjectPrintContext(ptr);
+	*ptr++ = udf(opcode);
+#endif
+}
 
 /****************************************************************************/
 /*	1000xxx100000xxx - SBCD Dn												*/
@@ -109,37 +176,62 @@ __attribute__((alias("EMIT_SBCD_reg")))
 /*																			*/
 /*	this operation operates on bytes only!									*/
 /****************************************************************************/
-/*
-	SBCD  a NAÏve attempt 
-	dest - ((SR_X + src) & mask) if dest <= -1 (overflow) add 0x9, carry 1; else  do nothing, repeat on the second nyble0.
 
+uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
+#ifdef __aarch64__
+	/* variable declaration */
+	(void)m68k_ptr;
+	uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+	uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+	uint8_t cc = RA_ModifyCC(&ptr);
 	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-	uint8_t mask = RA_AllocARMRegister(&ptr);
-	uint8_t tmp = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
-	uint8_t cc = RA_GetCC(&ptr);
-#endif
-	/* first iteration */
-/*
-	*ptr++ = mov_immed_u16(mask, 0xf, 0);
-#ifdef __aarch64__ //get SR_X for SBCD
-	*ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-#else
-	M68K_GetCC(&ptr);
-	*ptr++ = tst_immed(REG_SR, SR_X);
-#endif
-	*ptr++ = 
-	*ptr++ = add_reg(tmp, src, mask, LSL, 0);
-	*ptr++ = subs_reg(tmp, dest, mask, LSL, 0);
-	*ptr++ = addlt_immed(tmp, #9);
-}
 
-*/
-uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
-	ptr = EMIT_InjectDebugString(ptr, "[JIT] SBCD at %08x not implemented\n", *m68k_ptr - 1);
+	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+
+	/* Operation */
+	/* Lower nibble */
+	*ptr++ = ubfx(tmp_a, src, 0, 4);
+	*ptr++ = ubfx(tmp_b, dest, 0, 4);
+	*ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+	*ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+	*ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_EQ);
+	*ptr++ = cmp_immed(tmp_a, 0);
+	*ptr++ = b_cc(A64_CC_HS, 2);
+	*ptr++ = add_immed(tmp_a, tmp_a, 9);
+	*ptr++ = bfi(dest, tmp_a, 0, 4);
+
+	/* Higher nibble */
+	*ptr++ = ubfx(tmp_a, src, 4, 4);
+	*ptr++ = ubfx(tmp_b, dest, 4, 4);
+	*ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+	*ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_HS);
+	*ptr++ = cmp_immed(tmp_a, 0);
+	*ptr++ = b_cc(A64_CC_HS, 2);
+	*ptr++ = add_immed(tmp_a, tmp_a, 9);
+	*ptr++ = bfi(dest, tmp_a, 4, 4);
+	*ptr++ = mov_reg(tmp_a, dest);
+
+	/* , if A64_CC_LT then there was a carry */
+	*ptr++ = cset(tmp_b, A64_CC_LO);
+	*ptr++ = bfi(cc, tmp_b, 0, 1);
+	*ptr++ = cmp_reg(31, tmp_a, LSL, 24);
+	*ptr++ = b_cc(A64_CC_EQ, 2);
+	*ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+
+	/* update X flag*/
+	*ptr++ = bfi(cc, cc, 4, 1);
+
+	RA_FreeARMRegister(&ptr, tmp_a);
+	RA_FreeARMRegister(&ptr, tmp_b);
+	RA_FreeARMRegister(&ptr, src);
+	RA_FreeARMRegister(&ptr, dst);
+	ptr = EMIT_AdvancePC(ptr, 2);
+#else
+	ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
 	*ptr++ = udf(opcode);
+#endif
 }
 
 /****************************************************************************/
