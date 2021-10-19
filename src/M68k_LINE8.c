@@ -262,13 +262,12 @@ uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
 	uint16_t addend = BE16((*m68k_ptr)[0]); //Constants used for, ANCII 0x3030; EBCDIC 0xf0f0; EMCA-1 0x1010.
 	uint8_t tmp = RA_AllocARMRegister(&ptr); //Helper register
-	uint8_t mask = RA_AllocARMRegister(&ptr); //This is an const why do we use a register here?
 	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 
-	*ptr++ = mov_immed_u16(mask, 0x0f0f, 0); //This is loading a const var
-	*ptr++ = orr_reg(tmp, src, src, LSL, 4);
-	*ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
+	*ptr++ = and_immed(tmp,src, 8, 0);
+	*ptr++ = orr_reg(tmp, tmp, tmp, LSL, 4);
+	*ptr++ = and_immed(tmp, tmp, 28, 24);
 
 	if (addend & 0xfff) //This will always trigger when the instruction ran modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
@@ -281,10 +280,7 @@ uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 	(*m68k_ptr)++;
 	ptr = EMIT_AdvancePC(ptr, 4);
-
 	RA_FreeARMRegister(&ptr, tmp);
-	RA_FreeARMRegister(&ptr, mask);
-	RA_FreeARMRegister(&ptr, src);
 #else
 	ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
@@ -297,17 +293,13 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
 	uint16_t addend = BE16((*m68k_ptr)[0]); //const used for, ANCII 0x3030; EBCDIC 0xf0f0.
 	uint8_t tmp = RA_AllocARMRegister(&ptr);
-	uint8_t mask = RA_AllocARMRegister(&ptr);
-	uint8_t src = RA_AllocARMRegister(&ptr);
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
 	uint8_t dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
-	*ptr++ = mov_immed_u16(mask, 0x0f0f, 0);
-
 	if ((opcode & 7) == 7)
-		*ptr++ = ldrsb_offset_preindex(an_src, src, -2);
+		*ptr++ = ldrsb_offset_preindex(an_src, tmp, -2);
 	else
-		*ptr++ = ldrsb_offset_preindex(an_src, src, -1);
+		*ptr++ = ldrsb_offset_preindex(an_src, tmp, -1);
 
 	RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
 
@@ -327,8 +319,7 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	ptr = EMIT_AdvancePC(ptr, 4);
 
 	RA_FreeARMRegister(&ptr, tmp);
-	RA_FreeARMRegister(&ptr, mask);
-	RA_FreeARMRegister(&ptr, src);
+
 #else
 	ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
