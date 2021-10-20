@@ -112,10 +112,6 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	else
 		*ptr++ = ldrb_offset_preindex(an_dest, dest, -1);
 
-	/* Set altered registers to dirty */
-	RA_SetDirtyM68kRegister = (&ptr, 8 + (opcode & 7));
-	RA_SetDirtyM68kRegister = (&ptr, 8 + ((opcode >> 9) & 7));
-
 	/* Operation */
 	/* Lower nibble */
 	*ptr++ = ubfx(tmp_a, src, 0, 4);
@@ -191,9 +187,6 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 
-	/* Set altered register to dirty */
-	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-
 	/* Operation */
 	/* Lower nibble */
 	*ptr++ = ubfx(tmp_a, src, 0, 4);
@@ -267,8 +260,7 @@ uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uin
 	if (addend & 0xf000) //will never trigger if used modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
-	/* Set altered register to dirty & storing result*/
-	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+	/* Storing result*/
 	*ptr++ = bfi(tmp, tmp, 4, 4);
 	*ptr++ = bfxil(dest, tmp, 4, 8);
 
@@ -305,9 +297,8 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
 	uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
-	/* Predecremented address & Setting it dirty*/
+	/* Predecremented address */
 	*ptr++ = ldrsh_offset_preindex(an_src, tmp, -2);
-	RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
 
 	/* Adding Adjustment Value */
 	if (addend & 0xfff) //will never trigger if used modi operandi
@@ -317,15 +308,11 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
 	*ptr++ = bfi(tmp, tmp, 4, 4);
-
-	/* Predecremented address & Setting it dirty*/
-	RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-
 	*ptr++ = lsr(tmp, tmp, 4);
-
+	
+	/* Predecremented address */
 	if (((opcode >> 9) & 7) == 7)
 		*ptr++ = strb_offset_preindex(an_dest, tmp, -2);
-
 	else
 		*ptr++ = strb_offset_preindex(an_dest, tmp, -1);
 
@@ -347,33 +334,41 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 /*																			*/
 /*	Operation:src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
 /*																			*/
-/*	Description: Adjusts the lower nybles of each byte into a single byte.	*/
-/*	The adjustment is added to the value contained in the src address. Bits	*/
-/*	11:8 and 3:0 of the intermediate result are concatenated and placed in	*/
-/*	bits 7:0 of the dest adress. The remainder of the dest address is		*/
+/*	Description: Places the 2 binary-coded decimal digits in the src		*/
+/*	operand byte into the lower 4 bits of 2 bytes and places 0's bits in	*/
+/*	the upper 4 bits of both bytes. Adds the adjustment value to this		*/
+/*	unpacked value. Condition codes are not altered.						*/
+/*																			*/
+/*	When both operands are data registers, the instruction unpacks the src	*/
+/*	registers contents, adds the extension word, and places the result in	*/
+/*	the dest register. The high word of the destination register is			*/
 /*	unaffected.																*/
 /****************************************************************************/
 
 uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
+	/* Variable declaration */
 	uint16_t addend = BE16((*m68k_ptr)[0]); //Constants used for, ANCII 0x3030; EBCDIC 0xf0f0; EMCA-1 0x1010.
 	uint8_t tmp = RA_AllocARMRegister(&ptr); //Helper register
 	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 
+	/* Operation */
 	*ptr++ = and_immed(tmp,src, 8, 0);
 	*ptr++ = orr_reg(tmp, tmp, tmp, LSL, 4);
 	*ptr++ = and_immed(tmp, tmp, 28, 24);
 
+	/* Adding Adjustment Value */
 	if (addend & 0xfff) //This will always trigger when the instruction ran modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 
 	if (addend & 0xf000) //This will always trigger when the instruction ran modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
-	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+	/* Store result */
 	*ptr++ = bfi(dest, tmp, 0, 16);
 
+	/* After operation clean-up */
 	(*m68k_ptr)++;
 	ptr = EMIT_AdvancePC(ptr, 4);
 	RA_FreeARMRegister(&ptr, tmp);
@@ -383,39 +378,50 @@ uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	*ptr++ = udf(opcode);
 #endif
 
-/* 1000xxx110001xxx - UNPK (An) */
-
+/****************************************************************************/
+/* 1000xxx110001xxx - UNPK (An)												*/
+/****************************************************************************/
+/*	UNPK -(Ay),-(Ax) 														*/
+/*																			*/
+/*	Operation:src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
+/*																			*/
+/*	Description: Places the 2 binary-coded decimal digits in the src		*/
+/*	operand byte into the lower 4 bits of 2 bytes and places 0's bits in	*/
+/*	the upper 4 bits of both bytes. Adds the adjustment value to this		*/
+/*	unpacked value. Condition codes are not altered.						*/
+/****************************************************************************/
 uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
+	/* Variable declaration */
 	uint16_t addend = BE16((*m68k_ptr)[0]); //const used for, ANCII 0x3030; EBCDIC 0xf0f0.
 	uint8_t tmp = RA_AllocARMRegister(&ptr);
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
 	uint8_t dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
+	/* Predecrements address */
 	if ((opcode & 7) == 7)
 		*ptr++ = ldrsb_offset_preindex(an_src, tmp, -2);
 	else
 		*ptr++ = ldrsb_offset_preindex(an_src, tmp, -1);
 
-	RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-
+	/* Operation */
 	*ptr++ = orr_reg(tmp, an_src, an_src, LSL, 4);
 	*ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
 
+	/* Adding Adjustment Value */
 	if (addend & 0xfff) //this will always trigger when this instruction is used modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 		
 	if (addend & 0xf000) //this will always trigger when this instruction is used modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
-	RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+	/* Predecremented address */
 	*ptr++ = strh_offset_preindex(dest, tmp, -2);
 
+	/* After operation clean-up */
 	(*m68k_ptr)++;
 	ptr = EMIT_AdvancePC(ptr, 4);
-
 	RA_FreeARMRegister(&ptr, tmp);
-
 #else
 	ptr = EMIT_InjectDebugString(ptr, "[JIT] UNPK at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
@@ -423,9 +429,12 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #endif
 }
 
-/* 1000xxx0xx000xxx - OR Dn */
+/****************************************************************************/
+/* 1000xxx0xx000xxx - OR Dn													*/
+/****************************************************************************/
 
 uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
+	/* Variable declaration */
 	uint8_t size = 1 << ((opcode >> 6) & 3); //This makes a bit mask where only 1 bit is valid
 	uint8_t ext_words = 0;
 	uint8_t test_register = 0xff; //Used only in __aarch64__ code for now.
@@ -502,11 +511,14 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 	RA_FreeARMRegister(&ptr, test_register);
 }
 
-/* 1000xxxxxxxxxxxx - OR <ea> */
+/****************************************************************************/
+/* 1000xxxxxxxxxxxx - OR <ea>												*/
+/****************************************************************************/
 
 uint32_t *EMIT_OR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68kptr)
 __attribute__((alias("EMIT_OR_mem")));
 uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
+	/* Variable declaration */
 	uint8_t size = 1 << ((opcode >> 6) & 3);
 	uint8_t direction = (opcode >> 8) & 1; // 0: Ea+Dn->Dn, 1: Ea+Dn->Ea
 	uint8_t ext_words = 0;
@@ -555,7 +567,6 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 			break;
 #endif
 		}
-
 		RA_FreeARMRegister(&ptr, src);
 	}
 	else{
