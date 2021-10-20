@@ -332,7 +332,7 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 /****************************************************************************/
 /*	UNPK Dy,Dx 																*/
 /*																			*/
-/*	Operation:src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
+/*	Operation: src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
 /*																			*/
 /*	Description: Places the 2 binary-coded decimal digits in the src		*/
 /*	operand byte into the lower 4 bits of 2 bytes and places 0's bits in	*/
@@ -383,7 +383,7 @@ uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 /****************************************************************************/
 /*	UNPK -(Ay),-(Ax) 														*/
 /*																			*/
-/*	Operation:src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
+/*	Operation: src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
 /*																			*/
 /*	Description: Places the 2 binary-coded decimal digits in the src		*/
 /*	operand byte into the lower 4 bits of 2 bytes and places 0's bits in	*/
@@ -432,23 +432,28 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 /****************************************************************************/
 /* 1000xxx0xx000xxx - OR Dn													*/
 /****************************************************************************/
+/*	OR Dn,Dn																*/
+/*																			*/
+/*	Operation: src ⋁ dest → dest											*/
+/*		 X|N|Z|V|C															*/
+/*	CC: (-|*|*|0|0)															*/
+/*																			*/
+/*	Description: Performs an inclusive-OR operation on the src operand and	*/
+/*	the dest operand and stores the result in the dest location. The size	*/
+/*	of the operation is specified as byte, word, or long. The contents of	*/
+/*	an address register may not be used as an operand.						*/
+/****************************************************************************/
 
 uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
 	/* Variable declaration */
 	uint8_t size = 1 << ((opcode >> 6) & 3); //This makes a bit mask where only 1 bit is valid
 	uint8_t ext_words = 0;
-	uint8_t test_register = 0xff; //Used only in __aarch64__ code for now.
 	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-	uint8_t src = 0xff;
-
-	test_register = dest;
+	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
+	uint8_t test_register = dest; //Used only in __aarch64__ code for now.
 
 	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-	if (size == 4)
-		ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
-	else
-		ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
-
+	/* Operation */
 	switch (size){
 #ifdef __aarch64__
 	case 4:
@@ -480,11 +485,12 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 		break;
 #endif
 	}
+	/* After operation clean-up */
 	RA_FreeARMRegister(&ptr, src);
-
 	ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 	(*m68k_ptr) += ext_words;
 
+	/* Updating CCR Flags */
 	if (update_mask){
 #ifdef __aarch64__
 		switch(size){
@@ -507,12 +513,22 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8
 		if (update_mask & SR_N)
 			ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
 	}
-
 	RA_FreeARMRegister(&ptr, test_register);
 }
 
 /****************************************************************************/
 /* 1000xxxxxxxxxxxx - OR <ea>												*/
+/****************************************************************************/
+/*	OR <ea>,Dn|OR Dn,<ea>																*/
+/*																			*/
+/*	Operation: src ⋁ dest → dest											*/
+/*		 X|N|Z|V|C															*/
+/*	CC: (-|*|*|0|0)															*/
+/*																			*/
+/*	Description: Performs an inclusive-OR operation on the src operand and	*/
+/*	the dest operand and stores the result in the dest location. The size	*/
+/*	of the operation is specified as byte, word, or long. The contents of	*/
+/*	an address register may not be used as an operand.						*/
 /****************************************************************************/
 
 uint32_t *EMIT_OR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68kptr)
@@ -524,18 +540,21 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	uint8_t ext_words = 0;
 	uint8_t test_register = 0xff; //only used in __aarch64__ code for now
 
+	/* what is my destination? */
 	if (direction == 0){
 		uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 		uint8_t src = 0xff;
 
 		test_register = dest;
 
+		/* Load <ea> as src */
 		RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 		if (size == 4)
 			ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 		else
 			ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
+		/* Operation */
 		switch (size){
 #ifdef __aarch64__
 		case 4:
@@ -567,8 +586,10 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 			break;
 #endif
 		}
+		/* Clean-up */
 		RA_FreeARMRegister(&ptr, src);
 	}
+	/* Destination is <ea> */
 	else{
 		uint8_t dest = 0xff;
 		uint8_t src = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
@@ -577,13 +598,13 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 		test_register = tmp;
 
+		/* Load <ea> as dest */
 		if (mode == 4 || mode == 3)
 			ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 		else
 			ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
 		/* Fetch data into temporary register, perform operation, store it back */
-
 		switch (size){
 		case 4:
 			if (mode == 4){
@@ -665,13 +686,13 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 				*ptr++ = strb_offset(dest, tmp, 0);
 			break;
 		}
-
+		/* Clean-up */
 		RA_FreeARMRegister(&ptr, dest);
 	}
-
 	ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
 	(*m68k_ptr) += ext_words;
 
+	/* Updating CCR Flags */
 	if (update_mask){
 #ifdef __aarch64__
 		switch(size){
@@ -694,7 +715,6 @@ uint32_t *EMIT_OR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 		if (update_mask & SR_N)
 			ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
 	}
-
 	RA_FreeARMRegister(&ptr, test_register);
 }
 
