@@ -92,7 +92,7 @@ uint32_t *EMIT_DIVS_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
-	/* variable declaration */
+	/* Variable Declaration */
 	(void)m68k_ptr;
 	uint8_t tmp_a = RA_AllocARMRegister(&ptr);
 	uint8_t tmp_b = RA_AllocARMRegister(&ptr);
@@ -102,7 +102,7 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
 	uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
-	/* predecremented address, special case if SP */
+	/* Predecremented address, special case if SP */
 	if ((opcode & 7) == 7)
 		*ptr++ = ldrb_offset_preindex(an_src, src, -2);
 	else
@@ -111,6 +111,10 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 		*ptr++ = ldrb_offset_preindex(an_dest, dest, -2);
 	else
 		*ptr++ = ldrb_offset_preindex(an_dest, dest, -1);
+
+	/* Set altered registers to dirty */
+	RA_SetDirtyM68kRegister = (&ptr, 8 + (opcode & 7));
+	RA_SetDirtyM68kRegister = (&ptr, 8 + ((opcode >> 9) & 7));
 
 	/* Operation */
 	/* Lower nibble */
@@ -135,17 +139,17 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	*ptr++ = bfi(dest, tmp_a, 4, 4);
 	*ptr++ = mov_reg(tmp_a, dest);
 
-	/* storing result */
+	/* Storing result */
 	*ptr++ = strb_offset(an_dest, dest, 0);
 
-	/* , if A64_CC_LT then there was a carry */
+	/* If A64_CC_LO Set C, if 0 Set Z */
 	*ptr++ = cset(tmp_b, A64_CC_LO);
 	*ptr++ = bfi(cc, tmp_b, 0, 1);
 	*ptr++ = cmp_reg(31, tmp_a, LSL, 24);
 	*ptr++ = b_cc(A64_CC_EQ, 2);
 	*ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
 
-	/* update X flag*/
+	/* Update X flag*/
 	*ptr++ = bfi(cc, cc, 4, 1);
 
 	RA_FreeARMRegister(&ptr, tmp_a);
@@ -154,7 +158,7 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	RA_FreeARMRegister(&ptr, dst);
 	ptr = EMIT_AdvancePC(ptr, 2);
 #else
-	ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
+	ptr = EMIT_InjectDebugString(ptr, "[JIT] SBCD at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
 	*ptr++ = udf(opcode);
 #endif
@@ -179,7 +183,7 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
-	/* variable declaration */
+	/* Variable Declaration */
 	(void)m68k_ptr;
 	uint8_t tmp_a = RA_AllocARMRegister(&ptr);
 	uint8_t tmp_b = RA_AllocARMRegister(&ptr);
@@ -187,6 +191,7 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 	uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
 
+	/* Set altered register to dirty */
 	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
 	/* Operation */
@@ -212,14 +217,14 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	*ptr++ = bfi(dest, tmp_a, 4, 4);
 	*ptr++ = mov_reg(tmp_a, dest);
 
-	/* , if A64_CC_LT then there was a carry */
+	/* If A64_CC_LO Set C, if 0 Set Z */
 	*ptr++ = cset(tmp_b, A64_CC_LO);
 	*ptr++ = bfi(cc, tmp_b, 0, 1);
 	*ptr++ = cmp_reg(31, tmp_a, LSL, 24);
 	*ptr++ = b_cc(A64_CC_EQ, 2);
 	*ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
 
-	/* update X flag*/
+	/* Update X flag*/
 	*ptr++ = bfi(cc, cc, 4, 1);
 
 	RA_FreeARMRegister(&ptr, tmp_a);
@@ -228,7 +233,7 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 	RA_FreeARMRegister(&ptr, dst);
 	ptr = EMIT_AdvancePC(ptr, 2);
 #else
-	ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
+	ptr = EMIT_InjectDebugString(ptr, "[JIT] SBCD at %08x not implemented\n", *m68k_ptr - 1);
 	ptr = EMIT_InjectPrintContext(ptr);
 	*ptr++ = udf(opcode);
 #endif
@@ -250,25 +255,26 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint8_t reg){
 #ifdef __aarch64__
+	/* Variable Declaration */
 	uint16_t	addend = BE16((*m68k_ptr)[0]); //for ANSII & EBCDIC this value will be 0x0, other values are valid!
 	uint8_t		tmp = RA_CopyFromM68kRegister(&ptr, opcode & 7);
 	uint8_t		dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-	
+
+	/* Adding Adjustment Value */
 	if (addend & 0xfff) //will never trigger if used modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 
 	if (addend & 0xf000) //will never trigger if used modi operandi
 		*ptr++ = add_immed_lsl12(tmp, tmp, addend >> 12);
 
-	*ptr++ = bfi(tmp, tmp, 4, 4);
-
+	/* Set altered register to dirty & storing result*/
 	RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+	*ptr++ = bfi(tmp, tmp, 4, 4);
 	*ptr++ = bfxil(dest, tmp, 4, 8);
 
-
-	(*m68k_ptr)++;
+	/* After operation clean-up */
+	(*m68k_ptr)++; //incremented because we had a extension word
 	ptr = EMIT_AdvancePC(ptr, 4);
-
 	RA_FreeARMRegister(&ptr, tmp);
 #else
 	ptr = EMIT_InjectDebugString(ptr, "[JIT] PACK at %08x not implemented\n", *m68k_ptr - 1);
@@ -293,15 +299,17 @@ uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uin
 
 uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 #ifdef __aarch64__
+	/* Variable declaration */
 	uint16_t addend = BE16((*m68k_ptr)[0]); //for ANSII & EBCDIC this value will be 0x0, other values are valid!
 	uint8_t tmp = RA_AllocARMRegister(&ptr);
 	uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-	uint8_t dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+	uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
+	/* Predecremented address & Setting it dirty*/
 	*ptr++ = ldrsh_offset_preindex(an_src, tmp, -2);
-
 	RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
 
+	/* Adding Adjustment Value */
 	if (addend & 0xfff) //will never trigger if used modi operandi
 		*ptr++ = add_immed(tmp, tmp, addend & 0xfff);
 
@@ -310,19 +318,20 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 	*ptr++ = bfi(tmp, tmp, 4, 4);
 
+	/* Predecremented address & Setting it dirty*/
 	RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
 
 	*ptr++ = lsr(tmp, tmp, 4);
 
 	if (((opcode >> 9) & 7) == 7)
-		*ptr++ = strb_offset_preindex(dest, tmp, -2);
+		*ptr++ = strb_offset_preindex(an_dest, tmp, -2);
 
 	else
-		*ptr++ = strb_offset_preindex(dest, tmp, -1);
+		*ptr++ = strb_offset_preindex(an_dest, tmp, -1);
 
-	(*m68k_ptr)++;
+	/* After operation clean-up */
+	(*m68k_ptr)++; //incremented because we had a extension word
 	ptr = EMIT_AdvancePC(ptr, 4);
-
 	RA_FreeARMRegister(&ptr, tmp);
 #else
 	ptr = EMIT_InjectDebugString(ptr, "[JIT] PACK at %08x not implemented\n", *m68k_ptr - 1);
@@ -336,18 +345,13 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 /****************************************************************************/
 /*	UNPK Dy,Dx 																*/
 /*																			*/
-/*	Operation: dest ⋁ src(Packed BCD) → dest(Unpacked BCD)					*/
+/*	Operation:src(Packed BCD) + Adjustment → dest(Unpacked BCD)				*/
 /*																			*/
-/*	Description: Divides the dest operand by the src operant and stores		*/
-/*	the result in the dest. This instruction divides a long by a word. The	*/
-/*	result is a quotient in the lower word(LSB) and a remainder in the upper*/
-/*	word(MSB).																*/
-/*																			*/
-/*	Exceptions:																*/
-/*			1.	Division By Zero, this cause a Trap, Exception vector 0x14	*/
-/*			2.	Overflow may be detected and set before the operation		*/
-/*				completes. If the instruction detects an overflow, it sets	*/
-/*				SR_V flag, and the operands are uneffected.					*/
+/*	Description: Adjusts the lower nybles of each byte into a single byte.	*/
+/*	The adjustment is added to the value contained in the src address. Bits	*/
+/*	11:8 and 3:0 of the intermediate result are concatenated and placed in	*/
+/*	bits 7:0 of the dest adress. The remainder of the dest address is		*/
+/*	unaffected.																*/
 /****************************************************************************/
 
 uint32_t EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
@@ -395,7 +399,7 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr){
 
 	RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
 
-	*ptr++ = orr_reg(tmp, src, src, LSL, 4);
+	*ptr++ = orr_reg(tmp, an_src, an_src, LSL, 4);
 	*ptr++ = and_reg(tmp, tmp, mask, LSL, 0);
 
 	if (addend & 0xfff) //this will always trigger when this instruction is used modi operandi
