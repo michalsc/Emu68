@@ -1490,10 +1490,16 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
     uint32_t *start, *end;
     start = ptr;
+    *ptr++ = wfe();
+    *ptr++ = ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, IPL0));
+    end = ptr;
+    *ptr++ = cbnz(tmpreg, start - end);
+#if 0
     *ptr++ = mov_immed_u16(tmpreg, 0xf220, 1);
     *ptr++ = ldr_offset(tmpreg, tmpreg, 0x34);
     end = ptr;
     *ptr++ = tbnz(tmpreg, 25, start - end);
+#endif 
 
     RA_FreeARMRegister(&ptr, tmpreg);
 #endif

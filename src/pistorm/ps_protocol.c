@@ -528,6 +528,9 @@ void ps_housekeeper()
 
       asm volatile("":::"memory");
 
+      if (__m68k_state->IPL0 == 0)
+        asm volatile("sev":::"memory");
+
       if ((pin & (1 << PIN_RESET)) == 0) {
 
         kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
