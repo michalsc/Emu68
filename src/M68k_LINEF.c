@@ -2108,6 +2108,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     struct Node *n, *next;
     extern struct List LRU;
     extern void *jit_tlsf;
+    extern struct M68KState *__m68k_state;
     #ifndef __aarch64__
     extern uint32_t last_PC;
     #endif
@@ -2147,20 +2148,25 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 16) & ~15) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~15))
                     continue;
 
-#if EMU68_WEAK_CFLUSH
-                // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
-                // verify block checksum and eventually discard it
-                uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
-                e &= 0x00ffffffffffffffULL;
-                e |= 0xaa00000000000000ULL;
-                u->mt_ARMEntryPoint = (void*)e;
-#else
-                // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+                if (__m68k_state->JIT_CONTROL & JCCF_SOFT)
+                {
+                    // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                    // verify block checksum and eventually discard it
+                    uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
+                    e &= 0x00ffffffffffffffULL;
+                    e |= 0xaa00000000000000ULL;
+                    u->mt_ARMEntryPoint = (void*)e;
+                }
+                else
+                {
+                    // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
+                    REMOVE(&u->mt_LRUNode);
+                    REMOVE(&u->mt_HashNode);
+                    tlsf_free(jit_tlsf, u);
 
-                REMOVE(&u->mt_LRUNode);
-                REMOVE(&u->mt_HashNode);
-                tlsf_free(jit_tlsf, u);
-#endif
+                    __m68k_state->JIT_UNIT_COUNT--;
+                    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                }
             }
             break;
         case 0x10:  /* Page */
@@ -2176,41 +2182,69 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 
                 // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
-#if EMU68_WEAK_CFLUSH
-                // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
-                // verify block checksum and eventually discard it
-                uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
-                e &= 0x00ffffffffffffffULL;
-                e |= 0xaa00000000000000ULL;
-                u->mt_ARMEntryPoint = (void*)e;
-#else
-                REMOVE(&u->mt_LRUNode);
-                REMOVE(&u->mt_HashNode);
-                tlsf_free(jit_tlsf, u);
-#endif
+                if (__m68k_state->JIT_CONTROL & JCCF_SOFT)
+                {
+                    // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                    // verify block checksum and eventually discard it
+                    uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
+                    e &= 0x00ffffffffffffffULL;
+                    e |= 0xaa00000000000000ULL;
+                    u->mt_ARMEntryPoint = (void*)e;
+                }
+                else
+                {
+                    REMOVE(&u->mt_LRUNode);
+                    REMOVE(&u->mt_HashNode);
+                    tlsf_free(jit_tlsf, u);
+
+                    __m68k_state->JIT_UNIT_COUNT--;
+                    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                }
             }
             break;
         case 0x18:  /* All */
-            // kprintf("[LINEF] Invalidating all\n");
-#if EMU68_WEAK_CFLUSH
-            ForeachNodeSafe(&LRU, n, next)
+            // kprintf("[LINEF] Invalidating all\n");            
+            if (__m68k_state->JIT_CONTROL & JCCF_SOFT)
             {
-                u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
-                // verify block checksum and eventually discard it
-                uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
-                e &= 0x00ffffffffffffffULL;
-                e |= 0xaa00000000000000ULL;
-                u->mt_ARMEntryPoint = (void*)e;
+                unsigned len = 0;
+                ListLength(&LRU, len);
+                if (len < __m68k_state->JIT_SOFTFLUSH_THRESH)
+                {
+                    ForeachNode(&LRU, n)
+                    {
+                        uintptr_t uptr = ((uintptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                        uptr += __builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint);
+
+                        // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                        // verify block checksum and eventually discard it
+                        *(uint8_t *)uptr = 0xaa;
+                    }
+                }
+                else
+                {
+                    while ((n = REMHEAD(&LRU))) {
+                        u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                        // kprintf("[LINEF] Removing unit %p\n", u);                
+                        REMOVE(&u->mt_HashNode);
+                        tlsf_free(jit_tlsf, u);
+                        
+                        __m68k_state->JIT_UNIT_COUNT--;
+                        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                    }
+                }
             }
-#else
-            while ((n = REMHEAD(&LRU))) {
-                u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                // kprintf("[LINEF] Removing unit %p\n", u);                
-                REMOVE(&u->mt_HashNode);
-                tlsf_free(jit_tlsf, u);
+            else
+            {
+                while ((n = REMHEAD(&LRU))) {
+                    u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                    // kprintf("[LINEF] Removing unit %p\n", u);                
+                    REMOVE(&u->mt_HashNode);
+                    tlsf_free(jit_tlsf, u);
+
+                    __m68k_state->JIT_UNIT_COUNT--;
+                    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                }
             }
-#endif
             break;
     }
 
