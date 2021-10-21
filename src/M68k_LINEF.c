@@ -2206,9 +2206,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             // kprintf("[LINEF] Invalidating all\n");            
             if (__m68k_state->JIT_CONTROL & JCCF_SOFT)
             {
-                unsigned len = 0;
-                ListLength(&LRU, len);
-                if (len < __m68k_state->JIT_SOFTFLUSH_THRESH)
+                if (__m68k_state->JIT_UNIT_COUNT < __m68k_state->JIT_SOFTFLUSH_THRESH)
                 {
                     ForeachNode(&LRU, n)
                     {
