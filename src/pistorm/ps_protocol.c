@@ -505,6 +505,13 @@ void ps_housekeeper()
   if (!gpio)
     gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
 
+  uint64_t t0;
+  uint64_t last_arm_cnt;
+  uint64_t last_m68k_cnt = __m68k_state->INSN_COUNT;
+
+  asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+  asm volatile("mrs %0, PMCCNTR_EL0":"=r"(last_arm_cnt));
+
   kprintf("[HKEEP] Housekeeper activated\n");
   kprintf("[HKEEP] Please note we are burning the cpu with busyloops now\n");
 
@@ -518,6 +525,7 @@ void ps_housekeeper()
     {
       uint32_t pin = LE32(*(gpio + 13));
       __m68k_state->IPL0 = pin & (1 << PIN_IPL_ZERO);
+
       asm volatile("":::"memory");
 
       if ((pin & (1 << PIN_RESET)) == 0) {
@@ -540,6 +548,32 @@ void ps_housekeeper()
         nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
       */
       asm volatile("wfe");
+
+      uint64_t t;
+      asm volatile("mrs %0, CNTPCT_EL0":"=r"(t));
+      if ((t0 + 19200000) < t) {
+        t0 = t;
+        uint32_t IPS = __m68k_state->INSN_COUNT - last_m68k_cnt;
+        char *prefix;
+
+        if (IPS < 10000) {
+          prefix = "";
+        }
+        else if (IPS < 10000000) {
+          prefix = "k";
+          IPS = (IPS + 500) / 1000;
+        }
+        else {
+          prefix = "M";
+          IPS = (IPS + 500000) / 1000000;
+        }
+        kprintf("[HKEEP] JIT Cache: %d units, %d bytes. M68k insns: %d %sIPS.\n", 
+          __m68k_state->JIT_UNIT_COUNT,
+          __m68k_state->JIT_CACHE_TOTAL - __m68k_state->JIT_CACHE_FREE,
+          IPS, prefix);
+
+          last_m68k_cnt = __m68k_state->INSN_COUNT;
+      }
     }
   }
 }
