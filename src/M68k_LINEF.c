@@ -2112,6 +2112,8 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     extern uint32_t last_PC;
     #endif
 
+    (void)jit_tlsf;
+
     //kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%p\n", opcode, target_addr, pc, arm_pc);
     // kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
 
@@ -2145,11 +2147,20 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 if ((uintptr_t)u->mt_M68kLow > ((target_addr + 16) & ~15) || (uintptr_t)u->mt_M68kHigh < (target_addr & ~15))
                     continue;
 
+#if EMU68_WEAK_CFLUSH
+                // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                // verify block checksum and eventually discard it
+                uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
+                e &= 0x00ffffffffffffffULL;
+                e |= 0xaa00000000000000ULL;
+                u->mt_ARMEntryPoint = (void*)e;
+#else
                 // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
+#endif
             }
             break;
         case 0x10:  /* Page */
@@ -2165,19 +2176,41 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 
                 // kprintf("[LINEF] Unit %p, %08x-%08x match! Removing.\n", u, u->mt_M68kLow, u->mt_M68kHigh);
 
+#if EMU68_WEAK_CFLUSH
+                // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                // verify block checksum and eventually discard it
+                uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
+                e &= 0x00ffffffffffffffULL;
+                e |= 0xaa00000000000000ULL;
+                u->mt_ARMEntryPoint = (void*)e;
+#else
                 REMOVE(&u->mt_LRUNode);
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
+#endif
             }
             break;
         case 0x18:  /* All */
             // kprintf("[LINEF] Invalidating all\n");
+#if EMU68_WEAK_CFLUSH
+            ForeachNodeSafe(&LRU, n, next)
+            {
+                u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                // verify block checksum and eventually discard it
+                uintptr_t e = (uintptr_t)u->mt_ARMEntryPoint;
+                e &= 0x00ffffffffffffffULL;
+                e |= 0xaa00000000000000ULL;
+                u->mt_ARMEntryPoint = (void*)e;
+            }
+#else
             while ((n = REMHEAD(&LRU))) {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
                 // kprintf("[LINEF] Removing unit %p\n", u);                
                 REMOVE(&u->mt_HashNode);
                 tlsf_free(jit_tlsf, u);
             }
+#endif
             break;
     }
 
