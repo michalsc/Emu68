@@ -890,8 +890,6 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
-    extern volatile int housekeeper_enabled;
-    housekeeper_enabled = 1;
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -1483,6 +1481,9 @@ asm volatile(
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
+
+    extern volatile int housekeeper_enabled;
+    housekeeper_enabled = 1;
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
