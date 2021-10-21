@@ -1820,6 +1820,15 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mov_reg(sp, reg);
                 *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, ISP));                    
                 break;
+            case 0x0ea: /* JITSCFTHRESH - Maximal number of JIT units for "soft" cache flush */
+                *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_SOFTFLUSH_THRESH));
+                break;
+            case 0x0eb: /* JITCTRL - JIT control register */
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = and_immed(tmp, reg, 1, 0);
+                *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, JIT_CONTROL));
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = bic_immed(tmp, reg, 30, 32 - 14);
@@ -1954,6 +1963,21 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x0e7: /* JITSIZE - size of JIT cache, in bytes */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_TOTAL));
+                break;
+            case 0x0e8: /* JITFREE - free space in JIT cache, in bytes */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_FREE));
+                break;
+            case 0x0e9: /* JITCOUNT - Number of JIT units in cache */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_UNIT_COUNT));
+                break;
+            case 0x0ea: /* JITSCFTHRESH - Maximal number of JIT units for "soft" cache flush */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_SOFTFLUSH_THRESH));
+                break;
+            case 0x0eb: /* JITCTRL - JIT control register */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL));
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
