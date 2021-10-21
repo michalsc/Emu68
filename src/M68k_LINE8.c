@@ -100,10 +100,10 @@ uint32_t *EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         tmp = RA_AllocARMRegister(&ptr);
 
         if ((opcode & 7) == 7) {
-            *ptr++ = ldrsb_offset_preindex(an_src, tmp, -2);
+            *ptr++ = ldrb_offset_preindex(an_src, tmp, -2);
         }
         else {
-            *ptr++ = ldrsb_offset_preindex(an_src, tmp, -1);
+            *ptr++ = ldrb_offset_preindex(an_src, tmp, -1);
         }
 
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
