@@ -490,6 +490,54 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
 #undef D
 #define D(x) /* x  */
 
+
+int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
+{
+    (void)vector;
+    (void)ctx;
+    (void)elr;
+    (void)spsr;
+    (void)esr;
+    struct M68KTranslationUnit *unit;
+    uint16_t *m68k_pc;
+    uintptr_t corrected_far = far | (0xff00000000000000ULL);    // Fix the topmost bits
+    uintptr_t unit_far = corrected_far & ~0x0000001000000000;   // Clear the executable region bit
+
+    /* Adjust far of the M68KTranslationUnit */
+    unit_far = unit_far - __builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode);
+
+    unit = (void*)unit_far;
+
+    m68k_pc = unit->mt_M68kAddress;
+
+    /* Check the unit. The function will free entry if unit was wrong */
+    unit = M68K_VerifyUnit(unit);
+
+    if (unit)
+    {
+        unit->mt_ARMEntryPoint = (void*)corrected_far;
+        elr = corrected_far;
+        asm volatile("msr ELR_EL1, %0"::"r"(elr));
+        return 1;
+    }
+    else
+    {
+        unit = M68K_GetTranslationUnit(m68k_pc);
+        
+        if (unit)
+        {
+            // Put simple return function to elr
+            asm volatile("msr ELR_EL1, %0"::"r"(unit->mt_ARMEntryPoint));
+
+            // Avoid short loop path by invalidating the "last m68k PC" counter. That should trigger full search and translation
+            asm volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
 {
     int writeFault = (esr & (1 << 6)) != 0;
@@ -977,8 +1025,14 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
     {
         handled = SYSPageFaultHandler(vector, ctx, elr, spsr, esr, far);
     }
-
-    if ((esr & ~0xffff) == 0x56000000)
+    else if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x80000000)
+    {
+        if ((far >> 56) == 0xaa)
+        {
+            handled = SYSValidateUnit(vector, ctx, elr, spsr, esr, far);
+        }
+    }
+    else if ((esr & ~0xffff) == 0x56000000)
     {
         handled = 1;
 
