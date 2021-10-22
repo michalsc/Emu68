@@ -1887,7 +1887,6 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             default:
-                kprintf("ILLEGAL movec write!!!\n");
                 ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
                 illegal = 1;
                 break;
@@ -2013,7 +2012,6 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, SRP));
                 break;
             default:
-                kprintf("ILLEGAL movec read!!!\n");
                 ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
                 illegal = 1;
                 break;
