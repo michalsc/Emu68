@@ -1121,6 +1121,8 @@ void  __attribute__((used)) stub_FindUnit()
 
 uint32_t last_pc;
 
+uint64_t arm_cnt;
+
 void  __attribute__((used)) stub_ExecutionLoop()
 {
     asm volatile(
@@ -1140,9 +1142,17 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       cbz     w%[reg_pc], 4f              \n"
 #endif
 
+#if 0
 "       adrp    x1, last_pc                 \n"
 "       add     x1, x1, :lo12:last_pc       \n"
 "       str     w18, [x1]                   \n"
+#endif
+
+"       adrp    x1, arm_cnt                 \n"
+"       add     x1, x1, :lo12:arm_cnt       \n"
+"       mrs     x4, PMCCNTR_EL0             \n"
+"       str     x4, [x1]                    \n"
+
 
 #ifdef PISTORM
 "       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
@@ -1482,8 +1492,10 @@ asm volatile(
 "       dsb     sy                  \n"
 "       isb                         \n");
 
+#ifdef PISTORM
     extern volatile int housekeeper_enabled;
     housekeeper_enabled = 1;
+#endif
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
