@@ -1770,6 +1770,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     uint8_t tmp = 0xff;
     uint8_t sp = 0xff;
     uint32_t *tmpptr;
+    int illegal = 0;
 
     (*m68k_ptr) += 1;
     ptr = EMIT_FlushPC(ptr);
@@ -1837,7 +1838,8 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = bic_immed(tmp, reg, 30, 32 - 14);
+                *ptr++ = bic_immed(tmp, reg, 30, 16);
+                *ptr++ = bic_immed(tmp, tmp, 1, 32 - 15); // Clear E bit, do not allow turning on MMU
                 *ptr++ = strh_offset(ctx, tmp, __builtin_offsetof(struct M68KState, TCR));
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
@@ -1885,8 +1887,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             default:
+                kprintf("ILLEGAL movec write!!!\n");
                 ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
+                illegal = 1;
                 break;
         }
     }
@@ -1987,7 +1990,6 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
-                *ptr++ = mov_immed_u16(reg, 0, 0); // Temporary hack - no MMU!!!
                 break;
             case 0x004: // ITT0
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, ITT0));
@@ -2011,14 +2013,17 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, SRP));
                 break;
             default:
+                kprintf("ILLEGAL movec read!!!\n");
                 ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
+                illegal = 1;
                 break;
         }
         RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
     }
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 4);
+    if (!illegal) {
+        *ptr++ = add_immed(REG_PC, REG_PC, 4);
+    }
     *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
     tmpptr = ptr;
     *ptr++ = b_cc(A64_CC_AL, 0);
@@ -2027,6 +2032,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
     *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
+
     *ptr++ = (uint32_t)(uintptr_t)tmpptr;
     *ptr++ = 1;
     *ptr++ = 0;
