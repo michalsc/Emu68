@@ -987,11 +987,11 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t ctx = RA_GetCTX(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmpptr;
+    uint32_t *tmpptr2;
 
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     ptr = EMIT_FlushPC(ptr);
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
@@ -999,7 +999,11 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = mov_reg(changed, cc);
     *ptr++ = mov_immed_u16(tmp, 0xf71f, 0);
     
+    tmpptr2 = ptr;
     *ptr++ = b_cc(A64_CC_EQ, 29);
+
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    
     *ptr++ = and_reg(cc, tmp, src, LSL, 0);
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
@@ -1037,6 +1041,8 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
     tmpptr = ptr;
     *ptr++ = b_cc(A64_CC_AL, 0);
+
+    *tmpptr2 = b_cc(A64_CC_EQ, ptr - tmpptr2);
 
     /* No supervisor. Update USP, generate exception */
     ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
