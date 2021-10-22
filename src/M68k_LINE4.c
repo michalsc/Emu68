@@ -1986,11 +1986,8 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL));
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = ldrh_offset(ctx, tmp, __builtin_offsetof(struct M68KState, TCR));
-                *ptr++ = mov_immed_u16(tmp, 0, 0); // Temporary hack - no MMU!!!
-                *ptr++ = bfi(reg, tmp, 0, 16); // TCR is read/written as 16 bit register!
-                RA_FreeARMRegister(&ptr, tmp);
+                *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
+                *ptr++ = mov_immed_u16(reg, 0, 0); // Temporary hack - no MMU!!!
                 break;
             case 0x004: // ITT0
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, ITT0));
