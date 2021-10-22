@@ -16,6 +16,9 @@ void tlsf_free(void *handle, void *ptr);
 void *tlsf_realloc(void *handle, void *ptr, uintptr_t new_size);
 void *tlsf_init_with_memory(void *memory, uintptr_t size);
 
+uintptr_t tlsf_get_total_size(void *memory);
+uintptr_t tlsf_get_free_size(void *memory);
+
 #ifdef __cplusplus
 }
 #endif

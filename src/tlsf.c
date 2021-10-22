@@ -554,6 +554,20 @@ void tlsf_free(void *t, void *ptr)
     INSERT_FREE_BLOCK(tlsf, fb);
 }
 
+uintptr_t tlsf_get_free_size(void *t)
+{
+    tlsf_t *tlsf = t;
+
+    return tlsf->free_size;
+}
+
+uintptr_t tlsf_get_total_size(void *t)
+{
+    tlsf_t *tlsf = t;
+
+    return tlsf->total_size;
+}
+
 void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
 {
     tlsf_t *tlsf = t;

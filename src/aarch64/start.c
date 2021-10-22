@@ -890,8 +890,6 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
-    extern volatile int housekeeper_enabled;
-    housekeeper_enabled = 1;
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -1123,6 +1121,8 @@ void  __attribute__((used)) stub_FindUnit()
 
 uint32_t last_pc;
 
+uint64_t arm_cnt;
+
 void  __attribute__((used)) stub_ExecutionLoop()
 {
     asm volatile(
@@ -1142,9 +1142,17 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       cbz     w%[reg_pc], 4f              \n"
 #endif
 
+#if 0
 "       adrp    x1, last_pc                 \n"
 "       add     x1, x1, :lo12:last_pc       \n"
 "       str     w18, [x1]                   \n"
+#endif
+
+"       adrp    x1, arm_cnt                 \n"
+"       add     x1, x1, :lo12:arm_cnt       \n"
+"       mrs     x4, PMCCNTR_EL0             \n"
+"       str     x4, [x1]                    \n"
+
 
 #ifdef PISTORM
 "       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
@@ -1425,6 +1433,11 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32(*((uint32_t*)addr+1));
     __m68k.SR = BE16(SR_S | SR_IPL);
     __m68k.FPCR = 0xffff;
+    __m68k.JIT_CACHE_TOTAL = tlsf_get_total_size(jit_tlsf);
+    __m68k.JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+    __m68k.JIT_UNIT_COUNT = 0;
+    __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
+    __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
@@ -1478,6 +1491,11 @@ asm volatile(
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
+
+#ifdef PISTORM
+    extern volatile int housekeeper_enabled;
+    housekeeper_enabled = 1;
+#endif
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));

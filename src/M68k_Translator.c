@@ -642,6 +642,10 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
+
+            __m68k_state->JIT_UNIT_COUNT--;
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
             unit = NULL;
         }
     }
@@ -726,6 +730,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 #else
             unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 32);
 #endif
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
             if (unit == NULL)
             {
                 #ifndef __aarch64__
@@ -737,6 +743,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 kprintf("[ICache] Requested block was %d\n", unit_length);
                 kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 tlsf_free(jit_tlsf, ptr);
+                __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                __m68k_state->JIT_UNIT_COUNT--;
                 #ifdef __aarch64__
                 asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
                 #else
@@ -764,6 +772,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
+
+        __m68k_state->JIT_UNIT_COUNT++;
 
         if (debug) {
             kprintf("[ICache]   Block checksum: %08x\n", unit->mt_CRC32);
@@ -828,6 +838,7 @@ void M68K_InitializeCache()
     kprintf("[ICache] Setting up ICache\n");
     ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
     temporary_arm_code = tlsf_malloc(jit_tlsf, EMU68_M68K_INSN_DEPTH * 16 * 64);
+    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
     local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*EMU68_M68K_INSN_DEPTH*2);
     kprintf("[ICache] ICache array at %p\n", ICache);

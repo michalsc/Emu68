@@ -251,93 +251,178 @@ uint32_t *EMIT_EXG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-
-uint32_t *EMIT_ABCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_ABCD_reg")));
 static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_ABCD_mem")));
-static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-#ifdef __aarch64__
-    (void)m68k_ptr;
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
+    uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+    uint8_t cc = RA_ModifyCC(&ptr);
+
     uint8_t tmp_a = RA_AllocARMRegister(&ptr);
     uint8_t tmp_b = RA_AllocARMRegister(&ptr);
-    uint8_t cc = RA_ModifyCC(&ptr);
-    uint8_t src = -1;
-    uint8_t dst = -1;
+    uint8_t tmp_c = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_d = RA_AllocARMRegister(&ptr);
 
-    /* Memory to memory */
-    if (opcode & 8)
-    {
-        src = RA_AllocARMRegister(&ptr);
-        dst = RA_AllocARMRegister(&ptr);
-        uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-        uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+    RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
-        if ((opcode & 7) == 7) {
-            *ptr++ = ldrb_offset_preindex(an_src, src, -2);
-        }
-        else {
-            *ptr++ = ldrb_offset_preindex(an_src, src, -1);
-        }
+    // Mask higher and lower nibbles, perform calculation. 
+    *ptr++ = and_immed(tmp_a, src, 4, 0);
+    *ptr++ = and_immed(tmp_b, dst, 4, 0);
 
-        if (((opcode >> 9) & 7) == 7) {
-            *ptr++ = ldrb_offset_preindex(an_dst, dst, -2);
-        }
-        else {
-            *ptr++ = ldrb_offset_preindex(an_dst, dst, -1);
-        }
-    }
-    /* Register to register */
-    else
-    {
-        src = RA_MapM68kRegister(&ptr, opcode & 7);
-        dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-        RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-    }
+    *ptr++ = and_immed(tmp_c, src, 4, 28);
+    *ptr++ = and_immed(tmp_d, dst, 4, 28);
 
-    /* Lower nibble */
-    *ptr++ = ubfx(tmp_a, src, 0, 4);
-    *ptr++ = ubfx(tmp_b, dst, 0, 4);
+    // Perform calculations, separate for high and low nibbles
     *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+    *ptr++ = add_reg(tmp_c, tmp_c, tmp_d, LSL, 0);
+
+    // Add X
     *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
     *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+
+    // Compute sum of high and low nibbles into tmp_b
+    *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
+
+    // if lower nibble higher than 9 make radix adjustment to result
     *ptr++ = cmp_immed(tmp_a, 9);
     *ptr++ = b_cc(A64_CC_LS, 2);
-    *ptr++ = add_immed(tmp_a, tmp_a, 6);
-    *ptr++ = bfi(dst, tmp_a, 0, 4);
+    *ptr++ = add_immed(tmp_b, tmp_b, 6);
 
-    /* Higher nibble */
-    *ptr++ = ubfx(tmp_a, src, 4, 4);
-    *ptr++ = ubfx(tmp_b, dst, 4, 4);
-    *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
-    *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_LS);
-    *ptr++ = cmp_immed(tmp_a, 9);
-    *ptr++ = b_cc(A64_CC_LS, 2);
-    *ptr++ = add_immed(tmp_a, tmp_a, 6);
-    *ptr++ = bfi(dst, tmp_a, 4, 4);
-    *ptr++ = mov_reg(tmp_a, dst);
-
-    if (opcode & 8)
+    // Mask higher nibble of result and detect carry
+    *ptr++ = and_immed(tmp_d, tmp_b, 6, 28);
+    *ptr++ = cmp_immed(tmp_d, 0x90);
+    if (update_mask & SR_XC)
     {
-        uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-        *ptr++ = strb_offset(an_dst, dst, 0);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = b_cc(A64_CC_LS, 3);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
     }
+    else
+    {
+        *ptr++ = b_cc(A64_CC_LS, 2);
+    }
+    // Make radix adjustment of upper nibble
+    *ptr++ = add_immed(tmp_b, tmp_b, 0x60);
+    if (update_mask & SR_X)
+    {
+        // Copy C flag to X
+        *ptr++ = bfi(cc, cc, 4, 1);
+    }
+    
+    // Insert into result
+    *ptr++ = bfi(dst, tmp_b, 0, 8);
 
-    /* After addition, if A64_CC_HI then there was a carry */
-    *ptr++ = cset(tmp_b, A64_CC_HI);
-    *ptr++ = bfi(cc, tmp_b, 0, 1);
-    *ptr++ = cmp_reg(31, tmp_a, LSL, 24);
-    *ptr++ = b_cc(A64_CC_EQ, 2);
-    *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
-
-    /* Copy C to X */
-    *ptr++ = bfi(cc, cc, 4, 1);
+    if (update_mask & SR_Z)
+    {
+        // Z flag updating. AND the result and clear Z if non-zero, leave unchanged otherwise
+        *ptr++ = ands_immed(31, tmp_b, 8, 0);
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Z);
+    }
 
     RA_FreeARMRegister(&ptr, tmp_a);
     RA_FreeARMRegister(&ptr, tmp_b);
+    RA_FreeARMRegister(&ptr, tmp_c);
+    RA_FreeARMRegister(&ptr, tmp_d);
     RA_FreeARMRegister(&ptr, src);
     RA_FreeARMRegister(&ptr, dst);
+    ptr = EMIT_AdvancePC(ptr, 2);
+
+    return ptr;
+}
+
+
+static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+#ifdef __aarch64__
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t cc = RA_ModifyCC(&ptr);
+
+    uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_c = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_d = RA_AllocARMRegister(&ptr);
+
+    uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+    // Fetch initial data into regs tmp_a and tmp_b
+    if ((opcode & 7) == 7) {
+        *ptr++ = ldrb_offset_preindex(an_src, tmp_a, -2);
+    }
+    else {
+        *ptr++ = ldrb_offset_preindex(an_src, tmp_a, -1);
+    }
+
+    if (((opcode >> 9) & 7) == 7) {
+        *ptr++ = ldrb_offset_preindex(an_dst, tmp_b, -2);
+    }
+    else {
+        *ptr++ = ldrb_offset_preindex(an_dst, tmp_b, -1);
+    }
+
+    RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+
+    // Mask higher and lower nibbles, perform calculation. 
+    *ptr++ = and_immed(tmp_c, tmp_a, 4, 28);
+    *ptr++ = and_immed(tmp_d, tmp_b, 4, 28);
+    *ptr++ = and_immed(tmp_a, tmp_a, 4, 0);
+    *ptr++ = and_immed(tmp_b, tmp_b, 4, 0);
+
+    // Perform calculations, separate for high and low nibbles
+    *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+    *ptr++ = add_reg(tmp_c, tmp_c, tmp_d, LSL, 0);
+
+    // Add X
+    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+    *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+
+    // Compute sum of high and low nibbles into tmp_b
+    *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
+
+    // if lower nibble higher than 9 make radix adjustment to result
+    *ptr++ = cmp_immed(tmp_a, 9);
+    *ptr++ = b_cc(A64_CC_LS, 2);
+    *ptr++ = add_immed(tmp_b, tmp_b, 6);
+
+    // Mask higher nibble of result and detect carry
+    *ptr++ = and_immed(tmp_d, tmp_b, 6, 28);
+    *ptr++ = cmp_immed(tmp_d, 0x90);
+    if (update_mask & SR_XC)
+    {
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = b_cc(A64_CC_LS, 3);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
+    }
+    else
+    {
+        *ptr++ = b_cc(A64_CC_LS, 2);
+    }
+    // Make radix adjustment of upper nibble
+    *ptr++ = add_immed(tmp_b, tmp_b, 0x60);
+    if (update_mask & SR_X)
+    {
+        // Copy C flag to X
+        *ptr++ = bfi(cc, cc, 4, 1);
+    }
+    
+    // Insert into result
+    *ptr++ = strb_offset(an_dst, tmp_b, 0);
+
+    if (update_mask & SR_Z)
+    {
+        // Z flag updating. AND the result and clear Z if non-zero, leave unchanged otherwise
+        *ptr++ = ands_immed(31, tmp_b, 8, 0);
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Z);
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_a);
+    RA_FreeARMRegister(&ptr, tmp_b);
+    RA_FreeARMRegister(&ptr, tmp_c);
+    RA_FreeARMRegister(&ptr, tmp_d);
+    
     ptr = EMIT_AdvancePC(ptr, 2);
 #else
     ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);

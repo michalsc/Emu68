@@ -987,11 +987,11 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t ctx = RA_GetCTX(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmpptr;
+    uint32_t *tmpptr2;
 
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     ptr = EMIT_FlushPC(ptr);
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     /* Test if supervisor mode is active */
     *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
@@ -999,7 +999,11 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = mov_reg(changed, cc);
     *ptr++ = mov_immed_u16(tmp, 0xf71f, 0);
     
+    tmpptr2 = ptr;
     *ptr++ = b_cc(A64_CC_EQ, 29);
+
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    
     *ptr++ = and_reg(cc, tmp, src, LSL, 0);
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
@@ -1037,6 +1041,8 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
     tmpptr = ptr;
     *ptr++ = b_cc(A64_CC_AL, 0);
+
+    *tmpptr2 = b_cc(A64_CC_EQ, ptr - tmpptr2);
 
     /* No supervisor. Update USP, generate exception */
     ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
@@ -1490,10 +1496,16 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
     uint32_t *start, *end;
     start = ptr;
+    *ptr++ = wfe();
+    *ptr++ = ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, IPL0));
+    end = ptr;
+    *ptr++ = cbnz(tmpreg, start - end);
+#if 0
     *ptr++ = mov_immed_u16(tmpreg, 0xf220, 1);
     *ptr++ = ldr_offset(tmpreg, tmpreg, 0x34);
     end = ptr;
     *ptr++ = tbnz(tmpreg, 25, start - end);
+#endif 
 
     RA_FreeARMRegister(&ptr, tmpreg);
 #endif
@@ -1764,6 +1776,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     uint8_t tmp = 0xff;
     uint8_t sp = 0xff;
     uint32_t *tmpptr;
+    int illegal = 0;
 
     (*m68k_ptr) += 1;
     ptr = EMIT_FlushPC(ptr);
@@ -1820,9 +1833,19 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = mov_reg(sp, reg);
                 *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, ISP));                    
                 break;
+            case 0x0ea: /* JITSCFTHRESH - Maximal number of JIT units for "soft" cache flush */
+                *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_SOFTFLUSH_THRESH));
+                break;
+            case 0x0eb: /* JITCTRL - JIT control register */
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = and_immed(tmp, reg, 1, 0);
+                *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, JIT_CONTROL));
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = bic_immed(tmp, reg, 30, 32 - 14);
+                *ptr++ = bic_immed(tmp, reg, 30, 16);
+                *ptr++ = bic_immed(tmp, tmp, 1, 32 - 15); // Clear E bit, do not allow turning on MMU
                 *ptr++ = strh_offset(ctx, tmp, __builtin_offsetof(struct M68KState, TCR));
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
@@ -1871,7 +1894,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             default:
                 ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
+                illegal = 1;
                 break;
         }
     }
@@ -1883,7 +1906,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = ldrb_offset(ctx, reg, __builtin_offsetof(struct M68KState, SFC));
                 break;
             case 0x001: // DFC
-                *ptr++ = ldrb_offset(ctx, reg, __builtin_offsetof(struct M68KState, SFC));
+                *ptr++ = ldrb_offset(ctx, reg, __builtin_offsetof(struct M68KState, DFC));
                 break;
             case 0x800: // USP
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, USP));
@@ -1955,12 +1978,23 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = lsr64(reg, tmp, 32);
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
+            case 0x0e7: /* JITSIZE - size of JIT cache, in bytes */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_TOTAL));
+                break;
+            case 0x0e8: /* JITFREE - free space in JIT cache, in bytes */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_FREE));
+                break;
+            case 0x0e9: /* JITCOUNT - Number of JIT units in cache */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_UNIT_COUNT));
+                break;
+            case 0x0ea: /* JITSCFTHRESH - Maximal number of JIT units for "soft" cache flush */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_SOFTFLUSH_THRESH));
+                break;
+            case 0x0eb: /* JITCTRL - JIT control register */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL));
+                break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = ldrh_offset(ctx, tmp, __builtin_offsetof(struct M68KState, TCR));
-                *ptr++ = mov_immed_u16(tmp, 0, 0); // Temporary hack - no MMU!!!
-                *ptr++ = bfi(reg, tmp, 0, 16); // TCR is read/written as 16 bit register!
-                RA_FreeARMRegister(&ptr, tmp);
+                *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
                 break;
             case 0x004: // ITT0
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, ITT0));
@@ -1985,13 +2019,15 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             default:
                 ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-                *ptr++ = sub_immed(REG_PC, REG_PC, 4);
+                illegal = 1;
                 break;
         }
         RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
     }
 
-    *ptr++ = add_immed(REG_PC, REG_PC, 4);
+    if (!illegal) {
+        *ptr++ = add_immed(REG_PC, REG_PC, 4);
+    }
     *tmpptr = b_cc(A64_CC_EQ, 1 + ptr - tmpptr);
     tmpptr = ptr;
     *ptr++ = b_cc(A64_CC_AL, 0);
@@ -2000,6 +2036,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
 
     *tmpptr = b_cc(A64_CC_AL, ptr - tmpptr);
+
     *ptr++ = (uint32_t)(uintptr_t)tmpptr;
     *ptr++ = 1;
     *ptr++ = 0;

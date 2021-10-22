@@ -110,7 +110,16 @@ struct M68KState
     uint32_t PINT;
     uint32_t IPL0;
     uint64_t INSN_COUNT;
+
+    uint32_t JIT_UNIT_COUNT;
+    uint32_t JIT_CACHE_TOTAL;
+    uint32_t JIT_CACHE_FREE;
+    uint32_t JIT_SOFTFLUSH_THRESH;
+    uint32_t JIT_CONTROL;
 };
+
+#define JCCB_SOFT   0
+#define JCCF_SOFT   0x00000001
 
 #define CACR_DE 0x80000000
 #define CACR_IE 0x00008000
