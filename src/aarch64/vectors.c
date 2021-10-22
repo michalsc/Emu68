@@ -630,6 +630,19 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             handled = SYSWriteValToAddr(value, size, far);
         }
+        /* ST(L)XR register - no exclusive in this case!!! But m68k bus does not support it anyway */
+        else if ((opcode & 0x3fe07c00) == 0x08007c00)
+        {
+            if ((opcode & 31) == 31)
+                value = 0;
+            else
+                value = ctx[opcode & 31];
+
+            // Mark the store as successful
+            ctx[(opcode >> 16) & 31] = 0;
+
+            handled = SYSWriteValToAddr(value, size, far);
+        }
         /* STP */
         else if ((opcode & 0x7fc00000) == 0x29000000)
         {
@@ -852,6 +865,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         /* LDR register */
         else if ((opcode & 0x3fe00c00) == 0x38600800)
+        {
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+        }
+        /* LDXR register - no exclusive in this case!!! But m68k bus does not support it anyway */
+        else if ((opcode & 0x3ffffc00) == 0x085f7c00)
         {
             handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
         }
