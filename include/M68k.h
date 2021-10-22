@@ -86,73 +86,12 @@ struct M68KState
 		uint8_t B;
 		uint16_t W;
 		uint32_t L;
+	    	float S;
 		double d;
+	    	long double X; //this will, be effected by compiler config. if the compiler is set to double precission this will always be a double.
+	    	long double P; //This is not wise to use.
 		uint64_t u64;
 		uint32_t u32[2];
-		union realS { //WARNING!! ASUMPTION on float structure, might be reversedmust check MSB and LSB compiler since both ARM and M68K are BE
-			struct { 
-				uint32_t sign:1;
-				uint32_t exponent:8;
-				uint32_t fraction:23;			
-			};
-			uint32_t single;
-			float S;
-		};
-		union realD {
-			struct {
-				uint64_t sign:1;
-				uint64_t exponent:11;
-				uint64_t fraction:52;
-			};
-			uint64_t _double;
-			double D;
-		};
-		union realX {
-			struct {
-				uint16_t sign:1;
-				uint16_t exponent:15;
-				const uint16_t zero = 0;
-				uint64_t integerpart:1 = 1;
-				uint64_t mantissa:63;
-			};
-			long double X;
-			uint32_t longs[3];
-			uint16_t words[6];
-			uint8_t bytes[16];
-		};
-		union realP {
-			struct [
-				uint32_t sm:1;
-				uint32_t se:1;
-				uint32_t yy:2;
-				uint32_t exp0:4;
-				uint32_t exp1:4;
-				uint32_t exp2:4;
-				uint32_t exp3:4;
-				uint32_t zero:8 = 0;
-				uint32_t digit16:4;
-				uint32_t digit15:4;
-				uint32_t digit14:4;
-				uint32_t digit13:4;
-				uint32_t digit12:4;
-				uint32_t digit11:4;
-				uint32_t digit10:4;
-				uint32_t digit9:4;
-				uint32_t digit8:4;
-				uint32_t digit7:4;
-				uint32_t digit6:4;
-				uint32_t digit5:4;
-				uint32_t digit4:4;
-				uint32_t digit3:4;
-				uint32_t digit2:4;
-				uint32_t digit1:4;
-				uint32_t digit0:4;
-			};
-			long double P; //this is not wise to use.
-			uint32_t longs[3];
-			uint16_t words[6];
-			uint8_t bytes[16];
-		};
     } FP[8];   // Double precision! Extended is "emulated" in load/store only
 
     /* More control registers.. */
