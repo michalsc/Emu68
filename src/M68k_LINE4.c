@@ -1898,7 +1898,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = ldrb_offset(ctx, reg, __builtin_offsetof(struct M68KState, SFC));
                 break;
             case 0x001: // DFC
-                *ptr++ = ldrb_offset(ctx, reg, __builtin_offsetof(struct M68KState, SFC));
+                *ptr++ = ldrb_offset(ctx, reg, __builtin_offsetof(struct M68KState, DFC));
                 break;
             case 0x800: // USP
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, USP));
