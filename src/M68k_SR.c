@@ -11,261 +11,6 @@
 #include "M68k.h"
 #include "EmuFeatures.h"
 
-struct SRMaskEntry {
-    uint16_t me_OpcodeMask;
-    uint16_t me_Opcode;
-    uint8_t  me_BaseLength;
-    uint8_t  me_HasEA;
-    uint8_t  me_Type;
-    uint16_t me_SRNeeds;	/* Consider the full Supervisor register */
-    uint16_t me_SRSets;		/* CCR */
-    uint8_t  (*me_TestFunction)(uint16_t *stream, uint32_t nest_level);
-};
-
-#define SME_MASK    1
-#define SME_FUNC    2
-#define SME_END     255
-
-#if 0
-static uint8_t SR_TestBranch(uint16_t *insn_stream, uint32_t nest_level);
-static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, uint32_t nest_level);
-static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, uint32_t nest_level);
-static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, uint32_t nest_level);
-static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, uint32_t nest_level);
-static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, uint32_t nest_level);
-static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level);
-#else
-#define SR_TestBranch       NULL
-#define SR_TestOpcode16B    NULL
-#define SR_TestOpcode32B    NULL
-#define SR_TestOpcode48B    NULL
-#define SR_TestOpcodeEA     NULL
-#define SR_TestOpcodeMOVEA  NULL
-#define SR_TestOpcodeADDA   NULL
-#endif
-
-static struct SRMaskEntry Line0_Map[] = {
-    { 0xffbf, 0x003c, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* ORI to CCR/SR - needs all flags, sets all flags */
-    { 0xff80, 0x0000, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ORI.B / ORI.W */
-    { 0xffc0, 0x0080, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ORI.L */
-    { 0xffbf, 0x023c, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* ANDI to CCR/SR - needs all flags, sets all flags */
-    { 0xff80, 0x0200, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ANDI.B / ANDI.W */
-    { 0xffc0, 0x0280, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ANDI.L */
-    { 0xff80, 0x0400, 2, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUBI.B / SUBI.W */
-    { 0xffc0, 0x0480, 3, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUBI.L */
-    { 0xffc0, 0x06c0, 1, 0, SME_MASK, 0, 0, NULL },									/* RTM/CALLM, RTM sets the CCR accordingly */
-    { 0xff80, 0x0600, 2, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADDI.B / ADDI.W */
-    { 0xffc0, 0x0680, 3, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADDI.L */
-    { 0xf9c0, 0x00c0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK2/CMP2 */
-    { 0xffbf, 0x0a3c, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* EORI to CCR/SR - they rely on current CC! */
-    { 0xff80, 0x0a00, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EORI.B / EORI.W */
-    { 0xffc0, 0x0a80, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EORI.L */
-    { 0xff80, 0x0c00, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMPI.B / CMPI.W */
-    { 0xffc0, 0x0c80, 3, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMPI.L */
-    { 0xff00, 0x0800, 1, 1, SME_MASK, 0, SR_Z, NULL },								/* BTST/BSET/BCLR/BCHG - imm */
-	{ 0xff80, 0x0e00, 2, 1, SME_MASK, SR_S, 0, NULL },								/* MOVES.B MOVES.W - no effect to CCR flags */
-	{ 0xffc0, 0x0e80, 2, 1, SME_MASK, SR_S, 0, NULL },								/* MOVES.L - no effect to CCR flags */
-    { 0xf9ff, 0x08fc, 3, 0, SME_MASK, 0, SR_NZVC, NULL },							/* CAS2 */
-    { 0xf9c0, 0x08c0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CAS */
-    { 0xf100, 0x0100, 2, 1, SME_MASK, 0, SR_Z, NULL },								/* BTST/BSET/BCLR/BCHG - reg */
-	{ 0xf138, 0x0108, 2, 0, SME_MASK, 0, 0, NULL },									/* MOVEP.W MOVEP.L - no effect to flags here for completion */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line1_Map[] = {
-    { 0xe1c0, 0x2040, 1, 2, SME_FUNC, 0, 0, SR_TestOpcodeMOVEA },					/* MOVEA case - destination is An; Word & Long ONLY!!! */
-    { 0xc000, 0x0000, 1, 2, SME_MASK, 0, SR_NZVC, NULL },							/* All other moves change CC */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line2_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)] __attribute__((alias("Line1_Map")));
-static struct SRMaskEntry Line3_Map[sizeof(Line1_Map)/sizeof(struct SRMaskEntry)] __attribute__((alias("Line1_Map")));
-
-static struct SRMaskEntry Line4_Map[] = {
-    { 0xfdc0, 0x40c0, 1, 1, SME_MASK, SR_CCR | SR_S, 0, NULL },						/* MOVE from CCR/SR *///careful pick which CPU generation is intended
-    { 0xff80, 0x4000, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NEGX.B|.W */
-    { 0xffc0, 0x4080, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NEGX.l */
-	{ 0xff80, 0x4200, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CLR.B|.W */
-	{ 0xffc0, 0x4280, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CLR.L */
-    { 0xffc0, 0x44c0, 1, 1, SME_MASK, 0, SR_CCR | SR_S, NULL },						/* MOVE to CCR */
-    { 0xff80, 0x4400, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* NEG.B|.W */
-	{ 0xffc0, 0x4480, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* NEG.L */
-    { 0xffc0, 0x46c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* MOVE to SR *///this one should check other SR_ flags as well
-    { 0xff80, 0x4600, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* NOT */
-	{ 0xffc0, 0x4680, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* NOT */
-    { 0xfeb8, 0x4880, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* EXT/EXTB */
-    { 0xfff8, 0x4808, 3, 0, SME_FUNC, 0, 0, SR_TestOpcode48B },						/* LINK.L */
-    { 0xffc0, 0x4800, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* NBCD */
-    { 0xfff8, 0x4840, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* SWAP */
-    { 0xfff8, 0x4848, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* BKPT */
-    { 0xffc0, 0x4840, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeEA },						/* PEA */
-    { 0xffff, 0x4afc, 1, 0, SME_MASK, SR_CCR, 0, NULL },							/* ILLEGAL */
-    { 0xffc0, 0x4ac0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TAS */
-	{ 0xff80, 0x4a00, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TST,B|.W */
-	{ 0xffc0, 0x4a80, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* TST.L */
-    { 0xffc0, 0x4c00, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULU/MULS */
-    { 0xffc0, 0x4c40, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVU/DIVS */
-    { 0xfff0, 0x4e40, 1, 0, SME_MASK, SR_CCR, SR_S, NULL },							/* TRAP */
-    { 0xfff8, 0x4e50, 2, 0, SME_FUNC, 0, 0, SR_TestOpcode32B },						/* LINK.W */
-    { 0xfff8, 0x4e58, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* UNLK */
-    { 0xfff0, 0x4e60, 1, 0, SME_MASK, SR_CCR | SR_S, 0, NULL },						/* MOVE USP */
-    { 0xffff, 0x4e70, 1, 0, SME_MASK, SR_S, 0, NULL },								/* RESET *///Does not effect internal processor state Except PC which is incremented. After a 'grace period' (CPU model dependent), continue execution at next instruction.
-    { 0xffff, 0x4e71, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* NOP */
-    { 0xffff, 0x4e72, 2, 0, SME_MASK, SR_CCR | SR_S, SR_CCR, NULL },				/* STOP *///The Imm effects the full SR
-    { 0xffff, 0x4e73, 1, 0, SME_MASK, SR_S, SR_CCR, NULL },							/* RTE *///Restores SR from (MSP)
-    { 0xffff, 0x4e74, 2, 0, SME_MASK, 0, 0, NULL },									/* RTD */
-    { 0xffff, 0x4e75, 1, 0, SME_MASK, 0, 0, NULL },									/* RTS */
-    { 0xffff, 0x4e76, 1, 0, SME_MASK, SR_V, 0, NULL },								/* TRAPV */
-    { 0xffff, 0x4e77, 1, 0, SME_MASK, 0, SR_CCR, NULL },							/* RTR */
-    { 0xfffe, 0x4e7a, 2, 0, SME_MASK, SR_CCR | SR_S, 0, NULL },						/* MOVEC */
-    { 0xffc0, 0x4e80, 1, 1, SME_MASK, 0, 0, NULL },									/* JSR */
-    { 0xffc0, 0x4ec0, 1, 1, SME_MASK, 0, 0, NULL },									/* JMP */
-    { 0xfb80, 0x4880, 2, 1, SME_FUNC, 0, 0, SR_TestOpcode32B },						/* MOVEM */
-    { 0xf1c0, 0x41c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeEA },						/* LEA */
-    { 0xf140, 0x4000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK.B|.W */
-	{ 0xf1c0, 0x4100, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CHK.L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line5_Map[] = {
-    { 0xf0f8, 0x50c8, 2, 0, SME_MASK, SR_NZVC, 0, NULL },							/* DBcc - subtracting 1 from Dn will eventually trigger SR_Z*/
-    { 0xf0ff, 0x50fc, 1, 0, SME_MASK, SR_NZVC, SR_S, NULL },						/* TRAPcc */
-    { 0xf0ff, 0x50fa, 2, 0, SME_MASK, SR_NZVC, SR_S, NULL },						/* TRAPcc.W */
-    { 0xf0ff, 0x50fb, 2, 0, SME_MASK, SR_NZVC, SR_S, NULL },						/* TRAPcc.L */
-    { 0xf0c0, 0x50c0, 1, 1, SME_MASK, SR_NZVC, 0, NULL },							/* Scc */
-    { 0xf078, 0x5048, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* SUBQ/ADDQ.W with An */
-	{ 0xf0f8, 0x5088, 1, 1, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* SUBQ/ADDQ.L with An */
-    { 0xf080, 0x5000, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUBQ/ADDQ .B|.W */
-	{ 0xf0c0, 0x5080, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUBQ/ADDQ .L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line6_Map[] = {
-    { 0xfeff, 0x6000, 2, 0, SME_FUNC,  0, 0, SR_TestBranch },						/* BRA.W/BSR.W */
-    { 0xfeff, 0x60ff, 3, 0, SME_FUNC,  0, 0, SR_TestBranch },						/* BRA.L/BSR.L */
-    { 0xfe00, 0x6000, 1, 0, SME_FUNC,  0, 0, SR_TestBranch },						/* BRA.B/BSR.B */
-    { 0xfeff, 0x6600, 2, 0, SME_MASK,  SR_Z, 0, NULL },								/* BNE.W/BEQ.W */
-    { 0xfeff, 0x66ff, 3, 0, SME_MASK,  SR_Z, 0, NULL },								/* BNE.L/BEQ.L */
-    { 0xfe00, 0x6600, 1, 0, SME_MASK,  SR_Z, 0, NULL },								/* BNE.B/BEQ.B */
-    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_C, 0, NULL },								/* BCC.W/BCS.W */
-    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_C, 0, NULL },								/* BCC.L/BCS.L */
-    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_C, 0, NULL },								/* BCC.B/BCS.B */
-    { 0xfeff, 0x6400, 2, 0, SME_MASK,  SR_N, 0, NULL },								/* BPL.W/BMI.W */
-    { 0xfeff, 0x64ff, 3, 0, SME_MASK,  SR_N, 0, NULL },								/* BPL.L/BMI.L */
-    { 0xfe00, 0x6400, 1, 0, SME_MASK,  SR_N, 0, NULL },								/* BPL.B/BMI.B */
-    { 0xfeff, 0x6800, 2, 0, SME_MASK,  SR_V, 0, NULL },								/* BVC.W/BVS.W */
-    { 0xfeff, 0x68ff, 3, 0, SME_MASK,  SR_V, 0, NULL },								/* BVC.L/BVS.L */
-    { 0xfe00, 0x6800, 1, 0, SME_MASK,  SR_V, 0, NULL },								/* BVC.B/BVS.B */
-    { 0xf0ff, 0x6000, 2, 0, SME_MASK,  SR_NZVC, 0, NULL },							/* Bcc.W */
-    { 0xf0ff, 0x60ff, 3, 0, SME_MASK,  SR_NZVC, 0, NULL },							/* Bcc.L */
-    { 0xf000, 0x6000, 1, 0, SME_MASK,  SR_NZVC, 0, NULL },							/* Bcc.B */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line7_Map[] = {
-    { 0xf000, 0x7000, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* MOVEQ */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line8_Map[] = {
-    { 0xf1c0, 0x80c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVU.W <ea>,Dn */
-    { 0xf1f0, 0x8100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* SBCD */
-    { 0xf1f0, 0x8140, 2, 0, SME_MASK, 0, 0, NULL },									/* PACK */
-    { 0xf1f0, 0x8180, 2, 0, SME_MASK, 0, 0, NULL },									/* UNPK */
-    { 0xf1c0, 0x81c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* DIVS.W <ea>,Dn */
-    { 0xf080, 0x8000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* OR.(B|W) *///PACK & UNPK are located in this space.
-    { 0xf0c0, 0x8080, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* OR.L */
-	{ 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry Line9_Map[] = {
-    { 0xf0c0, 0x90c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeADDA },					/* SUBA */
-    { 0xf1b0, 0x9100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* SUBX.(B|W) */
-	{ 0xf1f0, 0x9180, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* SUBX.L */
-    { 0xf080, 0x9000, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUB.(B|W) */
-	{ 0xf0c0, 0x9080, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* SUB.L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry LineA_Map[] = {
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry LineB_Map[] = {
-    { 0xf1b8, 0xb108, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* CMPM.(B|W) */
-    { 0xf1f8, 0xb188, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* CMPM.L */
-    { 0xf0c0, 0xb0c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMPA */
-    { 0xf180, 0xb000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMP.(B|W) */
-    { 0xf1c0, 0xb080, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* CMP.L */
-    { 0xf180, 0xb100, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EOR.(B|W) */
-	{ 0xf1c0, 0xb180, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* EOR.L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry LineC_Map[] = {
-    { 0xf1c0, 0xc0c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULU.W */
-    { 0xf1f0, 0xc100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* ABCD */
-    { 0xf1c0, 0xc1c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* MULS.W */
-    { 0xf1f0, 0xc140, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Dy / EXG Ax,Ay */
-    { 0xf1f8, 0xc188, 1, 0, SME_FUNC, 0, 0, SR_TestOpcode16B },						/* EXG Dx,Ay */
-    { 0xf080, 0xc000, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* AND.(B|W) */
-	{ 0xf0c0, 0xc080, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* AND.L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry LineD_Map[] = {
-    { 0xf0c0, 0xd0c0, 1, 1, SME_FUNC, 0, 0, SR_TestOpcodeADDA },					/* ADDA */
-    { 0xf1b0, 0xd100, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* ADDX.(B|W) - reqires X and modifies X! */
-    { 0xf1f0, 0xd180, 1, 0, SME_MASK, SR_X, SR_CCR, NULL },							/* ADDX.L */
-	{ 0xf080, 0xd000, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADD>(B|W) */
-	{ 0xf0c0, 0xd080, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* ADD.L */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry LineE_Map[] = {
-    { 0xfec0, 0xe0c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* ASL/ASR */
-    { 0xfec0, 0xe2c0, 1, 1, SME_MASK, 0, SR_CCR, NULL },							/* LSL/LSR */
-    { 0xfec0, 0xe4c0, 1, 1, SME_MASK, SR_X, SR_CCR, NULL },							/* ROXL/ROXR */
-    { 0xfec0, 0xe6c0, 1, 1, SME_MASK, 0, SR_NZVC, NULL },							/* ROL/ROR */
-    { 0xffc0, 0xe8c0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFTST */
-    { 0xffc0, 0xe9c0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFEXTU */
-    { 0xffc0, 0xeac0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFCHG */
-    { 0xffc0, 0xebc0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFEXTS */
-    { 0xffc0, 0xecc0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFCLR */
-    { 0xffc0, 0xedc0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFFFO */
-    { 0xffc0, 0xeec0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFSET */
-    { 0xffc0, 0xefc0, 2, 1, SME_MASK, 0, SR_NZVC, NULL },							/* BFINS */
-    { 0xf018, 0xe000, 1, 0, SME_MASK, 0, SR_CCR, NULL },							/* ASL/ASR */
-    { 0xf018, 0xe008, 1, 0, SME_MASK, 0, SR_CCR, NULL },							/* LSL/LSR */
-    { 0xf018, 0xe010, 1, 0, SME_MASK, SR_X, SR_NZVC, NULL },						/* ROXL/ROXR */
-    { 0xf018, 0xe018, 1, 0, SME_MASK, 0, SR_NZVC, NULL },							/* ROL/ROR */
-    { 0x0000, 0x0000, 0, 0, SME_END,  0, 0, NULL }
-};
-
-static struct SRMaskEntry LineF_Map[] = {
-    { 0xf000, 0xf000, 2, 0, SME_MASK, 0, 0, NULL }, /* LineF opcodes do not need these flags, and do not set them */
-    { 0x0000, 0x0000, 0, 0, SME_END, 0, 0, NULL }
-};
-
-static struct SRMaskEntry *OpcodeMap[16] = {
-    Line0_Map,
-    Line1_Map,
-    Line2_Map,
-    Line3_Map,
-    Line4_Map,
-    Line5_Map,
-    Line6_Map,
-    Line7_Map,
-    Line8_Map,
-    Line9_Map,
-    LineA_Map,
-    LineB_Map,
-    LineC_Map,
-    LineD_Map,
-    LineE_Map,
-    LineF_Map
-};
-
 static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
 {
     uint8_t word_count = 0;
@@ -2195,17 +1940,16 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
     uint8_t needed = 0;
     int found = 0;
 
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[opcode >> 12];
-
     D(kprintf("[JIT] GetSRMask, opcode %04x @ %08x, ", opcode, insn_stream));
 
     if (SRCheck[opcode >> 12] != NULL) {
         uint32_t flags = SRCheck[opcode >> 12](opcode);
         mask = flags & 0xffff;
         needed = flags >> 16;
+        found = 1;
     }
     else {
+        found = 0;
         mask = 0;
         needed = SR_CCR;
     }
@@ -2215,7 +1959,9 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         return 0;
     }
 
-    D(kprintf(" SRNeeds = %x, SRSets = %x\n", e->me_SRNeeds, mask));
+return mask;
+
+    D(kprintf(" SRNeeds = %x, SRSets = %x\n", needed, mask));
 
     /*
         Check as long as there are still some flags to be set by the opcode and the depth
@@ -2306,6 +2052,8 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                 while(mask1 && scan_depth < max_scan_depth)
                 {
                     scan_depth++;
+                    uint16_t sets;
+                    uint16_t needs;
 
                     /* If instruction is a branch break the scan */
                     if (M68K_IsBranch(insn_stream))
@@ -2316,30 +2064,24 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
                     D(kprintf("[JIT]   %02d.1: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
 
-                    e = OpcodeMap[opcode >> 12];
-                    found = 0;
-
-                    /* Search within table until SME_END is found */
-                    while (e->me_Type != SME_END)
-                    {
-                        if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
-                        {
-                            found = 1;
-                            D(kprintf("SRneeds=%x, SRSets=%x\n", e->me_SRNeeds, e->me_SRSets));
-
-                            /* If instruction *needs* one of flags from current opcode, break the check and return mask */
-                            if (mask1 & e->me_SRNeeds) {
-                                needed1 |= (mask1 & e->me_SRNeeds);
-                            }
-
-                            /* Clear flags which this instruction sets */
-                            mask1 = mask1 & ~e->me_SRSets;
-                            
-                            break;
-                        }
-
-                        e++;
+                    if (SRCheck[opcode >> 12] != NULL) {
+                        uint32_t flags = SRCheck[opcode >> 12](opcode);
+                        sets = flags;
+                        needs = flags >> 16;
+                        found = 1;
                     }
+                    else {
+                        sets = 0;
+                        needs = SR_CCR;
+                        found = 0;
+                    }
+
+                    if (mask1 & needs) {
+                        needed1 |= (mask1 & needs);
+                    }
+
+                    /* Clear flags which this instruction sets */
+                    mask1 = mask1 & ~sets;
 
                     if (!found)
                     {
@@ -2356,6 +2098,8 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                 while(mask2 && scan_depth < max_scan_depth)
                 {
                     scan_depth++;
+                    uint16_t sets;
+                    uint16_t needs;
 
                     /* If instruction is a branch break the scan */
                     if (M68K_IsBranch(insn_stream_2))
@@ -2366,30 +2110,24 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
                     D(kprintf("[JIT]   %02d.2: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream_2));
 
-                    e = OpcodeMap[opcode >> 12];
-                    found = 0;
-
-                    /* Search within table until SME_END is found */
-                    while (e->me_Type != SME_END)
-                    {
-                        if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
-                        {
-                            found = 1;
-                            D(kprintf("SRneeds=%x, SRSets=%x\n", e->me_SRNeeds, e->me_SRSets));
-
-                            /* If instruction *needs* one of flags from current opcode, break the check and return mask */
-                            if (mask2 & e->me_SRNeeds) {
-                                needed2 |= (mask2 & e->me_SRNeeds);
-                            }
-
-                            /* Clear flags which this instruction sets */
-                            mask2 = mask2 & ~e->me_SRSets;
-                            
-                            break;
-                        }
-
-                        e++;
+                    if (SRCheck[opcode >> 12] != NULL) {
+                        uint32_t flags = SRCheck[opcode >> 12](opcode);
+                        sets = flags;
+                        needs = flags >> 16;
+                        found = 1;
                     }
+                    else {
+                        sets = 0;
+                        needs = SR_CCR;
+                        found = 0;
+                    }
+
+                    if (mask2 & needs) {
+                        needed2 |= (mask2 & needs);
+                    }
+
+                    /* Clear flags which this instruction sets */
+                    mask2 = mask2 & ~sets;
 
                     if (!found)
                     {
@@ -2421,30 +2159,27 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         opcode = BE16(*insn_stream);
         D(kprintf("[JIT]   %02d: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
 
-        e = OpcodeMap[opcode >> 12];
-        found = 0;
+        uint16_t sets;
+        uint16_t needs;
 
-        /* Search within table until SME_END is found */
-        while (e->me_Type != SME_END)
-        {
-            if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
-            {
-                found = 1;
-                D(kprintf("SRneeds=%x, SRSets=%x\n", e->me_SRNeeds, e->me_SRSets));
-
-                /* If instruction *needs* one of flags from current opcode, break the check and return mask */
-                if (mask & e->me_SRNeeds) {
-                    needed |= (mask & e->me_SRNeeds);
-                }
-
-                /* Clear flags which this instruction sets */
-                mask = mask & ~e->me_SRSets;
-                
-                break;
-            }
-
-            e++;
+        if (SRCheck[opcode >> 12] != NULL) {
+            uint32_t flags = SRCheck[opcode >> 12](opcode);
+            sets = flags;
+            needs = flags >> 16;
+            found = 1;
         }
+        else {
+            sets = 0;
+            needs = SR_CCR;
+            found = 0;
+        }
+
+        if (mask & needs) {
+            needed |= (mask & needs);
+        }
+
+        /* Clear flags which this instruction sets */
+        mask = mask & ~sets;
 
         if (!found)
         {
