@@ -7,6 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#include "A64.h"
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -335,14 +336,177 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SBCD_reg")));
 uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    ptr = EMIT_FlushPC(ptr);
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-    *ptr++ = INSN_TO_LE(0xffffffff);
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+
+    uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
+    uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+
+    uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_c = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_d = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_n = RA_AllocARMRegister(&ptr);
+    uint8_t cc = RA_ModifyCC(&ptr);
+
+    /* Extract dest into further temp register (used to check overflow and flags) */
+    *ptr++ = and_immed(tmp_n, dest, 8, 0);
+
+    *ptr++ = and_immed(tmp_a, src, 4, 0);   // Fetch low nibbles
+    *ptr++ = and_immed(tmp_b, dest, 4, 0);
+
+    *ptr++ = and_immed(tmp_c, src, 4, 28);  // Fetch high nibbles
+    *ptr++ = and_immed(tmp_d, dest, 4, 28);
+
+    // Test X flag
+    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));   // Sub X
+
+    // Subtract nibbles
+    *ptr++ = sub_reg(tmp_a, tmp_b, tmp_a, LSL, 0);
+    *ptr++ = sub_reg(tmp_c, tmp_d, tmp_c, LSL, 0);
     
+    // Extract 8-bit src into tmp_b and perform subtraction on tmp_n test reg
+    *ptr++ = and_immed(tmp_b, src, 8, 0);
+    *ptr++ = sub_reg(tmp_n, tmp_n, tmp_b, LSL, 0);
+
+    // if X was set (NE), decrease lower nibble result by one
+    *ptr++ = b_cc(A64_CC_EQ, 3);
+    *ptr++ = sub_immed(tmp_a, tmp_a, 1);
+    *ptr++ = sub_immed(tmp_n, tmp_n, 1);
+    if (update_mask & SR_XC)
+    {
+        *ptr++ = mov_reg(tmp_d, tmp_n);
+    }
+
+    // Join nibbles together in tmp_b register
+    *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
+
+    // If lower libble overflowed, do radix correction
+    *ptr++ = ands_immed(31, tmp_a, 4, 28);
+    if (update_mask & SR_XC) {
+        *ptr++ = b_cc(A64_CC_EQ, 3);
+        *ptr++ = sub_immed(tmp_b, tmp_b, 6);
+        *ptr++ = sub_immed(tmp_d, tmp_d, 6);
+    }
+    else {
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = sub_immed(tmp_b, tmp_b, 6);
+    }
+
+    // Check if result overflowed
+    *ptr++ = ands_immed(31, tmp_n, 1, 24);
+    *ptr++ = b_cc(A64_CC_EQ, 2);
+    *ptr++ = sub_immed(tmp_b, tmp_b, 0x60);
+
+    if (update_mask & SR_XC) {
+        *ptr++ = bic_immed(cc, cc, 1, 0);
+        *ptr++ = ands_immed(31, tmp_d, 2, 24);
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = orr_immed(cc, cc, 1, 0);
+
+        if (update_mask & SR_X) {
+            *ptr++ = bfi(cc, cc, 4, 1);
+        }
+    }
+
+    // Insert result into target register
+    *ptr++ = bfi(dest, tmp_b, 0, 8);
+
+    if (update_mask & SR_Z) {
+        *ptr++ = ands_immed(31, tmp_b, 8, 0);
+        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_a);
+    RA_FreeARMRegister(&ptr, tmp_b);
+    RA_FreeARMRegister(&ptr, tmp_c);
+    RA_FreeARMRegister(&ptr, tmp_d);
+    RA_FreeARMRegister(&ptr, tmp_n);
+
+    ptr = EMIT_AdvancePC(ptr, 2);
+
+    return ptr;
+}
+
+
+uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+{
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    
+    uint8_t tmp_a = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_b = RA_AllocARMRegister(&ptr);
+    uint8_t cc = RA_ModifyCC(&ptr);
+    uint8_t src = RA_AllocARMRegister(&ptr);
+    uint8_t dest = RA_AllocARMRegister(&ptr);
+    uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+
+    /* predecremented address, special case if SP */
+    if ((opcode & 7) == 7)
+        *ptr++ = ldrb_offset_preindex(an_src, src, -2);
+    else
+        *ptr++ = ldrb_offset_preindex(an_src, src, -1);
+    if (((opcode >> 9) & 7) == 7)
+        *ptr++ = ldrb_offset_preindex(an_dest, dest, -2);
+    else
+        *ptr++ = ldrb_offset_preindex(an_dest, dest, -1);
+
+    /* Operation */
+    *ptr++ = ubfx(tmp_a, src, 0, 4);
+    *ptr++ = ubfx(tmp_b, dest, 0, 4);
+    *ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+    *ptr++ = b_cc(A64_CC_EQ, 2);
+    *ptr++ = sub_immed(tmp_a, tmp_a, 1);
+    *ptr++ = cmp_immed(tmp_a, 0);
+    *ptr++ = b_cc(A64_CC_HI, 2);
+    *ptr++ = add_immed(tmp_a, tmp_a, 9);
+    *ptr++ = bfi(dest, tmp_a, 0, 4);
+    *ptr++ = ubfx(tmp_a, src, 4, 4);
+    *ptr++ = ubfx(tmp_b, dest, 4, 4);
+    *ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
+    *ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_HI);
+    *ptr++ = cmp_immed(tmp_a, 0);
+    *ptr++ = b_cc(A64_CC_HI, 2);
+    *ptr++ = add_immed(tmp_a, tmp_a, 9);
+    *ptr++ = bfi(dest, tmp_a, 4, 4);
+    *ptr++ = mov_reg(tmp_a, dest);
+
+    /* Storing result */
+    *ptr++ = strb_offset(an_dest, dest, 0);
+
+    if (update_mask & SR_XC)
+    {
+        /* if A64_CC_LT then there was a carry */
+        *ptr++ = cset(tmp_b, A64_CC_LT);
+        *ptr++ = bfi(cc, tmp_b, 0, 1);
+        /* update X flag*/
+        *ptr++ = bfi(cc, cc, 4, 1);
+    }
+    if (update_mask & SR_NZ)
+    {
+        *ptr++ = cmn_reg(31, tmp_a, LSL, 24);
+
+        if (update_mask & SR_Z)
+        {
+            *ptr++ = b_cc(A64_CC_EQ, 2);
+            *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+        }
+        if (update_mask & SR_N)
+        {
+            *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_N));
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, A64_CC_MI);
+        }
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_a);
+    RA_FreeARMRegister(&ptr, tmp_b);
+    RA_FreeARMRegister(&ptr, src);
+    RA_FreeARMRegister(&ptr, dest);
+    ptr = EMIT_AdvancePC(ptr, 2);
+
     return ptr;
 }
 
