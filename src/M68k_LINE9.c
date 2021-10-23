@@ -544,37 +544,37 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static EMIT_Function JumpTable[512] = {
-	[0000 ... 0017] = EMIT_SUB_reg,  //D0 Destination
-	[0020 ... 0047] = EMIT_SUB_mem,
-	[0050 ... 0074] = EMIT_SUB_ext,
-	[0100 ... 0117] = EMIT_SUB_reg,
-	[0120 ... 0147] = EMIT_SUB_mem,
-	[0150 ... 0174] = EMIT_SUB_ext,
-	[0200 ... 0217] = EMIT_SUB_reg,
-	[0220 ... 0247] = EMIT_SUB_mem,
-	[0250 ... 0274] = EMIT_SUB_ext,
+	[0000 ... 0017] = { { EMIT_SUB_reg }, NULL, 0, SR_CCR },  //D0 Destination
+	[0020 ... 0047] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR },
+	[0050 ... 0074] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR },
+	[0100 ... 0117] = { { EMIT_SUB_reg }, NULL, 0, SR_CCR },
+	[0120 ... 0147] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR },
+	[0150 ... 0174] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR },
+	[0200 ... 0217] = { { EMIT_SUB_reg }, NULL, 0, SR_CCR },
+	[0220 ... 0247] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR },
+	[0250 ... 0274] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR },
 
-	[0300 ... 0317] = EMIT_SUBA_reg,
-	[0320 ... 0347] = EMIT_SUBA_mem,
-	[0350 ... 0374] = EMIT_SUBA_ext, //Word
+	[0300 ... 0317] = { { EMIT_SUBA_reg }, NULL, 0, 0 },
+	[0320 ... 0347] = { { EMIT_SUBA_mem }, NULL, 0, 0 },
+	[0350 ... 0374] = { { EMIT_SUBA_ext }, NULL, 0, 0 }, //Word
 
-	[0400 ... 0407] = EMIT_SUBX_reg,
-	[0410 ... 0417] = EMIT_SUBX_mem, //R0
-	[0500 ... 0507] = EMIT_SUBX_reg,
-	[0510 ... 0517] = EMIT_SUBX_mem,
-	[0600 ... 0607] = EMIT_SUBX_reg,
-	[0610 ... 0617] = EMIT_SUBX_mem,
+	[0400 ... 0407] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR },
+	[0410 ... 0417] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR }, //R0
+	[0500 ... 0507] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR },
+	[0510 ... 0517] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR },
+	[0600 ... 0607] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR },
+	[0610 ... 0617] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR },
 
-	[0420 ... 0447] = EMIT_SUB_mem,
-	[0450 ... 0471] = EMIT_SUB_ext,  //D0 Source
-	[0520 ... 0547] = EMIT_SUB_mem,
-	[0550 ... 0571] = EMIT_SUB_ext,
-	[0620 ... 0647] = EMIT_SUB_mem,
-	[0650 ... 0671] = EMIT_SUB_ext,
-
-	[0700 ... 0717] = EMIT_SUBA_reg,
-	[0720 ... 0747] = EMIT_SUBA_mem,
-	[0750 ... 0774] = EMIT_SUBA_ext, //Long
+	[0420 ... 0447] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR },
+	[0450 ... 0471] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR },  //D0 Source
+	[0520 ... 0547] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR },
+	[0550 ... 0571] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR },
+	[0620 ... 0647] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR },
+	[0650 ... 0671] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR },
+	
+	[0700 ... 0717] = { { EMIT_SUBA_reg } NULL, 0, 0 },
+	[0720 ... 0747] = { { EMIT_SUBA_mem } NULL, 0, 0 },
+	[0750 ... 0774] = { { EMIT_SUBA_ext } NULL, 0, 0 }, //Long
 };
 
 uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)

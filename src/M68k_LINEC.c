@@ -434,36 +434,36 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 }
 
 static EMIT_Function JumpTable[512] = {
-    [0000 ... 0007] = EMIT_AND_reg,  //D0 Destination, Byte
-    [0020 ... 0047] = EMIT_AND_mem,
-    [0050 ... 0074] = EMIT_AND_ext,
-    [0100 ... 0107] = EMIT_AND_reg, //Word
-    [0120 ... 0147] = EMIT_AND_mem,
-    [0150 ... 0174] = EMIT_AND_ext,
-    [0200 ... 0207] = EMIT_AND_reg, //Long
-    [0220 ... 0247] = EMIT_AND_mem,
-    [0250 ... 0274] = EMIT_AND_ext,
-    
-    [0300 ... 0307] = EMIT_MULU, //_reg, //D0 Destination
-    [0320 ... 0347] = EMIT_MULU, //_mem,
-    [0350 ... 0374] = EMIT_MULU, //_ext,
-    
-    [0400 ... 0407] = EMIT_ABCD_reg, //D0 Destination
-    [0410 ... 0417] = EMIT_ABCD_mem, //-Ax),-(Ay)
-    [0420 ... 0447] = EMIT_AND_mem, //Byte
-    [0450 ... 0471] = EMIT_AND_ext, //D0 Source
-    
-    [0500 ... 0517] = EMIT_EXG, //R0 Source, unsized always the full register
-    [0520 ... 0547] = EMIT_AND_mem, //Word
-    [0550 ... 0571] = EMIT_AND_ext, 
-    
-    [0610 ... 0617] = EMIT_EXG,  //D0 Source
-    [0620 ... 0647] = EMIT_AND_mem, //Long
-    [0650 ... 0671] = EMIT_AND_ext,
-    
-    [0700 ... 0707] = EMIT_MULS, //_reg, //D0 Destination
-    [0720 ... 0747] = EMIT_MULS, //_mem,
-    [0750 ... 0774] = EMIT_MULS, //_ext,
+    [0000 ... 0007] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC },  //D0 Destination, Byte
+    [0020 ... 0047] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
+    [0050 ... 0074] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
+    [0100 ... 0107] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC }, //Word
+    [0120 ... 0147] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
+    [0150 ... 0174] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
+    [0200 ... 0207] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC }, //Long
+    [0220 ... 0247] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
+    [0250 ... 0274] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
+ 
+    [0300 ... 0307] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_reg, //D0 Destination
+    [0320 ... 0347] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_mem,
+    [0350 ... 0374] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_ext,
+ 
+    [0400 ... 0407] = { { EMIT_ABCD_reg }, NULL, 0, SR_XZC }, //D0 Destination
+    [0410 ... 0417] = { { EMIT_ABCD_mem }, NULL, 0, SR_XZC }, //-Ax),-(Ay)
+    [0420 ... 0447] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Byte
+    [0450 ... 0471] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC }, //D0 Source
+ 
+    [0500 ... 0517] = { { EMIT_EXG }, NULL, ), 0 }, //R0 Source, unsized always the full register
+    [0520 ... 0547] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, //Word
+    [0550 ... 0571] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 
+
+    [0610 ... 0617] = { { EMIT_EXG }, NULL, ), 0 },  //D0 Source
+    [0620 ... 0647] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Long
+    [0650 ... 0671] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
+
+    [0700 ... 0707] = { { EMIT_MULS }, NULL, 0, SR_NZVC }, //_reg, //D0 Destination
+    [0720 ... 0747] = { { EMIT_MULS }, NULL, 0, SR_NZVC }, //_mem,
+    [0750 ... 0774] = { { EMIT_MULS }, NULL, 0, SR_NZVC }, //_ext,
 };
 
 
