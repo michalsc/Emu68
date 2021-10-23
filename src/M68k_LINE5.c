@@ -719,7 +719,7 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-static EMIT_Function JumpTable[512] = {
+static struct OpcodeDef InsnTable[512] = {
 	[0000 ... 0007] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
 	[0020 ... 0071] = { { EMIT_ADDQ }, NULL, 0, SR_CCR }, 
 	[0100 ... 0171] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
@@ -747,8 +747,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    if (JumpTable[opcode & 0777]) {
-        ptr = JumpTable[opcode & 0777](ptr, opcode, m68k_ptr);
+    if (InsnTable[opcode & 0777].od_Emit) {
+        ptr = InsnTable[opcode & 0777].od_Emit(ptr, opcode, m68k_ptr);
     }
     else
     {
@@ -759,4 +759,17 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
 
     return ptr;
+}
+
+
+uint32_t GetSR_Line5(uint16_t opcode)
+{
+    /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
+    if (InsnTable[opcode & 0777].od_Emit) {
+        return (InsnTable[opcode & 0777].od_SRNeeds << 16) | InsnTable[opcode & 0777].od_SRSets;
+    }
+    /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
+    else {
+        return SR_CCR << 16;
+    }
 }

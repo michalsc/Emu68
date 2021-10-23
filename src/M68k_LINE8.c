@@ -587,7 +587,7 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-static EMIT_Function JumpTable[512] = {
+static struct OpcodeDef InsnTable[512] = {
     [0000 ... 0007] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },    //D0 Destination
     [0020 ... 0047] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
     [0050 ... 0074] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
@@ -628,8 +628,8 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    if (JumpTable[opcode & 0x1ff]) {
-        ptr = JumpTable[opcode & 0x1ff](ptr, opcode, m68k_ptr);
+    if (InsnTable[opcode & 0x1ff].od_Emit) {
+        ptr = InsnTable[opcode & 0x1ff].od_Emit(ptr, opcode, m68k_ptr);
     }
     else
     {
@@ -640,4 +640,17 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
 
     return ptr;
+}
+
+
+uint32_t GetSR_Line8(uint16_t opcode)
+{
+    /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
+    if (InsnTable[opcode & 0x1ff].od_Emit) {
+        return (InsnTable[opcode & 0x1ff].od_SRNeeds << 16) | InsnTable[opcode & 0x1ff].od_SRSets;
+    }
+    /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
+    else {
+        return SR_CCR << 16;
+    }
 }

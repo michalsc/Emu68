@@ -433,7 +433,7 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     return ptr;
 }
 
-static EMIT_Function JumpTable[512] = {
+static struct OpcodeDef InsnTable[512] = {
     [0000 ... 0007] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC },  //D0 Destination, Byte
     [0020 ... 0047] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
     [0050 ... 0074] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
@@ -448,16 +448,16 @@ static EMIT_Function JumpTable[512] = {
     [0320 ... 0347] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_mem,
     [0350 ... 0374] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_ext,
  
-    [0400 ... 0407] = { { EMIT_ABCD_reg }, NULL, 0, SR_XZC }, //D0 Destination
-    [0410 ... 0417] = { { EMIT_ABCD_mem }, NULL, 0, SR_XZC }, //-Ax),-(Ay)
+    [0400 ... 0407] = { { EMIT_ABCD_reg }, NULL, SR_X, SR_XZC }, //D0 Destination
+    [0410 ... 0417] = { { EMIT_ABCD_mem }, NULL, SR_X, SR_XZC }, //-Ax),-(Ay)
     [0420 ... 0447] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Byte
     [0450 ... 0471] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC }, //D0 Source
  
-    [0500 ... 0517] = { { EMIT_EXG }, NULL, ), 0 }, //R0 Source, unsized always the full register
-    [0520 ... 0547] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, //Word
-    [0550 ... 0571] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 
+    [0500 ... 0517] = { { EMIT_EXG }, NULL, 0, 0 }, //R0 Source, unsized always the full register
+    [0520 ... 0547] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Word
+    [0550 ... 0571] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC }, 
 
-    [0610 ... 0617] = { { EMIT_EXG }, NULL, ), 0 },  //D0 Source
+    [0610 ... 0617] = { { EMIT_EXG }, NULL, 0, 0 },  //D0 Source
     [0620 ... 0647] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Long
     [0650 ... 0671] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
 
@@ -474,9 +474,9 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     *insn_consumed = 1;
 
     /* 1100xxx011xxxxxx - MULU */
-    if (JumpTable[opcode & 00777])
+    if (InsnTable[opcode & 00777].od_Emit)
     {
-        ptr = JumpTable[opcode & 00777](ptr, opcode, m68k_ptr);
+        ptr = InsnTable[opcode & 00777].od_Emit(ptr, opcode, m68k_ptr);
     }
     else
     {
@@ -487,4 +487,16 @@ uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
 
     return ptr;
+}
+
+uint32_t GetSR_LineC(uint16_t opcode)
+{
+    /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
+    if (InsnTable[opcode & 00777].od_Emit) {
+        return (InsnTable[opcode & 00777].od_SRNeeds << 16) | InsnTable[opcode & 00777].od_SRSets;
+    }
+    /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
+    else {
+        return SR_CCR << 16;
+    }
 }
