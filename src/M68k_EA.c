@@ -1195,6 +1195,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         {
                             bd_reg = RA_AllocARMRegister(&ptr);
                             *ptr++ = mov_reg(bd_reg, base_reg);
+                            RA_FreeARMRegister(&ptr, base_reg);
                             base_reg = 0xff;
                         }
 
