@@ -720,25 +720,25 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static EMIT_Function JumpTable[512] = {
-	[0000 ... 0007] = EMIT_ADDQ, 
-	[0020 ... 0071] = EMIT_ADDQ,  
-	[0100 ... 0171] = EMIT_ADDQ,
-	[0200 ... 0271] = EMIT_ADDQ,
+	[0000 ... 0007] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
+	[0020 ... 0071] = { { EMIT_ADDQ }, NULL, 0, SR_CCR }, 
+	[0100 ... 0171] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
+	[0200 ... 0271] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
 
-	[0300 ... 0307] = EMIT_Scc,
-	[0710 ... 0717] = EMIT_DBcc,
-	[0320 ... 0371] = EMIT_Scc,
-	[0372 ... 0374] = EMIT_TRAPcc,
+	[0300 ... 0307] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
+	[0710 ... 0717] = { { EMIT_DBcc }, NULL, SR_CCR, 0 },
+	[0320 ... 0371] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
+	[0372 ... 0374] = { { EMIT_TRAPcc }, NULL, SR_CCR, 0 },
+ 
+	[0400 ... 0407] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
+	[0420 ... 0471] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
+	[0500 ... 0571] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
+	[0600 ... 0671] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
 
-	[0400 ... 0407] = EMIT_SUBQ,
-	[0420 ... 0471] = EMIT_SUBQ,
-	[0500 ... 0571] = EMIT_SUBQ,
-	[0600 ... 0671] = EMIT_SUBQ,
-
-	[0700 ... 0707] = EMIT_Scc,
-	[0310 ... 0317] = EMIT_DBcc,
-	[0720 ... 0771] = EMIT_Scc,
-	[0772 ... 0774] = EMIT_TRAPcc,
+	[0700 ... 0707] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
+	[0310 ... 0317] = { { EMIT_DBcc }, NULL, SR_CCR, 0 },
+	[0720 ... 0771] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
+	[0772 ... 0774] = { { EMIT_TRAPcc }, NULL, SR_CCR, 0 },
 };
 
 uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
