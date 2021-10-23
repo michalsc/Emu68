@@ -551,8 +551,9 @@ uint32_t *EMIT_TRAPcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             break;
         default:
             ptr = EMIT_InjectDebugString(ptr, "[JIT] Illegal OPMODE %d in TRAPcc at %08x. Opcode %04x\n", opcode & 7, source, opcode);
-            ptr = EMIT_InjectPrintContext(ptr);
-            *ptr++ = udf(opcode);
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
             break;
     }
     ptr = EMIT_FlushPC(ptr);
@@ -738,7 +739,7 @@ static EMIT_Function JumpTable[512] = {
 	[0310 ... 0317] = EMIT_DBcc,
 	[0720 ... 0771] = EMIT_Scc,
 	[0772 ... 0774] = EMIT_TRAPcc,
-}
+};
 
 uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
