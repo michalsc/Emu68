@@ -262,7 +262,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t cc = RA_ModifyCC(&ptr);
 
 #ifdef __aarch64__
-        if (opcode2 & (1 << 10) && (reg_dh != reg_dl)) {
+        if (opcode2 & (1 << 10)) { 
             *ptr++ = cmn64_reg(31, reg_dl, LSL, 0);
         }
         else {
