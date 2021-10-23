@@ -1003,7 +1003,7 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = b_cc(A64_CC_EQ, 29);
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
-    
+
     *ptr++ = and_reg(cc, tmp, src, LSL, 0);
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
@@ -1179,7 +1179,13 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     *ptr++ = movw_immed_u16(displ, offset & 0xffff);
     *ptr++ = movt_immed_u16(displ, (offset >> 16) & 0xffff);
     sp = RA_MapM68kRegister(&ptr, 15);
-    reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    if (8 + (opcode & 7) == 15) {
+        reg = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = sub_immed(reg, reg, 4);
+    }
+    else {
+        reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    }
     *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
     *ptr++ = mov_reg(reg, sp);
     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -1194,7 +1200,7 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
     ptr = EMIT_AdvancePC(ptr, 6);
     RA_FreeARMRegister(&ptr, displ);
-
+    RA_FreeARMRegister(&ptr, reg);
     return ptr;
 }
 
@@ -1209,7 +1215,13 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     displ = RA_AllocARMRegister(&ptr);
 
     sp = RA_MapM68kRegister(&ptr, 15);
-    reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    if (8 + (opcode & 7) == 15) {
+        reg = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+        *ptr++ = sub_immed(reg, reg, 4);
+    }
+    else {
+        reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+    }
     *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
     *ptr++ = mov_reg(reg, sp);
     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -1239,6 +1251,7 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
     ptr = EMIT_AdvancePC(ptr, 4);
     RA_FreeARMRegister(&ptr, displ);
+    RA_FreeARMRegister(&ptr, reg);
 
     return ptr;
 }

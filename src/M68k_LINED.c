@@ -543,46 +543,46 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     return ptr;
 }
 
-static EMIT_Function JumpTable[4096] = {
-    [0000 ... 0007] = EMIT_ADD_reg,  //Dn Destination, Byte
-    [0020 ... 0047] = EMIT_ADD_mem,
-    [0050 ... 0074] = EMIT_ADD_ext,
-    [0100 ... 0117] = EMIT_ADD_reg,  //Word
-    [0120 ... 0147] = EMIT_ADD_mem,
-    [0150 ... 0174] = EMIT_ADD_ext,
-    [0200 ... 0217] = EMIT_ADD_reg,  //Long
-    [0220 ... 0247] = EMIT_ADD_mem,
-    [0250 ... 0274] = EMIT_ADD_ext,
-    [0300 ... 0317] = EMIT_ADDA_reg, //Word
-    [0320 ... 0347] = EMIT_ADDA_mem,
-    [0350 ... 0374] = EMIT_ADDA_ext,
-    [0400 ... 0407] = EMIT_ADDX_reg, //Byte
-    [0410 ... 0417] = EMIT_ADDX_mem, 
-    [0500 ... 0507] = EMIT_ADDX_reg, //Word
-    [0510 ... 0517] = EMIT_ADDX_mem,
-    [0600 ... 0607] = EMIT_ADDX_reg, //Long
-    [0610 ... 0617] = EMIT_ADDX_mem,
-    [0420 ... 0447] = EMIT_ADD_mem,  //Dn Source, Byte
-    [0450 ... 0471] = EMIT_ADD_ext,
-    [0520 ... 0547] = EMIT_ADD_mem,  //Word
-    [0550 ... 0571] = EMIT_ADD_ext,
-    [0620 ... 0647] = EMIT_ADD_mem,  //Long
-    [0650 ... 0671] = EMIT_ADD_ext,
-    [0700 ... 0717] = EMIT_ADDA_reg,
-    [0720 ... 0747] = EMIT_ADDA_mem,
-    [0750 ... 0774] = EMIT_ADDA_ext, //Long
+static struct OpcodeDef InsnTable[4096] = {
+    [0000 ... 0007] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR },        //Dn Destination, Byte
+    [0020 ... 0047] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },
+    [0050 ... 0074] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
+    [0100 ... 0117] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR },        //Word
+    [0120 ... 0147] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },
+    [0150 ... 0174] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
+    [0200 ... 0217] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR },        //Long
+    [0220 ... 0247] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },
+    [0250 ... 0274] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
+    [0300 ... 0317] = { { EMIT_ADDA_reg }, NULL, 0, 0 },            //Word
+    [0320 ... 0347] = { { EMIT_ADDA_mem }, NULL, 0, 0 },
+    [0350 ... 0374] = { { EMIT_ADDA_ext }, NULL, 0, 0 },
+    [0400 ... 0407] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR },   //Byte
+    [0410 ... 0417] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR }, 
+    [0500 ... 0507] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR },   //Word
+    [0510 ... 0517] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR },
+    [0600 ... 0607] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR },   //Long
+    [0610 ... 0617] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR },
+    [0420 ... 0447] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },        //Dn Source, Byte
+    [0450 ... 0471] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
+    [0520 ... 0547] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },        //Word
+    [0550 ... 0571] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
+    [0620 ... 0647] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },        //Long
+    [0650 ... 0671] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
+    [0700 ... 0717] = { { EMIT_ADDA_reg }, NULL, 0, 0 },
+    [0720 ... 0747] = { { EMIT_ADDA_mem }, NULL, 0, 0 },
+    [0750 ... 0774] = { { EMIT_ADDA_ext }, NULL, 0, 0 },            //Long
 };
-
 
 uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
+    (void)InsnTable;
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    if (JumpTable[opcode & 00777])
+    if (InsnTable[opcode & 00777].od_Emit)
     {
-        ptr = JumpTable[opcode & 00777](ptr, opcode, m68k_ptr);
+        ptr = InsnTable[opcode & 00777].od_Emit(ptr, opcode, m68k_ptr);
     }
     else
     {
@@ -593,4 +593,16 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
 
     return ptr;
+}
+
+uint32_t GetSR_LineD(uint16_t opcode)
+{
+    /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
+    if (InsnTable[opcode & 00777].od_Emit) {
+        return (InsnTable[opcode & 00777].od_SRNeeds << 16) | InsnTable[opcode & 00777].od_SRSets;
+    }
+    /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
+    else {
+        return SR_CCR << 16;
+    }
 }

@@ -551,8 +551,9 @@ uint32_t *EMIT_TRAPcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             break;
         default:
             ptr = EMIT_InjectDebugString(ptr, "[JIT] Illegal OPMODE %d in TRAPcc at %08x. Opcode %04x\n", opcode & 7, source, opcode);
-            ptr = EMIT_InjectPrintContext(ptr);
-            *ptr++ = udf(opcode);
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
             break;
     }
     ptr = EMIT_FlushPC(ptr);
@@ -718,171 +719,26 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-static EMIT_Function JumpTable[4096] = {
-    [0x000 ... 0x007] = EMIT_ADDQ, 
-    [0x010 ... 0x039] = EMIT_ADDQ,  
-    [0x040 ... 0x079] = EMIT_ADDQ,  
-    [0x080 ... 0x0b9] = EMIT_ADDQ,  
+static EMIT_Function JumpTable[512] = {
+	[0000 ... 0007] = EMIT_ADDQ, 
+	[0020 ... 0071] = EMIT_ADDQ,  
+	[0100 ... 0171] = EMIT_ADDQ,
+	[0200 ... 0271] = EMIT_ADDQ,
 
-    [0x200 ... 0x207] = EMIT_ADDQ,
-    [0x210 ... 0x239] = EMIT_ADDQ,
-    [0x240 ... 0x279] = EMIT_ADDQ,
-    [0x280 ... 0x2b9] = EMIT_ADDQ,
+	[0300 ... 0307] = EMIT_Scc,
+	[0710 ... 0717] = EMIT_DBcc,
+	[0320 ... 0371] = EMIT_Scc,
+	[0372 ... 0374] = EMIT_TRAPcc,
 
-    [0x400 ... 0x407] = EMIT_ADDQ,
-    [0x410 ... 0x439] = EMIT_ADDQ,
-    [0x440 ... 0x479] = EMIT_ADDQ,
-    [0x480 ... 0x4b9] = EMIT_ADDQ,
+	[0400 ... 0407] = EMIT_SUBQ,
+	[0420 ... 0471] = EMIT_SUBQ,
+	[0500 ... 0571] = EMIT_SUBQ,
+	[0600 ... 0671] = EMIT_SUBQ,
 
-    [0x600 ... 0x607] = EMIT_ADDQ,
-    [0x610 ... 0x639] = EMIT_ADDQ,
-    [0x640 ... 0x679] = EMIT_ADDQ,
-    [0x680 ... 0x6b9] = EMIT_ADDQ,
-
-    [0x800 ... 0x807] = EMIT_ADDQ,
-    [0x810 ... 0x839] = EMIT_ADDQ,
-    [0x840 ... 0x879] = EMIT_ADDQ,
-    [0x880 ... 0x8b9] = EMIT_ADDQ,
-
-    [0xa00 ... 0xa07] = EMIT_ADDQ,
-    [0xa10 ... 0xa39] = EMIT_ADDQ,
-    [0xa40 ... 0xa79] = EMIT_ADDQ,
-    [0xa80 ... 0xab9] = EMIT_ADDQ,
-
-    [0xc00 ... 0xc07] = EMIT_ADDQ,
-    [0xc10 ... 0xc39] = EMIT_ADDQ,
-    [0xc40 ... 0xc79] = EMIT_ADDQ,
-    [0xc80 ... 0xcb9] = EMIT_ADDQ,
-
-    [0xe00 ... 0xe07] = EMIT_ADDQ,
-    [0xe10 ... 0xe39] = EMIT_ADDQ,
-    [0xe40 ... 0xe79] = EMIT_ADDQ,
-    [0xe80 ... 0xeb9] = EMIT_ADDQ,
-
-
-    [0x100 ... 0x107] = EMIT_SUBQ,
-    [0x110 ... 0x139] = EMIT_SUBQ,
-    [0x140 ... 0x179] = EMIT_SUBQ,
-    [0x180 ... 0x1b9] = EMIT_SUBQ,
-
-    [0x300 ... 0x307] = EMIT_SUBQ,
-    [0x310 ... 0x339] = EMIT_SUBQ,
-    [0x340 ... 0x379] = EMIT_SUBQ,
-    [0x380 ... 0x3b9] = EMIT_SUBQ,
-
-    [0x500 ... 0x507] = EMIT_SUBQ,
-    [0x510 ... 0x539] = EMIT_SUBQ,
-    [0x540 ... 0x579] = EMIT_SUBQ,
-    [0x580 ... 0x5b9] = EMIT_SUBQ,
-
-    [0x700 ... 0x707] = EMIT_SUBQ,
-    [0x710 ... 0x739] = EMIT_SUBQ,
-    [0x740 ... 0x779] = EMIT_SUBQ,
-    [0x780 ... 0x7b9] = EMIT_SUBQ,
-
-    [0x900 ... 0x907] = EMIT_SUBQ,
-    [0x910 ... 0x939] = EMIT_SUBQ,
-    [0x940 ... 0x979] = EMIT_SUBQ,
-    [0x980 ... 0x9b9] = EMIT_SUBQ,
-
-    [0xb00 ... 0xb07] = EMIT_SUBQ,
-    [0xb10 ... 0xb39] = EMIT_SUBQ,
-    [0xb40 ... 0xb79] = EMIT_SUBQ,
-    [0xb80 ... 0xbb9] = EMIT_SUBQ,
-
-    [0xd00 ... 0xd07] = EMIT_SUBQ,
-    [0xd10 ... 0xd39] = EMIT_SUBQ,
-    [0xd40 ... 0xd79] = EMIT_SUBQ,
-    [0xd80 ... 0xdb9] = EMIT_SUBQ,
-
-    [0xf00 ... 0xf07] = EMIT_SUBQ,
-    [0xf10 ... 0xf39] = EMIT_SUBQ,
-    [0xf40 ... 0xf79] = EMIT_SUBQ,
-    [0xf80 ... 0xfb9] = EMIT_SUBQ,
-
-
-    [0x0c0 ... 0x0c7] = EMIT_Scc,
-    [0x0d0 ... 0x0f9] = EMIT_Scc,
-    
-    [0x1c0 ... 0x1c7] = EMIT_Scc,
-    [0x1d0 ... 0x1f9] = EMIT_Scc,
-
-    [0x2c0 ... 0x2c7] = EMIT_Scc,
-    [0x2d0 ... 0x2f9] = EMIT_Scc,
-
-    [0x3c0 ... 0x3c7] = EMIT_Scc,
-    [0x3d0 ... 0x3f9] = EMIT_Scc,
-
-    [0x4c0 ... 0x4c7] = EMIT_Scc,
-    [0x4d0 ... 0x4f9] = EMIT_Scc,
-    
-    [0x5c0 ... 0x5c7] = EMIT_Scc,
-    [0x5d0 ... 0x5f9] = EMIT_Scc,
-
-    [0x6c0 ... 0x6c7] = EMIT_Scc,
-    [0x6d0 ... 0x6f9] = EMIT_Scc,
-
-    [0x7c0 ... 0x7c7] = EMIT_Scc,
-    [0x7d0 ... 0x7f9] = EMIT_Scc,
-
-    [0x8c0 ... 0x8c7] = EMIT_Scc,
-    [0x8d0 ... 0x8f9] = EMIT_Scc,
-    
-    [0x9c0 ... 0x9c7] = EMIT_Scc,
-    [0x9d0 ... 0x9f9] = EMIT_Scc,
-
-    [0xac0 ... 0xac7] = EMIT_Scc,
-    [0xad0 ... 0xaf9] = EMIT_Scc,
-
-    [0xbc0 ... 0xbc7] = EMIT_Scc,
-    [0xbd0 ... 0xbf9] = EMIT_Scc,
-
-    [0xcc0 ... 0xcc7] = EMIT_Scc,
-    [0xcd0 ... 0xcf9] = EMIT_Scc,
-    
-    [0xdc0 ... 0xdc7] = EMIT_Scc,
-    [0xdd0 ... 0xdf9] = EMIT_Scc,
-
-    [0xec0 ... 0xec7] = EMIT_Scc,
-    [0xed0 ... 0xef9] = EMIT_Scc,
-
-    [0xfc0 ... 0xfc7] = EMIT_Scc,
-    [0xfd0 ... 0xff9] = EMIT_Scc,
-
-
-    [0x0fa ... 0x0fc] = EMIT_TRAPcc,
-    [0x1fa ... 0x1fc] = EMIT_TRAPcc,
-    [0x2fa ... 0x2fc] = EMIT_TRAPcc,
-    [0x3fa ... 0x3fc] = EMIT_TRAPcc,
-    [0x4fa ... 0x4fc] = EMIT_TRAPcc,
-    [0x5fa ... 0x5fc] = EMIT_TRAPcc,
-    [0x6fa ... 0x6fc] = EMIT_TRAPcc,
-    [0x7fa ... 0x7fc] = EMIT_TRAPcc,
-    [0x8fa ... 0x8fc] = EMIT_TRAPcc,
-    [0x9fa ... 0x9fc] = EMIT_TRAPcc,
-    [0xafa ... 0xafc] = EMIT_TRAPcc,
-    [0xbfa ... 0xbfc] = EMIT_TRAPcc,
-    [0xcfa ... 0xcfc] = EMIT_TRAPcc,
-    [0xdfa ... 0xdfc] = EMIT_TRAPcc,
-    [0xefa ... 0xefc] = EMIT_TRAPcc,
-    [0xffa ... 0xffc] = EMIT_TRAPcc,
-
-    [0x0c8 ... 0x0cf] = EMIT_DBcc,
-    [0x1c8 ... 0x1cf] = EMIT_DBcc,
-    [0x2c8 ... 0x2cf] = EMIT_DBcc,
-    [0x3c8 ... 0x3cf] = EMIT_DBcc,
-    [0x4c8 ... 0x4cf] = EMIT_DBcc,
-    [0x5c8 ... 0x5cf] = EMIT_DBcc,
-    [0x6c8 ... 0x6cf] = EMIT_DBcc,
-    [0x7c8 ... 0x7cf] = EMIT_DBcc,
-    [0x8c8 ... 0x8cf] = EMIT_DBcc,
-    [0x9c8 ... 0x9cf] = EMIT_DBcc,
-    [0xac8 ... 0xacf] = EMIT_DBcc,
-    [0xbc8 ... 0xbcf] = EMIT_DBcc,
-    [0xcc8 ... 0xccf] = EMIT_DBcc,
-    [0xdc8 ... 0xdcf] = EMIT_DBcc,
-    [0xec8 ... 0xecf] = EMIT_DBcc,
-    [0xfc8 ... 0xfcf] = EMIT_DBcc,
+	[0700 ... 0707] = EMIT_Scc,
+	[0310 ... 0317] = EMIT_DBcc,
+	[0720 ... 0771] = EMIT_Scc,
+	[0772 ... 0774] = EMIT_TRAPcc,
 };
 
 uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -891,8 +747,8 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    if (JumpTable[opcode & 0xfff]) {
-        ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr);
+    if (JumpTable[opcode & 0777]) {
+        ptr = JumpTable[opcode & 0777](ptr, opcode, m68k_ptr);
     }
     else
     {
