@@ -158,6 +158,8 @@ struct M68KState
 #define SR_T0   0x4000
 #define SR_T1   0x8000
 
+#define SR_ALL  0xf71f
+
 #define SRB_C    0
 #define SRB_V    1
 #define SRB_Z    2
