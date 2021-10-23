@@ -2615,168 +2615,166 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     return ptr;
 }
 
-static EMIT_MultiFunction JumpTable[4096] = {
-    [0x0c0 ... 0x0c7] = EMIT_MOVEfromSR,
-    [0x0d0 ... 0x0f9] = EMIT_MOVEfromSR,
+static struct OpcodeDef InsnTable[4096] = {
+    [0x0c0 ... 0x0c7] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0 },
+    [0x0d0 ... 0x0f9] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0 },
 
-    [0x2c0 ... 0x2c7] = EMIT_MOVEfromCCR,
-    [0x2d0 ... 0x2f9] = EMIT_MOVEfromCCR,
+    [0x2c0 ... 0x2c7] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0 },
+    [0x2d0 ... 0x2f9] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0 },
 
-    [0x6c0 ... 0x6c7] = EMIT_MOVEtoSR,
-    [0x6d0 ... 0x6fc] = EMIT_MOVEtoSR,
+    [0x6c0 ... 0x6c7] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL },
+    [0x6d0 ... 0x6fc] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL },
 
-    [0x4c0 ... 0x4c7] = EMIT_MOVEtoCCR,
-    [0x4d0 ... 0x4fc] = EMIT_MOVEtoCCR,
+    [0x4c0 ... 0x4c7] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR },
+    [0x4d0 ... 0x4fc] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR },
 
-    [0x880 ... 0x887] = EMIT_EXT,
-    [0x8c0 ... 0x8c7] = EMIT_EXT,
-    [0x9c0 ... 0x9c7] = EMIT_EXT,
+    [0x880 ... 0x887] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC },
+    [0x8c0 ... 0x8c7] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC },
+    [0x9c0 ... 0x9c7] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC },
 
-    [0x808 ... 0x80f] = EMIT_LINK32,
-    [0xe50 ... 0xe57] = EMIT_LINK16,
+    [0x808 ... 0x80f] = { { .od_EmitMulti = EMIT_LINK32 }, NULL, 0, 0, },
+    [0xe50 ... 0xe57] = { { .od_EmitMulti = EMIT_LINK16 }, NULL, 0, 0, },
 
-    [0x840 ... 0x847] = EMIT_SWAP,
-    [0xafc]           = EMIT_ILLEGAL,
-    [0xe40 ... 0xe4f] = EMIT_TRAP,
-    [0xe58 ... 0xe5f] = EMIT_UNLK,
-    [0xe70]           = EMIT_RESET,
-    [0xe71]           = EMIT_NOP,
-    [0xe72]           = EMIT_STOP,
-    [0xe73]           = EMIT_RTE,
-    [0xe74]           = EMIT_RTD,
-    [0xe75]           = EMIT_RTS,
-    [0xe76]           = EMIT_TRAPV,
-    [0xe77]           = EMIT_RTR,
-    [0xe7a ... 0xe7b] = EMIT_MOVEC,
-    [0xe60 ... 0xe6f] = EMIT_MOVEUSP,
-    [0x848 ... 0x84f] = EMIT_BKPT,      // BKPT
-    [0xafa]           = NULL,           // BGND
+    [0x840 ... 0x847] = { { .od_EmitMulti = EMIT_SWAP }, NULL, 0, SR_NZVC },
+    [0xafc]           = { { .od_EmitMulti = EMIT_ILLEGAL }, NULL, SR_CCR, 0 },
+    [0xe40 ... 0xe4f] = { { .od_EmitMulti = EMIT_TRAP }, NULL, SR_CCR, 0 },
+    [0xe58 ... 0xe5f] = { { .od_EmitMulti = EMIT_UNLK }, NULL, 0, 0 },
+    [0xe70]           = { { .od_EmitMulti = EMIT_RESET }, NULL, SR_S , 0 },
+    [0xe71]           = { { .od_EmitMulti = EMIT_NOP }, NULL, 0, 0 },
+    [0xe72]           = { { .od_EmitMulti = EMIT_STOP }, NULL, SR_S, SR_ALL },
+    [0xe73]           = { { .od_EmitMulti = EMIT_RTE }, NULL, SR_S, SR_ALL },
+    [0xe74]           = { { .od_EmitMulti = EMIT_RTD }, NULL, 0, 0 },
+    [0xe75]           = { { .od_EmitMulti = EMIT_RTS }, NULL, 0, 0 },
+    [0xe76]           = { { .od_EmitMulti = EMIT_TRAPV }, NULL, SR_CCR, 0 },
+    [0xe77]           = { { .od_EmitMulti = EMIT_RTR }, NULL, 0, SR_CCR },
+    [0xe7a ... 0xe7b] = { { .od_EmitMulti = EMIT_MOVEC }, NULL, SR_S, 0 },
+    [0xe60 ... 0xe6f] = { { .od_EmitMulti = EMIT_MOVEUSP }, NULL, SR_S, 0 },
+    [0x848 ... 0x84f] = { { .od_EmitMulti = EMIT_BKPT }, NULL, SR_ALL, 0 },      // BKPT
 
-    [0xed0 ... 0xed7] = EMIT_JMP,
-    [0xee8 ... 0xefb] = EMIT_JMP,
+    [0xed0 ... 0xed7] = { { .od_EmitMulti = EMIT_JMP }, NULL, 0, 0 },
+    [0xee8 ... 0xefb] = { { .od_EmitMulti = EMIT_JMP }, NULL, 0, 0 },
 
-    [0xe90 ... 0xe97] = EMIT_JSR,
-    [0xea8 ... 0xebb] = EMIT_JSR,
+    [0xe90 ... 0xe97] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0 },
+    [0xea8 ... 0xebb] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0 },
 
-    [0x000 ... 0x007] = EMIT_NEGX,
-    [0x040 ... 0x047] = EMIT_NEGX,
-    [0x080 ... 0x087] = EMIT_NEGX,
-    
-    [0x010 ... 0x039] = EMIT_NEGX,
-    [0x050 ... 0x077] = EMIT_NEGX,
-    [0x090 ... 0x0b7] = EMIT_NEGX,
+    [0x000 ... 0x007] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR },
+    [0x040 ... 0x047] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR },
+    [0x080 ... 0x087] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR },
 
-    [0x200 ... 0x207] = EMIT_CLR,
-    [0x240 ... 0x247] = EMIT_CLR,
-    [0x280 ... 0x287] = EMIT_CLR,
-    
-    [0x210 ... 0x239] = EMIT_CLR,
-    [0x250 ... 0x279] = EMIT_CLR,
-    [0x290 ... 0x2b9] = EMIT_CLR,
+    [0x010 ... 0x039] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR },
+    [0x050 ... 0x077] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR },
+    [0x090 ... 0x0b7] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR },
 
-    [0x400 ... 0x407] = EMIT_NEG,
-    [0x440 ... 0x447] = EMIT_NEG,
-    [0x480 ... 0x487] = EMIT_NEG,
-    
-    [0x410 ... 0x439] = EMIT_NEG,
-    [0x450 ... 0x479] = EMIT_NEG,
-    [0x490 ... 0x4b9] = EMIT_NEG,
+    [0x200 ... 0x207] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC },
+    [0x240 ... 0x247] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC },
+    [0x280 ... 0x287] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC },
 
-    [0x600 ... 0x607] = EMIT_NOT,
-    [0x640 ... 0x647] = EMIT_NOT,
-    [0x680 ... 0x687] = EMIT_NOT,
-    
-    [0x610 ... 0x639] = EMIT_NOT,
-    [0x650 ... 0x679] = EMIT_NOT,
-    [0x690 ... 0x6b9] = EMIT_NOT,
+    [0x210 ... 0x239] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC },
+    [0x250 ... 0x279] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC },
+    [0x290 ... 0x2b9] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC },
 
-    [0xa00 ... 0xa3c] = EMIT_TST,
-    [0xa40 ... 0xa7c] = EMIT_TST,
-    [0xa80 ... 0xabc] = EMIT_TST,
+    [0x400 ... 0x407] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR },
+    [0x440 ... 0x447] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR },
+    [0x480 ... 0x487] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR },
 
-    [0x800 ... 0x807] = EMIT_NBCD,
-    [0x810 ... 0x839] = EMIT_NBCD,
+    [0x410 ... 0x439] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR },
+    [0x450 ... 0x479] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR },
+    [0x490 ... 0x4b9] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR },
 
-    [0x850 ... 0x857] = EMIT_PEA,
-    [0x860 ... 0x87b] = EMIT_PEA,
+    [0x600 ... 0x607] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC },
+    [0x640 ... 0x647] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC },
+    [0x680 ... 0x687] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC },
 
-    [0xac0 ... 0xac7] = EMIT_TAS,
-    [0xad0 ... 0xaf9] = EMIT_TAS,
+    [0x610 ... 0x639] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC },
+    [0x650 ... 0x679] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC },
+    [0x690 ... 0x6b9] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC },
 
-    [0xc00 ... 0xc07] = EMIT_MUL_DIV_,
-    [0xc10 ... 0xc3c] = EMIT_MUL_DIV_,
-    [0xc40 ... 0xc47] = EMIT_MUL_DIV_,
-    [0xc50 ... 0xc7c] = EMIT_MUL_DIV_,
+    [0xa00 ... 0xa3c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC },
+    [0xa40 ... 0xa7c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC },
+    [0xa80 ... 0xabc] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC },
 
-    [0x890 ... 0x897] = EMIT_MOVEM,
-    [0x8a0 ... 0x8b9] = EMIT_MOVEM,
+    [0x800 ... 0x807] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_X, SR_XNC },
+    [0x810 ... 0x839] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_X, SR_XNC },
 
-    [0x8d0 ... 0x8d7] = EMIT_MOVEM,
-    [0x8e0 ... 0x8f9] = EMIT_MOVEM,
-    
-    [0xc90 ... 0xc9f] = EMIT_MOVEM,
-    [0xca8 ... 0xcbb] = EMIT_MOVEM,
-    
-    [0xcd0 ... 0xcdf] = EMIT_MOVEM,
-    [0xce8 ... 0xcfb] = EMIT_MOVEM,
-    
-    [0x1d0 ... 0x1d7] = EMIT_LEA,
-    [0x1e8 ... 0x1fb] = EMIT_LEA,
-    [0x3d0 ... 0x3d7] = EMIT_LEA,
-    [0x3e8 ... 0x3fb] = EMIT_LEA,
-    [0x5d0 ... 0x5d7] = EMIT_LEA,
-    [0x5e8 ... 0x5fb] = EMIT_LEA,
-    [0x7d0 ... 0x7d7] = EMIT_LEA,
-    [0x7e8 ... 0x7fb] = EMIT_LEA,
-    [0x9d0 ... 0x9d7] = EMIT_LEA,
-    [0x9e8 ... 0x9fb] = EMIT_LEA,
-    [0xbd0 ... 0xbd7] = EMIT_LEA,
-    [0xbe8 ... 0xbfb] = EMIT_LEA,
-    [0xdd0 ... 0xdd7] = EMIT_LEA,
-    [0xde8 ... 0xdfb] = EMIT_LEA,
-    [0xfd0 ... 0xfd7] = EMIT_LEA,
-    [0xfe8 ... 0xffb] = EMIT_LEA,
+    [0x850 ... 0x857] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0 },
+    [0x860 ... 0x87b] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0 },
 
-    [0x180 ... 0x187] = EMIT_CHK,
-    [0x190 ... 0x1bb] = EMIT_CHK,
-    [0x100 ... 0x107] = EMIT_CHK,
-    [0x110 ... 0x13b] = EMIT_CHK,
+    [0xac0 ... 0xac7] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC },
+    [0xad0 ... 0xaf9] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC },
 
-    [0x380 ... 0x387] = EMIT_CHK,
-    [0x390 ... 0x3bb] = EMIT_CHK,
-    [0x300 ... 0x307] = EMIT_CHK,
-    [0x310 ... 0x33b] = EMIT_CHK,
+    [0xc00 ... 0xc07] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC },
+    [0xc10 ... 0xc3c] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC },
+    [0xc40 ... 0xc47] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC },
+    [0xc50 ... 0xc7c] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC },
 
-    [0x580 ... 0x587] = EMIT_CHK,
-    [0x590 ... 0x5bb] = EMIT_CHK,
-    [0x500 ... 0x507] = EMIT_CHK,
-    [0x510 ... 0x53b] = EMIT_CHK,
+    [0x890 ... 0x897] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
+    [0x8a0 ... 0x8b9] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
 
-    [0x780 ... 0x787] = EMIT_CHK,
-    [0x790 ... 0x7bb] = EMIT_CHK,
-    [0x700 ... 0x707] = EMIT_CHK,
-    [0x710 ... 0x73b] = EMIT_CHK,
+    [0x8d0 ... 0x8d7] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
+    [0x8e0 ... 0x8f9] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
 
-    [0x980 ... 0x987] = EMIT_CHK,
-    [0x990 ... 0x9bb] = EMIT_CHK,
-    [0x900 ... 0x907] = EMIT_CHK,
-    [0x910 ... 0x93b] = EMIT_CHK,
+    [0xc90 ... 0xc9f] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
+    [0xca8 ... 0xcbb] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
 
-    [0xb80 ... 0xb87] = EMIT_CHK,
-    [0xb90 ... 0xbbb] = EMIT_CHK,
-    [0xb00 ... 0xb07] = EMIT_CHK,
-    [0xb10 ... 0xb3b] = EMIT_CHK,
+    [0xcd0 ... 0xcdf] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
+    [0xce8 ... 0xcfb] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0 },
 
-    [0xd80 ... 0xd87] = EMIT_CHK,
-    [0xd90 ... 0xdbb] = EMIT_CHK,
-    [0xd00 ... 0xd07] = EMIT_CHK,
-    [0xd10 ... 0xd3b] = EMIT_CHK,
+    [0x1d0 ... 0x1d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x1e8 ... 0x1fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x3d0 ... 0x3d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x3e8 ... 0x3fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x5d0 ... 0x5d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x5e8 ... 0x5fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x7d0 ... 0x7d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x7e8 ... 0x7fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x9d0 ... 0x9d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0x9e8 ... 0x9fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0xbd0 ... 0xbd7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0xbe8 ... 0xbfb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0xdd0 ... 0xdd7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0xde8 ... 0xdfb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0xfd0 ... 0xfd7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
+    [0xfe8 ... 0xffb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0 },
 
-    [0xf80 ... 0xf87] = EMIT_CHK,
-    [0xf90 ... 0xfbb] = EMIT_CHK,
-    [0xf00 ... 0xf07] = EMIT_CHK,
-    [0xf10 ... 0xf3b] = EMIT_CHK,
+    [0x180 ... 0x187] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x190 ... 0x1bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x100 ... 0x107] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x110 ... 0x13b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+ 
+    [0x380 ... 0x387] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x390 ... 0x3bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x300 ... 0x307] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x310 ... 0x33b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+ 
+    [0x580 ... 0x587] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x590 ... 0x5bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x500 ... 0x507] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x510 ... 0x53b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+ 
+    [0x780 ... 0x787] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x790 ... 0x7bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x700 ... 0x707] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x710 ... 0x73b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+ 
+    [0x980 ... 0x987] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x990 ... 0x9bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x900 ... 0x907] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0x910 ... 0x93b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+ 
+    [0xb80 ... 0xb87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xb90 ... 0xbbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xb00 ... 0xb07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xb10 ... 0xb3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
 
+    [0xd80 ... 0xd87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xd90 ... 0xdbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xd00 ... 0xd07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xd10 ... 0xd3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+
+    [0xf80 ... 0xf87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xf90 ... 0xfbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xf00 ... 0xf07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
+    [0xf10 ... 0xf3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC },
 };
 
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -2785,8 +2783,8 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    if (JumpTable[opcode & 0xfff]) {
-        ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr, insn_consumed);
+    if (InsnTable[opcode & 0xfff].od_EmitMulti) {
+        ptr = InsnTable[opcode & 0xfff].od_EmitMulti(ptr, opcode, m68k_ptr, insn_consumed);
     }
     else
     {
@@ -2798,6 +2796,19 @@ uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
     return ptr;
 }
+
+uint32_t GetSR_Line4(uint16_t opcode)
+{
+    /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
+    if (InsnTable[opcode & 0xfff].od_Emit) {
+        return (InsnTable[opcode & 0xfff].od_SRNeeds << 16) | InsnTable[opcode & 0xfff].od_SRSets;
+    }
+    /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
+    else {
+        return SR_CCR << 16;
+    }
+}
+
 
 #ifdef PISTORM
 void do_reset()
