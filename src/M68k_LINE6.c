@@ -299,10 +299,23 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-static EMIT_Function JumpTable[16] = {
-    [0]         = EMIT_BRA,
-    [1]         = EMIT_BSR,
-    [2 ... 15]  = EMIT_Bcc,
+static struct OpcodeDef InsnTable[16] = {
+    [0]         = { { EMIT_BRA }, NULL, 0, 0 },
+    [1]         = { { EMIT_BSR }, NULL, 0, 0 },
+    [M_CC_HI]   = { { EMIT_Bcc }, NULL, SR_ZC, 0 },
+    [M_CC_LS]   = { { EMIT_Bcc }, NULL, SR_ZC, 0 },
+    [M_CC_CC]   = { { EMIT_Bcc }, NULL, SR_C, 0 },
+    [M_CC_CS]   = { { EMIT_Bcc }, NULL, SR_C, 0 },
+    [M_CC_NE]   = { { EMIT_Bcc }, NULL, SR_Z, 0 },
+    [M_CC_EQ]   = { { EMIT_Bcc }, NULL, SR_Z, 0 },
+    [M_CC_VC]   = { { EMIT_Bcc }, NULL, SR_V, 0 },
+    [M_CC_VS]   = { { EMIT_Bcc }, NULL, SR_V, 0 },
+    [M_CC_PL]   = { { EMIT_Bcc }, NULL, SR_N, 0 },
+    [M_CC_MI]   = { { EMIT_Bcc }, NULL, SR_N, 0 },
+    [M_CC_GE]   = { { EMIT_Bcc }, NULL, SR_NV, 0 },
+    [M_CC_LT]   = { { EMIT_Bcc }, NULL, SR_NV, 0 },
+    [M_CC_GT]   = { { EMIT_Bcc }, NULL, SR_NZV, 0 },
+    [M_CC_LE]   = { { EMIT_Bcc }, NULL, SR_NZV, 0 }
 };
 
 uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -311,7 +324,12 @@ uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     *insn_consumed = 1;
     (*m68k_ptr)++;
 
-    ptr = JumpTable[(opcode >> 8) & 15](ptr, opcode, m68k_ptr);
+    ptr = InsnTable[(opcode >> 8) & 15].od_Emit(ptr, opcode, m68k_ptr);
 
     return ptr;
+}
+
+uint32_t GetSR_Line6(uint16_t opcode)
+{
+    return (InsnTable[(opcode >> 8) & 15].od_SRNeeds << 16) | InsnTable[(opcode >> 8) & 15].od_SRSets;
 }

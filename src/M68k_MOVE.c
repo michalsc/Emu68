@@ -40,6 +40,18 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     return ptr;
 }
 
+uint32_t GetSR_Line7(uint16_t opcode)
+{
+    /* Line7 is moveq, if bit8 == 0, otherwise illegal */
+    if (opcode & 0x100) {
+        return SR_CCR << 16;    // Illegal, needs all CCR
+    } else {
+        return SR_NZVC;         // moveq needs none, sets NZVC
+    }
+}
+
+
+
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
@@ -337,4 +349,39 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
     RA_FreeARMRegister(&ptr, tmp_reg);
     return ptr;
+}
+
+uint32_t GetSR_Line1(uint16_t opcode)
+{
+    /* MOVEA case - illegal with byte size */
+    if ((opcode & 0x01c0) == 0x0040)
+        return SR_CCR << 16;
+    
+    /* Normal move case: destination allows highest mode + reg of 071 */
+    if ((opcode & 0x01c0) == 0x01c0 && (opcode & 0x0e00) > 0x0200) {
+        return SR_CCR << 16;
+    }
+
+    /* Normal move case: source allows highest mode + reg of 074 */
+    if ((opcode & 0x0038) == 0x0038 && (opcode & 7) > 4) {
+        return SR_CCR << 16;
+    }
+
+    return SR_NZVC;
+}
+
+uint32_t GetSR_Line3(uint16_t opcode) __attribute__((alias("GetSR_Line2")));
+uint32_t GetSR_Line2(uint16_t opcode)
+{
+    /* Normal move case: destination allows highest mode + reg of 071 */
+    if ((opcode & 0x01c0) == 0x01c0 && (opcode & 0x0e00) > 0x0200) {
+        return SR_CCR << 16;
+    }
+
+    /* Normal move case: source allows highest mode + reg of 074 */
+    if ((opcode & 0x0038) == 0x0038 && (opcode & 7) > 4) {
+        return SR_CCR << 16;
+    }
+
+    return SR_NZVC;
 }

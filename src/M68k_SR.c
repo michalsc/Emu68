@@ -2164,6 +2164,27 @@ int M68K_GetINSNLength(uint16_t *insn_stream)
 
 #define D(x) /* x */
 
+typedef uint32_t (*SR_Check)(uint16_t opcode);
+
+static SR_Check SRCheck[] = {
+    GetSR_Line0,
+    GetSR_Line1,
+    GetSR_Line2,
+    GetSR_Line3,
+    GetSR_Line4,
+    GetSR_Line5,
+    GetSR_Line6,
+    GetSR_Line7,
+    GetSR_Line8,
+    GetSR_Line9,
+    NULL,
+    GetSR_LineB,
+    GetSR_LineC,
+    GetSR_LineD,
+    GetSR_LineE,
+    NULL,
+};
+
 /* Get the mask of status flags changed by the instruction specified by the opcode */
 uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 {
@@ -2179,17 +2200,14 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
     D(kprintf("[JIT] GetSRMask, opcode %04x @ %08x, ", opcode, insn_stream));
 
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Opcode found. Check which flags it sets */
-            found = 1;
-            mask = e->me_SRSets;
-            break;
-        }
-        e++;
+    if (SRCheck[opcode >> 12] != NULL) {
+        uint32_t flags = SRCheck[opcode >> 12](opcode);
+        mask = flags & 0xffff;
+        needed = flags >> 16;
+    }
+    else {
+        mask = 0;
+        needed = SR_CCR;
     }
 
     if (!found) {

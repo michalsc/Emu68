@@ -164,6 +164,8 @@ struct M68KState
 #define SR_T0   0x4000
 #define SR_T1   0x8000
 
+#define SR_ALL  0xf71f
+
 #define SRB_C    0
 #define SRB_V    1
 #define SRB_Z    2
@@ -294,6 +296,25 @@ uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line7(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line1(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line2(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t *EMIT_line3(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+
+uint32_t GetSR_Line0(uint16_t opcode);
+uint32_t GetSR_Line1(uint16_t opcode);
+uint32_t GetSR_Line2(uint16_t opcode);
+uint32_t GetSR_Line3(uint16_t opcode);
+uint32_t GetSR_Line4(uint16_t opcode);
+uint32_t GetSR_Line5(uint16_t opcode);
+uint32_t GetSR_Line6(uint16_t opcode);
+uint32_t GetSR_Line7(uint16_t opcode);
+uint32_t GetSR_Line8(uint16_t opcode);
+uint32_t GetSR_Line9(uint16_t opcode);
+uint32_t GetSR_LineB(uint16_t opcode);
+uint32_t GetSR_LineC(uint16_t opcode);
+uint32_t GetSR_LineD(uint16_t opcode);
+uint32_t GetSR_LineE(uint16_t opcode);
 
 typedef uint32_t * (*EMIT_Function)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 typedef uint32_t * (*EMIT_MultiFunction)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed);
