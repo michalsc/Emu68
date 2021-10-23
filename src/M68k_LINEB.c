@@ -414,36 +414,36 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
 
 static EMIT_Function JumpTable[512] = {
-    [0000 ... 0007] = EMIT_CMP_reg, //D0 destination, Byte
-    [0020 ... 0047] = EMIT_CMP_mem, //(An)
-    [0050 ... 0074] = EMIT_CMP_ext, //memory indirect
-    [0100 ... 0117] = EMIT_CMP_reg, //register, Word
-    [0120 ... 0147] = EMIT_CMP_mem, //(An)
-    [0150 ... 0174] = EMIT_CMP_ext, //memory indirect
-    [0200 ... 0217] = EMIT_CMP_reg, //register Long
-    [0220 ... 0247] = EMIT_CMP_mem, //(An)
-    [0250 ... 0274] = EMIT_CMP_ext, //memory indirect
+    [0000 ... 0007] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC }, //D0 destination, Byte
+    [0020 ... 0047] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC }, //(An)
+    [0050 ... 0074] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC }, //memory indirect
+    [0100 ... 0117] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC }, //register, Word
+    [0120 ... 0147] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC }, //(An)
+    [0150 ... 0174] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC }, //memory indirect
+    [0200 ... 0217] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC }, //register Long
+    [0220 ... 0247] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC }, //(An)
+    [0250 ... 0274] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC }, //memory indirect
 
-    [0300 ... 0317] = EMIT_CMPA_reg, //A0, Word
-    [0320 ... 0347] = EMIT_CMPA_mem, //(An)
-    [0350 ... 0374] = EMIT_CMPA_ext, //memory indirect
+    [0300 ... 0317] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC }, //A0, Word
+    [0320 ... 0347] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC }, //(An)
+    [0350 ... 0374] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC }, //memory indirect
+ 
+    [0400 ... 0407] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC }, //D0, Byte
+    [0410 ... 0417] = { { EMIT_CMPM }, NULL, 0, SR_NZVC },
+    [0420 ... 0447] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC },
+    [0450 ... 0471] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC },
+    [0500 ... 0507] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC }, //D0, Word
+    [0510 ... 0517] = { { EMIT_CMPM }, NULL, 0, SR_NZVC },
+    [0520 ... 0547] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC },
+    [0550 ... 0571] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC },
+    [0600 ... 0607] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC }, //D0, Long
+    [0610 ... 0617] = { { EMIT_CMPM }, NULL, 0, SR_NZVC },
+    [0620 ... 0647] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC },
+    [0650 ... 0671] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC },
 
-    [0400 ... 0407] = EMIT_EOR_reg, //D0, Byte
-    [0410 ... 0417] = EMIT_CMPM,
-    [0420 ... 0447] = EMIT_EOR_mem,
-    [0450 ... 0471] = EMIT_EOR_ext,
-    [0500 ... 0507] = EMIT_EOR_reg, //D0, Word
-    [0510 ... 0517] = EMIT_CMPM,
-    [0520 ... 0547] = EMIT_EOR_mem,
-    [0550 ... 0571] = EMIT_EOR_ext,
-    [0600 ... 0607] = EMIT_EOR_reg, //D0, Long
-    [0610 ... 0617] = EMIT_CMPM, 
-    [0620 ... 0647] = EMIT_EOR_mem,
-    [0650 ... 0671] = EMIT_EOR_ext,
-        
-    [0700 ... 0717] = EMIT_CMPA_reg, //A0, Long
-    [0720 ... 0747] = EMIT_CMPA_mem, //(An)
-    [0750 ... 0774] = EMIT_CMPA_ext, //memory indirect
+    [0700 ... 0717] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC }, //A0, Long
+    [0720 ... 0747] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC }, //(An)
+    [0750 ... 0774] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC }, //memory indirect
 };
 
 uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
