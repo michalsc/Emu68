@@ -292,6 +292,16 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 typedef uint32_t * (*EMIT_Function)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 typedef uint32_t * (*EMIT_MultiFunction)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 
+struct OpcodeDef {
+    union {
+        EMIT_Function       od_Emit;
+        EMIT_MultiFunction  od_EmitMulti;
+    };
+    void *          od_Interpret;   // Not used yet.
+    uint16_t        od_SRNeeds;
+    uint16_t        od_SRSets;
+};
+
 uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
 uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args);
 uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ...);
