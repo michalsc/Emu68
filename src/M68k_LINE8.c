@@ -602,8 +602,8 @@ static EMIT_Function JumpTable[512] = {
     [0320 ... 0347] = { { EMIT_DIVU_mem }, NULL, 0, SR_NZVC },
     [0350 ... 0374] = { { EMIT_DIVU_ext }, NULL, 0, SR_NZVC },
  
-    [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, 0, SR_CCR },
-    [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, 0, SR_CCR },  //R0 Destination
+    [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, 0, SR_XZC },
+    [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, 0, SR_XZC },  //R0 Destination
     [0420 ... 0447] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
     [0450 ... 0474] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },    //D0 Source
  
