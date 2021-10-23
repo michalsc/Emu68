@@ -588,38 +588,38 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static EMIT_Function JumpTable[512] = {
-    [0000 ... 0007] = EMIT_OR_reg,    //D0 Destination
-    [0020 ... 0047] = EMIT_OR_mem,
-    [0050 ... 0074] = EMIT_OR_ext,
-    [0100 ... 0107] = EMIT_OR_reg,
-    [0120 ... 0147] = EMIT_OR_mem,
-    [0150 ... 0174] = EMIT_OR_ext,
-    [0200 ... 0207] = EMIT_OR_reg,
-    [0220 ... 0247] = EMIT_OR_mem,
-    [0250 ... 0274] = EMIT_OR_ext,
-    
-    [0300 ... 0307] = EMIT_DIVU_reg,  //D0 Destination, DIVU.W
-    [0320 ... 0347] = EMIT_DIVU_mem,
-    [0350 ... 0374] = EMIT_DIVU_ext,
-    
-    [0400 ... 0407] = EMIT_SBCD_reg,
-    [0410 ... 0417] = EMIT_SBCD_mem,  //R0 Destination
-    [0420 ... 0447] = EMIT_OR_mem,
-    [0450 ... 0474] = EMIT_OR_ext,    //D0 Source
-    
-    [0500 ... 0507] = EMIT_PACK_reg,
-    [0510 ... 0517] = EMIT_PACK_mem,  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
-    [0520 ... 0547] = EMIT_OR_mem, 
-    [0550 ... 0574] = EMIT_OR_ext,
-    
-    [0600 ... 0607] = EMIT_UNPK_reg,
-    [0610 ... 0617] = EMIT_UNPK_mem,  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
-    [0620 ... 0647] = EMIT_OR_mem, 
-    [0650 ... 0674] = EMIT_OR_ext,
-    
-    [0700 ... 0707] = EMIT_DIVS_reg,  //D0 Destination, DIVS.W
-    [0720 ... 0747] = EMIT_DIVS_mem,
-    [0750 ... 0774] = EMIT_DIVS_ext,
+    [0000 ... 0007] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },    //D0 Destination
+    [0020 ... 0047] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
+    [0050 ... 0074] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+    [0100 ... 0107] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },
+    [0120 ... 0147] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
+    [0150 ... 0174] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+    [0200 ... 0207] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },
+    [0220 ... 0247] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
+    [0250 ... 0274] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+ 
+    [0300 ... 0307] = { { EMIT_DIVU_reg }, NULL, 0, SR_NZVC },  //D0 Destination, DIVU.W
+    [0320 ... 0347] = { { EMIT_DIVU_mem }, NULL, 0, SR_NZVC },
+    [0350 ... 0374] = { { EMIT_DIVU_ext }, NULL, 0, SR_NZVC },
+ 
+    [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, 0, SR_CCR },
+    [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, 0, SR_CCR },  //R0 Destination
+    [0420 ... 0447] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
+    [0450 ... 0474] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },    //D0 Source
+ 
+    [0500 ... 0507] = { { EMIT_PACK_reg }, NULL, 0, 0 },
+    [0510 ... 0517] = { { EMIT_PACK_mem }, NULL, 0, 0 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+    [0520 ... 0547] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC }, 
+    [0550 ... 0574] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+ 
+    [0600 ... 0607] = { { EMIT_UNPK_reg }, NULL, 0, 0 },
+    [0610 ... 0617] = { { EMIT_UNPK_mem }, NULL, 0, 0 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+    [0620 ... 0647] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC }, 
+    [0650 ... 0674] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+
+    [0700 ... 0707] = { { EMIT_DIVS_reg }, NULL, 0, SR_NZVC },  //D0 Destination, DIVS.W
+    [0720 ... 0747] = { { EMIT_DIVS_mem }, NULL, 0, SR_NZVC },
+    [0750 ... 0774] = { { EMIT_DIVS_ext }, NULL, 0, SR_NZVC },
 };
 
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
