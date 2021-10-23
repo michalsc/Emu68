@@ -1752,7 +1752,7 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-static EMIT_Function JumpTable[4096] = {
+static struct OpcodeDef InsnTable[4096] = {
 	[00000 ... 00007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 8, Byte, Dn
 	[00010 ... 00017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
 	[00020 ... 00027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
@@ -2095,7 +2095,7 @@ static EMIT_Function JumpTable[4096] = {
 	[05510 ... 05517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
 	[05520 ... 05527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
 	[05530 ... 05537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[05540 ... 05547] = { { EMIT_ASL }, NULL, 0, SR_CCR } }, NULL, SR_X, SR_CCR },  //D5
+	[05540 ... 05547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D5
 	[05550 ... 05557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
 	[05560 ... 05567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
 	[05570 ... 05577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
@@ -2167,9 +2167,9 @@ static EMIT_Function JumpTable[4096] = {
 	[04320 ... 04327] = { { EMIT_BFTST }, NULL, 0, SR_NZVC},
 	[04350 ... 04371] = { { EMIT_BFTST }, NULL, 0, SR_NZVC},
 
-	[05300 ... 05307] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC ],
-	[05320 ... 05327] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC ],
-	[05350 ... 05371] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC ],
+	[05300 ... 05307] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC },
+	[05320 ... 05327] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC },
+	[05350 ... 05371] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC },
 
 	[06300 ... 06307] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC },
 	[06320 ... 06327] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC },
@@ -2258,8 +2258,8 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         return ptr;
     }
-    else if (JumpTable[opcode & 0xfff]) {
-        ptr = JumpTable[opcode & 0xfff](ptr, opcode, m68k_ptr);
+    else if (InsnTable[opcode & 0xfff].od_Emit) {
+        ptr = InsnTable[opcode & 0xfff].od_Emit(ptr, opcode, m68k_ptr);
     }
     else
     {
@@ -2270,4 +2270,16 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     }
 
     return ptr;
+}
+
+uint32_t GetSR_LineE(uint16_t opcode)
+{
+    /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
+    if (InsnTable[opcode & 0xfff].od_Emit) {
+        return (InsnTable[opcode & 0xfff].od_SRNeeds << 16) | InsnTable[opcode & 0xfff].od_SRSets;
+    }
+    /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
+    else {
+        return SR_CCR << 16;
+    }
 }
