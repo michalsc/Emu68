@@ -720,25 +720,29 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static struct OpcodeDef InsnTable[512] = {
-	[0000 ... 0007] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
-	[0020 ... 0071] = { { EMIT_ADDQ }, NULL, 0, SR_CCR }, 
-	[0100 ... 0171] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
-	[0200 ... 0271] = { { EMIT_ADDQ }, NULL, 0, SR_CCR },
+	[0000 ... 0007] = { { EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 1 },
+	[0020 ... 0071] = { { EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 1 }, 
+	[0100 ... 0171] = { { EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 2 },
+	[0200 ... 0271] = { { EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 4 },
 
-	[0300 ... 0307] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
-	[0710 ... 0717] = { { EMIT_DBcc }, NULL, SR_CCR, 0 },
-	[0320 ... 0371] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
-	[0372 ... 0374] = { { EMIT_TRAPcc }, NULL, SR_CCR, 0 },
+	[0300 ... 0307] = { { EMIT_Scc }, NULL, SR_CCR, 0, 1, 0, 1 },
+	[0710 ... 0717] = { { EMIT_DBcc }, NULL, SR_CCR, 0, 2, 0, 0 },
+	[0320 ... 0371] = { { EMIT_Scc }, NULL, SR_CCR, 0, 1, 1, 1 },
+	[0372]          = { { EMIT_TRAPcc }, NULL, SR_CCR, 0, 2, 0, 0 },
+    [0373]          = { { EMIT_TRAPcc }, NULL, SR_CCR, 0, 3, 0, 0 },
+    [0374]          = { { EMIT_TRAPcc }, NULL, SR_CCR, 0, 1, 0, 0 },
  
-	[0400 ... 0407] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
-	[0420 ... 0471] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
-	[0500 ... 0571] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
-	[0600 ... 0671] = { { EMIT_SUBQ }, NULL, 0, SR_CCR },
+	[0400 ... 0407] = { { EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 1 },
+	[0420 ... 0471] = { { EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 1 },
+	[0500 ... 0571] = { { EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 2 },
+	[0600 ... 0671] = { { EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 4 },
 
-	[0700 ... 0707] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
-	[0310 ... 0317] = { { EMIT_DBcc }, NULL, SR_CCR, 0 },
-	[0720 ... 0771] = { { EMIT_Scc }, NULL, SR_CCR, 0 },
-	[0772 ... 0774] = { { EMIT_TRAPcc }, NULL, SR_CCR, 0 },
+	[0700 ... 0707] = { { EMIT_Scc }, NULL, SR_CCR, 0, 1, 0, 1  },
+	[0310 ... 0317] = { { EMIT_DBcc }, NULL, SR_CCR, 0, 2, 0, 0 },
+	[0720 ... 0771] = { { EMIT_Scc }, NULL, SR_CCR, 0, 1, 1, 1  },
+	[0772]          = { { EMIT_TRAPcc }, NULL, SR_CCR, 0, 2, 0, 0},
+    [0773]          = { { EMIT_TRAPcc }, NULL, SR_CCR, 0, 3, 0, 0},
+    [0774]          = { { EMIT_TRAPcc }, NULL, SR_CCR, 0, 1, 0, 0},
 };
 
 uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -770,6 +774,30 @@ uint32_t GetSR_Line5(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined Line5\n");
         return SR_CCR << 16;
     }
+}
+
+int M68K_GetLine5Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 0777].od_Emit) {
+        length = InsnTable[opcode & 0777].od_BaseLength;
+        need_ea = InsnTable[opcode & 0777].od_HasEA;
+        opsize = InsnTable[opcode & 0777].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    kprintf("GetLine5Length for opcode %04x returns %d\n", opcode, 2*length);
+
+    return length;
 }

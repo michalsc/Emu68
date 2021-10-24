@@ -11,7 +11,7 @@
 #include "M68k.h"
 #include "EmuFeatures.h"
 
-static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
+uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
 {
     uint8_t word_count = 0;
     uint8_t mode, reg;
@@ -333,318 +333,11 @@ static int M68K_GetLine0Length(uint16_t *insn_stream)
         length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
     }
 
-    return length;
-}
-
-int M68K_GetLineELength(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 0;
-
-    if (
-        (opcode & 0xf8c0) == 0xe0c0     // memory shift/rotate
-    )
-    {
-        length = 1;
-        need_ea = 1;
-    }
-    else if (
-        (opcode & 0xf8c0) == 0xe8c0     // bf* instructions
-    )
-    {
-        length = 2;
-        need_ea = 1;
-    }
-    else
-    {
-        length = 1;
-        need_ea = 0;
-    }
-
-    if (need_ea)
-    {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, 0);
-    }
+    kprintf("GetLine0Length for opcode %04x returns %d\n", opcode, 2*length);
 
     return length;
 }
 
-int M68K_GetLine6Length(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    
-    if ((opcode & 0xff) == 0) {
-        length = 2;
-    }
-    else if ((opcode & 0xff) == 0xff) {
-        length = 3;
-    }
-
-    return length;
-}
-
-int M68K_GetLine8Length(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    if (
-        (opcode & 0xf0c0) == 0x80c0     // div word size
-    )
-    {
-        length = 1;
-        opsize = 2;
-        need_ea = 1;
-    }
-    else if (
-        (opcode & 0xf1f0) == 0x8100     // sbcd
-    )
-    {
-        length = 1;
-        need_ea = 0;
-    }
-    else if (
-        (opcode & 0xf1f0) == 0x8140 ||  // pack
-        (opcode & 0xf1f0) == 0x8180     // unpk
-    )
-    {
-        length = 2;
-        need_ea = 0;
-    }
-    else {
-        need_ea = 1;
-        opsize = 1 << ((opcode >> 6) & 3);
-    }
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    return length;
-}
-
-int M68K_GetLine9Length(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    /* SUBA */
-    if ((opcode & 0xf0c0) == 0x90c0)
-    {
-        opsize = (opcode & 0x0100) == 0x0100 ? 4 : 2;
-    }
-    /* SUBX */
-    else if ((opcode & 0xf130) == 0x9100)
-    {
-        need_ea = 0;
-    }
-    /* SUB */
-    else
-    {
-        opsize = 1 << ((opcode >> 6) & 3);
-    }
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    return length;
-}
-
-int M68K_GetLineBLength(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    /* 1011xxxx11xxxxxx - CMPA */
-    if ((opcode & 0xf0c0) == 0xb0c0)
-    {
-        opsize = ((opcode >> 8) & 1) ? 4 : 2;
-    }
-    /* 1011xxx1xx001xxx - CMPM */
-    else if ((opcode & 0xf138) == 0xb108)
-    {
-        need_ea = 0;
-    }
-    /* 1011xxx0xxxxxxxx - CMP */
-    else if ((opcode & 0xf100) == 0xb000)
-    {
-        opsize = 1 << ((opcode >> 6) & 3);
-    }
-    /* 1011xxxxxxxxxxxx - EOR */
-    else if ((opcode & 0xf000) == 0xb000)
-    {
-        opsize = 1 << ((opcode >> 6) & 3);
-    }
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    return length;
-}
-
-int M68K_GetLineCLength(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    /* 1100xxx011xxxxxx - MULU */
-    if ((opcode & 0xf1c0) == 0xc0c0)
-    {
-        opsize = 2;
-        need_ea = 1;
-    }
-    /* 1100xxx10000xxxx - ABCD */
-    else if ((opcode & 0xf1f0) == 0xc100)
-    {
-        need_ea = 0;
-    }
-    /* 1100xxx111xxxxxx - MULS */
-    else if ((opcode & 0xf1c0) == 0xc1c0)
-    {
-        opsize = 2;
-        need_ea = 1;
-    }
-    /* 1100xxx1xx00xxxx - EXG */
-    else if ((opcode & 0xf130) == 0xc100)
-    {
-        need_ea = 0;
-    }
-    /* 1100xxxxxxxxxxxx - AND */
-    else if ((opcode & 0xf000) == 0xc000)
-    {
-        opsize = 1 << ((opcode >> 6) & 3);
-    }
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    return length;
-}
-
-int M68K_GetLineDLength(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    /* ADDA */
-    if ((opcode & 0xf0c0) == 0xd0c0)
-    {
-        opsize = (opcode & 0x0100) == 0x0100 ? 4 : 2;
-    }
-    /* ADDX */
-    else if ((opcode & 0xf130) == 0xd100)
-    {
-        need_ea = 0;
-    }
-    /* ADD */
-    else
-    {
-        opsize = 1 << ((opcode >> 6) & 3);
-    }
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    return length;
-}
-
-int M68K_GetLine5Length(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    /* Scc/TRAPcc/DBcc */
-    if ((opcode & 0xf0c0) == 0x50c0)
-    {
-        /* DBcc */
-        if ((opcode & 0x38) == 0x08)
-        {
-            length = 2;
-            need_ea = 0;
-        }
-        /* TRAPcc */
-        else if ((opcode & 0x38) == 0x38)
-        {
-            need_ea = 0;
-            switch (opcode & 7)
-            {
-                case 4:
-                    length = 1;
-                    break;
-                case 2:
-                    length = 2;
-                    break;
-                case 3:
-                    length = 3;
-                    break;
-            }
-        }
-        /* Scc */
-        else
-        {
-            need_ea = 1;
-            opsize = 1;
-        }   
-    }
-    /* SUBQ */
-    else if ((opcode & 0xf100) == 0x5100)
-    {
-        need_ea = 1;
-        switch ((opcode >> 6) & 3)
-        {
-            case 0:
-                opsize = 1;
-                break;
-            case 1:
-                opsize = 2;
-                break;
-            case 2:
-                opsize = 4;
-                break;
-        }
-    }
-    /* ADDQ */
-    else if ((opcode & 0xf100) == 0x5000)
-    {
-        need_ea = 1;
-        switch ((opcode >> 6) & 3)
-        {
-            case 0:
-                opsize = 1;
-                break;
-            case 1:
-                opsize = 2;
-                break;
-            case 2:
-                opsize = 4;
-                break;
-        }
-    }  
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    return length;
-}
 
 int M68K_GetLine4Length(uint16_t *insn_stream)
 {
@@ -873,6 +566,8 @@ int M68K_GetLine4Length(uint16_t *insn_stream)
         length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
     }
 
+    kprintf("GetLine4Length for opcode %04x returns %d\n", opcode, 2*length);
+
     return length;
 }
 
@@ -928,6 +623,8 @@ int M68K_GetMoveLength(uint16_t *insn_stream)
     ea |= (opcode >> 9) & 0x7;
 
     length += SR_GetEALength(&insn_stream[length], ea, size);
+
+    kprintf("GetMOVELength for opcode %04x returns %d\n", opcode, 2*length);
 
     return length;    
 }
@@ -1545,6 +1242,8 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
         length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize * 2);
     }
 
+    kprintf("GetLineFLength for opcode %04x returns %d\n", opcode, 2*length);
+
     return length;
 }
 
@@ -1616,7 +1315,7 @@ typedef uint32_t (*SR_Check)(uint16_t opcode);
 static uint32_t GetSR_def(uint16_t opcode)
 {
     (void)opcode;
-    return SR_CCR << 16;
+    return (SR_CCR << 16) | SR_CCR;
 }
 
 static SR_Check SRCheck[16] = {
@@ -1664,6 +1363,27 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
     */
     while(mask != 0 && scan_depth < max_scan_depth)
     {
+        #if 1
+        if (
+            //(opcode >> 12) == 0 ||
+            //(opcode >> 12) == 1 ||
+            //(opcode >> 12) == 2 ||
+            //(opcode >> 12) == 3 ||
+            (opcode >> 12) == 4 ||
+            //(opcode >> 12) == 5 ||
+            //(opcode >> 12) == 6 ||
+            //(opcode >> 12) == 7 ||
+            //(opcode >> 12) == 8 ||
+            //(opcode >> 12) == 9 ||
+            //(opcode >> 12) == 11 ||
+            //(opcode >> 12) == 12 ||
+            //(opcode >> 12) == 13 ||
+            //(opcode >> 12) == 14 ||
+            0
+        )   
+            return mask | needed;
+        #endif
+        
         /* Increase scan depth level */
         scan_depth++;
 
@@ -1706,21 +1426,9 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
             {
                 int32_t branch_offset = (int8_t)(opcode & 0xff);
                 uint16_t *insn_stream_2 = insn_stream + 1;
-                uint8_t condition = (opcode >> 9) & 7;
-                // List of masks which the condition code needs by itself
-                const uint8_t masks[] = {
-                    0,                  // T, F
-                    SR_C | SR_Z,        // HI, LS
-                    SR_C,               // CC, CS
-                    SR_Z,               // NE, EQ
-                    SR_V,               // VC, VS
-                    SR_N,               // MI, PL
-                    SR_N | SR_V,        // GE, LT
-                    SR_N | SR_V | SR_Z  // GT, LE
-                };
 
                 // Mark the flags which conditional jump needs by itself
-                needed |= mask & masks[condition];
+                needed |= mask & (SRCheck[opcode >> 12](opcode) >> 16);
 
                 if ((opcode & 0xff) == 0) {
                     branch_offset = (int16_t)BE16(insn_stream[1]);
@@ -1746,8 +1454,6 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                 while(mask1 && scan_depth < max_scan_depth)
                 {
                     scan_depth++;
-                    uint16_t sets;
-                    uint16_t needs;
 
                     /* If instruction is a branch break the scan */
                     if (M68K_IsBranch(insn_stream))
@@ -1786,8 +1492,6 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                 while(mask2 && scan_depth < max_scan_depth)
                 {
                     scan_depth++;
-                    uint16_t sets;
-                    uint16_t needs;
 
                     /* If instruction is a branch break the scan */
                     if (M68K_IsBranch(insn_stream_2))

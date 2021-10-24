@@ -222,9 +222,10 @@ static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     (void)update_mask;
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR mem mode at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR mem mode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+    ptr = EMIT_FlushPC(ptr);
+    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+    *ptr++ = INSN_TO_LE(0xffffffff);
     return ptr;
 }
 
@@ -1031,9 +1032,9 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (opcode & 0x20) {
         kprintf("reg/reg mode\n");
         ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR at %08x (%04x) not implemented\n", *m68k_ptr - 1, (*m68k_ptr)[-1]);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = svc(0x101);
-        *ptr++ = udf(opcode);
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
     else {
         int amount = (opcode >> 9) & 7;
@@ -1180,6 +1181,8 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t ext_words = 1;
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+    ptr = EMIT_InjectDebugString(ptr, "BFTST at %08x\n", *m68k_ptr - 1);
 
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
@@ -1342,6 +1345,8 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t tmp = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
 
+    ptr = EMIT_InjectDebugString(ptr, "BFEXTU at %08x\n", *m68k_ptr - 1);
+
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
     {
@@ -1424,6 +1429,8 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t tmp = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
 
+    ptr = EMIT_InjectDebugString(ptr, "BFEXTS at %08x\n", *m68k_ptr - 1);
+
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
     {
@@ -1505,6 +1512,8 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
 
+    ptr = EMIT_InjectDebugString(ptr, "BFCLR at %08x\n", *m68k_ptr - 1);
+
     /* Special case: Target is Dn */
     if ((opcode & 0x0038) == 0)
     {
@@ -1583,6 +1592,8 @@ static uint32_t *EMIT_BFFFO(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     uint8_t src = 0xff;
 
+    ptr = EMIT_InjectDebugString(ptr, "BFFFO at %08x\n", *m68k_ptr - 1);
+
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
     {
@@ -1632,15 +1643,17 @@ static uint32_t *EMIT_BFFFO(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
             ptr = EMIT_InjectDebugString(ptr, "[JIT] BFFFO at %08x not implemented\n", *m68k_ptr - 1);
-            ptr = EMIT_InjectPrintContext(ptr);
-            *ptr++ = udf(opcode);
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
         }
     }
     else
     {
         ptr = EMIT_InjectDebugString(ptr, "[JIT] BFFFO at %08x not implemented\n", *m68k_ptr - 1);
-        ptr = EMIT_InjectPrintContext(ptr);
-        *ptr++ = udf(opcode);
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
     }
 
     RA_FreeARMRegister(&ptr, tmp);
@@ -1657,6 +1670,8 @@ static uint32_t *EMIT_BFINS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t src = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+    ptr = EMIT_InjectDebugString(ptr, "BFINS at %08x\n", *m68k_ptr - 1);
 
     /* Special case: Target is Dn */
     if ((opcode & 0x0038) == 0)
@@ -1736,9 +1751,13 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     (void)update_mask;
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] BFCHG at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
+
+    ptr = EMIT_InjectDebugString(ptr, "BFCHG at %08x\n", *m68k_ptr - 1);
+
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] BFCHG at %08x (%04x) not implemented\n", *m68k_ptr - 1, opcode);
+    ptr = EMIT_FlushPC(ptr);
+    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+    *ptr++ = INSN_TO_LE(0xffffffff);
     return ptr;
 }
 
@@ -1746,454 +1765,455 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     (void)update_mask;
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] BFCHG at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
+    ptr = EMIT_InjectDebugString(ptr, "[JIT] BFCHG at %08x (%04x) not implemented\n", *m68k_ptr - 1, opcode);
+    ptr = EMIT_FlushPC(ptr);
+    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+    *ptr++ = INSN_TO_LE(0xffffffff);
     return ptr;
 }
 
 static struct OpcodeDef InsnTable[4096] = {
-	[00000 ... 00007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 8, Byte, Dn
-	[00010 ... 00017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[00020 ... 00027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[00030 ... 00037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[00040 ... 00047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D0
-	[00050 ... 00057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[00060 ... 00067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[00070 ... 00077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[00100 ... 00107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 8, Word, Dn
-	[00110 ... 00117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[00120 ... 00127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[00130 ... 00137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[00140 ... 00147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D0
-	[00150 ... 00157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[00160 ... 00167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[00170 ... 00177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[00200 ... 00207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 8, Long, Dn
-	[00210 ... 00217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[00220 ... 00227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[00230 ... 00237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[00240 ... 00247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D0
-	[00250 ... 00257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[00260 ... 00267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[00270 ... 00277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[00000 ... 00007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 8, Byte, Dn
+	[00010 ... 00017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00020 ... 00027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00030 ... 00037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[00040 ... 00047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D0
+	[00050 ... 00057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00060 ... 00067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00070 ... 00077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[00100 ... 00107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 8, Word, Dn
+	[00110 ... 00117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00120 ... 00127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00130 ... 00137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[00140 ... 00147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D0
+	[00150 ... 00157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00160 ... 00167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00170 ... 00177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[00200 ... 00207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 8, Long, Dn
+	[00210 ... 00217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00220 ... 00227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00230 ... 00237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[00240 ... 00247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D0
+	[00250 ... 00257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00260 ... 00267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00270 ... 00277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[01000 ... 01007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 1, Byte, Dn
-	[01010 ... 01017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[01020 ... 01027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[01030 ... 01037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[01040 ... 01047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D1
-	[01050 ... 01057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[01060 ... 01067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[01070 ... 01077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[01100 ... 01107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 1, Word, Dn
-	[01110 ... 01117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[01120 ... 01127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[01130 ... 01137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[01140 ... 01147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D1
-	[01150 ... 01157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[01160 ... 01167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[01170 ... 01177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[01200 ... 01207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 1, Long, Dn
-	[01210 ... 01217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[01220 ... 01227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[01230 ... 01237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[01240 ... 01247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D1
-	[01250 ... 01257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[01260 ... 01267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[01270 ... 01277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[01000 ... 01007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 1, Byte, Dn
+	[01010 ... 01017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01020 ... 01027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01030 ... 01037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[01040 ... 01047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D1
+	[01050 ... 01057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01060 ... 01067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01070 ... 01077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[01100 ... 01107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 1, Word, Dn
+	[01110 ... 01117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01120 ... 01127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01130 ... 01137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[01140 ... 01147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D1
+	[01150 ... 01157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01160 ... 01167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01170 ... 01177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[01200 ... 01207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 1, Long, Dn
+	[01210 ... 01217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01220 ... 01227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01230 ... 01237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[01240 ... 01247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D1
+	[01250 ... 01257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01260 ... 01267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01270 ... 01277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[02000 ... 02007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 2, Byte, Dn
-	[02010 ... 02017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[02020 ... 02027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[02030 ... 02037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[02040 ... 02047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D2
-	[02050 ... 02057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[02060 ... 02067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[02070 ... 02077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[02100 ... 02107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 2, Word, Dn
-	[02110 ... 02117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[02120 ... 02127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[02130 ... 02137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[02140 ... 02147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D2
-	[02150 ... 02157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[02160 ... 02167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[02170 ... 02177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[02200 ... 02207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 2, Long, Dn
-	[02210 ... 02217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[02220 ... 02227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[02230 ... 02237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[02240 ... 02247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D2
-	[02250 ... 02257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[02260 ... 02267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[02270 ... 02277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[02000 ... 02007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 2, Byte, Dn
+	[02010 ... 02017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02020 ... 02027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02030 ... 02037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[02040 ... 02047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D2
+	[02050 ... 02057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02060 ... 02067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02070 ... 02077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[02100 ... 02107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 2, Word, Dn
+	[02110 ... 02117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02120 ... 02127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02130 ... 02137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[02140 ... 02147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D2
+	[02150 ... 02157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02160 ... 02167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02170 ... 02177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[02200 ... 02207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 2, Long, Dn
+	[02210 ... 02217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02220 ... 02227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02230 ... 02237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[02240 ... 02247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D2
+	[02250 ... 02257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02260 ... 02267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02270 ... 02277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[03000 ... 03007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 3, Byte, Dn
-	[03010 ... 03017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[03020 ... 03027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[03030 ... 03037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[03040 ... 03047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D3
-	[03050 ... 03057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[03060 ... 03067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[03070 ... 03077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[03100 ... 03107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 3, Word, Dn
-	[03110 ... 03117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[03120 ... 03127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[03130 ... 03137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[03140 ... 03147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D3
-	[03150 ... 03157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[03160 ... 03167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[03170 ... 03177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[03200 ... 03207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 3, Long, Dn
-	[03210 ... 03217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[03220 ... 03227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[03230 ... 03237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[03240 ... 03247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D3
-	[03250 ... 03257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[03260 ... 03267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[03270 ... 03277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[03000 ... 03007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 3, Byte, Dn
+	[03010 ... 03017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03020 ... 03027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03030 ... 03037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[03040 ... 03047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D3
+	[03050 ... 03057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03060 ... 03067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03070 ... 03077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[03100 ... 03107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 3, Word, Dn
+	[03110 ... 03117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03120 ... 03127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03130 ... 03137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[03140 ... 03147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D3
+	[03150 ... 03157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03160 ... 03167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03170 ... 03177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[03200 ... 03207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 3, Long, Dn
+	[03210 ... 03217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03220 ... 03227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03230 ... 03237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[03240 ... 03247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D3
+	[03250 ... 03257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03260 ... 03267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03270 ... 03277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[04000 ... 04007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 4, Byte, Dn
-	[04010 ... 04017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[04020 ... 04027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[04030 ... 04037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[04040 ... 04047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D4
-	[04050 ... 04057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[04060 ... 04067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[04070 ... 04077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[04100 ... 04107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 4, Word, Dn
-	[04110 ... 04117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[04120 ... 04127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[04130 ... 04137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[04140 ... 04147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D4
-	[04150 ... 04157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[04160 ... 04167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[04170 ... 04177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[04200 ... 04207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 4, Long, Dn
-	[04210 ... 04217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[04220 ... 04227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[04230 ... 04237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[04240 ... 04247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D4
-	[04250 ... 04257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[04260 ... 04267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[04270 ... 04277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[04000 ... 04007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 4, Byte, Dn
+	[04010 ... 04017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04020 ... 04027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04030 ... 04037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[04040 ... 04047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D4
+	[04050 ... 04057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04060 ... 04067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04070 ... 04077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[04100 ... 04107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 4, Word, Dn
+	[04110 ... 04117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04120 ... 04127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04130 ... 04137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[04140 ... 04147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D4
+	[04150 ... 04157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04160 ... 04167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04170 ... 04177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[04200 ... 04207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 4, Long, Dn
+	[04210 ... 04217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04220 ... 04227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04230 ... 04237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[04240 ... 04247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D4
+	[04250 ... 04257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04260 ... 04267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04270 ... 04277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[05000 ... 05007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 5, Byte, Dn
-	[05010 ... 05017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[05020 ... 05027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[05030 ... 05037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[05040 ... 05047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D5
-	[05050 ... 05057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[05060 ... 05067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[05070 ... 05077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[05100 ... 05107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 5, Word, Dn
-	[05110 ... 05117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[05120 ... 05127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[05130 ... 05137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[05140 ... 05147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D5
-	[05150 ... 05157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[05160 ... 05167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[05170 ... 05177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[05200 ... 05207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 5, Long, Dn
-	[05210 ... 05217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[05220 ... 05227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[05230 ... 05237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[05240 ... 05247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D5
-	[05250 ... 05257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[05260 ... 05267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[05270 ... 05277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[05000 ... 05007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 5, Byte, Dn
+	[05010 ... 05017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05020 ... 05027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05030 ... 05037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[05040 ... 05047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D5
+	[05050 ... 05057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05060 ... 05067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05070 ... 05077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[05100 ... 05107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 5, Word, Dn
+	[05110 ... 05117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05120 ... 05127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05130 ... 05137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[05140 ... 05147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D5
+	[05150 ... 05157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05160 ... 05167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05170 ... 05177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[05200 ... 05207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 5, Long, Dn
+	[05210 ... 05217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05220 ... 05227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05230 ... 05237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[05240 ... 05247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D5
+	[05250 ... 05257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05260 ... 05267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05270 ... 05277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[06000 ... 06007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 6, Byte, Dn
-	[06010 ... 06017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[06020 ... 06027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[06030 ... 06037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[06040 ... 06047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D6
-	[06050 ... 06057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[06060 ... 06067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[06070 ... 06077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[06100 ... 06107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 6, Word, Dn
-	[06110 ... 06117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[06120 ... 06127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[06130 ... 06137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[06140 ... 06147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D6
-	[06150 ... 06157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[06160 ... 06167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[06170 ... 06177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[06200 ... 06207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 6, Long, Dn
-	[06210 ... 06217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[06220 ... 06227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[06230 ... 06237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[06240 ... 06247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D6
-	[06250 ... 06257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[06260 ... 06267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[06270 ... 06277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[06000 ... 06007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 6, Byte, Dn
+	[06010 ... 06017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06020 ... 06027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06030 ... 06037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[06040 ... 06047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D6
+	[06050 ... 06057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06060 ... 06067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06070 ... 06077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[06100 ... 06107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 6, Word, Dn
+	[06110 ... 06117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06120 ... 06127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06130 ... 06137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[06140 ... 06147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D6
+	[06150 ... 06157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06160 ... 06167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06170 ... 06177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[06200 ... 06207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 6, Long, Dn
+	[06210 ... 06217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06220 ... 06227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06230 ... 06237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[06240 ... 06247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D6
+	[06250 ... 06257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06260 ... 06267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06270 ... 06277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[07000 ... 07007] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 7, Byte, Dn
-	[07010 ... 07017] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[07020 ... 07027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[07030 ... 07037] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[07040 ... 07047] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D7
-	[07050 ... 07057] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[07060 ... 07067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[07070 ... 07077] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[07100 ... 07107] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 7, Word, Dn
-	[07110 ... 07117] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[07120 ... 07127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[07130 ... 07137] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[07140 ... 07147] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D7
-	[07150 ... 07157] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[07160 ... 07167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[07170 ... 07177] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[07200 ... 07207] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //immediate 7, Long, Dn
-	[07210 ... 07217] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[07220 ... 07227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[07230 ... 07237] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
-	[07240 ... 07247] = { { EMIT_ASR }, NULL, 0, SR_CCR },  //D7
-	[07250 ... 07257] = { { EMIT_LSR }, NULL, 0, SR_CCR },
-	[07260 ... 07267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR },
-	[07270 ... 07277] = { { EMIT_ROR }, NULL, 0, SR_NZVC },
+	[07000 ... 07007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 7, Byte, Dn
+	[07010 ... 07017] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07020 ... 07027] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07030 ... 07037] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[07040 ... 07047] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D7
+	[07050 ... 07057] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07060 ... 07067] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07070 ... 07077] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[07100 ... 07107] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 7, Word, Dn
+	[07110 ... 07117] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07120 ... 07127] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07130 ... 07137] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[07140 ... 07147] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D7
+	[07150 ... 07157] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07160 ... 07167] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR , 1, 0, 2},
+	[07170 ... 07177] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[07200 ... 07207] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 7, Long, Dn
+	[07210 ... 07217] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07220 ... 07227] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07230 ... 07237] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[07240 ... 07247] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D7
+	[07250 ... 07257] = { { EMIT_LSR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07260 ... 07267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07270 ... 07277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[00320 ... 00371] = { { EMIT_ASR_mem }, NULL, 0, SR_CCR },  //Shift #1, <ea> (memory only)
-	[01320 ... 01371] = { { EMIT_LSR_mem }, NULL, 0, SR_CCR },
-	[02320 ... 02371] = { { EMIT_ROXR_mem }, NULL, SR_X, SR_CCR },
-	[03320 ... 03371] = { { EMIT_ROR_mem }, NULL, 0, SR_NZVC },
+	[00320 ... 00371] = { { EMIT_ASR_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //Shift #1, <ea> (memory only)
+	[01320 ... 01371] = { { EMIT_LSR_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02320 ... 02371] = { { EMIT_ROXR_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03320 ... 03371] = { { EMIT_ROR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
 
-	[00400 ... 00407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 8, Byte, Dn
-	[00410 ... 00417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[00420 ... 00427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[00430 ... 00437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[00440 ... 00447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D0
-	[00450 ... 00457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[00460 ... 00467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[00470 ... 00477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[00500 ... 00507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 8, Word, Dn
-	[00510 ... 00517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[00520 ... 00527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[00530 ... 00537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[00540 ... 00547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D0
-	[00550 ... 00557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[00560 ... 00567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[00570 ... 00577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[00600 ... 00607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 8, Long, Dn
-	[00610 ... 00617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[00620 ... 00627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[00630 ... 00637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[00640 ... 00647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D0
-	[00650 ... 00657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[00660 ... 00667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[00670 ... 00677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[00400 ... 00407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 8, Byte, Dn
+	[00410 ... 00417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00420 ... 00427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00430 ... 00437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[00440 ... 00447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D0
+	[00450 ... 00457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00460 ... 00467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[00470 ... 00477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[00500 ... 00507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 8, Word, Dn
+	[00510 ... 00517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00520 ... 00527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00530 ... 00537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[00540 ... 00547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D0
+	[00550 ... 00557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00560 ... 00567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[00570 ... 00577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[00600 ... 00607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 8, Long, Dn
+	[00610 ... 00617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00620 ... 00627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00630 ... 00637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[00640 ... 00647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D0
+	[00650 ... 00657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00660 ... 00667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[00670 ... 00677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[01400 ... 01407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 1, Byte, Dn
-	[01410 ... 01417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[01420 ... 01427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[01430 ... 01437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[01440 ... 01447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D1
-	[01450 ... 01457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[01460 ... 01467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[01470 ... 01477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[01500 ... 01507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 1, Word, Dn
-	[01510 ... 01517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[01520 ... 01527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[01530 ... 01537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[01540 ... 01547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D1
-	[01550 ... 01557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[01560 ... 01567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[01570 ... 01577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[01600 ... 01607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 1, Long, Dn
-	[01610 ... 01617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[01620 ... 01627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[01630 ... 01637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[01640 ... 01647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D1
-	[01650 ... 01657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[01660 ... 01667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[01670 ... 01677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[01400 ... 01407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 1, Byte, Dn
+	[01410 ... 01417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01420 ... 01427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01430 ... 01437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[01440 ... 01447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D1
+	[01450 ... 01457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01460 ... 01467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[01470 ... 01477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[01500 ... 01507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 1, Word, Dn
+	[01510 ... 01517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01520 ... 01527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01530 ... 01537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[01540 ... 01547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D1
+	[01550 ... 01557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01560 ... 01567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[01570 ... 01577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[01600 ... 01607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 1, Long, Dn
+	[01610 ... 01617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01620 ... 01627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01630 ... 01637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[01640 ... 01647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D1
+	[01650 ... 01657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01660 ... 01667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[01670 ... 01677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[02400 ... 02407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 2, Byte, Dn
-	[02410 ... 02417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[02420 ... 02427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[02430 ... 02437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[02440 ... 02447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D2
-	[02450 ... 02457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[02460 ... 02467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[02470 ... 02477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[02500 ... 02507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 2, Word, Dn
-	[02510 ... 02517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[02520 ... 02527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[02530 ... 02537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[02540 ... 02547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D2
-	[02550 ... 02557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[02560 ... 02567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[02570 ... 02577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[02600 ... 02607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 2, Long, Dn
-	[02610 ... 02617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[02620 ... 02627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[02630 ... 02637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[02640 ... 02647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D2
-	[02650 ... 02657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[02660 ... 02667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[02670 ... 02677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[02400 ... 02407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 2, Byte, Dn
+	[02410 ... 02417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02420 ... 02427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02430 ... 02437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[02440 ... 02447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D2
+	[02450 ... 02457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02460 ... 02467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[02470 ... 02477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[02500 ... 02507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 2, Word, Dn
+	[02510 ... 02517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02520 ... 02527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02530 ... 02537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[02540 ... 02547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D2
+	[02550 ... 02557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02560 ... 02567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02570 ... 02577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[02600 ... 02607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 2, Long, Dn
+	[02610 ... 02617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02620 ... 02627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02630 ... 02637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[02640 ... 02647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D2
+	[02650 ... 02657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02660 ... 02667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[02670 ... 02677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[03400 ... 03407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 3, Byte, Dn
-	[03410 ... 03417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[03420 ... 03427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[03430 ... 03437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[03440 ... 03447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D3
-	[03450 ... 03457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[03460 ... 03467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[03470 ... 03477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[03500 ... 03507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 3, Word, Dn
-	[03510 ... 03517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[03520 ... 03527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[03530 ... 03537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[03540 ... 03547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D3
-	[03550 ... 03557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[03560 ... 03567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[03570 ... 03577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[03600 ... 03607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 3, Long, Dn
-	[03610 ... 03617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[03620 ... 03627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[03630 ... 03637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[03640 ... 03647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D3
-	[03650 ... 03657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[03660 ... 03667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[03670 ... 03677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[03400 ... 03407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 3, Byte, Dn
+	[03410 ... 03417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03420 ... 03427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03430 ... 03437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[03440 ... 03447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D3
+	[03450 ... 03457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03460 ... 03467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[03470 ... 03477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[03500 ... 03507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 3, Word, Dn
+	[03510 ... 03517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03520 ... 03527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03530 ... 03537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[03540 ... 03547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D3
+	[03550 ... 03557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03560 ... 03567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03570 ... 03577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[03600 ... 03607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 3, Long, Dn
+	[03610 ... 03617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03620 ... 03627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03630 ... 03637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[03640 ... 03647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D3
+	[03650 ... 03657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03660 ... 03667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[03670 ... 03677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[04400 ... 04407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 4, Byte, Dn
-	[04410 ... 04417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[04420 ... 04427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[04430 ... 04437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[04440 ... 04447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D4
-	[04450 ... 04457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[04460 ... 04467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[04470 ... 04477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[04500 ... 04507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 4, Word, Dn
-	[04510 ... 04517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[04520 ... 04527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[04530 ... 04537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[04540 ... 04547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D4
-	[04550 ... 04557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[04560 ... 04567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[04570 ... 04577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[04600 ... 04607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 4, Long, Dn
-	[04610 ... 04617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[04620 ... 04627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[04630 ... 04637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[04640 ... 04647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D4
-	[04650 ... 04657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[04660 ... 04667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[04670 ... 04677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[04400 ... 04407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 4, Byte, Dn
+	[04410 ... 04417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04420 ... 04427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04430 ... 04437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[04440 ... 04447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D4
+	[04450 ... 04457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04460 ... 04467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[04470 ... 04477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[04500 ... 04507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 4, Word, Dn
+	[04510 ... 04517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04520 ... 04527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04530 ... 04537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[04540 ... 04547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D4
+	[04550 ... 04557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04560 ... 04567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[04570 ... 04577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[04600 ... 04607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 4, Long, Dn
+	[04610 ... 04617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04620 ... 04627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04630 ... 04637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[04640 ... 04647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D4
+	[04650 ... 04657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04660 ... 04667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[04670 ... 04677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[05400 ... 05407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 5, Byte, Dn
-	[05410 ... 05417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[05420 ... 05427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[05430 ... 05437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[05440 ... 05447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D5
-	[05450 ... 05457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[05460 ... 05467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[05470 ... 05477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[05500 ... 05507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 5, Word, Dn
-	[05510 ... 05517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[05520 ... 05527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[05530 ... 05537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[05540 ... 05547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D5
-	[05550 ... 05557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[05560 ... 05567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[05570 ... 05577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[05600 ... 05607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 5, Long, Dn
-	[05610 ... 05617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[05620 ... 05627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[05630 ... 05637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[05640 ... 05647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D5
-	[05650 ... 05657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[05660 ... 05667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[05670 ... 05677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[05400 ... 05407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 5, Byte, Dn
+	[05410 ... 05417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05420 ... 05427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05430 ... 05437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[05440 ... 05447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D5
+	[05450 ... 05457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05460 ... 05467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[05470 ... 05477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[05500 ... 05507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 5, Word, Dn
+	[05510 ... 05517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05520 ... 05527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05530 ... 05537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[05540 ... 05547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D5
+	[05550 ... 05557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05560 ... 05567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[05570 ... 05577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[05600 ... 05607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 5, Long, Dn
+	[05610 ... 05617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05620 ... 05627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05630 ... 05637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[05640 ... 05647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D5
+	[05650 ... 05657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05660 ... 05667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[05670 ... 05677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[06400 ... 06407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 6, Byte, Dn
-	[06410 ... 06417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[06420 ... 06427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[06430 ... 06437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[06440 ... 06447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D6
-	[06450 ... 06457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[06460 ... 06467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[06470 ... 06477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[06500 ... 06507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 6, Word, Dn
-	[06510 ... 06517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[06520 ... 06527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[06530 ... 06537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[06540 ... 06547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D6
-	[06550 ... 06557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[06560 ... 06567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[06570 ... 06577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[06600 ... 06607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 6, Long, Dn
-	[06610 ... 06617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[06620 ... 06627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[06630 ... 06637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[06640 ... 06647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D6
-	[06650 ... 06657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[06660 ... 06667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[06670 ... 06677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[06400 ... 06407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 6, Byte, Dn
+	[06410 ... 06417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06420 ... 06427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06430 ... 06437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[06440 ... 06447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D6
+	[06450 ... 06457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06460 ... 06467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[06470 ... 06477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[06500 ... 06507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 6, Word, Dn
+	[06510 ... 06517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06520 ... 06527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06530 ... 06537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[06540 ... 06547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D6
+	[06550 ... 06557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06560 ... 06567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[06570 ... 06577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[06600 ... 06607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 6, Long, Dn
+	[06610 ... 06617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06620 ... 06627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06630 ... 06637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[06640 ... 06647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D6
+	[06650 ... 06657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06660 ... 06667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[06670 ... 06677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[07400 ... 07407] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 7, Byte, Dn
-	[07410 ... 07417] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[07420 ... 07427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[07430 ... 07437] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[07440 ... 07447] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D7
-	[07450 ... 07457] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[07460 ... 07467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[07470 ... 07477] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[07500 ... 07507] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 7, Word, Dn
-	[07510 ... 07517] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[07520 ... 07527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[07530 ... 07537] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[07540 ... 07547] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D7
-	[07550 ... 07557] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[07560 ... 07567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[07570 ... 07577] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[07600 ... 07607] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //immediate 7, Long, Dn
-	[07610 ... 07617] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[07620 ... 07627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[07630 ... 07637] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
-	[07640 ... 07647] = { { EMIT_ASL }, NULL, 0, SR_CCR },  //D7
-	[07650 ... 07657] = { { EMIT_LSL }, NULL, 0, SR_CCR },
-	[07660 ... 07667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR },
-	[07670 ... 07677] = { { EMIT_ROL }, NULL, 0, SR_NZVC },
+	[07400 ... 07407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 7, Byte, Dn
+	[07410 ... 07417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07420 ... 07427] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07430 ... 07437] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[07440 ... 07447] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D7
+	[07450 ... 07457] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07460 ... 07467] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+	[07470 ... 07477] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 1 },
+	[07500 ... 07507] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //immediate 7, Word, Dn
+	[07510 ... 07517] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07520 ... 07527] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07530 ... 07537] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[07540 ... 07547] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D7
+	[07550 ... 07557] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07560 ... 07567] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[07570 ... 07577] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[07600 ... 07607] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //immediate 7, Long, Dn
+	[07610 ... 07617] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07620 ... 07627] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07630 ... 07637] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
+	[07640 ... 07647] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D7
+	[07650 ... 07657] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07660 ... 07667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[07670 ... 07677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[00720 ... 00771] = { { EMIT_ASL_mem }, NULL, 0, SR_CCR },  //Shift #1, <ea> (memory only)
-	[01720 ... 01771] = { { EMIT_LSL_mem }, NULL, 0, SR_CCR },
-	[02720 ... 02771] = { { EMIT_ROXL_mem }, NULL, SR_X, SR_CCR },
-	[03720 ... 03771] = { { EMIT_ROL_mem }, NULL, 0, SR_NZVC },
+	[00720 ... 00771] = { { EMIT_ASL_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //Shift #1, <ea> (memory only)
+	[01720 ... 01771] = { { EMIT_LSL_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[02720 ... 02771] = { { EMIT_ROXL_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+	[03720 ... 03771] = { { EMIT_ROL_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
 
-	[04300 ... 04307] = { { EMIT_BFTST }, NULL, 0, SR_NZVC},
-	[04320 ... 04327] = { { EMIT_BFTST }, NULL, 0, SR_NZVC},
-	[04350 ... 04371] = { { EMIT_BFTST }, NULL, 0, SR_NZVC},
+	[04300 ... 04307] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[04320 ... 04327] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[04350 ... 04371] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[05300 ... 05307] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC },
-	[05320 ... 05327] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC },
-	[05350 ... 05371] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC },
+	[05300 ... 05307] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[05320 ... 05327] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[05350 ... 05371] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[06300 ... 06307] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC },
-	[06320 ... 06327] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC },
-	[06350 ... 06371] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC },
+	[06300 ... 06307] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[06320 ... 06327] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[06350 ... 06371] = { { EMIT_BFCLR }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[07300 ... 07307] = { { EMIT_BFSET }, NULL, 0, SR_NZVC},
-	[07320 ... 07327] = { { EMIT_BFSET }, NULL, 0, SR_NZVC},
-	[07350 ... 07371] = { { EMIT_BFSET }, NULL, 0, SR_NZVC},
+	[07300 ... 07307] = { { EMIT_BFSET }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[07320 ... 07327] = { { EMIT_BFSET }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[07350 ... 07371] = { { EMIT_BFSET }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[04700 ... 04707] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC },
-	[04720 ... 04727] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC },
-	[04750 ... 04771] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC },
+	[04700 ... 04707] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[04720 ... 04727] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[04750 ... 04771] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[05700 ... 05707] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC },
-	[05720 ... 05727] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC },
-	[05750 ... 05771] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC },
+	[05700 ... 05707] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[05720 ... 05727] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[05750 ... 05771] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[06700 ... 06707] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC },
-	[06720 ... 06727] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC },
-	[06750 ... 06771] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC },
+	[06700 ... 06707] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[06720 ... 06727] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[06750 ... 06771] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
-	[07700 ... 07707] = { { EMIT_BFINS }, NULL, 0, SR_NZVC },
-	[07720 ... 07727] = { { EMIT_BFINS }, NULL, 0, SR_NZVC },
-	[07750 ... 07771] = { { EMIT_BFINS }, NULL, 0, SR_NZVC },
+	[07700 ... 07707] = { { EMIT_BFINS }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[07720 ... 07727] = { { EMIT_BFINS }, NULL, 0, SR_NZVC, 2, 0, 0 },
+	[07750 ... 07771] = { { EMIT_BFINS }, NULL, 0, SR_NZVC, 2, 1, 0 },
 };
 
 
@@ -2280,6 +2300,30 @@ uint32_t GetSR_LineE(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined LineE\n");
         return SR_CCR << 16;
     }
+}
+
+int M68K_GetLineELength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 0xfff].od_Emit) {
+        length = InsnTable[opcode & 0xfff].od_BaseLength;
+        need_ea = InsnTable[opcode & 0xfff].od_HasEA;
+        opsize = InsnTable[opcode & 0xfff].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    kprintf("GetLineELength for opcode %04x returns %d\n", opcode, 2*length);
+
+    return length;
 }

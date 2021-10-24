@@ -2632,14 +2632,14 @@ static struct OpcodeDef InsnTable[4096] = {
     [0x8c0 ... 0x8c7] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC },
     [0x9c0 ... 0x9c7] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC },
 
-    [0x808 ... 0x80f] = { { .od_EmitMulti = EMIT_LINK32 }, NULL, 0, 0, },
-    [0xe50 ... 0xe57] = { { .od_EmitMulti = EMIT_LINK16 }, NULL, 0, 0, },
+    [0x808 ... 0x80f] = { { .od_EmitMulti = EMIT_LINK32 }, NULL, 0, 0 },
+    [0xe50 ... 0xe57] = { { .od_EmitMulti = EMIT_LINK16 }, NULL, 0, 0 },
 
     [0x840 ... 0x847] = { { .od_EmitMulti = EMIT_SWAP }, NULL, 0, SR_NZVC },
     [0xafc]           = { { .od_EmitMulti = EMIT_ILLEGAL }, NULL, SR_CCR, 0 },
     [0xe40 ... 0xe4f] = { { .od_EmitMulti = EMIT_TRAP }, NULL, SR_CCR, 0 },
     [0xe58 ... 0xe5f] = { { .od_EmitMulti = EMIT_UNLK }, NULL, 0, 0 },
-    [0xe70]           = { { .od_EmitMulti = EMIT_RESET }, NULL, SR_S , 0 },
+    [0xe70]           = { { .od_EmitMulti = EMIT_RESET }, NULL, SR_S, 0 },
     [0xe71]           = { { .od_EmitMulti = EMIT_NOP }, NULL, 0, 0 },
     [0xe72]           = { { .od_EmitMulti = EMIT_STOP }, NULL, SR_S, SR_ALL },
     [0xe73]           = { { .od_EmitMulti = EMIT_RTE }, NULL, SR_S, SR_ALL },
@@ -2693,8 +2693,8 @@ static struct OpcodeDef InsnTable[4096] = {
     [0xa40 ... 0xa7c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC },
     [0xa80 ... 0xabc] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC },
 
-    [0x800 ... 0x807] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_X, SR_XNC },
-    [0x810 ... 0x839] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_X, SR_XNC },
+    [0x800 ... 0x807] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC },
+    [0x810 ... 0x839] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC },
 
     [0x850 ... 0x857] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0 },
     [0x860 ... 0x87b] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0 },
@@ -2805,6 +2805,7 @@ uint32_t GetSR_Line4(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined Line4\n");
         return SR_CCR << 16;
     }
 }

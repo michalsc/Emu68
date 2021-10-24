@@ -544,33 +544,33 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 }
 
 static struct OpcodeDef InsnTable[4096] = {
-    [0000 ... 0007] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR },        //Dn Destination, Byte
-    [0020 ... 0047] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },
-    [0050 ... 0074] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
-    [0100 ... 0117] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR },        //Word
-    [0120 ... 0147] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },
-    [0150 ... 0174] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
-    [0200 ... 0217] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR },        //Long
-    [0220 ... 0247] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },
-    [0250 ... 0274] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
-    [0300 ... 0317] = { { EMIT_ADDA_reg }, NULL, 0, 0 },            //Word
-    [0320 ... 0347] = { { EMIT_ADDA_mem }, NULL, 0, 0 },
-    [0350 ... 0374] = { { EMIT_ADDA_ext }, NULL, 0, 0 },
-    [0400 ... 0407] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR },   //Byte
-    [0410 ... 0417] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR }, 
-    [0500 ... 0507] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR },   //Word
-    [0510 ... 0517] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR },
-    [0600 ... 0607] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR },   //Long
-    [0610 ... 0617] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR },
-    [0420 ... 0447] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },        //Dn Source, Byte
-    [0450 ... 0471] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
-    [0520 ... 0547] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },        //Word
-    [0550 ... 0571] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
-    [0620 ... 0647] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR },        //Long
-    [0650 ... 0671] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR },
-    [0700 ... 0717] = { { EMIT_ADDA_reg }, NULL, 0, 0 },
-    [0720 ... 0747] = { { EMIT_ADDA_mem }, NULL, 0, 0 },
-    [0750 ... 0774] = { { EMIT_ADDA_ext }, NULL, 0, 0 },            //Long
+    [0000 ... 0007] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR, 1, 0, 1 },        //Dn Destination, Byte
+    [0020 ... 0047] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [0050 ... 0074] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR, 1, 1, 1 },
+    [0100 ... 0117] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR, 1, 0, 2 },        //Word
+    [0120 ... 0147] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [0150 ... 0174] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR, 1, 1, 2 },
+    [0200 ... 0217] = { { EMIT_ADD_reg }, NULL, 0, SR_CCR, 1, 0, 4 },        //Long
+    [0220 ... 0247] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR, 1, 0, 4 },
+    [0250 ... 0274] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR, 1, 1, 4 },
+    [0300 ... 0317] = { { EMIT_ADDA_reg }, NULL, 0, 0, 1, 0, 2 },            //Word
+    [0320 ... 0347] = { { EMIT_ADDA_mem }, NULL, 0, 0, 1, 0, 2 },
+    [0350 ... 0374] = { { EMIT_ADDA_ext }, NULL, 0, 0, 1, 1, 2 },
+    [0400 ... 0407] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR, 1, 0, 1 },   //Byte
+    [0410 ... 0417] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR, 1, 0, 1 }, 
+    [0500 ... 0507] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR, 1, 0, 2 },   //Word
+    [0510 ... 0517] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR, 1, 0, 2 },
+    [0600 ... 0607] = { { EMIT_ADDX_reg }, NULL, SR_X , SR_CCR, 1, 0, 4 },   //Long
+    [0610 ... 0617] = { { EMIT_ADDX_mem }, NULL, SR_X , SR_CCR, 1, 0, 4 },
+    [0420 ... 0447] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR, 1, 0, 1 },        //Dn Source, Byte
+    [0450 ... 0471] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR, 1, 1, 1 },
+    [0520 ... 0547] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR, 1, 0, 2 },        //Word
+    [0550 ... 0571] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR, 1, 1, 2 },
+    [0620 ... 0647] = { { EMIT_ADD_mem }, NULL, 0, SR_CCR, 1, 0, 4 },        //Long
+    [0650 ... 0671] = { { EMIT_ADD_ext }, NULL, 0, SR_CCR, 1, 1, 4 },
+    [0700 ... 0717] = { { EMIT_ADDA_reg }, NULL, 0, 0, 1, 0, 4 },
+    [0720 ... 0747] = { { EMIT_ADDA_mem }, NULL, 0, 0, 1, 0, 4 },
+    [0750 ... 0774] = { { EMIT_ADDA_ext }, NULL, 0, 0, 1, 1, 4 },            //Long
 };
 
 uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -603,6 +603,31 @@ uint32_t GetSR_LineD(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined LineD\n");
         return SR_CCR << 16;
     }
+}
+
+
+int M68K_GetLineDLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 0777].od_Emit) {
+        length = InsnTable[opcode & 0777].od_BaseLength;
+        need_ea = InsnTable[opcode & 0777].od_HasEA;
+        opsize = InsnTable[opcode & 0777].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    kprintf("GetLineDLength for opcode %04x returns %d\n", opcode, 2*length);
+
+    return length;
 }
