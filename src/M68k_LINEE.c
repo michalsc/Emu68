@@ -1973,10 +1973,10 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07260 ... 07267] = { { EMIT_ROXR }, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[07270 ... 07277] = { { EMIT_ROR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[00320 ... 00371] = { { EMIT_ASR_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //Shift #1, <ea> (memory only)
-	[01320 ... 01371] = { { EMIT_LSR_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[02320 ... 02371] = { { EMIT_ROXR_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[03320 ... 03371] = { { EMIT_ROR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[00320 ... 00371] = { { EMIT_ASR_mem }, NULL, SR_X, SR_CCR, 1, 1, 2 },  //Shift #1, <ea> (memory only)
+	[01320 ... 01371] = { { EMIT_LSR_mem }, NULL, SR_X, SR_CCR, 1, 1, 2 },
+	[02320 ... 02371] = { { EMIT_ROXR_mem }, NULL, SR_X, SR_CCR, 1, 1, 2 },
+	[03320 ... 03371] = { { EMIT_ROR_mem }, NULL, 0, SR_NZVC, 1, 1, 2 },
 
 	[00400 ... 00407] = { { EMIT_ASL }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 8, Byte, Dn
 	[00410 ... 00417] = { { EMIT_LSL }, NULL, SR_X, SR_CCR, 1, 0, 1 },
@@ -2178,10 +2178,10 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07660 ... 07667] = { { EMIT_ROXL }, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[07670 ... 07677] = { { EMIT_ROL }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-	[00720 ... 00771] = { { EMIT_ASL_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },  //Shift #1, <ea> (memory only)
-	[01720 ... 01771] = { { EMIT_LSL_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[02720 ... 02771] = { { EMIT_ROXL_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[03720 ... 03771] = { { EMIT_ROL_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+	[00720 ... 00771] = { { EMIT_ASL_mem }, NULL, SR_X, SR_CCR, 1, 1, 2 },  //Shift #1, <ea> (memory only)
+	[01720 ... 01771] = { { EMIT_LSL_mem }, NULL, SR_X, SR_CCR, 1, 1, 2 },
+	[02720 ... 02771] = { { EMIT_ROXL_mem }, NULL, SR_X, SR_CCR, 1, 1, 2 },
+	[03720 ... 03771] = { { EMIT_ROL_mem }, NULL, 0, SR_NZVC, 1, 1, 2 },
 
 	[04300 ... 04307] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[04320 ... 04327] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 0, 0 },
