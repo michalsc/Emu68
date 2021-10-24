@@ -805,7 +805,5 @@ int M68K_GetLine5Length(uint16_t *insn_stream)
         length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
     }
 
-    kprintf("GetLine5Length for opcode %04x returns %d\n", opcode, 2*length);
-
     return length;
 }

@@ -610,7 +610,7 @@ uint32_t GetSR_Line9(uint16_t opcode)
     }
 }
 
-int M68K_GetLine8Length(uint16_t *insn_stream)
+int M68K_GetLine9Length(uint16_t *insn_stream)
 {
     uint16_t opcode = BE16(*insn_stream);
     
@@ -627,8 +627,6 @@ int M68K_GetLine8Length(uint16_t *insn_stream)
     if (need_ea) {
         length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
     }
-
-    kprintf("GetLine9Length for opcode %04x returns %d\n", opcode, 2*length);
 
     return length;
 }
