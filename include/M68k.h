@@ -310,6 +310,23 @@ uint32_t GetSR_LineC(uint16_t opcode);
 uint32_t GetSR_LineD(uint16_t opcode);
 uint32_t GetSR_LineE(uint16_t opcode);
 
+int M68K_GetLine0Length(uint16_t *insn_stream);
+int M68K_GetLine1Length(uint16_t *insn_stream);
+int M68K_GetLine2Length(uint16_t *insn_stream);
+int M68K_GetLine3Length(uint16_t *insn_stream);
+int M68K_GetLine4Length(uint16_t *insn_stream);
+int M68K_GetLine5Length(uint16_t *insn_stream);
+int M68K_GetLine6Length(uint16_t *insn_stream);
+int M68K_GetLine7Length(uint16_t *insn_stream);
+int M68K_GetLine8Length(uint16_t *insn_stream);
+int M68K_GetLine9Length(uint16_t *insn_stream);
+int M68K_GetLineBLength(uint16_t *insn_stream);
+int M68K_GetLineCLength(uint16_t *insn_stream);
+int M68K_GetLineDLength(uint16_t *insn_stream);
+int M68K_GetLineELength(uint16_t *insn_stream);
+int M68K_GetLineFLength(uint16_t *insn_stream);
+uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
+
 typedef uint32_t * (*EMIT_Function)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 typedef uint32_t * (*EMIT_MultiFunction)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 
@@ -321,6 +338,9 @@ struct OpcodeDef {
     void *          od_Interpret;   // Not used yet.
     uint16_t        od_SRNeeds;
     uint16_t        od_SRSets;
+    uint8_t         od_BaseLength;
+    uint8_t         od_HasEA;
+    uint8_t         od_OpSize;
 };
 
 uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
