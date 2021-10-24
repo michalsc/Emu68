@@ -346,7 +346,5 @@ int M68K_GetLine6Length(uint16_t *insn_stream)
         length = 3;
     }
 
-    kprintf("GetLine6Length for opcode %04x returns %d\n", opcode, 2*length);
-
     return length;
 }

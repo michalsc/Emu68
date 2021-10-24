@@ -93,238 +93,6 @@ uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
 }
 
 
-int M68K_GetLine4Length(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    int length = 1;
-    int need_ea = 1;
-    int opsize = 2;
-
-    /* 0100000011xxxxxx - MOVE from SR */
-    if ((opcode & 0xffc0) == 0x40c0)
-    {
-        need_ea = 1;
-        opsize = 2;
-    }
-    /* 0100001011xxxxxx - MOVE from CCR */
-    else if ((opcode &0xffc0) == 0x42c0)
-    {
-        need_ea = 1;
-        opsize = 2;
-    }
-    /* 01000000ssxxxxxx - NEGX */
-    else if ((opcode & 0xff00) == 0x4000 && (opcode & 0xc0) != 0xc0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 01000010ssxxxxxx - CLR */
-    else if ((opcode & 0xff00) == 0x4200 && (opcode & 0xc0) != 0xc0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100010011xxxxxx - MOVE to CCR */
-    else if ((opcode &0xffc0) == 0x44c0)
-    {
-        need_ea = 1;
-        opsize = 2;
-    }
-    /* 01000100ssxxxxxx - NEG */
-    else if ((opcode &0xff00) == 0x4400 && (opcode & 0xc0) != 0xc0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100011011xxxxxx - MOVE to SR */
-    else if ((opcode &0xffc0) == 0x46c0)
-    {
-        need_ea = 1;
-        opsize = 2;
-    }
-    /* 01000110ssxxxxxx - NOT */
-    else if ((opcode &0xff00) == 0x4600 && (opcode & 0xc0) != 0xc0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100100xxx000xxx - EXT, EXTB */
-    else if ((opcode & 0xfeb8) == 0x4880)
-    {
-        need_ea = 0;
-    }
-    /* 0100100000001xxx - LINK - 32 bit offset */
-    else if ((opcode & 0xfff8) == 0x4808)
-    {
-        need_ea = 0;
-        length = 3;
-    }
-    /* 0100100000xxxxxx - NBCD */
-    else if ((opcode & 0xffc0) == 0x4800 && (opcode & 0x08) != 0x08)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100100001000xxx - SWAP */
-    else if ((opcode & 0xfff8) == 0x4840)
-    {
-        need_ea = 0;
-    }
-    /* 0100100001001xxx - BKPT */
-    else if ((opcode & 0xfff8) == 0x4848)
-    {
-        need_ea = 0;
-    }
-    /* 0100100001xxxxxx - PEA */
-    else if ((opcode & 0xffc0) == 0x4840 && (opcode & 0x38) != 0x08)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100101011111100 - ILLEGAL */
-    else if (opcode == 0x4afc)
-    {
-        need_ea = 0;
-    }
-    /* 0100101011xxxxxx - TAS */
-    else if ((opcode & 0xffc0) == 0x4ac0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100101011xxxxxx - TST */
-    else if ((opcode & 0xff00) == 0x4a00 && (opcode & 0xc0) != 0xc0)
-    {
-        need_ea = 1;
-        switch (opcode & 0x00c0)
-        {
-            case 0x0000:    /* Byte operation */
-                opsize = 1;
-                break;
-            case 0x0040:    /* Short operation */
-                opsize = 2;
-                break;
-            case 0x0080:    /* Long operation */
-                opsize = 4;
-                break;
-        }
-    }
-    /* 0100110000xxxxxx - MULU, MULS, DIVU, DIVUL, DIVS, DIVSL */
-    else if ((opcode & 0xff80) == 0x4c00 || (opcode == 0x83c0))
-    {
-        length = 2;
-        opsize = 4;
-        need_ea = 1;
-    }
-    /* 010011100100xxxx - TRAP */
-    else if ((opcode & 0xfff0) == 0x4e40)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001010xxx - LINK */
-    else if ((opcode & 0xfff8) == 0x4e50)
-    {
-        need_ea = 0;
-        length = 2;
-    }
-    /* 0100111001011xxx - UNLK */
-    else if ((opcode & 0xfff8) == 0x4e58)
-    {
-        need_ea = 0;
-    }
-    /* 010011100110xxxx - MOVE USP */
-    else if ((opcode & 0xfff0) == 0x4e60)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001110000 - RESET */
-    else if (opcode == 0x4e70)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001110000 - NOP */
-    else if (opcode == 0x4e71)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001110010 - STOP */
-    else if (opcode == 0x4e72)
-    {
-        need_ea = 0;
-        length = 2;
-    }
-    /* 0100111001110011 - RTE */
-    else if (opcode == 0x4e73)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001110100 - RTD */
-    else if (opcode == 0x4e74)
-    {
-        need_ea = 0;
-        length = 2;
-    }
-    /* 0100111001110101 - RTS */
-    else if (opcode == 0x4e75)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001110110 - TRAPV */
-    else if (opcode == 0x4e76)
-    {
-        need_ea = 0;
-    }
-    /* 0100111001110111 - RTR */
-    else if (opcode == 0x4e77)
-    {
-        need_ea = 0;
-    }
-    /* 010011100111101x - MOVEC */
-    else if ((opcode & 0xfffe) == 0x4e7a)
-    {
-        need_ea = 0;
-        length = 2;
-    }
-    /* 0100111010xxxxxx - JSR */
-    else if ((opcode & 0xffc0) == 0x4e80)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100111011xxxxxx - JMP */
-    else if ((opcode & 0xffc0) == 0x4ec0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 01001x001xxxxxxx - MOVEM */
-    else if ((opcode & 0xfb80) == 0x4880)
-    {
-        need_ea = 0;
-        length = 2;
-    }
-    /* 0100xxx111xxxxxx - LEA */
-    else if ((opcode & 0xf1c0) == 0x41c0)
-    {
-        need_ea = 1;
-        opsize = 0;
-    }
-    /* 0100xxx1x0xxxxxx - CHK */
-    else if ((opcode & 0xf140) == 0x4100)
-    {
-        need_ea = 1;
-        opsize = (opcode & 0x80) ? 2 : 4;
-    }
-
-    if (need_ea) {
-        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
-    }
-
-    kprintf("GetLine4Length for opcode %04x returns %d\n", opcode, 2*length);
-
-    return length;
-}
-
 /* Check if opcode is of branch kind or may result in a */
 int M68K_IsBranch(uint16_t *insn_stream)
 {
@@ -377,8 +145,6 @@ int M68K_GetMoveLength(uint16_t *insn_stream)
     ea |= (opcode >> 9) & 0x7;
 
     length += SR_GetEALength(&insn_stream[length], ea, size);
-
-    kprintf("GetMOVELength for opcode %04x returns %d\n", opcode, 2*length);
 
     return length;    
 }
@@ -1057,8 +823,6 @@ int M68K_GetINSNLength(uint16_t *insn_stream)
             break;
     }
 
-//    kprintf(" = %d\n", length);
-
     return length;
 }
 
@@ -1116,28 +880,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         of scan is not exceeded
     */
     while(mask != 0 && scan_depth < max_scan_depth)
-    {
-        #if 1
-        if (
-            //(opcode >> 12) == 0 ||
-            //(opcode >> 12) == 1 ||
-            //(opcode >> 12) == 2 ||
-            //(opcode >> 12) == 3 ||
-            (opcode >> 12) == 4 ||
-            //(opcode >> 12) == 5 ||
-            //(opcode >> 12) == 6 ||
-            //(opcode >> 12) == 7 ||
-            //(opcode >> 12) == 8 ||
-            //(opcode >> 12) == 9 ||
-            //(opcode >> 12) == 11 ||
-            //(opcode >> 12) == 12 ||
-            //(opcode >> 12) == 13 ||
-            //(opcode >> 12) == 14 ||
-            0
-        )   
-            return mask | needed;
-        #endif
-        
+    {      
         /* Increase scan depth level */
         scan_depth++;
 
