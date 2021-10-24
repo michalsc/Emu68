@@ -91,304 +91,6 @@ static uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_siz
 
     return word_count;
 }
-#if 0
-static uint8_t SR_TestOpcodeEA(uint16_t *insn_stream, uint32_t nest_level)
-{
-    uint16_t next_opcode;
-    uint8_t mask = 0;
-    uint8_t word_count;
-
-    /* First calculate the EA length */
-    word_count = 1 + SR_GetEALength(insn_stream + 1, BE16(*insn_stream) & 0x3f, 0);
-
-    /* Get the opcode past current 2-byte instruction */
-    next_opcode = BE16(insn_stream[word_count]);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(&insn_stream[word_count], nest_level+1);
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-static uint8_t SR_TestOpcodeMOVEA(uint16_t *insn_stream, uint32_t nest_level)
-{
-    uint16_t opcode;
-    uint16_t next_opcode;
-    uint8_t mask = 0;
-    uint8_t word_count;
-
-    opcode = BE16(insn_stream[0]);
-
-    /* First calculate the EA length */
-    switch (opcode & 0x3000)
-    {
-        case 0x3000:
-            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 2);
-            break;
-        case 0x2000:
-            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 4);
-            break;
-        default:
-            return 0;
-    }
-
-    /* Get the opcode past current 2-byte instruction */
-    next_opcode = BE16(insn_stream[word_count]);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(&insn_stream[word_count], nest_level+1);
-
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-static uint8_t SR_TestOpcodeADDA(uint16_t *insn_stream, uint32_t nest_level)
-{
-    uint16_t opcode;
-    uint16_t next_opcode;
-    uint8_t mask = 0;
-    uint8_t word_count;
-
-    opcode = BE16(insn_stream[0]);
-
-    /* First calculate the EA length */
-    switch (opcode & 0x01c0)
-    {
-        case 0x00c0:
-            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 2);
-            break;
-        case 0x01c0:
-            word_count = 1 + SR_GetEALength(insn_stream + 1, opcode & 0x3f, 4);
-            break;
-        default:
-            return 0;
-    }
-
-    /* Get the opcode past current 2-byte instruction */
-    next_opcode = BE16(insn_stream[word_count]);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(&insn_stream[word_count], nest_level+1);
-
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-static uint8_t SR_TestOpcode16B(uint16_t *insn_stream, uint32_t nest_level)
-{
-    uint16_t next_opcode;
-    uint8_t mask = 0;
-
-    /* Get the opcode past current 2-byte instruction */
-    next_opcode = BE16(insn_stream[1]);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(&insn_stream[1], nest_level+1);
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-static uint8_t SR_TestOpcode32B(uint16_t *insn_stream, uint32_t nest_level)
-{
-    uint16_t next_opcode;
-    uint8_t mask = 0;
-
-    /* Get the opcode past current 4-byte instruction */
-    next_opcode = BE16(insn_stream[2]);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(&insn_stream[2], nest_level+1);
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-static uint8_t SR_TestOpcode48B(uint16_t *insn_stream, uint32_t nest_level)
-{
-    uint16_t next_opcode;
-    uint8_t mask = 0;
-
-    /* Get the opcode past current 4-byte instruction */
-    next_opcode = BE16(insn_stream[3]);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(&insn_stream[3], nest_level+1);
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-static uint8_t SR_TestBranch(uint16_t *insn_stream, uint32_t nest_level)
-{
-    /*
-        At this point insn_stream points to the branch opcode.
-        Check what's at the target of this branch
-    */
-    uint8_t mask = 0;
-    uint16_t opcode = BE16(*insn_stream);
-    int32_t bra_off = 0;
-
-    /* Advance stream 1 word past BRA */
-    insn_stream++;
-
-    /* use 16-bit offset */
-    if ((opcode & 0x00ff) == 0x00)
-    {
-        bra_off = (int16_t)(BE16(insn_stream[0]));
-    }
-    /* use 32-bit offset */
-    else if ((opcode & 0x00ff) == 0xff)
-    {
-        bra_off = (int32_t)(BE32(*(uint32_t*)insn_stream));
-    }
-    else
-    /* otherwise use 8-bit offset */
-    {
-        bra_off = (int8_t)(opcode & 0xff);
-    }
-
-    /* Advance instruction stream accordingly */
-    insn_stream = (uint16_t *)((intptr_t)insn_stream + bra_off);
-
-    /* Fetch new opcode and test it */
-    uint16_t next_opcode = BE16(*insn_stream);
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[next_opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((next_opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            /* Don't nest. Check only the SME_MASK type */
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC && nest_level < Options.M68K_TRANSLATION_DEPTH)
-                mask = e->me_TestFunction(insn_stream, nest_level+1);
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-/* Get the mask of status flags changed by the instruction specified by the opcode */
-uint8_t M68K_GetSRMask(uint16_t *insn_stream)
-{
-    uint16_t opcode = BE16(*insn_stream);
-    uint8_t mask = 0;
-
-    /* Fetch correct table baset on bits 12..15 of the opcode */
-    struct SRMaskEntry *e = OpcodeMap[opcode >> 12];
-
-    /* Search within table until SME_END is found */
-    while (e->me_Type != SME_END)
-    {
-        if ((opcode & e->me_OpcodeMask) == e->me_Opcode)
-        {
-            if (e->me_Type == SME_MASK)
-                mask = e->me_SRMask;
-            else if (e->me_Type == SME_FUNC) {
-                mask = e->me_TestFunction(insn_stream, 0);
-            }
-            break;
-        }
-        e++;
-    }
-
-    return mask;
-}
-
-#endif
 
 static int M68K_GetLine0Length(uint16_t *insn_stream)
 {
@@ -1911,7 +1613,13 @@ int M68K_GetINSNLength(uint16_t *insn_stream)
 
 typedef uint32_t (*SR_Check)(uint16_t opcode);
 
-static SR_Check SRCheck[] = {
+static uint32_t GetSR_def(uint16_t opcode)
+{
+    (void)opcode;
+    return SR_CCR << 16;
+}
+
+static SR_Check SRCheck[16] = {
     GetSR_Line0,
     GetSR_Line1,
     GetSR_Line2,
@@ -1922,12 +1630,12 @@ static SR_Check SRCheck[] = {
     GetSR_Line7,
     GetSR_Line8,
     GetSR_Line9,
-    NULL,
+    GetSR_def,
     GetSR_LineB,
     GetSR_LineC,
     GetSR_LineD,
     GetSR_LineE,
-    NULL,
+    GetSR_def
 };
 
 /* Get the mask of status flags changed by the instruction specified by the opcode */
@@ -1938,36 +1646,23 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
     const int max_scan_depth = 20;
     uint8_t mask = 0;
     uint8_t needed = 0;
-    int found = 0;
+    uint8_t tmp_sets = 0;
+    uint8_t tmp_needs = 0;
 
     D(kprintf("[JIT] GetSRMask, opcode %04x @ %08x, ", opcode, insn_stream));
 
-    if (SRCheck[opcode >> 12] != NULL) {
-        uint32_t flags = SRCheck[opcode >> 12](opcode);
-        mask = flags & 0xffff;
-        needed = flags >> 16;
-        found = 1;
-    }
-    else {
-        found = 0;
-        mask = 0;
-        needed = SR_CCR;
-    }
+    uint32_t flags = SRCheck[opcode >> 12](opcode);
+    mask = flags & 0x1f;
+    tmp_sets = flags & 0x1f;
+    tmp_needs = (flags >> 16) & 0x1f;
 
-    if (!found) {
-        D(kprintf("opcode not found!\n"));
-        return 0;
-    }
-
-return mask;
-
-    D(kprintf(" SRNeeds = %x, SRSets = %x\n", needed, mask));
+    D(kprintf(" SRNeeds = %x, SRSets = %x\n", tmp_needs, tmp_sets));
 
     /*
         Check as long as there are still some flags to be set by the opcode and the depth
         of scan is not exceeded
     */
-    while(mask && scan_depth < max_scan_depth)
+    while(mask != 0 && scan_depth < max_scan_depth)
     {
         /* Increase scan depth level */
         scan_depth++;
@@ -2046,7 +1741,6 @@ return mask;
                 uint8_t mask2 = mask;
                 uint8_t needed1 = needed;
                 uint8_t needed2 = needed;
-                scan_depth = max_scan_depth - 1 - (max_scan_depth - scan_depth) / 2;
                 int scan_depth_tmp = scan_depth;
 
                 while(mask1 && scan_depth < max_scan_depth)
@@ -2064,28 +1758,22 @@ return mask;
 
                     D(kprintf("[JIT]   %02d.1: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
 
-                    if (SRCheck[opcode >> 12] != NULL) {
-                        uint32_t flags = SRCheck[opcode >> 12](opcode);
-                        sets = flags;
-                        needs = flags >> 16;
-                        found = 1;
-                    }
-                    else {
-                        sets = 0;
-                        needs = SR_CCR;
-                        found = 0;
-                    }
+                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    tmp_sets = flags & 0x1f;
+                    tmp_needs = (flags >> 16) & 0x1f;
 
-                    if (mask1 & needs) {
-                        needed1 |= (mask1 & needs);
+                    D(kprintf(" SRNeeds = %x, SRSets = %x\n", tmp_needs, tmp_sets));
+
+                    /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                    if (mask1 & tmp_needs) {
+                        needed1 |= (mask1 & tmp_needs);
                     }
 
                     /* Clear flags which this instruction sets */
-                    mask1 = mask1 & ~sets;
+                    mask1 = mask1 & ~tmp_sets;
 
-                    if (!found)
+                    if (tmp_needs == SR_CCR)
                     {
-                        D(kprintf("opcode not found!\n"));
                         break;
                     }
 
@@ -2110,28 +1798,22 @@ return mask;
 
                     D(kprintf("[JIT]   %02d.2: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream_2));
 
-                    if (SRCheck[opcode >> 12] != NULL) {
-                        uint32_t flags = SRCheck[opcode >> 12](opcode);
-                        sets = flags;
-                        needs = flags >> 16;
-                        found = 1;
-                    }
-                    else {
-                        sets = 0;
-                        needs = SR_CCR;
-                        found = 0;
-                    }
+                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    tmp_sets = flags & 0x1f;
+                    tmp_needs = (flags >> 16) & 0x1f;
 
-                    if (mask2 & needs) {
-                        needed2 |= (mask2 & needs);
+                    D(kprintf(" SRNeeds = %x, SRSets = %x\n", tmp_needs, tmp_sets));
+
+                    /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                    if (mask2 & tmp_needs) {
+                        needed2 |= (mask2 & tmp_needs);
                     }
 
                     /* Clear flags which this instruction sets */
-                    mask2 = mask2 & ~sets;
+                    mask2 = mask2 & ~tmp_sets;
 
-                    if (!found)
+                    if (tmp_needs == SR_CCR)
                     {
-                        D(kprintf("opcode not found!\n"));
                         break;
                     }
 
@@ -2159,34 +1841,26 @@ return mask;
         opcode = BE16(*insn_stream);
         D(kprintf("[JIT]   %02d: opcode=%04x @ %08x ", scan_depth, opcode, insn_stream));
 
-        uint16_t sets;
-        uint16_t needs;
+        uint32_t flags = SRCheck[opcode >> 12](opcode);
+        tmp_sets = flags & 0x1f;
+        tmp_needs = (flags >> 16) & 0x1f;
 
-        if (SRCheck[opcode >> 12] != NULL) {
-            uint32_t flags = SRCheck[opcode >> 12](opcode);
-            sets = flags;
-            needs = flags >> 16;
-            found = 1;
-        }
-        else {
-            sets = 0;
-            needs = SR_CCR;
-            found = 0;
-        }
+        D(kprintf(" SRNeeds = %x, SRSets = %x\n", tmp_needs, tmp_sets));
 
-        if (mask & needs) {
-            needed |= (mask & needs);
+        /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+        if (mask & tmp_needs) {
+            needed |= (mask & tmp_needs);
         }
 
         /* Clear flags which this instruction sets */
-        mask = mask & ~sets;
+        mask = mask & ~tmp_sets;
 
-        if (!found)
-        {
-            D(kprintf("opcode not found!\n"));
+        if (tmp_needs == SR_CCR) {
             break;
         }
     }
+
+    D(kprintf("[JIT] GetSRMask returns %x\n", mask | needed));
 
     return mask | needed;
 }
