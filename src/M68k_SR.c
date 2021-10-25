@@ -975,8 +975,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                     /* Clear flags which this instruction sets */
                     mask1 = mask1 & ~tmp_sets;
 
-                    if (tmp_needs == SR_CCR)
-                    {
+                    if ((mask1 & tmp_needs) == mask1) {
                         break;
                     }
 
@@ -1013,8 +1012,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
                     /* Clear flags which this instruction sets */
                     mask2 = mask2 & ~tmp_sets;
 
-                    if (tmp_needs == SR_CCR)
-                    {
+                    if ((mask2 & tmp_needs) == mask2) {
                         break;
                     }
 
@@ -1056,7 +1054,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
         /* Clear flags which this instruction sets */
         mask = mask & ~tmp_sets;
 
-        if (tmp_needs == SR_CCR) {
+        if ((mask & tmp_needs) == mask) {
             break;
         }
     }
