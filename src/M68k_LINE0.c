@@ -2738,11 +2738,11 @@ uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static struct OpcodeDef InsnTable[4096] = {
-	[0x03c] = { { EMIT_ORI_TO_CCR }, NULL, SR_S | SR_CCR, SR_CCR, 2, 0, 2 },
+	[0x03c] = { { EMIT_ORI_TO_CCR }, NULL, SR_CCR, SR_CCR, 2, 0, 2 },
 	[0x07c] = { { EMIT_ORI_TO_SR }, NULL, SR_ALL, SR_ALL, 2, 0, 2  },
-	[0x23c] = { { EMIT_ANDI_TO_CCR }, NULL, SR_S | SR_CCR, SR_CCR, 2, 0, 2 },
+	[0x23c] = { { EMIT_ANDI_TO_CCR }, NULL, SR_CCR, SR_CCR, 2, 0, 2 },
 	[0x27c] = { { EMIT_ANDI_TO_SR }, NULL, SR_ALL, SR_ALL, 2, 0, 2 },
-	[0xa3c] = { { EMIT_EORI_TO_CCR }, NULL, SR_S | SR_CCR, SR_CCR, 2, 0, 2 },
+	[0xa3c] = { { EMIT_EORI_TO_CCR }, NULL, SR_CCR, SR_CCR, 2, 0, 2 },
 	[0xa7c] = { { EMIT_EORI_TO_SR }, NULL, SR_ALL, SR_ALL, 2, 0, 2 },
 
 	[00000 ... 00007] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 0, 1 },
@@ -2754,8 +2754,6 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00200 ... 00207] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 3, 0, 4 },
 	[00220 ... 00247] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 3, 0, 4 },
 	[00250 ... 00271] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 3, 1, 4 },
-
-
 
 	[01000 ... 01007] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 0, 1 },
 	[01020 ... 01047] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 0, 1 },
