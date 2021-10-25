@@ -2920,12 +2920,12 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07720 ... 07747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
 	[07750 ... 07771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
 
-	[04320 ... 04347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[04350 ... 04371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[05320 ... 05347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[05350 ... 05371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[06320 ... 06347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 4 },
-	[06350 ... 06371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 4 },
+	[05320 ... 05347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[05350 ... 05371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[06320 ... 06347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[06350 ... 06371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[07320 ... 07347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 4 },
+	[07350 ... 07371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 4 },
 
 	[0xcfc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 2 },
 	[0xefc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 4 },
