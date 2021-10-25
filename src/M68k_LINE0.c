@@ -2930,12 +2930,12 @@ static struct OpcodeDef InsnTable[4096] = {
 	[0xcfc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 2 },
 	[0xefc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 4 },
 
-	[0x0d0 ... 0x0d7] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[0x0e8 ... 0x0fb] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[0x2d0 ... 0x2d7] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[0x2e8 ... 0x2fb] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[0x4d0 ... 0x4d7] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 4 },
-	[0x4e8 ... 0x4fb] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 4 },
+	[00320 ... 00327] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[00350 ... 00373] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[01320 ... 01327] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[01350 ... 01373] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[02320 ... 02327] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 4 },
+	[02350 ... 02371] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 4 },
 
 	[0x108 ... 0x10f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
 	[0x148 ... 0x14f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
@@ -3010,4 +3010,25 @@ uint32_t GetSR_Line0(uint16_t opcode)
         kprintf("Undefined Line0 %04x\n", opcode);
         return SR_CCR << 16;
     }
+}
+
+int M68K_GetLine0Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 0xfff].od_Emit) {
+        length = InsnTable[opcode & 0xfff].od_BaseLength;
+        need_ea = InsnTable[opcode & 0xfff].od_HasEA;
+        opsize = InsnTable[opcode & 0xfff].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 077, opsize);
+    }
+
+    return length;
 }
