@@ -2810,13 +2810,13 @@ static struct OpcodeDef InsnTable[4096] = {
 
 	[06000 ... 06007] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 1 },
 	[06020 ... 06047] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[06050 ... 06071] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[06050 ... 06073] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 1, 1 },
 	[06100 ... 06107] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 2 },
 	[06120 ... 06147] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[06150 ... 06171] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[06150 ... 06173] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 1, 2 },
 	[06200 ... 06207] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 0, 4 },
 	[06220 ... 06247] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[06250 ... 06271] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 1, 4 },
+	[06250 ... 06273] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 1, 4 },
 
 	[00400 ... 00407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
 	[00420 ... 00447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
