@@ -1192,7 +1192,11 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             break;
                         case 3: /* Long displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldr_offset(REG_PC, bd_reg, pc_off);
+                            if (pc_off & 2) {
+                                *ptr++ = ldur_offset(REG_PC, bd_reg, pc_off);
+                            } else {
+                                *ptr++ = ldr_offset(REG_PC, bd_reg, pc_off);
+                            }
                             (*ext_words) += 2;
                             break;
                     }
@@ -1210,7 +1214,11 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             break;
                         case 3: /* Long outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = ldr_offset(REG_PC, outer_reg, pc_off);
+                            if (pc_off & 2) {
+                                *ptr++ = ldur_offset(REG_PC, outer_reg, pc_off);
+                            }
+                            else
+                                *ptr++ = ldr_offset(REG_PC, outer_reg, pc_off);
                             (*ext_words) += 2;
                             break;
                     }
@@ -1275,7 +1283,18 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 }
                                 else
 #ifdef __aarch64__
-                                    *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, UXTW, 0);
+                                {
+                                    if (base_reg == 0xff) {
+                                        uint8_t t = RA_AllocARMRegister(&ptr);
+                                        *ptr++ = mov_reg(t, 31);
+                                        *ptr++ = ldr_regoffset(t, bd_reg, bd_reg, UXTW, 0);
+                                        RA_FreeARMRegister(&ptr, t);
+                                    }
+                                    else {
+                                        *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, UXTW, 0);
+                                    }
+                                }
+                                    
 #else
                                     *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, 0);
 #endif
