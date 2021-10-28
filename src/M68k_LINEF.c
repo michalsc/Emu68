@@ -2272,7 +2272,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     *insn_consumed = 1;
 
     /* MOVE16 (Ax)+, (Ay)+ */
-    if ((opcode & 0xfff8) == 0xf620 && (opcode2 & 0x8fff) == 0x8000)
+    if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
     {
         uint8_t aligned_src = RA_AllocARMRegister(&ptr);
         uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
@@ -2297,7 +2297,10 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = stm(aligned_dst, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
 #endif
         *ptr++ = add_immed(src, src, 16);
-        *ptr++ = add_immed(dst, dst, 16);
+        // Update dst only if it is not the same as src!
+        if (dst != src) {
+            *ptr++ = add_immed(dst, dst, 16);
+        }
 
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
