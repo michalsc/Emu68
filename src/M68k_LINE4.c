@@ -2689,7 +2689,8 @@ static struct OpcodeDef InsnTable[4096] = {
     [0x650 ... 0x679] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 2 },
     [0x690 ... 0x6b9] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0xa00 ... 0xa3c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0xa00 ... 0xa07] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0xa10 ... 0xa3c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 1 },
     [0xa40 ... 0xa7c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 2 },
     [0xa80 ... 0xabc] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
@@ -2697,7 +2698,7 @@ static struct OpcodeDef InsnTable[4096] = {
     [0x810 ... 0x839] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 1, 1 },
 
     [0x850 ... 0x857] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x860 ... 0x87b] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 1, 4 },
+    [0x868 ... 0x87b] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 1, 4 },
 
     [0xac0 ... 0xac7] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 0, 1 },
     [0xad0 ... 0xaf9] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 1, 1 },

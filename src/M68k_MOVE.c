@@ -20,6 +20,14 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
     *insn_consumed = 1;
 
+    if (opcode & 0x100) {
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        return ptr;
+    }
+
     (*m68k_ptr)++;
 
     *ptr++ = mov_immed_s8(tmp_reg, value);
@@ -66,6 +74,37 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     int loaded_in_dest = 0;
     *insn_consumed = 1;
     int done = 0;
+
+    // Move from/to An in byte size is illegal
+    if ((opcode & 0xf000) == 0x1000)
+    {
+        if (is_movea || (opcode & 0x38) == 0x08) {
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
+            return ptr;
+        }
+    }
+
+    if ((opcode & 0x3f) > 0x3c)
+    {
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        return ptr;
+    }
+
+    if ((opcode & 0x01c0) == 0x01c0) {
+        if ((opcode & 0x0c00)) {
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
+            return ptr;
+        }
+    }
 
     /* Quick fusing tests */
     if ((opcode & 0x31f8) == 0x2018 || (opcode & 0x31f8) == 0x2020 || (opcode & 0x31f8) == 0x20c0 || (opcode & 0x31f8) == 0x2100)
