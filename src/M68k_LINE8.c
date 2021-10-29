@@ -605,17 +605,17 @@ static struct OpcodeDef InsnTable[512] = {
     [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
     [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },  //R0 Destination
     [0420 ... 0447] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0450 ... 0474] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },    //D0 Source
+    [0450 ... 0471] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },    //D0 Source
  
     [0500 ... 0507] = { { EMIT_PACK_reg }, NULL, 0, 0, 2, 0, 2 },
     [0510 ... 0517] = { { EMIT_PACK_mem }, NULL, 0, 0, 2, 0, 2 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
     [0520 ... 0547] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, 
-    [0550 ... 0574] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0550 ... 0571] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
  
     [0600 ... 0607] = { { EMIT_UNPK_reg }, NULL, 0, 0, 2, 0, 2 },
     [0610 ... 0617] = { { EMIT_UNPK_mem }, NULL, 0, 0, 2, 0, 2 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
     [0620 ... 0647] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, 
-    [0650 ... 0674] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [0650 ... 0671] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
     [0700 ... 0707] = { { EMIT_DIVS_reg }, NULL, 0, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVS.W
     [0720 ... 0747] = { { EMIT_DIVS_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
