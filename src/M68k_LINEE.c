@@ -22,10 +22,12 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     /* Pre-decrement mode */
-    if ((opcode & 0x38) == 0x20)
-        *ptr++ = sub_immed(dest, dest, 2);
-
-    *ptr++ = ldrsh_offset(dest, tmp, 0);
+    if ((opcode & 0x38) == 0x20) {
+        *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+    }
+    else {
+        *ptr++ = ldrh_offset(dest, tmp, 0);
+    }
 
 #ifdef __aarch64__
     if (update_mask & (SR_C | SR_X)) {
@@ -57,11 +59,12 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 #endif
     }
 
-    *ptr++ = strh_offset(dest, tmp, 0);
-
-    /* Post-increment mode */
-    if ((opcode & 0x38) == 0x18)
-        *ptr++ = add_immed(dest, dest, 2);
+    if ((opcode & 0x38) == 0x18) {
+        *ptr++ = strh_offset_postindex(dest, tmp, 2);
+    }
+    else {
+        *ptr++ = strh_offset(dest, tmp, 0);
+    }
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
@@ -125,10 +128,12 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     /* Pre-decrement mode */
-    if ((opcode & 0x38) == 0x20)
-        *ptr++ = sub_immed(dest, dest, 2);
-
-    *ptr++ = ldrh_offset(dest, tmp, 0);
+    if ((opcode & 0x38) == 0x20) {
+        *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+    }
+    else {
+        *ptr++ = ldrh_offset(dest, tmp, 0);
+    }
 
 #ifdef __aarch64__
     if (update_mask & (SR_C | SR_X)) {
@@ -160,11 +165,12 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 #endif
     }
 
-    *ptr++ = strh_offset(dest, tmp, 0);
-
-    /* Post-increment mode */
-    if ((opcode & 0x38) == 0x18)
-        *ptr++ = add_immed(dest, dest, 2);
+    if ((opcode & 0x38) == 0x18) {
+        *ptr++ = strh_offset_postindex(dest, tmp, 2);
+    }
+    else {
+        *ptr++ = strh_offset(dest, tmp, 0);
+    }
         
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
@@ -239,7 +245,12 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     uint8_t ext_words = 0;
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
-    *ptr++ = ldrh_offset(dest, tmp, 0);
+    if ((opcode & 0x38) == 0x20) {
+        *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+    }
+    else {
+        *ptr++ = ldrh_offset(dest, tmp, 0);
+    }
     *ptr++ = bfi(tmp, tmp, 16, 16);
 
     if (direction)
@@ -259,7 +270,12 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 #endif
     }
 
-    *ptr++ = strh_offset(dest, tmp, 0);
+    if ((opcode & 0x38) == 0x18) {
+        *ptr++ = strh_offset_postindex(dest, tmp, 2);
+    }
+    else {
+        *ptr++ = strh_offset(dest, tmp, 0);
+    }
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
@@ -1345,7 +1361,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint16_t opcode2 = BE16((*m68k_ptr)[0]);
     uint8_t tmp = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
 
-    ptr = EMIT_InjectDebugString(ptr, "BFEXTU at %08x\n", *m68k_ptr - 1);
+    ptr = EMIT_InjectDebugString(ptr, "BFEXTU %04x-%04x at %08x\n", opcode, opcode2, *m68k_ptr - 1);
 
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
