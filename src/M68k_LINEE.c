@@ -227,11 +227,72 @@ static uint32_t *EMIT_ROXR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
-    (void)update_mask;
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ROXL/ROXR mem mode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-    ptr = EMIT_FlushPC(ptr);
-    ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-    *ptr++ = INSN_TO_LE(0xffffffff);
+    uint8_t direction = (opcode >> 8) & 1;
+    uint8_t dest = 0xff;
+    uint8_t ext_words = 0;    
+    uint8_t cc = RA_ModifyCC(&ptr);
+    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+    if ((opcode & 0x38) == 0x20) {
+        *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+    }
+    else {
+        *ptr++ = ldrh_offset(dest, tmp, 0);
+    }
+
+    /* Test X flag, push the flag value into tmp register */
+    *ptr++ = tst_immed(cc, 1, 32 - SRB_X);
+    *ptr++ = b_cc(A64_CC_EQ, 2);
+
+    if (direction) {
+        *ptr++ = orr_immed(tmp, tmp, 1, 1);
+        *ptr++ = ror(tmp, tmp, 31);
+    }
+    else {
+        *ptr++ = orr_immed(tmp, tmp, 1, 16);
+        *ptr++ = ror(tmp, tmp, 1);
+    }
+
+    if ((opcode & 0x38) == 0x18) {
+        *ptr++ = strh_offset_postindex(dest, tmp, 2);
+    }
+    else {
+        *ptr++ = strh_offset(dest, tmp, 0);
+    }
+
+    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
+    (*m68k_ptr) += ext_words;
+
+    if (update_mask)
+    {
+        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+        uint8_t update_mask_copy = update_mask;
+
+        if (update_mask & (SR_Z | SR_N))
+        {
+            *ptr++ = cmn_reg(31, tmp, LSL, 16);
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+        }
+
+        if (update_mask_copy & SR_XC) {
+            if (direction) {
+                *ptr++ = bfxil(cc, tmp, 16, 1);
+            }
+            else {
+                *ptr++ = bfxil(cc, tmp, 31, 1);
+            }
+            if (update_mask_copy & SR_X) {
+                *ptr++ = bfi(cc, cc, 4, 1);
+            }
+        }
+      
+        RA_FreeARMRegister(&ptr, tmp2);
+    }
+
+    RA_FreeARMRegister(&ptr, tmp);
+    RA_FreeARMRegister(&ptr, dest);
+
     return ptr;
 }
 
