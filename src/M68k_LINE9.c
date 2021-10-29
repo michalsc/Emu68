@@ -544,7 +544,7 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static struct OpcodeDef InsnTable[512] = {
-	[0000 ... 0017] = { { EMIT_SUB_reg }, NULL, 0, SR_CCR, 1, 0, 1 },  //D0 Destination
+	[0000 ... 0007] = { { EMIT_SUB_reg }, NULL, 0, SR_CCR, 1, 0, 1 },  //D0 Destination
 	[0020 ... 0047] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR, 1, 0, 1 },
 	[0050 ... 0074] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR, 1, 1, 1 },
 	[0100 ... 0117] = { { EMIT_SUB_reg }, NULL, 0, SR_CCR, 1, 0, 2 },

@@ -110,7 +110,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_cons
 
     arm_ptr = EMIT_FlushPC(arm_ptr);
     arm_ptr = EMIT_InjectDebugString(arm_ptr, "[JIT] LINE A exception (opcode %04x) at %08x not implemented\n", opcode, *m68k_ptr - 1);
-    arm_ptr = EMIT_InjectPrintContext(arm_ptr);
     arm_ptr = EMIT_Exception(arm_ptr, VECTOR_LINE_A, 0);
     *arm_ptr++ = INSN_TO_LE(0xffffffff);
 
@@ -294,7 +293,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int soft_break = FALSE;
     int max_rev_jumps = 0;
 
-    while (break_loop == FALSE && soft_break == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    while (break_loop == FALSE && soft_break == FALSE && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
         uint16_t insn_consumed;
         uint16_t *in_code = m68kcodeptr;

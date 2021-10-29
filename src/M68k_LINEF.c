@@ -2262,8 +2262,7 @@ void __attribute__((naked)) trampoline_icache_invalidate(void)
 }
 #endif
 
-
-uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint16_t opcode2 = BE16((*m68k_ptr)[1]);
@@ -2271,444 +2270,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
-    /* MOVE16 (Ax)+, (Ay)+ */
-    if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
-    {
-        uint8_t aligned_src = RA_AllocARMRegister(&ptr);
-        uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
-        uint8_t buf1 = RA_AllocARMRegister(&ptr);
-        uint8_t buf2 = RA_AllocARMRegister(&ptr);
-#ifndef __aarch64__
-        uint8_t buf3 = RA_AllocARMRegister(&ptr);
-        uint8_t buf4 = RA_AllocARMRegister(&ptr);
-#endif
-        uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-        uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
-
-#ifdef __aarch64__
-        *ptr++ = bic_immed(aligned_src, src, 4, 0);
-        *ptr++ = bic_immed(aligned_dst, dst, 4, 0);
-        *ptr++ = ldp64(aligned_src, buf1, buf2, 0);
-        *ptr++ = stp64(aligned_dst, buf1, buf2, 0);
-#else
-        *ptr++ = bic_immed(aligned_src, src, 0x0f);
-        *ptr++ = bic_immed(aligned_dst, dst, 0x0f);
-        *ptr++ = ldm(aligned_src, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-        *ptr++ = stm(aligned_dst, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-#endif
-        *ptr++ = add_immed(src, src, 16);
-        // Update dst only if it is not the same as src!
-        if (dst != src) {
-            *ptr++ = add_immed(dst, dst, 16);
-        }
-
-        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-        RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
-
-        RA_FreeARMRegister(&ptr, aligned_src);
-        RA_FreeARMRegister(&ptr, aligned_dst);
-        RA_FreeARMRegister(&ptr, buf1);
-        RA_FreeARMRegister(&ptr, buf2);
-#ifndef __aarch64__
-        RA_FreeARMRegister(&ptr, buf3);
-        RA_FreeARMRegister(&ptr, buf4);
-#endif
-        (*m68k_ptr)++;
-        ptr = EMIT_AdvancePC(ptr, 4);
-    }
-    /* MOVE16 other variations */
-    else if ((opcode & 0xffe0) == 0xf600)
-    {
-        uint8_t aligned_reg = RA_AllocARMRegister(&ptr);
-        uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
-        uint8_t buf1 = RA_AllocARMRegister(&ptr);
-        uint8_t buf2 = RA_AllocARMRegister(&ptr);
-#ifndef __aarch64__
-        uint8_t buf3 = RA_AllocARMRegister(&ptr);
-        uint8_t buf4 = RA_AllocARMRegister(&ptr);
-#endif
-        uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-        uint32_t mem = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
-
-        /* Align memory pointer */
-        mem &= 0xfffffff0;
-        *ptr++ = movw_immed_u16(aligned_mem, mem & 0xffff);
-        if (mem & 0xffff0000)
-            *ptr++ = movt_immed_u16(aligned_mem, mem >> 16);
-#ifdef __aarch64__
-        *ptr++ = bic_immed(aligned_reg, reg, 4, 0);
-        if (opcode & 8) {
-            *ptr++ = ldp64(aligned_mem, buf1, buf2, 0);
-            *ptr++ = stp64(aligned_reg, buf1, buf2, 0);
-        }
-        else {
-            *ptr++ = ldp64(aligned_reg, buf1, buf2, 0);
-            *ptr++ = stp64(aligned_mem, buf1, buf2, 0);
-        }
-#else
-        *ptr++ = bic_immed(aligned_reg, reg, 0x0f);
-        if (opcode & 8) {
-            *ptr++ = ldm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-            *ptr++ = stm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-        }
-        else {
-            *ptr++ = ldm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-            *ptr++ = stm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-        }
-#endif
-        if (!(opcode & 0x10))
-        {
-            *ptr++ = add_immed(reg, reg, 16);
-            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-        }
-
-        RA_FreeARMRegister(&ptr, aligned_reg);
-        RA_FreeARMRegister(&ptr, aligned_mem);
-        RA_FreeARMRegister(&ptr, buf1);
-        RA_FreeARMRegister(&ptr, buf2);
-#ifndef __aarch64__
-        RA_FreeARMRegister(&ptr, buf3);
-        RA_FreeARMRegister(&ptr, buf4);
-#endif
-        (*m68k_ptr)+=2;
-        ptr = EMIT_AdvancePC(ptr, 6);
-    }
-    /* CINV */
-    else if ((opcode & 0xff20) == 0xf400)
-    {
-        uint8_t tmp = 0xff;
-        uint8_t tmp2 = 0xff;
-        uint8_t tmp3 = 0xff;
-        uint8_t tmp4 = 0xff;
-
-        ptr = EMIT_FlushPC(ptr);
-
-        /* Invalidating data cache? */
-        if (opcode & 0x40) {
-            /* Get the scope */
-            switch (opcode & 0x18) {
-                case 0x08:  /* Line */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-#ifdef __aarch64__
-                    tmp2 = RA_AllocARMRegister(&ptr);
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mov_immed_u8(tmp3, 4);
-                    *ptr++ = mrs(tmp2, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp2, tmp2, 16, 4);
-                    *ptr++ = lslv(tmp2, tmp3, tmp2);
-                    *ptr++ = sub_immed(tmp2, tmp2, 1);
-                    *ptr++ = dsb_sy();
-                    *ptr++ = and_reg(tmp, tmp, tmp2, LSL, 0);
-                    *ptr++ = dc_ivac(tmp);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    RA_FreeARMRegister(&ptr, tmp3);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
-                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
-                    *ptr++ = mov_immed_u8(tmp, 0);
-                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
-#endif
-                    RA_FreeARMRegister(&ptr, tmp);
-                    break;
-                case 0x10:  /* Page */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    tmp4 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp3, tmp3, 16, 4);
-                    *ptr++ = mov_immed_u16(tmp2, 1024, 0);
-                    *ptr++ = lsrv(tmp2, tmp2, tmp3);
-                    *ptr++ = bic_immed(tmp, tmp, 12, 0);
-                    *ptr++ = mov_immed_u8(tmp4, 4);
-                    *ptr++ = lslv(tmp4, tmp4, tmp3);
-                    *ptr++ = dc_ivac(tmp);
-                    *ptr++ = add_reg(tmp, tmp, tmp4, LSL, 0);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(A64_CC_NE, -3);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp3);
-                    RA_FreeARMRegister(&ptr, tmp4);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
-                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
-                    *ptr++ = mov_immed_u8(tmp2, 128);
-                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
-                    *ptr++ = add_immed(tmp, tmp, 32);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(ARM_CC_NE, -5);
-                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
-#endif
-                    RA_FreeARMRegister(&ptr, tmp);
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    break;
-                case 0x18:  /* All */
-#ifdef __aarch64__
-                    {
-                        union {
-                            uint64_t u64;
-                            uint32_t u32[2];
-                        } u;
-
-                        u.u64 = (uintptr_t)invalidate_entire_dcache;
-
-                        *ptr++ = stp64_preindex(31, 0, 30, -16);
-                        *ptr++ = ldr64_pcrel(0, 4);
-                        *ptr++ = blr(0);
-                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
-                        *ptr++ = b(3);
-                        *ptr++ = u.u32[0];
-                        *ptr++ = u.u32[1];
-                    }
-#else
-                    *ptr++ = push(0x0f | (1 << 12));
-                    *ptr++ = ldr_offset(15, 12, 8);
-                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-                    *ptr++ = pop(0x0f | (1 << 12));
-                    *ptr++ = b_cc(ARM_CC_AL, 0);
-                    *ptr++ = BE32((uint32_t)invalidate_entire_dcache);
-#endif
-                    break;
-            }
-        }
-        /* Invalidating instruction cache? */
-        if (opcode & 0x80) {
-            int8_t off = 0;
-            ptr = EMIT_GetOffsetPC(ptr, &off);
-#ifdef __aarch64__
-            union {
-                uint64_t u64;
-                uint32_t u32[2];
-            } u;
-            u.u64 = (uintptr_t)trampoline_icache_invalidate;
-
-            *ptr++ = stp64_preindex(31, 0, 1, -176);
-            for (int i=2; i < 20; i+=2)
-                *ptr++ = stp64(31, i, i + 1, i * 8);
-            *ptr++ = stp64(31, 29, 30, 160);
-            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
-            {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = mov_reg(0, tmp);
-            }
-            if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
-            else
-                *ptr++ = sub_immed(1, REG_PC, -off);
-
-            *ptr++ = adr(2, 4*6);
-            *ptr++ = ldr64_pcrel(3, 3);
-            *ptr++ = br(3);
-            *ptr++ = b(3);
-            *ptr++ = u.u32[0];
-            *ptr++ = u.u32[1];
-
-            for (int i=2; i < 20; i+=2)
-                *ptr++ = ldp64(31, i, i + 1, i * 8);
-            *ptr++ = ldp64(31, 29, 30, 160);
-            *ptr++ = ldp64_postindex(31, 0, 1, 176);
-#else
-            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
-            {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = push(0x0f | (1 << 12));
-                if (tmp != 0)
-                    *ptr++ = mov_reg(0, tmp);
-            }
-            else
-            {
-                *ptr++ = push(0x0f | (1 << 12));
-            }
-            if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
-            else
-                *ptr++ = sub_immed(1, REG_PC, -off);
-            *ptr++ = add_immed(2, 15, 4);
-            *ptr++ = ldr_offset(15, 12, 8);
-            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-            *ptr++ = pop(0x0f | (1 << 12));
-            *ptr++ = b_cc(ARM_CC_AL, 0);
-            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
-#endif
-        }
-
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
-
-        /* Cache flushing is context synchronizing. Stop translating code here */
-        *ptr++ = INSN_TO_LE(0xffffffff);
-        *ptr++ = INSN_TO_LE(0xfffffff0);
-    }
-    /* CPUSH */
-    else if ((opcode & 0xff20) == 0xf420)
-    {
-        uint8_t tmp = 0xff;
-        uint8_t tmp2 = 0xff;
-        uint8_t tmp3 = 0xff;
-        uint8_t tmp4 = 0xff;
-
-        ptr = EMIT_FlushPC(ptr);
-
-        /* Flush data cache? */
-        if (opcode & 0x40) {
-            /* Get the scope */
-            switch (opcode & 0x18) {
-                case 0x08:  /* Line */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-#ifdef __aarch64__
-                    tmp2 = RA_AllocARMRegister(&ptr);
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mov_immed_u8(tmp3, 4);
-                    *ptr++ = mrs(tmp2, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp2, tmp2, 16, 4);
-                    *ptr++ = lslv(tmp2, tmp3, tmp2);
-                    *ptr++ = sub_immed(tmp2, tmp2, 1);
-                    *ptr++ = dsb_sy();
-                    *ptr++ = and_reg(tmp, tmp, tmp2, LSL, 0);
-                    *ptr++ = dc_civac(tmp);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    RA_FreeARMRegister(&ptr, tmp3);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
-                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
-                    *ptr++ = mov_immed_u8(tmp, 0);
-                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
-#endif
-                    RA_FreeARMRegister(&ptr, tmp);
-                    break;
-                case 0x10:  /* Page */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    tmp4 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp3, tmp3, 16, 4);
-                    *ptr++ = mov_immed_u16(tmp2, 1024, 0);
-                    *ptr++ = lsrv(tmp2, tmp2, tmp3);
-                    *ptr++ = bic_immed(tmp, tmp, 12, 0);
-                    *ptr++ = mov_immed_u8(tmp4, 4);
-                    *ptr++ = lslv(tmp4, tmp4, tmp3);
-                    *ptr++ = dc_civac(tmp);
-                    *ptr++ = add_reg(tmp, tmp, tmp4, LSL, 0);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(A64_CC_NE, -3);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp3);
-                    RA_FreeARMRegister(&ptr, tmp4);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
-                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
-                    *ptr++ = mov_immed_u8(tmp2, 128);
-                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
-                    *ptr++ = add_immed(tmp, tmp, 32);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(ARM_CC_NE, -5);
-                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
-#endif
-                    RA_FreeARMRegister(&ptr, tmp);
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    break;
-                case 0x18:  /* All */
-#ifdef __aarch64__
-                    {
-                        union {
-                            uint64_t u64;
-                            uint32_t u32[2];
-                        } u;
-
-                        u.u64 = (uintptr_t)clear_entire_dcache;
-
-                        *ptr++ = stp64_preindex(31, 0, 30, -16);
-                        *ptr++ = ldr64_pcrel(0, 4);
-                        *ptr++ = blr(0);
-                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
-                        *ptr++ = b(3);
-                        *ptr++ = u.u32[0];
-                        *ptr++ = u.u32[1];
-                    }
-#else
-                    *ptr++ = push(0x0f | (1 << 12));
-                    *ptr++ = ldr_offset(15, 12, 8);
-                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-                    *ptr++ = pop(0x0f | (1 << 12));
-                    *ptr++ = b_cc(ARM_CC_AL, 0);
-                    *ptr++ = BE32((uint32_t)clear_entire_dcache);
-#endif
-                    break;
-            }
-        }
-        /* Invalidating instruction cache? */
-        if (opcode & 0x80) {
-            int8_t off = 0;
-            ptr = EMIT_GetOffsetPC(ptr, &off);
-#ifdef __aarch64__
-            union {
-                uint64_t u64;
-                uint32_t u32[2];
-            } u;
-            u.u64 = (uintptr_t)trampoline_icache_invalidate;
-
-            *ptr++ = stp64_preindex(31, 0, 1, -176);
-            for (int i=2; i < 20; i+=2)
-                *ptr++ = stp64(31, i, i + 1, i * 8);
-            *ptr++ = stp64(31, 29, 30, 160);
-            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
-            {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = mov_reg(0, tmp);
-            }
-            if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
-            else
-                *ptr++ = sub_immed(1, REG_PC, -off);
-
-            *ptr++ = adr(2, 4*6);
-            *ptr++ = ldr64_pcrel(3, 3);
-            *ptr++ = br(3);
-            *ptr++ = b(3);
-            *ptr++ = u.u32[0];
-            *ptr++ = u.u32[1];
-
-            for (int i=2; i < 20; i+=2)
-                *ptr++ = ldp64(31, i, i + 1, i * 8);
-            *ptr++ = ldp64(31, 29, 30, 160);
-            *ptr++ = ldp64_postindex(31, 0, 1, 176);
-#else
-            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
-            {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = push(0x0f | (1 << 12));
-                if (tmp != 0)
-                    *ptr++ = mov_reg(0, tmp);
-            }
-            else
-            {
-                *ptr++ = push(0x0f | (1 << 12));
-            }
-            if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
-            else
-                *ptr++ = sub_immed(1, REG_PC, -off);
-            *ptr++ = add_immed(2, 15, 4);
-            *ptr++ = ldr_offset(15, 12, 8);
-            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-            *ptr++ = pop(0x0f | (1 << 12));
-            *ptr++ = b_cc(ARM_CC_AL, 0);
-            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
-#endif
-        }
-
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
-
-        /* Cache is context synchronizing. Break up here! */
-        *ptr++ = INSN_TO_LE(0xffffffff);
-        *ptr++ = INSN_TO_LE(0xfffffff0);
-    }
     /* FMOVECR reg */
-    else if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
+    if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
         union {
             double d;
@@ -4490,6 +4053,471 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     else
     {
         ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+{
+    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+
+    /* Check destination coprocessor - if it is FPU go to separate function */
+    if ((opcode & 0x0e00) == 0x0200)
+    {
+        return EMIT_FPU(ptr, m68k_ptr, insn_consumed);
+    }
+    /* MOVE16 (Ax)+, (Ay)+ */
+    else if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
+    {
+        uint8_t aligned_src = RA_AllocARMRegister(&ptr);
+        uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
+        uint8_t buf1 = RA_AllocARMRegister(&ptr);
+        uint8_t buf2 = RA_AllocARMRegister(&ptr);
+#ifndef __aarch64__
+        uint8_t buf3 = RA_AllocARMRegister(&ptr);
+        uint8_t buf4 = RA_AllocARMRegister(&ptr);
+#endif
+        uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
+
+#ifdef __aarch64__
+        *ptr++ = bic_immed(aligned_src, src, 4, 0);
+        *ptr++ = bic_immed(aligned_dst, dst, 4, 0);
+        *ptr++ = ldp64(aligned_src, buf1, buf2, 0);
+        *ptr++ = stp64(aligned_dst, buf1, buf2, 0);
+#else
+        *ptr++ = bic_immed(aligned_src, src, 0x0f);
+        *ptr++ = bic_immed(aligned_dst, dst, 0x0f);
+        *ptr++ = ldm(aligned_src, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+        *ptr++ = stm(aligned_dst, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+#endif
+        *ptr++ = add_immed(src, src, 16);
+        // Update dst only if it is not the same as src!
+        if (dst != src) {
+            *ptr++ = add_immed(dst, dst, 16);
+        }
+
+        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
+
+        RA_FreeARMRegister(&ptr, aligned_src);
+        RA_FreeARMRegister(&ptr, aligned_dst);
+        RA_FreeARMRegister(&ptr, buf1);
+        RA_FreeARMRegister(&ptr, buf2);
+#ifndef __aarch64__
+        RA_FreeARMRegister(&ptr, buf3);
+        RA_FreeARMRegister(&ptr, buf4);
+#endif
+        (*m68k_ptr)+=2;
+        *insn_consumed = 1;
+        ptr = EMIT_AdvancePC(ptr, 4);
+    }
+    /* MOVE16 other variations */
+    else if ((opcode & 0xffe0) == 0xf600)
+    {
+        uint8_t aligned_reg = RA_AllocARMRegister(&ptr);
+        uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
+        uint8_t buf1 = RA_AllocARMRegister(&ptr);
+        uint8_t buf2 = RA_AllocARMRegister(&ptr);
+#ifndef __aarch64__
+        uint8_t buf3 = RA_AllocARMRegister(&ptr);
+        uint8_t buf4 = RA_AllocARMRegister(&ptr);
+#endif
+        uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+        uint32_t mem = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
+
+        /* Align memory pointer */
+        mem &= 0xfffffff0;
+        *ptr++ = movw_immed_u16(aligned_mem, mem & 0xffff);
+        if (mem & 0xffff0000)
+            *ptr++ = movt_immed_u16(aligned_mem, mem >> 16);
+#ifdef __aarch64__
+        *ptr++ = bic_immed(aligned_reg, reg, 4, 0);
+        if (opcode & 8) {
+            *ptr++ = ldp64(aligned_mem, buf1, buf2, 0);
+            *ptr++ = stp64(aligned_reg, buf1, buf2, 0);
+        }
+        else {
+            *ptr++ = ldp64(aligned_reg, buf1, buf2, 0);
+            *ptr++ = stp64(aligned_mem, buf1, buf2, 0);
+        }
+#else
+        *ptr++ = bic_immed(aligned_reg, reg, 0x0f);
+        if (opcode & 8) {
+            *ptr++ = ldm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+            *ptr++ = stm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+        }
+        else {
+            *ptr++ = ldm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+            *ptr++ = stm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
+        }
+#endif
+        if (!(opcode & 0x10))
+        {
+            *ptr++ = add_immed(reg, reg, 16);
+            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+        }
+
+        RA_FreeARMRegister(&ptr, aligned_reg);
+        RA_FreeARMRegister(&ptr, aligned_mem);
+        RA_FreeARMRegister(&ptr, buf1);
+        RA_FreeARMRegister(&ptr, buf2);
+#ifndef __aarch64__
+        RA_FreeARMRegister(&ptr, buf3);
+        RA_FreeARMRegister(&ptr, buf4);
+#endif
+        (*m68k_ptr)+=3;
+        *insn_consumed = 1;
+        ptr = EMIT_AdvancePC(ptr, 6);
+    }
+    /* CINV */
+    else if ((opcode & 0xff20) == 0xf400 && (opcode & 0x0018) != 0)
+    {
+        uint8_t tmp = 0xff;
+        uint8_t tmp2 = 0xff;
+        uint8_t tmp3 = 0xff;
+        uint8_t tmp4 = 0xff;
+
+        ptr = EMIT_FlushPC(ptr);
+
+        /* Invalidating data cache? */
+        if (opcode & 0x40) {
+            /* Get the scope */
+            switch (opcode & 0x18) {
+                case 0x08:  /* Line */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+#ifdef __aarch64__
+                    tmp2 = RA_AllocARMRegister(&ptr);
+                    tmp3 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_immed_u8(tmp3, 4);
+                    *ptr++ = mrs(tmp2, 3, 3, 0, 0, 1); // Get CTR_EL0
+                    *ptr++ = ubfx(tmp2, tmp2, 16, 4);
+                    *ptr++ = lslv(tmp2, tmp3, tmp2);
+                    *ptr++ = sub_immed(tmp2, tmp2, 1);
+                    *ptr++ = dsb_sy();
+                    *ptr++ = and_reg(tmp, tmp, tmp2, LSL, 0);
+                    *ptr++ = dc_ivac(tmp);
+                    *ptr++ = dsb_sy();
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    RA_FreeARMRegister(&ptr, tmp3);
+#else
+                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
+                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
+                    *ptr++ = mov_immed_u8(tmp, 0);
+                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
+#endif
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0x10:  /* Page */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+                    tmp2 = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    tmp3 = RA_AllocARMRegister(&ptr);
+                    tmp4 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
+                    *ptr++ = ubfx(tmp3, tmp3, 16, 4);
+                    *ptr++ = mov_immed_u16(tmp2, 1024, 0);
+                    *ptr++ = lsrv(tmp2, tmp2, tmp3);
+                    *ptr++ = bic_immed(tmp, tmp, 12, 0);
+                    *ptr++ = mov_immed_u8(tmp4, 4);
+                    *ptr++ = lslv(tmp4, tmp4, tmp3);
+                    *ptr++ = dc_ivac(tmp);
+                    *ptr++ = add_reg(tmp, tmp, tmp4, LSL, 0);
+                    *ptr++ = subs_immed(tmp2, tmp2, 1);
+                    *ptr++ = b_cc(A64_CC_NE, -3);
+                    *ptr++ = dsb_sy();
+                    RA_FreeARMRegister(&ptr, tmp3);
+                    RA_FreeARMRegister(&ptr, tmp4);
+#else
+                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
+                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
+                    *ptr++ = mov_immed_u8(tmp2, 128);
+                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
+                    *ptr++ = add_immed(tmp, tmp, 32);
+                    *ptr++ = subs_immed(tmp2, tmp2, 1);
+                    *ptr++ = b_cc(ARM_CC_NE, -5);
+                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
+#endif
+                    RA_FreeARMRegister(&ptr, tmp);
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    break;
+                case 0x18:  /* All */
+#ifdef __aarch64__
+                    {
+                        union {
+                            uint64_t u64;
+                            uint32_t u32[2];
+                        } u;
+
+                        u.u64 = (uintptr_t)invalidate_entire_dcache;
+
+                        *ptr++ = stp64_preindex(31, 0, 30, -16);
+                        *ptr++ = ldr64_pcrel(0, 4);
+                        *ptr++ = blr(0);
+                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
+                        *ptr++ = b(3);
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
+                    }
+#else
+                    *ptr++ = push(0x0f | (1 << 12));
+                    *ptr++ = ldr_offset(15, 12, 8);
+                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+                    *ptr++ = pop(0x0f | (1 << 12));
+                    *ptr++ = b_cc(ARM_CC_AL, 0);
+                    *ptr++ = BE32((uint32_t)invalidate_entire_dcache);
+#endif
+                    break;
+            }
+        }
+        /* Invalidating instruction cache? */
+        if (opcode & 0x80) {
+            int8_t off = 0;
+            ptr = EMIT_GetOffsetPC(ptr, &off);
+#ifdef __aarch64__
+            union {
+                uint64_t u64;
+                uint32_t u32[2];
+            } u;
+            u.u64 = (uintptr_t)trampoline_icache_invalidate;
+
+            *ptr++ = stp64_preindex(31, 0, 1, -176);
+            for (int i=2; i < 20; i+=2)
+                *ptr++ = stp64(31, i, i + 1, i * 8);
+            *ptr++ = stp64(31, 29, 30, 160);
+            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
+            {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = mov_reg(0, tmp);
+            }
+            if (off >= 0)
+                *ptr++ = add_immed(1, REG_PC, off);
+            else
+                *ptr++ = sub_immed(1, REG_PC, -off);
+
+            *ptr++ = adr(2, 4*6);
+            *ptr++ = ldr64_pcrel(3, 3);
+            *ptr++ = br(3);
+            *ptr++ = b(3);
+            *ptr++ = u.u32[0];
+            *ptr++ = u.u32[1];
+
+            for (int i=2; i < 20; i+=2)
+                *ptr++ = ldp64(31, i, i + 1, i * 8);
+            *ptr++ = ldp64(31, 29, 30, 160);
+            *ptr++ = ldp64_postindex(31, 0, 1, 176);
+#else
+            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
+            {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = push(0x0f | (1 << 12));
+                if (tmp != 0)
+                    *ptr++ = mov_reg(0, tmp);
+            }
+            else
+            {
+                *ptr++ = push(0x0f | (1 << 12));
+            }
+            if (off >= 0)
+                *ptr++ = add_immed(1, REG_PC, off);
+            else
+                *ptr++ = sub_immed(1, REG_PC, -off);
+            *ptr++ = add_immed(2, 15, 4);
+            *ptr++ = ldr_offset(15, 12, 8);
+            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+            *ptr++ = pop(0x0f | (1 << 12));
+            *ptr++ = b_cc(ARM_CC_AL, 0);
+            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
+#endif
+        }
+
+        (*m68k_ptr)++;
+        *insn_consumed = 1;
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+
+        /* Cache flushing is context synchronizing. Stop translating code here */
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
+    /* CPUSH */
+    else if ((opcode & 0xff20) == 0xf420 && (opcode & 0x0018) != 0)
+    {
+        uint8_t tmp = 0xff;
+        uint8_t tmp2 = 0xff;
+        uint8_t tmp3 = 0xff;
+        uint8_t tmp4 = 0xff;
+
+        ptr = EMIT_FlushPC(ptr);
+
+        /* Flush data cache? */
+        if (opcode & 0x40) {
+            /* Get the scope */
+            switch (opcode & 0x18) {
+                case 0x08:  /* Line */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+#ifdef __aarch64__
+                    tmp2 = RA_AllocARMRegister(&ptr);
+                    tmp3 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_immed_u8(tmp3, 4);
+                    *ptr++ = mrs(tmp2, 3, 3, 0, 0, 1); // Get CTR_EL0
+                    *ptr++ = ubfx(tmp2, tmp2, 16, 4);
+                    *ptr++ = lslv(tmp2, tmp3, tmp2);
+                    *ptr++ = sub_immed(tmp2, tmp2, 1);
+                    *ptr++ = dsb_sy();
+                    *ptr++ = and_reg(tmp, tmp, tmp2, LSL, 0);
+                    *ptr++ = dc_civac(tmp);
+                    *ptr++ = dsb_sy();
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    RA_FreeARMRegister(&ptr, tmp3);
+#else
+                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
+                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
+                    *ptr++ = mov_immed_u8(tmp, 0);
+                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
+#endif
+                    RA_FreeARMRegister(&ptr, tmp);
+                    break;
+                case 0x10:  /* Page */
+                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
+                    tmp2 = RA_AllocARMRegister(&ptr);
+#ifdef __aarch64__
+                    tmp3 = RA_AllocARMRegister(&ptr);
+                    tmp4 = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
+                    *ptr++ = ubfx(tmp3, tmp3, 16, 4);
+                    *ptr++ = mov_immed_u16(tmp2, 1024, 0);
+                    *ptr++ = lsrv(tmp2, tmp2, tmp3);
+                    *ptr++ = bic_immed(tmp, tmp, 12, 0);
+                    *ptr++ = mov_immed_u8(tmp4, 4);
+                    *ptr++ = lslv(tmp4, tmp4, tmp3);
+                    *ptr++ = dc_civac(tmp);
+                    *ptr++ = add_reg(tmp, tmp, tmp4, LSL, 0);
+                    *ptr++ = subs_immed(tmp2, tmp2, 1);
+                    *ptr++ = b_cc(A64_CC_NE, -3);
+                    *ptr++ = dsb_sy();
+                    RA_FreeARMRegister(&ptr, tmp3);
+                    RA_FreeARMRegister(&ptr, tmp4);
+#else
+                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
+                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
+                    *ptr++ = mov_immed_u8(tmp2, 128);
+                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
+                    *ptr++ = add_immed(tmp, tmp, 32);
+                    *ptr++ = subs_immed(tmp2, tmp2, 1);
+                    *ptr++ = b_cc(ARM_CC_NE, -5);
+                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
+#endif
+                    RA_FreeARMRegister(&ptr, tmp);
+                    RA_FreeARMRegister(&ptr, tmp2);
+                    break;
+                case 0x18:  /* All */
+#ifdef __aarch64__
+                    {
+                        union {
+                            uint64_t u64;
+                            uint32_t u32[2];
+                        } u;
+
+                        u.u64 = (uintptr_t)clear_entire_dcache;
+
+                        *ptr++ = stp64_preindex(31, 0, 30, -16);
+                        *ptr++ = ldr64_pcrel(0, 4);
+                        *ptr++ = blr(0);
+                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
+                        *ptr++ = b(3);
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
+                    }
+#else
+                    *ptr++ = push(0x0f | (1 << 12));
+                    *ptr++ = ldr_offset(15, 12, 8);
+                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+                    *ptr++ = pop(0x0f | (1 << 12));
+                    *ptr++ = b_cc(ARM_CC_AL, 0);
+                    *ptr++ = BE32((uint32_t)clear_entire_dcache);
+#endif
+                    break;
+            }
+        }
+        /* Invalidating instruction cache? */
+        if (opcode & 0x80) {
+            int8_t off = 0;
+            ptr = EMIT_GetOffsetPC(ptr, &off);
+#ifdef __aarch64__
+            union {
+                uint64_t u64;
+                uint32_t u32[2];
+            } u;
+            u.u64 = (uintptr_t)trampoline_icache_invalidate;
+
+            *ptr++ = stp64_preindex(31, 0, 1, -176);
+            for (int i=2; i < 20; i+=2)
+                *ptr++ = stp64(31, i, i + 1, i * 8);
+            *ptr++ = stp64(31, 29, 30, 160);
+            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
+            {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = mov_reg(0, tmp);
+            }
+            if (off >= 0)
+                *ptr++ = add_immed(1, REG_PC, off);
+            else
+                *ptr++ = sub_immed(1, REG_PC, -off);
+
+            *ptr++ = adr(2, 4*6);
+            *ptr++ = ldr64_pcrel(3, 3);
+            *ptr++ = br(3);
+            *ptr++ = b(3);
+            *ptr++ = u.u32[0];
+            *ptr++ = u.u32[1];
+
+            for (int i=2; i < 20; i+=2)
+                *ptr++ = ldp64(31, i, i + 1, i * 8);
+            *ptr++ = ldp64(31, 29, 30, 160);
+            *ptr++ = ldp64_postindex(31, 0, 1, 176);
+#else
+            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
+            {
+                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+                *ptr++ = push(0x0f | (1 << 12));
+                if (tmp != 0)
+                    *ptr++ = mov_reg(0, tmp);
+            }
+            else
+            {
+                *ptr++ = push(0x0f | (1 << 12));
+            }
+            if (off >= 0)
+                *ptr++ = add_immed(1, REG_PC, off);
+            else
+                *ptr++ = sub_immed(1, REG_PC, -off);
+            *ptr++ = add_immed(2, 15, 4);
+            *ptr++ = ldr_offset(15, 12, 8);
+            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
+            *ptr++ = pop(0x0f | (1 << 12));
+            *ptr++ = b_cc(ARM_CC_AL, 0);
+            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
+#endif
+        }
+
+        (*m68k_ptr)++;
+        *insn_consumed = 1;
+
+        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+
+        /* Cache is context synchronizing. Break up here! */
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
+    else
+    {
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
         ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
         *ptr++ = INSN_TO_LE(0xffffffff);
     }
