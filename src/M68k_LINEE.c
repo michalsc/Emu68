@@ -23,10 +23,10 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     /* Pre-decrement mode */
     if ((opcode & 0x38) == 0x20) {
-        *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+        *ptr++ = ldrsh_offset_preindex(dest, tmp, -2);
     }
     else {
-        *ptr++ = ldrh_offset(dest, tmp, 0);
+        *ptr++ = ldrsh_offset(dest, tmp, 0);
     }
 
 #ifdef __aarch64__
