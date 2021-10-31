@@ -89,4 +89,9 @@ void fastSerial_init();
 void ps_housekeeper();
 unsigned int ps_get_ipl_zero();
 
+void wb_task();
+void wb_init();
+void wb_waitfree();
+void wb_push(uint32_t address, uint32_t value, uint8_t size);
+
 #endif /* _PS_PROTOCOL_H */
