@@ -28,6 +28,9 @@ unsigned int gpfsel2_o;
 
 #define BITBANG_DELAY 21
 
+#define CHIPSET_DELAY 12
+#define CIA_DELAY     12
+
 volatile uint8_t gpio_lock;
 
 static void usleep(uint64_t delta)
@@ -263,10 +266,13 @@ static void ps_write_16_int(unsigned int address, unsigned int data) {
     *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
     while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-#if 1
-    if (address >= 0x200000)
-      ticksleep(12);
-#endif
+
+    if (address >= 0xbf0000 && address <= 0xbfffff) {
+      ticksleep(CIA_DELAY);
+    }
+    else if (address >= 0xde0000 && address <= 0xdfffff) {
+      ticksleep(CHIPSET_DELAY);
+    }
   }
 }
 
@@ -301,10 +307,12 @@ static void ps_write_8_int(unsigned int address, unsigned int data) {
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
 
-#if 1
-  if (address >= 0x200000)
-    ticksleep(12);
-#endif
+  if (address >= 0xbf0000 && address <= 0xbfffff) {
+    ticksleep(CIA_DELAY);
+  }
+  else if (address >= 0xde0000 && address <= 0xdfffff) {
+    ticksleep(CHIPSET_DELAY);
+  }
 }
 
 static void ps_write_32_int(unsigned int address, unsigned int value) {
@@ -322,7 +330,7 @@ static void ps_write_32_int(unsigned int address, unsigned int value) {
 }
 
 unsigned int ps_read_16(unsigned int address) {
-  wb_waitfree();
+  //wb_waitfree();
   if (address & 1)
   {
     unsigned int value;
@@ -360,17 +368,19 @@ unsigned int ps_read_16(unsigned int address) {
 
     *(gpio + 10) = LE32(0xffffec);
 
-#if 1
-    if (address >= 0x200000)
-      ticksleep(12);
-#endif
+    if (address >= 0xbf0000 && address <= 0xbfffff) {
+      ticksleep(CIA_DELAY);
+    }
+    else if (address >= 0xde0000 && address <= 0xdfffff) {
+      ticksleep(CHIPSET_DELAY);
+    }
 
     return (value >> 8) & 0xffff;
   }
 }
 
 unsigned int ps_read_8(unsigned int address) {
-  wb_waitfree();
+  //wb_waitfree();
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
@@ -399,10 +409,12 @@ unsigned int ps_read_8(unsigned int address) {
 
   value = (value >> 8) & 0xffff;
 
-#if 1
-  if (address >= 0x200000)
-    ticksleep(12);
-#endif
+  if (address >= 0xbf0000 && address <= 0xbfffff) {
+    ticksleep(CIA_DELAY);
+  }
+  else if (address >= 0xde0000 && address <= 0xdfffff) {
+    ticksleep(CHIPSET_DELAY);
+  }
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
@@ -411,7 +423,7 @@ unsigned int ps_read_8(unsigned int address) {
 }
 
 unsigned int ps_read_32(unsigned int address) {
-  wb_waitfree();
+  //wb_waitfree();
   if (address & 1)
   {
     unsigned int value;
@@ -621,6 +633,8 @@ void ps_housekeeper()
   }
 }
 
+#if 0
+
 #define WRITEBUFFER_SIZE  64
 
 struct WriteRequest {
@@ -642,6 +656,8 @@ void wb_push(uint32_t address, uint32_t value, uint8_t size)
     wr_buffer[wr_head & (WRITEBUFFER_SIZE - 1)].wr_addr = address;
     wr_buffer[wr_head & (WRITEBUFFER_SIZE - 1)].wr_value = value;
     wr_buffer[wr_head & (WRITEBUFFER_SIZE - 1)].wr_size = size;
+
+    asm volatile("dmb sy":::"memory");
 
     __sync_add_and_fetch(&wr_head, 1);
     
@@ -676,16 +692,20 @@ void wb_waitfree()
   while (wr_tail != wr_head)
     asm volatile("yield");
 }
+#endif
 
 void wb_init()
 {
+#if 0
   wr_buffer = tlsf_malloc(tlsf, sizeof(struct WriteRequest) * WRITEBUFFER_SIZE);
   wr_head = wr_tail = 0;
   bus_lock = 0;
+#endif
 }
 
 void wb_task()
 {
+#if 0
   kprintf("[WBACK] Write buffer activated\n");
 
   while(1) {
@@ -709,22 +729,23 @@ void wb_task()
 
     wb_pop();
   }
+#endif
 }
 
 void ps_write_8(unsigned int address, unsigned int data)
 {
-  //ps_write_8_int(address, data);
-  wb_push(address, data, 1);
+  ps_write_8_int(address, data);
+  //wb_push(address, data, 1);
 }
 
 void ps_write_16(unsigned int address, unsigned int data)
 {
-//  ps_write_16_int(address, data);
-  wb_push(address, data, 2);
+  ps_write_16_int(address, data);
+  //wb_push(address, data, 2);
 }
 
 void ps_write_32(unsigned int address, unsigned int data)
 {
-//  ps_write_32_int(address, data);
-  wb_push(address, data, 4);
+  ps_write_32_int(address, data);
+  //wb_push(address, data, 4);
 }

@@ -1300,7 +1300,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       ret                                 \n"
 
 #ifdef PISTORM
-"9:     adrp    x5, bus_lock                \n"
+"9:                                         \n"
+#if 0
+"       adrp    x5, bus_lock                \n"
 "       add     x5, x5, :lo12:bus_lock      \n"
 "       mov     w1, 1                       \n"
 ".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
@@ -1310,6 +1312,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       yield                               \n"
 "       b       .lock                       \n"
 ".lock_acquired:                            \n"
+#endif
 "       mov     x2, #0xf2200000             \n" // GPIO base address
 
 "       mov     w1, #0x0c000000             \n"
@@ -1326,9 +1329,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     w1, #0xff00                 \n"
 "       movk    w1, #0xecff, lsl #16        \n"
 "       str     w1, [x2, 4*10]              \n"
-
+#if 0
 "       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
-
+#endif
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
 
