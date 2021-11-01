@@ -115,7 +115,6 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     */
     if ((opcode & 0xf000) == 0x2000)
     {
-
         // Fetch 2nd opcode just now
         uint16_t opcode2 = BE16((*m68k_ptr)[1]);
 
@@ -237,7 +236,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     }
                 }
 
-                is_movea = is_movea & is_movea2;
+                is_movea = is_movea && is_movea2;
                           
                 done = 1;
                 ptr = EMIT_AdvancePC(ptr, 4);
@@ -262,9 +261,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
 
                 /* Two subsequent register moves to (An)+ */
-                (*m68k_ptr)++;
-                update_mask |= M68K_GetSRMask(*m68k_ptr);
-                (*m68k_ptr)++;
+                (*m68k_ptr)+=2;
 
                 *ptr++ = ldp_preindex(addr_reg, dst_reg_2, dst_reg_1, -8);
 
@@ -290,7 +287,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     }
                 }
 
-                is_movea = is_movea & is_movea2;
+                is_movea = is_movea && is_movea2;
             
                 done = 1;
                 ptr = EMIT_AdvancePC(ptr, 4);
