@@ -3019,7 +3019,7 @@ static struct OpcodeDef InsnTable[4096] = {
 
 	[04300 ... 04307] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[04320 ... 04327] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 0, 0 },
-	[04350 ... 04371] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 1, 0 },
+	[04350 ... 04373] = { { EMIT_BFTST }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
 	[05300 ... 05307] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[05320 ... 05327] = { { EMIT_BFCHG }, NULL, 0, SR_NZVC, 2, 0, 0 },
