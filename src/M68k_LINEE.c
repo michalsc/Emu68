@@ -1613,6 +1613,12 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
     {
+        /*
+            IMPORTANT: Although it is not mentioned in 68000 PRM, the bitfield operations on
+                source register are in fact rotation instructions. Bitfield is eventually masked,
+                but the temporary contents of source operand for the Dn addressing mode are
+                actually rotated.
+        */
         uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 
         /* Direct offset and width */
@@ -1623,16 +1629,25 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
             uint8_t width = (opcode2) & 0x1f;
             RA_SetDirtyM68kRegister(&ptr, (opcode2 >> 12) & 7);
 
+            // Get width
+            if (width == 0) width = 32;
+
             /*
                 If offset == 0 and width == 0 the register value from Dn is already extracted bitfield,
                 otherwise extract bitfield
             */
-            if (offset != 0 || width != 0)
+            if (offset != 0 || width != 32)
             {
-                /* width == width - 1 */
-                width = (width == 0) ? 31 : width-1;
-                offset = 31 - (offset + width);
-                *ptr++ = ubfx(dest, src, offset, width+1);
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+                // Get the source, expand to 64 bit to allow rotating
+                *ptr++ = lsl64(tmp, src, 32);
+                *ptr++ = orr64_reg(tmp, tmp, src, LSL, 0);
+
+                // Extract bitfield
+                *ptr++ = ubfx64(dest, tmp, 64 - (offset + width), width);
+
+                RA_FreeARMRegister(&ptr, tmp);
             }
             else
             {
@@ -1641,13 +1656,13 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             if (update_mask) {
                 uint8_t cc = RA_ModifyCC(&ptr);
-                *ptr++ = cmn_reg(31, dest, LSL, 0);
+                *ptr++ = cmn_reg(31, dest, LSL, 32 - width);
                 ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
             }
         }
 
         // Do == immed, Dw == reg
-        else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
+        else if (!(opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
         {
             uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -1657,6 +1672,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             // Shift left by offset + 32 bits
             *ptr++ = lsl64(tmp, src, 32 + offset);
+            *ptr++ = orr64_reg(tmp, tmp, src, LSL, offset);
 
             // Build up a mask
             *ptr++ = and_immed(width_reg, width_reg, 5, 0);
@@ -1697,6 +1713,8 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t width = opcode2 & 31;
 
+            *ptr++ = and_immed(off_reg, off_reg, 5, 0);
+            
             if (width == 0)
                 width = 32;
 
@@ -1705,6 +1723,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             // Load data and shift it left according to reminder in offset reg
             *ptr++ = lsl64(tmp, src, 32);
+            *ptr++ = orr64_reg(tmp, tmp, src, LSL, 0);
             *ptr++ = lslv64(tmp, tmp, off_reg);
 
             // Mask the bitfield, update condition codes
@@ -1735,6 +1754,8 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
             uint8_t mask_reg = RA_AllocARMRegister(&ptr);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
+            *ptr++ = and_immed(off_reg, off_reg, 5, 0);
+
             // Build up a mask
             *ptr++ = and_immed(width_reg, width_reg, 5, 0);
             *ptr++ = cbnz(width_reg, 2);
@@ -1746,6 +1767,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             // Load data and shift it left according to reminder in offset reg
             *ptr++ = lsl64(tmp, src, 32);
+            *ptr++ = orr64_reg(tmp, tmp, src, LSL, 0);
             *ptr++ = lslv64(tmp, tmp, off_reg);
 
             // Mask the bitfield, update condition codes
@@ -1807,7 +1829,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
         }
 
         // Do == immed, Dw == reg
-        else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
+        else if (!(opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
         {
             uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -1977,10 +1999,20 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
             */
             if (offset != 0 || width != 0)
             {
-                /* width == width - 1 */
-                width = (width == 0) ? 31 : width-1;
-                offset = 31 - (offset + width);
-                *ptr++ = sbfx(dest, src, offset, width+1);
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+                // Get the source, expand to 64 bit to allow rotating
+                *ptr++ = lsl64(tmp, src, 32);
+                *ptr++ = orr64_reg(tmp, tmp, src, LSL, 0);
+
+                // Get width
+                if (width == 0) width = 32;
+
+                // Extract bitfield
+                *ptr++ = sbfx64(tmp, tmp, 64 - (offset + width), width);
+                *ptr++ = mov_reg(dest, tmp);
+
+                RA_FreeARMRegister(&ptr, tmp);
             }
             else
             {
@@ -1995,7 +2027,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
         }
 
         // Do == immed, Dw == reg
-        else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
+        else if (!(opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
         {
             uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -2005,6 +2037,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             // Shift left by offset + 32 bits
             *ptr++ = lsl64(tmp, src, 32 + offset);
+            *ptr++ = orr64_reg(tmp, tmp, src, LSL, offset);
 
             // Build up a mask
             *ptr++ = and_immed(width_reg, width_reg, 5, 0);
@@ -2045,6 +2078,8 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t width = opcode2 & 31;
 
+            *ptr++ = and_immed(off_reg, off_reg, 5, 0);
+
             if (width == 0)
                 width = 32;
 
@@ -2053,6 +2088,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             // Load data and shift it left according to reminder in offset reg
             *ptr++ = lsl64(tmp, src, 32);
+            *ptr++ = orr64_reg(tmp, tmp, src, LSL, 0);
             *ptr++ = lslv64(tmp, tmp, off_reg);
 
             // Mask the bitfield, update condition codes
@@ -2083,6 +2119,8 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
             uint8_t mask_reg = RA_AllocARMRegister(&ptr);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
+            *ptr++ = and_immed(off_reg, off_reg, 5, 0);
+
             // Build up a mask
             *ptr++ = and_immed(width_reg, width_reg, 5, 0);
             *ptr++ = cbnz(width_reg, 2);
@@ -2094,6 +2132,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 
             // Load data and shift it left according to reminder in offset reg
             *ptr++ = lsl64(tmp, src, 32);
+            *ptr++ = orr64_reg(tmp, tmp, src, LSL, 0);
             *ptr++ = lslv64(tmp, tmp, off_reg);
 
             // Mask the bitfield, update condition codes
@@ -2155,7 +2194,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
         }
 
         // Do == immed, Dw == reg
-        else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
+        else if (!(opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
         {
             uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -2996,11 +3035,11 @@ static struct OpcodeDef InsnTable[4096] = {
 
 	[04700 ... 04707] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[04720 ... 04727] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 0, 0 },
-	[04750 ... 04771] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 1, 0 },
+	[04750 ... 04773] = { { EMIT_BFEXTU }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
 	[05700 ... 05707] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[05720 ... 05727] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 0, 0 },
-	[05750 ... 05771] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 1, 0 },
+	[05750 ... 05773] = { { EMIT_BFEXTS }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
 	[06700 ... 06707] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[06720 ... 06727] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 0, 0 },
