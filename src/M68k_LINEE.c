@@ -3194,7 +3194,7 @@ static struct OpcodeDef InsnTable[4096] = {
 
 	[06700 ... 06707] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[06720 ... 06727] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 0, 0 },
-	[06750 ... 06771] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 1, 0 },
+	[06750 ... 06773] = { { EMIT_BFFFO }, NULL, 0, SR_NZVC, 2, 1, 0 },
 
 	[07700 ... 07707] = { { EMIT_BFINS }, NULL, 0, SR_NZVC, 2, 0, 0 },
 	[07720 ... 07727] = { { EMIT_BFINS }, NULL, 0, SR_NZVC, 2, 0, 0 },
