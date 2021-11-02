@@ -2731,9 +2731,104 @@ uint32_t *EMIT_MOVEP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    (void)opcode;
-    (void)m68k_ptr;
-    /* todo... */
+    uint8_t cc = RA_GetCC(&ptr);
+    uint8_t size = (opcode >> 6) & 3;
+    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint32_t *tmp;
+    uint32_t *tmp_priv;
+    uint8_t ext_count = 1;
+    uint8_t reg = RA_MapM68kRegister(&ptr, opcode2 >> 12);
+    
+    size = size == 0 ? 1 : size == 1 ? 2 : 4;
+
+    ptr = EMIT_FlushPC(ptr);
+
+    /* Test if supervisor mode is active */
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
+
+    /* Branch to exception if not in supervisor */
+    tmp_priv = ptr;
+    *ptr++ = b_cc(A64_CC_EQ, 0);
+
+    // Transfer from Register to EA
+    if (opcode2 & (1 << 11)) {
+
+        if (((opcode & 0x38) == 0x18) && (8 + (opcode & 7)) == (opcode2 >> 12))
+        {
+            uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = add_immed(tmpreg, reg, size);
+
+            reg = tmpreg;
+        }
+        if (((opcode & 0x38) == 0x20) && (8 + (opcode & 7)) == (opcode2 >> 12))
+        {
+            uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = sub_immed(tmpreg, reg, size);
+
+            reg = tmpreg;
+        }
+
+        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count);
+    }
+    // Transfer from EA to Register
+    else {
+        RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
+        if (size == 4)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+        else {
+            uint8_t tmpreg = 0xff;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+
+            if (opcode2 & 0x8000) {
+                switch (size)
+                {
+                    case 1:
+                        *ptr++ = sxtb(reg, tmpreg);
+                        break;
+                
+                    case 2:
+                        *ptr++ = sxth(reg, tmpreg);
+                        break;
+                }
+            }
+
+            switch (size)
+            {
+                case 1:
+                    *ptr++ = bfi(reg, tmpreg, 0, 8);
+                    break;
+            
+                case 2:
+                    *ptr++ = bfi(reg, tmpreg, 0, 16);
+                    break;
+            }
+
+            RA_FreeARMRegister(&ptr, tmpreg);
+        }
+    }
+
+    RA_FreeARMRegister(&ptr, reg);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+
+    tmp = ptr;
+    *ptr++ = b_cc(A64_CC_AL, 0);
+
+    *tmp_priv = b_cc(A64_CC_EQ, ptr - tmp_priv);
+    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+
+    (*m68k_ptr) += ext_count;
+
+    RA_FreeARMRegister(&ptr, reg);
+
+    *tmp = b_cc(A64_CC_AL, ptr - tmp);
+    *ptr++ = (uint32_t)(uintptr_t)tmp;
+    *ptr++ = 1;
+    *ptr++ = 0;
+    *ptr++ = INSN_TO_LE(0xfffffffe);
+
     return ptr;
 }
 
