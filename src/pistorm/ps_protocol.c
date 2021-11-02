@@ -235,6 +235,9 @@ void ps_setup_protocol() {
 static void ps_write_8_int(unsigned int address, unsigned int data);
 
 static void ps_write_16_int(unsigned int address, unsigned int data) {
+  if (address > 0xffffff)
+    return;
+
   if (address & 1)
   {
     ps_write_8_int(address, data >> 8);
@@ -277,6 +280,9 @@ static void ps_write_16_int(unsigned int address, unsigned int data) {
 }
 
 static void ps_write_8_int(unsigned int address, unsigned int data) {
+  if (address > 0xffffff)
+    return;
+
   if ((address & 1) == 0)
     data = (data & 0xff) | (data << 8);  // EVEN, A0=0,UDS
   else
@@ -331,6 +337,10 @@ static void ps_write_32_int(unsigned int address, unsigned int value) {
 
 unsigned int ps_read_16(unsigned int address) {
   //wb_waitfree();
+
+  if (address > 0xffffff)
+    return 0xffff;
+
   if (address & 1)
   {
     unsigned int value;
@@ -381,6 +391,10 @@ unsigned int ps_read_16(unsigned int address) {
 
 unsigned int ps_read_8(unsigned int address) {
   //wb_waitfree();
+
+  if (address > 0xffffff)
+    return 0xff;
+
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
