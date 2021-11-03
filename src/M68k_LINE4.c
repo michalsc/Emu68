@@ -756,7 +756,18 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
 
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-
+        
+        if (update_mask & SR_V)
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+        if (update_mask & (SR_X | SR_C)) {
+            if ((update_mask & (SR_X | SR_C)) == SR_X)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
+            else if ((update_mask & (SR_X | SR_C)) == SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+            else
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
+        }
+        
         RA_FreeARMRegister(&ptr, tmp);
 
     }
