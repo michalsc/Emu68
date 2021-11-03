@@ -71,7 +71,6 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
         
@@ -84,12 +83,9 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
-        RA_FreeARMRegister(&ptr, tmp2);
-
         if (update_mask & (SR_Z | SR_N))
         {
             *ptr++ = cmn_reg(31, tmp, LSL, 16);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
         
             if (update_mask & SR_Z) {
                 *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
@@ -100,16 +96,16 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
             }
         }
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-        if (update_mask & SR_Z)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        if (update_mask & (SR_X | SR_C))
-            *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
-#endif
+
+        RA_FreeARMRegister(&ptr, tmp2);
+
+        // V flag can have non-zero value only for left shifting
+        if ((update_mask & SR_V) && direction)
+        {
+            *ptr++ = eor_reg(tmp, tmp, tmp, LSL, 1);
+            *ptr++ = tbz(tmp, 16, 2);
+            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+        }
     }
     RA_FreeARMRegister(&ptr, tmp);
     RA_FreeARMRegister(&ptr, dest);
