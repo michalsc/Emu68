@@ -502,7 +502,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
     uint8_t ext_count = 0;
     uint8_t dest = 0xff;
     uint8_t size = 0;
-    uint8_t zero = RA_AllocARMRegister(&ptr);
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -528,7 +527,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         RA_FreeARMRegister(&ptr, tmp);
     } else {
         *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-        *ptr++ = csetm(zero, A64_CC_NE);
     }
 
     if ((opcode & 0x0038) == 0)
@@ -542,6 +540,8 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         }
         else
         {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
             /* Fetch m68k register for write */
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
 
@@ -551,18 +551,69 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             switch(size)
             {
                 case 2:
-                    *ptr++ = subs_reg(zero, zero, dest, LSL, 16);
-                    *ptr++ = bfxil(dest, zero, 16, 16);
+                    *ptr++ = and_immed(tmp, dest, 16, 0);   // Take lower 16 bits of destination
+                    *ptr++ = neg_reg(tmp, tmp, LSL, 0);     // negate
+                    *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+                    *ptr++ = sub_immed(tmp, tmp, 1);
+
+                    if (update_mask & SR_XVC) {
+                        uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
+                        *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
+                        *ptr++ = bfxil(cc, tmp_2, 14, 2);
+                        
+                        if (update_mask & SR_X) {
+                           *ptr++ = bfi(cc, cc, 4, 1);
+                        }
+
+                        update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                        RA_FreeARMRegister(&ptr, tmp_2);
+                    }
+
+                    if (update_mask & SR_NZ) {
+                        *ptr++ = adds_reg(31, 31, tmp, LSL, 16);
+                    }
+
+                    *ptr++ = bfxil(dest, tmp, 0, 16);       // Insert result
                     break;
                 case 1:
-                    *ptr++ = subs_reg(zero, zero, dest, LSL, 24);
-                    *ptr++ = bfxil(dest, zero, 24, 8);
+                    *ptr++ = and_immed(tmp, dest, 8, 0);    // Take lower 16 bits of destination
+                    *ptr++ = neg_reg(tmp, tmp, LSL, 0);     // negate
+                    *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+                    *ptr++ = sub_immed(tmp, tmp, 1);
+
+                    if (update_mask & SR_XVC) {
+                        uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
+                        *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
+                        *ptr++ = bfxil(cc, tmp_2, 6, 2);
+                        
+                        if (update_mask & SR_X) {
+                           *ptr++ = bfi(cc, cc, 4, 1);
+                        }
+
+                        update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                        RA_FreeARMRegister(&ptr, tmp_2);
+                    }
+
+                    if (update_mask & SR_NZ) {
+                        *ptr++ = adds_reg(31, 31, tmp, LSL, 24);
+                    }
+
+                    *ptr++ = bfxil(dest, tmp, 0, 8);
                     break;
             }
+
+            RA_FreeARMRegister(&ptr, tmp);
         }
     }
     else
     {
+        uint8_t src = RA_AllocARMRegister(&ptr);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -578,13 +629,13 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         case 4:
             if (mode == 4)
             {
-                *ptr++ = ldr_offset_preindex(dest, tmp, -4);
+                *ptr++ = ldr_offset_preindex(dest, src, -4);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldr_offset(dest, tmp, 0);
+                *ptr++ = ldr_offset(dest, src, 0);
 
-            *ptr++ = ngcs(tmp, tmp);
+            *ptr++ = ngcs(tmp, src);
 
             if (mode == 3)
             {
@@ -597,14 +648,35 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         case 2:
             if (mode == 4)
             {
-                *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+                *ptr++ = ldrh_offset_preindex(dest, src, -2);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldrh_offset(dest, tmp, 0);
+                *ptr++ = ldrh_offset(dest, src, 0);
 
-            *ptr++ = sxth(tmp, tmp);
-            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
+            *ptr++ = neg_reg(tmp, src, LSL, 0);     // negate
+            *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+            *ptr++ = sub_immed(tmp, tmp, 1);
+
+            if (update_mask & SR_XVC) {
+                uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
+                *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
+                *ptr++ = bfxil(cc, tmp_2, 14, 2);
+                    
+                if (update_mask & SR_X) {
+                    *ptr++ = bfi(cc, cc, 4, 1);
+                }
+
+                update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                RA_FreeARMRegister(&ptr, tmp_2);
+            }
+
+            if (update_mask & SR_NZ) {
+                *ptr++ = adds_reg(31, 31, tmp, LSL, 16);
+            }
 
             if (mode == 3)
             {
@@ -617,14 +689,35 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         case 1:
             if (mode == 4)
             {
-                *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+                *ptr++ = ldrb_offset_preindex(dest, src, (opcode & 7) == 7 ? -2 : -1);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldrb_offset(dest, tmp, 0);
+                *ptr++ = ldrb_offset(dest, src, 0);
 
-            *ptr++ = sxtb(tmp, tmp);
-            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
+            *ptr++ = neg_reg(tmp, src, LSL, 0);     // negate
+            *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+            *ptr++ = sub_immed(tmp, tmp, 1);
+
+            if (update_mask & SR_XVC) {
+                uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
+                *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
+                *ptr++ = bfxil(cc, tmp_2, 6, 2);
+                
+                if (update_mask & SR_X) {
+                    *ptr++ = bfi(cc, cc, 4, 1);
+                }
+
+                update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                RA_FreeARMRegister(&ptr, tmp_2);
+            }
+
+            if (update_mask & SR_NZ) {
+                *ptr++ = adds_reg(31, 31, tmp, LSL, 24);
+            }
 
             if (mode == 3)
             {
@@ -636,10 +729,10 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             break;
         }
 
+        RA_FreeARMRegister(&ptr, src);
         RA_FreeARMRegister(&ptr, tmp);
     }
 
-    RA_FreeARMRegister(&ptr, zero);
     RA_FreeARMRegister(&ptr, dest);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -660,22 +753,12 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             *ptr++ = mov_immed_u16(tmp, update_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
         }
-        
 
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
-        if (update_mask & (SR_X | SR_C)) {
-            if ((update_mask & (SR_X | SR_C)) == SR_X)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
-            else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
-            else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
-        }
 
         RA_FreeARMRegister(&ptr, tmp);
+
     }
 
     return ptr;
