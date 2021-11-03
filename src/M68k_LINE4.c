@@ -503,17 +503,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
     uint8_t dest = 0xff;
     uint8_t size = 0;
     uint8_t zero = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
-    uint8_t cc = RA_GetCC(&ptr);
-    *ptr++ = tst_immed(cc, 1, (32 - SRB_X) & 31);
-    *ptr++ = csetm(zero, A64_CC_NE);
-#else
-    M68K_GetCC(&ptr);
-    *ptr++ = tst_immed(REG_SR, SR_X);
-    *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, zero, 0);
-    *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, zero, 0);
-#endif
-
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -529,17 +518,27 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             break;
     }
 
+    uint8_t cc = RA_GetCC(&ptr);
+    if (size == 4) {
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        *ptr++ = mvn_reg(tmp, cc, ROR, 7);
+        *ptr++ = set_nzcv(tmp);
+
+        RA_FreeARMRegister(&ptr, tmp);
+    } else {
+        *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+        *ptr++ = csetm(zero, A64_CC_NE);
+    }
+
     if ((opcode & 0x0038) == 0)
     {
         if (size == 4)
         {
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-#ifdef __aarch64__
-            *ptr++ = subs_reg(dest, zero, dest, LSL, 0);
-#else
-            *ptr++ = rsbs_reg(dest, dest, zero, 0);
-#endif
+
+            *ptr++ = ngcs(dest, dest);
         }
         else
         {
@@ -551,7 +550,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
 
             switch(size)
             {
-#ifdef __aarch64__
                 case 2:
                     *ptr++ = subs_reg(zero, zero, dest, LSL, 16);
                     *ptr++ = bfxil(dest, zero, 16, 16);
@@ -560,18 +558,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     *ptr++ = subs_reg(zero, zero, dest, LSL, 24);
                     *ptr++ = bfxil(dest, zero, 24, 8);
                     break;
-#else
-                case 2:
-                    *ptr++ = subs_reg(zero, zero, dest, 16);
-                    *ptr++ = lsr_immed(zero, zero, 16);
-                    *ptr++ = bfi(dest, zero, 0, 16);
-                    break;
-                case 1:
-                    *ptr++ = subs_reg(zero, zero, dest, 24);
-                    *ptr++ = lsr_immed(zero, zero, 24);
-                    *ptr++ = bfi(dest, zero, 0, 8);
-                    break;
-#endif
             }
         }
     }
@@ -598,11 +584,8 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             else
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
-#ifdef __aarch64__
-            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
-#else
-            *ptr++ = subs_reg(tmp, zero, tmp, 0);
-#endif
+            *ptr++ = ngcs(tmp, tmp);
+
             if (mode == 3)
             {
                 *ptr++ = str_offset_postindex(dest, tmp, 4);
@@ -619,13 +602,10 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             }
             else
                 *ptr++ = ldrh_offset(dest, tmp, 0);
-#ifdef __aarch64__
+
             *ptr++ = sxth(tmp, tmp);
             *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
-#else
-            *ptr++ = sxth(tmp, tmp, 0);
-            *ptr++ = rsbs_reg(tmp, tmp, zero, 0);
-#endif
+
             if (mode == 3)
             {
                 *ptr++ = strh_offset_postindex(dest, tmp, 2);
@@ -642,13 +622,10 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             }
             else
                 *ptr++ = ldrb_offset(dest, tmp, 0);
-#ifdef __aarch64__
+
             *ptr++ = sxtb(tmp, tmp);
             *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
-#else
-            *ptr++ = sxtb(tmp, tmp, 0);
-            *ptr++ = rsbs_reg(tmp, tmp, zero, 0);
-#endif
+
             if (mode == 3)
             {
                 *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
@@ -671,13 +648,20 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        if (update_mask & SR_X)
-            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
-        else
-            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-        if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+        if (update_mask & SR_Z) {
+            *ptr++ = b_cc(A64_CC_EQ, 2);
+            *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+            update_mask &= ~SR_Z;
+        }
+
+        if (update_mask) {
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+        }
+        
+
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)
@@ -690,6 +674,8 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             else
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
         }
+
+        RA_FreeARMRegister(&ptr, tmp);
     }
 
     return ptr;
@@ -2557,6 +2543,7 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t src = -1;
     uint8_t cc = RA_ModifyCC(&ptr);
+    uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
     /* word operation */
     if (opcode & 0x80)
@@ -2568,6 +2555,12 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     {
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
     }
+
+    // Clear Z, V and C flags, set Z back if operand is zero
+    *ptr++ = mov_immed_u16(tmpreg, SR_NC, 0);
+    *ptr++ = bic_reg(cc, cc, tmpreg, LSL, 0);
+    *ptr++ = tbz(src, 31, 2);
+    *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_N);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
@@ -2599,6 +2592,7 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     ptr = EMIT_Exception(ptr, VECTOR_CHK, 2, opcode_address);
 
     RA_FreeARMRegister(&ptr, src);
+    RA_FreeARMRegister(&ptr, tmpreg);
 
     *tmp = b_cc(A64_CC_GE, ptr - tmp);
     *ptr++ = (uint32_t)(uintptr_t)tmp;
