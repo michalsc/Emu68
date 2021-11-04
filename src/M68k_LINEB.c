@@ -412,36 +412,36 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 }
 
 static struct OpcodeDef InsnTable[512] = {
-    [0000 ... 0007] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC }, //D0 destination, Byte
-    [0020 ... 0047] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC }, //(An)
-    [0050 ... 0074] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC }, //memory indirect
-    [0100 ... 0117] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC }, //register, Word
-    [0120 ... 0147] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC }, //(An)
-    [0150 ... 0174] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC }, //memory indirect
-    [0200 ... 0217] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC }, //register Long
-    [0220 ... 0247] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC }, //(An)
-    [0250 ... 0274] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC }, //memory indirect
+    [0000 ... 0007] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC, 1, 0, 1 }, //D0 destination, Byte
+    [0020 ... 0047] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC, 1, 0, 1 }, //(An)
+    [0050 ... 0074] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC, 1, 1, 1 }, //memory indirect
+    [0100 ... 0117] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //register, Word
+    [0120 ... 0147] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, //(An)
+    [0150 ... 0174] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC, 1, 1, 2 }, //memory indirect
+    [0200 ... 0217] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //register Long
+    [0220 ... 0247] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, //(An)
+    [0250 ... 0274] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC, 1, 1, 4 }, //memory indirect
 
-    [0300 ... 0317] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC }, //A0, Word
-    [0320 ... 0347] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC }, //(An)
-    [0350 ... 0374] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC }, //memory indirect
+    [0300 ... 0317] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //A0, Word
+    [0320 ... 0347] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, //(An)
+    [0350 ... 0374] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC, 1, 1, 2 }, //memory indirect
  
-    [0400 ... 0407] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC }, //D0, Byte
-    [0410 ... 0417] = { { EMIT_CMPM }, NULL, 0, SR_NZVC },
-    [0420 ... 0447] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC },
-    [0450 ... 0471] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC },
-    [0500 ... 0507] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC }, //D0, Word
-    [0510 ... 0517] = { { EMIT_CMPM }, NULL, 0, SR_NZVC },
-    [0520 ... 0547] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC },
-    [0550 ... 0571] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC },
-    [0600 ... 0607] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC }, //D0, Long
-    [0610 ... 0617] = { { EMIT_CMPM }, NULL, 0, SR_NZVC },
-    [0620 ... 0647] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC },
-    [0650 ... 0671] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC },
+    [0400 ... 0407] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC, 1, 0, 1 }, //D0, Byte
+    [0410 ... 0417] = { { EMIT_CMPM }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0420 ... 0447] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0450 ... 0471] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0500 ... 0507] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //D0, Word
+    [0510 ... 0517] = { { EMIT_CMPM }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0520 ... 0547] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0550 ... 0571] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0600 ... 0607] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //D0, Long
+    [0610 ... 0617] = { { EMIT_CMPM }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0620 ... 0647] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0650 ... 0671] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0700 ... 0717] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC }, //A0, Long
-    [0720 ... 0747] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC }, //(An)
-    [0750 ... 0774] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC }, //memory indirect
+    [0700 ... 0717] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //A0, Long
+    [0720 ... 0747] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, //(An)
+    [0750 ... 0774] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC, 1, 1, 4 }, //memory indirect
 };
 
 uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -474,6 +474,29 @@ uint32_t GetSR_LineB(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined LineB\n");
         return SR_CCR << 16;
     }
+}
+
+
+int M68K_GetLineBLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 00777].od_Emit) {
+        length = InsnTable[opcode & 00777].od_BaseLength;
+        need_ea = InsnTable[opcode & 00777].od_HasEA;
+        opsize = InsnTable[opcode & 00777].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
 }

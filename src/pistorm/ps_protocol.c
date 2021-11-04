@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include "support.h"
+#include "tlsf.h"
 #include "ps_protocol.h"
 #include "M68k.h"
 
@@ -26,6 +27,9 @@ unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
 
 #define BITBANG_DELAY 21
+
+#define CHIPSET_DELAY 12
+#define CIA_DELAY     12
 
 volatile uint8_t gpio_lock;
 
@@ -228,12 +232,16 @@ void ps_setup_protocol() {
   *(gpio + 7) = LE32(TXD_BIT);
 }
 
+static void ps_write_8_int(unsigned int address, unsigned int data);
 
-void ps_write_16(unsigned int address, unsigned int data) {
+static void ps_write_16_int(unsigned int address, unsigned int data) {
+  if (address > 0xffffff)
+    return;
+
   if (address & 1)
   {
-    ps_write_8(address, data >> 8);
-    ps_write_8(address + 1, data & 0xff);
+    ps_write_8_int(address, data >> 8);
+    ps_write_8_int(address + 1, data & 0xff);
   }
   else
   {
@@ -261,12 +269,20 @@ void ps_write_16(unsigned int address, unsigned int data) {
     *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
     while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-    if (address >= 0x200000)
-      ticksleep(12);
+
+    if (address >= 0xbf0000 && address <= 0xbfffff) {
+      ticksleep(CIA_DELAY);
+    }
+    else if (address >= 0xde0000 && address <= 0xdfffff) {
+      ticksleep(CHIPSET_DELAY);
+    }
   }
 }
 
-void ps_write_8(unsigned int address, unsigned int data) {
+static void ps_write_8_int(unsigned int address, unsigned int data) {
+  if (address > 0xffffff)
+    return;
+
   if ((address & 1) == 0)
     data = (data & 0xff) | (data << 8);  // EVEN, A0=0,UDS
   else
@@ -296,25 +312,35 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
-  if (address >= 0x200000)
-    ticksleep(12);
+
+  if (address >= 0xbf0000 && address <= 0xbfffff) {
+    ticksleep(CIA_DELAY);
+  }
+  else if (address >= 0xde0000 && address <= 0xdfffff) {
+    ticksleep(CHIPSET_DELAY);
+  }
 }
 
-void ps_write_32(unsigned int address, unsigned int value) {
+static void ps_write_32_int(unsigned int address, unsigned int value) {
   if (address & 1)
   {
-    ps_write_8(address, value >> 24);
-    ps_write_16(address + 1, value >> 8);
-    ps_write_8(address + 3, value & 0xff);
+    ps_write_8_int(address, value >> 24);
+    ps_write_16_int(address + 1, value >> 8);
+    ps_write_8_int(address + 3, value & 0xff);
   }
   else
   {
-    ps_write_16(address, value >> 16);
-    ps_write_16(address + 2, value);
+    ps_write_16_int(address, value >> 16);
+    ps_write_16_int(address + 2, value);
   }
 }
 
 unsigned int ps_read_16(unsigned int address) {
+  //wb_waitfree();
+
+  if (address > 0xffffff)
+    return 0xffff;
+
   if (address & 1)
   {
     unsigned int value;
@@ -352,14 +378,23 @@ unsigned int ps_read_16(unsigned int address) {
 
     *(gpio + 10) = LE32(0xffffec);
 
-    if (address >= 0x200000)
-      ticksleep(12);
+    if (address >= 0xbf0000 && address <= 0xbfffff) {
+      ticksleep(CIA_DELAY);
+    }
+    else if (address >= 0xde0000 && address <= 0xdfffff) {
+      ticksleep(CHIPSET_DELAY);
+    }
 
     return (value >> 8) & 0xffff;
   }
 }
 
 unsigned int ps_read_8(unsigned int address) {
+  //wb_waitfree();
+
+  if (address > 0xffffff)
+    return 0xff;
+
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
   *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
@@ -388,8 +423,12 @@ unsigned int ps_read_8(unsigned int address) {
 
   value = (value >> 8) & 0xffff;
 
-  if (address >= 0x200000)
-    ticksleep(12);
+  if (address >= 0xbf0000 && address <= 0xbfffff) {
+    ticksleep(CIA_DELAY);
+  }
+  else if (address >= 0xde0000 && address <= 0xdfffff) {
+    ticksleep(CHIPSET_DELAY);
+  }
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
@@ -398,6 +437,7 @@ unsigned int ps_read_8(unsigned int address) {
 }
 
 unsigned int ps_read_32(unsigned int address) {
+  //wb_waitfree();
   if (address & 1)
   {
     unsigned int value;
@@ -508,8 +548,9 @@ void ps_housekeeper()
   extern uint64_t arm_cnt;
   uint64_t t0;
   uint64_t last_arm_cnt = arm_cnt;
+#if 0
   uint64_t last_m68k_cnt = __m68k_state->INSN_COUNT;
-
+#endif
   asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
   asm volatile("mrs %0, PMCCNTR_EL0":"=r"(last_arm_cnt));
 
@@ -553,6 +594,7 @@ void ps_housekeeper()
       */
       asm volatile("wfe");
 
+#if 0
       uint64_t t;
 
       asm volatile("mrs %0, CNTPCT_EL0":"=r"(t));
@@ -600,6 +642,124 @@ void ps_housekeeper()
         last_arm_cnt = arm_cnt;
         last_m68k_cnt = __m68k_state->INSN_COUNT;
       }
+#endif
     }
   }
+}
+
+#if 0
+
+#define WRITEBUFFER_SIZE  64
+
+struct WriteRequest {
+  uint32_t  wr_addr;
+  uint32_t  wr_value;
+  uint8_t   wr_size;
+};
+
+struct WriteRequest *wr_buffer;
+volatile uint32_t wr_head;
+volatile uint32_t wr_tail;
+volatile unsigned char bus_lock = 0;
+
+void wb_push(uint32_t address, uint32_t value, uint8_t size)
+{
+    while(wr_tail + WRITEBUFFER_SIZE <= wr_head)
+        asm volatile("yield");
+    
+    wr_buffer[wr_head & (WRITEBUFFER_SIZE - 1)].wr_addr = address;
+    wr_buffer[wr_head & (WRITEBUFFER_SIZE - 1)].wr_value = value;
+    wr_buffer[wr_head & (WRITEBUFFER_SIZE - 1)].wr_size = size;
+
+    asm volatile("dmb sy":::"memory");
+
+    __sync_add_and_fetch(&wr_head, 1);
+    
+    asm volatile("sev");
+}
+
+struct WriteRequest wb_pop()
+{
+    while (wr_tail == wr_head) {
+        asm volatile("wfe");
+    }
+
+    struct WriteRequest data = wr_buffer[wr_tail & (WRITEBUFFER_SIZE - 1)];
+
+    __sync_add_and_fetch(&wr_tail, 1);
+    return data;
+}
+
+struct WriteRequest wb_peek()
+{
+    while (wr_tail == wr_head) {
+        asm volatile("wfe");
+    }
+
+    struct WriteRequest data = wr_buffer[wr_tail & (WRITEBUFFER_SIZE - 1)];
+
+    return data;
+}
+
+void wb_waitfree()
+{
+  while (wr_tail != wr_head)
+    asm volatile("yield");
+}
+#endif
+
+void wb_init()
+{
+#if 0
+  wr_buffer = tlsf_malloc(tlsf, sizeof(struct WriteRequest) * WRITEBUFFER_SIZE);
+  wr_head = wr_tail = 0;
+  bus_lock = 0;
+#endif
+}
+
+void wb_task()
+{
+#if 0
+  kprintf("[WBACK] Write buffer activated\n");
+
+  while(1) {
+    struct WriteRequest req = wb_peek();
+
+    while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
+    switch (req.wr_size) {
+      case 1:
+        ps_write_8_int(req.wr_addr, req.wr_value);
+        break;
+      case 2:
+        ps_write_16_int(req.wr_addr, req.wr_value);
+        break;
+      case 4:
+        ps_write_32_int(req.wr_addr, req.wr_value);
+        break;
+    }
+
+    __atomic_clear(&bus_lock, __ATOMIC_RELEASE);
+
+    wb_pop();
+  }
+#endif
+}
+
+void ps_write_8(unsigned int address, unsigned int data)
+{
+  ps_write_8_int(address, data);
+  //wb_push(address, data, 1);
+}
+
+void ps_write_16(unsigned int address, unsigned int data)
+{
+  ps_write_16_int(address, data);
+  //wb_push(address, data, 2);
+}
+
+void ps_write_32(unsigned int address, unsigned int data)
+{
+  ps_write_32_int(address, data);
+  //wb_push(address, data, 4);
 }

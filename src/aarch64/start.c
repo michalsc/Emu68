@@ -436,6 +436,11 @@ void secondary_boot(void)
     {
         ps_housekeeper();
     }
+    else if (cpu_id == 3)
+    {
+        wb_init();
+        wb_task();
+    }
 #else
     (void)async_log;
 #endif
@@ -675,11 +680,23 @@ void boot(void *dtree)
     *(uint64_t *)0xffffff90000000e8 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
     clear_entire_dcache();
         
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e8), temp_stack);
 
     asm volatile("sev");
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
+    kprintf("[BOOT] Waking up CPU 3\n");
+    temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
+    *(uint64_t *)0xffffff90000000f0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    clear_entire_dcache();
+        
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000f0), temp_stack);
+
+    asm volatile("sev");
+
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
@@ -1121,7 +1138,11 @@ void  __attribute__((used)) stub_FindUnit()
 
 uint32_t last_pc;
 
-uint64_t arm_cnt;
+//uint64_t arm_cnt;
+
+#ifdef PISTORM
+extern volatile unsigned char bus_lock;
+#endif
 
 void  __attribute__((used)) stub_ExecutionLoop()
 {
@@ -1148,11 +1169,12 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       str     w18, [x1]                   \n"
 #endif
 
+#if 0
 "       adrp    x1, arm_cnt                 \n"
 "       add     x1, x1, :lo12:arm_cnt       \n"
 "       mrs     x4, PMCCNTR_EL0             \n"
 "       str     x4, [x1]                    \n"
-
+#endif
 
 #ifdef PISTORM
 "       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
@@ -1278,7 +1300,20 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       ret                                 \n"
 
 #ifdef PISTORM
-"9:     mov     x2, #0xf2200000             \n" // GPIO base address
+"9:                                         \n"
+#if 0
+"       adrp    x5, bus_lock                \n"
+"       add     x5, x5, :lo12:bus_lock      \n"
+"       mov     w1, 1                       \n"
+".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
+"       stxrb	w3, w1, [x5]                \n"
+"       cbnz	w3, .lock                   \n"
+"       cbz     w2, .lock_acquired          \n"
+"       yield                               \n"
+"       b       .lock                       \n"
+".lock_acquired:                            \n"
+#endif
+"       mov     x2, #0xf2200000             \n" // GPIO base address
 
 "       mov     w1, #0x0c000000             \n"
 "       mov     w3, #0x40000000             \n"
@@ -1294,7 +1329,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     w1, #0xff00                 \n"
 "       movk    w1, #0xecff, lsl #16        \n"
 "       str     w1, [x2, 4*10]              \n"
-
+#if 0
+"       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
+#endif
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
 

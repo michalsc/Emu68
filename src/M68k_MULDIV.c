@@ -708,12 +708,8 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t div64 = (opcode2 & (1 << 10)) != 0;
     uint8_t reg_q = 0xff;
     uint8_t reg_dq = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
-    uint8_t reg_dr = 0xff;
+    uint8_t reg_dr = RA_MapM68kRegister(&ptr, opcode2 & 7);
     uint8_t ext_words = 1;
-
-    /* If Dr != Dq use remainder and alloc it */
-    if ((opcode2 & 7) != ((opcode2 >> 12) & 7))
-        reg_dr = RA_MapM68kRegister(&ptr, opcode2 & 7);
 
     // Load divisor
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &reg_q, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
@@ -779,44 +775,54 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (div64)
     {
         uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t result = RA_AllocARMRegister(&ptr);
+        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
-        *ptr++ = bfi64(reg_dq, reg_dr, 32, 32);
-        if (reg_dr == 0xff)
+        // Use temporary result - in case of overflow destination regs remain unchanged
+        *ptr++ = mov_reg(tmp2, reg_dq);
+        *ptr++ = bfi64(tmp2, reg_dr, 32, 32);
+
+        if (sig)
         {
-            if (sig)
-            {
-                *ptr++ = sdiv64(reg_dq, reg_dq, reg_q);
-            }
-            else
-            {
-                *ptr++ = udiv64(reg_dq, reg_dq, reg_q);
-            }
+            uint8_t q_ext = RA_AllocARMRegister(&ptr);
+            *ptr++ = sxtw64(q_ext, reg_q);
+            *ptr++ = sdiv64(result, tmp2, q_ext);
+            if (reg_dr != reg_dq)
+                *ptr++ = msub64(tmp, tmp2, result, q_ext);
+            RA_FreeARMRegister(&ptr, q_ext);
         }
         else
         {
-            if (sig)
-            {
-                *ptr++ = sdiv64(tmp, reg_dq, reg_q);
-            }
-            else
-            {
-                *ptr++ = udiv64(tmp, reg_dq, reg_q);
-            }
-
-            *ptr++ = msub64(reg_dr, reg_dq, tmp, reg_q);
-            *ptr++ = mov_reg(reg_dq, tmp);
+            *ptr++ = udiv64(result, tmp2, reg_q);
+            if (reg_dr != reg_dq)
+                *ptr++ = msub64(tmp, tmp2, result, reg_q);
         }
 
-        if (update_mask & SR_V) {
-            *ptr++ = sxtw64(tmp, reg_dq);
-            *ptr++ = cmp64_reg(tmp, reg_dq, LSL, 0);
+        if (sig) {
+            *ptr++ = sxtw64(tmp2, result);
         }
+        else {
+            *ptr++ = mov_reg(tmp2, result);
+        }
+        *ptr++ = cmp64_reg(tmp2, result, LSL, 0);
+
+        tmp_ptr = ptr;
+        *ptr++ = b_cc(A64_CC_NE, 0);
+
+        *ptr++ = mov_reg(reg_dq, result);
+        if (reg_dr != reg_dq) {
+            *ptr++ = mov_reg(reg_dr, tmp);
+        }
+
+        *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 
         RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(&ptr, tmp2);
+        RA_FreeARMRegister(&ptr, result);
     }
     else
     {
-        if (reg_dr == 0xff)
+        if (reg_dr == reg_dq)
         {
             if (sig)
                 *ptr++ = sdiv(reg_dq, reg_dq, reg_q);

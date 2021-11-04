@@ -434,36 +434,36 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 }
 
 static struct OpcodeDef InsnTable[512] = {
-    [0000 ... 0007] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC },  //D0 Destination, Byte
-    [0020 ... 0047] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
-    [0050 ... 0074] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
-    [0100 ... 0107] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC }, //Word
-    [0120 ... 0147] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
-    [0150 ... 0174] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
-    [0200 ... 0207] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC }, //Long
-    [0220 ... 0247] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC },
-    [0250 ... 0274] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
+    [0000 ... 0007] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC, 1, 0, 1 },  //D0 Destination, Byte
+    [0020 ... 0047] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0050 ... 0074] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0100 ... 0107] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //Word
+    [0120 ... 0147] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0150 ... 0174] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0200 ... 0207] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //Long
+    [0220 ... 0247] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0250 ... 0274] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
  
-    [0300 ... 0307] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_reg, //D0 Destination
-    [0320 ... 0347] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_mem,
-    [0350 ... 0374] = { { EMIT_MULU }, NULL, 0, SR_NZVC }, //_ext,
+    [0300 ... 0307] = { { EMIT_MULU }, NULL, 0, SR_NZVC, 1, 0, 2}, //_reg, //D0 Destination
+    [0320 ... 0347] = { { EMIT_MULU }, NULL, 0, SR_NZVC, 1, 0, 2 }, //_mem,
+    [0350 ... 0374] = { { EMIT_MULU }, NULL, 0, SR_NZVC, 1, 1, 2 }, //_ext,
  
-    [0400 ... 0407] = { { EMIT_ABCD_reg }, NULL, SR_X, SR_XZC }, //D0 Destination
-    [0410 ... 0417] = { { EMIT_ABCD_mem }, NULL, SR_X, SR_XZC }, //-Ax),-(Ay)
-    [0420 ... 0447] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Byte
-    [0450 ... 0471] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC }, //D0 Source
+    [0400 ... 0407] = { { EMIT_ABCD_reg }, NULL, SR_XZ, SR_XZC, 1, 0, 1 }, //D0 Destination
+    [0410 ... 0417] = { { EMIT_ABCD_mem }, NULL, SR_XZ, SR_XZC, 1, 0, 1 }, //-Ax),-(Ay)
+    [0420 ... 0447] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 1 }, //Byte
+    [0450 ... 0471] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 1 }, //D0 Source
  
-    [0500 ... 0517] = { { EMIT_EXG }, NULL, 0, 0 }, //R0 Source, unsized always the full register
-    [0520 ... 0547] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Word
-    [0550 ... 0571] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC }, 
+    [0500 ... 0517] = { { EMIT_EXG }, NULL, 0, 0, 1, 0, 4 }, //R0 Source, unsized always the full register
+    [0520 ... 0547] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, //Word
+    [0550 ... 0571] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 2 }, 
 
-    [0610 ... 0617] = { { EMIT_EXG }, NULL, 0, 0 },  //D0 Source
-    [0620 ... 0647] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC }, //Long
-    [0650 ... 0671] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC },
+    [0610 ... 0617] = { { EMIT_EXG }, NULL, 0, 0, 1, 0, 4 },  //D0 Source
+    [0620 ... 0647] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, //Long
+    [0650 ... 0671] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0700 ... 0707] = { { EMIT_MULS }, NULL, 0, SR_NZVC }, //_reg, //D0 Destination
-    [0720 ... 0747] = { { EMIT_MULS }, NULL, 0, SR_NZVC }, //_mem,
-    [0750 ... 0774] = { { EMIT_MULS }, NULL, 0, SR_NZVC }, //_ext,
+    [0700 ... 0707] = { { EMIT_MULS }, NULL, 0, SR_NZVC, 1, 0, 2 }, //_reg, //D0 Destination
+    [0720 ... 0747] = { { EMIT_MULS }, NULL, 0, SR_NZVC, 1, 0, 2 }, //_mem,
+    [0750 ... 0774] = { { EMIT_MULS }, NULL, 0, SR_NZVC, 1, 1, 2 }, //_ext,
 };
 
 
@@ -497,6 +497,29 @@ uint32_t GetSR_LineC(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined LineC\n");
         return SR_CCR << 16;
     }
+}
+
+
+int M68K_GetLineCLength(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 00777].od_Emit) {
+        length = InsnTable[opcode & 00777].od_BaseLength;
+        need_ea = InsnTable[opcode & 00777].od_HasEA;
+        opsize = InsnTable[opcode & 00777].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
 }

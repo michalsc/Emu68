@@ -2731,173 +2731,344 @@ uint32_t *EMIT_MOVEP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    (void)opcode;
-    (void)m68k_ptr;
-    /* todo... */
+    uint8_t cc = RA_GetCC(&ptr);
+    uint8_t size = (opcode >> 6) & 3;
+    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint32_t *tmp;
+    uint32_t *tmp_priv;
+    uint8_t ext_count = 1;
+    uint8_t reg = RA_MapM68kRegister(&ptr, opcode2 >> 12);
+    
+    size = size == 0 ? 1 : size == 1 ? 2 : 4;
+
+    ptr = EMIT_FlushPC(ptr);
+
+    /* Test if supervisor mode is active */
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
+
+    /* Branch to exception if not in supervisor */
+    tmp_priv = ptr;
+    *ptr++ = b_cc(A64_CC_EQ, 0);
+
+    // Transfer from Register to EA
+    if (opcode2 & (1 << 11)) {
+
+        if (((opcode & 0x38) == 0x18) && (8 + (opcode & 7)) == (opcode2 >> 12))
+        {
+            uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = add_immed(tmpreg, reg, size);
+
+            reg = tmpreg;
+        }
+        if (((opcode & 0x38) == 0x20) && (8 + (opcode & 7)) == (opcode2 >> 12))
+        {
+            uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = sub_immed(tmpreg, reg, size);
+
+            reg = tmpreg;
+        }
+
+        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count);
+    }
+    // Transfer from EA to Register
+    else {
+        RA_SetDirtyM68kRegister(&ptr, opcode2 >> 12);
+        if (size == 4)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+        else {
+            uint8_t tmpreg = 0xff;
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+
+            if (opcode2 & 0x8000) {
+                switch (size)
+                {
+                    case 1:
+                        *ptr++ = sxtb(reg, tmpreg);
+                        break;
+                
+                    case 2:
+                        *ptr++ = sxth(reg, tmpreg);
+                        break;
+                }
+            }
+
+            switch (size)
+            {
+                case 1:
+                    *ptr++ = bfi(reg, tmpreg, 0, 8);
+                    break;
+            
+                case 2:
+                    *ptr++ = bfi(reg, tmpreg, 0, 16);
+                    break;
+            }
+
+            RA_FreeARMRegister(&ptr, tmpreg);
+        }
+    }
+
+    RA_FreeARMRegister(&ptr, reg);
+
+    *ptr++ = add_immed(REG_PC, REG_PC, 2 * (ext_count + 1));
+
+    tmp = ptr;
+    *ptr++ = b_cc(A64_CC_AL, 0);
+
+    *tmp_priv = b_cc(A64_CC_EQ, ptr - tmp_priv);
+    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+
+    (*m68k_ptr) += ext_count;
+
+    RA_FreeARMRegister(&ptr, reg);
+
+    *tmp = b_cc(A64_CC_AL, ptr - tmp);
+    *ptr++ = (uint32_t)(uintptr_t)tmp;
+    *ptr++ = 1;
+    *ptr++ = 0;
+    *ptr++ = INSN_TO_LE(0xfffffffe);
+
     return ptr;
 }
 
 static struct OpcodeDef InsnTable[4096] = {
-    [0x03c] = { { EMIT_ORI_TO_CCR }, NULL, SR_S | SR_CCR, SR_CCR },
-    [0x07c] = { { EMIT_ORI_TO_SR }, NULL, SR_ALL, SR_ALL },
-    [0x23c] = { { EMIT_ANDI_TO_CCR }, NULL, SR_S | SR_CCR, SR_CCR },
-    [0x27c] = { { EMIT_ANDI_TO_SR }, NULL, SR_ALL, SR_ALL },
-    [0xa3c] = { { EMIT_EORI_TO_CCR }, NULL, SR_S | SR_CCR, SR_CCR },
-    [0xa7c] = { { EMIT_EORI_TO_SR }, NULL, SR_ALL, SR_ALL },
-    [0x000 ... 0x007] = { { EMIT_ORI }, NULL, 0, SR_NZVC },
-    [0x010 ... 0x039] = { { EMIT_ORI }, NULL, 0, SR_NZVC },
-    [0x040 ... 0x047] = { { EMIT_ORI }, NULL, 0, SR_NZVC },
-    [0x050 ... 0x079] = { { EMIT_ORI }, NULL, 0, SR_NZVC },
-    [0x080 ... 0x087] = { { EMIT_ORI }, NULL, 0, SR_NZVC },
-    [0x090 ... 0x0b9] = { { EMIT_ORI }, NULL, 0, SR_NZVC },
-    [0x200 ... 0x207] = { { EMIT_ANDI }, NULL, 0, SR_NZVC },
-    [0x210 ... 0x239] = { { EMIT_ANDI }, NULL, 0, SR_NZVC },
-    [0x240 ... 0x247] = { { EMIT_ANDI }, NULL, 0, SR_NZVC },
-    [0x250 ... 0x279] = { { EMIT_ANDI }, NULL, 0, SR_NZVC },
-    [0x280 ... 0x287] = { { EMIT_ANDI }, NULL, 0, SR_NZVC },
-    [0x290 ... 0x2b9] = { { EMIT_ANDI }, NULL, 0, SR_NZVC },
-    [0x400 ... 0x407] = { { EMIT_SUBI }, NULL, 0, SR_CCR },
-    [0x410 ... 0x439] = { { EMIT_SUBI }, NULL, 0, SR_CCR },
-    [0x440 ... 0x447] = { { EMIT_SUBI }, NULL, 0, SR_CCR },
-    [0x450 ... 0x479] = { { EMIT_SUBI }, NULL, 0, SR_CCR },
-    [0x480 ... 0x487] = { { EMIT_SUBI }, NULL, 0, SR_CCR },
-    [0x490 ... 0x4b9] = { { EMIT_SUBI }, NULL, 0, SR_CCR },
-    [0x600 ... 0x607] = { { EMIT_ADDI }, NULL, 0, SR_CCR },
-    [0x610 ... 0x639] = { { EMIT_ADDI }, NULL, 0, SR_CCR },
-    [0x640 ... 0x647] = { { EMIT_ADDI }, NULL, 0, SR_CCR },
-    [0x650 ... 0x679] = { { EMIT_ADDI }, NULL, 0, SR_CCR },
-    [0x680 ... 0x687] = { { EMIT_ADDI }, NULL, 0, SR_CCR },
-    [0x690 ... 0x6b9] = { { EMIT_ADDI }, NULL, 0, SR_CCR },
-    [0xa00 ... 0xa07] = { { EMIT_EORI }, NULL, 0, SR_NZVC },
-    [0xa10 ... 0xa39] = { { EMIT_EORI }, NULL, 0, SR_NZVC },
-    [0xa40 ... 0xa47] = { { EMIT_EORI }, NULL, 0, SR_NZVC },
-    [0xa50 ... 0xa79] = { { EMIT_EORI }, NULL, 0, SR_NZVC },
-    [0xa80 ... 0xa87] = { { EMIT_EORI }, NULL, 0, SR_NZVC },
-    [0xa90 ... 0xab9] = { { EMIT_EORI }, NULL, 0, SR_NZVC },
-    [0xc00 ... 0xc07] = { { EMIT_CMPI }, NULL, 0, SR_NZVC },
-    [0xc10 ... 0xc3b] = { { EMIT_CMPI }, NULL, 0, SR_NZVC },
-    [0xc40 ... 0xc47] = { { EMIT_CMPI }, NULL, 0, SR_NZVC },
-    [0xc50 ... 0xc7b] = { { EMIT_CMPI }, NULL, 0, SR_NZVC },
-    [0xc80 ... 0xc87] = { { EMIT_CMPI }, NULL, 0, SR_NZVC },
-    [0xc90 ... 0xcbb] = { { EMIT_CMPI }, NULL, 0, SR_NZVC },
-    [0x800 ... 0x807] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x810 ... 0x83b] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x100 ... 0x107] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x110 ... 0x13c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x300 ... 0x307] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x310 ... 0x33c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x500 ... 0x507] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x510 ... 0x53c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x700 ... 0x707] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x710 ... 0x73c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x900 ... 0x907] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x910 ... 0x93c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0xb00 ... 0xb07] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0xb10 ... 0xb3c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0xd00 ... 0xd07] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0xd10 ... 0xd3c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0xf00 ... 0xf07] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0xf10 ... 0xf3c] = { { EMIT_BTST }, NULL, 0, SR_Z },
-    [0x840 ... 0x847] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x850 ... 0x879] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x140 ... 0x147] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x150 ... 0x179] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x340 ... 0x347] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x350 ... 0x379] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x540 ... 0x547] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x550 ... 0x579] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x740 ... 0x747] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x750 ... 0x779] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x940 ... 0x947] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x950 ... 0x979] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0xb40 ... 0xb47] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0xb50 ... 0xb79] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0xd40 ... 0xd47] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0xd50 ... 0xd79] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0xf40 ... 0xf47] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0xf50 ... 0xf79] = { { EMIT_BCHG }, NULL, 0, SR_Z },
-    [0x880 ... 0x887] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x890 ... 0x8b9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x180 ... 0x187] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x190 ... 0x1b9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x380 ... 0x387] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x390 ... 0x3b9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x580 ... 0x587] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x590 ... 0x5b9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x780 ... 0x787] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x790 ... 0x7b9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x980 ... 0x987] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x990 ... 0x9b9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0xb80 ... 0xb87] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0xb90 ... 0xbb9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0xd80 ... 0xd87] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0xd90 ... 0xdb9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0xf80 ... 0xf87] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0xf90 ... 0xfb9] = { { EMIT_BCLR }, NULL, 0, SR_Z },
-    [0x8c0 ... 0x8c7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x8d0 ... 0x8f9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x1c0 ... 0x1c7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x1d0 ... 0x1f9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x3c0 ... 0x3c7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x3d0 ... 0x3f9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x5c0 ... 0x5c7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x5d0 ... 0x5f9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x7c0 ... 0x7c7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x7d0 ... 0x7f9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x9c0 ... 0x9c7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0x9d0 ... 0x9f9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xbc0 ... 0xbc7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xbd0 ... 0xbf9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xdc0 ... 0xdc7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xdd0 ... 0xdf9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xfc0 ... 0xfc7] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xfd0 ... 0xff9] = { { EMIT_BSET }, NULL, 0, SR_Z },
-    [0xad0 ... 0xaf9] = { { EMIT_CAS }, NULL, 0, SR_NZVC },
-    [0xcd0 ... 0xcf9] = { { EMIT_CAS }, NULL, 0, SR_NZVC },
-    [0xed0 ... 0xef9] = { { EMIT_CAS }, NULL, 0, SR_NZVC },
-    [0xcfc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC },
-    [0xefc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC },
-    [0x0d0 ... 0x0d7] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC },
-    [0x0e8 ... 0x0fb] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC },
-    [0x2d0 ... 0x2d7] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC },
-    [0x2e8 ... 0x2fb] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC },
-    [0x4d0 ... 0x4d7] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC },
-    [0x4e8 ... 0x4fb] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC },
-    [0x108 ... 0x10f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x148 ... 0x14f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x188 ... 0x18f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x1c8 ... 0x1cf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x308 ... 0x30f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x348 ... 0x34f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x388 ... 0x38f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x3c8 ... 0x3cf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x508 ... 0x50f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x548 ... 0x54f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x588 ... 0x58f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x5c8 ... 0x5cf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x708 ... 0x70f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x748 ... 0x74f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x788 ... 0x78f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x7c8 ... 0x7cf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x908 ... 0x90f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x948 ... 0x94f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x988 ... 0x98f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0x9c8 ... 0x9cf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xb08 ... 0xb0f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xb48 ... 0xb4f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xb88 ... 0xb8f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xbc8 ... 0xbcf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xd08 ... 0xd0f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xd48 ... 0xd4f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xd88 ... 0xd8f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xdc8 ... 0xdcf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xf08 ... 0xf0f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xf48 ... 0xf4f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xf88 ... 0xf8f] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xfc8 ... 0xfcf] = { { EMIT_MOVEP }, NULL, 0, 0 },
-    [0xe10 ... 0xe39] = { { EMIT_MOVES }, NULL, 0, 0 },
-    [0xe50 ... 0xe79] = { { EMIT_MOVES }, NULL, 0, 0 },
-    [0xe90 ... 0xeb9] = { { EMIT_MOVES }, NULL, 0, 0 },
+	[0x03c] = { { EMIT_ORI_TO_CCR }, NULL, SR_CCR, SR_CCR, 2, 0, 2 },
+	[0x07c] = { { EMIT_ORI_TO_SR }, NULL, SR_ALL, SR_ALL, 2, 0, 2  },
+	[0x23c] = { { EMIT_ANDI_TO_CCR }, NULL, SR_CCR, SR_CCR, 2, 0, 2 },
+	[0x27c] = { { EMIT_ANDI_TO_SR }, NULL, SR_ALL, SR_ALL, 2, 0, 2 },
+	[0xa3c] = { { EMIT_EORI_TO_CCR }, NULL, SR_CCR, SR_CCR, 2, 0, 2 },
+	[0xa7c] = { { EMIT_EORI_TO_SR }, NULL, SR_ALL, SR_ALL, 2, 0, 2 },
+
+	[00000 ... 00007] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[00020 ... 00047] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[00050 ... 00071] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[00100 ... 00107] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[00120 ... 00147] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[00150 ... 00171] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[00200 ... 00207] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[00220 ... 00247] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[00250 ... 00271] = { { EMIT_ORI }, NULL, 0, SR_NZVC, 3, 1, 4 },
+
+	[01000 ... 01007] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[01020 ... 01047] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[01050 ... 01071] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[01100 ... 01107] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[01120 ... 01147] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[01150 ... 01171] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[01200 ... 01207] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[01220 ... 01247] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[01250 ... 01271] = { { EMIT_ANDI }, NULL, 0, SR_NZVC, 3, 1, 4 },
+
+	[02000 ... 02007] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 2, 0, 1 },
+	[02020 ... 02047] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 2, 0, 1 },
+	[02050 ... 02071] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 2, 1, 1 },
+	[02100 ... 02107] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 2, 0, 2 },
+	[02120 ... 02147] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 2, 0, 2 },
+	[02150 ... 02171] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 2, 1, 2 },
+	[02200 ... 02207] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 3, 0, 4 },
+	[02220 ... 02247] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 3, 0, 4 },
+	[02250 ... 02271] = { { EMIT_SUBI }, NULL, 0, SR_CCR, 3, 1, 4 },
+
+	[03000 ... 03007] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 2, 0, 1 },
+	[03020 ... 03047] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 2, 0, 1 },
+	[03050 ... 03071] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 2, 1, 1 },
+	[03100 ... 03107] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 2, 0, 2 },
+	[03120 ... 03147] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 2, 0, 2 },
+	[03150 ... 03171] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 2, 1, 2 },
+	[03200 ... 03207] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 3, 0, 4 },
+	[03220 ... 03247] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 3, 0, 4 },
+	[03250 ... 03271] = { { EMIT_ADDI }, NULL, 0, SR_CCR, 3, 1, 4 },
+
+	[04000 ... 04007] = { { EMIT_BTST }, NULL, 0, SR_Z, 2, 0, 4 },
+	[04020 ... 04047] = { { EMIT_BTST }, NULL, 0, SR_Z, 2, 0, 1 },
+	[04050 ... 04073] = { { EMIT_BTST }, NULL, 0, SR_Z, 2, 1, 1 },
+	[04100 ... 04107] = { { EMIT_BCHG }, NULL, 0, SR_Z, 2, 0, 4 },
+	[04120 ... 04147] = { { EMIT_BCHG }, NULL, 0, SR_Z, 2, 1, 1 },
+	[04150 ... 04171] = { { EMIT_BCHG }, NULL, 0, SR_Z, 2, 1, 1 },
+	[04200 ... 04207] = { { EMIT_BCLR }, NULL, 0, SR_Z, 2, 0, 4 },
+	[04220 ... 04247] = { { EMIT_BCLR }, NULL, 0, SR_Z, 2, 0, 1 },
+	[04250 ... 04271] = { { EMIT_BCLR }, NULL, 0, SR_Z, 2, 1, 1 },
+	[04300 ... 04307] = { { EMIT_BSET }, NULL, 0, SR_Z, 2, 0, 4 },
+	[04320 ... 04347] = { { EMIT_BSET }, NULL, 0, SR_Z, 2, 0, 1 },
+	[04350 ... 04371] = { { EMIT_BSET }, NULL, 0, SR_Z, 2, 1, 1 },
+
+	[05000 ... 05007] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[05020 ... 05047] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[05050 ... 05071] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[05100 ... 05107] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[05120 ... 05147] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[05150 ... 05171] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[05200 ... 05207] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[05220 ... 05247] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[05250 ... 05271] = { { EMIT_EORI }, NULL, 0, SR_NZVC, 3, 1, 4 },
+
+	[06000 ... 06007] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[06020 ... 06047] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[06050 ... 06073] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[06100 ... 06107] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[06120 ... 06147] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[06150 ... 06173] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[06200 ... 06207] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[06220 ... 06247] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 0, 4 },
+	[06250 ... 06273] = { { EMIT_CMPI }, NULL, 0, SR_NZVC, 3, 1, 4 },
+
+	[00400 ... 00407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[00420 ... 00447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[00450 ... 00474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[01400 ... 01407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[01420 ... 01447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[01450 ... 01474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[02400 ... 02407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[02420 ... 02447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[02450 ... 02474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[03400 ... 03407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[03420 ... 03447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[03450 ... 03474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[04400 ... 04407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[04420 ... 04447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[04450 ... 04474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[05400 ... 05407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[05420 ... 05447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[05450 ... 05474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[06400 ... 06407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[06420 ... 06447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[06450 ... 06474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+	[07400 ... 07407] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 4 },
+	[07420 ... 07447] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 0, 1 },
+	[07450 ... 07474] = { { EMIT_BTST }, NULL, 0, SR_Z, 1, 1, 1 },
+
+	[00500 ... 00507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[00520 ... 00547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[00550 ... 00571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[01500 ... 01507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[01520 ... 01547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[01550 ... 01571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[02500 ... 02507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[02520 ... 02547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[02550 ... 02571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[03500 ... 03507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[03520 ... 03547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[03550 ... 03571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[04500 ... 04507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[04520 ... 04547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[04550 ... 04571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[05500 ... 05507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[05520 ... 05547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[05550 ... 05571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[06500 ... 06507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[06520 ... 06547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[06550 ... 06571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+	[07500 ... 07507] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 4 },
+	[07520 ... 07547] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 0, 1 },
+	[07550 ... 07571] = { { EMIT_BCHG }, NULL, 0, SR_Z, 1, 1, 1 },
+
+	[00600 ... 00607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[00620 ... 00647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[00650 ... 00671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[01600 ... 01607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[01620 ... 01647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[01650 ... 01671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[02600 ... 02607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[02620 ... 02647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[02650 ... 02671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[03600 ... 03607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[03620 ... 03647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[03650 ... 03671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[04600 ... 04607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[04620 ... 04647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[04650 ... 04671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[05600 ... 05607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[05620 ... 05647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[05650 ... 05671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[06600 ... 06607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[06620 ... 06647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[06650 ... 06671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+	[07600 ... 07607] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 4 },
+	[07620 ... 07647] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 0, 1 },
+	[07650 ... 07671] = { { EMIT_BCLR }, NULL, 0, SR_Z, 1, 1, 1 },
+
+	[00700 ... 00707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[00720 ... 00747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[00750 ... 00771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[01700 ... 01707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[01720 ... 01747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[01750 ... 01771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[02700 ... 02707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[02720 ... 02747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[02750 ... 02771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[03700 ... 03707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[03720 ... 03747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[03750 ... 03771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[04700 ... 04707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[04720 ... 04747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[04750 ... 04771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[05700 ... 05707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[05720 ... 05747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[05750 ... 05771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[06700 ... 06707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[06720 ... 06747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[06750 ... 06771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+	[07700 ... 07707] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 4 },
+	[07720 ... 07747] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 0, 1 },
+	[07750 ... 07771] = { { EMIT_BSET }, NULL, 0, SR_Z, 1, 1, 1 },
+
+	[05320 ... 05347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[05350 ... 05371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[06320 ... 06347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[06350 ... 06371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[07320 ... 07347] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 0, 4 },
+	[07350 ... 07371] = { { EMIT_CAS }, NULL, 0, SR_NZVC, 2, 1, 4 },
+
+	[0xcfc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 2 },
+	[0xefc] = { { EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 4 },
+
+	[00320 ... 00327] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 1 },
+	[00350 ... 00373] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 1 },
+	[01320 ... 01327] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 2 },
+	[01350 ... 01373] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 2 },
+	[02320 ... 02327] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 4 },
+	[02350 ... 02371] = { { EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 4 },
+
+	[0x108 ... 0x10f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x148 ... 0x14f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x188 ... 0x18f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x1c8 ... 0x1cf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x308 ... 0x30f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x348 ... 0x34f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x388 ... 0x38f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x3c8 ... 0x3cf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x508 ... 0x50f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x548 ... 0x54f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x588 ... 0x58f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x5c8 ... 0x5cf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x708 ... 0x70f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x748 ... 0x74f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x788 ... 0x78f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x7c8 ... 0x7cf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x908 ... 0x90f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x948 ... 0x94f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0x988 ... 0x98f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0x9c8 ... 0x9cf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0xb08 ... 0xb0f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0xb48 ... 0xb4f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0xb88 ... 0xb8f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0xbc8 ... 0xbcf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0xd08 ... 0xd0f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0xd48 ... 0xd4f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0xd88 ... 0xd8f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0xdc8 ... 0xdcf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0xf08 ... 0xf0f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0xf48 ... 0xf4f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+	[0xf88 ... 0xf8f] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
+	[0xfc8 ... 0xfcf] = { { EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
+
+	[07020 ... 07047] = { { EMIT_MOVES }, NULL, SR_S, 0, 2, 0, 1 },
+	[07050 ... 07071] = { { EMIT_MOVES }, NULL, SR_S, 0, 2, 1, 1 },
+	[07120 ... 07147] = { { EMIT_MOVES }, NULL, SR_S, 0, 2, 0, 2 },
+	[07150 ... 07171] = { { EMIT_MOVES }, NULL, SR_S, 0, 2, 1, 2 },
+	[07220 ... 07247] = { { EMIT_MOVES }, NULL, SR_S, 0, 2, 0, 4 },
+	[07250 ... 07271] = { { EMIT_MOVES }, NULL, SR_S, 0, 2, 1, 4 },
 };
 
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -2929,6 +3100,28 @@ uint32_t GetSR_Line0(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined Line0 %04x\n", opcode);
         return SR_CCR << 16;
     }
+}
+
+int M68K_GetLine0Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 0xfff].od_Emit) {
+        length = InsnTable[opcode & 0xfff].od_BaseLength;
+        need_ea = InsnTable[opcode & 0xfff].od_HasEA;
+        opsize = InsnTable[opcode & 0xfff].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 077, opsize);
+    }
+
+    return length;
 }

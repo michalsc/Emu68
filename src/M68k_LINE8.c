@@ -588,38 +588,38 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static struct OpcodeDef InsnTable[512] = {
-    [0000 ... 0007] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },    //D0 Destination
-    [0020 ... 0047] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
-    [0050 ... 0074] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
-    [0100 ... 0107] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },
-    [0120 ... 0147] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
-    [0150 ... 0174] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
-    [0200 ... 0207] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC },
-    [0220 ... 0247] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
-    [0250 ... 0274] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+    [0000 ... 0007] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC, 1, 0, 1 },    //D0 Destination
+    [0020 ... 0047] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0050 ... 0074] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0100 ... 0107] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0120 ... 0147] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0150 ... 0174] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0200 ... 0207] = { { EMIT_OR_reg }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0220 ... 0247] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0250 ... 0274] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
  
-    [0300 ... 0307] = { { EMIT_DIVU_reg }, NULL, 0, SR_NZVC },  //D0 Destination, DIVU.W
-    [0320 ... 0347] = { { EMIT_DIVU_mem }, NULL, 0, SR_NZVC },
-    [0350 ... 0374] = { { EMIT_DIVU_ext }, NULL, 0, SR_NZVC },
+    [0300 ... 0307] = { { EMIT_DIVU_reg }, NULL, 0, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVU.W
+    [0320 ... 0347] = { { EMIT_DIVU_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0350 ... 0374] = { { EMIT_DIVU_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
  
-    [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, SR_X, SR_XZC },
-    [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, SR_X, SR_XZC },  //R0 Destination
-    [0420 ... 0447] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC },
-    [0450 ... 0474] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },    //D0 Source
+    [0400 ... 0407] = { { EMIT_SBCD_reg }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
+    [0410 ... 0417] = { { EMIT_SBCD_mem }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },  //R0 Destination
+    [0420 ... 0447] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0450 ... 0471] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },    //D0 Source
  
-    [0500 ... 0507] = { { EMIT_PACK_reg }, NULL, 0, 0 },
-    [0510 ... 0517] = { { EMIT_PACK_mem }, NULL, 0, 0 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
-    [0520 ... 0547] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC }, 
-    [0550 ... 0574] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+    [0500 ... 0507] = { { EMIT_PACK_reg }, NULL, 0, 0, 2, 0, 2 },
+    [0510 ... 0517] = { { EMIT_PACK_mem }, NULL, 0, 0, 2, 0, 2 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+    [0520 ... 0547] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, 
+    [0550 ... 0571] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
  
-    [0600 ... 0607] = { { EMIT_UNPK_reg }, NULL, 0, 0 },
-    [0610 ... 0617] = { { EMIT_UNPK_mem }, NULL, 0, 0 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
-    [0620 ... 0647] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC }, 
-    [0650 ... 0674] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC },
+    [0600 ... 0607] = { { EMIT_UNPK_reg }, NULL, 0, 0, 2, 0, 2 },
+    [0610 ... 0617] = { { EMIT_UNPK_mem }, NULL, 0, 0, 2, 0, 2 },  //_ext,//R0 Destination, 020 and UP only, fetches another Word.(16-bit adjustment)
+    [0620 ... 0647] = { { EMIT_OR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, 
+    [0650 ... 0671] = { { EMIT_OR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0700 ... 0707] = { { EMIT_DIVS_reg }, NULL, 0, SR_NZVC },  //D0 Destination, DIVS.W
-    [0720 ... 0747] = { { EMIT_DIVS_mem }, NULL, 0, SR_NZVC },
-    [0750 ... 0774] = { { EMIT_DIVS_ext }, NULL, 0, SR_NZVC },
+    [0700 ... 0707] = { { EMIT_DIVS_reg }, NULL, 0, SR_NZVC, 1, 0, 2 },  //D0 Destination, DIVS.W
+    [0720 ... 0747] = { { EMIT_DIVS_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0750 ... 0774] = { { EMIT_DIVS_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
 };
 
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
@@ -651,6 +651,28 @@ uint32_t GetSR_Line8(uint16_t opcode)
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
     else {
+        kprintf("Undefined Line8\n");
         return SR_CCR << 16;
     }
+}
+
+int M68K_GetLine8Length(uint16_t *insn_stream)
+{
+    uint16_t opcode = BE16(*insn_stream);
+    
+    int length = 0;
+    int need_ea = 0;
+    int opsize = 0;
+
+    if (InsnTable[opcode & 0x1ff].od_Emit) {
+        length = InsnTable[opcode & 0x1ff].od_BaseLength;
+        need_ea = InsnTable[opcode & 0x1ff].od_HasEA;
+        opsize = InsnTable[opcode & 0x1ff].od_OpSize;
+    }
+
+    if (need_ea) {
+        length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize);
+    }
+
+    return length;
 }
