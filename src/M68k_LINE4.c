@@ -2826,44 +2826,44 @@ static struct OpcodeDef InsnTable[4096] = {
     [0xfe8 ... 0xffb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
 
     [0x180 ... 0x187] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x190 ... 0x1bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0x190 ... 0x1bc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0x100 ... 0x107] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x110 ... 0x13b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0x110 ... 0x13c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
  
     [0x380 ... 0x387] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x390 ... 0x3bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0x390 ... 0x3bc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0x300 ... 0x307] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x310 ... 0x33b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0x310 ... 0x33c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
  
     [0x580 ... 0x587] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x590 ... 0x5bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0x590 ... 0x5bc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0x500 ... 0x507] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x510 ... 0x53b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0x510 ... 0x53c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
  
     [0x780 ... 0x787] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x790 ... 0x7bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0x790 ... 0x7bc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0x700 ... 0x707] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x710 ... 0x73b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0x710 ... 0x73c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
  
     [0x980 ... 0x987] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x990 ... 0x9bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0x990 ... 0x9bc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0x900 ... 0x907] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x910 ... 0x93b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0x910 ... 0x93c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
  
     [0xb80 ... 0xb87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0xb90 ... 0xbbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0xb90 ... 0xbbc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0xb00 ... 0xb07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0xb10 ... 0xb3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0xb10 ... 0xb3c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
 
     [0xd80 ... 0xd87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0xd90 ... 0xdbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0xd90 ... 0xdbc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0xd00 ... 0xd07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0xd10 ... 0xd3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0xd10 ... 0xd3c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
 
     [0xf80 ... 0xf87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0xf90 ... 0xfbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [0xf90 ... 0xfbc] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
     [0xf00 ... 0xf07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0xf10 ... 0xf3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [0xf10 ... 0xf3c] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
 };
 
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
