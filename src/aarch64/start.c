@@ -888,9 +888,15 @@ void boot(void *dtree)
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0xffffff9000fc0000, initramfs_loc, 262144 / 4);
         }
-        else
+        else if (initramfs_size == 524288)
         {
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+        }
+        else
+        {
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0xffffff9000e00000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
         }
 
         /* Check if ROM is byte-swapped */
