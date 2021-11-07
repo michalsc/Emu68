@@ -356,7 +356,7 @@ asm(
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -612,6 +612,10 @@ void boot(void *dtree)
                 }
             }
         }
+
+#ifdef PISTORM
+        mmu_map(0x01000000, 0x01000000, 0x07000000, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+#endif
 
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
@@ -884,9 +888,15 @@ void boot(void *dtree)
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0xffffff9000fc0000, initramfs_loc, 262144 / 4);
         }
-        else
+        else if (initramfs_size == 524288)
         {
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+        }
+        else
+        {
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0xffffff9000e00000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
         }
 
         /* Check if ROM is byte-swapped */
@@ -907,6 +917,54 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
+    //dt_dump_tree();
+
+    
+
+
+#if 0
+
+    uint32_t plane_idx = LE32(*(volatile uint32_t *)0xf2400024);
+    volatile uint32_t *displist = (uint32_t *)0xf2402000;
+
+    kprintf("DISPLIST1 index is %d\n", plane_idx);
+
+    uint32_t first = LE32(displist[plane_idx]);
+    first = (first >> 24) & 0x3f;
+    kprintf("DISPLIST1 length %d\n", first);
+    plane_idx += first;
+
+    kprintf("DISPLIST1 new pos %d, content %08x\n", plane_idx, LE32(displist[plane_idx]));
+
+
+    displist[plane_idx+1] = LE32(POS0_X(0) | POS0_Y(0) | POS0_ALPHA(0xff));
+    displist[plane_idx+2] = LE32(POS2_H(720) | POS2_W(1280) | (1 << 30));
+    displist[plane_idx+3] = LE32(0xdeadbeef);
+    uint32_t plane_ptr = plane_idx + 4;
+    displist[plane_idx+4] = LE32(0xc0000000 | 0x3e000000);
+    displist[plane_idx+5] = LE32(0xdeadbeef);
+    displist[plane_idx+6] = LE32(1280*2);
+    displist[plane_idx+7] = LE32(0x80000000);
+
+    displist[plane_idx] = LE32(
+    CONTROL_VALID
+    | CONTROL_WORDS(7)
+    | CONTROL_PIXEL_ORDER(HVS_PIXEL_ORDER_ABGR)
+//    | CONTROL0_VFLIP // makes the HVS addr count down instead, pointer word must be last line of image
+    | CONTROL_UNITY
+    | CONTROL_FORMAT(HVS_PIXEL_FORMAT_RGBA8888)
+    );
+
+
+//    *(uint32_t *)0xf2400024 = LE32(plane_idx - 8);
+
+    for (uint32_t x = 0x6000000; x != 0; x -= 4) {
+        kprintf("%08x\n", x);
+        displist[plane_ptr] = LE32(0xc0000000 | x);
+        //for (int i=0; i < 10000; i++) asm volatile("nop");
+    }
+*/
+#endif
     M68K_StartEmu(0, NULL);
 
 #endif

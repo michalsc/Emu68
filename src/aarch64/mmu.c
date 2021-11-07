@@ -247,9 +247,9 @@ void mmu_init()
             }
 
 #ifdef PISTORM
-            if (addr < 0x01000000) {
-                size -= 0x01000000 - addr;
-                addr = 0x01000000;
+            if (addr < 0x08000000) {
+                size -= 0x08000000 - addr;
+                addr = 0x08000000;
             }
 #endif
 
