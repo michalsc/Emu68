@@ -2711,6 +2711,44 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
+    /* FSGLDIV */
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0024))
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+
+        *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
+        *ptr++ = fcvtsd(fp_dst, fp_dst);
+        *ptr++ = fcvtds(fp_dst, fp_dst);
+
+        RA_SetDirtyFPURegister(&ptr, fp_dst);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
     /* FINT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
     {
@@ -3892,6 +3930,44 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+
+        RA_SetDirtyFPURegister(&ptr, fp_dst);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
+    /* FSGLMUL */
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0027))
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t precision = 0;
+
+        if (opcode2 & 0x0040) {
+            if (opcode2 & 0x0004)
+                precision = 8;
+            else
+                precision = 4;
+        }
+
+        (void)precision;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+
+        *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+        *ptr++ = fcvtsd(fp_dst, fp_dst);
+        *ptr++ = fcvtds(fp_dst, fp_dst);
 
         RA_SetDirtyFPURegister(&ptr, fp_dst);
 
