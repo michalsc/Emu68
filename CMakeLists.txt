@@ -49,6 +49,31 @@ set(EMU68_FILES
     src/M68k_LINEF.c
     src/M68k_Exception.c
     src/M68k_CC.c
+    
+    src/math/__rem_pio2.c
+    src/math/__rem_pio2_large.c
+    src/math/__tan.c
+    src/math/__expo2.c
+    src/math/atan.c
+    src/math/atanh.c
+    src/math/acos.c
+    src/math/asin.c
+    src/math/tan.c
+    src/math/tanh.c
+    src/math/scalbn.c
+    src/math/floor.c
+    src/math/cosh.c
+    src/math/exp.c
+    src/math/exp10.c
+    src/math/exp2.c
+    src/math/expm1.c
+    src/math/log.c
+    src/math/log1p.c
+    src/math/log10.c
+    src/math/log2.c
+    src/math/sinh.c
+    src/math/pow.c
+    src/math/modf.c
 )
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
