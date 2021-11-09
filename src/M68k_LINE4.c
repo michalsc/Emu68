@@ -2712,8 +2712,9 @@ static struct OpcodeDef InsnTable[4096] = {
     [01320 ... 01347] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 0, 2 },
 	[01350 ... 01371] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 1, 2 },
 
-    [0x6c0 ... 0x6c7] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 0, 2 },
-    [0x6d0 ... 0x6fc] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 1, 2 },
+    [03300 ... 03307] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 0, 2 },
+	[03302 ... 03347] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 0, 2 },
+    [03350 ... 03374] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 1, 2 },
 
     [02300 ... 02307] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 0, 2 },
     [02320 ... 02347] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 0, 2 },
