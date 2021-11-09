@@ -4050,9 +4050,56 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         (*m68k_ptr) += ext_count;
         ptr = EMIT_FlushPC(ptr);
     }
+    /* FRESTORE */
+    else if ((opcode & ~0x3f) == 0xf340 && 
+             (opcode & 0x30) != 0x00 && 
+             (opcode & 0x38) != 0x20 &&
+             (opcode & 0x3f) <= 0x3b)
+    {
+        uint8_t tmp = -1;
+        ext_count = 0;
+
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+
+        if ((opcode & 0x38) == 0x18)
+        {
+            uint8_t An = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+            *ptr++ = tst_immed(tmp, 8, 8);
+            *ptr++ = b_cc(A64_CC_EQ, 5);
+            *ptr++ = ubfx(tmp, tmp, 16, 8);
+            *ptr++ = cmp_immed(tmp, 0x18);
+            *ptr++ = b_cc(A64_CC_NE, 2);
+            *ptr++ = add_immed(An, An, 28 - 4);
+        }
+
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+        ptr = EMIT_FlushPC(ptr);
+    }
+    /* FSAVE */
+    else if ((opcode & ~0x3f) == 0xf300 && 
+             (opcode & 0x30) != 0x00 && 
+             (opcode & 0x38) != 0x18 &&
+             (opcode & 0x3f) <= 0x39)
+    {
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        
+        ext_count = 0;
+
+        *ptr++ = mov_immed_u16(tmp, 0x4100, 1);
+        ptr = EMIT_StoreToEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count);
+
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+    }
     else
     {
         ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x:%04x at %08x not implemented\n", opcode, opcode2, *m68k_ptr - 1);
         ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
         *ptr++ = INSN_TO_LE(0xffffffff);
     }
@@ -4060,13 +4107,15 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     return ptr;
 }
 
+int DisableFPU = 0;
+
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     uint16_t opcode2 = BE16((*m68k_ptr)[1]);
 
     /* Check destination coprocessor - if it is FPU go to separate function */
-    if ((opcode & 0x0e00) == 0x0200)
+    if (DisableFPU == 0 && (opcode & 0x0e00) == 0x0200)
     {
         return EMIT_FPU(ptr, m68k_ptr, insn_consumed);
     }
