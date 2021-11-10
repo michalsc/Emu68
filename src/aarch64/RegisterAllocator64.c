@@ -370,7 +370,7 @@ uint8_t RA_AllocFPURegister(uint32_t **arm_stream)
 {
     (void)arm_stream;
 
-    for (int i=1; i < 8; i++) {
+    for (int i=2; i < 8; i++) {
         if ((fpu_allocstate & (1 << i)) == 0)
         {
             fpu_allocstate |= 1 << i;
