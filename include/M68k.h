@@ -105,6 +105,7 @@ struct M68KState
     uint32_t IPL0;
     uint64_t INSN_COUNT;
 
+    uint32_t JIT_CACHE_MISS;
     uint32_t JIT_UNIT_COUNT;
     uint32_t JIT_CACHE_TOTAL;
     uint32_t JIT_CACHE_FREE;
