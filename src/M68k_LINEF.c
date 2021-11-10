@@ -558,38 +558,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 /* Single - move to single half of the reg, convert to double */
                 case SIZE_S:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-#ifdef __aarch64__
                     *ptr++ = fmsr(*reg, int_reg);
                     *ptr++ = fcvtds(*reg, *reg);
-#else
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fcvtds(*reg, *reg * 2);
-#endif
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
                 case SIZE_L:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-#ifdef __aarch64__
                     *ptr++ = scvtf_32toD(*reg, int_reg);
-#else
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
                 case SIZE_W:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                     *ptr++ = sxth(tmp_reg, int_reg);
                     *ptr++ = scvtf_32toD(*reg, tmp_reg);
-#else
-                    *ptr++ = sxth(tmp_reg, int_reg, 0);
-                    *ptr++ = fmsr(*reg * 2, tmp_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     RA_FreeARMRegister(&ptr, tmp_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
@@ -597,14 +581,8 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_B:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                     *ptr++ = sxtb(tmp_reg, int_reg);
                     *ptr++ = scvtf_32toD(*reg, tmp_reg);
-#else
-                    *ptr++ = sxtb(tmp_reg, int_reg, 0);
-                    *ptr++ = fmsr(*reg * 2, tmp_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     RA_FreeARMRegister(&ptr, tmp_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
@@ -623,7 +601,6 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             switch (size)
             {
                 case SIZE_S:
-#ifdef __aarch64__
                 {
                     int8_t off = 4;
                     ptr = EMIT_GetOffsetPC(ptr, &off);
@@ -632,23 +609,13 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     *ext_count += 2;
                     break;
                 }
-#else
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fcvtds(*reg, *reg * 2);
-#endif
-                    break;
+
                 case SIZE_L:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
-#ifdef __aarch64__
                     *ptr++ = scvtf_32toD(*reg, int_reg);
-#else
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     break;
+                
                 case SIZE_W:
-#ifdef __aarch64__
                 {
                     int_reg = RA_AllocARMRegister(&ptr);
                     int16_t imm = (int16_t)BE16((*m68k_ptr)[1]);
@@ -657,31 +624,19 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         *ptr++ = movt_immed_u16(int_reg, 0xffff);
                     *ptr++ = scvtf_32toD(*reg, int_reg);
                     *ext_count += 1;
-                }
-#else
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
-                    *ptr++ = sxth(int_reg, int_reg, 0);
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     break;
+                }
+
                 case SIZE_B:
-#ifdef __aarch64__
                 {
                     int_reg = RA_AllocARMRegister(&ptr);
                     int8_t imm = (int8_t)BE16((*m68k_ptr)[1]);
                     *ptr++ = mov_immed_s8(int_reg, imm);
                     *ptr++ = scvtf_32toD(*reg, int_reg);
                     *ext_count += 1;
-                }
-#else
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
-                    *ptr++ = sxtb(int_reg, int_reg, 0);
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     break;
-#ifdef __aarch64__
+                }
+
                 case SIZE_D:
                 {
                     int8_t off = 4;
@@ -690,7 +645,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     *ext_count += 4;
                     break;
                 }
-#endif
+
                 default:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
                     not_yet_done = 1;
@@ -703,68 +658,12 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 switch(size)
                 {
                     case SIZE_D:
-#ifdef __aarch64__
                         *ptr++ = fldd(*reg, int_reg, 0);
-#else
-                        if (((uint32_t)(*m68k_ptr + *ext_count)) & 0x3) {
-                            uint8_t tmp1 = RA_AllocARMRegister(&ptr);
-                            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-
-                            *ptr++ = ldr_offset(int_reg, tmp1, 0);
-                            *ptr++ = ldr_offset(int_reg, tmp2, 4);
-                            *ptr++ = fmdrr(*reg, tmp1, tmp2);
-
-                            RA_FreeARMRegister(&ptr, tmp2);
-                            RA_FreeARMRegister(&ptr, tmp1);
-                        }
-                        else
-                            *ptr++ = fldd(*reg, int_reg, 0);
-#endif
                         *ext_count += 4;
                         break;
 
                     case SIZE_X:
-                        {
-                            kprintf("extended precision immediate load!\n");
-#ifdef __aarch64__
-                            ptr = EMIT_Load96bitFP(ptr, *reg, int_reg, 0);
-#else
-                            uint8_t tmp1 = RA_AllocARMRegister(&ptr);
-                            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-                            /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
-                            *ptr++ = ldr_offset(int_reg, tmp2, 4);
-                            *ptr++ = ldr_offset(int_reg, tmp1, 8);
-
-                            /* Shift right the second word of mantissa */
-                            *ptr++ = lsr_immed(tmp1, tmp1, 11);
-                            /* Insert first 11 bit of first word of mantissa */
-                            *ptr++ = bfi(tmp1, tmp2, 21, 11);
-
-                            /* Load lower half word of destination double type */
-                            *ptr++ = fmdlr(*reg, tmp1);
-
-                            /* Shift right upper part of mantissa, clear explicit bit */
-                            *ptr++ = bic_immed(tmp2, tmp2, 0x102);
-                            *ptr++ = lsr_immed(tmp2, tmp2, 11);
-
-                            /* Get exponent, extract sign bit  */
-                            *ptr++ = ldrh_offset(int_reg, tmp1, 0);
-                            *ptr++ = tst_immed(tmp1, 0xc80);
-
-                            /* Remove bias of exponent (16383) and add bias of double eponent (1023) */
-                            *ptr++ = sub_immed(tmp1, tmp1, 0xc3c);
-
-                            /* Insert exponent into upper part of first double word, insert sign */
-                            *ptr++ = bfi(tmp2, tmp1, 20, 11);
-                            *ptr++ = orr_cc_immed(ARM_CC_NE, tmp2, tmp2, 0x102);
-
-                            /* Load upper half into destination double */
-                            *ptr++ = fmdhr(*reg, tmp2);
-
-                            RA_FreeARMRegister(&ptr, tmp1);
-                            RA_FreeARMRegister(&ptr, tmp2);
-#endif
-                        }
+                        ptr = EMIT_Load96bitFP(ptr, *reg, int_reg, 0);
                         *ext_count += 6;
                         break;
 
@@ -815,7 +714,6 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             {
                 case SIZE_X:
                     {
-#ifdef __aarch64__
                         if (pre_sz)
                         {
                             *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
@@ -850,63 +748,10 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         {
                             *ptr++ = add_immed(int_reg, int_reg, post_sz);
                         }
-#else
-                        if (imm_offset < -4095 || imm_offset > 4095-8) {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
-
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, 0);
-
-                            RA_FreeARMRegister(&ptr, int_reg);
-                            int_reg = off;
-                            imm_offset = 0;
-                        }
-
-                        kprintf("extended precision load from EA!\n");
-                        uint8_t tmp1 = RA_AllocARMRegister(&ptr);
-                        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-                        /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
-                        *ptr++ = ldr_offset(int_reg, tmp2, imm_offset + 4);
-                        *ptr++ = ldr_offset(int_reg, tmp1, imm_offset + 8);
-
-                        /* Shift right the second word of mantissa */
-                        *ptr++ = lsr_immed(tmp1, tmp1, 11);
-                        /* Insert first 11 bit of first word of mantissa */
-                        *ptr++ = bfi(tmp1, tmp2, 21, 11);
-
-                        /* Load lower half word of destination double type */
-                        *ptr++ = fmdlr(*reg, tmp1);
-
-                        /* Shift right upper part of mantissa, clear explicit bit */
-                        *ptr++ = bic_immed(tmp2, tmp2, 0x102);
-                        *ptr++ = lsr_immed(tmp2, tmp2, 11);
-
-                        /* Get exponent, extract sign bit  */
-                        *ptr++ = ldr_offset(int_reg, tmp1, imm_offset);
-                        *ptr++ = lsr_immed(tmp1, tmp1, 16);
-                        *ptr++ = tst_immed(tmp1, 0xc80);
-
-                        /* Remove bias of exponent (16383) and add bias of double eponent (1023) */
-                        *ptr++ = sub_immed(tmp1, tmp1, 0xc3c);
-
-                        /* Insert exponent into upper part of first double word, insert sign */
-                        *ptr++ = bfi(tmp2, tmp1, 20, 11);
-                        *ptr++ = orr_cc_immed(ARM_CC_NE, tmp2, tmp2, 0x102);
-
-                        /* Load upper half into destination double */
-                        *ptr++ = fmdhr(*reg, tmp2);
-
-                        RA_FreeARMRegister(&ptr, tmp1);
-                        RA_FreeARMRegister(&ptr, tmp2);
-#endif
                     }
                     break;
                 case SIZE_D:
                     {
-#ifdef __aarch64__
                         if (pre_sz)
                         {
                             *ptr++ = fldd_preindex(*reg, int_reg, pre_sz);
@@ -945,111 +790,50 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                             *ptr++ = fldd(*reg, off, 0);
                             RA_FreeARMRegister(&ptr, off);
                         }
-#else
-                        uint8_t tmp1 = RA_AllocARMRegister(&ptr);
-                        uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-
-                        if (Options.M68K_ALLOW_UNALIGNED_FPU) {
-                            if (imm_offset < -4095 || imm_offset > 4095-4) {
-                                uint8_t off = RA_AllocARMRegister(&ptr);
-
-                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                                *ptr++ = add_reg(off, int_reg, off, 0);
-
-                                RA_FreeARMRegister(&ptr, int_reg);
-                                int_reg = off;
-                                imm_offset = 0;
-                            }
-
-                            *ptr++ = ldr_offset(int_reg, tmp1, imm_offset);
-                            *ptr++ = ldr_offset(int_reg, tmp2, imm_offset + 4);
-                            *ptr++ = fmdrr(*reg, tmp1, tmp2);
-                        } else {
-                            if ((imm_offset & 3) || imm_offset < -1023 || imm_offset > 1023) {
-                                uint8_t off = RA_AllocARMRegister(&ptr);
-
-                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                                *ptr++ = add_reg(off, int_reg, off, 0);
-
-                                RA_FreeARMRegister(&ptr, int_reg);
-                                int_reg = off;
-                                imm_offset = 0;
-                            }
-                            *ptr++ = fldd(*reg, int_reg, imm_offset >> 2);
-                        }
-
-                        RA_FreeARMRegister(&ptr, tmp2);
-                        RA_FreeARMRegister(&ptr, tmp1);
-#endif
                     }
                     break;
                 case SIZE_S:
-#ifdef __aarch64__
-                        if (pre_sz)
+                    if (pre_sz)
+                    {
+                        *ptr++ = flds_preindex(*reg, int_reg, pre_sz);
+                    }
+                    else if (post_sz)
+                    {
+                        *ptr++ = flds_postindex(*reg, int_reg, post_sz);
+                    }
+                    else if (imm_offset >= -255 && imm_offset <= 255)
+                    {
+                        *ptr++ = flds(*reg, int_reg, imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
+                    {
+                        *ptr++ = flds_pimm(*reg, int_reg, imm_offset >> 2);
+                    }
+                    else
+                    {
+                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = flds_preindex(*reg, int_reg, pre_sz);
+                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
                         }
-                        else if (post_sz)
+                        else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = flds_postindex(*reg, int_reg, post_sz);
-                        }
-                        else if (imm_offset >= -255 && imm_offset <= 255)
-                        {
-                            *ptr++ = flds(*reg, int_reg, imm_offset);
-                        }
-                        else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
-                        {
-                            *ptr++ = flds_pimm(*reg, int_reg, imm_offset >> 2);
+                            *ptr++ = add_immed(off, int_reg, imm_offset);
                         }
                         else
                         {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
-                            if (imm_offset > -4096 && imm_offset < 0)
-                            {
-                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
-                            }
-                            else if (imm_offset >= 0 && imm_offset < 4096)
-                            {
-                                *ptr++ = add_immed(off, int_reg, imm_offset);
-                            }
-                            else
-                            {
-                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
-                            }
-                            *ptr++ = flds(*reg, off, 0);
-                            RA_FreeARMRegister(&ptr, off);
+                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                            imm_offset >>= 16;
+                            if (imm_offset)
+                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
                         }
-                        *ptr++ = fcvtds(*reg, *reg);
-#else
-                    if ((imm_offset & 3) || imm_offset < -1023 || imm_offset > 1023) {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
-
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, 0);
-
-                        RA_FreeARMRegister(&ptr, int_reg);
-                        int_reg = off;
-                        imm_offset = 0;
+                        *ptr++ = flds(*reg, off, 0);
+                        RA_FreeARMRegister(&ptr, off);
                     }
-                    *ptr++ = flds(*reg * 2, int_reg, imm_offset >> 2);
-                    *ptr++ = fcvtds(*reg, *reg * 2);
-#endif
+                    *ptr++ = fcvtds(*reg, *reg);
                     break;
                 case SIZE_L:
-#ifdef __aarch64__
                     val_reg = RA_AllocARMRegister(&ptr);
 
                     if (pre_sz)
@@ -1091,29 +875,8 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         RA_FreeARMRegister(&ptr, off);
                     }
                     *ptr++ = scvtf_32toD(*reg, val_reg);
-#else
-                    if (imm_offset < -4095 || imm_offset > 4095) {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
-
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, 0);
-
-                        RA_FreeARMRegister(&ptr, int_reg);
-                        int_reg = off;
-                        imm_offset = 0;
-                    }
-
-                    val_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldr_offset(int_reg, val_reg, imm_offset);
-                    *ptr++ = fmsr(*reg * 2, val_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     break;
                 case SIZE_W:
-#ifdef __aarch64__
                     val_reg = RA_AllocARMRegister(&ptr);
 
                     if (pre_sz)
@@ -1156,28 +919,8 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     *ptr++ = sxth(val_reg, val_reg);
                     *ptr++ = scvtf_32toD(*reg, val_reg);
-#else
-                    if (imm_offset < -255 || imm_offset > 255) {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
-
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, 0);
-
-                        RA_FreeARMRegister(&ptr, int_reg);
-                        int_reg = off;
-                        imm_offset = 0;
-                    }
-                    val_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldrsh_offset(int_reg, val_reg, imm_offset);
-                    *ptr++ = fmsr(*reg * 2, val_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     break;
                 case SIZE_B:
-#ifdef __aarch64__
                     val_reg = RA_AllocARMRegister(&ptr);
 
                     if (pre_sz)
@@ -1220,26 +963,6 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     *ptr++ = sxtb(val_reg, val_reg);
                     *ptr++ = scvtf_32toD(*reg, val_reg);
-#else
-
-                    if (imm_offset < -4095 || imm_offset > 4095) {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
-
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, 0);
-
-                        RA_FreeARMRegister(&ptr, int_reg);
-                        int_reg = off;
-                        imm_offset = 0;
-                    }
-                    val_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = ldrsb_offset(int_reg, val_reg, imm_offset);
-                    *ptr++ = fmsr(*reg * 2, int_reg);
-                    *ptr++ = fsitod(*reg, *reg * 2);
-#endif
                     break;
                 default:
                     break;
@@ -1286,39 +1009,23 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         {
             case SIZE_S:
                 int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
-#ifdef __aarch64__
                 *ptr++ = fcvtsd(vfp_reg, reg);                  // Convert double to single
                 *ptr++ = fmrs(int_reg, vfp_reg);                // Move single to destination ARM reg
-#else
-                *ptr++ = fcvtsd(vfp_reg * 2, reg);                  // Convert double to single
-                *ptr++ = fmrs(int_reg, vfp_reg * 2);                // Move single to destination ARM reg
-#endif
                 RA_FreeARMRegister(&ptr, int_reg);
                 break;
 
             case SIZE_L:
                 int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
-#ifdef __aarch64__
                 // No rounding mode specified? Round to zero?
                 *ptr++ = fcvtzs_Dto32(int_reg, reg);
-#else
-                *ptr++ = ftosid(vfp_reg * 2, reg);                  // Convert double to signed integer
-                *ptr++ = fmrs(int_reg, vfp_reg * 2);                // Move signed int to destination ARM reg
-#endif
                 RA_FreeARMRegister(&ptr, int_reg);
                 break;
 
             case SIZE_W:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                 *ptr++ = fcvtzs_Dto32(tmp_reg, reg);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 16);
-#else
-                *ptr++ = ftosid(vfp_reg * 2, reg);                  // Convert double to signed integer
-                *ptr++ = fmrs(tmp_reg, vfp_reg * 2);                // Move signed int to temporary ARM reg
-                *ptr++ = bfi(int_reg, tmp_reg, 0, 16);              // Insert lower 16 bits of temporary into target
-#endif
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
                 RA_FreeARMRegister(&ptr, int_reg);
@@ -1327,14 +1034,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             case SIZE_B:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                 *ptr++ = fcvtzs_Dto32(tmp_reg, reg);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 8);
-#else
-                *ptr++ = ftosid(vfp_reg * 2, reg);                  // Convert double to signed integer
-                *ptr++ = fmrs(tmp_reg, vfp_reg * 2);                // Move signed int to temporary ARM reg
-                *ptr++ = bfi(int_reg, tmp_reg, 0, 8);               // Insert lower 16 bits of temporary into target
-#endif
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
                 RA_FreeARMRegister(&ptr, int_reg);
@@ -1382,8 +1083,6 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         {
             case SIZE_X:
                 {
-                    kprintf("extended precision store to EA!\n");
-#ifdef __aarch64__
                     if (pre_sz)
                     {
                         *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
@@ -1419,49 +1118,10 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     {
                         *ptr++ = add_immed(int_reg, int_reg, post_sz);
                     }
-#else
-#if 0
-                    uint8_t tmp1 = RA_AllocARMRegister(&ptr);
-                    uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-                    /* Extended format. First get the 64-bit mantissa and fit it into 52 bit fraction */
-                    *ptr++ = ldr_offset(int_reg, tmp2, 4);
-                    *ptr++ = ldr_offset(int_reg, tmp1, 8);
-
-                    /* Shift right the second word of mantissa */
-                    *ptr++ = lsr_immed(tmp1, tmp1, 11);
-                    /* Insert first 11 bit of first word of mantissa */
-                    *ptr++ = bfi(tmp1, tmp2, 21, 11);
-
-                    /* Load lower half word of destination double type */
-                    *ptr++ = fmdlr(*reg, tmp1);
-
-                    /* Shift right upper part of mantissa, clear explicit bit */
-                    *ptr++ = bic_immed(tmp2, tmp2, 0x102);
-                    *ptr++ = lsr_immed(tmp2, tmp2, 11);
-
-                    /* Get exponent, extract sign bit  */
-                    *ptr++ = ldrh_offset(int_reg, tmp1, 0);
-                    *ptr++ = tst_immed(tmp1, 0xc80);
-
-                    /* Remove bias of exponent (16383) and add bias of double eponent (1023) */
-                    *ptr++ = sub_immed(tmp1, tmp1, 0xc3c);
-
-                    /* Insert exponent into upper part of first double word, insert sign */
-                    *ptr++ = bfi(tmp2, tmp1, 20, 11);
-                    *ptr++ = orr_cc_immed(ARM_CC_NE, tmp2, tmp2, 0x102);
-
-                    /* Load upper half into destination double */
-                    *ptr++ = fmdhr(*reg, tmp2);
-
-                    RA_FreeARMRegister(&ptr, tmp1);
-                    RA_FreeARMRegister(&ptr, tmp2);
-#endif
-#endif
                 }
                 break;
             case SIZE_D:
                 {
-#ifdef __aarch64__
                     if (pre_sz)
                     {
                         *ptr++ = fstd_preindex(reg, int_reg, pre_sz);
@@ -1500,54 +1160,9 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                         *ptr++ = fstd(reg, off, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
-#else
-                    uint8_t tmp1 = RA_AllocARMRegister(&ptr);
-                    uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-
-                    if (Options.M68K_ALLOW_UNALIGNED_FPU) {
-                        *ptr++ = fmrrd(tmp1, tmp2, reg);
-                        if (imm_offset > -4096 && imm_offset < 4096-4) {
-                            *ptr++ = str_offset(int_reg, tmp1, imm_offset);
-                            *ptr++ = str_offset(int_reg, tmp2, imm_offset + 4);
-                        } else {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
-
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, 0);
-
-                            *ptr++ = str_offset(off, tmp1, 0);
-                            *ptr++ = str_offset(off, tmp2, 4);
-
-                            RA_FreeARMRegister(&ptr, off);
-                        }
-                    } else {
-                        if ((imm_offset & 3) == 0 && imm_offset > -1024 && imm_offset < 1024) {
-                            *ptr++ = fstd(reg, int_reg, imm_offset >> 2);
-                        } else {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
-
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, 0);
-
-                            *ptr++ = fstd(reg, off, 0);
-
-                            RA_FreeARMRegister(&ptr, off);
-                        }
-                    }
-
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    RA_FreeARMRegister(&ptr, tmp1);
-#endif
                 }
                 break;
             case SIZE_S:
-#ifdef __aarch64__
                 *ptr++ = fcvtsd(vfp_reg, reg);
                 if (pre_sz)
                 {
@@ -1587,26 +1202,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     *ptr++ = fsts(vfp_reg, off, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
-#else
-                *ptr++ = fcvtsd(vfp_reg * 2, reg);
-                if ((imm_offset & 3) == 0 && imm_offset > -1024 && imm_offset < 1024) {
-                    *ptr++ = fsts(vfp_reg * 2, int_reg, imm_offset >> 2);
-                } else {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
-
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, 0);
-                    *ptr++ = fsts(vfp_reg * 2, off, 0);
-
-                    RA_FreeARMRegister(&ptr, off);
-                }
-#endif
                 break;
             case SIZE_L:
-#ifdef __aarch64__
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = fcvtzs_Dto32(val_reg, reg);
 
@@ -1648,28 +1245,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     *ptr++ = str_offset(off, val_reg, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
-#else
-                val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = ftosid(vfp_reg * 2, reg);
-                *ptr++ = fmrs(val_reg, vfp_reg * 2);
-                if (imm_offset > -4096 && imm_offset < 4096) {
-                    *ptr++ = str_offset(int_reg, val_reg, imm_offset);
-                } else {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
-
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, 0);
-                    *ptr++ = str_offset(off, val_reg, 0);
-
-                    RA_FreeARMRegister(&ptr, off);
-                }
-#endif
                 break;
             case SIZE_W:
-#ifdef __aarch64__
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = fcvtzs_Dto32(val_reg, reg);
 
@@ -1711,28 +1288,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     *ptr++ = strh_offset(off, val_reg, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
-#else
-                val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = ftosid(vfp_reg * 2, reg);
-                *ptr++ = fmrs(val_reg, vfp_reg * 2);
-                if (imm_offset > -256 && imm_offset < 256) {
-                    *ptr++ = strh_offset(int_reg, val_reg, imm_offset);
-                } else {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
-
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, 0);
-                    *ptr++ = strh_offset(off, val_reg, 0);
-
-                    RA_FreeARMRegister(&ptr, off);
-                }
-#endif
                 break;
             case SIZE_B:
-#ifdef __aarch64__
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = fcvtzs_Dto32(val_reg, reg);
 
@@ -1774,25 +1331,6 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     *ptr++ = strb_offset(off, val_reg, 0);
                     RA_FreeARMRegister(&ptr, off);
                 }
-#else
-                val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = ftosid(vfp_reg * 2, reg);
-                *ptr++ = fmrs(val_reg, vfp_reg * 2);
-                if (imm_offset > -4096 && imm_offset < 4096) {
-                    *ptr++ = strb_offset(int_reg, val_reg, imm_offset);
-                } else {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
-
-                    *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                    imm_offset >>= 16;
-                    if (imm_offset)
-                        *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                    *ptr++ = add_reg(off, int_reg, off, 0);
-                    *ptr++ = strb_offset(off, val_reg, 0);
-
-                    RA_FreeARMRegister(&ptr, off);
-                }
-#endif
                 break;
             default:
                 break;
@@ -2220,17 +1758,10 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
         else {
             u.d = constants[offset];
-#ifdef __aarch64__
             *ptr++ = fldd_pcrel(fp_dst, 2);
             *ptr++ = b(3);
             *ptr++ = u.u32[0];
             *ptr++ = u.u32[1];
-#else
-            *ptr++ = fldd(fp_dst, 15, 0);
-            *ptr++ = b_cc(ARM_CC_AL, 1);
-            *ptr++ = BE32(u.u32[0]);
-            *ptr++ = BE32(u.u32[1]);
-#endif
         }
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -2338,47 +1869,26 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         switch (predicate & 0x0f)
         {
             case F_CC_EQ:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x404);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_NE:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x404);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_OGT:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = ARM_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x40d);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_ULE:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = ARM_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x40d);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -2386,16 +1896,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x404);    /* Copy fpsr to temporary reg, invert Z */
-                *ptr++ = tst_immed(tmp_cc, 0x404); // Test Z
-                *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x409); // Z == 1? Test N == 0 && NAN == 0
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -2403,44 +1905,22 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = and_reg(tmp_cc, fpsr, tmp_cc, LSL, 1); // !Z & N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x409);    /* Copy fpsr to temporary reg, invert N and NAN */
-                *ptr++ = tst_immed(tmp_cc, 0x401);  // Test NAN
-                *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x40c); // !NAN == 1, test !N == 0 && Z == 0
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 2); // NAN | Z -> Z
                 *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // Invert N
                 *ptr++ = tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)); // Test N==0 && Z == 0
                 success_condition = A64_CC_EQ;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
-                *ptr++ = tst_immed(tmp_cc, 0x40d);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N));
                 *ptr++ = bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I));
                 *ptr++ = tst_immed(tmp_cc, 4, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
-                *ptr++ = tst_immed(tmp_cc, 0x40d);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -2448,16 +1928,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3);   // !NAN & N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x40c);    /* Copy fpsr to temporary reg, invert Z and N */
-                *ptr++ = tst_immed(tmp_cc, 0x404);          /* Test if inverted Z == 0 */
-                *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x409);    /* Test if !N == 0 && NAN == 0 */
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -2465,53 +1937,26 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x401);    /* Copy fpsr to temporary reg, invert NAN */
-                *ptr++ = tst_immed(tmp_cc, 0x401);          /* Test if inverted NAN == 0 */
-                *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x40c);    /* Test if !N == 0 && Z == 0 */
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_OGL:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = A64_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x405);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UEQ:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = A64_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x405);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_OR:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x401);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UN:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x401);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
         }
         RA_FreeARMRegister(&ptr, tmp_cc);
@@ -2542,7 +1987,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         branch_offset += local_pc_off;
 
-#ifdef __aarch64__
         uint8_t pc_yes = RA_AllocARMRegister(&ptr);
         uint8_t pc_no = RA_AllocARMRegister(&ptr);
 
@@ -2557,23 +2001,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             *ptr++ = add_reg(pc_yes, REG_PC, reg, LSL, 0);
         }
         else { *ptr++ = mov_reg(pc_yes, REG_PC); }
-#else
-        if (branch_offset > 0 && branch_offset < 255)
-            *ptr++ = add_cc_immed(success_condition, REG_PC, REG_PC, branch_offset);
-        else if (branch_offset > -256 && branch_offset < 0)
-            *ptr++ = sub_cc_immed(success_condition, REG_PC, REG_PC, -branch_offset);
-        else if (branch_offset != 0) {
-            *ptr++ = movw_cc_immed_u16(success_condition, reg, branch_offset);
-            if ((branch_offset >> 16) & 0xffff)
-                *ptr++ = movt_cc_immed_u16(success_condition, reg, (branch_offset >> 16) & 0xffff);
-            *ptr++ = add_cc_reg(success_condition, REG_PC, REG_PC, reg, 0);
-        }
-
-        /* Next jump to skip the condition - invert bit 0 of the condition code here! */
-        tmpptr = ptr;
-
-        *ptr++ = 0; // Here a b_cc(success_condition ^ 1, 2); will be put, but with right offset
-#endif
 
         branch_target += branch_offset - local_pc_off;
 
@@ -2590,7 +2017,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             local_pc_off_16 += 6;
         }
 
-#ifdef __aarch64__
         if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
             *ptr++ = add_immed(pc_no, REG_PC, local_pc_off_16);
         else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
@@ -2619,21 +2045,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 #else
         *ptr++ = b_cc(success_condition^1, 1);
 #endif
-#endif
-#else
-        if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
-            *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
-        else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
-            *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
-        else if (local_pc_off_16 != 0) {
-            *ptr++ = movw_immed_u16(reg, local_pc_off_16);
-            if ((local_pc_off_16 >> 16) & 0xffff)
-                *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
-            *ptr++ = add_reg(REG_PC, REG_PC, reg, 0);
-        }
-
-        /* Now we now how far we jump. put the branch in place */
-        *tmpptr = b_cc(success_condition, ptr-tmpptr-2);
 #endif
 
 #if EMU68_DEF_BRANCH_AUTO
@@ -2680,16 +2091,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t precision = 0;
-
-        if (opcode2 & 0x0040) {
-            if (opcode2 & 0x0004)
-                precision = 8;
-            else
-                precision = 4;
-        }
-
-        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
@@ -2716,16 +2117,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t precision = 0;
-
-        if (opcode2 & 0x0040) {
-            if (opcode2 & 0x0004)
-                precision = 8;
-            else
-                precision = 4;
-        }
-
-        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
