@@ -53,6 +53,8 @@ set(EMU68_FILES
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
     src/math/__tan.c
+    src/math/__sin.c
+    src/math/__cos.c
     src/math/__expo2.c
     src/math/atan.c
     src/math/atanh.c
@@ -74,6 +76,7 @@ set(EMU68_FILES
     src/math/sinh.c
     src/math/pow.c
     src/math/modf.c
+    src/math/sincos.c
 )
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
