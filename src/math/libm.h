@@ -122,6 +122,12 @@ static inline double fabs(double x)
         sizeof(x) == sizeof(float) ? (__FLOAT_BITS(x) & 0x7fffffff) > 0x7f800000 : \
         sizeof(x) == sizeof(double) ? (__DOUBLE_BITS(x) & -1ULL>>1) > 0x7ffULL<<52 : 1)
 
+struct double2 {
+    double d[2];
+};
+
+double __sin(double x, double y, int iy);
+double __cos(double x, double y);
 double __expo2(double x);
 double __tan(double x, double y, int odd);
 int __rem_pio2(double x, double *y);
@@ -145,5 +151,6 @@ double log1p(double x);
 double log10(double x);
 double log2(double x);
 double modf(double x, double *iptr);
+struct double2 sincos(double x);
 
 #endif /* __LIBM_H */

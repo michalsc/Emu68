@@ -2749,6 +2749,63 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
+    /* FSINCOS */
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa078) == 0x0030))
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
+        uint8_t fp_dst_cos = opcode2 & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst_sin = RA_MapFPURegisterForWrite(&ptr, fp_dst_sin);
+        fp_dst_cos = RA_MapFPURegisterForWrite(&ptr, fp_dst_cos);
+
+        *ptr++ = fcpyd(0, fp_src);
+
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        u.u64 = (uintptr_t)sincos;
+
+        *ptr++ = stp64_preindex(31, 0, 1, -80);
+        *ptr++ = stp64(31, 2, 3, 16);
+        *ptr++ = stp64(31, 4, 5, 32);
+        *ptr++ = stp64(31, 6, 7, 48);
+        *ptr++ = str64_offset(31, 30, 64);
+
+        *ptr++ = adr(30, 20);
+        *ptr++ = ldr64_pcrel(0, 2);
+        *ptr++ = br(0);
+
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
+
+        *ptr++ = fcpyd(fp_dst_sin, 0);
+        *ptr++ = fcpyd(fp_dst_cos, 1);
+
+        *ptr++ = ldp64(31, 2, 3, 16);
+        *ptr++ = ldp64(31, 4, 5, 32);
+        *ptr++ = ldp64(31, 6, 7, 48);
+        *ptr++ = ldr64_offset(31, 30, 64);
+        *ptr++ = ldp64_postindex(31, 0, 1, 80);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst_sin);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
     /* FINT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
     {
