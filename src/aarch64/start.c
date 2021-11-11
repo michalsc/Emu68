@@ -1564,10 +1564,14 @@ void M68K_StartEmu(void *addr, void *fdt)
 
             extern int disasm;
             extern int debug;
+            extern int DisableFPU;
+
+            if (strstr(prop->op_value, "nofpu"))
+                DisableFPU = 1;
 
             if (strstr(prop->op_value, "debug"))
                 debug = 1;
-                
+
             if (strstr(prop->op_value, "disassemble"))
                 disasm = 1;
         }       

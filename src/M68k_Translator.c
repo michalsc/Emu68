@@ -233,8 +233,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
 
-    if (RA_GetTempAllocMask())
+    if (RA_GetTempAllocMask()) {
         kprintf("[ICache] Temporary register alloc mask on translate start is non-zero %x\n", RA_GetTempAllocMask());
+
+        while(1);
+    }
 
     if (disasm) {
         disasm_open();
@@ -774,6 +777,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
         __m68k_state->JIT_UNIT_COUNT++;
+        __m68k_state->JIT_CACHE_MISS++;
 
         if (debug) {
             kprintf("[ICache]   Block checksum: %08x\n", unit->mt_CRC32);
