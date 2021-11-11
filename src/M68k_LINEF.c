@@ -2206,12 +2206,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-#ifdef __aarch64__
         *ptr++ = frint64x(fp_dst, fp_src);
-#else
-        *ptr++ = ftosid(0, fp_src);     /* Convert double to signed integer with rounding defined by FPSCR */
-        *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
-#endif
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -2242,6 +2237,53 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
 #endif
 
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
+    /* FSCALE */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0026)
+    {
+        uint8_t int_src = 0xff;
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        switch ((opcode2 >> 10) & 7)
+        {
+            case 0:
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                break;
+            case 4:
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                break;
+            case 6:
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                break;
+            default:
+                int_src = RA_AllocARMRegister(&ptr);
+                ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+                *ptr++ = fcvtzs_Dto32(int_src, fp_src);
+                break;
+        }
+      
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = add_immed(int_src, int_src, 0x3ff);
+        *ptr++ = lsl64(int_src, int_src, 52);
+        *ptr++ = bic64_immed(int_src, int_src, 1, 1, 1);
+        *ptr++ = mov_reg_to_simd(fp_src, TS_D, 0, int_src);
+        *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+
+        RA_FreeARMRegister(&ptr, int_src);
         RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
