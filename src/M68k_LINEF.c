@@ -2230,12 +2230,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-#ifdef __aarch64__
         *ptr++ = frint64z(fp_dst, fp_src);
-#else
-        *ptr++ = ftosidrz(0, fp_src);     /* Convert double to signed integer with rounding defined by FPSCR */
-        *ptr++ = fsitod(fp_dst, 0);     /* Convert signed integer back to double */
-#endif
 
         RA_FreeFPURegister(&ptr, fp_src);
 
@@ -2260,12 +2255,15 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         switch ((opcode2 >> 10) & 7)
         {
             case 0:
+                fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 break;
             case 4:
+                fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 break;
             case 6:
+                fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 break;
             default:
@@ -3441,16 +3439,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     {
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t precision = 0;
-
-        if (opcode2 & 0x0040) {
-            if (opcode2 & 0x0004)
-                precision = 8;
-            else
-                precision = 4;
-        }
-
-        (void)precision;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
