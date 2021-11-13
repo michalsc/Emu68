@@ -2390,20 +2390,27 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         /* Pre-decrement mode? Decrease the base now */
         if ((opcode & 0x38) == 0x20)
         {
-
             uint8_t offset = 0;
+            uint8_t tmp_base_reg = 0xff;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
 
+            /* Check if base register is on the list */
+            if (mask & (0x8000 >> ((opcode & 7) + 8)))
+            {
+                tmp_base_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = sub_immed(tmp_base_reg, base, size ? 4 : 2);
+            }
+
             /* In pre-decrement the register order is reversed */
-#ifdef __aarch64__
             uint8_t rt1 = 0xff;
 
             for (int i=0; i < 16; i++)
             {
                 if (mask & (0x8000 >> i))
                 {
-                    uint8_t reg = RA_MapM68kRegister(&ptr, i);
+                    uint8_t reg = (i == ((opcode & 7) + 8) ? tmp_base_reg : RA_MapM68kRegister(&ptr, i));
+
                     if (size) {
                         if (rt1 == 0xff)
                             rt1 = reg;
@@ -2433,34 +2440,12 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 else
                     *ptr++ = str_offset(base, rt1, offset);
             }
-#else
-            *ptr++ = sub_immed(base, base, block_size);
 
-            for (int i=0; i < 16; i++)
-            {
-                /* Keep base register high in LRU */
-                RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
-                if (mask & (0x8000 >> i))
-                {
-                    uint8_t reg = RA_MapM68kRegister(&ptr, i);
-                    if (size) {
-                        *ptr++ = str_offset(base, reg, offset);
-                        offset += 4;
-                    }
-                    else
-                    {
-                        *ptr++ = strh_offset(base, reg, offset);
-                        offset += 2;
-                    }
-                }
-            }
-#endif
+            RA_FreeARMRegister(&ptr, tmp_base_reg);
         }
         else
         {
             uint8_t offset = 0;
-
-#ifdef __aarch64__
             uint8_t rt1 = 0xff;
 
             for (int i=0; i < 16; i++)
@@ -2486,24 +2471,6 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             }
             if (rt1 != 0xff)
                 *ptr++ = str_offset(base, rt1, offset);
-#else
-            for (int i=0; i < 16; i++)
-            {
-                if (mask & (1 << i))
-                {
-                    uint8_t reg = RA_MapM68kRegister(&ptr, i);
-                    if (size) {
-                        *ptr++ = str_offset(base, reg, offset);
-                        offset += 4;
-                    }
-                    else
-                    {
-                        *ptr++ = strh_offset(base, reg, offset);
-                        offset += 2;
-                    }
-                }
-            }
-#endif
         }
 
         RA_FreeARMRegister(&ptr, base);
