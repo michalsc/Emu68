@@ -94,6 +94,7 @@
 #define ATTR_DEVICE_nGnRE   0x04
 #define ATTR_NOCACHE        0x44
 #define ATTR_CACHED         0xff
+#define ATTR_WRTHROUGH      0xbb
 
 #define SP      31  /* 31 encodes SP base, or */
 #define ZR      31  /* Zero register, depending on usage */

@@ -12,8 +12,8 @@ function(download_raspi_firmware)
         bcm2710-rpi-cm3.dtb
         bcm2710-rpi-3-b.dtb
         bcm2710-rpi-3-b-plus.dtb
-        bcm2710-rpi-2-b.dtb
-        bcm2709-rpi-2-b.dtb
+        bcm2710-rpi-zero-2.dtb
+        bcm2710-rpi-zero-2-w.dtb
     )
     message("-- Downloading RasPi firmware files")
     foreach(F IN LISTS PI_FILES)

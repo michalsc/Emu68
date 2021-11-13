@@ -502,18 +502,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
     uint8_t ext_count = 0;
     uint8_t dest = 0xff;
     uint8_t size = 0;
-    uint8_t zero = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
-    uint8_t cc = RA_GetCC(&ptr);
-    *ptr++ = tst_immed(cc, 1, (32 - SRB_X) & 31);
-    *ptr++ = csetm(zero, A64_CC_NE);
-#else
-    M68K_GetCC(&ptr);
-    *ptr++ = tst_immed(REG_SR, SR_X);
-    *ptr++ = mov_cc_immed_u8(ARM_CC_EQ, zero, 0);
-    *ptr++ = mvn_cc_immed_u8(ARM_CC_NE, zero, 0);
-#endif
-
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -529,20 +517,31 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             break;
     }
 
+    uint8_t cc = RA_GetCC(&ptr);
+    if (size == 4) {
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        *ptr++ = mvn_reg(tmp, cc, ROR, 7);
+        *ptr++ = set_nzcv(tmp);
+
+        RA_FreeARMRegister(&ptr, tmp);
+    } else {
+        *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
+    }
+
     if ((opcode & 0x0038) == 0)
     {
         if (size == 4)
         {
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-#ifdef __aarch64__
-            *ptr++ = subs_reg(dest, zero, dest, LSL, 0);
-#else
-            *ptr++ = rsbs_reg(dest, dest, zero, 0);
-#endif
+
+            *ptr++ = ngcs(dest, dest);
         }
         else
         {
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
             /* Fetch m68k register for write */
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
 
@@ -551,32 +550,70 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
 
             switch(size)
             {
-#ifdef __aarch64__
                 case 2:
-                    *ptr++ = subs_reg(zero, zero, dest, LSL, 16);
-                    *ptr++ = bfxil(dest, zero, 16, 16);
+                    *ptr++ = and_immed(tmp, dest, 16, 0);   // Take lower 16 bits of destination
+                    *ptr++ = neg_reg(tmp, tmp, LSL, 0);     // negate
+                    *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+                    *ptr++ = sub_immed(tmp, tmp, 1);
+
+                    if (update_mask & SR_XVC) {
+                        uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
+                        *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
+                        *ptr++ = bfxil(cc, tmp_2, 14, 2);
+                        
+                        if (update_mask & SR_X) {
+                           *ptr++ = bfi(cc, cc, 4, 1);
+                        }
+
+                        update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                        RA_FreeARMRegister(&ptr, tmp_2);
+                    }
+
+                    if (update_mask & SR_NZ) {
+                        *ptr++ = adds_reg(31, 31, tmp, LSL, 16);
+                    }
+
+                    *ptr++ = bfxil(dest, tmp, 0, 16);       // Insert result
                     break;
                 case 1:
-                    *ptr++ = subs_reg(zero, zero, dest, LSL, 24);
-                    *ptr++ = bfxil(dest, zero, 24, 8);
+                    *ptr++ = and_immed(tmp, dest, 8, 0);    // Take lower 16 bits of destination
+                    *ptr++ = neg_reg(tmp, tmp, LSL, 0);     // negate
+                    *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+                    *ptr++ = sub_immed(tmp, tmp, 1);
+
+                    if (update_mask & SR_XVC) {
+                        uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
+                        *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
+                        *ptr++ = bfxil(cc, tmp_2, 6, 2);
+                        
+                        if (update_mask & SR_X) {
+                           *ptr++ = bfi(cc, cc, 4, 1);
+                        }
+
+                        update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                        RA_FreeARMRegister(&ptr, tmp_2);
+                    }
+
+                    if (update_mask & SR_NZ) {
+                        *ptr++ = adds_reg(31, 31, tmp, LSL, 24);
+                    }
+
+                    *ptr++ = bfxil(dest, tmp, 0, 8);
                     break;
-#else
-                case 2:
-                    *ptr++ = subs_reg(zero, zero, dest, 16);
-                    *ptr++ = lsr_immed(zero, zero, 16);
-                    *ptr++ = bfi(dest, zero, 0, 16);
-                    break;
-                case 1:
-                    *ptr++ = subs_reg(zero, zero, dest, 24);
-                    *ptr++ = lsr_immed(zero, zero, 24);
-                    *ptr++ = bfi(dest, zero, 0, 8);
-                    break;
-#endif
             }
+
+            RA_FreeARMRegister(&ptr, tmp);
         }
     }
     else
     {
+        uint8_t src = RA_AllocARMRegister(&ptr);
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
@@ -592,17 +629,14 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         case 4:
             if (mode == 4)
             {
-                *ptr++ = ldr_offset_preindex(dest, tmp, -4);
+                *ptr++ = ldr_offset_preindex(dest, src, -4);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldr_offset(dest, tmp, 0);
+                *ptr++ = ldr_offset(dest, src, 0);
 
-#ifdef __aarch64__
-            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
-#else
-            *ptr++ = subs_reg(tmp, zero, tmp, 0);
-#endif
+            *ptr++ = ngcs(tmp, src);
+
             if (mode == 3)
             {
                 *ptr++ = str_offset_postindex(dest, tmp, 4);
@@ -614,18 +648,36 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         case 2:
             if (mode == 4)
             {
-                *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
+                *ptr++ = ldrh_offset_preindex(dest, src, -2);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldrh_offset(dest, tmp, 0);
-#ifdef __aarch64__
-            *ptr++ = sxth(tmp, tmp);
-            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
-#else
-            *ptr++ = sxth(tmp, tmp, 0);
-            *ptr++ = rsbs_reg(tmp, tmp, zero, 0);
-#endif
+                *ptr++ = ldrh_offset(dest, src, 0);
+
+            *ptr++ = neg_reg(tmp, src, LSL, 0);     // negate
+            *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+            *ptr++ = sub_immed(tmp, tmp, 1);
+
+            if (update_mask & SR_XVC) {
+                uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
+                *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
+                *ptr++ = bfxil(cc, tmp_2, 14, 2);
+                    
+                if (update_mask & SR_X) {
+                    *ptr++ = bfi(cc, cc, 4, 1);
+                }
+
+                update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                RA_FreeARMRegister(&ptr, tmp_2);
+            }
+
+            if (update_mask & SR_NZ) {
+                *ptr++ = adds_reg(31, 31, tmp, LSL, 16);
+            }
+
             if (mode == 3)
             {
                 *ptr++ = strh_offset_postindex(dest, tmp, 2);
@@ -637,18 +689,36 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         case 1:
             if (mode == 4)
             {
-                *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
+                *ptr++ = ldrb_offset_preindex(dest, src, (opcode & 7) == 7 ? -2 : -1);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldrb_offset(dest, tmp, 0);
-#ifdef __aarch64__
-            *ptr++ = sxtb(tmp, tmp);
-            *ptr++ = subs_reg(tmp, zero, tmp, LSL, 0);
-#else
-            *ptr++ = sxtb(tmp, tmp, 0);
-            *ptr++ = rsbs_reg(tmp, tmp, zero, 0);
-#endif
+                *ptr++ = ldrb_offset(dest, src, 0);
+
+            *ptr++ = neg_reg(tmp, src, LSL, 0);     // negate
+            *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
+            *ptr++ = sub_immed(tmp, tmp, 1);
+
+            if (update_mask & SR_XVC) {
+                uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
+
+                *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
+                *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
+                *ptr++ = bfxil(cc, tmp_2, 6, 2);
+                
+                if (update_mask & SR_X) {
+                    *ptr++ = bfi(cc, cc, 4, 1);
+                }
+
+                update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
+
+                RA_FreeARMRegister(&ptr, tmp_2);
+            }
+
+            if (update_mask & SR_NZ) {
+                *ptr++ = adds_reg(31, 31, tmp, LSL, 24);
+            }
+
             if (mode == 3)
             {
                 *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
@@ -659,10 +729,10 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             break;
         }
 
+        RA_FreeARMRegister(&ptr, src);
         RA_FreeARMRegister(&ptr, tmp);
     }
 
-    RA_FreeARMRegister(&ptr, zero);
     RA_FreeARMRegister(&ptr, dest);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -671,15 +741,22 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        if (update_mask & SR_X)
-            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
-        else
-            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-        if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+        if (update_mask & SR_Z) {
+            *ptr++ = b_cc(A64_CC_EQ, 2);
+            *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+            update_mask &= ~SR_Z;
+        }
+
+        if (update_mask) {
+            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+        }
+
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+        
         if (update_mask & SR_V)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
@@ -690,6 +767,9 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             else
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
         }
+        
+        RA_FreeARMRegister(&ptr, tmp);
+
     }
 
     return ptr;
@@ -2006,6 +2086,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             case 0x0eb: /* JITCTRL - JIT control register */
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL));
                 break;
+            case 0x0ec:
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_MISS));
+                break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
                 break;
@@ -2307,20 +2390,27 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         /* Pre-decrement mode? Decrease the base now */
         if ((opcode & 0x38) == 0x20)
         {
-
             uint8_t offset = 0;
+            uint8_t tmp_base_reg = 0xff;
 
             RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
 
+            /* Check if base register is on the list */
+            if (mask & (0x8000 >> ((opcode & 7) + 8)))
+            {
+                tmp_base_reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = sub_immed(tmp_base_reg, base, size ? 4 : 2);
+            }
+
             /* In pre-decrement the register order is reversed */
-#ifdef __aarch64__
             uint8_t rt1 = 0xff;
 
             for (int i=0; i < 16; i++)
             {
                 if (mask & (0x8000 >> i))
                 {
-                    uint8_t reg = RA_MapM68kRegister(&ptr, i);
+                    uint8_t reg = (i == ((opcode & 7) + 8) ? tmp_base_reg : RA_MapM68kRegister(&ptr, i));
+
                     if (size) {
                         if (rt1 == 0xff)
                             rt1 = reg;
@@ -2350,34 +2440,12 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 else
                     *ptr++ = str_offset(base, rt1, offset);
             }
-#else
-            *ptr++ = sub_immed(base, base, block_size);
 
-            for (int i=0; i < 16; i++)
-            {
-                /* Keep base register high in LRU */
-                RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
-                if (mask & (0x8000 >> i))
-                {
-                    uint8_t reg = RA_MapM68kRegister(&ptr, i);
-                    if (size) {
-                        *ptr++ = str_offset(base, reg, offset);
-                        offset += 4;
-                    }
-                    else
-                    {
-                        *ptr++ = strh_offset(base, reg, offset);
-                        offset += 2;
-                    }
-                }
-            }
-#endif
+            RA_FreeARMRegister(&ptr, tmp_base_reg);
         }
         else
         {
             uint8_t offset = 0;
-
-#ifdef __aarch64__
             uint8_t rt1 = 0xff;
 
             for (int i=0; i < 16; i++)
@@ -2403,24 +2471,6 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             }
             if (rt1 != 0xff)
                 *ptr++ = str_offset(base, rt1, offset);
-#else
-            for (int i=0; i < 16; i++)
-            {
-                if (mask & (1 << i))
-                {
-                    uint8_t reg = RA_MapM68kRegister(&ptr, i);
-                    if (size) {
-                        *ptr++ = str_offset(base, reg, offset);
-                        offset += 4;
-                    }
-                    else
-                    {
-                        *ptr++ = strh_offset(base, reg, offset);
-                        offset += 2;
-                    }
-                }
-            }
-#endif
         }
 
         RA_FreeARMRegister(&ptr, base);
@@ -2557,6 +2607,7 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t src = -1;
     uint8_t cc = RA_ModifyCC(&ptr);
+    uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
     /* word operation */
     if (opcode & 0x80)
@@ -2568,6 +2619,12 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     {
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
     }
+
+    // Clear Z, V and C flags, set Z back if operand is zero
+    *ptr++ = mov_immed_u16(tmpreg, SR_NC, 0);
+    *ptr++ = bic_reg(cc, cc, tmpreg, LSL, 0);
+    *ptr++ = tbz(src, 31, 2);
+    *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_N);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
@@ -2599,6 +2656,7 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     ptr = EMIT_Exception(ptr, VECTOR_CHK, 2, opcode_address);
 
     RA_FreeARMRegister(&ptr, src);
+    RA_FreeARMRegister(&ptr, tmpreg);
 
     *tmp = b_cc(A64_CC_GE, ptr - tmp);
     *ptr++ = (uint32_t)(uintptr_t)tmp;
@@ -2616,29 +2674,33 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 }
 
 static struct OpcodeDef InsnTable[4096] = {
-    [0x0c0 ... 0x0c7] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0, 1, 0, 2 },
-    [0x0d0 ... 0x0f9] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0, 1, 1, 2 },
+    [00300 ... 00307] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0, 1, 0, 2 },
+    [00320 ... 00347] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0, 1, 0, 2 },
+    [00350 ... 00371] = { { .od_EmitMulti = EMIT_MOVEfromSR }, NULL, SR_ALL, 0, 1, 1, 2 },
 
-    [0x2c0 ... 0x2c7] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 0, 2 },
-    [0x2d0 ... 0x2f9] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 1, 2 },
+    [01300 ... 01307] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 0, 2 },
+    [01320 ... 01347] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 0, 2 },
+    [01350 ... 01371] = { { .od_EmitMulti = EMIT_MOVEfromCCR }, NULL, SR_CCR, 0, 1, 1, 2 },
 
-    [0x6c0 ... 0x6c7] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 0, 2 },
-    [0x6d0 ... 0x6fc] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 1, 2 },
+    [03300 ... 03307] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 0, 2 },
+    [03320 ... 03347] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 0, 2 },
+    [03350 ... 03374] = { { .od_EmitMulti = EMIT_MOVEtoSR }, NULL, SR_S, SR_ALL, 1, 1, 2 },
 
-    [0x4c0 ... 0x4c7] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 0, 2 },
-    [0x4d0 ... 0x4fc] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 1, 2 },
+    [02300 ... 02307] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02320 ... 02347] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02350 ... 02374] = { { .od_EmitMulti = EMIT_MOVEtoCCR }, NULL, 0, SR_CCR, 1, 1, 2 },
 
-    [0x880 ... 0x887] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC, 1, 0, 0 },
-    [0x8c0 ... 0x8c7] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC, 1, 0, 0 },
-    [0x9c0 ... 0x9c7] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04200 ... 04207] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04300 ... 04307] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04700 ... 04707] = { { .od_EmitMulti = EMIT_EXT }, NULL, 0, SR_NZVC, 1, 0, 0 },
 
-    [0x808 ... 0x80f] = { { .od_EmitMulti = EMIT_LINK32 }, NULL, 0, 0, 3, 0, 0 },
-    [0xe50 ... 0xe57] = { { .od_EmitMulti = EMIT_LINK16 }, NULL, 0, 0, 2, 0, 0 },
+    [04010 ... 04017] = { { .od_EmitMulti = EMIT_LINK32 }, NULL, 0, 0, 3, 0, 0 },
+    [07120 ... 07127] = { { .od_EmitMulti = EMIT_LINK16 }, NULL, 0, 0, 2, 0, 0 },
 
-    [0x840 ... 0x847] = { { .od_EmitMulti = EMIT_SWAP }, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04100 ... 04107] = { { .od_EmitMulti = EMIT_SWAP }, NULL, 0, SR_NZVC, 1, 0, 0 },
     [0xafc]           = { { .od_EmitMulti = EMIT_ILLEGAL }, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe40 ... 0xe4f] = { { .od_EmitMulti = EMIT_TRAP }, NULL, SR_CCR, 0, 1, 0, 0 },
-    [0xe58 ... 0xe5f] = { { .od_EmitMulti = EMIT_UNLK }, NULL, 0, 0, 1, 0, 0 },
+    [07130 ... 07137] = { { .od_EmitMulti = EMIT_UNLK }, NULL, 0, 0, 1, 0, 0 },
     [0xe70]           = { { .od_EmitMulti = EMIT_RESET }, NULL, SR_S, 0, 1, 0, 0 },
     [0xe71]           = { { .od_EmitMulti = EMIT_NOP }, NULL, 0, 0, 1, 0, 0 },
     [0xe72]           = { { .od_EmitMulti = EMIT_STOP }, NULL, SR_S, SR_ALL, 2, 0, 0 },
@@ -2649,132 +2711,175 @@ static struct OpcodeDef InsnTable[4096] = {
     [0xe77]           = { { .od_EmitMulti = EMIT_RTR }, NULL, 0, SR_CCR, 1, 0, 0 },
     [0xe7a ... 0xe7b] = { { .od_EmitMulti = EMIT_MOVEC }, NULL, SR_S, 0, 2, 0, 4 },
     [0xe60 ... 0xe6f] = { { .od_EmitMulti = EMIT_MOVEUSP }, NULL, SR_S, 0, 1, 0, 4 },
-    [0x848 ... 0x84f] = { { .od_EmitMulti = EMIT_BKPT }, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
+    [04110 ... 04117] = { { .od_EmitMulti = EMIT_BKPT }, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
 
-    [0xed0 ... 0xed7] = { { .od_EmitMulti = EMIT_JMP }, NULL, 0, 0, 1, 0, 4 },
-    [0xee8 ... 0xefb] = { { .od_EmitMulti = EMIT_JMP }, NULL, 0, 0, 1, 1, 4 },
+    [07320 ... 07327] = { { .od_EmitMulti = EMIT_JMP }, NULL, 0, 0, 1, 0, 0 },
+    [07350 ... 07373] = { { .od_EmitMulti = EMIT_JMP }, NULL, 0, 0, 1, 1, 0 },
 
-    [0xe90 ... 0xe97] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0, 1, 0, 4 },
-    [0xea8 ... 0xebb] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0, 1, 1, 4 },
+    [07220 ... 07227] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0, 1, 0, 0 },
+    [07250 ... 07273] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0, 1, 1, 0 },
 
-    [0x000 ... 0x007] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 1 },
-    [0x040 ... 0x047] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-    [0x080 ... 0x087] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+    [00000 ... 00007] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+    [00100 ... 00107] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+    [00200 ... 00207] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 4 },
 
-    [0x010 ... 0x039] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 1 },
-    [0x050 ... 0x077] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 2 },
-    [0x090 ... 0x0b7] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 4 },
+    [00020 ... 00047] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 1 },
+    [00120 ... 00147] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 2 },
+    [00220 ... 00247] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+    
+    [00050 ... 00071] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 1 },
+    [00150 ... 00171] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 2 },
+    [00250 ... 00271] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 4 },
 
-    [0x200 ... 0x207] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0x240 ... 0x247] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0x280 ... 0x287] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [01000 ... 01007] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [01100 ... 01107] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [01200 ... 01207] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-    [0x210 ... 0x239] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [0x250 ... 0x279] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [0x290 ... 0x2b9] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [01020 ... 01047] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [01120 ... 01147] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [01220 ... 01247] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-    [0x400 ... 0x407] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 1 },
-    [0x440 ... 0x447] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 2 },
-    [0x480 ... 0x487] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 4 },
+    [01050 ... 01071] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [01150 ... 01171] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [01250 ... 01271] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0x410 ... 0x439] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 1, 1 },
-    [0x450 ... 0x479] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 1, 2 },
-    [0x490 ... 0x4b9] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 1, 4 },
+    [02000 ... 02007] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [02100 ... 02107] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02200 ... 02207] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 4 },
 
-    [0x600 ... 0x607] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0x640 ... 0x647] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0x680 ... 0x687] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [02020 ... 02047] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [02120 ... 02147] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02220 ... 02247] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 0, 4 },
 
-    [0x610 ... 0x639] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [0x650 ... 0x679] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [0x690 ... 0x6b9] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [02050 ... 02071] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 1, 1 },
+    [02150 ... 02171] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 1, 2 },
+    [02250 ... 02271] = { { .od_EmitMulti = EMIT_NEG }, NULL, 0, SR_CCR, 1, 1, 4 },
 
-    [0xa00 ... 0xa3c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [0xa40 ... 0xa7c] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [0xa80 ... 0xabc] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [03000 ... 03007] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [03100 ... 03107] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [03200 ... 03207] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-    [0x800 ... 0x807] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 0, 1 },
-    [0x810 ... 0x839] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 1, 1 },
+    [03020 ... 03047] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [03120 ... 03147] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [03220 ... 03247] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 0, 4 },
 
-    [0x850 ... 0x857] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x860 ... 0x87b] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 1, 4 },
+    [03050 ... 03071] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [03150 ... 03171] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [03250 ... 03271] = { { .od_EmitMulti = EMIT_NOT }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0xac0 ... 0xac7] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0xad0 ... 0xaf9] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [05000 ... 05007] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05020 ... 05047] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05050 ... 05074] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 1 },
+    
+    [05100 ... 05147] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [05150 ... 05174] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 2 },
+    
+    [05200 ... 05247] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [05250 ... 05274] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0xc00 ... 0xc07] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 0, 4 },
-    [0xc10 ... 0xc3c] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 1, 4 },
-    [0xc40 ... 0xc47] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 0, 4 },
-    [0xc50 ... 0xc7c] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 1, 4 },
+    [04000 ... 04007] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 0, 1 },
+    [04020 ... 04047] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 0, 1 },
+    [04050 ... 04071] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 1, 1 },
 
-    [0x890 ... 0x897] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 0 },
-    [0x8a0 ... 0x8b9] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 0 },
+    [04120 ... 04127] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 0, 4 },
+    [04150 ... 04173] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 1, 4 },
 
-    [0x8d0 ... 0x8d7] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 0 },
-    [0x8e0 ... 0x8f9] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 0 },
+    [05300 ... 05307] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05320 ... 05347] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05350 ... 05371] = { { .od_EmitMulti = EMIT_TAS }, NULL, 0, SR_NZVC, 1, 1, 1 },
 
-    [0xc90 ... 0xc9f] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 0 },
-    [0xca8 ... 0xcbb] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 0 },
+    [06000 ... 06007] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06020 ... 06047] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06050 ... 06074] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 1, 4 },
+    [06100 ... 06107] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06120 ... 06147] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06150 ... 06174] = { { .od_EmitMulti = EMIT_MUL_DIV_ }, NULL, 0, SR_NZVC, 2, 1, 4 },
 
-    [0xcd0 ... 0xcdf] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 0 },
-    [0xce8 ... 0xcfb] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 0 },
+    [04220 ... 04227] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 2 },
+    [04320 ... 04327] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 4 },
+    [04240 ... 04247] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 2 },
+    [04340 ... 04347] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 4 },
+    [04250 ... 04271] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 2 },
+    [04350 ... 04371] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 4 },
 
-    [0x1d0 ... 0x1d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x1e8 ... 0x1fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0x3d0 ... 0x3d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x3e8 ... 0x3fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0x5d0 ... 0x5d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x5e8 ... 0x5fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0x7d0 ... 0x7d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x7e8 ... 0x7fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0x9d0 ... 0x9d7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0x9e8 ... 0x9fb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0xbd0 ... 0xbd7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0xbe8 ... 0xbfb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0xdd0 ... 0xdd7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0xde8 ... 0xdfb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
-    [0xfd0 ... 0xfd7] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
-    [0xfe8 ... 0xffb] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [06220 ... 06237] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 2 },
+    [06320 ... 06337] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 0, 4 },
+    [06250 ... 06273] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 2 },
+    [06350 ... 06373] = { { .od_EmitMulti = EMIT_MOVEM }, NULL, 0, 0, 2, 1, 4 },
 
-    [0x180 ... 0x187] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x190 ... 0x1bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0x100 ... 0x107] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x110 ... 0x13b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
- 
-    [0x380 ... 0x387] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x390 ... 0x3bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0x300 ... 0x307] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x310 ... 0x33b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
- 
-    [0x580 ... 0x587] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x590 ... 0x5bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0x500 ... 0x507] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x510 ... 0x53b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
- 
-    [0x780 ... 0x787] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x790 ... 0x7bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0x700 ... 0x707] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x710 ... 0x73b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
- 
-    [0x980 ... 0x987] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0x990 ... 0x9bb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0x900 ... 0x907] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0x910 ... 0x93b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
- 
-    [0xb80 ... 0xb87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0xb90 ... 0xbbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0xb00 ... 0xb07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0xb10 ... 0xb3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [00720 ... 00727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [00750 ... 00773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [01720 ... 01727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [01750 ... 01773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [02720 ... 02727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [02750 ... 02773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [03720 ... 03727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [03750 ... 03773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [04720 ... 04727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [04750 ... 04773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [05720 ... 05727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [05750 ... 05773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [06720 ... 06727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [06750 ... 06773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
+    [07720 ... 07727] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 0, 4 },
+    [07750 ... 07773] = { { .od_EmitMulti = EMIT_LEA }, NULL, 0, 0, 1, 1, 4 },
 
-    [0xd80 ... 0xd87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0xd90 ... 0xdbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0xd00 ... 0xd07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0xd10 ... 0xd3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [00600 ... 00607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [00620 ... 00647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [00650 ... 00674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [00400 ... 00407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [00420 ... 00447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [00450 ... 00474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
 
-    [0xf80 ... 0xf87] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
-    [0xf90 ... 0xfbb] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
-    [0xf00 ... 0xf07] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
-    [0xf10 ... 0xf3b] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    [01600 ... 01607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [01620 ... 01647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [01650 ... 01674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [01400 ... 01407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [01420 ... 01447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [01450 ... 01474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [02600 ... 02607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [02620 ... 02647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [02650 ... 02674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [02400 ... 02407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [02420 ... 02447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [02450 ... 02474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [03600 ... 03607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [03620 ... 03647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [03650 ... 03674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [03400 ... 03407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [03420 ... 03447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [03450 ... 03474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [04600 ... 04607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [04620 ... 04647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [04650 ... 04674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [04400 ... 04407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [04420 ... 04447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [04450 ... 04474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [05600 ... 05607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [05620 ... 05647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [05650 ... 05674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [05400 ... 05407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [05420 ... 05447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [05450 ... 05474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [06600 ... 06607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [06620 ... 06647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [06650 ... 06674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [06400 ... 06407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [06420 ... 06447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [06450 ... 06474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [07600 ... 07607] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [07620 ... 07647] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [07650 ... 07674] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [07400 ... 07407] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [07420 ... 07447] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [07450 ... 07474] = { { .od_EmitMulti = EMIT_CHK }, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
 };
 
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)

@@ -109,8 +109,8 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_cons
     (*insn_consumed)++;
 
     arm_ptr = EMIT_FlushPC(arm_ptr);
-    arm_ptr = EMIT_InjectDebugString(arm_ptr, "[JIT] LINE A exception (opcode %04x) at %08x not implemented\n", opcode, *m68k_ptr - 1);
-    arm_ptr = EMIT_InjectPrintContext(arm_ptr);
+    if (debug)
+        arm_ptr = EMIT_InjectDebugString(arm_ptr, "[JIT] LINE A exception (opcode %04x) at %08x not implemented\n", opcode, *m68k_ptr - 1);
     arm_ptr = EMIT_Exception(arm_ptr, VECTOR_LINE_A, 0);
     *arm_ptr++ = INSN_TO_LE(0xffffffff);
 
@@ -233,8 +233,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
 
-    if (RA_GetTempAllocMask())
+    if (RA_GetTempAllocMask()) {
         kprintf("[ICache] Temporary register alloc mask on translate start is non-zero %x\n", RA_GetTempAllocMask());
+
+        while(1);
+    }
 
     if (disasm) {
         disasm_open();
@@ -294,7 +297,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int soft_break = FALSE;
     int max_rev_jumps = 0;
 
-    while (break_loop == FALSE && soft_break == FALSE && *m68kcodeptr != 0xffff && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    while (break_loop == FALSE && soft_break == FALSE && insn_count < Options.M68K_TRANSLATION_DEPTH)
     {
         uint16_t insn_consumed;
         uint16_t *in_code = m68kcodeptr;
@@ -774,6 +777,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
         __m68k_state->JIT_UNIT_COUNT++;
+        __m68k_state->JIT_CACHE_MISS++;
 
         if (debug) {
             kprintf("[ICache]   Block checksum: %08x\n", unit->mt_CRC32);

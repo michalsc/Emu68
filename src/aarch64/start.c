@@ -356,7 +356,7 @@ asm(
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -435,6 +435,11 @@ void secondary_boot(void)
     else if (cpu_id == 2)
     {
         ps_housekeeper();
+    }
+    else if (cpu_id == 3)
+    {
+        wb_init();
+        wb_task();
     }
 #else
     (void)async_log;
@@ -608,6 +613,10 @@ void boot(void *dtree)
             }
         }
 
+#ifdef PISTORM
+        mmu_map(0x01000000, 0x01000000, 0x07000000, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+#endif
+
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
@@ -675,11 +684,23 @@ void boot(void *dtree)
     *(uint64_t *)0xffffff90000000e8 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
     clear_entire_dcache();
         
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e8), temp_stack);
 
     asm volatile("sev");
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
+    kprintf("[BOOT] Waking up CPU 3\n");
+    temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
+    *(uint64_t *)0xffffff90000000f0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    clear_entire_dcache();
+        
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000f0), temp_stack);
+
+    asm volatile("sev");
+
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
     asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
@@ -867,9 +888,15 @@ void boot(void *dtree)
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0xffffff9000fc0000, initramfs_loc, 262144 / 4);
         }
-        else
+        else if (initramfs_size == 524288)
         {
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+        }
+        else
+        {
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0xffffff9000e00000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
         }
 
         /* Check if ROM is byte-swapped */
@@ -890,6 +917,54 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
+    //dt_dump_tree();
+
+    
+
+
+#if 0
+
+    uint32_t plane_idx = LE32(*(volatile uint32_t *)0xf2400024);
+    volatile uint32_t *displist = (uint32_t *)0xf2402000;
+
+    kprintf("DISPLIST1 index is %d\n", plane_idx);
+
+    uint32_t first = LE32(displist[plane_idx]);
+    first = (first >> 24) & 0x3f;
+    kprintf("DISPLIST1 length %d\n", first);
+    plane_idx += first;
+
+    kprintf("DISPLIST1 new pos %d, content %08x\n", plane_idx, LE32(displist[plane_idx]));
+
+
+    displist[plane_idx+1] = LE32(POS0_X(0) | POS0_Y(0) | POS0_ALPHA(0xff));
+    displist[plane_idx+2] = LE32(POS2_H(720) | POS2_W(1280) | (1 << 30));
+    displist[plane_idx+3] = LE32(0xdeadbeef);
+    uint32_t plane_ptr = plane_idx + 4;
+    displist[plane_idx+4] = LE32(0xc0000000 | 0x3e000000);
+    displist[plane_idx+5] = LE32(0xdeadbeef);
+    displist[plane_idx+6] = LE32(1280*2);
+    displist[plane_idx+7] = LE32(0x80000000);
+
+    displist[plane_idx] = LE32(
+    CONTROL_VALID
+    | CONTROL_WORDS(7)
+    | CONTROL_PIXEL_ORDER(HVS_PIXEL_ORDER_ABGR)
+//    | CONTROL0_VFLIP // makes the HVS addr count down instead, pointer word must be last line of image
+    | CONTROL_UNITY
+    | CONTROL_FORMAT(HVS_PIXEL_FORMAT_RGBA8888)
+    );
+
+
+//    *(uint32_t *)0xf2400024 = LE32(plane_idx - 8);
+
+    for (uint32_t x = 0x6000000; x != 0; x -= 4) {
+        kprintf("%08x\n", x);
+        displist[plane_ptr] = LE32(0xc0000000 | x);
+        //for (int i=0; i < 10000; i++) asm volatile("nop");
+    }
+*/
+#endif
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -1121,7 +1196,11 @@ void  __attribute__((used)) stub_FindUnit()
 
 uint32_t last_pc;
 
-uint64_t arm_cnt;
+//uint64_t arm_cnt;
+
+#ifdef PISTORM
+extern volatile unsigned char bus_lock;
+#endif
 
 void  __attribute__((used)) stub_ExecutionLoop()
 {
@@ -1148,11 +1227,12 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       str     w18, [x1]                   \n"
 #endif
 
+#if 0
 "       adrp    x1, arm_cnt                 \n"
 "       add     x1, x1, :lo12:arm_cnt       \n"
 "       mrs     x4, PMCCNTR_EL0             \n"
 "       str     x4, [x1]                    \n"
-
+#endif
 
 #ifdef PISTORM
 "       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
@@ -1278,7 +1358,20 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       ret                                 \n"
 
 #ifdef PISTORM
-"9:     mov     x2, #0xf2200000             \n" // GPIO base address
+"9:                                         \n"
+#if 0
+"       adrp    x5, bus_lock                \n"
+"       add     x5, x5, :lo12:bus_lock      \n"
+"       mov     w1, 1                       \n"
+".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
+"       stxrb	w3, w1, [x5]                \n"
+"       cbnz	w3, .lock                   \n"
+"       cbz     w2, .lock_acquired          \n"
+"       yield                               \n"
+"       b       .lock                       \n"
+".lock_acquired:                            \n"
+#endif
+"       mov     x2, #0xf2200000             \n" // GPIO base address
 
 "       mov     w1, #0x0c000000             \n"
 "       mov     w3, #0x40000000             \n"
@@ -1294,7 +1387,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     w1, #0xff00                 \n"
 "       movk    w1, #0xecff, lsl #16        \n"
 "       str     w1, [x2, 4*10]              \n"
-
+#if 0
+"       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
+#endif
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
 
@@ -1469,10 +1564,14 @@ void M68K_StartEmu(void *addr, void *fdt)
 
             extern int disasm;
             extern int debug;
+            extern int DisableFPU;
+
+            if (strstr(prop->op_value, "nofpu"))
+                DisableFPU = 1;
 
             if (strstr(prop->op_value, "debug"))
                 debug = 1;
-                
+
             if (strstr(prop->op_value, "disassemble"))
                 disasm = 1;
         }       

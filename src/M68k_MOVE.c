@@ -20,6 +20,14 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
     *insn_consumed = 1;
 
+    if (opcode & 0x100) {
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        return ptr;
+    }
+
     (*m68k_ptr)++;
 
     *ptr++ = mov_immed_s8(tmp_reg, value);
@@ -67,136 +75,228 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     *insn_consumed = 1;
     int done = 0;
 
-    /* Quick fusing tests */
-    if ((opcode & 0x31f8) == 0x2018 || (opcode & 0x31f8) == 0x2020 || (opcode & 0x31f8) == 0x20c0 || (opcode & 0x31f8) == 0x2100)
+    // Move from/to An in byte size is illegal
+    if ((opcode & 0xf000) == 0x1000)
     {
-        uint16_t opcode2 = BE16((*m68k_ptr)[1]);
-
-        if ((opcode2 & 0xf1f8) == 0x2018 && (opcode & 0x7) == (opcode2 & 0x7))
-        {
-            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
-            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, (opcode & 0x0e00) >> 9);
-            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, (opcode2 & 0x0e00) >> 9);
-
-            /* Merge only if loads go to two different registers */
-            if (src_reg_1 != src_reg_2)
-            {
-                /* Two subsequent (An)+ moves to register */
-                (*m68k_ptr)++;
-                update_mask = M68K_GetSRMask(*m68k_ptr);
-                (*m68k_ptr)++;
-
-                *ptr++ = ldp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
-
-                if (update_mask && !is_load_immediate)
-                {
-#ifdef __aarch64__
-                    *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
-#else
-                    *ptr++ = cmp_immed(tmp_reg, 0);
-#endif
-                }
-
-                tmp_reg = src_reg_2;
-
-                done = 1;
-                ptr = EMIT_AdvancePC(ptr, 4);
-                *insn_consumed = 2;
-                size = 4;
-            }
-        }
-        else if ((opcode2 & 0xf1f8) == 0x2020 && (opcode & 0x7) == (opcode2 & 0x7))
-        {
-            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
-            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, (opcode & 0x0e00) >> 9);
-            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, (opcode2 & 0x0e00) >> 9);
-
-            /* Merge only if loads go to two different registers */
-            if (src_reg_1 != src_reg_2)
-            {
-                /* Two subsequent -(An) moves to register */
-                (*m68k_ptr)++;
-                update_mask = M68K_GetSRMask(*m68k_ptr);
-                (*m68k_ptr)++;
-
-                *ptr++ = ldp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
-
-                if (update_mask && !is_load_immediate)
-                {
-#ifdef __aarch64__
-                    *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
-#else
-                    *ptr++ = cmp_immed(tmp_reg, 0);
-#endif
-                }
-
-                tmp_reg = src_reg_2;
-
-                done = 1;
-                ptr = EMIT_AdvancePC(ptr, 4);
-                *insn_consumed = 2;
-                size = 4;
-            }
-        }
-        else if ((opcode2 & 0xf1f8) == 0x20c0 && (opcode & 0x7) == (opcode2 & 0x7))
-        {
-            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
-            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 7);
-            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 7);
-
-            /* Two subsequent register moves to (An)+ */
-            (*m68k_ptr)++;
-            update_mask = M68K_GetSRMask(*m68k_ptr);
-            (*m68k_ptr)++;
-
-            if (update_mask && !is_load_immediate)
-            {
-#ifdef __aarch64__
-                *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
-#else
-                *ptr++ = cmp_immed(tmp_reg, 0);
-#endif
-            }
-
-            *ptr++ = stp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
-            
-            tmp_reg = src_reg_2;
-
-            done = 1;
-            ptr = EMIT_AdvancePC(ptr, 4);
-            *insn_consumed = 2;
-            size = 4;
-        }
-        else if ((opcode2 & 0xf1f8) == 0x2100 && (opcode & 0x0e00) == (opcode2 & 0x0e00))
-        {
-            uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
-            uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 7);
-            uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 7);
-
-            /* Two subsequent register moves to -(An) */
-            (*m68k_ptr)++;
-            update_mask = M68K_GetSRMask(*m68k_ptr);
-            (*m68k_ptr)++;
-
-            if (update_mask && !is_load_immediate)
-            {
-#ifdef __aarch64__
-                *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
-#else
-                *ptr++ = cmp_immed(tmp_reg, 0);
-#endif
-            }
-
-            *ptr++ = stp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
-
-            tmp_reg = src_reg_2;
-            
-            done = 1;
-            ptr = EMIT_AdvancePC(ptr, 4);
-            *insn_consumed = 2;
-            size = 4;
+        if (is_movea || (opcode & 0x38) == 0x08) {
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
+            return ptr;
         }
     }
+
+    if ((opcode & 0x3f) > 0x3c)
+    {
+        ptr = EMIT_FlushPC(ptr);
+        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+        return ptr;
+    }
+
+    if ((opcode & 0x01c0) == 0x01c0) {
+        if ((opcode & 0x0c00)) {
+            ptr = EMIT_FlushPC(ptr);
+            ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+            ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
+            *ptr++ = INSN_TO_LE(0xffffffff);
+            return ptr;
+        }
+    }
+
+    /*
+        Check if MOVE is qualified for merging:
+        - move.l Reg, -(An)
+        - move.l Reg, (An)+
+        - move.l -(An), Reg
+        - move.l (An)+, Reg
+    */
+    if ((opcode & 0xf000) == 0x2000)
+    {
+        // Fetch 2nd opcode just now
+        uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+
+        // Is move.l Reg, -(An) ?: Dest mode 100, source mode 000 or 001
+        if ((opcode & 0x01f0) == 0x0100)
+        {
+            // Candidate found. Is next opcode of same kind and same -(An)?
+            if (
+                (opcode2 & 0xf000) == 0x2000 &&          // move.l
+                (opcode2 & 0x0ff0) == (opcode & 0x0ff0)  // same dest reg, same mode?
+            )
+            {
+                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
+                uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 0xf);
+                uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 0xf);
+
+                /* Two subsequent register moves to -(An) */
+                (*m68k_ptr)++;
+                update_mask = M68K_GetSRMask(*m68k_ptr);
+                (*m68k_ptr)++;
+
+                if (update_mask)
+                {
+#ifdef __aarch64__
+                    *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
+#else
+                    *ptr++ = cmp_immed(tmp_reg, 0);
+#endif
+                }
+
+                *ptr++ = stp_preindex(addr_reg, src_reg_2, src_reg_1, -8);
+
+                tmp_reg = src_reg_2;
+            
+                done = 1;
+                ptr = EMIT_AdvancePC(ptr, 4);
+                *insn_consumed = 2;
+                size = 4;
+            }
+        }
+
+        // Is move.l Reg, (An)+ ?: Dest mode 011, source mode 000 or 001
+        else if ((opcode & 0x01f0) == 0x00c0)
+        {
+            // Candidate found. Is next opcode of same kind and same (An)+?
+            if (
+                (opcode2 & 0xf000) == 0x2000 &&          // move.l
+                (opcode2 & 0x0ff0) == (opcode & 0x0ff0)  // same dest reg, same mode?
+            )
+            {
+                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 7) + 8);
+                uint8_t src_reg_1 = RA_MapM68kRegister(&ptr, opcode & 0xf);
+                uint8_t src_reg_2 = RA_MapM68kRegister(&ptr, opcode2 & 0xf);
+                
+                /* Two subsequent register moves to (An)+ */
+                (*m68k_ptr)++;
+                update_mask = M68K_GetSRMask(*m68k_ptr);
+                (*m68k_ptr)++;
+
+                if (update_mask)
+                {
+#ifdef __aarch64__
+                    *ptr++ = cmn_reg(31, src_reg_2, LSL, 0);
+#else
+                    *ptr++ = cmp_immed(tmp_reg, 0);
+#endif
+                }
+
+                *ptr++ = stp_postindex(addr_reg, src_reg_1, src_reg_2, 8);
+
+                tmp_reg = src_reg_2;
+            
+                done = 1;
+                ptr = EMIT_AdvancePC(ptr, 4);
+                *insn_consumed = 2;
+                size = 4;
+            }
+        }
+
+        // Is move.l (An)+, Reg ?: Dest mode 001 or 000, source mode 011
+        else if ((opcode & 0x01b8) == 0x0018)
+        {
+            // Candidate found. Is next opcode of same kind and same (An)+?
+            if (
+                (opcode2 & 0xf000) == 0x2000 &&             // move.l
+                (opcode2 & 0x01bf) == (opcode & 0x01bf) &&  // same src reg, same mode?
+                (opcode2 & 0x0e40) != (opcode & 0x0e40)     // Two different dest registers!
+            )
+            {
+                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
+                uint8_t dst_reg_1 = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 0x7) + ((opcode >> 3) & 8));
+                uint8_t dst_reg_2 = RA_MapM68kRegisterForWrite(&ptr, ((opcode2 >> 9) & 0x7) + ((opcode2 >> 3) & 8));
+                uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
+
+                /* Two subsequent register moves from (An)+ */
+                (*m68k_ptr)+=2;
+                
+                *ptr++ = ldp_postindex(addr_reg, dst_reg_1, dst_reg_2, 8);
+
+                if (!is_movea2) {
+                    update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+                        if (update_mask) {
+#ifdef __aarch64__
+                        *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
+#else
+                        *ptr++ = cmp_immed(tmp_reg, 0);
+#endif
+                        tmp_reg = dst_reg_2;
+                    }
+                }
+                else if (!is_movea) {
+                    if (update_mask) {
+#ifdef __aarch64__
+                        *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
+#else
+                        *ptr++ = cmp_immed(tmp_reg, 0);
+#endif
+                        tmp_reg = dst_reg_1;
+                    }
+                }
+
+                is_movea = is_movea && is_movea2;
+                          
+                done = 1;
+                ptr = EMIT_AdvancePC(ptr, 4);
+                *insn_consumed = 2;
+                size = 4;
+            }
+        }
+
+        // Is move.l -(An), Reg ?: Dest mode 001 or 000, source mode 011
+        else if ((opcode & 0x01b8) == 0x0020)
+        {
+            // Candidate found. Is next opcode of same kind and same (An)+?
+            if (
+                (opcode2 & 0xf000) == 0x2000 &&             // move.l
+                (opcode2 & 0x01bf) == (opcode & 0x01bf) &&  // same src reg, same mode?
+                (opcode2 & 0x0e40) != (opcode & 0x0e40)     // Two different dest registers!
+            )
+            {
+                uint8_t addr_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode & 7) + 8);
+                uint8_t dst_reg_1 = RA_MapM68kRegisterForWrite(&ptr, ((opcode >> 9) & 0x7) + ((opcode >> 3) & 8));
+                uint8_t dst_reg_2 = RA_MapM68kRegisterForWrite(&ptr, ((opcode2 >> 9) & 0x7) + ((opcode2 >> 3) & 8));
+                uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
+
+                /* Two subsequent register moves to (An)+ */
+                (*m68k_ptr)+=2;
+
+                *ptr++ = ldp_preindex(addr_reg, dst_reg_2, dst_reg_1, -8);
+
+                if (!is_movea2) {
+                    update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+                        if (update_mask) {
+#ifdef __aarch64__
+                        *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
+#else
+                        *ptr++ = cmp_immed(tmp_reg, 0);
+#endif
+                        tmp_reg = dst_reg_2;
+                    }
+                }
+                else if (!is_movea) {
+                    if (update_mask) {
+#ifdef __aarch64__
+                        *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
+#else
+                        *ptr++ = cmp_immed(tmp_reg, 0);
+#endif
+                        tmp_reg = dst_reg_1;
+                    }
+                }
+
+                is_movea = is_movea && is_movea2;
+            
+                done = 1;
+                ptr = EMIT_AdvancePC(ptr, 4);
+                *insn_consumed = 2;
+                size = 4;
+            }
+        }
+    }
+
 
     if (!done)
     {

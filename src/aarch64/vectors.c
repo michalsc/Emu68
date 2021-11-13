@@ -301,11 +301,6 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         kprintf("Z3 write access with far %08x\n", far);
     }
 
-    if (far > (0x1000000ULL - size)) {
-        kprintf("Illegal FAR %08x\n", far);
-        return 1;
-    }
-
     if (far == 0xBFE001 && size == 1) {
         if ((value & 1) != overlay) {
             kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);

@@ -374,7 +374,6 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 {
     int c = 1;
     int pos_buffer_base = 0;
-//    int pos_buffer_size = 0;
     int pos_buffer_pitch = 0;
 
     FBReq[c++] = 0;                 // Request
@@ -400,7 +399,6 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
     FBReq[c++] = LE32(0);
     pos_buffer_base = c;
     FBReq[c++] = LE32(64);
-//    pos_buffer_size = c;
     FBReq[c++] = LE32(0);
 
     FBReq[c++] = LE32(0x40008); // Get pitch
