@@ -380,13 +380,15 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     uint8_t direction = (opcode >> 8) & 1;
     uint32_t *tmpptr_1;
     uint32_t *tmpptr_2;
+    uint8_t shiftreg_orig = RA_AllocARMRegister(&ptr);
+    uint8_t mask = RA_AllocARMRegister(&ptr);
 
     RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
     uint8_t shiftreg = RA_MapM68kRegister(&ptr, shift);
 
     // Check shift size 0 - in that case no bit shifting is necessary, clear VC flags, update NZ, leave X
-    *ptr++ = ands_immed(31, shiftreg, 6, 0);
+    *ptr++ = ands_immed(shiftreg_orig, shiftreg, 6, 0);
     tmpptr_1 = ptr;
     *ptr++ = b_cc(A64_CC_NE, 0);
 
@@ -426,6 +428,27 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (direction)
     {
+        if (update_mask & SR_V)
+        {
+            *ptr++ = mov64_immed_u16(mask, 0x8000, 3);
+            *ptr++ = asrv64(mask, mask, shiftreg_orig);
+            switch (size)
+            {
+                case 4:
+                    *ptr++ = lsr64(mask, mask, 32);
+                    *ptr++ = mov_reg(shiftreg_orig, reg);
+                    break;
+                case 2:
+                    *ptr++ = lsr64(mask, mask, 32+16);
+                    *ptr++ = and_immed(shiftreg_orig, reg, 16, 0);
+                    break;
+                case 1:
+                    *ptr++ = lsr64(mask, mask, 32 + 24);
+                    *ptr++ = and_immed(shiftreg_orig, reg, 8, 0);
+                    break;
+            }
+        }
+
         switch(size)
         {
             case 4:
@@ -513,6 +536,15 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         RA_FreeARMRegister(&ptr, tmp2);
 
+        if (update_mask & SR_V) {
+            *ptr++ = ands_reg(31, shiftreg_orig, mask, LSL, 0);
+            *ptr++ = b_cc(A64_CC_EQ, 5);
+            *ptr++ = eor_reg(shiftreg_orig, shiftreg_orig, mask, LSL, 0);
+            *ptr++ = ands_reg(31, shiftreg_orig, mask, LSL, 0);
+            *ptr++ = b_cc(A64_CC_EQ, 2);
+            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_V));
+        }
+
         if (update_mask & (SR_Z | SR_N))
         {
             switch(size)
@@ -549,6 +581,7 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     ptr = EMIT_AdvancePC(ptr, 2);
 
     RA_FreeARMRegister(&ptr, tmp);
+    RA_FreeARMRegister(&ptr, shiftreg_orig);
 
     return ptr;
 
