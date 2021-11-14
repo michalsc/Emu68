@@ -537,7 +537,7 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         RA_FreeARMRegister(&ptr, tmp2);
 
-        if (update_mask & SR_V) {
+        if (direction && (update_mask & SR_V)) {
             *ptr++ = ands_reg(31, reg_orig, mask, LSL, 0);
             *ptr++ = b_cc(A64_CC_EQ, 7);
             *ptr++ = cmp_immed(shiftreg_orig, size == 4 ? 32 : (size == 2 ? 16 : 8));
