@@ -381,6 +381,7 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     uint32_t *tmpptr_1;
     uint32_t *tmpptr_2;
     uint8_t shiftreg_orig = RA_AllocARMRegister(&ptr);
+    uint8_t reg_orig = RA_AllocARMRegister(&ptr);
     uint8_t mask = RA_AllocARMRegister(&ptr);
 
     RA_SetDirtyM68kRegister(&ptr, opcode & 7);
@@ -436,15 +437,15 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             {
                 case 4:
                     *ptr++ = lsr64(mask, mask, 32);
-                    *ptr++ = mov_reg(shiftreg_orig, reg);
+                    *ptr++ = mov_reg(reg_orig, reg);
                     break;
                 case 2:
                     *ptr++ = lsr64(mask, mask, 32+16);
-                    *ptr++ = and_immed(shiftreg_orig, reg, 16, 0);
+                    *ptr++ = and_immed(reg_orig, reg, 16, 0);
                     break;
                 case 1:
                     *ptr++ = lsr64(mask, mask, 32 + 24);
-                    *ptr++ = and_immed(shiftreg_orig, reg, 8, 0);
+                    *ptr++ = and_immed(reg_orig, reg, 8, 0);
                     break;
             }
         }
@@ -537,10 +538,12 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         RA_FreeARMRegister(&ptr, tmp2);
 
         if (update_mask & SR_V) {
-            *ptr++ = ands_reg(31, shiftreg_orig, mask, LSL, 0);
-            *ptr++ = b_cc(A64_CC_EQ, 5);
-            *ptr++ = eor_reg(shiftreg_orig, shiftreg_orig, mask, LSL, 0);
-            *ptr++ = ands_reg(31, shiftreg_orig, mask, LSL, 0);
+            *ptr++ = ands_reg(31, reg_orig, mask, LSL, 0);
+            *ptr++ = b_cc(A64_CC_EQ, 7);
+            *ptr++ = cmp_immed(shiftreg_orig, size == 4 ? 32 : (size == 2 ? 16 : 8));
+            *ptr++ = b_cc(A64_CC_GE, 4);
+            *ptr++ = eor_reg(reg_orig, reg_orig, mask, LSL, 0);
+            *ptr++ = ands_reg(31, reg_orig, mask, LSL, 0);
             *ptr++ = b_cc(A64_CC_EQ, 2);
             *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_V));
         }
@@ -581,7 +584,9 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     ptr = EMIT_AdvancePC(ptr, 2);
 
     RA_FreeARMRegister(&ptr, tmp);
+    RA_FreeARMRegister(&ptr, mask);
     RA_FreeARMRegister(&ptr, shiftreg_orig);
+    RA_FreeARMRegister(&ptr, reg_orig);
 
     return ptr;
 
@@ -612,10 +617,12 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_V));
         *ptr++ = ands_immed(tmp_reg, reg, width, width + rot);
-        *ptr++ = b_cc(A64_CC_EQ, 5);
-        *ptr++ = eor_immed(tmp_reg, tmp_reg, width, width + rot);
-        *ptr++ = ands_immed(tmp_reg, tmp_reg, width, width + rot);
-        *ptr++ = b_cc(A64_CC_EQ, 2);
+        *ptr++ = b_cc(A64_CC_EQ, (size == 1 && shift == 8) ? 2 : 5);
+        if (!(size == 1 && shift == 8)) {
+            *ptr++ = eor_immed(tmp_reg, tmp_reg, width, width + rot);
+            *ptr++ = ands_immed(tmp_reg, tmp_reg, width, width + rot);
+            *ptr++ = b_cc(A64_CC_EQ, 2);
+        }
         *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_V));
         
         update_mask &= ~SR_V;
