@@ -77,6 +77,8 @@ set(EMU68_FILES
     src/math/pow.c
     src/math/modf.c
     src/math/sincos.c
+    src/math/sin.c
+    src/math/cos.c
 )
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
