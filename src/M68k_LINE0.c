@@ -2028,6 +2028,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
+    uint8_t cc = RA_ModifyCC(&ptr);
     uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
     uint8_t update_mask = SR_Z | SR_C;
     uint8_t ext_words = 1;
@@ -2076,7 +2077,7 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     *ptr++ = subs_reg(31, reg, lower, LSL, 0);
-    *ptr++ = b_cc(A64_CC_LE, 2);
+    *ptr++ = b_cc(A64_CC_CS, 2);
     *ptr++ = subs_reg(31, higher, reg,  LSL, 0);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
@@ -2084,8 +2085,6 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-        uint8_t cc = RA_ModifyCC(&ptr);
-
         if (__builtin_popcount(update_mask) > 1)
             ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
         else
@@ -2094,7 +2093,7 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_C)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
     }
 
     RA_FreeARMRegister(&ptr, ea);
@@ -2111,11 +2110,11 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         /* Skip exception if tested value is in range */
         uint32_t *t = ptr;
-        *ptr++ = b_cc(A64_CC_CS, 0);
+        *ptr++ = b_cc(A64_CC_CC, 0);
 
         /* Emit CHK exception */
         ptr = EMIT_Exception(ptr, VECTOR_CHK, 2, opcode_address);
-        *t = b_cc(A64_CC_CS, ptr - t);
+        *t = b_cc(A64_CC_CC, ptr - t);
         *ptr++ = (uint32_t)(uintptr_t)t;
         *ptr++ = 1;
         *ptr++ = 0;
@@ -3023,12 +3022,12 @@ static struct OpcodeDef InsnTable[4096] = {
 	[0xcfc]			  = { { .od_Emit = EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 2 },
 	[0xefc]			  = { { .od_Emit = EMIT_CAS2 }, NULL, 0, SR_NZVC, 3, 0, 4 },
 
-	[00320 ... 00327] = { { .od_Emit = EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[00350 ... 00373] = { { .od_Emit = EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[01320 ... 01327] = { { .od_Emit = EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[01350 ... 01373] = { { .od_Emit = EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[02320 ... 02327] = { { .od_Emit = EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 0, 4 },
-	[02350 ... 02371] = { { .od_Emit = EMIT_CMP2 }, NULL, 0, SR_NZVC, 2, 1, 4 },
+	[00320 ... 00327] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 0, 1 },
+	[00350 ... 00373] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 1, 1 },
+	[01320 ... 01327] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 0, 2 },
+	[01350 ... 01373] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 1, 2 },
+	[02320 ... 02327] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 0, 4 },
+	[02350 ... 02371] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 1, 4 },
 
 	[00410 ... 00417] = { { .od_Emit = EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
 	[00510 ... 00517] = { { .od_Emit = EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
