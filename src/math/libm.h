@@ -152,5 +152,7 @@ double log10(double x);
 double log2(double x);
 double modf(double x, double *iptr);
 struct double2 sincos(double x);
+double sin(double x);
+double cos(double x);
 
 #endif /* __LIBM_H */
