@@ -3243,7 +3243,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = sub_immed(dst, dst, 4 * regnum);
             }
 
-            if ((opcode2 & 0x1c00) == 0x1000)
+            if (opcode2 & 0x1000)
             {
                 reg = RA_GetFPCR(&ptr);
                 
@@ -3251,14 +3251,14 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 offset += 4;
             }
 
-            if ((opcode2 & 0x1c00) == 0x0800)
+            if (opcode2 & 0x0800)
             {
                 reg = RA_GetFPSR(&ptr);
                 *ptr++ = str_offset(dst, reg, offset);
                 offset += 4;
             }
 
-            if ((opcode2 & 0x1c00) == 0x0400)
+            if (opcode2 & 0x0400)
             {
                 reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = ldr_offset(reg_CTX, reg, __builtin_offsetof(struct M68KState, FPIAR));
@@ -3350,7 +3350,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = sub_immed(src, src, 4 * regnum);
             }
 
-            if ((opcode2 & 0x1c00) == 0x1000)
+            if (opcode2 & 0x1000)
             {
                 uint8_t round = RA_AllocARMRegister(&ptr);
                 reg = RA_ModifyFPCR(&ptr);
@@ -3370,7 +3370,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 offset += 4;
             }
 
-            if ((opcode2 & 0x1c00) == 0x0800)
+            if (opcode2 & 0x0800)
             {
                 reg = RA_ModifyFPSR(&ptr);
                 *ptr++ = ldr_offset(src, tmp, offset);
@@ -3378,7 +3378,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 offset += 4;
             }
 
-            if ((opcode2 & 0x1c00) == 0x0400)
+            if (opcode2 & 0x0400)
             {
                 *ptr++ = ldr_offset(src, tmp, offset);
                 *ptr++ = str_offset(reg_CTX, tmp, __builtin_offsetof(struct M68KState, FPIAR));
