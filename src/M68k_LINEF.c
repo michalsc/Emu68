@@ -2151,8 +2151,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         fp_dst_sin = RA_MapFPURegisterForWrite(&ptr, fp_dst_sin);
         fp_dst_cos = RA_MapFPURegisterForWrite(&ptr, fp_dst_cos);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2173,8 +2171,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         *ptr++ = u.u32[0];
         *ptr++ = u.u32[1];
 
-        *ptr++ = fcpyd(fp_dst_sin, 0);
         *ptr++ = fcpyd(fp_dst_cos, 1);
+        *ptr++ = fcpyd(fp_dst_sin, 0);
 
         *ptr++ = ldp64(31, 2, 3, 16);
         *ptr++ = ldp64(31, 4, 5, 32);
@@ -2304,8 +2302,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2357,8 +2353,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2412,8 +2406,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2465,8 +2457,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2520,8 +2510,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2573,8 +2561,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2628,8 +2614,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2681,8 +2665,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2736,8 +2718,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2790,14 +2770,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
         } u;
 
-        u.u64 = (uintptr_t)atan;
+        u.u64 = (uintptr_t)atanh;
 
         *ptr++ = stp64_preindex(31, 0, 1, -80);
         *ptr++ = stp64(31, 2, 3, 16);
@@ -2843,8 +2821,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2898,8 +2874,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -2951,8 +2925,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -3006,8 +2978,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -3060,8 +3030,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-//        *ptr++ = fcpyd(0, fp_src);
-
         union {
             uint64_t u64;
             uint32_t u32[2];
@@ -3113,8 +3081,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -3221,33 +3187,94 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
     {
         uint8_t reg_CTX = RA_GetCTX(&ptr);
-        uint8_t special_reg;
-        switch (opcode2 & 0x1c00)
-        {
-            case 0x1000:    /* FPCR */
-                special_reg = RA_GetFPCR(&ptr);
-                break;
-            case 0x0800:    /* FPSR */
-                special_reg = RA_GetFPSR(&ptr);
-                break;
-            case 0x0400:    /* FPIAR */
-                special_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = ldr_offset(reg_CTX, special_reg, __builtin_offsetof(struct M68KState, FPIAR));
-                break;
-        }
+        uint8_t reg = 0xff;
+        uint8_t dst = 0xff;
 
+        // Handle move to Dn
         if ((opcode & 0x38) == 0)
         {
-            uint8_t reg = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
-            *ptr++ = mov_reg(reg, special_reg);
+            uint8_t dst = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
+
+            switch (opcode2 & 0x1c00)
+            {
+                case 0x1000:    /* FPCR */
+                    reg = RA_GetFPCR(&ptr);
+                    *ptr++ = mov_reg(dst, reg);
+                    reg = 0xff;
+                    break;
+                case 0x0800:    /* FPSR */
+                    reg = RA_GetFPSR(&ptr);
+                    *ptr++ = mov_reg(dst, reg);
+                    break;
+            }
         }
+        // Handle move from An
+        else if ((opcode & 0x38) == 0x8)
+        {
+            uint8_t dst = RA_MapM68kRegisterForWrite(&ptr, 8 + (opcode & 7));
+
+            switch (opcode2 & 0x1c00)
+            {
+                case 0x0400:    /* FPIAR */
+                    *ptr++ = ldr_offset(reg_CTX, dst, __builtin_offsetof(struct M68KState, FPIAR));
+                    break;
+            }
+        }
+        // Handle all other cases
         else
         {
-            ptr = EMIT_StoreToEffectiveAddress(ptr, 4, &special_reg, opcode & 0x3f, *m68k_ptr, &ext_count);
-        }
+            int regnum = 0;
+            int offset = 0;
 
-        if ((opcode2 & 0x1c00) == 0x0400)
-            RA_FreeARMRegister(&ptr, special_reg);
+            if ((opcode & 0x38) == 0x20 || (opcode & 0x38) == 0x18) {
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dst, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dst, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+
+            if (opcode2 & 0x0400) regnum++;
+            if (opcode2 & 0x0800) regnum++;
+            if (opcode2 & 0x1000) regnum++;
+
+            // In predecrement mode reserve whole space first
+            if ((opcode & 0x38) == 0x20)
+            {
+                *ptr++ = sub_immed(dst, dst, 4 * regnum);
+            }
+
+            if ((opcode2 & 0x1c00) == 0x1000)
+            {
+                reg = RA_GetFPCR(&ptr);
+                
+                *ptr++ = str_offset(dst, reg, offset);
+                offset += 4;
+            }
+
+            if ((opcode2 & 0x1c00) == 0x0800)
+            {
+                reg = RA_GetFPSR(&ptr);
+                *ptr++ = str_offset(dst, reg, offset);
+                offset += 4;
+            }
+
+            if ((opcode2 & 0x1c00) == 0x0400)
+            {
+                reg = RA_AllocARMRegister(&ptr);
+                *ptr++ = ldr_offset(reg_CTX, reg, __builtin_offsetof(struct M68KState, FPIAR));
+                *ptr++ = str_offset(dst, reg, offset);
+                RA_FreeARMRegister(&ptr, reg);
+                reg = 0xff;
+            }
+
+            // In postincrement mode adjust the value now
+            if ((opcode & 0x38) == 0x18)
+            {
+                *ptr++ = add_immed(dst, dst, 4 * regnum);
+            }
+
+            RA_FreeARMRegister(&ptr, dst);
+        }
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -3260,30 +3287,108 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t reg = 0xff;
         uint8_t reg_CTX = RA_GetCTX(&ptr);
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-
-        switch (opcode2 & 0x1c00)
+        // Handle move from Dn
+        if ((opcode & 0x38) == 0)
         {
-            case 0x1000:    /* FPCR */
-                tmp = RA_AllocARMRegister(&ptr);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+            switch (opcode2 & 0x1c00)
+            {
+                case 0x1000:    /* FPCR */
+                    tmp = RA_AllocARMRegister(&ptr);
+                    reg = RA_ModifyFPCR(&ptr);
+                    *ptr++ = mov_reg(reg, src);
+                    {
+                        uint8_t round = RA_AllocARMRegister(&ptr);
+
+                        *ptr++ = get_fpcr(src);
+                        *ptr++ = ubfx(round, reg, 4, 2);
+                        *ptr++ = neg_reg(round, round, LSL, 0);
+                        *ptr++ = add_immed(round, round, 4);
+                        *ptr++ = bfi(src, round, 22, 2);
+                        *ptr++ = set_fpcr(src);
+
+                        RA_FreeARMRegister(&ptr, round);
+                    }
+                    break;
+                case 0x0800:    /* FPSR */
+                    reg = RA_ModifyFPSR(&ptr);
+                    *ptr++ = mov_reg(reg, src);
+                    break;
+            }
+        }
+        // Handle move from An
+        else if ((opcode & 0x38) == 0x8)
+        {
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+            switch (opcode2 & 0x1c00)
+            {
+                case 0x0400:    /* FPIAR */
+                    *ptr++ = str_offset(reg_CTX, src, __builtin_offsetof(struct M68KState, FPIAR));
+                    break;
+            }
+        }
+        // Handle all other cases
+        else
+        {
+            tmp = RA_AllocARMRegister(&ptr);
+            int regnum = 0;
+            int offset = 0;
+            if ((opcode & 0x38) == 0x20 || (opcode & 0x38) == 0x18) {
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            }
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+
+            if (opcode2 & 0x0400) regnum++;
+            if (opcode2 & 0x0800) regnum++;
+            if (opcode2 & 0x1000) regnum++;
+
+            // In predecrement mode reserve whole space first
+            if ((opcode & 0x38) == 0x20)
+            {
+                *ptr++ = sub_immed(src, src, 4 * regnum);
+            }
+
+            if ((opcode2 & 0x1c00) == 0x1000)
+            {
+                uint8_t round = RA_AllocARMRegister(&ptr);
                 reg = RA_ModifyFPCR(&ptr);
-                *ptr++ = mov_reg(reg, src);
-#ifndef __aarch64__
-                *ptr++ = fmxr(tmp, FPSCR);
-                *ptr++ = lsr_immed(src, src, 4);
-                *ptr++ = tst_immed(src, 1);
-                *ptr++ = eor_cc_immed(ARM_CC_NE, src, src, 2);
-                *ptr++ = bfi(tmp, src, 22, 2);
-                *ptr++ = fmrx(FPSCR, tmp);
-#endif
-                break;
-            case 0x0800:    /* FPSR */
+                
+                *ptr++ = ldr_offset(src, tmp, offset);
+                *ptr++ = mov_reg(reg, tmp);
+
+                *ptr++ = get_fpcr(tmp);
+                *ptr++ = ubfx(round, reg, 4, 2);
+                *ptr++ = neg_reg(round, round, LSL, 0);
+                *ptr++ = add_immed(round, round, 4);
+                *ptr++ = bfi(tmp, round, 22, 2);
+                *ptr++ = set_fpcr(tmp);
+
+                RA_FreeARMRegister(&ptr, round);
+
+                offset += 4;
+            }
+
+            if ((opcode2 & 0x1c00) == 0x0800)
+            {
                 reg = RA_ModifyFPSR(&ptr);
-                *ptr++ = mov_reg(reg, src);
-                break;
-            case 0x0400:    /* FPIAR */
-                *ptr++ = str_offset(reg_CTX, src, __builtin_offsetof(struct M68KState, FPIAR));
-                break;
+                *ptr++ = ldr_offset(src, tmp, offset);
+                *ptr++ = mov_reg(reg, tmp);
+                offset += 4;
+            }
+
+            if ((opcode2 & 0x1c00) == 0x0400)
+            {
+                *ptr++ = ldr_offset(src, tmp, offset);
+                *ptr++ = str_offset(reg_CTX, tmp, __builtin_offsetof(struct M68KState, FPIAR));
+            }
+
+            // In postincrement mode adjust the value now
+            if ((opcode & 0x38) == 0x18)
+            {
+                *ptr++ = add_immed(src, src, 4 * regnum);
+            }
         }
 
         RA_FreeARMRegister(&ptr, src);
@@ -3725,32 +3830,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         else
         {
             /* Load effective address */
-            uint8_t dest = 0xff;
             uint8_t tmp = RA_AllocARMRegister(&ptr);
-            uint8_t mode = (opcode & 0x0038) >> 3;
 
-#ifdef __aarch64__
             *ptr++ = csetm(tmp, success_condition);
-#else
-            *ptr++ = mov_cc_immed_u8(success_condition ^ 1, tmp, 0);
-            *ptr++ = mvn_cc_immed_u8(success_condition, tmp, 0);
-#endif
 
-            if (mode == 3)
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-            else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
-
-            if (mode == 3)
-            {
-                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = strb_offset(dest, tmp, 0);
+            ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count);
 
             RA_FreeARMRegister(&ptr, tmp);
-            RA_FreeARMRegister(&ptr, dest);
         }
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -3775,18 +3861,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-#ifdef __aarch64__
         *ptr++ = fsqrtd(fp_dst, fp_src);
-#else
-        if (Features.ARM_SUPPORTS_SQRT)
-        {
-            *ptr++ = fsqrtd(fp_dst, fp_src);
-        }
-        else
-        {
-            /* Missing... */
-        }
-#endif
+
         RA_FreeFPURegister(&ptr, fp_src);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -3845,8 +3921,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -4153,8 +4227,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
