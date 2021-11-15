@@ -2143,7 +2143,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSINCOS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa078) == 0x0030))
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
         uint8_t fp_dst_cos = opcode2 & 7;
 
@@ -2151,7 +2151,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         fp_dst_sin = RA_MapFPURegisterForWrite(&ptr, fp_dst_sin);
         fp_dst_cos = RA_MapFPURegisterForWrite(&ptr, fp_dst_cos);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2298,13 +2298,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOGN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2352,13 +2352,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOGNP1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2406,13 +2406,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOG10 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0015)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2460,13 +2460,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOG2 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0016)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2514,13 +2514,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FETOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0010)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2568,13 +2568,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FETOXM1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0008)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2622,13 +2622,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSINH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0002)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2676,13 +2676,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FCOSH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0019)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2730,13 +2730,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FATAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000a)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2784,13 +2784,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FATANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000d)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2838,13 +2838,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FACOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001c)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2892,13 +2892,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FASIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000c)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -2946,13 +2946,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000f)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -3000,13 +3000,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0009)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -3054,13 +3054,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTENTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0012)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -3108,13 +3108,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTWOTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0011)
     {
-        uint8_t fp_src = 0xff;
+        uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_src);
+//        *ptr++ = fcpyd(0, fp_src);
 
         union {
             uint64_t u64;
@@ -3836,6 +3836,62 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
+#if 1
+    /* FSIN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
+    {
+        uint8_t fp_src = 0;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+//        *ptr++ = fcpyd(0, fp_src);
+
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        u.u64 = (uintptr_t)sin;
+
+        *ptr++ = stp64_preindex(31, 0, 1, -80);
+        *ptr++ = stp64(31, 2, 3, 16);
+        *ptr++ = stp64(31, 4, 5, 32);
+        *ptr++ = stp64(31, 6, 7, 48);
+        *ptr++ = str64_offset(31, 30, 64);
+
+        *ptr++ = adr(30, 20);
+        *ptr++ = ldr64_pcrel(0, 2);
+        *ptr++ = br(0);
+
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
+
+        *ptr++ = fcpyd(fp_dst, 0);
+
+        *ptr++ = ldp64(31, 2, 3, 16);
+        *ptr++ = ldp64(31, 4, 5, 32);
+        *ptr++ = ldp64(31, 6, 7, 48);
+        *ptr++ = ldr64_offset(31, 30, 64);
+        *ptr++ = ldp64_postindex(31, 0, 1, 80);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
+#else
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
@@ -4087,6 +4143,63 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
+#endif
+#if 1
+    /* FCOS */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
+    {
+        uint8_t fp_src = 0;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+//        *ptr++ = fcpyd(0, fp_src);
+
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        u.u64 = (uintptr_t)cos;
+
+        *ptr++ = stp64_preindex(31, 0, 1, -80);
+        *ptr++ = stp64(31, 2, 3, 16);
+        *ptr++ = stp64(31, 4, 5, 32);
+        *ptr++ = stp64(31, 6, 7, 48);
+        *ptr++ = str64_offset(31, 30, 64);
+
+        *ptr++ = adr(30, 20);
+        *ptr++ = ldr64_pcrel(0, 2);
+        *ptr++ = br(0);
+
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
+
+        *ptr++ = fcpyd(fp_dst, 0);
+
+        *ptr++ = ldp64(31, 2, 3, 16);
+        *ptr++ = ldp64(31, 4, 5, 32);
+        *ptr++ = ldp64(31, 6, 7, 48);
+        *ptr++ = ldr64_offset(31, 30, 64);
+        *ptr++ = ldp64_postindex(31, 0, 1, 80);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
+#else
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
@@ -4323,6 +4436,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         *ptr++ = INSN_TO_LE(0xfffffff0);
 
     }
+#endif
     /* FNOP */
     else if (opcode == 0xf280 && opcode2 == 0)
     {
