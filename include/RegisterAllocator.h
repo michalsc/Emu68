@@ -62,4 +62,7 @@ uint8_t RA_ModifyFPSR(uint32_t **ptr);
 void RA_FlushFPSR(uint32_t **ptr);
 void RA_StoreFPSR(uint32_t **ptr);
 
+uint32_t *EMIT_SaveRegFrame(uint32_t *ptr, uint32_t mask);
+uint32_t *EMIT_RestoreRegFrame(uint32_t *ptr, uint32_t mask);
+
 #endif /* _REGISTER_ALLOCATOR_H */

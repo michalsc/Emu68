@@ -36,6 +36,8 @@
 #define REG_A6    28
 #define REG_A7    29
 
+#define REG_PROTECT ((1 << 30) | (1 << (REG_A0)) | (1 << (REG_A1)) | (1 << (REG_A2)) | (1 << (REG_A3)) | (1 << (REG_A4)) | (1 << (REG_PC)))
+
 #define REG_FP0   8
 #define REG_FP1   9
 #define REG_FP2   10
