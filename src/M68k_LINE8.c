@@ -529,61 +529,6 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     ptr = EMIT_AdvancePC(ptr, 2);
 
-#if 0
-    /* Operation */
-    *ptr++ = ubfx(tmp_a, src, 0, 4);
-    *ptr++ = ubfx(tmp_b, dest, 0, 4);
-    *ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
-    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-    *ptr++ = b_cc(A64_CC_EQ, 2);
-    *ptr++ = sub_immed(tmp_a, tmp_a, 1);
-    *ptr++ = cmp_immed(tmp_a, 0);
-    *ptr++ = b_cc(A64_CC_HI, 2);
-    *ptr++ = add_immed(tmp_a, tmp_a, 9);
-    *ptr++ = bfi(dest, tmp_a, 0, 4);
-    *ptr++ = ubfx(tmp_a, src, 4, 4);
-    *ptr++ = ubfx(tmp_b, dest, 4, 4);
-    *ptr++ = sub_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
-    *ptr++ = csinv(tmp_a, tmp_a, 31, A64_CC_HI);
-    *ptr++ = cmp_immed(tmp_a, 0);
-    *ptr++ = b_cc(A64_CC_HI, 2);
-    *ptr++ = add_immed(tmp_a, tmp_a, 9);
-    *ptr++ = bfi(dest, tmp_a, 4, 4);
-    *ptr++ = mov_reg(tmp_a, dest);
-
-    /* Storing result */
-    *ptr++ = strb_offset(an_dest, dest, 0);
-
-    if (update_mask & SR_XC)
-    {
-        /* if A64_CC_LT then there was a carry */
-        *ptr++ = cset(tmp_b, A64_CC_LT);
-        *ptr++ = bfi(cc, tmp_b, 0, 1);
-        /* update X flag*/
-        *ptr++ = bfi(cc, cc, 4, 1);
-    }
-    if (update_mask & SR_NZ)
-    {
-        *ptr++ = cmn_reg(31, tmp_a, LSL, 24);
-
-        if (update_mask & SR_Z)
-        {
-            *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Z));
-        }
-        if (update_mask & SR_N)
-        {
-            *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_N));
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, A64_CC_MI);
-        }
-    }
-
-    RA_FreeARMRegister(&ptr, tmp_a);
-    RA_FreeARMRegister(&ptr, tmp_b);
-    RA_FreeARMRegister(&ptr, src);
-    RA_FreeARMRegister(&ptr, dest);
-#endif
-
     return ptr;
 }
 
