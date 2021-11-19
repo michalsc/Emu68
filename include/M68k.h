@@ -86,10 +86,8 @@ struct M68KState
 		uint8_t B;
 		uint16_t W;
 		uint32_t L;
-	    	float S;
+	    float S;
 		double d;
-	    	long double X; //this will, be effected by compiler config. if the compiler is set to double precission this will always be a double.
-	    	long double P; //This is not wise to use.
 		uint64_t u64;
 		uint32_t u32[2];
     } FP[8];   // Double precision! Extended is "emulated" in load/store only
