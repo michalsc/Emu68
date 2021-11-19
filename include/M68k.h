@@ -192,8 +192,12 @@ struct M68KState
 #define FPSR_S		0x00800000
 #define FPSR_N      0x08000000
 #define FPSR_Z      0x04000000
+#define FPSR_NZ		0x0c000000
 #define FPSR_I      0x02000000
+#define FPSR_NI		0x0a000000
 #define FPSR_NAN    0x01000000
+#define FPSR_NNAN	0x09000000
+#define FPCC		0x0f000000
 
 #define	FPSRB_S		23
 #define FPSRB_N     27
