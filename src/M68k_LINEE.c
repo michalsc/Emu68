@@ -1305,7 +1305,7 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         tmp_ptr = ptr - 1;
 
         // Continue calculating modulo
-        *ptr++ = mov_immed_u16(tmp2, size == 0 ? 9 : size == 1 ? 17 : 33, 0);
+        *ptr++ = mov_immed_u16(tmp2, size == 0 ? 9 : (size == 1 ? 17 : 33), 0);
         *ptr++ = udiv(amount, tmp, tmp2);
         *ptr++ = msub(amount, tmp, amount, tmp2);
 
@@ -1352,13 +1352,20 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     break;
 
                 case 2: // long
-                    *ptr++ = neg_reg(amount, amount, LSR, 0);
-                    *ptr++ = add_immed(amount, amount, 64);
                     *ptr++ = b_cc(A64_CC_EQ, 2);
                     *ptr++ = orr64_immed(tmp, tmp, 1, 32, 1);
+                    *ptr++ = cbz(amount, 13);
+                    *ptr++ = neg_reg(amount, amount, LSR, 0);
+                    *ptr++ = add_immed(amount, amount, 64);
+                    *ptr++ = cmp_immed(amount, 32);
+                    *ptr++ = b_cc(A64_CC_EQ, 6);
                     *ptr++ = lsl64(tmp, tmp, 31);
                     *ptr++ = bfxil64(tmp, tmp, 31, 32);
                     *ptr++ = rorv64(tmp, tmp, amount);
+                    *ptr++ = mov_reg(dest, tmp);
+                    *ptr++ = b(4);
+                    *ptr++ = bfi64(tmp, tmp, 33, 10);
+                    *ptr++ = ror64(tmp, tmp, 1);
                     *ptr++ = mov_reg(dest, tmp);
                     break;
 
@@ -1390,7 +1397,15 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 case 2: // long
                     *ptr++ = b_cc(A64_CC_EQ, 2);
                     *ptr++ = orr64_immed(tmp, tmp, 1, 64 - 32, 1);
+                    *ptr++ = cmp_immed(amount, 31);
+                    *ptr++ = b_cc(A64_CC_HI, 5);
                     *ptr++ = bfi64(tmp, tmp, 33, 31);
+                    *ptr++ = rorv64(tmp, tmp, amount);
+                    *ptr++ = mov_reg(dest, tmp);
+                    *ptr++ = b(6);
+                    *ptr++ = lsr64(tmp, tmp, 32);
+                    *ptr++ = sub_immed(amount, amount, 32);
+                    *ptr++ = bfi64(tmp, dest, 1, 32);
                     *ptr++ = rorv64(tmp, tmp, amount);
                     *ptr++ = mov_reg(dest, tmp);
                     break;

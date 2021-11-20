@@ -397,3 +397,85 @@ uint16_t RA_GetTempAllocMask()
 {
     return register_pool;
 }
+
+uint32_t *EMIT_SaveRegFrame(uint32_t *ptr, uint32_t mask)
+{
+    uint8_t cnt = __builtin_popcount(mask);
+
+    if (cnt != 0)
+    {
+        // Reserve place on stack
+        if (cnt & 1)
+            *ptr++ = sub64_immed(31, 31, 8*(cnt + 1));
+        else
+            *ptr++ = sub64_immed(31, 31, 8*cnt);
+        uint32_t m = 1;
+        uint8_t r = 0;
+        uint8_t off = 0;
+
+        while(cnt > 1) {
+            uint8_t r1;
+            uint8_t r2;
+
+            while(0 == (mask & m)) { m <<= 1; r++; }
+            r1 = r++;
+            m <<= 1;
+            while(0 == (mask & m)) { m <<= 1; r++; }
+            r2 = r++;
+            m <<= 1;
+
+            *ptr++ = stp64(31, r1, r2, 16 * off++);
+
+            cnt -= 2;
+        }
+
+        if (cnt) {
+            while(0 == (mask & m)) { m <<= 1; r++; }
+            *ptr++ = str64_offset(31, r, 16 * off);
+        }
+    }
+
+    return ptr;
+}
+
+uint32_t *EMIT_RestoreRegFrame(uint32_t *ptr, uint32_t mask)
+{
+    uint8_t cnt = __builtin_popcount(mask);
+    uint8_t cnt_orig = cnt;
+
+    if (cnt != 0)
+    {
+        uint32_t m = 1;
+        uint8_t r = 0;
+        uint8_t off = 0;
+
+        while(cnt > 1) {
+            uint8_t r1;
+            uint8_t r2;
+
+            while(0 == (mask & m)) { m <<= 1; r++; }
+            r1 = r++;
+            m <<= 1;
+            while(0 == (mask & m)) { m <<= 1; r++; }
+            r2 = r++;
+            m <<= 1;
+
+            *ptr++ = ldp64(31, r1, r2, 16 * off++);
+
+            cnt -= 2;
+        }
+
+        if (cnt) {
+            while(0 == (mask & m)) { m <<= 1; r++; }
+            *ptr++ = ldr64_offset(31, r, 16 * off);
+        }
+
+        // Reclaim place on stack
+        if (cnt_orig & 1)
+            *ptr++ = add64_immed(31, 31, 8*(cnt_orig + 1));
+        else
+            *ptr++ = add64_immed(31, 31, 8*cnt_orig);
+    }
+    
+    return ptr;
+}
