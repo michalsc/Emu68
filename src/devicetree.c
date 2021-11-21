@@ -21,6 +21,58 @@ of_node_t *root = NULL;
 uint32_t *data;
 char *strings;
 
+of_node_t * dt_make_node(const char *name)
+{
+    of_node_t *e = NULL;
+    
+    if (name != NULL)
+    {
+        e = tlsf_malloc(tlsf, sizeof(of_node_t));
+        
+        if (e != NULL)
+        {
+            e->on_children = NULL;
+            e->on_properties = NULL;
+            e->on_name = tlsf_malloc(tlsf, strlen(name) + 1);
+            memcpy(e->on_name, name, strlen(name) + 1);
+        }
+    }
+
+    return e;
+}
+
+void dt_add_property(of_node_t *node, const char *propname, const void *propvalue, uint32_t proplen)
+{
+    if (node && propname) {
+        if (propvalue == NULL)
+            proplen = 0;
+
+        of_property_t *prop = tlsf_malloc(tlsf, sizeof(of_property_t));
+        prop->op_length = proplen;
+        prop->op_value = tlsf_malloc(tlsf, proplen);
+        prop->op_name = tlsf_malloc(tlsf, strlen(propname) + 1);
+        prop->op_next = node->on_properties;
+
+        memcpy(prop->op_name, propname, strlen(propname) + 1);
+        memcpy(prop->op_value, propvalue, proplen);
+
+        node->on_properties = prop;
+    }
+}
+
+void dt_add_node(of_node_t *parent, of_node_t *node)
+{
+    if (parent == NULL) {
+        parent = root;
+    }
+
+    if (node) {
+        node->on_parent = parent;
+        node->on_next = parent->on_children;
+        parent->on_children = node;
+    }
+}
+
 of_node_t * dt_build_node(of_node_t *parent)
 {
     of_node_t *e = tlsf_malloc(tlsf, sizeof(of_node_t));
