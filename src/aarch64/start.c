@@ -49,6 +49,9 @@ asm("   .section .startup           \n"
 
 ".byte 0                            \n"
 ".align 4                           \n"
+"       .globl _verstring_object    \n"
+"       .type _verstring_object,%object \n"
+"_verstring_object:                 \n"
 ".string \"" VERSION_STRING "\"     \n"
 ".byte 0                            \n"
 ".align 5                           \n"
@@ -295,6 +298,7 @@ void __vectors_start(void);
 extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
+extern const char _verstring_object[];
 
 #ifdef PISTORM
 #include "ps_protocol.h"
@@ -485,6 +489,11 @@ void boot(void *dtree)
                 limit_2g = 1;
         }
     }
+
+    e = dt_make_node("emu68");
+    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
+    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
+    dt_add_node(NULL, e);
 
     /*
         At this place we have local memory manager but no MMU set up yet. 
@@ -918,9 +927,6 @@ void boot(void *dtree)
     }
 
     //dt_dump_tree();
-
-    
-
 
 #if 0
 
