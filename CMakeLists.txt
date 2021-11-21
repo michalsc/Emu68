@@ -4,6 +4,7 @@ project(Emu68 VERSION 0.9.20)
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
 get_verstring(VERSTRING)
+get_git_sha(GIT_SHA)
 
 set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 11)
@@ -188,4 +189,4 @@ add_subdirectory(external)
 
 target_link_libraries(Emu68.elf tinystl capstone-static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
-target_compile_definitions(Emu68.elf PRIVATE VERSION_STRING="${VERSTRING}")
+target_compile_definitions(Emu68.elf PRIVATE VERSION_STRING="${VERSTRING}" GIT_SHA="${GIT_SHA}")
