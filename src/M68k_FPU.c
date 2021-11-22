@@ -33,13 +33,13 @@
 static EMIT_Function FPU[512] = {
 	
 /* EA Decoding */
-	[0000 ... 0007]	= EMIT_NEXT,
-	[0010 ... 0017] = EMIT_NEXT,
-	[0020 ... 0027] = EMIT_NEXT,
-	[0030 ... 0037] = EMIT_NEXT,
-	[0040 ... 0047] = EMIT_NEXT,
-	[0050 ... 0071] = EMIT_NEXT,
-	[0072 ... 0074] = EMIT_NEXT,
+	[0000 ... 0007]	= EMIT_Dn,
+	[0010 ... 0017] = EMIT_An,
+	[0020 ... 0027] = EMIT_AnIndir,
+	[0030 ... 0037] = EMIT_Incr,
+	[0040 ... 0047] = EMIT_Decr,
+	[0050 ... 0071] = EMIT_EA,
+	[0072 ... 0074] = EMIT_PC,
 
 /* CC instructions */
 	[0100 ... 0107] = EMIT_FSCC_reg,
