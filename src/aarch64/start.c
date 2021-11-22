@@ -133,8 +133,8 @@ asm("   .section .startup           \n"
 "       ic      IALLU               \n" /* Invalidate entire instruction cache */
 "       isb     sy                  \n"
 
-                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
+                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable, Attr3 - write-through */
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
