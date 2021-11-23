@@ -14,7 +14,7 @@ First open the Computer Management tool on windows and proceed to the Disk Manag
 
 ![step_01](img/sd_prep/step_01.png)
 
-Now, delete the volume (E: in my case) from the card as we do not need it anymore. Now create a new simple volume (that will be a primary partition) there
+Now, delete the volume (E: in my case) from the card as we do not need it anymore. Subsequently create a new simple volume (that will be a primary partition) there
 
 ![step_02](img/sd_prep/step_02.png)
 
@@ -28,7 +28,7 @@ Now, we will use the remaining space as a virtual drive for Emu68. In order to d
 
 ## Dangerous part
 
-Now fasten your seat belts. If you are unfamiliar with Windows or you will do any mistake here, you may just render your windows unbootable. What we need to do is to change the partition type for the newly created RAW volume. It will be changed to a type ``0x76`` which is an information for Emu68 (and WinUAE or Amithlon) that this is a virtual hard drive.
+Now fasten your seat belts. If you are unfamiliar with Windows or you will do any mistake here, you may just render your windows not bootable. What we need to do is to change the partition type for the newly created RAW volume. It will be changed to a type ``0x76`` which is an information for Emu68 (and WinUAE or Amithlon) that this is a virtual hard drive.
 
 First, open command prompt as Administrator
 
