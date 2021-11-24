@@ -17,6 +17,11 @@
 		Misc tests
 		IEEE Aware tests
 		IEEE Nonaware tests
+	Long
+		Misc tests
+		IEEE Aware tests
+		IEEE Nonaware tests
+	FSAVE
 
 	Dn
 	An
@@ -122,7 +127,7 @@ static EMIT_Function FPU[512] = {
 	[0333]			= { { EMIT_FBNLT }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
 	[0334]			= { { EMIT_FBNGE }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
 	[0335]			= { { EMIT_FBNGT }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
-
+/* FSAVE */
 	[0420 ... 0427] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 0, 0 },
 	[0440 ... 0447] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 0, 0 },
 	[0450 ... 0471] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 1, 0 },
