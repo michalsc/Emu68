@@ -15,11 +15,11 @@ __attribute__((aligned(4096)))
 */
 
 struct fdt_header *fdt_base;
-char *strings;
-uint32_t strings_len;
-uint32_t *data;
-uint32_t data_len;
-uint32_t allocated_len;
+static char *strings;
+static uint32_t strings_len;
+static uint32_t *data;
+static uint32_t data_len;
+static uint32_t allocated_len;
 
 void put_word(uint32_t word)
 {
