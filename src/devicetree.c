@@ -18,8 +18,8 @@
 #define D(x)
 
 of_node_t *root = NULL;
-uint32_t *data;
-char *strings;
+static uint32_t *data;
+static char *strings;
 
 of_node_t * dt_make_node(const char *name)
 {
