@@ -136,7 +136,27 @@ static EMIT_Function FPU[512] = {
 	[0550 ... 0574] = { { EMIT_FRESTORE }, NULL, SR_S, 0, 1, 1, 0 },
 }
 
-/* 2nd opcode, Tables; bits[15:10] */
+uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+
+	uint16_t opcode = BE16((*m68k_ptr)[0]);
+	uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+	uint8_t ext_count = 1;
+	(*m68k_ptr)++;
+	*insn_consumed = 1;
+
+	if (FPU[opcode & 0777].od_Emit) {
+		ptr = FPU[opcode & 0777].od_Emit(ptr, opcode, opcode2, m68k_ptr, insn_consumed);
+	}
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr -1);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);//What should be passed to this exception?
+		*ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr;
+}
+
+/* opcode2, Tables; bits[15:10] */
 static EMIT_Function JumpTableDn[64] = { //Dn
 	[000 ... 007] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 12 },	//FPm,FPn
 	[020 ... 021] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 4 },	//Dn,FPn
@@ -152,9 +172,33 @@ static EMIT_Function JumpTableDn[64] = { //Dn
 	[054]		  = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },	//FPCR,Dn
 }
 
+uint32_t *EMIT_Dn(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTableDn[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTableDn[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
+}
+
 static EMIT_Function JumpTableAn[64] = { //FMOVE.L An,FPIAR and FMOVE.L FPIAR,An 
 	[041]		  = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },	//FMOVE.L A0,FPIAR 
 	[051]		  = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },	//FMOVE>L FPIAR,A0
+}
+
+uint32_t *EMIT_An(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTableAn[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTableAn[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
 }
 
 static EMIT_Function JumpTableAnIndir[64] = { //(An)
@@ -171,14 +215,22 @@ static EMIT_Function JumpTableAnIndir[64] = { //(An)
 	[037]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 12 },	//FPn,<ea>
 	[041 ... 047] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
 	[051 ... 057] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
-	[060]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[062]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[064]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[066]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
-	[070]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[072]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[074]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[076]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
+	[064]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//static, postincrement
+	[066]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//dynamic. postincrement
+	[074]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//static, postincrement
+	[076]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//dynamic. postincrement
+}
+
+uint32_t *EMIT_AnIndir(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTableAnIndir[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTableAnIndir[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
 }
 
 static EMIT_Function JumpTableIncr[64] = { //(An)+
@@ -194,10 +246,20 @@ static EMIT_Function JumpTableIncr[64] = { //(An)+
 	[036]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 1 },	//FPn,<ea>
 	[037]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 12 },	//FPn,<ea>
 	[041 ... 047] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
-	[060]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[062]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[064]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[066]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
+	[064]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//static, postincrement
+	[066]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//dynamic. postincrement
+}
+
+uint32_t *EMIT_Incr(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTableIncr[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTableIncr[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
 }
 
 static EMIT_Function JumpTableDecr[64] = { //-(An)
@@ -213,46 +275,75 @@ static EMIT_Function JumpTableDecr[64] = { //-(An)
 	[036]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 1 },	//FPn,<ea>
 	[037]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 12 },	//FPn,<ea>
 	[051 ... 057] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
-	[070]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[072]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[074]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[076]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
+	[070]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//static, predecrement
+	[072]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 0, 12 },	//dynamic, predecrement
+}
+
+uint32_t *EMIT_Decr(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTableDecr[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTableDecr[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
 }
 
 static EMIT_Function JumpTableEA[64] = { //(d16,An);(An,Xn);(xxx).(W|L)
-	[020 ... 021] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 4 },
-	[022 ... 023] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 12 },
-	[024]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 2 },
-	[025]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 8 },
-	[026]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 1 },
-	[030 ... 031] = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 4 },	//FPn,<ea>
-	[032 ... 033] = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 12 },	//FPn,<ea>
-	[034]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 2 },	//FPn,<ea>
-	[035]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 8 },	//FPn,<ea>
-	[036]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 1 },	//FPn,<ea>
-	[041 ... 047] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
-	[051 ... 057] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
-	[060]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[062]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[064]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[066]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
-	[070]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[072]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[074]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[076]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
+	[020 ... 021] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 4 },
+	[022 ... 023] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 12 },
+	[024]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 2 },
+	[025]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 8 },
+	[026]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 1 },
+	[030 ... 031] = { { EMIT_FMOVE }, NULL, 0, 0, 2, 1, 4 },	//FPn,<ea>
+	[032 ... 033] = { { EMIT_FMOVE }, NULL, 0, 0, 2, 1, 12 },	//FPn,<ea>
+	[034]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 1, 2 },	//FPn,<ea>
+	[035]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 1, 8 },	//FPn,<ea>
+	[036]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 1, 1 },	//FPn,<ea>
+	[037]		  = { { EMIT_FMOVE }, NULL, 0, 0, 2, 0, 12 },	//FPn,<ea>
+	[041 ... 047] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 1, 4 },
+	[051 ... 057] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 1, 4 },
+	[064]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 1, 12 },	//static, postincrement
+	[066]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 1, 12 },	//dynamic. postincrement
+	[074]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 1, 12 },	//static, postincrement
+	[076]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 1, 12 },	//dynamic. postincrement
+}
+
+uint32_t *EMIT_EA(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTableEA[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTableEA[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
 }
 
 static EMIT_Function JumpTablePC[64] = { //(d16,PC);(PC,Xn);#<data>
-	[020 ... 021] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 4 },
-	[022 ... 023] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 12 },
-	[024]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 2 },
-	[025]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 8 },
-	[026]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 1 },
-	[041 ... 047] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 0, 4 },
-	[060]		  = { { EMIT_FMOVEM,	//static, predecrement
-	[062]		  = { { EMIT_FMOVEM,	//dynamic, predecrement
-	[064]		  = { { EMIT_FMOVEM,	//static, postincrement
-	[066]		  = { { EMIT_FMOVEM,	//dynamic. postincrement
+	[020 ... 021] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 4 },
+	[022 ... 023] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 12 },
+	[024]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 2 },
+	[025]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 8 },
+	[026]		  = { { EMIT_FORMAT }, NULL, 0, 0, 2, 1, 1 },
+	[041 ... 047] = { { EMIT_FMOVEM_L }, NULL, 0, 0, 2, 1, 4 },
+	[064]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 1, 12 },	//static, postincrement
+	[066]		  = { { EMIT_FMOVEM }, NULL, 0, 0, 2, 1, 12 },	//dynamic. postincrement
+}
+
+uint32_t *EMIT_PC(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+	if (JumpTablePC[opcode2 & 0xfc00].od_Emit)
+		ptr = JumpTablePC[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	else {
+		ptr = EMIT_FlushPC(ptr);
+		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+        *ptr++ = INSN_TO_LE(0xffffffff);
+	}
+	return ptr
 }
 
 /* FPU Instructions, Table 2; bits[5:0]*///bit 6 always assumed 0
@@ -315,6 +406,18 @@ static EMIT_Function JumpTableOp[128] = {
 	[0x67]			= { { EMIT_FMUL_D },	NULL, 0, FPCC | FPEB0 },	//rounded to double
 	[0x68]			= { { EMIT_FSUB_S },	NULL, 0, FPCC | FPEB0 },	//rounded to single
 	[0x6C]			= { { EMIT_FSUB_D },	NULL, 0, FPCC | FPEB0 },	//rounded to double
+}
+
+int M68K_GetFPULength(uint16_t *insn_stream){
+
+	uint16_t opcode = BE16(*insn_stream);
+	uint16_t opcode2 = BE16(*insn_stream+2);
+
+	int length = 0;
+	int need_ea = 0;
+	int opsize = 0;
+
+	if (InsnTable)
 }
 
 uint32_t *EMIT_FMOVECR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){ /* FMOVECR only pulls extended-precision constants to a FP register */
