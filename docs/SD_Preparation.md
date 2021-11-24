@@ -52,7 +52,13 @@ and press ENTER. Now diskpart has its focus on microSD card. We need to repeat t
 
 ![step_08](img/sd_prep/step_08.png)
 
-As you might guess by now, the partition 2 is the one which should be changed now. It will be done with command ``set`` as following
+As you might guess by now, the partition 2 is the one which should be changed now. Set the focus on that partition by typing
+
+```
+select part 2
+```
+
+Finally, setting the type will be done with command ``set`` as following
 
 ![step_09](img/sd_prep/step_09.png)
 
