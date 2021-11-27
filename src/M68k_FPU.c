@@ -174,7 +174,7 @@ static EMIT_Function JumpTableDn[64] = { //Dn
 
 uint32_t *EMIT_Dn(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
 	if (JumpTableDn[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTableDn[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+		ptr = JumpTableDn[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -191,7 +191,7 @@ static EMIT_Function JumpTableAn[64] = { //FMOVE.L An,FPIAR and FMOVE.L FPIAR,An
 
 uint32_t *EMIT_An(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
 	if (JumpTableAn[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTableAn[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+		ptr = JumpTableAn[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -222,8 +222,8 @@ static EMIT_Function JumpTableAnIndir[64] = { //(An)
 }
 
 uint32_t *EMIT_AnIndir(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
-	if (JumpTableAnIndir[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTableAnIndir[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+	if (JumpTableAnIndir[(opcode2 & 0xfc00) >> 10].od_Emit)
+		ptr = JumpTableAnIndir[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -252,7 +252,7 @@ static EMIT_Function JumpTableIncr[64] = { //(An)+
 
 uint32_t *EMIT_Incr(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
 	if (JumpTableIncr[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTableIncr[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+		ptr = JumpTableIncr[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -281,7 +281,7 @@ static EMIT_Function JumpTableDecr[64] = { //-(An)
 
 uint32_t *EMIT_Decr(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
 	if (JumpTableDecr[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTableDecr[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+		ptr = JumpTableDecr[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -313,7 +313,7 @@ static EMIT_Function JumpTableEA[64] = { //(d16,An);(An,Xn);(xxx).(W|L)
 
 uint32_t *EMIT_EA(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
 	if (JumpTableEA[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTableEA[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+		ptr = JumpTableEA[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
@@ -336,7 +336,7 @@ static EMIT_Function JumpTablePC[64] = { //(d16,PC);(PC,Xn);#<data>
 
 uint32_t *EMIT_PC(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
 	if (JumpTablePC[opcode2 & 0xfc00].od_Emit)
-		ptr = JumpTablePC[opcode2 & 0xfc00].od_Emit(ptr, opcode, opcode2, m68k_ptr);
+		ptr = JumpTablePC[(opcode2 & 0xfc00) >> 10 ].od_Emit(ptr, opcode, opcode2, m68k_ptr);
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
