@@ -4471,6 +4471,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x103);
+        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
+        *ptr++ = 48;
         ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
         *ptr++ = INSN_TO_LE(0xffffffff);
     }

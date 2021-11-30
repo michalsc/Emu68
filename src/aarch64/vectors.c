@@ -1149,6 +1149,26 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             elr += 8;
             asm volatile("msr ELR_EL1, %0"::"r"(elr));
         }
+
+        if ((esr & 0xffff) == 0x103)
+        {
+            uint16_t *from = (uint16_t*)(intptr_t)(*(uint32_t *)elr);
+            uint32_t len = (*(uint32_t *)(elr + 4)) / 2;
+
+            kprintf("[SYS:JIT] RAM dump from 0x%08x, len 0x%x\n[SYS:JIT]   ", from, len);
+
+            while (len) {
+                if ((len & 7) == 0)
+                    kprintf("\n[SYS:JIT]   ");
+                kprintf("%04x ", *from++);
+                len--;
+            }
+
+            kprintf("\n");
+
+            elr += 8;
+            asm volatile("msr ELR_EL1, %0"::"r"(elr));
+        }
     }
 
     if (!handled)
