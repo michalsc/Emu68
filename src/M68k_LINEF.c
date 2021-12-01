@@ -475,6 +475,8 @@ uint8_t FPUDataSize[] = {
 int FPSR_Update_Needed(uint16_t **m68k_ptr)
 {
     uint16_t *ptr = *m68k_ptr;
+
+#if 1
     int cnt = 0;
 
     while((BE16(*ptr) & 0xfe00) != 0xf200)
@@ -483,39 +485,44 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
             return 1;
         if (M68K_IsBranch(ptr))
             return 1;
-        else {
-            int len = M68K_GetINSNLength(ptr);
-            if (len == 0)
-                return 1;
-            ptr += len;
-        }
+        
+        int len = M68K_GetINSNLength(ptr);
+        if (len <= 0)
+            return 1;
+        ptr += len;
     }
-    
+#else
+    if ((BE16(*ptr) & 0xfe00) != 0xf200)
+        return 1;
+#endif
+
     uint16_t opcode = BE16(ptr[0]);
     uint16_t opcode2 = BE16(ptr[1]);
 
-    /* If next opcode is not LineF then we need to update FPSR */
-    if ((opcode & 0xfe00) != 0xf200)
-    {
+    /*
+        Update FPSR condition codes only if subsequent FPU instruction
+        is one of following: FBcc, FDBcc, FMOVEM, FScc, FTRAPcc
+    */
+    if ((opcode & 0xff80) == 0xf280)    /* FBcc */
         return 1;
-    }
-    else
-    {
-        /*
-            Update FPSR condition codes only if subsequent FPU instruction
-            is one of following: FBcc, FDBcc, FMOVEM, FScc, FTRAPcc
-        */
-        if ((opcode & 0xff80) == 0xf280)    /* FBcc */
-            return 1;
-        if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0) /* FDBcc */
-            return 1;
-        if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000) /* FMOVEM */
-            return 1;
-        if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0) /* FScc */
-            return 1;
-        if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
-            return 1;
-    }
+    if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0) /* FDBcc */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000) /* FMOVEM */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc3ff) == 0x8000) /* FMOVEM special */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0) /* FScc */
+        return 1;
+    if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
+        return 1;
+    if (opcode == 0xf280 && opcode2 == 0x0000) /* FNOP */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf340) /* FRESTORE */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf300) /* FSAVE */
+        return 1;
 
     return 0;
 }
@@ -4464,6 +4471,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x103);
+        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
+        *ptr++ = 48;
         ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
         *ptr++ = INSN_TO_LE(0xffffffff);
     }
