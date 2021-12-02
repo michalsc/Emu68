@@ -2222,6 +2222,65 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
+    /* FGETEXP */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001e)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
+        *ptr++ = ror64(tmp, tmp, 52);
+        *ptr++ = and_immed(tmp, tmp, 11, 0);
+        *ptr++ = sub_immed(tmp, tmp, 0x3ff);
+        *ptr++ = scvtf_32toD(fp_dst, tmp);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
+    /* FGETMAN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001f)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
+        *ptr++ = bic64_immed(tmp, tmp, 11, 12, 1);
+        *ptr++ = orr64_immed(tmp, tmp, 10, 12, 1);
+        *ptr++ = mov_reg_to_simd(fp_dst, TS_D, 0, tmp);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
     /* FINTRZ */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0003)
     {
