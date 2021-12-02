@@ -4082,6 +4082,14 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         return EMIT_FPU(ptr, m68k_ptr, insn_consumed);
     }
+    /* PFLUSHA - ignore */
+    else if ((opcode & 0xffe0) == 0xf500)
+    {
+        *ptr++ = nop();
+        (*m68k_ptr)+=1;
+        *insn_consumed = 1;
+        ptr = EMIT_AdvancePC(ptr, 2);
+    }
     /* MOVE16 (Ax)+, (Ay)+ */
     else if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
     {
