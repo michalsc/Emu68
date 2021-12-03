@@ -4021,19 +4021,49 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     {
         uint8_t tmp = -1;
         ext_count = 0;
+        uint32_t *tmp_ptr;
+        uint8_t fpcr = RA_ModifyFPCR(&ptr);
+        uint8_t fpsr = RA_ModifyFPSR(&ptr);
+        uint8_t reg_CTX= RA_GetCTX(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
 
+        // If Postincrement mode, eventually skip rest of the frame if IDLE was fetched
         if ((opcode & 0x38) == 0x18)
         {
             uint8_t An = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
             *ptr++ = tst_immed(tmp, 8, 8);
             *ptr++ = b_cc(A64_CC_EQ, 5);
-            *ptr++ = ubfx(tmp, tmp, 16, 8);
-            *ptr++ = cmp_immed(tmp, 0x18);
+            *ptr++ = ubfx(tmp2, tmp, 16, 8);
+            *ptr++ = cmp_immed(tmp2, 0x18);
             *ptr++ = b_cc(A64_CC_NE, 2);
             *ptr++ = add_immed(An, An, 28 - 4);
+            RA_FreeARMRegister(&ptr, tmp2);
         }
+
+        // In case of NULL frame, reset FPU to vanilla state
+        *ptr++ = tst_immed(tmp, 8, 8);
+        tmp_ptr = ptr;
+        *ptr++ = b_cc(A64_CC_NE, 0);
+
+        *ptr++ = fmov_0(8);
+        *ptr++ = fmov_0(9);
+        *ptr++ = fmov_0(10);
+        *ptr++ = fmov_0(11);
+        *ptr++ = fmov_0(12);
+        *ptr++ = fmov_0(13);
+        *ptr++ = fmov_0(14);
+        *ptr++ = fmov_0(15);
+        *ptr++ = mov_immed_u16(fpcr, 0, 0);
+        *ptr++ = mov_immed_u16(fpsr, 0, 0);
+
+        *ptr++ = get_fpcr(tmp);
+        *ptr++ = bic_immed(tmp, tmp, 2, 32 - 22);
+        *ptr++ = set_fpcr(tmp);
+        *ptr++ = str_offset(reg_CTX, 31, __builtin_offsetof(struct M68KState, FPIAR));
+
+        *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 
         RA_FreeARMRegister(&ptr, tmp);
 
