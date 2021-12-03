@@ -1567,7 +1567,6 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "enable_d0_slow"))
                 mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
 
-
             extern int disasm;
             extern int debug;
             extern int DisableFPU;
@@ -1580,6 +1579,17 @@ void M68K_StartEmu(void *addr, void *fdt)
 
             if (strstr(prop->op_value, "disassemble"))
                 disasm = 1;
+
+#ifdef PISTORM
+            extern uint32_t swap_df0_with_dfx;
+
+            if (strstr(prop->op_value, "swap_df0_with_df1"))
+                swap_df0_with_dfx = 1;
+            if (strstr(prop->op_value, "swap_df0_with_df2"))
+                swap_df0_with_dfx = 2;
+            if (strstr(prop->op_value, "swap_df0_with_df3"))
+                swap_df0_with_dfx = 3;
+#endif
         }       
     }
 
