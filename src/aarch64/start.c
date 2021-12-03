@@ -49,6 +49,9 @@ asm("   .section .startup           \n"
 
 ".byte 0                            \n"
 ".align 4                           \n"
+"       .globl _verstring_object    \n"
+"       .type _verstring_object,%object \n"
+"_verstring_object:                 \n"
 ".string \"" VERSION_STRING "\"     \n"
 ".byte 0                            \n"
 ".align 5                           \n"
@@ -130,8 +133,8 @@ asm("   .section .startup           \n"
 "       ic      IALLU               \n" /* Invalidate entire instruction cache */
 "       isb     sy                  \n"
 
-                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16)) "\n"
+                                        /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable, Attr3 - write-through */
+"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -295,6 +298,7 @@ void __vectors_start(void);
 extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
+extern const char _verstring_object[];
 
 #ifdef PISTORM
 #include "ps_protocol.h"
@@ -485,6 +489,11 @@ void boot(void *dtree)
                 limit_2g = 1;
         }
     }
+
+    e = dt_make_node("emu68");
+    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
+    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
+    dt_add_node(NULL, e);
 
     /*
         At this place we have local memory manager but no MMU set up yet. 
@@ -918,9 +927,6 @@ void boot(void *dtree)
     }
 
     //dt_dump_tree();
-
-    
-
 
 #if 0
 
@@ -1561,7 +1567,6 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "enable_d0_slow"))
                 mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
 
-
             extern int disasm;
             extern int debug;
             extern int DisableFPU;
@@ -1574,6 +1579,17 @@ void M68K_StartEmu(void *addr, void *fdt)
 
             if (strstr(prop->op_value, "disassemble"))
                 disasm = 1;
+
+#ifdef PISTORM
+            extern uint32_t swap_df0_with_dfx;
+
+            if (strstr(prop->op_value, "swap_df0_with_df1"))
+                swap_df0_with_dfx = 1;
+            if (strstr(prop->op_value, "swap_df0_with_df2"))
+                swap_df0_with_dfx = 2;
+            if (strstr(prop->op_value, "swap_df0_with_df3"))
+                swap_df0_with_dfx = 3;
+#endif
         }       
     }
 

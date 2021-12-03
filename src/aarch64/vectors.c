@@ -280,6 +280,16 @@ uint32_t overlay = 1;
 uint32_t z2_ram_autoconf = 1;
 uint64_t z2_ram_base = 0;
 
+uint32_t swap_df0_with_dfx = 0;
+uint32_t spoof_df0_id = 0;
+
+// Amiga specific registers
+enum
+{
+    CIAAPRA = 0xBFE001,
+    CIABPRB = 0xBFD100,
+};
+
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
@@ -301,10 +311,29 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         kprintf("Z3 write access with far %08x\n", far);
     }
 
-    if (far == 0xBFE001 && size == 1) {
+    if (far == CIAAPRA && size == 1) {
         if ((value & 1) != overlay) {
             kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);
             overlay = value & 1;
+        }
+    }
+
+    if (far == CIABPRB) {
+        if (swap_df0_with_dfx) {
+            const int SEL0_BITNUM = 3;
+
+            if ((value & ((1 << (SEL0_BITNUM + swap_df0_with_dfx)) | 0x80)) == 0x80) {
+              // If drive selected but motor off, Amiga is reading drive ID.
+              spoof_df0_id = 1;
+            } else {
+              spoof_df0_id = 0;
+            }
+
+            // If the value for SEL0/SELx differ
+            if (((value >> SEL0_BITNUM) & 1) != ((value >> (SEL0_BITNUM + swap_df0_with_dfx)) & 1)) {
+              // Invert both bits to swap them around
+              value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + swap_df0_with_dfx)));
+            }
         }
     }
 
@@ -428,6 +457,27 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
             b = ps_read_32(far + 4);
             *value = (a << 32) | b;
             break;
+    }
+
+    if (far == CIAAPRA) {
+        if (swap_df0_with_dfx && spoof_df0_id) {
+            // DF0 doesn't emit a drive type ID on RDY pin
+            // If swapping DF0 with DF1-3 we need to provide this ID so that DF0 continues to function.
+            *value = (*value & 0xDF); // Spoof drive id for swapped DF0 by setting RDY low
+        }
+    }
+
+    if (far == CIABPRB) {
+        if (swap_df0_with_dfx) {
+            const int SEL0_BITNUM = 3;
+
+            // SEL0 = 0x80, SEL1 = 0x10, SEL2 = 0x20, SEL3 = 0x40
+            // If the value for SEL0/SELx differ
+            if (((*value >> SEL0_BITNUM) & 1) != ((*value >> (SEL0_BITNUM + swap_df0_with_dfx)) & 1)) {
+              // Invert both bits to swap them around
+              *value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + swap_df0_with_dfx)));
+            }
+        }
     }
 
     return 1;
@@ -1141,6 +1191,26 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
                 if ((len & 15) == 0)
                     kprintf("\n[SYS:JIT]   ");
                 kprintf("%02x ", *from++);
+                len--;
+            }
+
+            kprintf("\n");
+
+            elr += 8;
+            asm volatile("msr ELR_EL1, %0"::"r"(elr));
+        }
+
+        if ((esr & 0xffff) == 0x103)
+        {
+            uint16_t *from = (uint16_t*)(intptr_t)(*(uint32_t *)elr);
+            uint32_t len = (*(uint32_t *)(elr + 4)) / 2;
+
+            kprintf("[SYS:JIT] RAM dump from 0x%08x, len 0x%x\n[SYS:JIT]   ", from, len);
+
+            while (len) {
+                if ((len & 7) == 0)
+                    kprintf("\n[SYS:JIT]   ");
+                kprintf("%04x ", *from++);
                 len--;
             }
 

@@ -475,6 +475,8 @@ uint8_t FPUDataSize[] = {
 int FPSR_Update_Needed(uint16_t **m68k_ptr)
 {
     uint16_t *ptr = *m68k_ptr;
+
+#if 1
     int cnt = 0;
 
     while((BE16(*ptr) & 0xfe00) != 0xf200)
@@ -483,39 +485,44 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
             return 1;
         if (M68K_IsBranch(ptr))
             return 1;
-        else {
-            int len = M68K_GetINSNLength(ptr);
-            if (len == 0)
-                return 1;
-            ptr += len;
-        }
+        
+        int len = M68K_GetINSNLength(ptr);
+        if (len <= 0)
+            return 1;
+        ptr += len;
     }
-    
+#else
+    if ((BE16(*ptr) & 0xfe00) != 0xf200)
+        return 1;
+#endif
+
     uint16_t opcode = BE16(ptr[0]);
     uint16_t opcode2 = BE16(ptr[1]);
 
-    /* If next opcode is not LineF then we need to update FPSR */
-    if ((opcode & 0xfe00) != 0xf200)
-    {
+    /*
+        Update FPSR condition codes only if subsequent FPU instruction
+        is one of following: FBcc, FDBcc, FMOVEM, FScc, FTRAPcc
+    */
+    if ((opcode & 0xff80) == 0xf280)    /* FBcc */
         return 1;
-    }
-    else
-    {
-        /*
-            Update FPSR condition codes only if subsequent FPU instruction
-            is one of following: FBcc, FDBcc, FMOVEM, FScc, FTRAPcc
-        */
-        if ((opcode & 0xff80) == 0xf280)    /* FBcc */
-            return 1;
-        if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0) /* FDBcc */
-            return 1;
-        if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000) /* FMOVEM */
-            return 1;
-        if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0) /* FScc */
-            return 1;
-        if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
-            return 1;
-    }
+    if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0) /* FDBcc */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000) /* FMOVEM */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc3ff) == 0x8000) /* FMOVEM special */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0) /* FScc */
+        return 1;
+    if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
+        return 1;
+    if (opcode == 0xf280 && opcode2 == 0x0000) /* FNOP */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf340) /* FRESTORE */
+        return 1;
+    if ((opcode & 0xffc0) == 0xf300) /* FSAVE */
+        return 1;
 
     return 0;
 }
@@ -2203,6 +2210,65 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         *ptr++ = frint64x(fp_dst, fp_src);
 
         RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
+    /* FGETEXP */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001e)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
+        *ptr++ = ror64(tmp, tmp, 52);
+        *ptr++ = and_immed(tmp, tmp, 11, 0);
+        *ptr++ = sub_immed(tmp, tmp, 0x3ff);
+        *ptr++ = scvtf_32toD(fp_dst, tmp);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(m68k_ptr))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
+    /* FGETMAN */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001f)
+    {
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
+        *ptr++ = bic64_immed(tmp, tmp, 11, 12, 1);
+        *ptr++ = orr64_immed(tmp, tmp, 10, 12, 1);
+        *ptr++ = mov_reg_to_simd(fp_dst, TS_D, 0, tmp);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeARMRegister(&ptr, tmp);
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -3955,19 +4021,49 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     {
         uint8_t tmp = -1;
         ext_count = 0;
+        uint32_t *tmp_ptr;
+        uint8_t fpcr = RA_ModifyFPCR(&ptr);
+        uint8_t fpsr = RA_ModifyFPSR(&ptr);
+        uint8_t reg_CTX= RA_GetCTX(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
 
+        // If Postincrement mode, eventually skip rest of the frame if IDLE was fetched
         if ((opcode & 0x38) == 0x18)
         {
             uint8_t An = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
             *ptr++ = tst_immed(tmp, 8, 8);
             *ptr++ = b_cc(A64_CC_EQ, 5);
-            *ptr++ = ubfx(tmp, tmp, 16, 8);
-            *ptr++ = cmp_immed(tmp, 0x18);
+            *ptr++ = ubfx(tmp2, tmp, 16, 8);
+            *ptr++ = cmp_immed(tmp2, 0x18);
             *ptr++ = b_cc(A64_CC_NE, 2);
             *ptr++ = add_immed(An, An, 28 - 4);
+            RA_FreeARMRegister(&ptr, tmp2);
         }
+
+        // In case of NULL frame, reset FPU to vanilla state
+        *ptr++ = tst_immed(tmp, 8, 8);
+        tmp_ptr = ptr;
+        *ptr++ = b_cc(A64_CC_NE, 0);
+
+        *ptr++ = fmov_0(8);
+        *ptr++ = fmov_0(9);
+        *ptr++ = fmov_0(10);
+        *ptr++ = fmov_0(11);
+        *ptr++ = fmov_0(12);
+        *ptr++ = fmov_0(13);
+        *ptr++ = fmov_0(14);
+        *ptr++ = fmov_0(15);
+        *ptr++ = mov_immed_u16(fpcr, 0, 0);
+        *ptr++ = mov_immed_u16(fpsr, 0, 0);
+
+        *ptr++ = get_fpcr(tmp);
+        *ptr++ = bic_immed(tmp, tmp, 2, 32 - 22);
+        *ptr++ = set_fpcr(tmp);
+        *ptr++ = str_offset(reg_CTX, 31, __builtin_offsetof(struct M68KState, FPIAR));
+
+        *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 
         RA_FreeARMRegister(&ptr, tmp);
 
@@ -4015,6 +4111,14 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     if (DisableFPU == 0 && (opcode & 0x0e00) == 0x0200)
     {
         return EMIT_FPU(ptr, m68k_ptr, insn_consumed);
+    }
+    /* PFLUSHA - ignore */
+    else if ((opcode & 0xffe0) == 0xf500)
+    {
+        *ptr++ = nop();
+        (*m68k_ptr)+=1;
+        *insn_consumed = 1;
+        ptr = EMIT_AdvancePC(ptr, 2);
     }
     /* MOVE16 (Ax)+, (Ay)+ */
     else if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
@@ -4464,6 +4568,9 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x103);
+        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
+        *ptr++ = 48;
         ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
         *ptr++ = INSN_TO_LE(0xffffffff);
     }

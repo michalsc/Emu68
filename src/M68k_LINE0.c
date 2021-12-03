@@ -2620,7 +2620,7 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_MOVEP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
-    int16_t offset = BE16((*m68k_ptr)[0]);
+    int32_t offset = (int16_t)BE16((*m68k_ptr)[0]);
     uint8_t an = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -2658,7 +2658,7 @@ uint32_t *EMIT_MOVEP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = sub_immed(addr, an, offset & 0xfff);
                 offset &= 0xf000;
             }
-            if (offset & 0x7000) {
+            if (offset & 0xf000) {
                 if (addr == an) {
                     addr = RA_AllocARMRegister(&ptr);
                     *ptr++ = sub_immed_lsl12(addr, an, offset >> 12);
@@ -3084,6 +3084,9 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x103);
+        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
+        *ptr++ = 48;
         ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
         *ptr++ = INSN_TO_LE(0xffffffff);
     }
