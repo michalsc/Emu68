@@ -1191,15 +1191,16 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
             case SIZE_L:
                 int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
-                // No rounding mode specified? Round to zero?
-                *ptr++ = fcvtzs_Dto32(int_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(int_reg, vfp_reg);
                 RA_FreeARMRegister(&ptr, int_reg);
                 break;
 
             case SIZE_W:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(tmp_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 16);
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
@@ -1209,7 +1210,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             case SIZE_B:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(tmp_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 8);
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
@@ -1540,7 +1542,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
             case SIZE_L:
                 val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(val_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
 
                 if (pre_sz)
                 {
@@ -1583,7 +1586,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
             case SIZE_W:
                 val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(val_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
 
                 if (pre_sz)
                 {
@@ -1626,7 +1630,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
             case SIZE_B:
                 val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(val_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
 
                 if (pre_sz)
                 {
@@ -2205,21 +2210,21 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         /* Test predicate with masked signalling bit, operations are the same */
         switch (predicate & 0x0f)
         {
-            case F_CC_EQ:
+            case F_CC_EQ: /* Z == 0 */
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
                 break;
-            case F_CC_NE:
+            case F_CC_NE: /* Z == 1 */
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_EQ;
                 break;
-            case F_CC_OGT:
+            case F_CC_OGT: /* NAN == 0 && Z == 0 && N == 0 */
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = ARM_CC_EQ;
                 break;
-            case F_CC_ULE:
+            case F_CC_ULE: /* NAN == 1 || Z == 1 || N == 1 */
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
@@ -2230,7 +2235,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
                 *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 3); // N | NAN -> N (== 0 only if N=0 && NAN=0)
-                *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
+                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
                 break;
@@ -2239,7 +2244,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)); // Invert Z
-                *ptr++ = and_reg(tmp_cc, fpsr, tmp_cc, LSL, 1); // !Z & N -> N
+                *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 1); // !Z & N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
                 break;
