@@ -164,6 +164,33 @@ typedef union
 double my_pow10(int exp);
 int my_log10(double v);
 
+double PackedToDouble(packed_t value)
+{
+    double ret = 0.0;
+    int exp = 0;
+    uint64_t integer = 0;
+
+    for (int i=4; i < 12; i++)
+    {
+        integer = integer * 10 + (value.c[i] >> 4);
+        integer = integer * 10 + (value.c[i] & 0x0f);
+    }
+
+    ret = (double)(value.c[3] & 0x0f) + (double)integer / 1e16;
+    exp = 100 * (value.c[0] & 0x0f) + 10 * (value.c[1] >> 4) + (value.c[1] & 0x0f);
+
+    if (value.c[0] & 0x80)
+        ret = -ret;
+    if (value.c[0] & 0x40)
+        exp = -exp;
+
+    ret = ret * exp10(exp);
+
+    kprintf("PackedToDouble(%08x%08x%08x) -> %f\n", value.i[0], value.i[1], value.i[2], ret);
+
+    return ret;
+}
+
 packed_t DoubleToPacked(double value, int k)
 {
     double orig = value;
@@ -220,7 +247,7 @@ packed_t DoubleToPacked(double value, int k)
         ret.c[2] |= (exp) << 4;
     }
 
-    kprintf("DoubleToPacked from %f to %08x %08x %08x\n", orig, ret.i[0], ret.i[1], ret.i[2]);
+    kprintf("DoubleToPacked with k=%d from %f to %08x %08x %08x\n", k, orig, ret.i[0], ret.i[1], ret.i[2]);
 
     return ret;
 }
@@ -603,6 +630,11 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
 uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count)
 {
+    union {
+        uint64_t u64;
+        uint32_t u32[2];
+    } u;
+
     /* IF R/M is zero, then source identifier is FPU reg number. */
     if ((opcode2 & 0x4000) == 0)
     {
@@ -747,7 +779,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         break;
 
                     case SIZE_P:
-                        ptr = EMIT_InjectDebugString(ptr, "Fetching immediate packed data not supported yet\n");
+                        u.u64 = (uintptr_t)PackedToDouble;
+
+                        ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+
+                        *ptr++ = ldr64_offset(int_reg, 0, 0);
+                        *ptr++ = ldr64_offset(int_reg, 1, 8);
+                        *ptr++ = adr(30, 20);
+                        *ptr++ = ldr64_pcrel(2, 2);
+                        *ptr++ = br(2);
+
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
+
+                        *ptr++ = fcpyd(*reg, 0);
+
+                        ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
                         *ext_count += 6;
                         break;
 
@@ -792,7 +839,57 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             switch (size)
             {
                 case SIZE_P:
-                    ptr = EMIT_InjectDebugString(ptr, "Fetching packed data not supported yet\n");
+                    {
+                        if (pre_sz)
+                        {
+                            *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                        }
+                        if (imm_offset < -255 || imm_offset > 251) {
+                            uint8_t off = RA_AllocARMRegister(&ptr);
+
+                            if (imm_offset > -4096 && imm_offset < 0)
+                            {
+                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            }
+                            else if (imm_offset >= 0 && imm_offset < 4096)
+                            {
+                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                            }
+                            else
+                            {
+                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                                imm_offset >>= 16;
+                                if (imm_offset)
+                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            }
+                            RA_FreeARMRegister(&ptr, int_reg);
+                            int_reg = off;
+                            imm_offset = 0;
+                        }
+
+                        u.u64 = (uintptr_t)PackedToDouble;
+
+                        ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+
+                        *ptr++ = ldur64_offset(int_reg, 0, imm_offset);
+                        *ptr++ = ldur64_offset(int_reg, 1, imm_offset + 8);
+                        *ptr++ = adr(30, 20);
+                        *ptr++ = ldr64_pcrel(2, 2);
+                        *ptr++ = br(2);
+
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
+
+                        *ptr++ = fcpyd(*reg, 0);
+
+                        ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+
+                        if (post_sz)
+                        {
+                            *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                        }
+                    }
                     break;
 
                 case SIZE_X:
@@ -1173,6 +1270,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         {
             case SIZE_P:
                 u.u64 = (uintptr_t)DoubleToPacked;
+                k = opcode2 & 0x7f;
 
                 if (pre_sz)
                 {
