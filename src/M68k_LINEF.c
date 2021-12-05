@@ -186,14 +186,11 @@ double PackedToDouble(packed_t value)
 
     ret = ret * exp10(exp);
 
-    kprintf("PackedToDouble(%08x%08x%08x) -> %f\n", value.i[0], value.i[1], value.i[2], ret);
-
     return ret;
 }
 
 packed_t DoubleToPacked(double value, int k)
 {
-    double orig = value;
     k = ((int8_t)k << 1) >> 1;
 
     int exp = 0;
@@ -246,8 +243,6 @@ packed_t DoubleToPacked(double value, int k)
     if (exp != 0) {
         ret.c[2] |= (exp) << 4;
     }
-
-    kprintf("DoubleToPacked with k=%d from %f to %08x %08x %08x\n", k, orig, ret.i[0], ret.i[1], ret.i[2]);
 
     return ret;
 }
