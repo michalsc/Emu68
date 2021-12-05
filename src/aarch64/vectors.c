@@ -583,6 +583,300 @@ int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr,
     return 0;
 }
 
+uint32_t get_fpn_as_single(int fpn) {
+    uint32_t ret = 0;
+
+    switch (fpn) {
+        case 0:
+            asm volatile("mov %w0, v0.s[0]":"=r"(ret));
+            break;
+
+        case 1:
+            asm volatile("mov %w0, v1.s[0]":"=r"(ret));
+            break;
+
+        case 2:
+            asm volatile("mov %w0, v2.s[0]":"=r"(ret));
+            break;
+
+        case 3:
+            asm volatile("mov %w0, v3.s[0]":"=r"(ret));
+            break;
+
+        case 4:
+            asm volatile("mov %w0, v4.s[0]":"=r"(ret));
+            break;
+
+        case 5:
+            asm volatile("mov %w0, v5.s[0]":"=r"(ret));
+            break;
+
+        case 6:
+            asm volatile("mov %w0, v6.s[0]":"=r"(ret));
+            break;
+
+        case 7:
+            asm volatile("mov %w0, v7.s[0]":"=r"(ret));
+            break;
+
+        case 8:
+            asm volatile("mov %w0, v8.s[0]":"=r"(ret));
+            break;
+
+        case 9:
+            asm volatile("mov %w0, v9.s[0]":"=r"(ret));
+            break;
+
+        case 10:
+            asm volatile("mov %w0, v10.s[0]":"=r"(ret));
+            break;
+
+        case 11:
+            asm volatile("mov %w0, v11.s[0]":"=r"(ret));
+            break;
+
+        case 12:
+            asm volatile("mov %w0, v12.s[0]":"=r"(ret));
+            break;
+
+        case 13:
+            asm volatile("mov %w0, v13.s[0]":"=r"(ret));
+            break;
+
+        case 14:
+            asm volatile("mov %w0, v14.s[0]":"=r"(ret));
+            break;
+
+        case 15:
+            asm volatile("mov %w0, v15.s[0]":"=r"(ret));
+            break;
+
+        default:
+            break;
+    }
+
+    return ret;
+}
+
+uint64_t get_fpn_as_double(int fpn) {
+    uint64_t ret = 0;
+
+    switch (fpn) {
+        case 0:
+            asm volatile("mov %0, v0.d[0]":"=r"(ret));
+            break;
+
+        case 1:
+            asm volatile("mov %0, v1.d[0]":"=r"(ret));
+            break;
+
+        case 2:
+            asm volatile("mov %0, v2.d[0]":"=r"(ret));
+            break;
+
+        case 3:
+            asm volatile("mov %0, v3.d[0]":"=r"(ret));
+            break;
+
+        case 4:
+            asm volatile("mov %0, v4.d[0]":"=r"(ret));
+            break;
+
+        case 5:
+            asm volatile("mov %0, v5.d[0]":"=r"(ret));
+            break;
+
+        case 6:
+            asm volatile("mov %0, v6.d[0]":"=r"(ret));
+            break;
+
+        case 7:
+            asm volatile("mov %0, v7.d[0]":"=r"(ret));
+            break;
+
+        case 8:
+            asm volatile("mov %0, v8.d[0]":"=r"(ret));
+            break;
+
+        case 9:
+            asm volatile("mov %0, v9.d[0]":"=r"(ret));
+            break;
+
+        case 10:
+            asm volatile("mov %0, v10.d[0]":"=r"(ret));
+            break;
+
+        case 11:
+            asm volatile("mov %0, v11.d[0]":"=r"(ret));
+            break;
+
+        case 12:
+            asm volatile("mov %0, v12.d[0]":"=r"(ret));
+            break;
+
+        case 13:
+            asm volatile("mov %0, v13.d[0]":"=r"(ret));
+            break;
+
+        case 14:
+            asm volatile("mov %0, v14.d[0]":"=r"(ret));
+            break;
+
+        case 15:
+            asm volatile("mov %0, v15.d[0]":"=r"(ret));
+            break;
+
+        default:
+            break;
+    }
+
+    return ret;
+}
+
+void set_fpn_as_single(int fpn, uint32_t value) {
+
+    switch (fpn) {
+        case 0:
+            asm volatile("mov v0.s[0], %w0"::"r"(value));
+            break;
+
+        case 1:
+            asm volatile("mov v1.s[0], %w0"::"r"(value));
+            break;
+
+        case 2:
+            asm volatile("mov v2.s[0], %w0"::"r"(value));
+            break;
+
+        case 3:
+            asm volatile("mov v3.s[0], %w0"::"r"(value));
+            break;
+
+        case 4:
+            asm volatile("mov v4.s[0], %w0"::"r"(value));
+            break;
+
+        case 5:
+            asm volatile("mov v5.s[0], %w0"::"r"(value));
+            break;
+
+        case 6:
+            asm volatile("mov v6.s[0], %w0"::"r"(value));
+            break;
+
+        case 7:
+            asm volatile("mov v7.s[0], %w0"::"r"(value));
+            break;
+
+        case 8:
+            asm volatile("mov v8.s[0], %w0"::"r"(value));
+            break;
+
+        case 9:
+            asm volatile("mov v9.s[0], %w0"::"r"(value));
+            break;
+
+        case 10:
+            asm volatile("mov v10.s[0], %w0"::"r"(value));
+            break;
+
+        case 11:
+            asm volatile("mov v11.s[0], %w0"::"r"(value));
+            break;
+
+        case 12:
+            asm volatile("mov v12.s[0], %w0"::"r"(value));
+            break;
+
+        case 13:
+            asm volatile("mov v13.s[0], %w0"::"r"(value));
+            break;
+
+        case 14:
+            asm volatile("mov v14.s[0], %w0"::"r"(value));
+            break;
+
+        case 15:
+            asm volatile("mov v15.s[0], %w0"::"r"(value));
+            break;
+
+        default:
+            break;
+    }
+}
+
+void set_fpn_as_double(int fpn, uint64_t value) {
+
+    switch (fpn) {
+        case 0:
+            asm volatile("mov v0.d[0], %0"::"r"(value));
+            break;
+
+        case 1:
+            asm volatile("mov v1.d[0], %0"::"r"(value));
+            break;
+
+        case 2:
+            asm volatile("mov v2.d[0], %0"::"r"(value));
+            break;
+
+        case 3:
+            asm volatile("mov v3.d[0], %0"::"r"(value));
+            break;
+
+        case 4:
+            asm volatile("mov v4.d[0], %0"::"r"(value));
+            break;
+
+        case 5:
+            asm volatile("mov v5.d[0], %0"::"r"(value));
+            break;
+
+        case 6:
+            asm volatile("mov v6.d[0], %0"::"r"(value));
+            break;
+
+        case 7:
+            asm volatile("mov v7.d[0], %0"::"r"(value));
+            break;
+
+        case 8:
+            asm volatile("mov v8.d[0], %0"::"r"(value));
+            break;
+
+        case 9:
+            asm volatile("mov v9.d[0], %0"::"r"(value));
+            break;
+
+        case 10:
+            asm volatile("mov v10.d[0], %0"::"r"(value));
+            break;
+
+        case 11:
+            asm volatile("mov v11.d[0], %0"::"r"(value));
+            break;
+
+        case 12:
+            asm volatile("mov v12.d[0], %0"::"r"(value));
+            break;
+
+        case 13:
+            asm volatile("mov v13.d[0], %0"::"r"(value));
+            break;
+
+        case 14:
+            asm volatile("mov v14.d[0], %0"::"r"(value));
+            break;
+
+        case 15:
+            asm volatile("mov v15.d[0], %0"::"r"(value));
+            break;
+
+        default:
+            break;
+    }
+}
+
 int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
 {
     int writeFault = (esr & (1 << 6)) != 0;
@@ -599,8 +893,66 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
     if (writeFault)
     {
+        /**** Floating point stores ****/
+        /* FSTS */
+        if ((opcode & 0xfee00c00) == 0xbc000000)
+        {
+            value = get_fpn_as_single(opcode & 31);
+            handled = SYSWriteValToAddr(value, 4, far);
+        }
+        /* FSTS pre-index */
+        else if ((opcode & 0xfee00c00) == 0xbc000400)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            value = get_fpn_as_single(opcode & 31);
+
+            ctx[(opcode >> 5) & 31] += offset;
+
+            handled = SYSWriteValToAddr(value, 4, far);
+        }
+        /* FSTS post-index */
+        else if ((opcode & 0xfee00c00) == 0xbc000c00)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            value = get_fpn_as_single(opcode & 31);
+
+            handled = SYSWriteValToAddr(value, 4, far);
+
+            ctx[(opcode >> 5) & 31] += offset;
+        }
+        /* FSTD */
+        else if ((opcode & 0xfee00c00) == 0xfc000000)
+        {
+            value = get_fpn_as_double(opcode & 31);
+            handled = SYSWriteValToAddr(value, 8, far);
+        }
+        /* FSTD pre-index */
+        else if ((opcode & 0xfee00c00) == 0xfc000400)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            value = get_fpn_as_double(opcode & 31);
+
+            ctx[(opcode >> 5) & 31] += offset;
+
+            handled = SYSWriteValToAddr(value, 8, far);
+        }
+        /* FSTD post-index */
+        else if ((opcode & 0xfee00c00) == 0xbc000c00)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            value = get_fpn_as_double(opcode & 31);
+
+            handled = SYSWriteValToAddr(value, 8, far);
+
+            ctx[(opcode >> 5) & 31] += offset;
+        }
+        /**** Integer stores ****/
         /* STUR */
-        if ((opcode & 0x3fe00c00) == 0x38000000)
+        else if ((opcode & 0x3fe00c00) == 0x38000000)
         {
             if ((opcode & 31) == 31)
                 value = 0;
@@ -780,8 +1132,76 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
     }
     else
     {
+        /**** Floating point loads ****/
+        /* FLDS */
+        if ((opcode & 0xfee00c00) == 0xbc400000)
+        {
+            handled = SYSReadValFromAddr(&value, 4, far);
+            if (handled)
+            {
+                set_fpn_as_single(opcode & 31, value);
+            }
+        }
+        /* FLDS pre-index */
+        else if ((opcode & 0xfee00c00) == 0xbc400400)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            handled = SYSReadValFromAddr(&value, 4, far);
+            if (handled)
+            {
+                set_fpn_as_single(opcode & 31, value);
+                ctx[(opcode >> 5) & 31] += offset;
+            }
+        }
+        /* FLDS post-index */
+        else if ((opcode & 0xfee00c00) == 0xbc400c00)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            handled = SYSReadValFromAddr(&value, 4, far);
+            if (handled)
+            {
+                set_fpn_as_single(opcode & 31, value);
+                ctx[(opcode >> 5) & 31] += offset;
+            }
+        }
+        /* FLDD */
+        else if ((opcode & 0xfee00c00) == 0xfc400000)
+        {
+            handled = SYSReadValFromAddr(&value, 8, far);
+            if (handled)
+            {
+                set_fpn_as_double(opcode & 31, value);
+            }
+        }
+        /* FLDD pre-index */
+        else if ((opcode & 0xfee00c00) == 0xfc400400)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            handled = SYSReadValFromAddr(&value, 8, far);
+            if (handled)
+            {
+                set_fpn_as_double(opcode & 31, value);
+                ctx[(opcode >> 5) & 31] += offset;
+            }
+        }
+        /* FLDD post-index */
+        else if ((opcode & 0xfee00c00) == 0xbc400c00)
+        {
+            int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
+
+            handled = SYSReadValFromAddr(&value, 8, far);
+            if (handled)
+            {
+                set_fpn_as_double(opcode & 31, value);
+                ctx[(opcode >> 5) & 31] += offset;
+            }
+        }
+        /**** Integer loads ****/
         /* LDP */
-        if ((opcode & 0x7fc00000) == 0x29400000)
+        else if ((opcode & 0x7fc00000) == 0x29400000)
         {
             if (opcode & 0x80000000)
                 size = 8;
