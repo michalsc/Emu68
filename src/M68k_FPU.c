@@ -21,7 +21,7 @@
 		Misc tests
 		IEEE Aware tests
 		IEEE Nonaware tests
-	FSAVE
+	cp
 
 	Dn
 	An
@@ -32,6 +32,7 @@
 	(d16,PC)
 
 	FPU Instructions
+	
 */
 
 /* 1st opcode, Table bits [8:0] */
@@ -128,7 +129,7 @@ static EMIT_Function FPU[512] = {
 	[0333]			= { { EMIT_FBNLT }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
 	[0334]			= { { EMIT_FBNGE }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
 	[0335]			= { { EMIT_FBNGT }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
-/* FSAVE */
+/* cp */
 	[0420 ... 0427] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 0, 0 },
 	[0440 ... 0447] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 0, 0 },
 	[0450 ... 0471] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 1, 0 },
@@ -157,7 +158,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed) 
 	return ptr;
 }
 
-/* opcode2, Tables; bits[15:10] */
+/* opcode2, JumpTables; bits[15:10] */
 
 static EMIT_Function JumpTableD0[64] = { //D0
 	[000 ... 007] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 12 },	//FPm,Fpn
@@ -180,8 +181,8 @@ uint32_t *EMIT_D0(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -205,8 +206,8 @@ uint32_t *EMIT_Dn(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -222,8 +223,8 @@ uint32_t *EMIT_An(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -254,8 +255,8 @@ uint32_t *EMIT_AnIndir(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -283,8 +284,8 @@ uint32_t *EMIT_Incr(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t *
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -312,8 +313,8 @@ uint32_t *EMIT_Decr(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t *
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -344,8 +345,8 @@ uint32_t *EMIT_EA(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
@@ -367,15 +368,15 @@ uint32_t *EMIT_PC(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
 
 /* FPU Instructions, Table 2; bits[5:0]*///bit 6 always assumed 0
 static EMIT_Function JumpTableOp[128] = {
-	[0x00]			= { { EMIT_FMOVE },		NULL, FPCR_RND, FPEB }, // the Format should give the last 3 values
+	[0x00]			= { { EMIT_FMOVE_FP },	NULL, FPCR_RND, FPEB }, // the Format should give the last 3 values
 	[0x01]			= { { EMIT_FINT },		NULL, FPCR_PREC, FPCC | FPEB },
 	[0x02]			= { { EMIT_FSINH },		NULL, FPCR_PREC, FPCC | FPEB },
 	[0x03]			= { { EMIT_FINTRZ },	NULL, FPCR_PREC, FPCC | FPEB },
@@ -417,9 +418,9 @@ static EMIT_Function JumpTableOp[128] = {
 	[0x30 ... 0x37]	= { { EMIT_FSINCOS },	NULL, FPCR_PREC, FPCC | FPEB },
 	[0x38]			= { { EMIT_FCMP },		NULL, FPCR_PREC, FPCC | FPEB },
 	[0x3A]			= { { EMIT_FTST },		NULL, FPCR_PREC, FPCC | FPEB },
-	[0x40]			= { { EMIT_FMOVE_S },	NULL, FPCR_RND, FPEB },	//rounded to single
+	[0x40]			= { { EMIT_FMOVE_S },	NULL, FPCR_RND, FPEB },		//rounded to single
 	[0x41]			= { { EMIT_FSQRT_S },	NULL, 0, FPCC | FPEB },		//rounded to single
-	[0x44]			= { { EMIT_FMOVE_D },	NULL, FPCR_RND, FPEB },	//rounded to double
+	[0x44]			= { { EMIT_FMOVE_D },	NULL, FPCR_RND, FPEB },		//rounded to double
 	[0x45]			= { { EMIT_FSQRT_D },	NULL, 0, FPCC | FPEB },		//rounded to double
 	[0x58]			= { { EMIT_FABS_S },	NULL, 0, FPCC | FPEB0 },	//rounded to single
 	[0x5A]			= { { EMIT_FNEG_S },	NULL, 0, FPCC | FPEB0 },	//rounded to single
@@ -436,7 +437,7 @@ static EMIT_Function JumpTableOp[128] = {
 }
 
 /* Any format function should preload specified registers according to format and jump to FPU Instruction table. */
-uint32_t *EMIT_FORMAT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed) {
+uint32_t *EMIT_FORMAT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed){
 
 	uint8_t fmt = 1 << ((opcode2 & 0x1c00) >> 10) // this should be a value between 0 and 128
 
@@ -445,55 +446,143 @@ uint32_t *EMIT_FORMAT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t
 	else {
 		ptr = EMIT_FlushPC(ptr);
 		ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+		ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
+		*ptr++ = INSN_TO_LE(0xffffffff);
 	}
 	return ptr
 }
+/* MOVES */
 
-/* FMOVECR */
+/* FMOVECR
 
-// Opcode Map: [0xf2005][11b 11::10][FPn 9::7][ROM offset 6::0]
-// Operation: ROM Constant → FPn
-// Assembler Syntax: FMOVECR.X #<ccc>,FPn
-// Attributes: Format = (Extended)
-// FPSR MASK: 0x0f000208
+Operation: ROM Constant → FPn
+Assembler Syntax: FMOVECR.X #<ccc>,FPn
+Opcode Map: [0xf200],[010111b 15::10][FPn 9::7][ROM offset 6::0]
+Attributes: Format = (Extended)
+FPSR Affected: 0x0f000208
+FPSR Cleared: 0x0000ff00
+*/
 uint32_t *EMIT_FMOVECR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){ /* FMOVECR only pulls extended-precision constants to a FP register */
 	
 }
+/* FMOVE
 
-/* any and all FMOVE instructions, this can 2 or 3 nested jumps depending on the encoding */
+Operation: Src → Dest
+Assembler Syntax: FMOVE.X FPm,FPn
+Opcode Map: [0xf200],[00 15::13][FPm 12::10][FPn 9::7][0x00 6::0] //in theory FSMOVE and FDMOVE can be done here too!
+Assembler Syntax: FMOVE.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][FPn 9::7][0x00 6::0]
+FPSR Affected: 0x0f004b28
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FMOVE_FP(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k, uint8_t fmt){
+	
+}
+/* FMOVE
+
+Operation: Src → Dest
+Assembler Syntax: FMOVE.<fmt> FPn,<ea>([Dn|k]) //please don't use Packed format!
+Opcode Map: [0xf][010 11::6][ea 5::0],[03 15::13][fmt 12::10][FPn 9::7][k-Factor 6::0] 
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f007b68
+FPSR Cleared: 0x0000ff00
+*/
 uint32_t *EMIT_FMOVE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
 	
 }
+/* FSMOVE
 
-uint32_t *EMIT_FMOVE_S_dest(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
+Operation: Src → Dest
+Assembler Syntax: FSMOVE.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][FPn 9::7][0x40 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f004b28
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FMOVE_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k, uint8_t fmt){
 	
 }
-uint32_t *EMIT_FMOVE_D_dest(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
+/* FDMOVE
+
+Operation: Src → Dest
+Assembler Syntax: FDMOVE.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][FPn 9::7][0x44 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f004b28
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FMOVE_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k, uint8_t fmt){
 	
 }
+/* FMOVEM & FMOVE
+Operation: Src → Dest
+Assembler Syntax: FMOVE.L <ea>,FPCR
+Opcode Map: [0xf][010 11::6][ea 5::0],[04 15::13][reg 12::10][0x000 9::0]
+Assembler Syntax: FMOVE.L FPCR,<ea>
+Opcode Map: [0xf][010 11::6][ea 5::0],[05 15::13][reg 12::10][0x000 9::0]
+Assembler Syntax: FMOVEM.L <ea>,<list>
+Opcode Map: [0xf][010 11::6][ea 5::0],[04 15::13][reg 12::10][0x000 9::0]
+Assembler Syntax: FMOVEM.L <list>,<ea>
+Opcode Map: [0xf][010 11::6][ea 5::0],[05 15::13][reg 12::10][0x000 9::0]
+Attributes: Format = (Long)
+FPSR Affected: if mem -> reg & bit 11 = 1
+FPSR Cleared: 0x00000000
+*/
 //this instruction should not update FPIAR when executed, this is always Long
 uint32_t *EMIT_FMOVEM_L(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
 
-	uint8_t direction = ((opcode2 >> 10) & 1);
+	uint8_t direction = ((opcode2 >> 13) & 1);
 }
-//this instruction should not update FPIAR when executed, this is always extended
-uint32_t *EMIT_FMOVEM_static(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
+/* FMOVEM
 
-	
-}
+Operation: Src → Dest
+Assembler Syntax: FMOVEM.X (Dn|<list>),<ea>
+Opcode Map: [0xf][010 11::6][ea 5::0],[06 15::13][mode 12::11][0x0 10::8][register list field 7::0]
+Assembler Syntax: FMOVEM.X <ea>,(Dn|<list>)
+Opcode Map: [0xf][010 11::6][ea 5::0],[07 15::13][mode 12::11][0x0 10::8][register list field 7::0]
+Attributes: Format = (Extended)
+FPSR Affected: none
+FPSR Cleared: 0x00000000
+*/
 //this instruction should not update FPIAR when executed, this is always extended
-uint32_t *EMIT_FMOVEM_dynamic(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
+uint32_t *EMIT_FMOVEM(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
 
-	
+	uint8_t direction = ((opcode2 >> 13) & 1 );
 }
 
 /* FPU Monadic Operations */
-uint32_t *EMIT_FABS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FABS_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FABS_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+/* FABS
 
+Operation: Absolute Value of Src → FPn
+Assembler Syntax: FABS.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x18 6::0]
+Assembler Syntax: FABS.X (FPm,)FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[00 15::13][src 12::10][dest 9::7][0x18 6::0]
+Assembler Syntax: FrABS.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x5(8|C) 6::0]
+Assembler Syntax: FrABS.X (FPm,)FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[00 15::13][src 12::10][dest 9::7][0x5(8|C) 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f0049
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FABS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FABS_S");
+uint32_t *EMIT_FABS_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FABS_D");
+uint32_t *EMIT_FABS_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+
+	
+}
+/* FACOS
+
+Operation: Arc Cosine of Src → FPn
+Assembler Syntax: FACOS.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x1C 6::0]
+Assembler Syntax: FACOS.X (FPm,)FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[00 15::13][src 12::10][dest 9::7][0x1C 6::0]
+Attributes: Format = ()
+FPSR Affected:
+FPSR Cleared:
+*/
 uint32_t *EMIT_FACOS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
 uint32_t *EMIT_FASIN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
@@ -532,8 +621,8 @@ uint32_t *EMIT_FSIN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t *
 
 uint32_t *EMIT_FSINH(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
-uint32_t *EMIT_FSQRT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FSQRT_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FSQRT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FSQRT_S");
+uint32_t *EMIT_FSQRT_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FSQRT_D");
 uint32_t *EMIT_FSQRT_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
 uint32_t *EMIT_FTAN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
@@ -573,7 +662,7 @@ uint32_t *EMIT_FSGLDIV(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_
 
 uint32_t *EMIT_FSGMUL(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
-/* Conditionals */
+/* Branch, Set &, Traps on  Condition */
 uint32_t *EMIT_FTRAPCC(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed){
 
 
