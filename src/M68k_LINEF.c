@@ -155,6 +155,98 @@ static double const __attribute__((used)) constants[128] = {
     [C_LG7] =       1.479819860511658591e-01,
 };
 
+typedef union 
+{
+    uint8_t  c[12];
+    uint32_t i[3];
+} packed_t;
+
+double my_pow10(int exp);
+int my_log10(double v);
+
+double PackedToDouble(packed_t value)
+{
+    double ret = 0.0;
+    int exp = 0;
+    uint64_t integer = 0;
+
+    for (int i=4; i < 12; i++)
+    {
+        integer = integer * 10 + (value.c[i] >> 4);
+        integer = integer * 10 + (value.c[i] & 0x0f);
+    }
+
+    ret = (double)(value.c[3] & 0x0f) + (double)integer / 1e16;
+    exp = 100 * (value.c[0] & 0x0f) + 10 * (value.c[1] >> 4) + (value.c[1] & 0x0f);
+
+    if (value.c[0] & 0x80)
+        ret = -ret;
+    if (value.c[0] & 0x40)
+        exp = -exp;
+
+    ret = ret * exp10(exp);
+
+    return ret;
+}
+
+packed_t DoubleToPacked(double value, int k)
+{
+    k = ((int8_t)k << 1) >> 1;
+
+    int exp = 0;
+    packed_t ret;
+    uint8_t c;
+
+    ret.i[0] = 0;
+    ret.i[1] = 0;
+    ret.i[2] = 0;
+
+    int prec = k > 0 ? k - 1 : 4 - k;
+
+    if (value < 0)
+    {
+        value = -value;
+        ret.c[0] |= 0x80;
+    }
+
+    if (prec > 16)
+        prec = 16;
+
+    exp = my_log10(value);
+    value /= my_pow10(exp);
+
+    c = (int)value;
+    ret.c[3] = c;
+
+    for(int i=0; i < prec; i++)
+    {
+        value = (value - c) * 10;
+        c = (int)value;
+        if (i & 1)
+            ret.c[4 + (i >> 1)] |= c;
+        else
+            ret.c[4 + (i >> 1)] |= c << 4;
+    }
+
+    if (exp < 0) {
+        exp = -exp;
+        ret.c[0] |= 0x40;
+    }
+
+    ret.c[1] = exp % 10;
+    exp /= 10;
+    ret.c[1] |= (exp % 10) << 4;
+    exp /= 10;
+    ret.c[0] |= exp % 10;
+    exp /= 10;
+    
+    if (exp != 0) {
+        ret.c[2] |= (exp) << 4;
+    }
+
+    return ret;
+}
+
 /*
     Returns reminder of absolute double number divided by 2, i.e. for any number it calculates result
     of number mod 2. Used by trigonometric functions
@@ -460,6 +552,7 @@ enum FPUOpSize {
     SIZE_W = 4,
     SIZE_D = 5,
     SIZE_B = 6,
+    SIZE_Pdyn = 7,
 };
 
 uint8_t FPUDataSize[] = {
@@ -467,6 +560,7 @@ uint8_t FPUDataSize[] = {
     [SIZE_S] = 4,
     [SIZE_X] = 12,
     [SIZE_P] = 12,
+    [SIZE_Pdyn] = 12,
     [SIZE_W] = 2,
     [SIZE_D] = 8,
     [SIZE_B] = 1
@@ -531,6 +625,11 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
 uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count)
 {
+    union {
+        uint64_t u64;
+        uint32_t u32[2];
+    } u;
+
     /* IF R/M is zero, then source identifier is FPU reg number. */
     if ((opcode2 & 0x4000) == 0)
     {
@@ -675,7 +774,22 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                         break;
 
                     case SIZE_P:
-                        kprintf("Packed load!\n");
+                        u.u64 = (uintptr_t)PackedToDouble;
+
+                        ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+
+                        *ptr++ = ldr64_offset(int_reg, 0, 0);
+                        *ptr++ = ldr64_offset(int_reg, 1, 8);
+                        *ptr++ = adr(30, 20);
+                        *ptr++ = ldr64_pcrel(2, 2);
+                        *ptr++ = br(2);
+
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
+
+                        *ptr++ = fcpyd(*reg, 0);
+
+                        ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
                         *ext_count += 6;
                         break;
 
@@ -719,6 +833,60 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
             switch (size)
             {
+                case SIZE_P:
+                    {
+                        if (pre_sz)
+                        {
+                            *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                        }
+                        if (imm_offset < -255 || imm_offset > 251) {
+                            uint8_t off = RA_AllocARMRegister(&ptr);
+
+                            if (imm_offset > -4096 && imm_offset < 0)
+                            {
+                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            }
+                            else if (imm_offset >= 0 && imm_offset < 4096)
+                            {
+                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                            }
+                            else
+                            {
+                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                                imm_offset >>= 16;
+                                if (imm_offset)
+                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            }
+                            RA_FreeARMRegister(&ptr, int_reg);
+                            int_reg = off;
+                            imm_offset = 0;
+                        }
+
+                        u.u64 = (uintptr_t)PackedToDouble;
+
+                        ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+
+                        *ptr++ = ldur64_offset(int_reg, 0, imm_offset);
+                        *ptr++ = ldur64_offset(int_reg, 1, imm_offset + 8);
+                        *ptr++ = adr(30, 20);
+                        *ptr++ = ldr64_pcrel(2, 2);
+                        *ptr++ = br(2);
+
+                        *ptr++ = u.u32[0];
+                        *ptr++ = u.u32[1];
+
+                        *ptr++ = fcpyd(*reg, 0);
+
+                        ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+
+                        if (post_sz)
+                        {
+                            *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                        }
+                    }
+                    break;
+
                 case SIZE_X:
                     {
                         if (pre_sz)
@@ -1023,15 +1191,16 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
             case SIZE_L:
                 int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
-                // No rounding mode specified? Round to zero?
-                *ptr++ = fcvtzs_Dto32(int_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(int_reg, vfp_reg);
                 RA_FreeARMRegister(&ptr, int_reg);
                 break;
 
             case SIZE_W:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(tmp_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 16);
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
@@ -1041,7 +1210,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             case SIZE_B:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(tmp_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 8);
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
@@ -1063,6 +1233,13 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
         int8_t pre_sz = 0;
         int8_t post_sz = 0;
+        int8_t k = 0;
+        uint8_t tmp64 = RA_AllocARMRegister(&ptr);
+        uint8_t tmp32 = RA_AllocARMRegister(&ptr);
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
 
         if (mode == 4 || mode == 3)
             ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0, NULL);
@@ -1088,6 +1265,159 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
         switch (size)
         {
+            case SIZE_P:
+                u.u64 = (uintptr_t)DoubleToPacked;
+                k = opcode2 & 0x7f;
+
+                if (pre_sz)
+                {
+                    *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                }
+
+                if (reg != 0) {
+                    *ptr++ = fcpyd(0, reg);
+                }
+
+                if (imm_offset >= -255 && imm_offset <= 251)
+                {
+                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+
+                    *ptr++ = mov_reg(19, int_reg);
+                    *ptr++ = mov_immed_s8(0, k);
+                    *ptr++ = adr(30, 20);
+                    *ptr++ = ldr64_pcrel(1, 2);
+                    *ptr++ = br(1);
+
+                    *ptr++ = u.u32[0];
+                    *ptr++ = u.u32[1];
+
+                    *ptr++ = ror64(1, 1, 32);
+                    *ptr++ = stur64_offset(19, 0, imm_offset);
+                    *ptr++ = stur_offset(19, 1, imm_offset + 8);
+
+                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                }
+                else
+                {
+                    uint8_t off = 19;
+                    
+                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+
+                    if (imm_offset > -4096 && imm_offset < 0)
+                    {
+                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                    }
+                    else
+                    {
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    }
+
+                    *ptr++ = mov_immed_s8(0, k);
+                    *ptr++ = adr(30, 20);
+                    *ptr++ = ldr64_pcrel(1, 2);
+                    *ptr++ = br(1);
+
+                    *ptr++ = u.u32[0];
+                    *ptr++ = u.u32[1];
+
+                    *ptr++ = ror64(1, 1, 32);
+                    *ptr++ = stur64_offset(19, 0, 0);
+                    *ptr++ = stur_offset(19, 1, 8);
+
+                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                }
+
+                if (post_sz)
+                {
+                    *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                }
+                break;
+            
+            case SIZE_Pdyn:
+                u.u64 = (uintptr_t)DoubleToPacked;
+                k = RA_MapM68kRegister(&ptr, (opcode2 >> 4) & 7);
+
+                if (pre_sz)
+                {
+                    *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                }
+
+                if (reg != 0) {
+                    *ptr++ = fcpyd(0, reg);
+                }
+
+                if (imm_offset >= -255 && imm_offset <= 251)
+                {
+                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+
+                    *ptr++ = mov_reg(0, k);
+                    *ptr++ = mov_reg(19, int_reg);
+                    *ptr++ = adr(30, 20);
+                    *ptr++ = ldr64_pcrel(1, 2);
+                    *ptr++ = br(1);
+
+                    *ptr++ = u.u32[0];
+                    *ptr++ = u.u32[1];
+
+                    *ptr++ = ror64(1, 1, 32);
+                    *ptr++ = stur64_offset(19, 0, imm_offset);
+                    *ptr++ = stur_offset(19, 1, imm_offset + 8);
+
+                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                }
+                else
+                {
+                    uint8_t off = 19;
+                    
+                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+
+                    *ptr++ = mov_reg(0, k);
+
+                    if (imm_offset > -4096 && imm_offset < 0)
+                    {
+                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                    }
+                    else if (imm_offset >= 0 && imm_offset < 4096)
+                    {
+                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                    }
+                    else
+                    {
+                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
+                        imm_offset >>= 16;
+                        if (imm_offset)
+                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
+                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                    }
+
+                    *ptr++ = adr(30, 20);
+                    *ptr++ = ldr64_pcrel(1, 2);
+                    *ptr++ = br(1);
+
+                    *ptr++ = u.u32[0];
+                    *ptr++ = u.u32[1];
+
+                    *ptr++ = ror64(1, 1, 32);
+                    *ptr++ = stur64_offset(19, 0, 0);
+                    *ptr++ = stur_offset(19, 1, 8);
+
+                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                }
+
+                if (post_sz)
+                {
+                    *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                }
+                break;
+
             case SIZE_X:
                 {
                     if (pre_sz)
@@ -1212,7 +1542,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
             case SIZE_L:
                 val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(val_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
 
                 if (pre_sz)
                 {
@@ -1255,7 +1586,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
             case SIZE_W:
                 val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(val_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
 
                 if (pre_sz)
                 {
@@ -1298,7 +1630,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 break;
             case SIZE_B:
                 val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = fcvtzs_Dto32(val_reg, reg);
+                *ptr++ = frint64x(vfp_reg, reg);
+                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
 
                 if (pre_sz)
                 {
@@ -1348,6 +1681,8 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
 
+        RA_FreeARMRegister(&ptr, tmp32);
+        RA_FreeARMRegister(&ptr, tmp64);
         RA_FreeFPURegister(&ptr, vfp_reg);
         RA_FreeARMRegister(&ptr, int_reg);
         RA_FreeARMRegister(&ptr, val_reg);
@@ -1875,21 +2210,21 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         /* Test predicate with masked signalling bit, operations are the same */
         switch (predicate & 0x0f)
         {
-            case F_CC_EQ:
+            case F_CC_EQ: /* Z == 0 */
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
                 break;
-            case F_CC_NE:
+            case F_CC_NE: /* Z == 1 */
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_EQ;
                 break;
-            case F_CC_OGT:
+            case F_CC_OGT: /* NAN == 0 && Z == 0 && N == 0 */
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = ARM_CC_EQ;
                 break;
-            case F_CC_ULE:
+            case F_CC_ULE: /* NAN == 1 || Z == 1 || N == 1 */
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
@@ -1900,7 +2235,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
                 *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 3); // N | NAN -> N (== 0 only if N=0 && NAN=0)
-                *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
+                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
                 break;
@@ -1909,7 +2244,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)); // Invert Z
-                *ptr++ = and_reg(tmp_cc, fpsr, tmp_cc, LSL, 1); // !Z & N -> N
+                *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 1); // !Z & N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
                 break;
@@ -3172,7 +3507,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
     }
     /* FMOVE to MEM */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe07f) == 0x6000)
+    else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xe07f) == 0x6000 || (opcode2 & 0xfc00) == 0x6c00 || (opcode2 & 0xfc0f) == 0x7c00))
     {
         uint8_t fp_src = (opcode2 >> 7) & 7;
         fp_src = RA_MapFPURegister(&ptr, fp_src);
