@@ -463,8 +463,10 @@ FPSR Affected: 0x0f000208
 FPSR Cleared: 0x0000ff00
 */
 uint32_t *EMIT_FMOVECR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){ /* FMOVECR only pulls extended-precision constants to a FP register */
+
 	
 }
+
 /* FMOVE
 
 Operation: Src → Dest
@@ -488,8 +490,10 @@ FPSR Affected: 0x0f007b68
 FPSR Cleared: 0x0000ff00
 */
 uint32_t *EMIT_FMOVE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k){
+
 	
 }
+
 /* FSMOVE
 
 Operation: Src → Dest
@@ -500,8 +504,10 @@ FPSR Affected: 0x0f004b28
 FPSR Cleared: 0x0000ff00
 */
 uint32_t *EMIT_FMOVE_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k, uint8_t fmt){
+
 	
 }
+
 /* FDMOVE
 
 Operation: Src → Dest
@@ -512,8 +518,10 @@ FPSR Affected: 0x0f004b28
 FPSR Cleared: 0x0000ff00
 */
 uint32_t *EMIT_FMOVE_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **ptr_m68k, uint8_t fmt){
+
 	
 }
+
 /* FMOVEM & FMOVE
 Operation: Src → Dest
 Assembler Syntax: FMOVE.L <ea>,FPCR
@@ -533,6 +541,7 @@ uint32_t *EMIT_FMOVEM_L(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16
 
 	uint8_t direction = ((opcode2 >> 13) & 1);
 }
+
 /* FMOVEM
 
 Operation: Src → Dest
@@ -557,11 +566,11 @@ Operation: Absolute Value of Src → FPn
 Assembler Syntax: FABS.<fmt> <ea>,FPn
 Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x18 6::0]
 Assembler Syntax: FABS.X (FPm,)FPn
-Opcode Map: [0xf][010 11::6][ea 5::0],[00 15::13][src 12::10][dest 9::7][0x18 6::0]
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x18 6::0]
 Assembler Syntax: FrABS.<fmt> <ea>,FPn
-Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x5(8|C) 6::0]
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x5(8|c) 6::0]
 Assembler Syntax: FrABS.X (FPm,)FPn
-Opcode Map: [0xf][010 11::6][ea 5::0],[00 15::13][src 12::10][dest 9::7][0x5(8|C) 6::0]
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x5(8|c) 6::0]
 Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
 FPSR Affected: 0x0f0049
 FPSR Cleared: 0x0000ff00
@@ -572,26 +581,102 @@ uint32_t *EMIT_FABS_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t
 
 	
 }
+
 /* FACOS
 
 Operation: Arc Cosine of Src → FPn
 Assembler Syntax: FACOS.<fmt> <ea>,FPn
-Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x1C 6::0]
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x1c 6::0]
 Assembler Syntax: FACOS.X (FPm,)FPn
-Opcode Map: [0xf][010 11::6][ea 5::0],[00 15::13][src 12::10][dest 9::7][0x1C 6::0]
-Attributes: Format = ()
-FPSR Affected:
-FPSR Cleared:
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x1c 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f006388
+FPSR Cleared: 0x0000ff00
 */
-uint32_t *EMIT_FACOS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FACOS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
 
-uint32_t *EMIT_FASIN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+	
+}
 
-uint32_t *EMIT_FATAN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+/* FASIN
 
-uint32_t *EMIT_FCOS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+Operation: Arc Sine of Src → FPn
+Assembler Syntax: FASIN.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x0c 6::0]
+Assembler Syntax: FASIN.X (FPm,)FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x0c 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f006b
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FASIN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
 
-uint32_t *EMIT_FCOSH(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+	
+}
+
+/* FATAN
+
+Operation: Arc Tangent of Src → FPn
+Assembler Syntax: FATAN.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x0a 6::0]
+Assembler Syntax: FATAN.X (FPm,)FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x0a 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f004b
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FATAN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+
+	
+}
+
+/* FATANH
+
+Operation: Hyperbolic Arc Tangent of Src → FPn
+Assembler Syntax: FATANH.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x0d 6::0]
+Assembler Syntax: FATANH.X (FPm,)FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x0d 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f006f
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FATANH(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+
+	
+}
+
+/* FCOS
+
+Operation: Cosine of Src → FPn
+Assembler Syntax: FCOS.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x1d 6::0]
+Assembler Syntax: FCOS.X (FPm,)FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x1d 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f0063
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FCOS(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+
+	
+}
+
+/* FCOSH
+
+Operation: Hyperbolic Cosine of Src → FPn
+Assembler Syntax: FCOSH.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x19 6::0]
+Assembler Syntax: FCOSH.X (FPm,)FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x19 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f0053
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FCOSH(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+
+	
+}
 
 uint32_t *EMIT_FETOX(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
@@ -613,8 +698,8 @@ uint32_t *EMIT_FLOG10(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t
 
 uint32_t *EMIT_FLOG2(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
-uint32_t *EMIT_FNEG(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FNEG_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FNEG(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FNEG_S");
+uint32_t *EMIT_FNEG_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FNEG_D");
 uint32_t *EMIT_FNEG_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
 uint32_t *EMIT_FSIN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
@@ -634,10 +719,39 @@ uint32_t *EMIT_FTENTOX(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_
 uint32_t *EMIT_FTWOTOX(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
 /* FPU Dyadic Operations */
-uint32_t *EMIT_FADD(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FADD_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FADD_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+/* FADD
 
+Operation: Src + FPn → FPn
+Assembler Syntax: FADD.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x22 6::0]
+Assembler Syntax: FADD.X FPm,FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x22 6::0]
+Assembler Syntax: FrADD.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x6(2|6) 6::0]
+Assembler Syntax: FrADD.X FPm,FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x6(2|6) 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f007b68
+FPSR Cleared: 0x0000ff00
+*/
+uint32_t *EMIT_FADD(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FADD_S");
+uint32_t *EMIT_FADD_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FADD_D");
+uint32_t *EMIT_FADD_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+
+	
+}
+
+/* FCMP
+
+Operation: FPn - Src
+Assembler Syntax: FCMP.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[02 15::13][fmt 12::10][dest 9::7][0x3 6::0]
+Assembler Syntax: FCMP.X FPm,FPn
+Opcode Map: [0xf200],[00 15::13][src 12::10][dest 9::7][0x38 6::0]
+Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
+FPSR Affected: 0x0f0041
+FPSR Cleared: 0x0000ff00
+*/
 uint32_t *EMIT_FCMP(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
 uint32_t *EMIT_FDIV(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
