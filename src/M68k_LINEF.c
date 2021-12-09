@@ -2649,10 +2649,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             case 4:
                 fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                *ptr++ = sxth(int_src, int_src);
                 break;
             case 6:
                 fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                *ptr++ = sxtb(int_src, int_src);
                 break;
             default:
                 int_src = RA_AllocARMRegister(&ptr);
