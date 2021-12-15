@@ -1139,10 +1139,10 @@ void M68K_PrintContext(struct M68KState *m68k)
             uint64_t u64;
             uint32_t u[2];
         } u;
-        if (i==4)
+        if ((i != 0) && ((i & 1) == 0))
             kprintf("\n[JIT] ");
         u.u64 = m68k->FP[i].u64;
-        kprintf("    FP%d = %08x%08x", i, u.u[0], u.u[1]);
+        kprintf("    FP%d = %08x%08x (%f)", i, u.u[0], u.u[1], u.d);
     }
     kprintf("\n[JIT] ");
 
