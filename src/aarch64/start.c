@@ -1582,6 +1582,7 @@ void M68K_StartEmu(void *addr, void *fdt)
 
 #ifdef PISTORM
             extern uint32_t swap_df0_with_dfx;
+            extern uint32_t move_slow_to_chip;
 
             if (strstr(prop->op_value, "swap_df0_with_df1"))
                 swap_df0_with_dfx = 1;
@@ -1589,6 +1590,9 @@ void M68K_StartEmu(void *addr, void *fdt)
                 swap_df0_with_dfx = 2;
             if (strstr(prop->op_value, "swap_df0_with_df3"))
                 swap_df0_with_dfx = 3;
+
+            if (strstr(prop->op_value, "move_slow_to_chip"))
+                move_slow_to_chip = 1;
 #endif
         }       
     }
