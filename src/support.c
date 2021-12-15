@@ -159,8 +159,15 @@ static void int_ftoa(char *buf, double value)
         value = -value;
     }
 
-    exp = my_log10(value);
-    value /= my_pow10(exp);
+    if (value == 0.0) {
+        exp = 0;
+        value = 0;
+    }
+    else
+    {
+        exp = my_log10(value);
+        value /= my_pow10(exp);
+    }
 
     c = (int)value;
     *buf++ = '0' + c;
