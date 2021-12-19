@@ -918,6 +918,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
     if (writeFault)
     {
+        /**** MISC ****/
+        if ((opcode & 0xffffffe0) == 0xd50b7e20)
+        {
+            handled = 1;
+        }
         /**** Floating point stores ****/
         /* FSTS */
         if ((opcode & 0xfee00c00) == 0xbc000000)
