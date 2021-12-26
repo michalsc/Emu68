@@ -247,9 +247,27 @@ void mmu_init()
             }
 
 #ifdef PISTORM
+            // Adjust base and size of the memory block
             if (addr < 0x08000000) {
                 size -= 0x08000000 - addr;
                 addr = 0x08000000;
+            }
+
+            // Put it back into device tree
+            uint32_t *storage = &range[address_cells];
+            uintptr_t tmp = addr;
+            for (int i=0; i < address_cells; i++)
+            {
+                *--storage = (uint32_t)tmp;
+                tmp >>= 32;
+            }
+
+            storage = &range[address_cells + size_cells];
+            tmp = size;
+            for (int i=0; i < size_cells; i++)
+            {
+                *--storage = (uint32_t)tmp;
+                tmp >>= 32;
             }
 #endif
 

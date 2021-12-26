@@ -283,6 +283,8 @@ uint64_t z2_ram_base = 0;
 uint32_t swap_df0_with_dfx = 0;
 uint32_t spoof_df0_id = 0;
 
+uint32_t move_slow_to_chip = 0;
+
 // Amiga specific registers
 enum
 {
@@ -363,6 +365,17 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         return 1;
     }
 
+    if (move_slow_to_chip) {
+        if (far >= 0x080000 && far <= 0x0FFFFF) {
+            // A500 JP2 connects Agnus' A19 input to A23 instead of A19 by default, and decodes trapdoor memory at 0xC00000 instead of 0x080000.
+            // We can move the trapdoor to chipram simply by rewriting the address.
+            far += 0xB80000;
+        } else if (far >= 0xC00000 && far <= 0xC7FFFF) {
+            // Block accesses through to trapdoor at slow ram address, otherwise it will be detected at 0x080000 and 0xC00000.
+            return 1;
+        }
+    }
+
     switch(size)
     {
         case 1:
@@ -437,6 +450,18 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
                     break;
             }
 
+            return 1;
+        }
+    }
+
+    if (move_slow_to_chip) {
+        if (far >= 0x080000 && far <= 0x0FFFFF) {
+            // A500 JP2 connects Agnus' A19 input to A23 instead of A19 by default, and decodes trapdoor memory at 0xC00000 instead of 0x080000.
+            // We can move the trapdoor to chipram simply by rewriting the address.
+            far += 0xB80000;
+        } else if (far >= 0xC00000 && far <= 0xC7FFFF) {
+            // Block accesses through to trapdoor at slow ram address, otherwise it will be detected at 0x080000 and 0xC00000.
+            *value = 0;
             return 1;
         }
     }
@@ -893,6 +918,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
     if (writeFault)
     {
+        /**** MISC ****/
+        if ((opcode & 0xffffffe0) == 0xd50b7e20)
+        {
+            handled = 1;
+        }
         /**** Floating point stores ****/
         /* FSTS */
         if ((opcode & 0xfee00c00) == 0xbc000000)

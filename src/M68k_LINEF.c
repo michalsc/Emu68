@@ -570,7 +570,6 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
 {
     uint16_t *ptr = *m68k_ptr;
 
-#if 1
     int cnt = 0;
 
     while((BE16(*ptr) & 0xfe00) != 0xf200)
@@ -585,10 +584,6 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
             return 1;
         ptr += len;
     }
-#else
-    if ((BE16(*ptr) & 0xfe00) != 0xf200)
-        return 1;
-#endif
 
     uint16_t opcode = BE16(ptr[0]);
     uint16_t opcode2 = BE16(ptr[1]);
@@ -1056,19 +1051,19 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                     if (pre_sz)
                     {
-                        *ptr++ = ldrh_offset_preindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldrsh_offset_preindex(int_reg, val_reg, pre_sz);
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldrh_offset_postindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldrsh_offset_postindex(int_reg, val_reg, pre_sz);
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = ldurh_offset(int_reg, val_reg, imm_offset);
+                        *ptr++ = ldursh_offset(int_reg, val_reg, imm_offset);
                     }
                     else if (imm_offset >= 0 && imm_offset < 8190 && !(imm_offset & 1))
                     {
-                        *ptr++ = ldrh_offset(int_reg, val_reg, imm_offset);
+                        *ptr++ = ldrsh_offset(int_reg, val_reg, imm_offset);
                     }
                     else
                     {
@@ -1089,10 +1084,9 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                                 *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
                             *ptr++ = add_reg(off, int_reg, off, LSL, 0);
                         }
-                        *ptr++ = ldrh_offset(off, val_reg, 0);
+                        *ptr++ = ldrsh_offset(off, val_reg, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
-                    *ptr++ = sxth(val_reg, val_reg);
                     *ptr++ = scvtf_32toD(*reg, val_reg);
                     break;
                 case SIZE_B:
@@ -1100,19 +1094,19 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                     if (pre_sz)
                     {
-                        *ptr++ = ldrb_offset_preindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldrsb_offset_preindex(int_reg, val_reg, pre_sz);
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldrb_offset_postindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldrsb_offset_postindex(int_reg, val_reg, pre_sz);
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = ldurb_offset(int_reg, val_reg, imm_offset);
+                        *ptr++ = ldursb_offset(int_reg, val_reg, imm_offset);
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = ldrb_offset(int_reg, val_reg, imm_offset);
+                        *ptr++ = ldrsb_offset(int_reg, val_reg, imm_offset);
                     }
                     else
                     {
@@ -1133,10 +1127,9 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                                 *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
                             *ptr++ = add_reg(off, int_reg, off, LSL, 0);
                         }
-                        *ptr++ = ldrb_offset(off, val_reg, 0);
+                        *ptr++ = ldrsb_offset(off, val_reg, 0);
                         RA_FreeARMRegister(&ptr, off);
                     }
-                    *ptr++ = sxtb(val_reg, val_reg);
                     *ptr++ = scvtf_32toD(*reg, val_reg);
                     break;
                 default:
@@ -2669,10 +2662,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             case 4:
                 fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                *ptr++ = sxth(int_src, int_src);
                 break;
             case 6:
                 fp_src = RA_AllocFPURegister(&ptr);
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                *ptr++ = sxtb(int_src, int_src);
                 break;
             default:
                 int_src = RA_AllocARMRegister(&ptr);
@@ -2752,7 +2747,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
     /* FLOGNP1 */
-    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0006)
     {
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
