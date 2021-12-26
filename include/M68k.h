@@ -424,7 +424,7 @@ static inline __attribute__((always_inline)) struct M68KTranslationUnit *M68K_Fi
 {
     struct M68KTranslationUnit *unit = NULL, *n;
     uintptr_t hash = (uintptr_t)ptr;
-    extern struct List *ICache;
+    extern struct List ICache[65536];
     extern struct List LRU;
 
     /* Get 16-bit has from the pointer to m68k code */

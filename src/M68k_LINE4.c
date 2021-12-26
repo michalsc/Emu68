@@ -1926,7 +1926,8 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = bic_immed(tmp, reg, 15, 0);
                 *ptr++ = bic_immed(tmp, tmp, 15, 16);
-                *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, CACR));
+                *ptr++ = mov_reg_to_simd(31, TS_S, 0, tmp);
+                //*ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, CACR));
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x803: // MSP
@@ -2027,7 +2028,8 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, VBR));
                 break;
             case 0x002: // CACR
-                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, CACR));
+                *ptr++ = mov_simd_to_reg(reg, 31, TS_S, 0);
+                //*ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, CACR));
                 break;
             case 0x803: // MSP
                 sp = RA_MapM68kRegister(&ptr, 15);
