@@ -230,6 +230,7 @@ struct M68KState
 #define FPQB		0x00ff0000
 #define FPEB		0x0000ff00
 #define FPAEB		0x000000f8
+#define FPEW		0x0000fff8  //Exception word; to be used when an expection is expected
 
 #define FPSR_ALL	0x0ffffff8
 

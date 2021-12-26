@@ -752,25 +752,40 @@ Attributes: Format = (Byte, Word, Long, Single, Double, Extended, Packed)
 FPSR Affected: 0x0f0041
 FPSR Cleared: 0x0000ff00
 */
-uint32_t *EMIT_FCMP(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FCMP(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
 
+	
+}
+/* FDIV
+
+Operation: FPn ÷ Src → FPn
+Assembler Syntax: FDIV.<fmt> <ea>,FPn
+Opcode Map: [0xf][010 11::6][ea 5::0],[020 15::13][fmt 12::10][dest 9::7][0x20 6::0]
+
+*/
 uint32_t *EMIT_FDIV(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FDIV_S");
 uint32_t *EMIT_FDIV_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FDIV_D");
-uint32_t *EMIT_FDIV_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FDIV_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+	
+}
 
 uint32_t *EMIT_FMOD(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
-uint32_t *EMIT_FMUL(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FMUL_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FMUL_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FMUL(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FMUL_S");
+uint32_t *EMIT_FMUL_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FMUL_D");
+uint32_t *EMIT_FMUL_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+	
+}
 
 uint32_t *EMIT_FREM(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
 uint32_t *EMIT_FSCALE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
-uint32_t *EMIT_FSUB(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FSUB_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
-uint32_t *EMIT_FSUB_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
+uint32_t *EMIT_FSUB(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FSUB_S");
+uint32_t *EMIT_FSUB_S(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt) __attribute__((alias)"EMIT_FSUB_D");
+uint32_t *EMIT_FSUB_D(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt){
+	
+}
 
 uint32_t *EMIT_FSGLDIV(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint8_t fmt)
 
