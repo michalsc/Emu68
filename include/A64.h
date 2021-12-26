@@ -544,6 +544,11 @@ static inline uint32_t flds_preindex(uint8_t v_dst, uint8_t base, int16_t offset
 static inline uint32_t flds_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t flds(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t flds_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t fldq_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldq_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldq(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldq_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0x3dc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+
 static inline uint32_t fldd_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x5c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
 static inline uint32_t flds_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x1c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
 static inline uint32_t fldq_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x9c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
@@ -562,6 +567,7 @@ static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) {
 static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fsqrtd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e61c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e603800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+
 static inline uint32_t fstd_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstd_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
@@ -570,6 +576,11 @@ static inline uint32_t fsts_preindex(uint8_t v_dst, uint8_t base, int16_t offset
 static inline uint32_t fsts_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t fstq_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstq_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstq(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstq_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0x3d800000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+
 
 static inline uint32_t fmov_f64(uint8_t v_dst, uint8_t imm) { return I32(0x1e601000 | (imm << 13) | (v_dst & 31)); }
 static inline uint32_t fmov_f32(uint8_t v_dst, uint8_t imm) { return I32(0x1e201000 | (imm << 13) | (v_dst & 31)); }
