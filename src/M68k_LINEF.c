@@ -566,10 +566,8 @@ uint8_t FPUDataSize[] = {
     [SIZE_B] = 1
 };
 
-int FPSR_Update_Needed(uint16_t **m68k_ptr)
+int FPSR_Update_Needed(uint16_t *ptr, int level)
 {
-    uint16_t *ptr = *m68k_ptr;
-
     int cnt = 0;
 
     while((BE16(*ptr) & 0xfe00) != 0xf200)
@@ -588,10 +586,21 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
     uint16_t opcode = BE16(ptr[0]);
     uint16_t opcode2 = BE16(ptr[1]);
 
+    /* In case of FNOP check subsequent instruction */
+    if (opcode == 0xf280 && opcode2 == 0x0000)
+    {
+        if (level == 5)
+            return 1;
+        else {
+            return FPSR_Update_Needed(ptr + 2, level + 1);
+        }
+    }
+
     /*
         Update FPSR condition codes only if subsequent FPU instruction
         is one of following: FBcc, FDBcc, FMOVEM, FScc, FTRAPcc
     */
+
     if ((opcode & 0xff80) == 0xf280)    /* FBcc */
         return 1;
     if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0) /* FDBcc */
@@ -605,8 +614,6 @@ int FPSR_Update_Needed(uint16_t **m68k_ptr)
     if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
         return 1;
     if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
-        return 1;
-    if (opcode == 0xf280 && opcode2 == 0x0000) /* FNOP */
         return 1;
     if ((opcode & 0xffc0) == 0xf340) /* FRESTORE */
         return 1;
@@ -2101,7 +2108,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2147,7 +2154,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2183,7 +2190,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2428,7 +2435,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
@@ -2452,7 +2459,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2480,7 +2487,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2529,7 +2536,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2555,7 +2562,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2585,7 +2592,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2614,7 +2621,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2638,7 +2645,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2690,7 +2697,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2736,7 +2743,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2784,7 +2791,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2832,7 +2839,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2880,7 +2887,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2928,7 +2935,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -2976,7 +2983,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3024,7 +3031,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3072,7 +3079,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3120,7 +3127,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3168,7 +3175,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3216,7 +3223,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3264,7 +3271,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3312,7 +3319,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3360,7 +3367,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3408,7 +3415,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3456,7 +3463,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3506,7 +3513,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3872,7 +3879,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3900,7 +3907,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3934,7 +3941,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -3956,7 +3963,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
@@ -4209,7 +4216,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -4245,7 +4252,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -4291,7 +4298,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
@@ -4339,7 +4346,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
 
-        if (FPSR_Update_Needed(m68k_ptr))
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
         {
             uint8_t fpsr = RA_ModifyFPSR(&ptr);
 
