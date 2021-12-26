@@ -83,9 +83,13 @@ struct M68KState
     uint32_t FPIAR;
     uint16_t FPCR;
     union {
-        double d;
-        uint64_t u64;
-        uint32_t u32[2];
+		uint8_t B;
+		uint16_t W;
+		uint32_t L;
+	    float S;
+		double d;
+		uint64_t u64;
+		uint32_t u32[2];
     } FP[8];   // Double precision! Extended is "emulated" in load/store only
 
     /* More control registers.. */
@@ -122,6 +126,7 @@ struct M68KState
 #define CACRB_DE 31
 #define CACRB_IE 15
 
+//SR
 #define SR_C    0x0001
 #define SR_V    0x0002
 #define SR_VC   0x0003
@@ -172,13 +177,42 @@ struct M68KState
 #define SRB_T0   14
 #define SRB_T1   15
 
+//FPCR
+#define FPCR_RND	0x00000030
+#define FPCR_PREC	0x000000c0
+#define FPCR_INEX1	0x00000100
+#define FPCR_INEX2	0x00000200
+#define FPCR_DZ		0x00000400
+#define FPCR_UNFL	0x00000800
+#define FPCR_OVFL	0x00001000
+#define FPCR_OPERR	0x00002000
+#define FPCR_SNAN	0x00004000
+#define FPCR_BSUN	0x00008000
+
+#define FPEE		0x0000ff00
+#define FPMC		0x000000f0
+
+#define FPCR_ALL	0x0000fff0
+
+#define FPCRB_RND	4
+#define FPCRB_PREC	6
+#define FPCRB_INEX1	8
+#define FPCRB_INEX2	9
+#define FPCRB_DZ	10
+#define FPCRB_UNFL	11
+#define	FPCRB_OVFL	12
+#define FPCRB_OPERR	13
+#define FPCRB_SNAN	14
+#define FPCRB_BSUN	15
+
+//FPSR
 #define FPSR_INEX	0x00000008
 #define FPSR_IOP	0x00000080
 #define FPSR_INEX1	0x00000100
 #define FPSR_INEX2	0x00000200
-#define FPSR_DZ		0x00000410	//these also appear in AEXC
-#define FPSR_UNFL	0x00000820	//these also appear in AEXC
-#define FPSR_OVFL	0x00001040	//these also appear in AEXC
+#define FPSR_DZ		0x00000410	//these also appear in AEXC, this should be split for obvious reasons!
+#define FPSR_UNFL	0x00000820	//these also appear in AEXC, this should be split for obvious reasons!
+#define FPSR_OVFL	0x00001040	//these also appear in AEXC, this should be split for obvious reasons!
 #define FPSR_OPERR	0x00002000
 #define FPSR_SNAN	0x00004000
 #define FPSR_BSUN	0x00008000
@@ -186,15 +220,35 @@ struct M68KState
 #define FPSR_S		0x00800000
 #define FPSR_N      0x08000000
 #define FPSR_Z      0x04000000
+#define FPSR_NZ		0x0c000000
 #define FPSR_I      0x02000000
+#define FPSR_NI		0x0a000000
 #define FPSR_NAN    0x01000000
+#define FPSR_NNAN	0x09000000
 
+#define FPCC		0x0f000000
+#define FPQB		0x00ff0000
+#define FPEB		0x0000ff00
+#define FPAEB		0x000000f8
+#define FPEW		0x0000fff8  //Exception word; to be used when an expection is expected
+
+#define FPSR_ALL	0x0ffffff8
+
+#define FPSRB_INEX1	8
+#define FPSRB_INEX2	9
+#define FPSRB_DZ	10
+#define FPSRB_UNFL	11
+#define FPSRB_OVFL	12
+#define FPSRB_OPERR	13
+#define FPSRB_SNAN	14
+#define FPSRB_BSUN	15
 #define	FPSRB_S		23
 #define FPSRB_N     27
 #define FPSRB_Z     26
 #define FPSRB_I     25
 #define FPSRB_NAN   24
 
+//Condition Codes
 #define M_CC_T  0x00
 #define M_CC_F  0x01
 #define M_CC_HI 0x02
@@ -245,6 +299,7 @@ struct M68KState
 #define F_CC_SEQ    0x11
 #define F_CC_SNE    0x1e
 
+//Vectors Exception handling
 #define VECTOR_RESET_ISP            0x000
 #define VECTOR_RESET_PC             0x004
 #define VECTOR_ACCESS_FAULT         0x008
