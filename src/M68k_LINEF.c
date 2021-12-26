@@ -2198,6 +2198,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
+    /* FNOP */
+    else if (opcode == 0xf280 && opcode2 == 0)
+    {
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+        ptr = EMIT_FlushPC(ptr);
+    }
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
     {
@@ -2299,6 +2306,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             case F_CC_UN:
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_NE;
+                break;
+            case F_CC_F:    // This is NOP - handled one "if" before
+                success_condition = A64_CC_NV;
+                break;
+            case F_CC_T:    // Unconditional branch to target
+                success_condition = A64_CC_AL;
                 break;
         }
         RA_FreeARMRegister(&ptr, tmp_cc);
@@ -4340,13 +4353,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
-    }
-    /* FNOP */
-    else if (opcode == 0xf280 && opcode2 == 0)
-    {
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
-        ptr = EMIT_FlushPC(ptr);
     }
     /* FRESTORE */
     else if ((opcode & ~0x3f) == 0xf340 && 
