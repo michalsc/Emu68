@@ -452,6 +452,9 @@ void secondary_boot(void)
     while(1) { asm volatile("wfe"); }
 }
 
+uint32_t vid_memory;
+uintptr_t vid_base;
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -461,8 +464,12 @@ void boot(void *dtree)
     of_property_t *p = NULL;
     of_node_t *e = NULL;
     void *initramfs_loc = NULL;
-    uintptr_t initramfs_size = 0;
+    uintptr_t initramfs_size = 0;    
     boot_lock = 0;
+
+#ifdef PISTORM
+    vid_memory = 16;
+#endif
 
     /* Enable caches and cache maintenance instructions from EL0 */
     asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
@@ -483,10 +490,28 @@ void boot(void *dtree)
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
-            if (strstr(prop->op_value, "enable_cache"))
+            const char *tok;
+
+            if (find_token(prop->op_value, "enable_cache"))
                 enable_cache = 1;
-            if (strstr(prop->op_value, "limit_2g"))
+            if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
+            if ((tok = find_token(prop->op_value, "vc4.mem=")))
+            {
+                uint32_t vmem = 0;
+
+                for (int i=0; i < 3; i++)
+                {
+                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                        break;
+
+                    vmem = vmem * 10 + tok[8 + i] - '0';
+                }
+
+                if (vmem <= 256) {
+                    vid_memory = vmem & ~1;
+                }
+            }
         }
     }
 
@@ -569,6 +594,14 @@ void boot(void *dtree)
             range += block_size / 4;
         }
 
+        if (vid_base)
+        {
+            kprintf("[BOOT] VC4 framebuffer memory: %p-%p (%d MiB)\n", 
+                vid_base,
+                vid_base + (vid_memory << 20) - 1, 
+                vid_memory);
+        }
+
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
         intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0x7fffe00000;
 
@@ -622,9 +655,14 @@ void boot(void *dtree)
             }
         }
 
-#ifdef PISTORM
-        mmu_map(0x01000000, 0x01000000, 0x07000000, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
-#endif
+        if (vid_base) {
+            uint32_t reg[] = {
+                vid_base, vid_memory * 1024*1024
+            };
+            dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
+
+            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+        }
 
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
