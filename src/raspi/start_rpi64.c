@@ -165,11 +165,10 @@ void platform_post_init()
     if (base_vcmem && size_vcmem)
     {
         mmu_map((uintptr_t)base_vcmem, (uintptr_t)base_vcmem, size_vcmem,
-                MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(2), 0);
+                MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
     }
 
     display_logo();
-
 
 #ifdef PISTORM
     kprintf("[BOOT] sending RESET signal to Amiga\n");
