@@ -983,6 +983,8 @@ void M68K_LoadContext(struct M68KState *ctx)
 {
     asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
 
+    asm volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
+
 #if 0
     asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
     asm volatile("ldr w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
@@ -1037,6 +1039,8 @@ void M68K_LoadContext(struct M68KState *ctx)
 
 void M68K_SaveContext(struct M68KState *ctx)
 {
+    asm volatile("mov w1, v31.s[0]; str w1, %0"::"m"(ctx->CACR):"x1");
+
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
@@ -1174,22 +1178,21 @@ void  __attribute__((used)) stub_FindUnit()
 "       add     x4, x4, :lo12:ICache        \n"
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       and     x0, x0, #0xffff             \n"
-"       ldr     x4, [x4]                    \n" // 1 -> 4
 "       add     x0, x0, x0, lsl #1          \n"
 "       ldr     x0, [x4, x0, lsl #3]        \n"
 "       b       1f                          \n"
-"3:     ldr     x5, [x0, #32]               \n" // 2 -> 5
+"3:                                         \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
 "       b.eq    2f                          \n"
 "       mov     x0, x4                      \n"
 "1:     ldr     x4, [x0]                    \n"
+"       ldr     x5, [x0, #32]               \n"
 "       cbnz    x4, 3b                      \n"
 "       mov     x0, #0                      \n"
 "4:     ret                                 \n"
-"2:     ldr     x4, [x0, #24]               \n"
+"2:     ldp     x6, x4, [x0, #16]           \n"
 "       ldr     x5, [x4, #8]                \n"
 "       cbz     x5, 4b                      \n"
-"       ldr     x6, [x0, #16]               \n" // 3 -> 6
 "       stp     x4, x5, [x0, #16]           \n"
 "       add     x7, x0, #0x10               \n" // 4 -> 7
 "       str     x7, [x5]                    \n"
@@ -1247,8 +1250,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
 "       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
 #endif
-"99:    ldr     w1, [x0, #%[cacr]]          \n"
-"       tbz     w1, #%[cacr_ie_bit], 2f     \n"
+"99:    mov     w3, v31.s[0]                \n"                                            //ldr     w1, [x0, #%[cacr]]          \n"
+"       tbz     w3, #%[cacr_ie_bit], 2f     \n"
 "       cmp     w2, w%[reg_pc]              \n"
 "       b.ne    13f                         \n"
 #if EMU68_LOG_USES
@@ -1265,21 +1268,20 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       add     x4, x4, :lo12:ICache        \n"
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       and     x0, x0, #0xffff             \n"
-"       ldr     x4, [x4]                    \n" // 1 -> 4
 "       add     x0, x0, x0, lsl #1          \n"
 "       ldr     x0, [x4, x0, lsl #3]        \n"
 "       b       51f                         \n"
-"53:    ldr     x5, [x0, #32]               \n" // 2 -> 5
+"53:                                        \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
 "       b.eq    52f                         \n"
 "       mov     x0, x4                      \n"
 "51:    ldr     x4, [x0]                    \n"
+"       ldr     x5, [x0, #32]               \n" // Fetch PC address now, we assume that the search was successful
 "       cbnz    x4, 53b                     \n"
 "       b 5f                                \n"
-"52:    ldr     x4, [x0, #24]               \n"
+"52:    ldp     x6, x4, [x0, #16]           \n"
 "       ldr     x5, [x4, #8]                \n"
 "       cbz     x5, 55f                     \n"
-"       ldr     x6, [x0, #16]               \n" // 3 -> 6
 "       stp     x4, x5, [x0, #16]           \n"
 "       add     x7, x0, #0x10               \n" // 4 -> 7
 "       str     x7, [x5]                    \n"

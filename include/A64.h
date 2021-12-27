@@ -544,6 +544,11 @@ static inline uint32_t flds_preindex(uint8_t v_dst, uint8_t base, int16_t offset
 static inline uint32_t flds_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t flds(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t flds_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t fldq_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldq_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldq(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fldq_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0x3dc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+
 static inline uint32_t fldd_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x5c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
 static inline uint32_t flds_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x1c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
 static inline uint32_t fldq_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x9c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
@@ -562,6 +567,7 @@ static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) {
 static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fsqrtd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e61c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t fsubd(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e603800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
+
 static inline uint32_t fstd_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstd_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
@@ -570,6 +576,11 @@ static inline uint32_t fsts_preindex(uint8_t v_dst, uint8_t base, int16_t offset
 static inline uint32_t fsts_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t fstq_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstq_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstq(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fstq_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0x3d800000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+
 
 static inline uint32_t fmov_f64(uint8_t v_dst, uint8_t imm) { return I32(0x1e601000 | (imm << 13) | (v_dst & 31)); }
 static inline uint32_t fmov_f32(uint8_t v_dst, uint8_t imm) { return I32(0x1e201000 | (imm << 13) | (v_dst & 31)); }
@@ -618,9 +629,16 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     uint8_t mant_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
     uint8_t sign_reg = RA_AllocARMRegister(&ptr);
+    uint32_t *tmpptr;
 
     *ptr++ = ldurh_offset(base, exp_reg, offset9);
     *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
+    *ptr++ = tst_immed(exp_reg, 15, 0);
+    *ptr++ = b_cc(A64_CC_NE, 4);
+    *ptr++ = cbnz_64(mant_reg, 3);
+    *ptr++ = fmov_0(fpreg);
+    tmpptr = ptr;
+    *ptr++ = 0;
     *ptr++ = mov_immed_u16(tmp_reg, 0x3c00, 0);
     *ptr++ = lsr(sign_reg, exp_reg, 15);
     *ptr++ = lsr64(mant_reg, mant_reg, 11);
@@ -628,6 +646,7 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     *ptr++ = bfi64(mant_reg, sign_reg, 63, 1);
     *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
     *ptr++ = mov_reg_to_simd(fpreg, TS_D, 0, mant_reg);
+    *tmpptr = b(ptr - tmpptr);
 
     RA_FreeARMRegister(&ptr, sign_reg);
     RA_FreeARMRegister(&ptr, exp_reg);
@@ -644,8 +663,15 @@ uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_
     uint8_t mant_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
     uint8_t sign_reg = RA_AllocARMRegister(&ptr);
+    uint32_t *tmpptr;
 
     *ptr++ = mov_simd_to_reg(exp_reg, fpreg, TS_D, 0);
+    *ptr++ = tst64_immed(exp_reg, 63, 0, 1);
+    *ptr++ = b_cc(A64_CC_NE, 4);
+    *ptr++ = stur_offset(base, 31, offset9);
+    *ptr++ = stur64_offset(base, 31, offset9 + 4);
+    tmpptr = ptr;
+    *ptr++ = 0;
     *ptr++ = lsr64(sign_reg, exp_reg, 63);
     *ptr++ = lsl64(mant_reg, exp_reg, 11);
     *ptr++ = ubfx64(tmp_reg, exp_reg, 52, 11);
@@ -655,6 +681,7 @@ uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_
     *ptr++ = orr_reg(exp_reg, exp_reg, sign_reg, ROR, 1);
     *ptr++ = stur_offset(base, exp_reg, offset9);
     *ptr++ = stur64_offset(base, mant_reg, offset9+4);
+    *tmpptr = b(ptr - tmpptr);
 
     RA_FreeARMRegister(&ptr, sign_reg);
     RA_FreeARMRegister(&ptr, exp_reg);

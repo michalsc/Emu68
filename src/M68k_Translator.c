@@ -34,7 +34,7 @@ int disasm = 0;
 int debug = 0;
 const int debug_cnt = 0;
 
-struct List *ICache;
+struct List ICache[65536];
 struct List LRU;
 static uint32_t *temporary_arm_code;
 static struct M68KLocalState *local_state;
@@ -840,7 +840,7 @@ void M68K_InitializeCache()
     NEWLIST(&LRU);
 
     kprintf("[ICache] Setting up ICache\n");
-    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
+//    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
     temporary_arm_code = tlsf_malloc(jit_tlsf, EMU68_M68K_INSN_DEPTH * 16 * 64);
     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
