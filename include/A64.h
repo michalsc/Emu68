@@ -634,9 +634,8 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     *ptr++ = ldurh_offset(base, exp_reg, offset9);
     *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
     *ptr++ = tst_immed(exp_reg, 15, 0);
-    *ptr++ = b_cc(A64_CC_NE, 5);
-    *ptr++ = cmp64_reg(mant_reg, 31, LSL, 0);
-    *ptr++ = b_cc(A64_CC_NE, 3);
+    *ptr++ = b_cc(A64_CC_NE, 4);
+    *ptr++ = cbnz_64(mant_reg, 3);
     *ptr++ = fmov_0(fpreg);
     tmpptr = ptr;
     *ptr++ = 0;
