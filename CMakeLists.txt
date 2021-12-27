@@ -30,6 +30,7 @@ set(BASE_FILES
     src/ElfLoader.c
     src/md5.c
     src/disasm.c
+    src/findtoken.c
 )
 set(EMU68_FILES
     src/M68k_Translator.c

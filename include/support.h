@@ -139,6 +139,7 @@ void bzero(void *ptr, size_t sz);
 void platform_init();
 void platform_post_init();
 void setup_serial();
+const char * find_token(const char * string, const char * token);
 
 extern void * tlsf;
 extern void * jit_tlsf;
