@@ -629,9 +629,17 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     uint8_t mant_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
     uint8_t sign_reg = RA_AllocARMRegister(&ptr);
+    uint32_t *tmpptr;
 
     *ptr++ = ldurh_offset(base, exp_reg, offset9);
     *ptr++ = ldur64_offset(base, mant_reg, offset9 + 4);
+    *ptr++ = tst_immed(exp_reg, 15, 0);
+    *ptr++ = b_cc(A64_CC_NE, 5);
+    *ptr++ = cmp64_reg(mant_reg, 31, LSL, 0);
+    *ptr++ = b_cc(A64_CC_NE, 3);
+    *ptr++ = fmov_0(fpreg);
+    tmpptr = ptr;
+    *ptr++ = 0;
     *ptr++ = mov_immed_u16(tmp_reg, 0x3c00, 0);
     *ptr++ = lsr(sign_reg, exp_reg, 15);
     *ptr++ = lsr64(mant_reg, mant_reg, 11);
@@ -639,6 +647,7 @@ uint32_t * EMIT_Load96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_t
     *ptr++ = bfi64(mant_reg, sign_reg, 63, 1);
     *ptr++ = bfi64(mant_reg, tmp_reg, 52, 11);
     *ptr++ = mov_reg_to_simd(fpreg, TS_D, 0, mant_reg);
+    *tmpptr = b(ptr - tmpptr);
 
     RA_FreeARMRegister(&ptr, sign_reg);
     RA_FreeARMRegister(&ptr, exp_reg);
@@ -655,8 +664,15 @@ uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_
     uint8_t mant_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
     uint8_t sign_reg = RA_AllocARMRegister(&ptr);
+    uint32_t *tmpptr;
 
     *ptr++ = mov_simd_to_reg(exp_reg, fpreg, TS_D, 0);
+    *ptr++ = tst64_immed(exp_reg, 63, 0, 1);
+    *ptr++ = b_cc(A64_CC_NE, 4);
+    *ptr++ = stur_offset(base, 31, offset9);
+    *ptr++ = stur64_offset(base, 31, offset9 + 4);
+    tmpptr = ptr;
+    *ptr++ = 0;
     *ptr++ = lsr64(sign_reg, exp_reg, 63);
     *ptr++ = lsl64(mant_reg, exp_reg, 11);
     *ptr++ = ubfx64(tmp_reg, exp_reg, 52, 11);
@@ -666,6 +682,7 @@ uint32_t * EMIT_Store96bitFP(uint32_t * ptr, uint8_t fpreg, uint8_t base, int16_
     *ptr++ = orr_reg(exp_reg, exp_reg, sign_reg, ROR, 1);
     *ptr++ = stur_offset(base, exp_reg, offset9);
     *ptr++ = stur64_offset(base, mant_reg, offset9+4);
+    *tmpptr = b(ptr - tmpptr);
 
     RA_FreeARMRegister(&ptr, sign_reg);
     RA_FreeARMRegister(&ptr, exp_reg);
