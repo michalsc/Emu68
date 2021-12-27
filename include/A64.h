@@ -991,6 +991,101 @@ uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, u
             break;
 
         case 1:
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 0);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+        
+        case 3:
+            *ptr++ = orr_immed(tmp_reg, cc, 2, 0);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 7:
+            *ptr++ = orr_immed(tmp_reg, cc, 3, 0);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 15:
+            *ptr++ = orr_immed(tmp_reg, cc, 4, 0);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 31:
+            *ptr++ = orr_immed(tmp_reg, cc, 4, 0);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 2:
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 31);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 6:
+            *ptr++ = orr_immed(tmp_reg, cc, 2, 31);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 14:
+            *ptr++ = orr_immed(tmp_reg, cc, 3, 31);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 30:
+            *ptr++ = orr_immed(tmp_reg, cc, 4, 31);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 4:
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 30);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 12:
+            *ptr++ = orr_immed(tmp_reg, cc, 2, 30);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 28:
+            *ptr++ = orr_immed(tmp_reg, cc, 3, 30);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 8:
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 29);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 24:
+            *ptr++ = orr_immed(tmp_reg, cc, 2, 29);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        case 16:
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
+            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            break;
+
+        default:
+            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
+            *ptr++ = csel(tmp_reg, tmp_reg, 31, cond);
+            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+    }
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
+    return ptr;
+}
+#elif 0
+static inline __attribute__((always_inline))
+uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
+{
+    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+
+    switch (flags)
+    {
+        case 0:
+            break;
+
+        case 1:
             *ptr++ = cset(tmp_reg, cond);
             *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
             break;
