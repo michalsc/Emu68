@@ -212,6 +212,9 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
 
 struct MemoryBlock *sys_memory;
 
+extern uint32_t vid_memory;
+extern uintptr_t vid_base;
+
 void mmu_init()
 {
     /*
@@ -236,6 +239,7 @@ void mmu_init()
         {
             uintptr_t addr = 0;
             uintptr_t size = 0;
+            int update_needed = 0;
 
             for (int i=0; i < address_cells; i++)
             {
@@ -246,30 +250,43 @@ void mmu_init()
                 size = (size << 32) | BE32(range[i + address_cells]);
             }
 
+            if (vid_memory != 0 && vid_base == 0) {
+                if (addr + size <= 0x40000000) {
+                    size -= (vid_memory + 2) << 20;
+                    vid_base = addr + size + (2 << 20);
+                    update_needed = 1;
+                }
+            }
+
 #ifdef PISTORM
             // Adjust base and size of the memory block
-            if (addr < 0x08000000) {
-                size -= 0x08000000 - addr;
-                addr = 0x08000000;
-            }
+            if (addr < 0x01000000) {
+                size -= 0x01000000 - addr;
+                addr = 0x01000000;
 
-            // Put it back into device tree
-            uint32_t *storage = &range[address_cells];
-            uintptr_t tmp = addr;
-            for (int i=0; i < address_cells; i++)
-            {
-                *--storage = (uint32_t)tmp;
-                tmp >>= 32;
-            }
-
-            storage = &range[address_cells + size_cells];
-            tmp = size;
-            for (int i=0; i < size_cells; i++)
-            {
-                *--storage = (uint32_t)tmp;
-                tmp >>= 32;
+                update_needed = 1;
             }
 #endif
+            if (update_needed)
+            {
+                // Put the block back into device tree, this time in updated form
+                uint32_t *storage = &range[address_cells];
+                uintptr_t tmp = addr;
+                for (int i=0; i < address_cells; i++)
+                {
+                    *--storage = (uint32_t)tmp;
+                    tmp >>= 32;
+                }
+
+                storage = &range[address_cells + size_cells];
+                tmp = size;
+                for (int i=0; i < size_cells; i++)
+                {
+                    *--storage = (uint32_t)tmp;
+                    tmp >>= 32;
+                }
+
+            }
 
             sys_memory[block].mb_Base = addr;
             sys_memory[block].mb_Size = size;
