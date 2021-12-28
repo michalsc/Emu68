@@ -561,7 +561,7 @@ static inline uint32_t fmdhr(uint8_t v_dst, uint8_t src) { return mov_reg_to_sim
 static inline uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_S, 0, src); }
 static inline uint32_t fmdxr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_D, 0, src); }
 static inline uint32_t fmrs(uint8_t dst, uint8_t v_src) { return mov_simd_to_reg(dst, v_src, TS_S, 0); }
-
+static inline uint32_t fmov_from_reg(uint8_t v_dst, uint8_t src) { return I32(0x9e670000 | (v_dst & 31) | ((src & 31) << 5)); }
 
 static inline uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e600800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
 static inline uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
@@ -587,6 +587,7 @@ static inline uint32_t fmov_f32(uint8_t v_dst, uint8_t imm) { return I32(0x1e201
 static inline uint32_t fmov(uint8_t v_dst, uint8_t imm) { return fmov_f64(v_dst, imm); }
 
 static inline uint32_t movi_f64(uint8_t v_dst, uint8_t imm) { return I32(0x2f00e400 | (v_dst & 31) | ((imm & 31) << 5) | (((imm > 5) & 7) << 16)); }
+static inline uint32_t movi_v64(uint8_t v_dst, uint8_t imm) { return I32(0x6f00e400 | (v_dst & 31) | ((imm & 31) << 5) | (((imm > 5) & 7) << 16)); }
 
 static inline uint32_t fmov_0(uint8_t v_dst) { return movi_f64(v_dst, 0); }
 static inline uint32_t fmov_1(uint8_t v_dst) { return fmov_f64(v_dst, 112); }
@@ -604,6 +605,8 @@ static inline uint32_t fcvtzs_Dto64(uint8_t dst, uint8_t v_src) { return fcvtzs(
 
 static inline uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e67c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 static inline uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e65c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+
+static inline uint32_t vadd_2d(uint8_t v_dst, uint8_t v_rn, uint8_t v_rm) { return I32(0x4ee08400 | (v_dst & 31) | ((v_rn & 31) << 5) | ((v_rm & 31) << 16)); }
 
 #if 0
 enum VFP_REG { FPSID = 0, FPSCR = 1, FPEXT = 8 };
