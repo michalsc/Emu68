@@ -5,22 +5,19 @@
 kernel=Emu68.img
 disable_splash=1
 arm_64bit=1
+avoid_warnings=1
 
 # Limit GPU memory a little, force 1080p video mode
 gpu_mem=32
 hdmi_group=2
 hdmi_mode=82
-#hdmi_mode=85
-#hdmi_mode=14
+
 
 # Select some m68k code to run...
-# initramfs dhrystone
-# initramfs x
+#initramfs dhrystone
+#initramfs x
 #initramfs Buddha
 #initramfs SmallPT
 #initramfs Buddha_.elf
 #initramfs sysinfo
 #initramfs aros-raspi-m68k-rom.elf
-
-# PiStorm variant - use initramfs to map selected rom
-#initramfs DiagROM
