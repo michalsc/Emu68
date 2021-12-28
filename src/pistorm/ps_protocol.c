@@ -354,7 +354,7 @@ unsigned int ps_read_16(unsigned int address) {
     *(gpio + 1) = LE32(GPFSEL1_INPUT);
     *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
-    *(gpio + 7) = LE32((REG_DATA << PIN_A0) | | (1 << PIN_RD));
+    *(gpio + 7) = LE32((REG_DATA << PIN_A0) | (1 << PIN_RD));
 
     while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
     unsigned int value = LE32(*(gpio + 13));
