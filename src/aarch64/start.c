@@ -1022,6 +1022,7 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
 
     asm volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
+    asm volatile("mov v30.d[0], %0"::"r"(ctx->INSN_COUNT));
 
 #if 0
     asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
@@ -1078,6 +1079,7 @@ void M68K_LoadContext(struct M68KState *ctx)
 void M68K_SaveContext(struct M68KState *ctx)
 {
     asm volatile("mov w1, v31.s[0]; str w1, %0"::"m"(ctx->CACR):"x1");
+    asm volatile("mov x1, v30.d[0]; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
 
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
