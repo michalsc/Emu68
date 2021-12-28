@@ -2064,7 +2064,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             case 0x0e3: /* INSNCNTLO - lower 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+                *ptr++ = mov_simd_to_reg(tmp, 30, TS_D, 0);
                 *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
                 if (insn_count & 0xfff000)
                     *ptr++ = add64_immed_lsl12(tmp, tmp, insn_count >> 12);
@@ -2073,7 +2073,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             case 0x0e4: /* INSNCNTHI - higher 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
+                *ptr++ = mov_simd_to_reg(tmp, 30, TS_D, 0);
                 *ptr++ = add64_immed(tmp, tmp, insn_count & 0xfff);
                 if (insn_count & 0xfff000)
                     *ptr++ = add64_immed_lsl12(tmp, tmp, insn_count >> 12);
