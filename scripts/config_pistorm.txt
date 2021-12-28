@@ -1,0 +1,40 @@
+# Sample config.txt file for booting Emu68 with Pistorm
+kernel=Emu68.img
+disable_splash=1
+arm_64bit=1
+
+# Default boot delay is one second. Uncomment this line if you want zero second delay
+#boot_delay=0
+
+# This is important so that GPU firmware does not add its overlay icons on the screen
+avoid_warnings=1
+
+# Enable the options below to increase speed of ARM cpu to 1.5GHz
+# Keep in mind this may render your RasPi3 unstable and eventually void the warranty!
+#force_turbo=1
+#over_voltage=4
+#arm_freq=1500
+#core_freq=500
+#sdram_freq=600
+
+# Force HDMI signal even if nothing is connected
+hdmi_force_hotplug=1
+
+# Limit GPU memory a little, force 1080p video mode. Comment out the hdmi_mode line if your monitor
+# does not like it. For list of all modes please refer to RasPi documentation
+# https://www.raspberrypi.com/documentation/computers/config_txt.html#hdmi-mode
+gpu_mem=32
+hdmi_group=2
+hdmi_mode=82
+
+# Experimental 2560x1440 50Hz mode for RaspberryPi which you can give a try
+#hdmi_group=2
+#hdmi_mode=87
+#hdmi_cvt=2560 1440 50 3 0 0 1
+#max_framebuffer_width=2560
+#max_framebuffer_height=1440
+#hdmi_pixel_freq_limit=400000000
+
+# The ROM is selected through initramfs parameter. As a file name give the full name of your
+# kickstart file which you have placed on the RasPi boot partition
+initramfs kick321.rom
