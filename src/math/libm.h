@@ -155,4 +155,11 @@ struct double2 sincos(double x);
 double sin(double x);
 double cos(double x);
 
+struct rq {
+  double rem;
+  uint64_t quo;
+};
+
+struct rq remquo(double x, double y);
+
 #endif /* __LIBM_H */

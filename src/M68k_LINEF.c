@@ -2078,6 +2078,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMOVECR reg */
     if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOVECR\n");
+            shown = 1;
+        }
+
         union {
             double d;
             uint32_t u32[2];
@@ -2131,6 +2137,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FABS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0018 || (opcode2 & 0xa07b) == 0x0058))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FABS\n");
+            shown = 1;
+        }
+
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -2165,6 +2177,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FADD */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0022 || (opcode2 & 0xa07b) == 0x0062))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FADD\n");
+            shown = 1;
+        }
+
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -2201,6 +2219,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FNOP */
     else if (opcode == 0xf280 && opcode2 == 0)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FNOP\n");
+            shown = 1;
+        }
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
         ptr = EMIT_FlushPC(ptr);
@@ -2208,6 +2231,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FBcc\n");
+            shown = 1;
+        }
+
         uint8_t fpsr = RA_GetFPSR(&ptr);
         uint8_t predicate = opcode & 0x3f;
         uint8_t success_condition = 0;
@@ -2422,6 +2451,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FCMP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0038)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FCMP\n");
+            shown = 1;
+        }
+
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2444,6 +2479,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FDIV */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0020 || (opcode2 & 0xa07b) == 0x0060))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FDIV\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2470,6 +2510,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSGLDIV */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0024))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSGLDIV\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2498,6 +2543,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSINCOS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa078) == 0x0030))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSINCOS\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
         uint8_t fp_dst_cos = opcode2 & 7;
@@ -2549,6 +2599,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FINT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FINT\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2573,6 +2628,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FGETEXP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001e)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FGETEXP\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -2603,6 +2663,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FGETMAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001f)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FGETMAN\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -2632,6 +2697,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FINTRZ */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0003)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FINTRZ\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2656,6 +2726,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSCALE */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0026)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSCALE\n");
+            shown = 1;
+        }
         uint8_t int_src = 0xff;
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -2708,6 +2783,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOGN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FLOGN\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2753,9 +2833,82 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
+    /* FREM */
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0025)
+    {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FREM\n");
+            shown = 1;
+        }
+
+        uint8_t fp_src = 1;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        *ptr++ = fcpyd(0, fp_dst);
+
+        union {
+            uint64_t u64;
+            uint32_t u32[2];
+        } u;
+
+        u.u64 = (uintptr_t)remquo;
+
+        if (fp_src != 1) {
+            *ptr++ = fcpyd(1, fp_src);
+        }
+
+        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+
+        *ptr++ = adr(30, 20);
+        *ptr++ = ldr64_pcrel(0, 2);
+        *ptr++ = br(0);
+
+        *ptr++ = u.u32[0];
+        *ptr++ = u.u32[1];
+
+        // Clear V0
+        *ptr++ = fmov_0(0);
+        // The result of remquo is not in FPU regiser, but rather integer. Put it into destination now
+        *ptr++ = mov_reg_to_simd(fp_dst, TS_D, 0, 0);
+        // Put quotient byte to the v0 first, before restoring register frame
+        *ptr++ = mov_reg_to_simd(0, TS_B, 2, 1);
+
+        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+
+        uint8_t fpsr = RA_ModifyFPSR(&ptr);
+        *ptr++ = bic_immed(fpsr, fpsr, 8, 16);
+
+        // Once frame is resotred, get quotient byte and put it into FPSR
+        uint8_t tmp_quot = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_simd_to_reg(tmp_quot, 0, TS_S, 0);
+        *ptr++ = orr_reg(fpsr, fpsr, tmp_quot, LSL, 0);
+        RA_FreeARMRegister(&ptr, tmp_quot);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        {
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+
+        *ptr++ = INSN_TO_LE(0xfffffff0);
+    }
     /* FLOGNP1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0006)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FLOGNP1\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2804,6 +2957,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOG10 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0015)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FLOG10\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2852,6 +3010,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FLOG2 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0016)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FLOG2\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2900,6 +3063,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FETOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0010)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FETOX\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2948,6 +3116,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FETOXM1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0008)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FETOXM1\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2996,6 +3169,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSINH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0002)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSINH\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3044,6 +3222,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FCOSH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0019)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FCOSH\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3092,6 +3275,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FATAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000a)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FATAN\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3140,6 +3328,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FATANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000d)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FATANH\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3188,6 +3381,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FACOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001c)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FACOS\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3236,6 +3434,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FASIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000c)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FASIN\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3284,6 +3487,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000f)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FATAN\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3332,6 +3540,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0009)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FTANH\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3380,6 +3593,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTENTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0012)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FTENTOX\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3428,6 +3646,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTWOTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0011)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FTWOTOX\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3476,6 +3699,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMOVE to REG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOVE to REG\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -3524,6 +3752,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMOVE to MEM */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xe07f) == 0x6000 || (opcode2 & 0xfc00) == 0x6c00 || (opcode2 & 0xfc0f) == 0x7c00))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOVE to MEM\n");
+            shown = 1;
+        }
         uint8_t fp_src = (opcode2 >> 7) & 7;
         fp_src = RA_MapFPURegister(&ptr, fp_src);
         ptr = FPU_StoreData(ptr, m68k_ptr, fp_src, opcode, opcode2, &ext_count);
@@ -3534,6 +3767,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMOVE from special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOVE from SPECIAL\n");
+            shown = 1;
+        }
         uint8_t reg_CTX = RA_GetCTX(&ptr);
         uint8_t reg = 0xff;
         uint8_t dst = 0xff;
@@ -3630,6 +3868,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMOVE to special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0x8000)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOVE to SPECIAL\n");
+            shown = 1;
+        }
         uint8_t src = 0xff;
         uint8_t tmp = 0xff;
         uint8_t reg = 0xff;
@@ -3748,6 +3991,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMOVEM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOVEM\n");
+            shown = 1;
+        }
         char dir = (opcode2 >> 13) & 1;
         uint8_t base_reg = 0xff;
 
@@ -3854,6 +4102,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0023 || (opcode2 & 0xa07b) == 0x0063))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMUL\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -3890,6 +4143,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSGLMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0027))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSGLMUL\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3918,6 +4176,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FNEG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x001a || (opcode2 & 0xa07b) == 0x005a))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FNEG\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -3952,6 +4215,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FTST */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x003a)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FTST\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
 
         ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
@@ -3972,6 +4240,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FScc */
     else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FScc\n");
+            shown = 1;
+        }
         uint8_t fpsr = RA_GetFPSR(&ptr);
         uint8_t predicate = opcode2 & 0x3f;
         uint8_t success_condition = 0;
@@ -4193,6 +4466,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSQRT\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4227,6 +4505,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSUB */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0028 || (opcode2 & 0xa07b) == 0x0068))
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSUB\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4263,6 +4546,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSIN\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4311,6 +4599,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FCOS\n");
+            shown = 1;
+        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4362,6 +4655,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
              (opcode & 0x38) != 0x20 &&
              (opcode & 0x3f) <= 0x3b)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FRESTORE\n");
+            shown = 1;
+        }
         uint8_t tmp = -1;
         ext_count = 0;
         uint32_t *tmp_ptr;
@@ -4420,6 +4718,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
              (opcode & 0x38) != 0x18 &&
              (opcode & 0x3f) <= 0x39)
     {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FSAVE\n");
+            shown = 1;
+        }
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         
         ext_count = 0;
