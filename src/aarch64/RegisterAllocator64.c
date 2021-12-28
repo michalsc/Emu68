@@ -186,10 +186,16 @@ uint8_t RA_GetFPCR(uint32_t **ptr)
     if (reg_FPCR == 0xff)
     {
         reg_FPCR = RA_AllocARMRegister(ptr);
+#if 0
         uint8_t reg_CTX = RA_GetCTX(ptr);
         **ptr = ldrh_offset(reg_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
         (*ptr)++;
         mod_FPCR = 0;
+#else
+        **ptr = mov_simd_to_reg(reg_FPCR, 29, TS_H, 4);
+        (*ptr)++;
+        mod_FPCR = 0;
+#endif
     }
 
     return reg_FPCR;
@@ -206,9 +212,14 @@ void RA_StoreFPCR(uint32_t **ptr)
 {
     if (reg_FPCR != 0xff && mod_FPCR)
     {
+#if 0
         uint8_t reg_CTX = RA_GetCTX(ptr);
         **ptr = strh_offset(reg_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
         (*ptr)++;
+#else
+        **ptr = mov_reg_to_simd(29, TS_H, 4, reg_FPCR);
+        (*ptr)++;
+#endif
     }
 }
 
@@ -218,9 +229,14 @@ void RA_FlushFPCR(uint32_t **ptr)
     {
         if (mod_FPCR)
         {
+#if 0
             uint8_t reg_CTX = RA_GetCTX(ptr);
             **ptr = strh_offset(reg_CTX, reg_FPCR, __builtin_offsetof(struct M68KState, FPCR));
             (*ptr)++;
+#else
+            **ptr = mov_reg_to_simd(29, TS_H, 4, reg_FPCR);
+            (*ptr)++;
+#endif
         }
         RA_FreeARMRegister(ptr, reg_FPCR);
     }
@@ -232,11 +248,17 @@ uint8_t RA_GetFPSR(uint32_t **ptr)
 {
     if (reg_FPSR == 0xff)
     {
-        uint8_t reg_CTX = RA_GetCTX(ptr);
         reg_FPSR = RA_AllocARMRegister(ptr);
+#if 0
+        uint8_t reg_CTX = RA_GetCTX(ptr);
         **ptr = ldr_offset(reg_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
         (*ptr)++;
         mod_FPSR = 0;
+#else
+        **ptr = mov_simd_to_reg(reg_FPSR, 29, TS_S, 0);
+        (*ptr)++;
+        mod_FPSR = 0;
+#endif
     }
 
     return reg_FPSR;
@@ -253,9 +275,14 @@ void RA_StoreFPSR(uint32_t **ptr)
 {
     if (reg_FPSR != 0xff && mod_FPSR)
     {
+#if 0
         uint8_t reg_CTX = RA_GetCTX(ptr);
         **ptr = str_offset(reg_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
         (*ptr)++;
+#else
+        **ptr = mov_reg_to_simd(29, TS_S, 0, reg_FPSR);
+        (*ptr)++;
+#endif
     }
 }
 
@@ -265,9 +292,14 @@ void RA_FlushFPSR(uint32_t **ptr)
     {
         if (mod_FPSR)
         {
+#if 0
             uint8_t reg_CTX = RA_GetCTX(ptr);
             **ptr = str_offset(reg_CTX, reg_FPSR, __builtin_offsetof(struct M68KState, FPSR));
             (*ptr)++;
+#else
+            **ptr = mov_reg_to_simd(29, TS_S, 0, reg_FPSR);
+            (*ptr)++;
+#endif
         }
         RA_FreeARMRegister(ptr, reg_FPSR);
     }

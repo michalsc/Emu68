@@ -1023,26 +1023,10 @@ void M68K_LoadContext(struct M68KState *ctx)
 
     asm volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
     asm volatile("mov v30.d[0], %0"::"r"(ctx->INSN_COUNT));
+    asm volatile("mov v29.s[0], %w0"::"r"(ctx->FPSR));
+    asm volatile("mov v29.s[1], %w0"::"r"(ctx->FPIAR));
+    asm volatile("mov v29.h[4], %w0"::"r"(ctx->FPCR));
 
-#if 0
-    asm volatile("ldr w%0, %1"::"i"(REG_D0),"m"(ctx->D[0].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D1),"m"(ctx->D[1].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D2),"m"(ctx->D[2].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D3),"m"(ctx->D[3].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D4),"m"(ctx->D[4].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D5),"m"(ctx->D[5].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D6),"m"(ctx->D[6].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_D7),"m"(ctx->D[7].u32));
-    
-    asm volatile("ldr w%0, %1"::"i"(REG_A0),"m"(ctx->A[0].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A1),"m"(ctx->A[1].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A2),"m"(ctx->A[2].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A3),"m"(ctx->A[3].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A4),"m"(ctx->A[4].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A5),"m"(ctx->A[5].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A6),"m"(ctx->A[6].u32));
-    asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->A[7].u32));
-#else
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
@@ -1052,7 +1036,7 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
     asm volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
-#endif
+
     asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
     asm volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
@@ -1080,7 +1064,11 @@ void M68K_SaveContext(struct M68KState *ctx)
 {
     asm volatile("mov w1, v31.s[0]; str w1, %0"::"m"(ctx->CACR):"x1");
     asm volatile("mov x1, v30.d[0]; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
-
+    
+    asm volatile("mov w1, v29.s[0]; str w1, %0"::"m"(ctx->FPSR):"x1");
+    asm volatile("mov w1, v29.s[1]; str w1, %0"::"m"(ctx->FPIAR):"x1");
+    asm volatile("umov w1, v29.h[4]; strh w1, %0"::"m"(ctx->FPCR):"x1");
+    
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
     asm volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
