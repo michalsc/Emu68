@@ -7,6 +7,7 @@ arm_64bit=1
 #boot_delay=0
 
 # This is important so that GPU firmware does not add its overlay icons on the screen
+# If you also want to disable speed throttling in case of undervoltage, set this value to 2
 avoid_warnings=1
 
 # Enable the options below to increase speed of ARM cpu to 1.5GHz
@@ -27,7 +28,8 @@ gpu_mem=32
 hdmi_group=2
 hdmi_mode=82
 
-# Experimental 2560x1440 50Hz mode for RaspberryPi which you can give a try
+# Experimental 2560x1440 50Hz mode for RaspberryPi which you can give a try. If you do, 
+# comment the hdmi_mode above
 #hdmi_group=2
 #hdmi_mode=87
 #hdmi_cvt=2560 1440 50 3 0 0 1
