@@ -402,8 +402,6 @@ uint32_t *EMIT_SaveRegFrame(uint32_t *ptr, uint32_t mask)
 {
     uint8_t cnt = __builtin_popcount(mask);
 
-    *ptr++ = fstq_preindex(31, 31, -16);
-
     if (cnt != 0)
     {
         // Reserve place on stack
@@ -479,7 +477,5 @@ uint32_t *EMIT_RestoreRegFrame(uint32_t *ptr, uint32_t mask)
             *ptr++ = add64_immed(31, 31, 8*cnt_orig);
     }
     
-    *ptr++ = fldq_postindex(31, 31, 16);
-
     return ptr;
 }
