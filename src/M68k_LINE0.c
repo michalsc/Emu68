@@ -180,7 +180,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest = 0xff;
     uint8_t size = 0;
-    uint16_t lo16;
+    uint16_t lo16 = 0;
     uint32_t u32 = 0;
     int immediate = 0;
 
@@ -466,7 +466,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest = 0xff;
     uint8_t size = 0;
-    uint16_t lo16;
+    uint16_t lo16 = 0;
     uint32_t u32 = 0;
     int add_immediate = 0;
 
@@ -1613,7 +1613,7 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t dest = 0xff;
     uint8_t size = 0;
-    int16_t lo16;
+    int16_t lo16 = 0;
     uint32_t u32;
     uint32_t mask32 = 0;
     uint32_t *tst_pos = (uint32_t *)NULL;
