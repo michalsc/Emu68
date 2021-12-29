@@ -1213,8 +1213,23 @@ uint32_t number_to_mask(uint32_t number)
 
     if (number == ((1ULL << width) - 1))
         return (width << 16) | shift;
-    else
-        return 0xffffffff;
+    else {
+        number = ~number;
+
+        if (number == 0)
+            return 0;
+
+        shift = __builtin_ctz(number);
+
+        number = number >> shift;
+
+        width = 32 - __builtin_clz(number);
+
+        if (number == ((1ULL << width) - 1))
+            return ((32 - width) << 16) | (shift + width);
+        else
+            return 0xffffffff;
+    }
 }
 
 #endif /* _A64_H */
