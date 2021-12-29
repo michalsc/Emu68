@@ -30,7 +30,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t src = 0xff;
 
         RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-        if (size == 4)
+        if (size == 4 || update_mask == 0 || update_mask == SR_Z || update_mask == SR_N)
             ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
         else
             ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
@@ -46,11 +46,19 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
 #ifdef __aarch64__
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = lsl(tmp, dest, 16);
-                *ptr++ = subs_reg(src, tmp, src, LSL, 16);
-                *ptr++ = bfxil(dest, src, 16, 16);
-                RA_FreeARMRegister(&ptr, tmp);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sub_reg(tmp, dest, src, LSL, 0);
+                    *ptr++ = bfxil(dest, tmp, 0, 16);
+                    RA_FreeARMRegister(&ptr, tmp);
+                }
+                else {
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = lsl(tmp, dest, 16);
+                    *ptr++ = subs_reg(src, tmp, src, LSL, 16);
+                    *ptr++ = bfxil(dest, src, 16, 16);
+                    RA_FreeARMRegister(&ptr, tmp);
+                }
 #else
                 *ptr++ = lsl_immed(src, src, 16);
                 *ptr++ = rsbs_reg(src, src, dest, 16);
@@ -60,11 +68,19 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 1:
 #ifdef __aarch64__
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = lsl(tmp, dest, 24);
-                *ptr++ = subs_reg(src, tmp, src, LSL, 24);
-                *ptr++ = bfxil(dest, src, 24, 8);
-                RA_FreeARMRegister(&ptr, tmp);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = sub_reg(tmp, dest, src, LSL, 0);
+                    *ptr++ = bfxil(dest, tmp, 0, 8);
+                    RA_FreeARMRegister(&ptr, tmp);
+                }
+                else {
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = lsl(tmp, dest, 24);
+                    *ptr++ = subs_reg(src, tmp, src, LSL, 24);
+                    *ptr++ = bfxil(dest, src, 24, 8);
+                    RA_FreeARMRegister(&ptr, tmp);
+                }
 #else
                 *ptr++ = lsl_immed(src, src, 24);
                 *ptr++ = rsbs_reg(src, src, dest, 24);
@@ -72,6 +88,42 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = bfi(dest, src, 0, 8);
 #endif
                 break;
+        }
+
+        if (size < 4 && update_mask == SR_Z)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_Z);
+
+            switch (size) {
+                case 2:
+                    *ptr++ = ands_immed(31, dest, 16, 0);
+                    break;
+                case 1:
+                    *ptr++ = ands_immed(31, dest, 8, 0);
+                    break;
+            }
+            
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, A64_CC_EQ);
+            update_mask = 0;
+        }
+
+        if (size < 4 && update_mask == SR_N)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_N);
+
+            switch (size) {
+                case 2:
+                    *ptr++ = ands_immed(31, dest, 1, 32-15);
+                    break;
+                case 1:
+                    *ptr++ = ands_immed(31, dest, 1, 32-7);
+                    break;
+            }
+            
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, A64_CC_NE);
+            update_mask = 0;
         }
 
         RA_FreeARMRegister(&ptr, src);
@@ -125,9 +177,14 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = ldrh_offset(dest, tmp, 0);
             /* Perform calcualtion */
 #ifdef __aarch64__
-            *ptr++ = lsl(tmp, tmp, 16);
-            *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
-            *ptr++ = lsr(tmp, tmp, 16);
+            if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                *ptr++ = sub_reg(tmp, tmp, src, LSL, 0);
+            }
+            else {
+                *ptr++ = lsl(tmp, tmp, 16);
+                *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
+                *ptr++ = lsr(tmp, tmp, 16);
+            }
 #else
             *ptr++ = lsl_immed(tmp, tmp, 16);
             *ptr++ = subs_reg(tmp, tmp, src, 16);
@@ -153,9 +210,14 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             /* Perform calcualtion */
 #ifdef __aarch64__
-            *ptr++ = lsl(tmp, tmp, 24);
-            *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
-            *ptr++ = lsr(tmp, tmp, 24);
+            if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                *ptr++ = sub_reg(tmp, tmp, src, LSL, 0);
+            }
+            else {
+                *ptr++ = lsl(tmp, tmp, 24);
+                *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
+                *ptr++ = lsr(tmp, tmp, 24);
+            }
 #else
             *ptr++ = lsl_immed(tmp, tmp, 24);
             *ptr++ = subs_reg(tmp, tmp, src, 24);
@@ -170,6 +232,42 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             else
                 *ptr++ = strb_offset(dest, tmp, 0);
             break;
+        }
+
+        if (size < 4 && update_mask == SR_Z)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_Z);
+
+            switch (size) {
+                case 2:
+                    *ptr++ = ands_immed(31, tmp, 16, 0);
+                    break;
+                case 1:
+                    *ptr++ = ands_immed(31, tmp, 8, 0);
+                    break;
+            }
+            
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, A64_CC_EQ);
+            update_mask = 0;
+        }
+
+        if (size < 4 && update_mask == SR_N)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_N);
+
+            switch (size) {
+                case 2:
+                    *ptr++ = ands_immed(31, tmp, 1, 32-15);
+                    break;
+                case 1:
+                    *ptr++ = ands_immed(31, tmp, 1, 32-7);
+                    break;
+            }
+            
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, A64_CC_NE);
+            update_mask = 0;
         }
 
         RA_FreeARMRegister(&ptr, dest);

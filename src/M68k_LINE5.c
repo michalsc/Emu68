@@ -38,9 +38,23 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 0:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                *ptr++ = mov_immed_u16(tmp, data << 8, 1);
-                *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
-                *ptr++ = bfxil(dest, tmp, 24, 8);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    *ptr++ = add_immed(tmp, dest, data);
+                    *ptr++ = bfxil(dest, tmp, 0, 8);
+
+                    if (update_mask == SR_Z) {
+                        *ptr++ = ands_immed(31, tmp, 8, 0);
+                    }
+                    else if (update_mask == SR_N) {
+                        *ptr++ = ands_immed(31, tmp, 1, 32-7);
+                    }
+                }
+                else 
+                {
+                    *ptr++ = mov_immed_u16(tmp, data << 8, 1);
+                    *ptr++ = adds_reg(tmp, tmp, dest, LSL, 24);
+                    *ptr++ = bfxil(dest, tmp, 24, 8);
+                }
 #else
                 *ptr++ = lsl_immed(tmp, dest, 24);
                 *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
@@ -53,9 +67,23 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                *ptr++ = mov_immed_u16(tmp, data, 1);
-                *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
-                *ptr++ = bfxil(dest, tmp, 16, 16);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_Z) {
+                    *ptr++ = add_immed(tmp, dest, data);
+                    *ptr++ = bfxil(dest, tmp, 0, 16);
+
+                    if (update_mask == SR_Z) {
+                        *ptr++ = ands_immed(31, tmp, 16, 0);
+                    }
+                    else if (update_mask == SR_N) {
+                        *ptr++ = ands_immed(31, tmp, 1, 32-15);
+                    }
+                }
+                else 
+                {
+                    *ptr++ = mov_immed_u16(tmp, data, 1);
+                    *ptr++ = adds_reg(tmp, tmp, dest, LSL, 16);
+                    *ptr++ = bfxil(dest, tmp, 16, 16);
+                }
 #else
                 *ptr++ = lsl_immed(tmp, dest, 16);
                 *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
@@ -105,11 +133,28 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = ldrb_offset(dest, tmp, 0);
                 /* Perform calcualtion */
 #ifdef __aarch64__
-                uint8_t immed = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(immed, data << 8, 1);
-                *ptr++ = adds_reg(tmp, immed, tmp, LSL, 24);
-                *ptr++ = lsr(tmp, tmp, 24);
-                RA_FreeARMRegister(&ptr, immed);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    *ptr++ = add_immed(tmp, tmp, data);
+                    
+                    if (update_mask == SR_Z) {
+                        *ptr++ = ands_immed(31, tmp, 8, 0);
+                    }
+                    else if (update_mask == SR_N) {
+                        *ptr++ = ands_immed(31, tmp, 1, 32-7);
+                    }
+                }
+                else 
+                {
+                    if (update_mask == SR_Z)
+                        kprintf("ADDQ.B (EA) with update_mask == SR_Z\n");
+                    else if (update_mask == SR_N)
+                        kprintf("ADDQ.B (EA) with update_mask == SR_N\n");
+                    uint8_t immed = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_immed_u16(immed, data << 8, 1);
+                    *ptr++ = adds_reg(tmp, immed, tmp, LSL, 24);
+                    *ptr++ = lsr(tmp, tmp, 24);
+                    RA_FreeARMRegister(&ptr, immed);
+                }
 #else
                 *ptr++ = lsl_immed(tmp, tmp, 24);
                 *ptr++ = adds_immed(tmp, tmp, 0x400 | data);
@@ -135,11 +180,24 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
                 /* Perform calcualtion */
 #ifdef __aarch64__
-                immed = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(immed, data, 1);
-                *ptr++ = adds_reg(tmp, immed, tmp, LSL, 16);
-                *ptr++ = lsr(tmp, tmp, 16);
-                RA_FreeARMRegister(&ptr, immed);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    *ptr++ = add_immed(tmp, tmp, data);
+
+                    if (update_mask == SR_Z) {
+                        *ptr++ = ands_immed(31, tmp, 16, 0);
+                    }
+                    else if (update_mask == SR_N) {
+                        *ptr++ = ands_immed(31, tmp, 1, 32-15);
+                    }
+                }
+                else 
+                {
+                    uint8_t immed = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_immed_u16(immed, data, 1);
+                    *ptr++ = adds_reg(tmp, immed, tmp, LSL, 16);
+                    *ptr++ = lsr(tmp, tmp, 16);
+                    RA_FreeARMRegister(&ptr, immed);
+                }
 #else
                 *ptr++ = lsl_immed(tmp, tmp, 16);
                 *ptr++ = adds_immed(tmp, tmp, 0x800 | data);
@@ -180,6 +238,24 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         RA_FreeARMRegister(&ptr, dest);
         RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    if (((opcode >> 6) & 3) < 2)
+    {
+        if (update_mask == SR_Z) 
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_Z);          
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, A64_CC_EQ);
+            update_mask = 0;
+        }
+        else if (update_mask == SR_N) 
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_N);          
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, A64_CC_NE);
+            update_mask = 0;
+        }
     }
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
@@ -245,10 +321,24 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 0:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                *ptr++ = lsl(tmp2, dest, 24);
-                *ptr++ = mov_immed_u16(tmp, data << 8, 1);
-                *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
-                *ptr++ = bfxil(dest, tmp, 24, 8);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    *ptr++ = sub_immed(tmp, dest, data);
+                    *ptr++ = bfxil(dest, tmp, 0, 8);
+
+                    if (update_mask == SR_Z) {
+                        *ptr++ = ands_immed(31, tmp, 8, 0);
+                    }
+                    else if (update_mask == SR_N) {
+                        *ptr++ = ands_immed(31, tmp, 1, 32-7);
+                    }
+                }
+                else
+                {
+                    *ptr++ = lsl(tmp2, dest, 24);
+                    *ptr++ = mov_immed_u16(tmp, data << 8, 1);
+                    *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
+                    *ptr++ = bfxil(dest, tmp, 24, 8);
+                }
 #else
                 *ptr++ = lsl_immed(tmp, dest, 24);
                 *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
@@ -261,10 +351,24 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                *ptr++ = lsl(tmp2, dest, 16);
-                *ptr++ = mov_immed_u16(tmp, data, 1);
-                *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
-                *ptr++ = bfxil(dest, tmp, 16, 16);
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                    *ptr++ = sub_immed(tmp, dest, data);
+                    *ptr++ = bfxil(dest, tmp, 0, 16);
+
+                    if (update_mask == SR_Z) {
+                        *ptr++ = ands_immed(31, tmp, 16, 0);
+                    }
+                    else if (update_mask == SR_N) {
+                        *ptr++ = ands_immed(31, tmp, 1, 32-15);
+                    }
+                }
+                else
+                {
+                    *ptr++ = lsl(tmp2, dest, 16);
+                    *ptr++ = mov_immed_u16(tmp, data, 1);
+                    *ptr++ = subs_reg(tmp, tmp2, tmp, LSL, 0);
+                    *ptr++ = bfxil(dest, tmp, 16, 16);
+                }
 #else
                 *ptr++ = lsl_immed(tmp, dest, 16);
                 *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
@@ -316,12 +420,25 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = ldrb_offset(dest, tmp, 0);
             /* Perform calcualtion */
 #ifdef __aarch64__
-            uint8_t immed = RA_AllocARMRegister(&ptr);
-            *ptr++ = lsl(tmp, tmp, 24);
-            *ptr++ = mov_immed_u16(immed, data << 8, 1);
-            *ptr++ = subs_reg(tmp, tmp, immed, LSL, 0);
-            *ptr++ = lsr(tmp, tmp, 24);
-            RA_FreeARMRegister(&ptr, immed);
+            if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                *ptr++ = sub_immed(tmp, tmp, data);
+
+                if (update_mask == SR_Z) {
+                    *ptr++ = ands_immed(31, tmp, 8, 0);
+                }
+                else if (update_mask == SR_N) {
+                    *ptr++ = ands_immed(31, tmp, 1, 32-7);
+                }
+            }
+            else
+            {
+                uint8_t immed = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl(tmp, tmp, 24);
+                *ptr++ = mov_immed_u16(immed, data << 8, 1);
+                *ptr++ = subs_reg(tmp, tmp, immed, LSL, 0);
+                *ptr++ = lsr(tmp, tmp, 24);
+                RA_FreeARMRegister(&ptr, immed);
+            }
 #else
             *ptr++ = lsl_immed(tmp, tmp, 24);
             *ptr++ = subs_immed(tmp, tmp, 0x400 | data);
@@ -347,12 +464,25 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             /* Perform calcualtion */
 #ifdef __aarch64__
-            immed = RA_AllocARMRegister(&ptr);
-            *ptr++ = lsl(tmp, tmp, 16);
-            *ptr++ = mov_immed_u16(immed, data, 1);
-            *ptr++ = subs_reg(tmp, tmp, immed, LSL, 0);
-            *ptr++ = lsr(tmp, tmp, 16);
-            RA_FreeARMRegister(&ptr, immed);
+            if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
+                *ptr++ = sub_immed(tmp, tmp, data);
+
+                if (update_mask == SR_Z) {
+                    *ptr++ = ands_immed(31, tmp, 16, 0);
+                }
+                else if (update_mask == SR_N) {
+                    *ptr++ = ands_immed(31, tmp, 1, 32-15);
+                }
+            }
+            else
+            {
+                uint8_t immed = RA_AllocARMRegister(&ptr);
+                *ptr++ = lsl(tmp, tmp, 16);
+                *ptr++ = mov_immed_u16(immed, data, 1);
+                *ptr++ = subs_reg(tmp, tmp, immed, LSL, 0);
+                *ptr++ = lsr(tmp, tmp, 16);
+                RA_FreeARMRegister(&ptr, immed);
+            }
 #else
             *ptr++ = lsl_immed(tmp, tmp, 16);
             *ptr++ = subs_immed(tmp, tmp, 0x800 | data);
@@ -393,6 +523,24 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         RA_FreeARMRegister(&ptr, dest);
         RA_FreeARMRegister(&ptr, tmp);
+    }
+
+    if (((opcode >> 6) & 3) < 2)
+    {
+        if (update_mask == SR_Z) 
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_Z);          
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, A64_CC_EQ);
+            update_mask = 0;
+        }
+        else if (update_mask == SR_N) 
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_N);          
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, A64_CC_NE);
+            update_mask = 0;
+        }
     }
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));

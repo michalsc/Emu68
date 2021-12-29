@@ -346,8 +346,14 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             {
                 case 2:
 #ifdef __aarch64__
-                    *ptr++ = negs_reg(tmp, dest, LSL, 16);
-                    *ptr++ = bfxil(dest, tmp, 16, 16);
+                    if (update_mask == 0) {
+                        *ptr++ = negs_reg(tmp, dest, LSL, 0);
+                        *ptr++ = bfxil(dest, tmp, 0, 16);
+                    }
+                    else {
+                        *ptr++ = negs_reg(tmp, dest, LSL, 16);
+                        *ptr++ = bfxil(dest, tmp, 16, 16);
+                    }
 #else
                     *ptr++ = lsl_immed(tmp, dest, 16);
                     *ptr++ = rsbs_immed(tmp, tmp, 0);
@@ -357,8 +363,14 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                     break;
                 case 1:
 #ifdef __aarch64__
-                    *ptr++ = negs_reg(tmp, dest, LSL, 24);
-                    *ptr++ = bfxil(dest, tmp, 24, 8);
+                    if (update_mask == 0) {
+                        *ptr++ = negs_reg(tmp, dest, LSL, 0);
+                        *ptr++ = bfxil(dest, tmp, 0, 8);
+                    }
+                    else {
+                        *ptr++ = negs_reg(tmp, dest, LSL, 24);
+                        *ptr++ = bfxil(dest, tmp, 24, 8);
+                    }
 #else
                     *ptr++ = lsl_immed(tmp, dest, 24);
                     *ptr++ = rsbs_immed(tmp, tmp, 0);
