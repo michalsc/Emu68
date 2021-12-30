@@ -1,3 +1,9 @@
+---
+layout: default
+title: Setting up P96
+parent: Tutorials
+---
+
 # Setting up Picasso96 with Emu68
 
 In this short tutorial I will try go guide you with installation of Picasso96 (P96) subsystem on Emu68 with PiStorm. The guide works on systems with a bit of software installed already as well as with freshly installed ones.

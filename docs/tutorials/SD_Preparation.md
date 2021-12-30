@@ -1,3 +1,9 @@
+---
+layout: default
+title: SD card preparation
+parent: Tutorials
+---
+
 # Prepare your SD card for use as HardDrive on Emu68
 
 ## Foreword
