@@ -1,4 +1,9 @@
-title: "Remote theme example"
+title: "Emu68 - Bare metal m68k emulator for AArch64"
 remote_theme: pmarsceill/just-the-docs
 color_scheme: "dark"
 search_enabled: false
+aux_links:
+  "Emu68 on GitHub":
+    - "https://github.com/michalsc/Emu68"
+  "Patreon":
+    - "https://www.patreon.com/michal_schulz"
