@@ -67,7 +67,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
                 tmp = RA_AllocARMRegister(&ptr);
 #ifdef __aarch64__
-                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_Z) {
+                if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
                     *ptr++ = add_immed(tmp, dest, data);
                     *ptr++ = bfxil(dest, tmp, 0, 16);
 
@@ -106,7 +106,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             update_cc = 0;
 
-            *ptr++ = adds_immed(dest, dest, data);
+            *ptr++ = add_immed(dest, dest, data);
         }
     }
     else
@@ -145,10 +145,6 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 }
                 else 
                 {
-                    if (update_mask == SR_Z)
-                        kprintf("ADDQ.B (EA) with update_mask == SR_Z\n");
-                    else if (update_mask == SR_N)
-                        kprintf("ADDQ.B (EA) with update_mask == SR_N\n");
                     uint8_t immed = RA_AllocARMRegister(&ptr);
                     *ptr++ = mov_immed_u16(immed, data << 8, 1);
                     *ptr++ = adds_reg(tmp, immed, tmp, LSL, 24);
