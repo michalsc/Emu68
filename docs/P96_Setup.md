@@ -8,7 +8,7 @@ The emu68-vc4.card driver does not reconfigure the HDMI port. The port configura
 
 First of all, you need to get a copy of P96. You can find older version on Aminet, but if you prefer a more recent one with several bug fixes and improvemends, go to the iComp website and obtain it there. Subsequently, prepare an ADF image (for example on WinUAE) where you will put
 
-1. P96 archive
+1. P96 archive: [AmiNet version](https://aminet.net/package/driver/video/Picasso96)
 2. emu68-vc4.card file: [You can find it here](https://drive.google.com/file/d/1sQilE-bh7nW0bzgho6mDR2LdNPoc41wj/view?usp=sharing)
 3. Lha if you don't have it yet: [Get from Aminet](https://aminet.net/package/util/arc/lha)
 
