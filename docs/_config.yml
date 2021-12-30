@@ -1,4 +1,4 @@
-title: "Emu68 - Bare metal m68k emulator for AArch64"
+title: "Emu68"
 remote_theme: pmarsceill/just-the-docs
 color_scheme: "dark"
 search_enabled: false
