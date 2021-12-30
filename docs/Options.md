@@ -37,40 +37,61 @@ Below are currently implemented options, grouped by the affected modules and/or 
 
 ### brcm-sdhc.device
 
-* ``sd.verbose=0 | 1 | 2``  adjust verbosity of the driver. Value ``0`` is default one and it shuts off debug nearly completely. Value ``1`` gives some more details from the driver, whereas value ``2`` should be used only for debugging purposes since it reports every single BeginIO call.
-* ``sd.unit0=off | ro | rw`` change the behaviour of sdhc-brcm.device unit 0. Default value is ``ro`` which means the unit is not hidden, but cannot be written to. Changing the value to ``off`` disables the unit 0 completely whereas ``rw`` allows one to write data to it. Use with care, as Unit 0 of the device represents the entire card, including partition table and FAT32 boot partition.
-* ``sd.low_speed`` disables 50 MHz clock even if the microSD card reports that the clock is supported. Setting this option disables SD card overclocking (see subsequent option).
-* ``sd.clock=num`` selects the clock speed in MHz which will be switched on instead of default 50 MHz if the card supports the high-speed mode. The option has no effect if ``sd.low_speed`` was also applied.
+* ``sd.verbose=0 | 1 | 2``  
+  Adjust verbosity of the driver. Value ``0`` is default one and it shuts off debug nearly completely. Value ``1`` gives some more details from the driver, whereas value ``2`` should be used only for debugging purposes since it reports every single BeginIO call.
+* ``sd.unit0=off | ro | rw`` 
+  Change the behaviour of sdhc-brcm.device unit 0. Default value is ``ro`` which means the unit is not hidden, but cannot be written to. Changing the value to ``off`` disables the unit 0 completely whereas ``rw`` allows one to write data to it. Use with care, as Unit 0 of the device represents the entire card, including partition table and FAT32 boot partition.
+* ``sd.low_speed`` 
+  Disables 50 MHz clock even if the microSD card reports that the clock is supported. Setting this option disables SD card overclocking (see subsequent option).
+* ``sd.clock=num`` 
+  Selects the clock speed in MHz which will be switched on instead of default 50 MHz if the card supports the high-speed mode. The option has no effect if ``sd.low_speed`` was also applied.
 
 ### 68040.library
 
-* ``vbr_move`` moves VBR (base address for exception vector table) from CHIP to FAST ram. This setting improves the performance slightly, since the FAST ram on Emu68 is at least 500 times faster than CHIP, but reduces compatibility with old games and demos started from floppy drive drastically. However, system-friendly software as well as demos and games started through WHDLoad should not be affected.
+* ``vbr_move`` 
+  Moves VBR (base address for exception vector table) from CHIP to FAST ram. This setting improves the performance slightly, since the FAST ram on Emu68 is at least 500 times faster than CHIP, but reduces compatibility with old games and demos started from floppy drive drastically. However, system-friendly software as well as demos and games started through WHDLoad should not be affected.
 
 ### emu68-vc4.card
 
-* ``vc4.mem=num`` sets size of VC4 memory reported to P96 subsystem to ``num``  MB. Default is 16 in case of PiStorm build and 0 in all other Emu68 variants. Please note this is not the same as ``gpu_mem`` setting in config.txt file. The latter is used to assign general purpose memory to the VPU.
+* ``vc4.mem=num`` 
+  Sets size of VC4 memory reported to P96 subsystem to ``num``  MB. Default is 16 in case of PiStorm build and 0 in all other Emu68 variants. Please note this is not the same as ``gpu_mem`` setting in config.txt file. The latter is used to assign general purpose memory to the VPU.
 
 ### Debugging
 
-* ``debug`` enables debugging of the JIT engine. Every portion of m68k code translated to AArch64 will be shown in form of short statistics and binary dump of ARM code. Statistics include number of m68k instructions translated, resulting number of ARM instructions, mean ARM instruction number per m68k opcode and CRC32 checksum of translated memory block.
-* ``disassemble`` shows disassembled blocks in two columns. The left column contains m68k code disassembly whereas the right column is the AArch64 code. The two are aligned vertically so that the translated code can be assigned to every single m68k opcode properly.
-* ``async_log`` use asynchronous log on separate ARM core with a 8 MB large ring buffer. Improves performance of m68k when debug is enabled.
-* ``fast_serial`` use synchronous serial port running at a speed varying between 10 and 50 MBit instead of regular serial protocol at 921.6 kBit. Requires proper hardware such as e.g. FT232H.
+* ``debug`` 
+  Enables debugging of the JIT engine. Every portion of m68k code translated to AArch64 will be shown in form of short statistics and binary dump of ARM code. Statistics include number of m68k instructions translated, resulting number of ARM instructions, mean ARM instruction number per m68k opcode and CRC32 checksum of translated memory block.
+* ``disassemble`` 
+  Shows disassembled blocks in two columns. The left column contains m68k code disassembly whereas the right column is the AArch64 code. The two are aligned vertically so that the translated code can be assigned to every single m68k opcode properly.
+* ``async_log`` 
+  Use asynchronous log on separate ARM core with a 8 MB large ring buffer. Improves performance of m68k when debug is enabled.
+* ``fast_serial`` 
+  Use synchronous serial port running at a speed varying between 10 and 50 MBit instead of regular serial protocol at 921.6 kBit. Requires proper hardware such as e.g. FT232H.
 
 ### Memory
 
-* ``limit_2g`` limit the mapped ARM memory to two gigabytes. Useful on machines which offer more RAM and, because of that, confuse e.g. AmigaOS.
-* ``enable_c0_slow`` enables "slow" memory in ``0xc00000...0xc7ffff`` range.
-* ``enable_c8_slow`` enables "slow" memory in ``0xc80000...0xcfffff`` range. Requires ``enable_c0_slow``.
-* ``enable_d0_slow`` enables "slow" memory in ``0xd00000...0xd7ffff`` range. Requires ``enable_c0_slow`` and ``enable_c8_slow`` activated.
-* ``move_slow_to_chip`` maps 512K memory expansion of A500 to the CHIP ram range.
-* ``z2_ram_size=0 | 1 | 2 | 4 | 8`` set size of Zorro II RAM expansion to 0 to 8 MB. Default is 8, but eventually has to be lowered if other Zorro II devices are installed in the system.
+* ``limit_2g`` 
+  Limit the mapped ARM memory to two gigabytes. Useful on machines which offer more RAM and, because of that, confuse e.g. AmigaOS.
+* ``enable_c0_slow`` 
+  Enables "slow" memory in ``0xc00000...0xc7ffff`` range.
+* ``enable_c8_slow`` 
+  Enables "slow" memory in ``0xc80000...0xcfffff`` range. Requires ``enable_c0_slow``.
+* ``enable_d0_slow`` 
+  Enables "slow" memory in ``0xd00000...0xd7ffff`` range. Requires ``enable_c0_slow`` and ``enable_c8_slow`` activated.
+* ``move_slow_to_chip`` 
+  Maps 512K memory expansion of A500 to the CHIP ram range.
+* ``z2_ram_size=0 | 1 | 2 | 4 | 8`` 
+  Set size of Zorro II RAM expansion to 0 to 8 MB. Default is 8, but eventually has to be lowered if other Zorro II devices are installed in the system.
 
 ### Miscellaneous 
 
-* ``enable_cache`` turns on JIT cache in ``CACR`` register on startup. Useful in case of bare metal software started instead of AROS or AmigaOS ROM.
-* ``nofpu`` disables the FPU unit of Emu68. All LineF opcodes related to FPU will trigger the exception.
-* ``swap_df0_with_df1`` swaps DF0 with DF1 floppy drive.
-* ``swap_df0_with_df2`` swaps DF0 with DF2 floppy drive.
-* ``swap_df0_with_df3`` swaps DF0 with DF3 floppy drive.
+* ``enable_cache`` 
+  Turns on JIT cache in ``CACR`` register on startup. Useful in case of bare metal software started instead of AROS or AmigaOS ROM.
+* ``nofpu`` 
+  Disables the FPU unit of Emu68. All LineF opcodes related to FPU will trigger the exception.
+* ``swap_df0_with_df1`` 
+  Swaps DF0 with DF1 floppy drive.
+* ``swap_df0_with_df2`` 
+  Swaps DF0 with DF2 floppy drive.
+* ``swap_df0_with_df3`` 
+  Swaps DF0 with DF3 floppy drive.
 
