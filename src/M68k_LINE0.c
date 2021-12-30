@@ -241,7 +241,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 if (update_mask == 0) {
-                    if (lo16 & 0xfff)
+                    if (lo16 & 0xfff || lo16 == 0)
                         *ptr++ = sub_immed(temp, dest, lo16 & 0xfff);
                     if (lo16 & 0xf000) {
                         if (lo16 & 0xfff)
@@ -352,7 +352,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             /* Perform calcualtion */
 #ifdef __aarch64__
             if (update_mask == 0) {               
-                if (lo16 & 0xfff)
+                if (lo16 & 0xfff || lo16 == 0)
                     *ptr++ = sub_immed(immed, tmp, lo16 & 0xfff);
                 if (lo16 & 0xf000) {
                     if (lo16 & 0xfff)
@@ -536,7 +536,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 if (update_mask == 0) {
-                    if (lo16 & 0xfff)
+                    if (lo16 & 0xfff || lo16 == 0)
                         *ptr++ = add_immed(immed, dest, lo16 & 0xfff);
                     if (lo16 & 0xf000) {
                         if (lo16 & 0xfff)
@@ -642,7 +642,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 /* Perform calcualtion */
 #ifdef __aarch64__
                 if (update_mask == 0) {
-                    if (lo16 & 0xfff)
+                    if (lo16 & 0xfff || lo16 == 0)
                         *ptr++ = add_immed(immed, tmp, lo16 & 0xfff);
                     if (lo16 & 0xf000) {
                         if (lo16 & 0xfff)
