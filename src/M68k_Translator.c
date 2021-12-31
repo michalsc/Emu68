@@ -224,6 +224,17 @@ uint32_t conditionals_count = 0;
 extern struct M68KState *__m68k_state;
 void M68K_PrintContext(void *);
 
+static inline int globalDebug() {
+    return debug;
+}
+
+static inline int globalDisasm() {
+    return disasm;
+}
+
+uint32_t debug_range_min = 0x00000000;
+uint32_t debug_range_max = 0xffffffff;
+
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
@@ -232,6 +243,14 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t pop_cnt=0;
 
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
+
+    int debug = 0;
+    int disasm = 0;
+
+    if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
+        debug = globalDebug();
+        disasm = globalDisasm();
+    }
 
     if (RA_GetTempAllocMask()) {
         kprintf("[ICache] Temporary register alloc mask on translate start is non-zero %x\n", RA_GetTempAllocMask());
@@ -554,11 +573,11 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     if (!lr_is_saved)
         *end++ = bx_lr();
 #else
-    uint8_t ctx = RA_GetCTX(&end);
     uint8_t tmp = RA_AllocARMRegister(&end);
     uint8_t tmp2 = RA_AllocARMRegister(&end);
     if (inner_loop)
     {
+        uint8_t ctx = RA_GetCTX(&end);
 #ifdef PISTORM
         //*end++ = mov_immed_u16(tmp2, 0xf220, 1);
         //*end++ = ldr_offset(tmp2, tmp2, 0x34);
@@ -696,6 +715,12 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     
+    int debug = 0;
+
+    if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
+        debug = globalDebug();
+    }
+
     m68k_low = m68kcodeptr;
     m68k_high = m68kcodeptr;
 
