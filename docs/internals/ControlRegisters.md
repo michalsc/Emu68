@@ -12,7 +12,7 @@ parent: Emu68 Internals
 | ``CNTVALLO``     | ``0xe1`` | RO   | LONG | Free running counter value, lower 32 bits            |
 | ``CNTVALHI``     | ``0xe2`` | RO   | LONG | Free running counter value, higher 32 bits           |
 | ``INSNCNTLO``    | ``0xe3`` | RO   | LONG | Number of executed M68k instructions, lower 32 bits  |
-| ``INSNCNTLO``    | ``0xe4`` | RO   | LONG | Number of executed M68k instructions, higher 32 bits |
+| ``INSNCNTHI``    | ``0xe4`` | RO   | LONG | Number of executed M68k instructions, higher 32 bits |
 | ``ARMCNTLO``     | ``0xe5`` | RO   | LONG | Number of executed ARM instructions, lower 32 bits   |
 | ``ARMCNTHI``     | ``0xe6`` | RO   | LONG | Number of executed ARM instructions, higher 32 bits  |
 | ``JITSIZE``      | ``0xe7`` | RO   | LONG | Total cache size in bytes                            |
