@@ -656,12 +656,12 @@ static struct OpcodeDef InsnTable[512] = {
 	[0320 ... 0347] = { { EMIT_SUBA_mem }, NULL, 0, 0, 1, 0, 2 },
 	[0350 ... 0374] = { { EMIT_SUBA_ext }, NULL, 0, 0, 1, 1, 2 }, //Word
 
-	[0400 ... 0407] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR, 1, 0, 1 },
-	[0410 ... 0417] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR, 1, 0, 1 }, //R0
-	[0500 ... 0507] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[0510 ... 0517] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-	[0600 ... 0607] = { { EMIT_SUBX_reg }, NULL, SR_X, SR_CCR, 1, 0, 4 },
-	[0610 ... 0617] = { { EMIT_SUBX_mem }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+	[0400 ... 0407] = { { EMIT_SUBX_reg }, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
+	[0410 ... 0417] = { { EMIT_SUBX_mem }, NULL, SR_XZ, SR_CCR, 1, 0, 1 }, //R0
+	[0500 ... 0507] = { { EMIT_SUBX_reg }, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+	[0510 ... 0517] = { { EMIT_SUBX_mem }, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+	[0600 ... 0607] = { { EMIT_SUBX_reg }, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
+	[0610 ... 0617] = { { EMIT_SUBX_mem }, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
 
 	[0420 ... 0447] = { { EMIT_SUB_mem }, NULL, 0, SR_CCR, 1, 0, 1 },
 	[0450 ... 0471] = { { EMIT_SUB_ext }, NULL, 0, SR_CCR, 1, 1, 1 },  //D0 Source

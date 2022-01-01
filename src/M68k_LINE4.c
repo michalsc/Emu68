@@ -2853,17 +2853,17 @@ static struct OpcodeDef InsnTable[4096] = {
     [07220 ... 07227] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0, 1, 0, 0 },
     [07250 ... 07273] = { { .od_EmitMulti = EMIT_JSR }, NULL, 0, 0, 1, 1, 0 },
 
-    [00000 ... 00007] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 1 },
-    [00100 ... 00107] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-    [00200 ... 00207] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+    [00000 ... 00007] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
+    [00100 ... 00107] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+    [00200 ... 00207] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
 
-    [00020 ... 00047] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 1 },
-    [00120 ... 00147] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 2 },
-    [00220 ... 00247] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 0, 4 },
+    [00020 ... 00047] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
+    [00120 ... 00147] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+    [00220 ... 00247] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
     
-    [00050 ... 00071] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 1 },
-    [00150 ... 00171] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 2 },
-    [00250 ... 00271] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_X, SR_CCR, 1, 1, 4 },
+    [00050 ... 00071] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 1, 1 },
+    [00150 ... 00171] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
+    [00250 ... 00271] = { { .od_EmitMulti = EMIT_NEGX }, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
 
     [01000 ... 01007] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 1 },
     [01100 ... 01107] = { { .od_EmitMulti = EMIT_CLR }, NULL, 0, SR_NZVC, 1, 0, 2 },
