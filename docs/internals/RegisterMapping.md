@@ -1,6 +1,6 @@
 ---
 layout: default
-title: m68k register mapping
+title: M68k register mapping
 parent: Emu68 Internals
 ---
 
