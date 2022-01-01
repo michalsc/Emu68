@@ -6,8 +6,6 @@ parent: Emu68 Internals
 
 # Emu68 Control Registers
 
-
-
 | Register name    | Number   | RW   | Size | Description                                          |
 | ---------------- | -------- | ---- | ---- | ---------------------------------------------------- |
 | ``CNTFRQ``       | ``0xe0`` | RO   | LONG | Frequency in Hz of the free running counter          |
@@ -35,17 +33,17 @@ AArch64 features a free running 64-bit counter which can be used for timing purp
 
 The value of free running counter is available through two registers. ``CNTVALLO`` contains lower 32 bits of the free running counter, whereas ``CNTVALHI`` contains the upper 32 bits. In order to make sure that the counter is read properly, i.e. that the lower 32 bit did not wrap between reading lower and higher longword, it is advisable to read CNTVALHI twice. If the value has changed on second read, it means that the lower 32 bits have wrapped and register read procedure should be repeated.
 
-```assembly
+```
 # Read CNTVAL register into d0:d1 pair.
 ReadCNT:
-				move.l	d2, -(a7)
-1:			movec.l	#0xe2, d2
-				movec.l #0xe1, d1
-				movec.l #0xe2, d0
-				cmp.l   d0, d2
-				bne.b		1b
-				move.l	(a7)+, d2
-				rts
+        move.l  d2, -(a7)
+1:      movec.l #0xe2, d2
+        movec.l #0xe1, d1
+        movec.l #0xe2, d0
+        cmp.l   d0, d2
+        bne.b   1b
+        move.l  (a7)+, d2
+        rts
 ```
 
 ## INSNCNTLO, INSNCNTHI - M68k instruction counter
