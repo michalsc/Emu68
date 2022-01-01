@@ -120,6 +120,11 @@ struct M68KState
 #define JCCB_SOFT   0
 #define JCCF_SOFT   0x00000001
 
+#define DCB_VERBOSE 0
+#define DCB_VERBOSE_MASK 0x3
+#define DCB_DISASM  2
+#define DCF_DISASM  0x00000004
+
 #define CACR_DE 0x80000000
 #define CACR_IE 0x00008000
 

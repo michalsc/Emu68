@@ -34,6 +34,14 @@ int disasm = 0;
 int debug = 0;
 const int debug_cnt = 0;
 
+static inline int globalDebug() {
+    return debug;
+}
+
+static inline int globalDisasm() {
+    return disasm;
+}
+
 struct List ICache[65536];
 struct List LRU;
 static uint32_t *temporary_arm_code;
@@ -105,7 +113,6 @@ uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_cons
 {
     uint16_t opcode = BE16((*m68k_ptr)[0]);
     (*m68k_ptr)++;
-
     (*insn_consumed)++;
 
     arm_ptr = EMIT_FlushPC(arm_ptr);
@@ -224,13 +231,7 @@ uint32_t conditionals_count = 0;
 extern struct M68KState *__m68k_state;
 void M68K_PrintContext(void *);
 
-static inline int globalDebug() {
-    return debug;
-}
 
-static inline int globalDisasm() {
-    return disasm;
-}
 
 uint32_t debug_range_min = 0x00000000;
 uint32_t debug_range_max = 0xffffffff;

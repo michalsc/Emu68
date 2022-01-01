@@ -1911,6 +1911,14 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     uint8_t sp = 0xff;
     uint32_t *tmpptr;
     int illegal = 0;
+    extern uint32_t debug_range_min;
+    extern uint32_t debug_range_max;
+    extern int disasm;
+    extern int debug;
+    union {
+        uint32_t u32[2];
+        uint64_t u64;
+    } u;
 
     (*m68k_ptr) += 1;
     ptr = EMIT_FlushPC(ptr);
@@ -1975,6 +1983,47 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = and_immed(tmp, reg, 1, 0);
                 *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, JIT_CONTROL));
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x0ed: /* DBGCTRL */
+            {
+                uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+                tmp = RA_AllocARMRegister(&ptr);
+                u.u64 = (uintptr_t)&debug;
+                *ptr++ = ldr64_pcrel(tmp, 7);
+                *ptr++ = ubfx(tmp2, reg, 0, 2);
+                *ptr++ = str_offset(tmp, tmp2, 0);
+                *ptr++ = ldr64_pcrel(tmp, 6);
+                *ptr++ = ubfx(tmp2, reg, 2, 1);
+                *ptr++ = str_offset(tmp, tmp2, 0);
+                *ptr++ = b(5);
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                u.u64 = (uintptr_t)&disasm;
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                RA_FreeARMRegister(&ptr, tmp);
+                RA_FreeARMRegister(&ptr, tmp2);
+                break;
+            }
+            case 0x0ee: /* DBGADDRLO */
+                tmp = RA_AllocARMRegister(&ptr);
+                u.u64 = (uintptr_t)&debug_range_min;
+                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = str_offset(tmp, reg, 0);
+                *ptr++ = b(3);
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x0ef: /* DBGADDRHI */
+                tmp = RA_AllocARMRegister(&ptr);
+                u.u64 = (uintptr_t)&debug_range_max;
+                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = str_offset(tmp, reg, 0);
+                *ptr++ = b(3);
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
@@ -2129,8 +2178,50 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             case 0x0eb: /* JITCTRL - JIT control register */
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL));
                 break;
-            case 0x0ec:
+            case 0x0ec: /* JITCMISS */
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_MISS));
+                break;
+            case 0x0ed: /* DBGCTRL */
+            {
+                uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+                tmp = RA_AllocARMRegister(&ptr);
+                u.u64 = (uintptr_t)&debug;
+                *ptr++ = ldr64_pcrel(tmp, 8);
+                *ptr++ = ldr_offset(tmp, tmp2, 0);
+                *ptr++ = ubfx(reg, tmp2, 0, 2);
+                *ptr++ = ldr64_pcrel(tmp, 7);
+                *ptr++ = ldr_offset(tmp, tmp2, 0);
+                *ptr++ = cbz(tmp2, 7);
+                *ptr++ = orr_immed(reg, reg, 1, 30);
+                *ptr++ = b(5);
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                u.u64 = (uintptr_t)&disasm;
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                RA_FreeARMRegister(&ptr, tmp);
+                RA_FreeARMRegister(&ptr, tmp2);
+                break;
+            }
+            case 0x0ee: /* DBGADDRLO */
+                tmp = RA_AllocARMRegister(&ptr);
+                u.u64 = (uintptr_t)&debug_range_min;
+                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = ldr_offset(tmp, reg, 0);
+                *ptr++ = b(3);
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x0ef: /* DBGADDRHI */
+                tmp = RA_AllocARMRegister(&ptr);
+                u.u64 = (uintptr_t)&debug_range_max;
+                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = ldr_offset(tmp, reg, 0);
+                *ptr++ = b(3);
+                *ptr++ = u.u32[0];
+                *ptr++ = u.u32[1];
+                RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
