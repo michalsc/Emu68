@@ -24,7 +24,7 @@ if (key)
     ULONG bootargs_len = DT_GetPropLen(property);
     
     /*
-      Now bootargs ponits to a **NOT** terminated character sequence which can be
+      Now bootargs points to a **NOT** terminated character sequence which can be
       searched for any necessary parameter.
     */
     [...]
