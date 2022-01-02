@@ -74,13 +74,28 @@ The soft flush of JIT cache, controlled by the ``JITCTRL`` register is time cons
 
 Configures behaviour of JIT translator. 
 
-| Name         | Offset | Field size | Description                    |
-| ------------ | ------ | ---------- | ------------------------------ |
-| ``JCC_SOFT`` | 0      | 1          | Use "soft flush" of JIT cache. |
+| Name                 | Offset | Field size | Description                    |
+| -------------------- | ------ | ---------- | ------------------------------ |
+| ``JCC_SOFT``         | 0      | 1          | Use "soft flush" of JIT cache. |
+| ``JCC_LOOP_COUNT``   | 4      | 4          | Inline loop count              |
+| ``JCC_INLINE_RANGE`` | 8      | 16         | Maximal distance for inline    |
+| ``JCC_INSN_DEPTH``   | 24     | 8          | Maximal JIT unit size          |
 
 ### JCC_SOFT
 
 If this bit is set, instruction cache flush does not remove units from the JIT cache. Instead, they are marked as not verified. On next execution of the code the CRC32 checksum of the unit will be verified and, if unchanged, the unit will be marked as valid, omitting compilation phase.
+
+### JCC_LOOP_COUNT
+
+If JIT Translator finds a way to unroll the loop in the code, it will attempt to fit up to ``JCC_LOOP_COUNT`` loops, provided there is enough place to fit given number of m68k instructions into the cache.
+
+### JCC_INLINE_RANGE
+
+When JIT translator finds a branch (conditional or unconditional) with target address computable during compilation time, the branch will be inlined into current JIT translation unit if the branch distance is within a proximity given by ``JCC_INLINE_RANGE`` in bytes. Value of ``0`` disables branch inlining.
+
+### JCC_INSN_DEPTH
+
+Translator will put not more than ``JCC_INSN_DEPTH`` m68k instructions within single JIT compilation unit. Value of ``0`` sets maximal number of instructions to ``256``. It must be noted that the JIT unit can contain less m68k instructions than the value set here, since every branch which is not computable during compilation phase as well as many context-synchronising instructions will break the translation.
 
 ## JITCMISS - Cache miss counter
 
