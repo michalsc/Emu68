@@ -1981,7 +1981,6 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             case 0x0eb: /* JITCTRL - JIT control register */
                 tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = and_immed(tmp, reg, 1, 0);
                 *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, JIT_CONTROL));
                 RA_FreeARMRegister(&ptr, tmp);
                 break;

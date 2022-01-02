@@ -117,8 +117,16 @@ struct M68KState
     uint32_t JIT_CONTROL;
 };
 
-#define JCCB_SOFT   0
-#define JCCF_SOFT   0x00000001
+#define JCCB_SOFT               0
+#define JCCF_SOFT               0x00000001
+#define JCCB_SOFT_LIMIT         1
+#define JCCB_INSN_DEPTH         24
+#define JCCB_INSN_DEPTH_MASK    0xff
+#define JCCB_INLINE_RANGE       8
+#define JCCB_INLINE_RANGE_MASK  0xffff
+#define JCCB_LOOP_COUNT         4
+#define JCCB_LOOP_COUNT_MASK    0xf
+
 
 #define DCB_VERBOSE 0
 #define DCB_VERBOSE_MASK 0x3

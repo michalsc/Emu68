@@ -1545,12 +1545,15 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.ISP.u32 = BE32(*((uint32_t*)addr));
     __m68k.PC = BE32(*((uint32_t*)addr+1));
     __m68k.SR = BE16(SR_S | SR_IPL);
-    __m68k.FPCR = 0xffff;
+    __m68k.FPCR = 0;
     __m68k.JIT_CACHE_TOTAL = tlsf_get_total_size(jit_tlsf);
     __m68k.JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     __m68k.JIT_UNIT_COUNT = 0;
     __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
     __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
+    __m68k.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
+    __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
+    __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
@@ -1562,6 +1565,15 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.PC = BE32((intptr_t)addr);
     __m68k.ISP.u32 = BE32(BE32(__m68k.ISP.u32) - 4);
     __m68k.SR = BE16(SR_S | SR_IPL);
+    __m68k.FPCR = 0;
+    __m68k.JIT_CACHE_TOTAL = tlsf_get_total_size(jit_tlsf);
+    __m68k.JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+    __m68k.JIT_UNIT_COUNT = 0;
+    __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
+    __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
+    __m68k.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
+    __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
+    __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
     *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 #endif
     of_node_t *node = dt_find_node("/chosen");

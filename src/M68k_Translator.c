@@ -240,7 +240,13 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
-    uint32_t *pop_update_loc[EMU68_M68K_INSN_DEPTH];
+    int var_EMU68_MAX_LOOP_COUNT = (__m68k_state->JIT_CONTROL >> JCCB_LOOP_COUNT) & JCCB_LOOP_COUNT_MASK;
+    if (var_EMU68_MAX_LOOP_COUNT == 0)
+        var_EMU68_MAX_LOOP_COUNT = JCCB_LOOP_COUNT_MASK + 1;
+    uint32_t var_EMU68_M68K_INSN_DEPTH = (__m68k_state->JIT_CONTROL >> JCCB_INSN_DEPTH) & JCCB_INSN_DEPTH_MASK;
+    if (var_EMU68_M68K_INSN_DEPTH == 0)
+        var_EMU68_M68K_INSN_DEPTH = JCCB_INSN_DEPTH_MASK + 1;
+    uint32_t *pop_update_loc[var_EMU68_M68K_INSN_DEPTH];
     uint32_t pop_cnt=0;
 
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
@@ -263,7 +269,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         disasm_open();
     }
 
-    for (int i=0; i < EMU68_M68K_INSN_DEPTH; i++)
+    for (unsigned i=0; i < var_EMU68_M68K_INSN_DEPTH; i++)
         pop_update_loc[i] = (uint32_t *)0;
 
     M68K_ResetReturnStack();
@@ -317,7 +323,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int soft_break = FALSE;
     int max_rev_jumps = 0;
 
-    while (break_loop == FALSE && soft_break == FALSE && insn_count < Options.M68K_TRANSLATION_DEPTH)
+    while (break_loop == FALSE && soft_break == FALSE && insn_count < var_EMU68_M68K_INSN_DEPTH)
     {
         uint16_t insn_consumed;
         uint16_t *in_code = m68kcodeptr;
@@ -339,7 +345,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
             if (found > 0)
             {
-                if ((insn_count - found - 1) > (Options.M68K_TRANSLATION_DEPTH - insn_count))
+                if ((insn_count - found - 1) > (var_EMU68_M68K_INSN_DEPTH - insn_count))
                 {
 //                        kprintf("not enough place for completion of the loop\n");
                     break;
@@ -493,7 +499,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
             else {
                 last_rev_jump = m68kcodeptr;
-                max_rev_jumps = EMU68_MAX_LOOP_COUNT - 1;
+                max_rev_jumps = var_EMU68_MAX_LOOP_COUNT - 1;
             }
         }
 
@@ -895,10 +901,10 @@ void M68K_InitializeCache()
 
     kprintf("[ICache] Setting up ICache\n");
 //    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
-    temporary_arm_code = tlsf_malloc(jit_tlsf, EMU68_M68K_INSN_DEPTH * 16 * 64);
+    temporary_arm_code = tlsf_malloc(jit_tlsf, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
-    local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*EMU68_M68K_INSN_DEPTH*2);
+    local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[ICache] ICache array at %p\n", ICache);
     for (int i=0; i < 65536; i++)
         NEWLIST(&ICache[i]);

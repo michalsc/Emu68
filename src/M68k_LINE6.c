@@ -12,6 +12,8 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+extern struct M68KState *__m68k_state;
+
 uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t bsr = 0;
@@ -114,8 +116,10 @@ uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
     RA_FreeARMRegister(&ptr, reg);
 
+    int32_t var_EMU68_BRANCH_INLINE_DISTANCE = (__m68k_state->JIT_CONTROL >> JCCB_INLINE_RANGE) & JCCB_INLINE_RANGE_MASK;
+
     /* If branch is done within +- 4KB, try to inline it instead of breaking up the translation unit */
-    if (bra_off >= -EMU68_BRANCH_INLINE_DISTANCE && bra_off <= EMU68_BRANCH_INLINE_DISTANCE) {
+    if (bra_off >= -var_EMU68_BRANCH_INLINE_DISTANCE && bra_off <= var_EMU68_BRANCH_INLINE_DISTANCE) {
         if (bsr) {
             M68K_PushReturnAddress(*m68k_ptr);
         }
