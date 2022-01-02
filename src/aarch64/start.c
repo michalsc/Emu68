@@ -1231,10 +1231,6 @@ void  __attribute__((used)) stub_FindUnit()
 ::[reg_pc]"i"(REG_PC));
 }
 
-uint32_t last_pc;
-
-//uint64_t arm_cnt;
-
 #ifdef PISTORM
 extern volatile unsigned char bus_lock;
 #endif
@@ -1254,31 +1250,17 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "1:                                         \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
-#ifndef PISTORM
-"       cbz     w%[reg_pc], 4f              \n"
-#endif
-
-#if 0
-"       adrp    x1, last_pc                 \n"
-"       add     x1, x1, :lo12:last_pc       \n"
-"       str     w18, [x1]                   \n"
-#endif
-
-#if 0
-"       adrp    x1, arm_cnt                 \n"
-"       add     x1, x1, :lo12:arm_cnt       \n"
-"       mrs     x4, PMCCNTR_EL0             \n"
-"       str     x4, [x1]                    \n"
-#endif
 
 #ifdef PISTORM
 "       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
 "       cbz     w1, 9f                      \n"
 #else
+"       cbz     w%[reg_pc], 4f              \n"
 "       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
 "       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
 #endif
-"99:    mov     w3, v31.s[0]                \n"                                            //ldr     w1, [x0, #%[cacr]]          \n"
+
+"99:    mov     w3, v31.s[0]                \n"
 "       tbz     w3, #%[cacr_ie_bit], 2f     \n"
 "       cmp     w2, w%[reg_pc]              \n"
 "       b.ne    13f                         \n"
@@ -1292,9 +1274,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       1b                          \n"
 
 "13:                                        \n"
+"       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
-"       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       and     x0, x0, #0xffff             \n"
 "       add     x0, x0, x0, lsl #1          \n"
 "       ldr     x0, [x4, x0, lsl #3]        \n"
@@ -1696,7 +1678,7 @@ asm volatile(
     frq = frq & 0xffffffff;
     kprintf("[JIT] Time spent in m68k mode: %lld us\n", 1000000 * (t2-t1) / frq);
 
-    kprintf("[JIT] Back from translated code, last valid PC=%08x\n", last_pc);
+    kprintf("[JIT] Back from translated code.\n");
 
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
