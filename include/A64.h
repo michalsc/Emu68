@@ -608,6 +608,9 @@ static inline uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e6
 
 static inline uint32_t vadd_2d(uint8_t v_dst, uint8_t v_rn, uint8_t v_rm) { return I32(0x4ee08400 | (v_dst & 31) | ((v_rn & 31) << 5) | ((v_rm & 31) << 16)); }
 
+static inline uint32_t vldur(uint8_t rn, uint8_t v_rt, uint16_t imm9) { return I32(0x3cc00000 | ((rn & 31) << 5) | (v_rt & 31) | ((imm9 & 0x1ff) << 12)); }
+static inline uint32_t vldr_pcrel(uint8_t v_rt, uint32_t imm19) { return I32(0x9c000000 | (v_rt & 31) | ((imm19 & 0x7ffff) << 5)); }
+
 #if 0
 enum VFP_REG { FPSID = 0, FPSCR = 1, FPEXT = 8 };
 static inline uint32_t fmrx_cc(uint8_t cc, enum VFP_REG sr, uint8_t src) { return INSN_TO_LE(0x0ee00a10 | (cc << 28) | (src << 12) | (sr << 16)); }
