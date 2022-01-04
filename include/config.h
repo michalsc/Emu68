@@ -39,12 +39,22 @@
 #define EMU68_WEAK_CFLUSH       1
 #define EMU68_WEAK_CFLUSH_LIMIT 500
 
+#ifdef PISTORM
+
+#define PISTORM_BITBANG_DELAY       21
+#define PISTORM_CHIPSET_DELAY       12
+#define PISTORM_CIA_DELAY           12
+#define PISTORM_WRITE_BUFFER        1
+#define PISTORM_WRITE_BUFFER_SIZE   32  
+
+#endif
+
 #ifndef VERSION_STRING_DATE
 #define VERSION_STRING_DATE ""
 #endif
 
 #define KERNEL_SYS_PAGES        16
-#define KERNEL_JIT_PAGES        32
+#define KERNEL_JIT_PAGES        8
 #define KERNEL_RSRVD_PAGES      ((KERNEL_JIT_PAGES) + (KERNEL_SYS_PAGES))
 
 #define EMU68_LOG_FETCHES       0
