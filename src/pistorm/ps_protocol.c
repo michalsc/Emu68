@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 
+#include "config.h"
 #include "support.h"
 #include "tlsf.h"
 #include "ps_protocol.h"
@@ -26,10 +27,10 @@ unsigned int gpfsel0_o;
 unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
 
-#define BITBANG_DELAY 21
+#define BITBANG_DELAY PISTORM_BITBANG_DELAY
 
-#define CHIPSET_DELAY 12
-#define CIA_DELAY     12
+#define CHIPSET_DELAY PISTORM_CHIPSET_DELAY
+#define CIA_DELAY     PISTORM_CIA_DELAY
 
 volatile uint8_t gpio_lock;
 
@@ -335,8 +336,11 @@ static void ps_write_32_int(unsigned int address, unsigned int value) {
   }
 }
 
-unsigned int ps_read_16(unsigned int address) {
-  //wb_waitfree();
+unsigned int ps_read_16_int(unsigned int address)
+{
+#if PISTORM_WRITE_BUFFER
+  wb_waitfree();
+#endif
 
   if (address > 0xffffff)
     return 0xffff;
@@ -389,8 +393,11 @@ unsigned int ps_read_16(unsigned int address) {
   }
 }
 
-unsigned int ps_read_8(unsigned int address) {
-  //wb_waitfree();
+unsigned int ps_read_8_int(unsigned int address)
+{
+#if PISTORM_WRITE_BUFFER
+  wb_waitfree();
+#endif
 
   if (address > 0xffffff)
     return 0xff;
@@ -436,8 +443,12 @@ unsigned int ps_read_8(unsigned int address) {
     return value & 0xff;  // ODD , A0=1,LDS
 }
 
-unsigned int ps_read_32(unsigned int address) {
-  //wb_waitfree();
+unsigned int ps_read_32_int(unsigned int address)
+{
+#if PISTORM_WRITE_BUFFER
+  wb_waitfree();
+#endif
+
   if (address & 1)
   {
     unsigned int value;
@@ -548,9 +559,7 @@ void ps_housekeeper()
   extern uint64_t arm_cnt;
   uint64_t t0;
   uint64_t last_arm_cnt = arm_cnt;
-#if 0
-  uint64_t last_m68k_cnt = __m68k_state->INSN_COUNT;
-#endif
+
   asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
   asm volatile("mrs %0, PMCCNTR_EL0":"=r"(last_arm_cnt));
 
@@ -593,63 +602,13 @@ void ps_housekeeper()
         nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
       */
       asm volatile("wfe");
-
-#if 0
-      uint64_t t;
-
-      asm volatile("mrs %0, CNTPCT_EL0":"=r"(t));
-      if ((t0 + 19200000) < t) {
-        t0 = t;
-        uint32_t IPS = __m68k_state->INSN_COUNT - last_m68k_cnt;
-        uint32_t ARM_IPS = arm_cnt - last_arm_cnt;
-        uint32_t eff = ARM_IPS / ((IPS + 5) / 10);
-
-        char *prefix;
-        char *prefix_arm;
-
-        if (IPS < 10000) {
-          prefix = "";
-        }
-        else if (IPS < 10000000) {
-          prefix = "k";
-          IPS = (IPS + 500) / 1000;
-        }
-        else {
-          prefix = "M";
-          IPS = (IPS + 500000) / 1000000;
-        }
-
-        if (ARM_IPS < 10000) {
-          prefix_arm = "";
-        }
-        else if (ARM_IPS < 10000000) {
-          prefix_arm = "k";
-          ARM_IPS = (ARM_IPS + 500) / 1000;
-        }
-        else {
-          prefix_arm = "M";
-          ARM_IPS = (ARM_IPS + 500000) / 1000000;
-        }
-
-        kprintf("[HKEEP] JIT Cache: %d units, %d bytes. M68k insns: %d %sIPS. ARM insn: %d %sIPS. ARM/m68k: %d.%d\n", 
-          __m68k_state->JIT_UNIT_COUNT,
-          __m68k_state->JIT_CACHE_TOTAL - __m68k_state->JIT_CACHE_FREE,
-          IPS, prefix,
-          ARM_IPS, prefix_arm,
-          eff / 10, eff % 10
-          );
-
-        last_arm_cnt = arm_cnt;
-        last_m68k_cnt = __m68k_state->INSN_COUNT;
-      }
-#endif
     }
   }
 }
 
-#if 0
+#if PISTORM_WRITE_BUFFER
 
-#define WRITEBUFFER_SIZE  64
+#define WRITEBUFFER_SIZE  PISTORM_WRITE_BUFFER_SIZE
 
 struct WriteRequest {
   uint32_t  wr_addr;
@@ -687,6 +646,7 @@ struct WriteRequest wb_pop()
     struct WriteRequest data = wr_buffer[wr_tail & (WRITEBUFFER_SIZE - 1)];
 
     __sync_add_and_fetch(&wr_tail, 1);
+    
     return data;
 }
 
@@ -701,6 +661,13 @@ struct WriteRequest wb_peek()
     return data;
 }
 
+void wb_wait()
+{
+    while (wr_tail == wr_head) {
+        asm volatile("wfe");
+    }
+}
+
 void wb_waitfree()
 {
   while (wr_tail != wr_head)
@@ -710,7 +677,7 @@ void wb_waitfree()
 
 void wb_init()
 {
-#if 0
+#if PISTORM_WRITE_BUFFER
   wr_buffer = tlsf_malloc(tlsf, sizeof(struct WriteRequest) * WRITEBUFFER_SIZE);
   wr_head = wr_tail = 0;
   bus_lock = 0;
@@ -719,7 +686,7 @@ void wb_init()
 
 void wb_task()
 {
-#if 0
+#if PISTORM_WRITE_BUFFER
   kprintf("[WBACK] Write buffer activated\n");
 
   while(1) {
@@ -743,23 +710,70 @@ void wb_task()
 
     wb_pop();
   }
+#else
+  while(1) asm volatile("wfi");
 #endif
 }
 
 void ps_write_8(unsigned int address, unsigned int data)
 {
+#if PISTORM_WRITE_BUFFER
+  if (address < 0xa00000 || (address >= 0x00C00000 && address <= 0x00D7FFFF))
+  {
+    wb_push(address, data, 1);
+  }
+  else {
+    wb_push(address, data, 1);
+    wb_waitfree();
+  }
+#else
   ps_write_8_int(address, data);
-  //wb_push(address, data, 1);
+#endif
 }
 
 void ps_write_16(unsigned int address, unsigned int data)
 {
+#if PISTORM_WRITE_BUFFER
+  if (address < 0xa00000 || (address >= 0x00C00000 && address <= 0x00D7FFFF))
+  {
+    wb_push(address, data, 2);
+  }
+  else {
+    wb_push(address, data, 2);
+    wb_waitfree();
+  }
+#else
   ps_write_16_int(address, data);
-  //wb_push(address, data, 2);
+#endif
 }
 
 void ps_write_32(unsigned int address, unsigned int data)
 {
+#if PISTORM_WRITE_BUFFER
+  if (address < 0xa00000 || (address >= 0x00C00000 && address <= 0x00D7FFFF))
+  {
+    wb_push(address, data, 4);
+  }
+  else {
+    wb_push(address, data, 4);
+    wb_waitfree();
+  }
+#else
   ps_write_32_int(address, data);
-  //wb_push(address, data, 4);
+#endif
+}
+
+unsigned int ps_read_8(unsigned int address)
+{
+  return ps_read_8_int(address);
+}
+
+unsigned int ps_read_16(unsigned int address)
+{
+  return ps_read_16_int(address);
+}
+
+unsigned int ps_read_32(unsigned int address)
+{
+  return ps_read_32_int(address);
 }
