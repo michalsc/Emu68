@@ -4886,7 +4886,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             switch (opcode & 0x18) {
                 case 0x08:  /* Line */
                     tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-#ifdef __aarch64__
                     tmp2 = RA_AllocARMRegister(&ptr);
                     tmp3 = RA_AllocARMRegister(&ptr);
                     *ptr++ = mov_immed_u8(tmp3, 4);
@@ -4895,23 +4894,16 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     *ptr++ = lslv(tmp2, tmp3, tmp2);
                     *ptr++ = sub_immed(tmp2, tmp2, 1);
                     *ptr++ = dsb_sy();
-                    *ptr++ = and_reg(tmp, tmp, tmp2, LSL, 0);
+                    *ptr++ = bic_reg(tmp, tmp, tmp2, LSL, 0);
                     *ptr++ = dc_ivac(tmp);
                     *ptr++ = dsb_sy();
                     RA_FreeARMRegister(&ptr, tmp2);
                     RA_FreeARMRegister(&ptr, tmp3);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
-                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
-                    *ptr++ = mov_immed_u8(tmp, 0);
-                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
-#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
                 case 0x10:  /* Page */
                     tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
                     tmp2 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                     tmp3 = RA_AllocARMRegister(&ptr);
                     tmp4 = RA_AllocARMRegister(&ptr);
                     *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
@@ -4928,16 +4920,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     *ptr++ = dsb_sy();
                     RA_FreeARMRegister(&ptr, tmp3);
                     RA_FreeARMRegister(&ptr, tmp4);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
-                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
-                    *ptr++ = mov_immed_u8(tmp2, 128);
-                    *ptr++ = mcr(15, 0, tmp, 7, 6, 1); /* clean and invalidate data cache line */
-                    *ptr++ = add_immed(tmp, tmp, 32);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(ARM_CC_NE, -5);
-                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
-#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     RA_FreeARMRegister(&ptr, tmp2);
                     break;
@@ -5056,7 +5038,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             switch (opcode & 0x18) {
                 case 0x08:  /* Line */
                     tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-#ifdef __aarch64__
                     tmp2 = RA_AllocARMRegister(&ptr);
                     tmp3 = RA_AllocARMRegister(&ptr);
                     *ptr++ = mov_immed_u8(tmp3, 4);
@@ -5065,23 +5046,16 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     *ptr++ = lslv(tmp2, tmp3, tmp2);
                     *ptr++ = sub_immed(tmp2, tmp2, 1);
                     *ptr++ = dsb_sy();
-                    *ptr++ = and_reg(tmp, tmp, tmp2, LSL, 0);
+                    *ptr++ = bic_reg(tmp, tmp, tmp2, LSL, 0);
                     *ptr++ = dc_civac(tmp);
                     *ptr++ = dsb_sy();
                     RA_FreeARMRegister(&ptr, tmp2);
                     RA_FreeARMRegister(&ptr, tmp3);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x1f);
-                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
-                    *ptr++ = mov_immed_u8(tmp, 0);
-                    *ptr++ = mcr(15, 0, tmp, 7, 10, 4); /* dsb */
-#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     break;
                 case 0x10:  /* Page */
                     tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
                     tmp2 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                     tmp3 = RA_AllocARMRegister(&ptr);
                     tmp4 = RA_AllocARMRegister(&ptr);
                     *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
@@ -5098,16 +5072,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     *ptr++ = dsb_sy();
                     RA_FreeARMRegister(&ptr, tmp3);
                     RA_FreeARMRegister(&ptr, tmp4);
-#else
-                    *ptr++ = bic_immed(tmp, tmp, 0x0ff);
-                    *ptr++ = bic_immed(tmp, tmp, 0xc0f);
-                    *ptr++ = mov_immed_u8(tmp2, 128);
-                    *ptr++ = mcr(15, 0, tmp, 7, 14, 1); /* clean and invalidate data cache line */
-                    *ptr++ = add_immed(tmp, tmp, 32);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(ARM_CC_NE, -5);
-                    *ptr++ = mcr(15, 0, tmp2, 7, 10, 4); /* dsb */
-#endif
                     RA_FreeARMRegister(&ptr, tmp);
                     RA_FreeARMRegister(&ptr, tmp2);
                     break;
