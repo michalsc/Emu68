@@ -39,6 +39,8 @@
 #define EMU68_WEAK_CFLUSH       1
 #define EMU68_WEAK_CFLUSH_LIMIT 500
 
+#define EMU68_PC_REG_HISTORY    0
+
 #ifdef PISTORM
 
 #define PISTORM_BITBANG_DELAY       21

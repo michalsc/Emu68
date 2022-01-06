@@ -1628,6 +1628,22 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
                 kprintf(".");
             
             kprintf("\n");
+
+#if EMU68_PC_REG_HISTORY         
+            uint32_t pc_0, pc_1, pc_2, pc_3;
+
+            asm volatile("mov %w0, v28.s[0]; mov %w1, v28.s[1]; mov %w2, v28.s[2]; mov %w3, v28.s[3]"
+                :"=r"(pc_0), "=r"(pc_1), "=r"(pc_2), "=r"(pc_3));
+
+            kprintf("[JIT]     PC history: %08x, %08x, %08x, %08x\n", pc_0, pc_1, pc_2, pc_3);
+            kprintf("[JIT]     Stack:");
+
+            uint32_t *sp = (uint32_t *)(uintptr_t)BE32(ctx[REG_A7]);
+            for (int i=-4; i < 8; i++) {
+                kprintf(" %s%08x", i == 0 ? "*":"", sp[i]);
+            }
+            kprintf("\n");
+#endif
         }
 
         if ((esr & 0xffff) == 0x102)
