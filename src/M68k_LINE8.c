@@ -580,6 +580,8 @@ uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x100);
+        *ptr++ = svc(0x101);
         *ptr++ = svc(0x103);
         *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
         *ptr++ = 48;

@@ -3772,7 +3772,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             kprintf("FMOVE from SPECIAL\n");
             shown = 1;
         }
-        uint8_t reg_CTX = RA_GetCTX(&ptr);
         uint8_t reg = 0xff;
         uint8_t dst = 0xff;
 
@@ -3802,7 +3801,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             switch (opcode2 & 0x1c00)
             {
                 case 0x0400:    /* FPIAR */
-                    *ptr++ = ldr_offset(reg_CTX, dst, __builtin_offsetof(struct M68KState, FPIAR));
+                    *ptr++ = mov_simd_to_reg(dst, 29, TS_S, 1);
                     break;
             }
         }
@@ -3847,7 +3846,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if (opcode2 & 0x0400)
             {
                 reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = ldr_offset(reg_CTX, reg, __builtin_offsetof(struct M68KState, FPIAR));
+                *ptr++ = mov_simd_to_reg(reg, 29, TS_S, 1);
                 *ptr++ = str_offset(dst, reg, offset);
                 RA_FreeARMRegister(&ptr, reg);
                 reg = 0xff;
@@ -3876,7 +3875,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t src = 0xff;
         uint8_t tmp = 0xff;
         uint8_t reg = 0xff;
-        uint8_t reg_CTX = RA_GetCTX(&ptr);
 
         // Handle move from Dn
         if ((opcode & 0x38) == 0)
@@ -3914,7 +3912,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             switch (opcode2 & 0x1c00)
             {
                 case 0x0400:    /* FPIAR */
-                    *ptr++ = str_offset(reg_CTX, src, __builtin_offsetof(struct M68KState, FPIAR));
+                    *ptr++ = mov_reg_to_simd(29, TS_S, 1, src);
                     break;
             }
         }
@@ -3972,7 +3970,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if (opcode2 & 0x0400)
             {
                 *ptr++ = ldr_offset(src, tmp, offset);
-                *ptr++ = str_offset(reg_CTX, tmp, __builtin_offsetof(struct M68KState, FPIAR));
+                *ptr++ = mov_reg_to_simd(29, TS_S, 1, tmp);
             }
 
             // In postincrement mode adjust the value now
@@ -4665,7 +4663,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint32_t *tmp_ptr;
         uint8_t fpcr = RA_ModifyFPCR(&ptr);
         uint8_t fpsr = RA_ModifyFPSR(&ptr);
-        uint8_t reg_CTX= RA_GetCTX(&ptr);
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
 
@@ -4702,7 +4699,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         *ptr++ = get_fpcr(tmp);
         *ptr++ = bic_immed(tmp, tmp, 2, 32 - 22);
         *ptr++ = set_fpcr(tmp);
-        *ptr++ = str_offset(reg_CTX, 31, __builtin_offsetof(struct M68KState, FPIAR));
+        *ptr++ = mov_reg_to_simd(29, TS_S, 1, 31);
 
         *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
 
@@ -5178,6 +5175,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x100);
+        *ptr++ = svc(0x101);
         *ptr++ = svc(0x103);
         *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
         *ptr++ = 48;
