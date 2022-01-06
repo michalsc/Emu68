@@ -1536,7 +1536,6 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     uint8_t orig = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-    uint8_t ctx = RA_GetCTX(&ptr);
 
     RA_SetDirtyM68kRegister(&ptr, 15);
 
@@ -1592,6 +1591,7 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     *ptr++ = wfi();
 #else
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
+    uint8_t ctx = RA_GetCTX(&ptr);
     uint32_t *start, *end;
     start = ptr;
 
