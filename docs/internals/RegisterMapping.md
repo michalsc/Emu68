@@ -19,6 +19,9 @@ In order to maintain good execution speed of M68k code, Emu68 keeps most importa
 | ``FPIAR``                | ``V29.S[1]``                 | FPU Instruction address register                 |
 | ``FPCR``                 | ``V29.H[4]``                 | FPU Control register                             |
 | ``CACR``                 | ``V31.S[0]``                 | Cache control register                           |
+| ``USP``                  | ``V31.S[1]``                 | User mode stack pointer                          |
+| ``ISP``                  | ``V31.S[2]``                 | Interrupt stack pointer                          |
+| ``MSP``                  | ``V31.S[3]``                 | Master stack pointer                             |
 | ``INSN_COUNT``           | ``V30.D[0]``                 | 64-bit M68k instruction counter                  |
 | *last PC*                | ``TPIDR_EL1``                | Program counter of previously executed JIT block |
 | *m68k context*           | ``TPIDRRO_EL0``              | Pointer to M68k context of JIT machine           |
