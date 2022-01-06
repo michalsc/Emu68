@@ -2613,7 +2613,6 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
-#ifdef __aarch64__
         uint8_t rt1 = 0xff;
 
         for (int i=0; i < 16; i++)
@@ -2639,7 +2638,10 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                     if (rt1 == 0xff)
                         rt1 = reg;
                     else {
-                        *ptr++ = ldp(base, rt1, reg, offset);
+                        if (block_size == 8 && (opcode & 0x38) == 0x18)
+                            *ptr++ = ldp_postindex(base, rt1, reg, 8);
+                        else 
+                            *ptr++ = ldp(base, rt1, reg, offset);
                         offset += 8;
                         rt1 = 0xff;
                     }
@@ -2655,35 +2657,9 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         if (rt1 != 0xff) {
             *ptr++ = ldr_offset(base, rt1, offset);
         }
-#else
-        for (int i=0; i < 16; i++)
-        {
-            if (mask & (1 << i))
-            {
-                /* Keep base register high in LRU */
-                if (((opcode & 0x38) == 0x18)) RA_MapM68kRegister(&ptr, (opcode & 7) + 8);
 
-                uint8_t reg = RA_MapM68kRegisterForWrite(&ptr, i);
-                if (size) {
-                    if ((((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8))) {
-                        offset += 4;
-                        continue;
-                    }
-
-                    *ptr++ = ldr_offset(base, reg, offset);
-                    offset += 4;
-                }
-                else
-                {
-                    if (!(((opcode & 0x38) == 0x18) && (i == (opcode & 7) + 8)))
-                        *ptr++ = ldrsh_offset(base, reg, offset);
-                    offset += 2;
-                }
-            }
-        }
-#endif
         /* Post-increment mode? Increase the base now */
-        if ((opcode & 0x38) == 0x18)
+        if ((opcode & 0x38) == 0x18 && !(block_size == 8 && size))
         {
             *ptr++ = add_immed(base, base, block_size);
             RA_SetDirtyM68kRegister(&ptr, (opcode & 7) + 8);
