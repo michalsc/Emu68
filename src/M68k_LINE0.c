@@ -779,63 +779,62 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t changed = RA_AllocARMRegister(&ptr);
     int16_t val = BE16((*m68k_ptr)[0]);
-    uint8_t ctx = RA_GetCTX(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmp;
     RA_SetDirtyM68kRegister(&ptr, 15);
 
-    /* Load immediate into the register */
-#ifdef __aarch64__
-    *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
     ptr = EMIT_FlushPC(ptr);
+    
+    /* If supervisor is not active, put an exception here */
+    tmp = ptr;
+    ptr++;
+    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+    *tmp = tbnz(cc, SRB_S, 1 + ptr - tmp);
+    tmp = ptr;
+    ptr++;
 
-    /* Test if supervisor mode is active */
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
+    /* Load immediate into the register */
+    *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0); 
     
     /* OR is here */
-    *ptr++ = mov_reg(changed, cc);
-    
-    *ptr++ = b_cc(A64_CC_EQ, 20);   
+    *ptr++ = mov_reg(changed, cc);   
     *ptr++ = orr_reg(cc, cc, immed, LSL, 0);
     
+    /* Check what has changed */
     *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
-    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 8);
 
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 4);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to MSP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP));
+    /* Skip switching ISP/MSP if not changed */
+    *ptr++ = tbz(changed, SRB_M, 7);
+
+    /* Swap ISP/MSP */
+    *ptr++ = tbz(cc, SRB_M, 4); 
+    
+    // M is not set now, Store MSP, load ISP
+    *ptr++ = mov_reg_to_simd(31, TS_S, 3, sp);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 2);
     *ptr++ = b(3);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to ISP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
 
+    // M is set now, store ISP, load MSP
+    *ptr++ = mov_reg_to_simd(31, TS_S, 2, sp);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 3);
+
+    // Advance PC
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
     
-    *ptr++ = mvn_reg(changed, cc, LSL, 0);
-    *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
-    *ptr++ = b_cc(A64_CC_EQ, 3);
-    *ptr++ = msr_imm(3, 7, 7);
+    // Check if IPL is less than 6. If yes, enable ARM interrupts
+    *ptr++ = and_immed(changed, cc, 3, 32 - SRB_IPL);
+    *ptr++ = cmp_immed(changed, 5 << SRB_IPL);
+    *ptr++ = b_cc(A64_CC_GT, 3);
+    *ptr++ = msr_imm(3, 7, 7); // Enable interrupts
     *ptr++ = b(2);
-    *ptr++ = msr_imm(3, 6, 7);
+    *ptr++ = msr_imm(3, 6, 7); // Mask interrupts
 
-    tmp = ptr;
-    *ptr++ = b_cc(A64_CC_AL, 10);
+    *tmp = b(ptr - tmp);
 
-    /* No supervisor. Update USP, generate exception */
-    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
-    
-    *tmp = b_cc(A64_CC_AL, ptr - tmp);
-    *ptr++ = (uint32_t)(uintptr_t)tmp;
-    *ptr++ = 1;
-    *ptr++ = 0;
-    *ptr++ = INSN_TO_LE(0xfffffffe);
     *ptr++ = INSN_TO_LE(0xffffffff);
-#else
-    *ptr++ = udf(opcode);
-#endif
+
     RA_FreeARMRegister(&ptr, immed);
     RA_FreeARMRegister(&ptr, changed);
 
@@ -1150,76 +1149,69 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint32_t *tmp;
 
     uint8_t changed = RA_AllocARMRegister(&ptr);
-    uint8_t ctx = RA_GetCTX(&ptr);
+    uint8_t orig = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     RA_SetDirtyM68kRegister(&ptr, 15);
 
-    /* Load immediate into the register */
-#ifdef __aarch64__
-    *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
     ptr = EMIT_FlushPC(ptr);
+    
+    /* If supervisor is not active, put an exception here */
+    tmp = ptr;
+    ptr++;
+    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+    *tmp = tbnz(cc, SRB_S, 1 + ptr - tmp);
+    tmp = ptr;
+    ptr++;
 
-    /* Test if supervisor mode is active */
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
+    /* Load immediate into the register */
+    *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
 
     /* AND is here */
-    *ptr++ = mov_reg(changed, cc);
-    *ptr++ = b_cc(A64_CC_EQ, 29);
-
+    *ptr++ = mov_reg(orig, cc);
     *ptr++ = and_reg(cc, cc, immed, LSL, 0);
-    *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
-    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 8);
+    /* Check what has changed */
+    *ptr++ = eor_reg(changed, orig, cc, LSL, 0);
 
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 4);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to MSP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP));
-    *ptr++ = b(3);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to ISP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+    /* If neither S nor M changed, go further */
+    *ptr++ = ands_immed(31, changed, 2, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 12);
 
-    // No need to check if S was set - it cannot, sueprvisor can only switch it off
-    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_S);    
-    *ptr++ = b_cc(A64_CC_EQ, 8);
+    /* S or M changed. First of all, store stack pointer to either ISP or MSP */
+    *ptr++ = tbz(orig, SRB_M, 3);
+    *ptr++ = mov_reg_to_simd(31, TS_S, 3, sp);  // Save to MSP
+    *ptr++ = b(2);
+    *ptr++ = mov_reg_to_simd(31, TS_S, 2, sp);  // Save to ISP
 
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 4);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to USP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-    *ptr++ = b(3);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to ISP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
+    /* Check if changing mode to user */
+    *ptr++ = tbz(changed, SRB_S, 3);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 1);
+    *ptr++ = b(5);
+    *ptr++ = tbz(cc, SRB_M, 3);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 3);  // Load MSP
+    *ptr++ = b(2);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 2);  // Load ISP
 
+    // Advance PC
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
 
-    *ptr++ = mvn_reg(changed, cc, LSL, 0);
-    *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
-    *ptr++ = b_cc(A64_CC_EQ, 3);
-    *ptr++ = msr_imm(3, 7, 7);
+    // Check if IPL is less than 6. If yes, enable ARM interrupts
+    *ptr++ = and_immed(changed, cc, 3, 32 - SRB_IPL);
+    *ptr++ = cmp_immed(changed, 5 << SRB_IPL);
+    *ptr++ = b_cc(A64_CC_GT, 3);
+    *ptr++ = msr_imm(3, 7, 7); // Enable interrupts
     *ptr++ = b(2);
-    *ptr++ = msr_imm(3, 6, 7);
+    *ptr++ = msr_imm(3, 6, 7); // Mask interrupts
 
-    tmp = ptr;
-    *ptr++ = b_cc(A64_CC_AL, 10);
+    *tmp = b(ptr - tmp);
 
-    /* No supervisor. Update USP, generate exception */
-    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
-    
-    *tmp = b_cc(A64_CC_AL, ptr - tmp);
-    *ptr++ = (uint32_t)(uintptr_t)tmp;
-    *ptr++ = 1;
-    *ptr++ = 0;
-    *ptr++ = INSN_TO_LE(0xfffffffe);
     *ptr++ = INSN_TO_LE(0xffffffff);
-#else
-    *ptr++ = udf(opcode);
-#endif
+
     RA_FreeARMRegister(&ptr, immed);
     RA_FreeARMRegister(&ptr, changed);
+    RA_FreeARMRegister(&ptr, orig);
 
     (*m68k_ptr) += 1;
 
@@ -1530,76 +1522,65 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     int16_t val = BE16((*m68k_ptr)[0]);
     uint32_t *tmp;
 
-    uint8_t changed = RA_AllocARMRegister(&ptr);
-    uint8_t ctx = RA_GetCTX(&ptr);
+    uint8_t orig = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     RA_SetDirtyM68kRegister(&ptr, 15);
 
-    /* Load immediate into the register */
-#ifdef __aarch64__
-    *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     
     ptr = EMIT_FlushPC(ptr);
-
-    /* Test if supervisor mode is active */
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_S);
     
+    /* If supervisor is not active, put an exception here */
+    tmp = ptr;
+    ptr++;
+    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+    *tmp = tbnz(cc, SRB_S, 1 + ptr - tmp);
+    tmp = ptr;
+    ptr++;
+
+    /* Load immediate into the register */
+    *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
+
     /* EOR is here */
-    *ptr++ = mov_reg(changed, cc);
-    *ptr++ = b_cc(A64_CC_EQ, 29);
+    *ptr++ = mov_reg(orig, cc);
     *ptr++ = eor_reg(cc, cc, immed, LSL, 0);
-    *ptr++ = eor_reg(changed, changed, cc, LSL, 0);
 
-    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 8);
+    /* If neither S nor M changed, go further */
+    *ptr++ = ands_immed(31, immed, 2, 32 - SRB_M);
+    *ptr++ = b_cc(A64_CC_EQ, 12);
 
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 4);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to MSP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP));
-    *ptr++ = b(3);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to ISP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP));
+    /* S or M changed. First of all, store stack pointer to either ISP or MSP */
+    *ptr++ = tbz(orig, SRB_M, 3);
+    *ptr++ = mov_reg_to_simd(31, TS_S, 3, sp);  // Save to MSP
+    *ptr++ = b(2);
+    *ptr++ = mov_reg_to_simd(31, TS_S, 2, sp);  // Save to ISP
 
-    // No need to check if S was set - it cannot, sueprvisor can only switch it off
-    *ptr++ = ands_immed(31, changed, 1, 32 - SRB_S);    
-    *ptr++ = b_cc(A64_CC_EQ, 8);
+    /* Check if changing mode to user */
+    *ptr++ = tbz(immed, SRB_S, 3);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 1);
+    *ptr++ = b(5);
+    *ptr++ = tbz(cc, SRB_M, 3);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 3);  // Load MSP
+    *ptr++ = b(2);
+    *ptr++ = mov_simd_to_reg(sp, 31, TS_S, 2);  // Load ISP
 
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_M);
-    *ptr++ = b_cc(A64_CC_EQ, 4);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, MSP)); // Switching from MSP to USP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-    *ptr++ = b(3);
-    *ptr++ = str_offset(ctx, sp, __builtin_offsetof(struct M68KState, ISP)); // Switching from ISP to ISP
-    *ptr++ = ldr_offset(ctx, sp, __builtin_offsetof(struct M68KState, USP));
-
+    // Advance PC
     *ptr++ = add_immed(REG_PC, REG_PC, 4);
 
-    *ptr++ = mvn_reg(changed, cc, LSL, 0);
-    *ptr++ = ands_immed(31, changed, 3, 32 - SRB_IPL);
-    *ptr++ = b_cc(A64_CC_EQ, 3);
-    *ptr++ = msr_imm(3, 7, 7);
+    // Check if IPL is less than 6. If yes, enable ARM interrupts
+    *ptr++ = and_immed(immed, cc, 3, 32 - SRB_IPL);
+    *ptr++ = cmp_immed(immed, 5 << SRB_IPL);
+    *ptr++ = b_cc(A64_CC_GT, 3);
+    *ptr++ = msr_imm(3, 7, 7); // Enable interrupts
     *ptr++ = b(2);
-    *ptr++ = msr_imm(3, 6, 7);
+    *ptr++ = msr_imm(3, 6, 7); // Mask interrupts
 
-    tmp = ptr;
-    *ptr++ = b_cc(A64_CC_AL, 10);
+    *tmp = b(ptr - tmp);
 
-    /* No supervisor. Update USP, generate exception */
-    ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
-    
-    *tmp = b_cc(A64_CC_AL, ptr - tmp);
-    *ptr++ = (uint32_t)(uintptr_t)tmp;
-    *ptr++ = 1;
-    *ptr++ = 0;
-    *ptr++ = INSN_TO_LE(0xfffffffe);
     *ptr++ = INSN_TO_LE(0xffffffff);
-#else
-    *ptr++ = udf(opcode);
-#endif
+
     RA_FreeARMRegister(&ptr, immed);
-    RA_FreeARMRegister(&ptr, changed);
+    RA_FreeARMRegister(&ptr, orig);
 
     (*m68k_ptr) += 1;
 
@@ -3290,6 +3271,8 @@ uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
+        *ptr++ = svc(0x100);
+        *ptr++ = svc(0x101);
         *ptr++ = svc(0x103);
         *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
         *ptr++ = 48;
