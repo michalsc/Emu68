@@ -1022,6 +1022,9 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
 
     asm volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
+    asm volatile("mov v31.s[1], %w0"::"r"(ctx->USP));
+    asm volatile("mov v31.s[2], %w0"::"r"(ctx->ISP));
+    asm volatile("mov v31.s[3], %w0"::"r"(ctx->MSP));
     asm volatile("mov v30.d[0], %0"::"r"(ctx->INSN_COUNT));
     asm volatile("mov v29.s[0], %w0"::"r"(ctx->FPSR));
     asm volatile("mov v29.s[1], %w0"::"r"(ctx->FPIAR));
@@ -1052,12 +1055,12 @@ void M68K_LoadContext(struct M68KState *ctx)
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
-            asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->MSP));
+            asm volatile("mov w%0, v31.S[3]"::"i"(REG_A7));
         else
-            asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->ISP));
+            asm volatile("mov w%0, v31.S[2]"::"i"(REG_A7));
     }
     else
-        asm volatile("ldr w%0, %1"::"i"(REG_A7),"m"(ctx->USP));
+        asm volatile("mov w%0, V31.S[1]"::"i"(REG_A7));
 }
 
 void M68K_SaveContext(struct M68KState *ctx)
@@ -1094,12 +1097,16 @@ void M68K_SaveContext(struct M68KState *ctx)
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
-            asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->MSP));
+            asm volatile("mov v31.S[3], w%0"::"i"(REG_A7));
         else
-            asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->ISP));
+            asm volatile("mov v31.S[2], w%0"::"i"(REG_A7));
     }
     else
-        asm volatile("str w%0, %1"::"i"(REG_A7),"m"(ctx->USP));
+        asm volatile("mov v31.S[1], w%0"::"i"(REG_A7));
+    
+    asm volatile("mov w1, v31.s[1]; str w1, %0"::"m"(ctx->USP):"x1");
+    asm volatile("mov w1, v31.s[2]; str w1, %0"::"m"(ctx->ISP):"x1");
+    asm volatile("mov w1, v31.s[3]; str w1, %0"::"m"(ctx->MSP):"x1");
 }
 
 void M68K_PrintContext(struct M68KState *m68k)
@@ -1250,6 +1257,16 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "1:                                         \n"
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
+#if EMU68_PC_REG_HISTORY
+// Store last four PC values in v28 vector
+"       mov     w3, v28.s[2]                \n"
+"       mov     w4, v28.s[1]                \n"
+"       mov     w5, v28.s[0]                \n"
+"       mov     v28.s[3], w3                \n"
+"       mov     v28.s[2], w4                \n"
+"       mov     v28.s[1], w5                \n"
+"       mov     v28.s[0], w%[reg_pc]        \n"
+#endif
 
 #ifdef PISTORM
 "       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
@@ -1424,21 +1441,21 @@ void  __attribute__((used)) stub_ExecutionLoop()
 
 // Process the interrupt here
 "91:    tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
-"       str     w%[reg_sp], [x0, #%[usp]]   \n" // Store USP
+"       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
 "       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
-"       ldr     w%[reg_sp], [x0, #%[isp]]   \n" // Load ISP
+"       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
 "       b       93f                         \n"
-"94:    ldr     w%[reg_sp], [x0, #%[msp]]   \n" // Load MSP
+"94:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
 
 "93:    mov     w5, w2                      \n" // Make a copy of SR
 "       bfi     w5, w1, %[srb_ipm], 3       \n" // Insert IPL level to SR register IPM field
 "       lsl     w3, w1, #2                  \n" // Calculate vector offset
 "       add     w3, w3, #0x60               \n" 
-"       strh    w3, [x%[reg_sp], #-2]!      \n" // Push frame format 0
-"       str     w%[reg_pc], [x%[reg_sp], #-4]! \n" // Push address of next instruction
-"       strh    w2, [x%[reg_sp], #-2]!      \n" // Push old SR
-"       bic     w5, w5, #0xc000             \n" // Clear T0 and T1
-"       orr     w5, w5, #0x2000             \n" // Set S bit
+"       strh    w2, [x%[reg_sp], #-8]!      \n" // Push old SR
+"       str     w%[reg_pc], [x%[reg_sp], #2]\n" // Push address of next instruction
+"       strh    w3, [x%[reg_sp], #6]        \n" // Push frame format 0
+"       bic     w5, w5, #%[sr_t01]          \n" // Clear T0 and T1
+"       orr     w5, w5, #%[sr_s]            \n" // Set S bit
 "       msr     TPIDR_EL0, x5               \n" // Update SR
 "       ldr     w1, [x0, #%[vbr]]           \n"
 "       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
@@ -1455,23 +1472,16 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       bic     w3, w1, w4                  \n" // Clear PINT bits in a copy!
 "       cbz     w3, 93f                     \n" // Leave interrupt calling of no unmasked IRQs left
 "       tbnz    w2, #%[srb_s], 91f          \n" // Check if m68k was in supervisor mode already
-"       str     w%[reg_sp], [x0, #%[usp]]   \n" // Store USP
+"       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
 "       tbnz    w2, #%[srb_m], 92f          \n" // Check if MSP is active
-"       ldr     w%[reg_sp], [x0, #%[isp]]   \n" // Load ISP
+"       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
 "       b       91f                         \n"
-"92:    ldr     w%[reg_sp], [x0, #%[msp]]   \n" // Load MSP
+"92:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
 "91:    clz     w3, w3                      \n" // Count number of zeros before first set bit is there
 "       neg     w3, w3                      \n" // 24 for level 7, 25 for level 6 and so on
 "       add     w3, w3, #31                 \n" // level = 31 - clz(w1)
 "       mov     w4, #1                      \n" // Make a mask for bit clear in PINT
 "       lsl     w4, w4, w3                  \n"
-//"91:    mov     w4, #0x80                   \n" // Start checking with INT7
-//"       mov     x3, #7                      \n" // At most 7 levels to check
-//"95:    ands    wzr, w1, w4                 \n" 
-//"       b.ne    94f                         \n" // Interrupt flag was set. Proceed there
-//"       sub     w3, w3, #1                  \n" // Decrement level
-//"       lsr     w4, w4, #1                  \n"
-//"       cbnz    w3, 95b                     \n" // Continue checking if not INT0 is reached
 "94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
 "       str     w1, [x0, #%[pint]]          \n" // Store PINT
 "       mov     w5, w2                      \n" // Make a copy of SR
@@ -1500,6 +1510,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
  [srb_ipm]"i"(SRB_IPL),
  [srb_m]"i"(SRB_M),
  [srb_s]"i"(SRB_S),
+ [sr_s]"i"(SR_S),
+ [sr_t01]"i"(SR_T0 | SR_T1),
  [fcount]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_FetchCount)),
  [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
  [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
