@@ -802,19 +802,26 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
-    *ptr++ = get_nzcv(tmp_reg);
-#if 1
-    *ptr++ = bfxil(cc, tmp_reg, 28, 4);
-    *ptr++ = bic_immed(cc, cc, 2, 0);
-#else
-    *ptr++ = lsr(tmp_reg, tmp_reg, 28);
-    *ptr++ = bic_immed(cc, cc, 4, 0);
-    *ptr++ = and_immed(tmp_reg, tmp_reg, 2, 30);
-    *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
-#endif
-    RA_FreeARMRegister(&ptr, tmp_reg);
+    if (__builtin_popcount(*not_done) > 1)
+    {
+        *ptr++ = get_nzcv(tmp_reg);
+    #if 1
+        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        *ptr++ = bic_immed(cc, cc, 2, 0);
+    #else
+        *ptr++ = lsr(tmp_reg, tmp_reg, 28);
+        *ptr++ = bic_immed(cc, cc, 4, 0);
+        *ptr++ = and_immed(tmp_reg, tmp_reg, 2, 30);
+        *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+    #endif
 
-    (*not_done) &= 0x10;
+        (*not_done) &= 0x10;
+    }
+
+    if (*not_done)
+        ptr = EMIT_ClearFlags(ptr, cc, *not_done);
+
+    RA_FreeARMRegister(&ptr, tmp_reg);
 
     return ptr;
 }
@@ -1206,6 +1213,9 @@ uint32_t number_to_mask(uint32_t number)
     unsigned width = 0;
 
     if (number == 0)
+        return 0;
+
+    if (number == 0xffffffff)
         return 0;
 
     shift = __builtin_ctz(number);
