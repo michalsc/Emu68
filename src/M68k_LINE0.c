@@ -1242,7 +1242,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     else mask32 = 0;
                     if (mask32 == 0 || mask32 == 0xffffffff) {
                         mask32 = 0;
-                        *ptr++ = movn_immed_u16(immed, ~(lo16 & 0xff), 0);                    
+                        *ptr++ = movn_immed_u16(immed, ~(0xff00 | (lo16 & 0xff)), 0);                    
                     }
                 }
                 else {
