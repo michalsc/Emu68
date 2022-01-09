@@ -812,10 +812,9 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     *ptr++ = and_immed(tmp_reg, tmp_reg, 2, 30);
     *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
 #endif
+    RA_FreeARMRegister(&ptr, tmp_reg);
 
     (*not_done) &= 0x10;
-
-    RA_FreeARMRegister(&ptr, tmp_reg);
 
     return ptr;
 }
