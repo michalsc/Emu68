@@ -66,6 +66,8 @@
 #define GPFSEL1_OUTPUT 0x09249249
 #define GPFSEL2_OUTPUT (0x00000249 | (1 << 18) | (1 << 21))
 
+#define GPFSEL2_MASK 0x00ffffff
+
 #endif
 
 unsigned int ps_read_8(unsigned int address);
