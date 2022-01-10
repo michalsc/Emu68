@@ -228,7 +228,7 @@ void ps_setup_protocol() {
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_INPUT);
+  *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   *(gpio + 7) = LE32(TXD_BIT);
 }
@@ -248,7 +248,7 @@ static void ps_write_16_int(unsigned int address, unsigned int data) {
   {
     *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
     *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-    *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_OUTPUT);
+    *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
     *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
     *(gpio + 7) = LE32(1 << PIN_WR);
@@ -267,16 +267,20 @@ static void ps_write_16_int(unsigned int address, unsigned int data) {
 
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
     *(gpio + 1) = LE32(GPFSEL1_INPUT);
-    *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_INPUT);
+    *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
     while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
 
+#if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
       ticksleep(CIA_DELAY);
     }
-    else if (address >= 0xde0000 && address <= 0xdfffff) {
+#endif
+#if CHIPSET_DELAY
+    if (address >= 0xde0000 && address <= 0xdfffff) {
       ticksleep(CHIPSET_DELAY);
     }
+#endif
   }
 }
 
@@ -291,7 +295,7 @@ static void ps_write_8_int(unsigned int address, unsigned int data) {
 
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_OUTPUT);
+  *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
   *(gpio + 7) = LE32(1 << PIN_WR);
@@ -310,16 +314,20 @@ static void ps_write_8_int(unsigned int address, unsigned int data) {
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_INPUT);
+  *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   while (*(gpio + 13) & LE32((1 << PIN_TXN_IN_PROGRESS))) {}
 
-  if (address >= 0xbf0000 && address <= 0xbfffff) {
-    ticksleep(CIA_DELAY);
-  }
-  else if (address >= 0xde0000 && address <= 0xdfffff) {
-    ticksleep(CHIPSET_DELAY);
-  }
+#if CIA_DELAY
+    if (address >= 0xbf0000 && address <= 0xbfffff) {
+      ticksleep(CIA_DELAY);
+    }
+#endif
+#if CHIPSET_DELAY
+    if (address >= 0xde0000 && address <= 0xdfffff) {
+      ticksleep(CHIPSET_DELAY);
+    }
+#endif
 }
 
 static void ps_write_32_int(unsigned int address, unsigned int value) {
@@ -358,7 +366,7 @@ unsigned int ps_read_16_int(unsigned int address)
   {
     *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
     *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-    *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_OUTPUT);
+    *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
     *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
     *(gpio + 7) = LE32(1 << PIN_WR);
@@ -372,7 +380,7 @@ unsigned int ps_read_16_int(unsigned int address)
 
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
     *(gpio + 1) = LE32(GPFSEL1_INPUT);
-    *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_INPUT);
+    *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
     *(gpio + 7) = LE32(REG_DATA << PIN_A0);
     *(gpio + 7) = LE32(1 << PIN_RD);
@@ -382,12 +390,16 @@ unsigned int ps_read_16_int(unsigned int address)
 
     *(gpio + 10) = LE32(0xffffec);
 
+#if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
       ticksleep(CIA_DELAY);
     }
-    else if (address >= 0xde0000 && address <= 0xdfffff) {
+#endif
+#if CHIPSET_DELAY
+    if (address >= 0xde0000 && address <= 0xdfffff) {
       ticksleep(CHIPSET_DELAY);
     }
+#endif
 
     return (value >> 8) & 0xffff;
   }
@@ -404,7 +416,7 @@ unsigned int ps_read_8_int(unsigned int address)
 
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_OUTPUT);
+  *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
   *(gpio + 7) = LE32(1 << PIN_WR);
@@ -418,7 +430,7 @@ unsigned int ps_read_8_int(unsigned int address)
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_INPUT);
+  *(gpio + 2) = LE32(GPFSEL2_INPUT);
 
   *(gpio + 7) = LE32(REG_DATA << PIN_A0);
   *(gpio + 7) = LE32(1 << PIN_RD);
@@ -430,12 +442,16 @@ unsigned int ps_read_8_int(unsigned int address)
 
   value = (value >> 8) & 0xffff;
 
-  if (address >= 0xbf0000 && address <= 0xbfffff) {
-    ticksleep(CIA_DELAY);
-  }
-  else if (address >= 0xde0000 && address <= 0xdfffff) {
-    ticksleep(CHIPSET_DELAY);
-  }
+#if CIA_DELAY
+    if (address >= 0xbf0000 && address <= 0xbfffff) {
+      ticksleep(CIA_DELAY);
+    }
+#endif
+#if CHIPSET_DELAY
+    if (address >= 0xde0000 && address <= 0xdfffff) {
+      ticksleep(CHIPSET_DELAY);
+    }
+#endif
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
@@ -468,7 +484,7 @@ unsigned int ps_read_32_int(unsigned int address)
 void ps_write_status_reg(unsigned int value) {
   *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
   *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_OUTPUT);
+  *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
   *(gpio + 7) = LE32(((value & 0xffff) << 8) | (REG_STATUS << PIN_A0));
 
@@ -479,7 +495,7 @@ void ps_write_status_reg(unsigned int value) {
 
   *(gpio + 0) = LE32(GPFSEL0_INPUT);
   *(gpio + 1) = LE32(GPFSEL1_INPUT);
-  *(gpio + 2) = (*(gpio + 2) & ~LE32(GPFSEL2_MASK)) | LE32(GPFSEL2_INPUT);
+  *(gpio + 2) = LE32(GPFSEL2_INPUT);
 }
 
 unsigned int ps_read_status_reg() {
