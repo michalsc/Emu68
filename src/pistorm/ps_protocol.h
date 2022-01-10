@@ -60,13 +60,11 @@
 
 #define GPFSEL0_INPUT 0x00244240
 #define GPFSEL1_INPUT 0x00000000
-#define GPFSEL2_INPUT (0x00000000 | (1 << 18) | (1 << 21))
+#define GPFSEL2_INPUT (0x00000000 | (1 << 18) | (1 << 21) | (1 << 27))
 
 #define GPFSEL0_OUTPUT 0x09244240
 #define GPFSEL1_OUTPUT 0x09249249
-#define GPFSEL2_OUTPUT (0x00000249 | (1 << 18) | (1 << 21))
-
-#define GPFSEL2_MASK 0x00ffffff
+#define GPFSEL2_OUTPUT (0x00000249 | (1 << 18) | (1 << 21) | (1 << 27))
 
 #endif
 
