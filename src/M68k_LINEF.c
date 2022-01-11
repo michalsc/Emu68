@@ -2025,14 +2025,24 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 }
                 else
                 {
-                    while ((n = REMHEAD(&LRU))) {
+                    while (__m68k_state->JIT_UNIT_COUNT >= __m68k_state->JIT_SOFTFLUSH_THRESH && (n = REMHEAD(&LRU))) {
                         u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-                        // kprintf("[LINEF] Removing unit %p\n", u);                
+             
                         REMOVE(&u->mt_HashNode);
                         tlsf_free(jit_tlsf, u);
                         
                         __m68k_state->JIT_UNIT_COUNT--;
-                        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                    }
+                    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+                    ForeachNode(&LRU, n)
+                    {
+                        uintptr_t uptr = ((uintptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
+                        uptr += __builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint);
+
+                        // Weak cflush. Generate invalid entry address instead of flushing. Fault handler will
+                        // verify block checksum and eventually discard it
+                        *(uint8_t *)uptr = 0xaa;
                     }
                 }
             }
@@ -2043,10 +2053,9 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                     // kprintf("[LINEF] Removing unit %p\n", u);                
                     REMOVE(&u->mt_HashNode);
                     tlsf_free(jit_tlsf, u);
-
-                    __m68k_state->JIT_UNIT_COUNT--;
-                    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
                 }
+                __m68k_state->JIT_UNIT_COUNT = 0;
+                __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
             }
             break;
     }
@@ -4820,7 +4829,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* MOVE16 other variations */
     else if ((opcode & 0xffe0) == 0xf600)
     {
-        uint8_t aligned_reg = RA_AllocARMRegister(&ptr);
         uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
         uint8_t buf1 = RA_AllocARMRegister(&ptr);
         uint8_t buf2 = RA_AllocARMRegister(&ptr);
@@ -4836,34 +4844,36 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         *ptr++ = movw_immed_u16(aligned_mem, mem & 0xffff);
         if (mem & 0xffff0000)
             *ptr++ = movt_immed_u16(aligned_mem, mem >> 16);
-#ifdef __aarch64__
-        *ptr++ = bic_immed(aligned_reg, reg, 4, 0);
+
         if (opcode & 8) {
             *ptr++ = ldp64(aligned_mem, buf1, buf2, 0);
-            *ptr++ = stp64(aligned_reg, buf1, buf2, 0);
+
+            if (!(opcode & 0x10))
+            {
+                *ptr++ = stp64_postindex(reg, buf1, buf2, 16);
+            }
+            else
+            {    
+                *ptr++ = stp64(reg, buf1, buf2, 0);
+            }
         }
         else {
-            *ptr++ = ldp64(aligned_reg, buf1, buf2, 0);
+            if (!(opcode & 0x10))
+            {
+                *ptr++ = ldp64_postindex(reg, buf1, buf2, 16);
+            }
+            else
+            {
+                *ptr++ = ldp64(reg, buf1, buf2, 0);
+            }
             *ptr++ = stp64(aligned_mem, buf1, buf2, 0);
         }
-#else
-        *ptr++ = bic_immed(aligned_reg, reg, 0x0f);
-        if (opcode & 8) {
-            *ptr++ = ldm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-            *ptr++ = stm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-        }
-        else {
-            *ptr++ = ldm(aligned_reg, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-            *ptr++ = stm(aligned_mem, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-        }
-#endif
+
         if (!(opcode & 0x10))
         {
-            *ptr++ = add_immed(reg, reg, 16);
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
 
-        RA_FreeARMRegister(&ptr, aligned_reg);
         RA_FreeARMRegister(&ptr, aligned_mem);
         RA_FreeARMRegister(&ptr, buf1);
         RA_FreeARMRegister(&ptr, buf2);
