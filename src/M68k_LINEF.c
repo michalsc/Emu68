@@ -4766,17 +4766,23 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* MOVE16 (Ax)+, (Ay)+ */
     else if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
     {
-        uint8_t aligned_src = RA_AllocARMRegister(&ptr);
-        uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
         uint8_t buf1 = RA_AllocARMRegister(&ptr);
         uint8_t buf2 = RA_AllocARMRegister(&ptr);
-#ifndef __aarch64__
-        uint8_t buf3 = RA_AllocARMRegister(&ptr);
-        uint8_t buf4 = RA_AllocARMRegister(&ptr);
-#endif
         uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
+#if 1
+        if (dst != src) {
+            *ptr++ = ldp64_postindex(src, buf1, buf2, 16);
+        } else {
+            *ptr++ = ldp64(src, buf1, buf2, 0);
+        }
+        *ptr++ = stp64_postindex(dst, buf1, buf2, 16);
+#else
+        uint8_t aligned_src = RA_AllocARMRegister(&ptr);
+        uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
+
+        kprintf("move16 (ax)+, (ay)+\n");
 #ifdef __aarch64__
         *ptr++ = bic_immed(aligned_src, src, 4, 0);
         *ptr++ = bic_immed(aligned_dst, dst, 4, 0);
@@ -4794,11 +4800,13 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             *ptr++ = add_immed(dst, dst, 16);
         }
 
+        RA_FreeARMRegister(&ptr, aligned_src);
+        RA_FreeARMRegister(&ptr, aligned_dst);
+#endif
+
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
-        RA_FreeARMRegister(&ptr, aligned_src);
-        RA_FreeARMRegister(&ptr, aligned_dst);
         RA_FreeARMRegister(&ptr, buf1);
         RA_FreeARMRegister(&ptr, buf2);
 #ifndef __aarch64__
