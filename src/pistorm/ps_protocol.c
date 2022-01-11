@@ -527,7 +527,7 @@ extern uint32_t overlay;
 
 void ps_pulse_reset() {
   ps_write_status_reg(0);
-  usleep(300000);
+  usleep(30000);
   ps_write_status_reg(STATUS_BIT_RESET);
   
   overlay = 1;
@@ -585,7 +585,7 @@ void ps_housekeeper()
   /* Configure timer-based event stream */
   /* Enable timer regs from EL0, enable event stream on posedge, monitor 3th bit */
   /* This gives a frequency of 1.2MHz for a 19.2MHz timer */
-  asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+  asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
 
   for(;;) {
     if (housekeeper_enabled)
