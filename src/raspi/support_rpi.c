@@ -414,6 +414,7 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
     arm_flush_cache((intptr_t)FBReq, c * 4);
     mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
     mbox_recv(8);
+    arm_dcache_invalidate((intptr_t)FBReq, c*4);
 
     uint32_t _base = LE32(FBReq[pos_buffer_base]);
     uint32_t _pitch = LE32(FBReq[pos_buffer_pitch]);
