@@ -2993,6 +2993,9 @@ void do_reset()
 {
     void ps_pulse_reset();
 
+    struct Size sz = get_display_size();
+    init_display(sz, NULL, NULL);
+
     ps_pulse_reset();
 }
 #endif
