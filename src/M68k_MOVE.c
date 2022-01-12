@@ -360,8 +360,13 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         if (!loaded_in_dest)
         {
             if (is_movea && size == 2) {
-                loaded_in_dest = 1;
-                tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
+
+                if (!((tmp & 7) == (opcode & 7) && ((opcode & 0x38) == 0x18 || (opcode & 0x38) == 0x20)))
+                {
+                    loaded_in_dest = 1;
+                    tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
+                }
+                // If dest register An and source is (An)+ mode, don't do postincrement at all. Change mode to (An)
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
             }
             else {
