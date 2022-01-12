@@ -360,7 +360,9 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         if (!loaded_in_dest)
         {
             if (is_movea && size == 2) {
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                loaded_in_dest = 1;
+                tmp_reg = RA_MapM68kRegisterForWrite(&ptr, 8 + (tmp & 7));
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
             }
             else {
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
@@ -384,17 +386,11 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         /* In case of movea the value is *always* sign-extended to 32 bits */
         if (is_movea && size == 2) {
-#ifdef __aarch64__
-            *ptr++ = sxth(tmp_reg, tmp_reg);
-#else
-            *ptr++ = sxth(tmp_reg, tmp_reg, 0);
-#endif
             size = 4;
         }
 
         if (update_mask && !is_load_immediate)
         {
-#ifdef __aarch64__
             switch (size)
             {
                 case 4:
@@ -407,9 +403,6 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     *ptr++ = cmn_reg(31, tmp_reg, LSL, 24);
                     break;
             }
-#else
-            *ptr++ = cmp_immed(tmp_reg, 0);
-#endif
         }
 
         if (!loaded_in_dest)
