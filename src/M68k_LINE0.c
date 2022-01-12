@@ -875,7 +875,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0040:    /* Short operation */
             lo16 = BE16((*m68k_ptr)[ext_count++]);
             if (update_mask == 0) {
-                mask32 = number_to_mask(lo16);
+                mask32 = number_to_mask(lo16 & 0xffff);
                 if (mask32 == 0 || mask32 == 0xffffffff) {
                     mask32 = 0;
                     *ptr++ = mov_immed_u16(immed, lo16, 0);
@@ -1242,7 +1242,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     else mask32 = 0;
                     if (mask32 == 0 || mask32 == 0xffffffff) {
                         mask32 = 0;
-                        *ptr++ = movn_immed_u16(immed, ~(0xff00 | (lo16 & 0xff)), 0);                    
+                        *ptr++ = movn_immed_u16(immed, (~lo16) & 0xff, 0);                    
                     }
                 }
                 else {
@@ -1321,9 +1321,9 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 2:
                 if (update_mask == 0) {
                     if (mask32 == 0)
-                        *ptr++ = ands_reg(dest, dest, immed, LSL, 0);
+                        *ptr++ = and_reg(dest, dest, immed, LSL, 0);
                     else
-                        *ptr++ = ands_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                        *ptr++ = and_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 }
                 else {
                     *ptr++ = ands_reg(immed, immed, dest, LSL, 16);
@@ -1333,9 +1333,9 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             case 1:
                 if (update_mask == 0) {
                     if (mask32 == 0)
-                        *ptr++ = ands_reg(dest, dest, immed, LSL, 0);
+                        *ptr++ = and_reg(dest, dest, immed, LSL, 0);
                     else
-                        *ptr++ = ands_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                        *ptr++ = and_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 }
                 else {
                     *ptr++ = ands_reg(immed, immed, dest, LSL, 24);
@@ -1412,9 +1412,9 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 if (update_mask == 0) {
                     if (mask32 == 0)
-                        *ptr++ = ands_reg(immed, immed, tmp, LSL, 0);
+                        *ptr++ = and_reg(immed, immed, tmp, LSL, 0);
                     else
-                        *ptr++ = ands_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                        *ptr++ = and_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 }
                 else {
                     *ptr++ = ands_reg(immed, immed, tmp, LSL, 16);
@@ -1445,9 +1445,9 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #ifdef __aarch64__
                 if (update_mask == 0) {
                     if (mask32 == 0)
-                        *ptr++ = ands_reg(immed, immed, tmp, LSL, 0);
+                        *ptr++ = and_reg(immed, immed, tmp, LSL, 0);
                     else
-                        *ptr++ = ands_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                        *ptr++ = and_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
                 }
                 else {
                     *ptr++ = ands_reg(immed, immed, tmp, LSL, 24);
@@ -2965,20 +2965,10 @@ uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
         else {
             uint8_t tmpreg = 0xff;
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-
-            if (opcode2 & 0x8000) {
-                switch (size)
-                {
-                    case 1:
-                        *ptr++ = sxtb(reg, tmpreg);
-                        break;
-                
-                    case 2:
-                        *ptr++ = sxth(reg, tmpreg);
-                        break;
-                }
-            }
+            if (opcode2 & 0x8000)
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+            else
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
 
             switch (size)
             {
