@@ -4772,7 +4772,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
-#if 1
+#if 0
         if (dst != src) {
             *ptr++ = ldp64_postindex(src, buf1, buf2, 16);
         } else {
@@ -4783,19 +4783,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         uint8_t aligned_src = RA_AllocARMRegister(&ptr);
         uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
 
-        kprintf("move16 (ax)+, (ay)+\n");
-#ifdef __aarch64__
         *ptr++ = bic_immed(aligned_src, src, 4, 0);
         *ptr++ = bic_immed(aligned_dst, dst, 4, 0);
         *ptr++ = ldp64(aligned_src, buf1, buf2, 0);
-        *ptr++ = stp64(aligned_dst, buf1, buf2, 0);
-#else
-        *ptr++ = bic_immed(aligned_src, src, 0x0f);
-        *ptr++ = bic_immed(aligned_dst, dst, 0x0f);
-        *ptr++ = ldm(aligned_src, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-        *ptr++ = stm(aligned_dst, (1 << buf1) | (1 << buf2) | (1 << buf3) | (1 << buf4));
-#endif
         *ptr++ = add_immed(src, src, 16);
+        *ptr++ = stp64(aligned_dst, buf1, buf2, 0);
+
         // Update dst only if it is not the same as src!
         if (dst != src) {
             *ptr++ = add_immed(dst, dst, 16);
@@ -4804,7 +4797,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         RA_FreeARMRegister(&ptr, aligned_src);
         RA_FreeARMRegister(&ptr, aligned_dst);
 #endif
-
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
@@ -4821,6 +4813,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     /* MOVE16 other variations */
     else if ((opcode & 0xffe0) == 0xf600)
     {
+        uint8_t aligned_reg = RA_AllocARMRegister(&ptr);
         uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
         uint8_t buf1 = RA_AllocARMRegister(&ptr);
         uint8_t buf2 = RA_AllocARMRegister(&ptr);
@@ -4837,35 +4830,24 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (mem & 0xffff0000)
             *ptr++ = movt_immed_u16(aligned_mem, mem >> 16);
 
+        *ptr++ = bic_immed(aligned_reg, reg, 4, 0);
+
         if (opcode & 8) {
             *ptr++ = ldp64(aligned_mem, buf1, buf2, 0);
-
-            if (!(opcode & 0x10))
-            {
-                *ptr++ = stp64_postindex(reg, buf1, buf2, 16);
-            }
-            else
-            {    
-                *ptr++ = stp64(reg, buf1, buf2, 0);
-            }
+            *ptr++ = stp64(aligned_reg, buf1, buf2, 0);
         }
         else {
-            if (!(opcode & 0x10))
-            {
-                *ptr++ = ldp64_postindex(reg, buf1, buf2, 16);
-            }
-            else
-            {
-                *ptr++ = ldp64(reg, buf1, buf2, 0);
-            }
+            *ptr++ = ldp64(aligned_reg, buf1, buf2, 0);
             *ptr++ = stp64(aligned_mem, buf1, buf2, 0);
         }
 
         if (!(opcode & 0x10))
         {
+            *ptr++ = add_immed(reg, reg, 16);
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
 
+        RA_FreeARMRegister(&ptr, aligned_reg);
         RA_FreeARMRegister(&ptr, aligned_mem);
         RA_FreeARMRegister(&ptr, buf1);
         RA_FreeARMRegister(&ptr, buf2);
