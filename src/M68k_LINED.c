@@ -317,21 +317,12 @@ static uint32_t *EMIT_ADDA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t tmp = 0xff;
 
     if (size == 2)
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
     else
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
-#ifdef __aarch64__
-    if (size == 2)
-        *ptr++ = sxth(tmp, tmp);
-
     *ptr++ = add_reg(reg, reg, tmp, LSL, 0);
-#else
-    if (size == 2)396
-        *ptr++ = sxth(tmp, tmp, 0);
 
-    *ptr++ = add_reg(reg, reg, tmp, 0);
-#endif
     RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
     RA_FreeARMRegister(&ptr, tmp);
