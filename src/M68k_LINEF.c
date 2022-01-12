@@ -678,18 +678,16 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
 
                 case SIZE_W:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 2, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = sxth(tmp_reg, int_reg);
                     *ptr++ = scvtf_32toD(*reg, tmp_reg);
                     RA_FreeARMRegister(&ptr, tmp_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
                 case SIZE_B:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
                     tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = sxtb(tmp_reg, int_reg);
                     *ptr++ = scvtf_32toD(*reg, tmp_reg);
                     RA_FreeARMRegister(&ptr, tmp_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
@@ -2025,7 +2023,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 }
                 else
                 {
-                    while (__m68k_state->JIT_UNIT_COUNT >= __m68k_state->JIT_SOFTFLUSH_THRESH && (n = REMHEAD(&LRU))) {
+                    while (/* __m68k_state->JIT_UNIT_COUNT >= __m68k_state->JIT_SOFTFLUSH_THRESH && */ (n = REMHEAD(&LRU))) {
                         u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
              
                         REMOVE(&u->mt_HashNode);
@@ -2034,7 +2032,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                         __m68k_state->JIT_UNIT_COUNT--;
                     }
                     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-
+/*
                     ForeachNode(&LRU, n)
                     {
                         uintptr_t uptr = ((uintptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -2044,6 +2042,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                         // verify block checksum and eventually discard it
                         *(uint8_t *)uptr = 0xaa;
                     }
+*/
                 }
             }
             else
@@ -2752,13 +2751,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 break;
             case 4:
                 fp_src = RA_AllocFPURegister(&ptr);
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-                *ptr++ = sxth(int_src, int_src);
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 break;
             case 6:
                 fp_src = RA_AllocFPURegister(&ptr);
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-                *ptr++ = sxtb(int_src, int_src);
+                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 break;
             default:
                 int_src = RA_AllocARMRegister(&ptr);
