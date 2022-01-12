@@ -315,20 +315,12 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
     if (size == 2)
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
     else
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
-#ifdef __aarch64__
-    if (size == 2)
-        *ptr++ = sxth(tmp, tmp);
 
     *ptr++ = sub_reg(reg, reg, tmp, LSL, 0);
-#else
-    if (size == 2)
-        *ptr++ = sxth(tmp, tmp, 0);
 
-    *ptr++ = sub_reg(reg, reg, tmp, 0);
-#endif
     RA_FreeARMRegister(&ptr, tmp);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
