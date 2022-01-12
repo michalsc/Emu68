@@ -150,7 +150,6 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
 
             switch(size)
             {
-#ifdef __aarch64__
                 case 2:
                     *ptr++ = mvn_reg(tmp, dest, LSL, 0);
                     *ptr++ = bfi(dest, tmp, 0, 16);
@@ -159,18 +158,6 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                     *ptr++ = mvn_reg(tmp, dest, LSL, 0);
                     *ptr++ = bfi(dest, tmp, 0, 8);
                     break;
-#else
-                case 2:
-                    *ptr++ = sxth(tmp, dest, 0);        /* Extract lower 16 bits */
-                    *ptr++ = mvns_reg(tmp, tmp, 0);     /* Negate */
-                    *ptr++ = bfi(dest, tmp, 0, 16);     /* Insert result bitfield into register */
-                    break;
-                case 1:
-                    *ptr++ = sxtb(tmp, dest, 0);
-                    *ptr++ = mvns_reg(tmp, tmp, 0);
-                    *ptr++ = bfi(dest, tmp, 0, 8);
-                    break;
-#endif
             }
 
             RA_FreeARMRegister(&ptr, tmp);
@@ -221,12 +208,9 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             }
             else
                 *ptr++ = ldrh_offset(dest, tmp, 0);
-#ifdef __aarch64__
+
             *ptr++ = mvn_reg(tmp, tmp, LSL, 0);
-#else
-            *ptr++ = sxth(tmp, tmp, 0);
-            *ptr++ = mvns_reg(tmp, tmp, 0);
-#endif
+
             if (mode == 3)
             {
                 *ptr++ = strh_offset_postindex(dest, tmp, 2);
@@ -244,12 +228,8 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             else
                 *ptr++ = ldrb_offset(dest, tmp, 0);
 
-#ifdef __aarch64__
             *ptr++ = mvn_reg(tmp, tmp, LSL, 0);
-#else
-            *ptr++ = sxtb(tmp, tmp, 0);
-            *ptr++ = mvns_reg(tmp, tmp, 0);
-#endif
+
             if (mode == 3)
             {
                 *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
@@ -429,7 +409,6 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             else
                 *ptr++ = ldrh_offset(dest, tmp, 0);
 
-#ifdef __aarch64__
             if (update_mask == 0) {
                 *ptr++ = neg_reg(tmp, tmp, LSL, 0);
             }
@@ -437,10 +416,6 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                 *ptr++ = negs_reg(tmp, tmp, LSL, 16);
                 *ptr++ = lsr(tmp, tmp, 16);
             }
-#else
-            *ptr++ = sxth(tmp, tmp, 0);
-            *ptr++ = rsbs_immed(tmp, tmp, 0);
-#endif
 
             if (mode == 3)
             {
@@ -459,7 +434,6 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             else
                 *ptr++ = ldrb_offset(dest, tmp, 0);
 
-#ifdef __aarch64__
             if (update_mask == 0) {
                 *ptr++ = neg_reg(tmp, tmp, LSL, 0);
             }
@@ -467,10 +441,6 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                 *ptr++ = negs_reg(tmp, tmp, LSL, 24);
                 *ptr++ = lsr(tmp, tmp, 24);
             }
-#else
-            *ptr++ = sxtb(tmp, tmp, 0);
-            *ptr++ = rsbs_immed(tmp, tmp, 0);
-#endif
 
             if (mode == 3)
             {
@@ -1204,26 +1174,15 @@ static uint32_t *EMIT_EXT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     {
         case 2: /* Byte to Word */
             tmp = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
+
             *ptr++ = sxtb(tmp, reg);
-#else
-            *ptr++ = sxtb(tmp, reg, 0);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 16);
             break;
         case 3: /* Word to Long */
-#ifdef __aarch64__
             *ptr++ = sxth(reg, reg);
-#else
-            *ptr++ = sxth(reg, reg, 0);
-#endif
             break;
         case 7: /* Byte to Long */
-#ifdef __aarch64__
             *ptr++ = sxtb(reg, reg);
-#else
-            *ptr++ = sxtb(reg, reg, 0);
-#endif
             break;
     }
 
@@ -1231,11 +1190,8 @@ static uint32_t *EMIT_EXT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 
     if (update_mask)
     {
-#ifdef __aarch64__
         *ptr++ = cmp_reg(tmp, 31, LSL, 0);
-#else
-        *ptr++ = cmp_immed(tmp, 0);
-#endif
+
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
