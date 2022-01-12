@@ -611,7 +611,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 break;
             case 2:
                 if (sign_ext) {
-                    *arm_reg = RA_AllocARMRegister(&ptr);
+                    if (*arm_reg == 0xff)
+                        *arm_reg = RA_AllocARMRegister(&ptr);
                     *ptr++ = sxth(*arm_reg, RA_MapM68kRegister(&ptr, src_reg));
                 }
                 else {
@@ -623,7 +624,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 break;
             case 1:
                 if (sign_ext) {
-                    *arm_reg = RA_AllocARMRegister(&ptr);
+                    if (*arm_reg == 0xff)
+                        *arm_reg = RA_AllocARMRegister(&ptr);
                     *ptr++ = sxtb(*arm_reg, RA_MapM68kRegister(&ptr, src_reg));
                 }
                 else {
@@ -653,7 +655,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 break;
             case 2:
                 if (sign_ext) {
-                    *arm_reg = RA_AllocARMRegister(&ptr);
+                    if (*arm_reg == 0xff)
+                        *arm_reg = RA_AllocARMRegister(&ptr);
                     *ptr++ = sxth(*arm_reg, RA_MapM68kRegister(&ptr, src_reg + 8));
                 }
                 else {
