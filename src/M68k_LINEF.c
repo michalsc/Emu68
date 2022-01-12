@@ -659,7 +659,6 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
         if ((ea & 0x38) == 0)
         {
             uint8_t int_reg = 0xff;
-            uint8_t tmp_reg;
 
             switch (size)
             {
@@ -679,17 +678,13 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                 case SIZE_W:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 2, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-                    tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = scvtf_32toD(*reg, tmp_reg);
-                    RA_FreeARMRegister(&ptr, tmp_reg);
+                    *ptr++ = scvtf_32toD(*reg, int_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
                 case SIZE_B:
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-                    tmp_reg = RA_AllocARMRegister(&ptr);
-                    *ptr++ = scvtf_32toD(*reg, tmp_reg);
-                    RA_FreeARMRegister(&ptr, tmp_reg);
+                    *ptr++ = scvtf_32toD(*reg, int_reg);
                     RA_FreeARMRegister(&ptr, int_reg);
                     break;
 
