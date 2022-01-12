@@ -2964,24 +2964,34 @@ uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (size == 4)
             ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
         else {
-            uint8_t tmpreg = 0xff;
-            if (opcode2 & 0x8000)
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-            else
+            if (opcode2 & 0x8000) {
+                if (!(((opcode2 >> 12) & 7) == (opcode & 7) && ((opcode & 0x38) == 0x18 || (opcode & 0x38) == 0x20)))
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                else {
+                    uint8_t tmpreg = 0xff;
+                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                    *ptr++ = mov_reg(reg, tmpreg);
+                    RA_FreeARMRegister(&ptr, tmpreg);
+                }
+            }
+            else {
+                uint8_t tmpreg = 0xff;
+
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmpreg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
 
-            switch (size)
-            {
-                case 1:
-                    *ptr++ = bfi(reg, tmpreg, 0, 8);
-                    break;
-            
-                case 2:
-                    *ptr++ = bfi(reg, tmpreg, 0, 16);
-                    break;
-            }
+                switch (size)
+                {
+                    case 1:
+                        *ptr++ = bfi(reg, tmpreg, 0, 8);
+                        break;
+                
+                    case 2:
+                        *ptr++ = bfi(reg, tmpreg, 0, 16);
+                        break;
+                }
 
-            RA_FreeARMRegister(&ptr, tmpreg);
+                RA_FreeARMRegister(&ptr, tmpreg);
+            }
         }
     }
 
