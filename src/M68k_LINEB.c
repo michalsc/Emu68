@@ -28,19 +28,9 @@ static uint32_t *EMIT_CMPA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     if (size == 4)
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
     else
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
-
-#ifdef __aarch64__
-    if (size == 2)
-        *ptr++ = sxth(src, src);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
     *ptr++ = cmp_reg(dst, src, LSL, 0);
-#else
-    if (size == 2)
-        *ptr++ = sxth(src, src, 0);
-
-    *ptr++ = cmp_reg(dst, src);
-#endif
 
     RA_FreeARMRegister(&ptr, src);
 
