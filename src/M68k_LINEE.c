@@ -2709,11 +2709,11 @@ static uint32_t *EMIT_BFFFO_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
         }
         else
         {
+            *ptr++ = clz(dest, src);
             if (update_mask)
             {
                 uint8_t cc = RA_ModifyCC(&ptr);
                 *ptr++ = cmn_reg(31, src, LSL, 0);
-                *ptr++ = clz(dest, src);
                 ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
             }
         }
