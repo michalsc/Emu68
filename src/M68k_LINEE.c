@@ -1450,9 +1450,9 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             if (update_mask & SR_X) {
                 *ptr++ = bfi(cc, cc, 4, 1);
             }
-
-            *tmp_ptr = b(ptr - tmp_ptr);
         }
+
+        *tmp_ptr = b(ptr - tmp_ptr);
 
         RA_FreeARMRegister(&ptr, tmp);
         RA_FreeARMRegister(&ptr, tmp2);
