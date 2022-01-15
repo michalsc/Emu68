@@ -251,6 +251,12 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = sxth(tmp, reg_quot);
     *ptr++ = cmp_reg(tmp, reg_quot, LSL, 0);
 
+    *ptr++ = b_cc(A64_CC_NE, 3);
+
+    /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
+    *ptr++ = mov_reg(reg_a, reg_quot);
+    *ptr++ = bfi(reg_a, reg_rem, 16, 16);
+
     RA_FreeARMRegister(&ptr, tmp);
 
     (*m68k_ptr) += ext_words;
@@ -280,18 +286,6 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
         }
     }
-
-    if (update_mask & SR_V) {
-        uint8_t cc = RA_GetCC(&ptr);
-        *ptr++ = tbnz(cc, SRB_V, 3);
-    }
-    else {
-        *ptr++ = b_cc(A64_CC_NE, 3);
-    }
-
-    /* Move signed 16-bit quotient to lower 16 bits of target register, signed 16 bit reminder to upper 16 bits */
-    *ptr++ = mov_reg(reg_a, reg_quot);
-    *ptr++ = bfi(reg_a, reg_rem, 16, 16);
 
     /* Advance PC */
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
@@ -372,6 +366,12 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = uxth(tmp, reg_quot);
     *ptr++ = cmp_reg(tmp, reg_quot, LSL, 0);
 
+    *ptr++ = b_cc(A64_CC_NE, 3);
+
+    /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
+    *ptr++ = mov_reg(reg_a, reg_quot);
+    *ptr++ = bfi(reg_a, reg_rem, 16, 16);
+
     RA_FreeARMRegister(&ptr, tmp);
 
     (*m68k_ptr) += ext_words;
@@ -403,18 +403,6 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
         }
     }
-
-    if (update_mask & SR_V) {
-        uint8_t cc = RA_GetCC(&ptr);
-        *ptr++ = tbnz(cc, SRB_V, 3);
-    }
-    else {
-        *ptr++ = b_cc(A64_CC_NE, 3);
-    }
-
-    /* Move unsigned 16-bit quotient to lower 16 bits of target register, unsigned 16 bit reminder to upper 16 bits */
-    *ptr++ = mov_reg(reg_a, reg_quot);
-    *ptr++ = bfi(reg_a, reg_rem, 16, 16);
 
     /* Advance PC */
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
