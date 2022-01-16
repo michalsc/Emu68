@@ -955,9 +955,9 @@ void boot(void *dtree)
             mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            DuffCopy((void*)0xffffff9000a80000, initramfs_loc, 524288 / 4);
-            DuffCopy((void*)0xffffff9000b00000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
-            DuffCopy((void*)0xffffff9000e00000, (void*)((uintptr_t)initramfs_loc + 2*524288), 524288 / 4);
+            DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0xffffff9000a80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
+            DuffCopy((void*)0xffffff9000b00000, (void*)((uintptr_t)initramfs_loc + 2*524288), 524288 / 4);
             DuffCopy((void*)0xffffff9000f80000, (void*)((uintptr_t)initramfs_loc + 3*524288), 524288 / 4);
 
         }
@@ -978,6 +978,42 @@ void boot(void *dtree)
         rom_mapped = 1;
 
         tlsf_free(tlsf, initramfs_loc);
+    }
+
+
+    if (0)
+    {
+        uint64_t cnt1, cnt2;
+        const uint64_t iter_count = 1000000;
+        uint64_t calib = 0;
+        uint64_t tmp=0, res;
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        for (uint64_t i=0; i < iter_count; i++) asm volatile("");
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+        calib = cnt2 - cnt1;
+        kprintf("Calibration loop took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1), (double)(cnt2-cnt1) / (double)iter_count);
+
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        for (uint64_t i=0; i < iter_count; i++)
+            asm volatile("mrs %1, nzcv; bfxil %0, %1, 28, 4; bic %0, %0, #3":"=r"(res):"r"(tmp));
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+
+        kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
+
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        for (uint64_t i=0; i < iter_count; i++)
+            asm volatile("mrs %1, nzcv; ror %1, %1, #30; bfi %0, %1, #2, #2":"=r"(res):"r"(tmp));
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+
+        kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
+
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        for (uint64_t i=0; i < iter_count; i++)
+            asm volatile("mrs %1, nzcv; bic %0, %0, #3; lsr %1, %1, 28; and %1, %1, #0xc; orr %0, %0, %1":"=r"(res):"r"(tmp));
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+
+        kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
+
     }
 
     //dt_dump_tree();
