@@ -972,6 +972,25 @@ void boot(void *dtree)
                     rom_start[i] = rom_start[i + 1];
                     rom_start[i+1] = tmp;
                 }
+                if (initramfs_size == 0x100000 || initramfs_size == 0x200000) {
+                    rom_start = (uint8_t *)0xffffff9000e00000;
+
+                    for (int i=0; i < 524288; i+=2) {
+                        uint8_t tmp = rom_start[i];
+                        rom_start[i] = rom_start[i + 1];
+                        rom_start[i+1] = tmp;
+                    }
+
+                    if (initramfs_size == 0x200000) {
+                        rom_start = (uint8_t *)0xffffff9000a80000;
+
+                        for (int i=0; i < 2*524288; i+=2) {
+                            uint8_t tmp = rom_start[i];
+                            rom_start[i] = rom_start[i + 1];
+                            rom_start[i+1] = tmp;
+                        }   
+                    }
+                }
             }
         }
 
