@@ -270,6 +270,9 @@ static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
             *ptr++ = cmn_reg(31, tmp, LSL, 16);
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
+        else if (update_mask & SR_V) {
+            *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_V);
+        }
 
         if (update_mask_copy & SR_XC) {
             if (direction) {
