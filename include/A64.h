@@ -845,7 +845,7 @@ uint32_t * EMIT_GetNZVC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
-    if (__builtin_popcount(*not_done) > 1)
+    if (__builtin_popcount(*not_done) > 2)
     {
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
@@ -867,7 +867,7 @@ uint32_t * EMIT_GetNZVCX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
-    if (__builtin_popcount(*not_done) > 1)
+    if (__builtin_popcount(*not_done) > 2)
     {
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
@@ -890,7 +890,7 @@ uint32_t * EMIT_GetNZVnC(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
-    if (__builtin_popcount(*not_done) > 1)
+    if (__builtin_popcount(*not_done) > 2)
     {
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
@@ -913,7 +913,7 @@ uint32_t * EMIT_GetNZVnCX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
-    if (__builtin_popcount(*not_done) > 1)
+    if (__builtin_popcount(*not_done) > 2)
     {
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
