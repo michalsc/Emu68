@@ -154,6 +154,8 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     intptr_t branch_target = (intptr_t)(*m68k_ptr);
     intptr_t branch_offset = 0;
 
+    success_condition = EMIT_TestCondition(&ptr, m68k_condition);
+
     /* use 16-bit offset */
     if ((opcode & 0x00ff) == 0x00)
     {
@@ -247,7 +249,7 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, pc_no);
         pc_no = REG_PC;
     }
-    success_condition = EMIT_TestCondition(&ptr, m68k_condition);
+
     *ptr++ = csel(REG_PC, pc_yes, pc_no, success_condition);
     RA_FreeARMRegister(&ptr, pc_yes);
     RA_FreeARMRegister(&ptr, pc_no);
