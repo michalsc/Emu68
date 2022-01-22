@@ -2018,7 +2018,12 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 }
                 else
                 {
-                    while (/* __m68k_state->JIT_UNIT_COUNT >= __m68k_state->JIT_SOFTFLUSH_THRESH && */ (n = REMHEAD(&LRU))) {
+                    while (
+#if EMU68_WEAK_CFLUSH_SLOW
+                            __m68k_state->JIT_UNIT_COUNT >= __m68k_state->JIT_SOFTFLUSH_THRESH &&
+#endif
+                            (n = REMHEAD(&LRU)))
+                    {
                         u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
              
                         REMOVE(&u->mt_HashNode);
@@ -2027,7 +2032,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                         __m68k_state->JIT_UNIT_COUNT--;
                     }
                     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-/*
+#if EMU68_WEAK_CFLUSH_SLOW
                     ForeachNode(&LRU, n)
                     {
                         uintptr_t uptr = ((uintptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -2037,7 +2042,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                         // verify block checksum and eventually discard it
                         *(uint8_t *)uptr = 0xaa;
                     }
-*/
+#endif
                 }
             }
             else
