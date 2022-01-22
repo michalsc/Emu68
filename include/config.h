@@ -39,6 +39,7 @@
 #define EMU68_WEAK_CFLUSH       1
 #define EMU68_WEAK_CFLUSH_LIMIT 500
 
+#define EMU68_WEAK_CFLUSH_SLOW  0
 #define EMU68_PC_REG_HISTORY    0
 
 #ifdef PISTORM
