@@ -559,15 +559,21 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
             }
         }
-        if (update_mask & (SR_C | SR_N))
+        if (update_mask & (SR_Z | SR_N))
         {
             *ptr++ = cmn_reg(31, reg_dq, LSL, 0);
 
-            ptr = EMIT_GetNZxx(ptr, cc, &update_mask);
-            if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-            if (update_mask & SR_Z)
+            if ((update_mask & (SR_Z | SR_N)) == SR_Z) {
+                *ptr++ = bic_immed(cc, cc, 1, (32 - SRB_Z));
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            }
+            else if ((update_mask & (SR_Z | SR_N)) == SR_N) {
+                *ptr++ = bic_immed(cc, cc, 1, (32 - SRB_N));
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            }
+            else {
+                ptr = EMIT_GetNZxx(ptr, cc, &update_mask);
+            }
         }
     }
 
