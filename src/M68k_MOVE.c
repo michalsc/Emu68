@@ -448,11 +448,11 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                         break;
                 }
 
-                if (tmp_immediate <= 0) {
-                    if ((update_mask & SR_N) && (tmp_immediate < 0))
-                        ptr = EMIT_SetFlags(ptr, cc, SR_N);
-                    else if (update_mask & SR_Z)
-                        ptr = EMIT_SetFlags(ptr, cc, SR_Z);
+                if (tmp_immediate < 0 && update_mask & SR_N) {
+                    ptr = EMIT_SetFlags(ptr, cc, SR_N);
+                }
+                if (tmp_immediate == 0 && update_mask & SR_Z) {
+                    ptr = EMIT_SetFlags(ptr, cc, SR_Z);
                 }
             } else {
                 ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
