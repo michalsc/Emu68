@@ -1298,7 +1298,7 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             ptr = EMIT_GetNZ00(ptr, cc, &tmp_mask);
         }
 
-        if (update_mask & SR_X) {
+        if (update_mask & SR_C) {
             *ptr++ = bfxil(cc, cc, 4, 1);
         }
 
