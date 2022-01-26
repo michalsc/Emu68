@@ -1339,14 +1339,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     v28.s[0], w%[reg_pc]        \n"
 #endif
 
-#ifdef PISTORM
-"       ldr     w1, [x0, #%[ipl0]]          \n" // Load ipl0 flag from context
-"       cbz     w1, 9f                      \n"
-#else
-"       cbz     w%[reg_pc], 4f              \n"
-"       ldr     w1, [x0, #%[pint]]          \n" // Load pending interrupt flag
-"       cbnz    w1, 9f                      \n" // Change context if interrupt was pending
-#endif
+"       ldr     w1, [x0, #%[intreq]]        \n"
+"       cbnz    w1, 9f                      \n"
+
 
 "99:    mov     w3, v31.s[0]                \n"
 "       tbz     w3, #%[cacr_ie_bit], 2f     \n"
@@ -1588,8 +1583,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
  [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
  [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
         __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
- [pint]"i"(__builtin_offsetof(struct M68KState, PINT)),
- [ipl0]"i"(__builtin_offsetof(struct M68KState, IPL0)),
+ [intreq]"i"(__builtin_offsetof(struct M68KState, INT)),
  [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
  [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
  [isp]"i"(__builtin_offsetof(struct M68KState, ISP)),
