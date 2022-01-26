@@ -1339,9 +1339,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     v28.s[0], w%[reg_pc]        \n"
 #endif
 
-"       ldr     w1, [x0, #%[intreq]]        \n"
-"       cbnz    w1, 9f                      \n"
-
+"       ldr     w10, [x0, #%[intreq]]        \n"     // Interrupt request (either from ARM or IPL) is pending
+"       cbnz    w10, 9f                      \n"
 
 "99:    mov     w3, v31.s[0]                \n"
 "       tbz     w3, #%[cacr_ie_bit], 2f     \n"
@@ -1460,8 +1459,18 @@ void  __attribute__((used)) stub_ExecutionLoop()
 
 #ifdef PISTORM
 "9:                                         \n"
+"       ldrb    w10, [x0, #%[arm]]          \n" // If bit 2 of INT.ARM is set then it is serror, map it to NMI
+"       tbz     w10, #1, 991f               \n"
+"       bic     w10, w10, #2                \n"
+"       strb    w10, [x0, #%[arm]]          \n"
+"       mov     w1, #7                      \n" // Set IRQ level 7, go further skipping higher selection
+"       b       999f                        \n"
+"991:   tbz     w10, #0, 992f               \n" // If bit 1 of INT.ARM is set then it is IRQ/FIQ. Map to IPL6
+"       mov     w10, #6                     \n"
+"       ldrb    w1, [x0, #%[ipl]]           \n" // If IPL was 0 then there is no m68k interrupt pending, skip reading
+"       cbz     w1, 998f                    \n" // IPL in that case
 #if PISTORM_WRITE_BUFFER
-"       adrp    x5, bus_lock                \n"
+"992:   adrp    x5, bus_lock                \n"
 "       add     x5, x5, :lo12:bus_lock      \n"
 "       mov     w1, 1                       \n"
 ".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
@@ -1494,6 +1503,11 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
 
+// We have w10 with ARM IPL here and w1 with m68k IPL, select higher, in case of ARM clear pending bit
+"998:   cmp     w1, w10                     \n" 
+"       csel    w1, w1, w10, hi             \n" // if W1 was higher, select it 
+"       csel    w10, wzr, w10, hi           \n" // In that case clear w10
+"999:                                       \n"
 "       mrs     x2, TPIDR_EL0               \n" // Get SR
 "       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
 "       cmp     w1, #7                      \n" // Was it level 7 interrpt?
@@ -1506,7 +1520,11 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       99b                         \n" // branch back
 
 // Process the interrupt here
-"91:    tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
+"91:    cbz     w10, 911f                   \n" // If we are here and w10 != 10, skip pending flag in INT.ARM
+"       ldrb    w10, [x0, #%[arm]]           \n"
+"       bic     w10, w10, #1                \n"
+"       strb    w10, [x0, #%[arm]]           \n"
+"911:   tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
 "       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
 "       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
 "       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
@@ -1584,6 +1602,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
  [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
         __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
  [intreq]"i"(__builtin_offsetof(struct M68KState, INT)),
+ [arm]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
+ [ipl]"i"(__builtin_offsetof(struct M68KState, INT.IPL)),
  [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
  [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
  [isp]"i"(__builtin_offsetof(struct M68KState, ISP)),
