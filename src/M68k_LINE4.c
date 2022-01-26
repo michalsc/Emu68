@@ -1551,11 +1551,11 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     uint32_t *start, *end;
     start = ptr;
 
-    /* PiStorm waits for event and checks IPL0 - ARM request will be put there too */
+    /* PiStorm waits for event and checks INT - aggregate of ~IPL0 and ARM */
     *ptr++ = wfe();
-    *ptr++ = ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, IPL0));
+    *ptr++ = ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, INT));
     end = ptr;
-    *ptr++ = cbnz(tmpreg, start - end);
+    *ptr++ = cbz(tmpreg, start - end);
 
     RA_FreeARMRegister(&ptr, tmpreg);
 #endif
