@@ -105,8 +105,11 @@ struct M68KState
     uint32_t DTT1;
 
     /* Async IRQ part */
-    uint32_t PINT;
-    uint32_t IPL0;
+    struct {
+        uint8_t ARM;
+        uint8_t IPL;
+        uint8_t pad[2];
+    } INT;
     uint64_t INSN_COUNT;
 
     uint32_t JIT_CACHE_MISS;
