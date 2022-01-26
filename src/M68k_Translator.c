@@ -587,11 +587,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         uint8_t ctx = RA_GetCTX(&end);
 #ifdef PISTORM
         //*end++ = mov_immed_u16(tmp2, 0xf220, 1);
-        //*end++ = ldr_offset(tmp2, tmp2, 0x34);
-        *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, INT));
-#else
-        *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, PINT));
+        //*end++ = ldr_offset(tmp2, tmp2, 0x34);;
 #endif
+        *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, INT));
     }
 #if EMU68_INSN_COUNTER
 #if 0

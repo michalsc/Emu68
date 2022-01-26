@@ -1326,6 +1326,9 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       bl      M68K_LoadContext            \n"
 "       .align 6                            \n"
 "1:                                         \n"
+#ifndef PISTORM
+"       cbz     w%[reg_pc], 4f              \n"
+#endif
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
 #if EMU68_PC_REG_HISTORY
@@ -1339,8 +1342,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     v28.s[0], w%[reg_pc]        \n"
 #endif
 
-"       ldr     w10, [x0, #%[intreq]]        \n"     // Interrupt request (either from ARM or IPL) is pending
-"       cbnz    w10, 9f                      \n"
+"       ldr     w10, [x0, #%[intreq]]       \n"     // Interrupt request (either from ARM or IPL) is pending
+"       cbnz    w10, 9f                     \n"
 
 "99:    mov     w3, v31.s[0]                \n"
 "       tbz     w3, #%[cacr_ie_bit], 2f     \n"
@@ -1547,7 +1550,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mrs     x2, TPIDR_EL1               \n" // Restore old contents of x2 and
 "       b       99b                         \n" // branch back
 #else
-"9:     mrs     x2, TPIDR_EL0               \n" // Get SR
+"9:     ldrb    w1, [x0, #%[arm]]           \n"
+"       mrs     x2, TPIDR_EL0               \n" // Get SR
 "       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
 "       mov     w4, #2                      \n"
 "       lsl     w4, w4, w3                  \n"
@@ -1567,7 +1571,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     w4, #1                      \n" // Make a mask for bit clear in PINT
 "       lsl     w4, w4, w3                  \n"
 "94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
-"       str     w1, [x0, #%[pint]]          \n" // Store PINT
+"       strb     w1, [x0, #%[arm]]          \n" // Store PINT
 "       mov     w5, w2                      \n" // Make a copy of SR
 "       bfi     w5, w3, %[srb_ipm], 3       \n" // Insert level to SR register
 "       lsl     w3, w3, #2                  \n"
