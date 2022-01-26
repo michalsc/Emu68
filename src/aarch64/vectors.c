@@ -138,7 +138,7 @@ void  __attribute__((used)) __stub_vectors()
 "       msr SPSR_EL1, x0                \n"
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
 "       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
-"       orr w0, w0, #0x1                \n" // Set level 4 IRQ
+"       orr w0, w0, #0x1                \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -151,7 +151,7 @@ void  __attribute__((used)) __stub_vectors()
 "       msr SPSR_EL1, x0                \n"
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
 "       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
-"       orr w0, w0, #0x2                \n" // Set level 5 IRQ
+"       orr w0, w0, #0x1                \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -164,7 +164,7 @@ void  __attribute__((used)) __stub_vectors()
 "       msr SPSR_EL1, x0                \n"
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
 "       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
-"       orr w0, w0, #0x4                \n" // Set level 6 IRQ
+"       orr w0, w0, #0x2                \n" // Set level 7 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
