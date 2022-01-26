@@ -591,12 +591,15 @@ void ps_housekeeper()
     if (housekeeper_enabled)
     {
       uint32_t pin = LE32(*(gpio + 13));
-      __m68k_state->IPL0 = pin & (1 << PIN_IPL_ZERO);
+      __m68k_state->INT.IPL = (pin & (1 << PIN_IPL_ZERO)) ? 0 : 1;
 
       asm volatile("":::"memory");
 
-      if (__m68k_state->IPL0 == 0)
+      if (__m68k_state->INT.IPL)
         asm volatile("sev":::"memory");
+
+      if (__m68k_state->INT.ARM)
+        kprintf("ARM Int pending: %x\n", __m68k_state->INT.ARM);
 
       if ((pin & (1 << PIN_RESET)) == 0) {
 
