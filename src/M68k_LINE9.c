@@ -13,6 +13,21 @@
 
 /* Line9 is one large SUBX/SUB/SUBA */
 
+/****************************************************************************
+* 1001xxxmmmxxxxxx SUB                                                      *
+*****************************************************************************
+* SUB <ea>,Dn|Dn,<ea>                                                       *
+*                                                                           *
+* Operation: dest - src → dest                                              *
+* 	 X|N|Z|V|C                                                              *
+* CC: (*|*|*|*|*)															*
+*                                                                           *
+* Description: Subtracts the src operand from the dest operand and stores   *
+* the result in the dest. The size of the operation is specified as byte,   *
+* word or long. The mode of the instruction indicates which operand is      *
+* the src and which is the dest, and which is the operand size.             *
+****************************************************************************/
+
 uint32_t *EMIT_SUB_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUB_reg")));
 uint32_t *EMIT_SUB_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUB_reg")));
 uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -304,6 +319,21 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+/****************************************************************************
+* 1001xxxm11xxxxxx SUBA                                                     *
+*****************************************************************************
+* SUBA <ea>,An                                                              *
+*                                                                           *
+* Operation: dest - src → dest                                              *
+*      X|N|Z|V|C                                                            *
+* CC: (-|-|-|-|-)															*
+*                                                                           *
+* Description: Subtracts the src operand from the dest operand and stores   *
+* the result in the dest. The size of the operation is specified as word or *
+* long. The mode of the instruction defines operand size, word operants are *
+* sign extended to long.                                                    *
+****************************************************************************/
+
 uint32_t *EMIT_SUBA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUBA_reg")));
 uint32_t *EMIT_SUBA_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUBA_reg")));
 uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -329,6 +359,21 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+/****************************************************************************
+* 1001xxxmmmxxxxxx SUBX                                                     *
+*****************************************************************************
+* SUBX Dx,Dy|-(Ax),-(Ay)                                                    *
+*                                                                           *
+* Operation: dest - src → dest                                              *
+* 	 X|N|Z|V|C                                                              *
+* CC: (*|*|*|*|*)															*
+*                                                                           *
+* Description: Subtracts the src operand and the extended bit from the dest *
+* operand and stores the result in the dest. The instructions has two modes.*
+* The size of the operation is specified as byte, word or long. The mode of *
+* the instruction indicates if it pertains a reg to reg or mem to mem       *
+* operation, and which is the operand size.                                 *
+****************************************************************************/
 
 uint32_t *EMIT_SUBX_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUBX_reg")));
 uint32_t *EMIT_SUBX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUBX_reg")));
