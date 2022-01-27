@@ -19,8 +19,8 @@
 * SUB <ea>,Dn|Dn,<ea>                                                       *
 *                                                                           *
 * Operation: dest - src → dest                                              *
-* 	 X|N|Z|V|C                                                              *
-* CC: (*|*|*|*|*)															*
+* 	   X|N|Z|V|C                                                            *
+* CC: (*|*|*|*|*)                                                           *
 *                                                                           *
 * Description: Subtracts the src operand from the dest operand and stores   *
 * the result in the dest. The size of the operation is specified as byte,   *
@@ -326,7 +326,7 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 *                                                                           *
 * Operation: dest - src → dest                                              *
 *      X|N|Z|V|C                                                            *
-* CC: (-|-|-|-|-)															*
+* CC: (-|-|-|-|-)                                                           *
 *                                                                           *
 * Description: Subtracts the src operand from the dest operand and stores   *
 * the result in the dest. The size of the operation is specified as word or *
@@ -365,8 +365,8 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 * SUBX Dx,Dy|-(Ax),-(Ay)                                                    *
 *                                                                           *
 * Operation: dest - src → dest                                              *
-* 	 X|N|Z|V|C                                                              *
-* CC: (*|*|*|*|*)															*
+* 	   X|N|Z|V|C                                                            *
+* CC: (*|*|*|*|*)                                                           *
 *                                                                           *
 * Description: Subtracts the src operand and the extended bit from the dest *
 * operand and stores the result in the dest. The instructions has two modes.*
