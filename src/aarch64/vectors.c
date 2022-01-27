@@ -86,6 +86,11 @@
 #define LOAD_CONTEXT    LOAD_SHORT_CONTEXT
 #endif
 
+struct INT_shadow {
+    uint16_t INTENA;
+    uint16_t INTREQ;
+    uint8_t  ARMPending;
+} INT_shadow;
 
 void  __attribute__((used)) __stub_vectors()
 { asm volatile(
@@ -136,11 +141,19 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x080              \n" // Disable IRQ interrupt so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
+"       adrp x1, %[int_shadow]          \n" // Load INTENA shadow
+"       add x1, x1, :lo12:%[int_shadow] \n"
+"       ldrh w0, [x1, #%[intena]]       \n"
+"       and w0, w0, #0x6000             \n" // Check if INTEN and EXTER are active
+"       cmp w0, #0x6000                 \n"
+"       mov w0, #1                      \n" // Set ARM int pending so that we can fake INTREQ
+"       strb w0, [x1, #%[armpend]]      \n"
+"       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
 "       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
 "       orr w0, w0, #0x1                \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
-"       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
+"1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
 "                                       \n"
 "       .balign 0x80                    \n"
@@ -149,11 +162,19 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x0c0              \n" // Disable IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
+"       adrp x1, %[int_shadow]          \n" // Load INTENA shadow
+"       add x1, x1, :lo12:%[int_shadow] \n"
+"       ldrh w0, [x1, #%[intena]]       \n"
+"       and w0, w0, #0x6000             \n" // Check if INTEN and EXTER are active
+"       cmp w0, #0x6000                 \n"
+"       mov w0, #1                      \n" // Set ARM int pending so that we can fake INTREQ
+"       strb w0, [x1, #%[armpend]]      \n"
+"       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
 "       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
 "       orr w0, w0, #0x1                \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
-"       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
+"1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
 "                                       \n"
 "       .balign 0x80                    \n"
@@ -239,7 +260,11 @@ void  __attribute__((used)) __stub_vectors()
 "                                       \n"
 "       .section .text                  \n"
 :
-:[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM))
+:[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
+ [int_shadow]"i"((intptr_t)&INT_shadow),
+ [intena]"i"(__builtin_offsetof(struct INT_shadow, INTENA)),
+ [armpend]"i"(__builtin_offsetof(struct INT_shadow, ARMPending))
+
 );}
 
 static int getOPsize(uint32_t opcode)
@@ -290,11 +315,45 @@ enum
 {
     CIAAPRA = 0xBFE001,
     CIABPRB = 0xBFD100,
+
+    INTENA  = 0xDFF09A,
+    INTENAR = 0xDFF01C,
+    INTREQ  = 0xDFF09C,
+    INTREQR = 0xDFF01E,
 };
 
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
+
+    if (far == INTENA) {
+        if (value & 0x8000) {
+            INT_shadow.INTENA |= value & 0x7fff;
+        }
+        else {
+            INT_shadow.INTENA &= ~(value & 0x7fff);
+        }
+        if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
+            struct M68KState *ctx;
+            asm volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
+            ctx->INT.ARM |= 0x01;
+        }
+    }
+
+    if (far == INTREQ) {
+        if (value & 0x8000) {
+            INT_shadow.INTREQ |= value & 0x3fff;
+        }
+        else {
+            INT_shadow.INTREQ &= ~(value & 0x3fff);
+        }
+        if ((value & 0xa000) == 0x2000) {
+            struct M68KState *ctx;
+            asm volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
+            ctx->INT.ARM &= ~0x01;
+            INT_shadow.ARMPending = 0;
+        }
+    }
 
     /*
         Allow single wrap around the address space. This provides mirror areas for
@@ -395,6 +454,7 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     return 1;
 }
 
+
 int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
 {  
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
@@ -484,6 +544,38 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
             break;
     }
 
+    if ((far & ~1) == INTENAR) {
+        if (size == 2)
+            INT_shadow.INTENA = *value;
+        else {
+            if (far & 1) {
+                INT_shadow.INTENA = (INT_shadow.INTENA & 0xff00) | (*value & 0xff);
+            }
+            else {
+                INT_shadow.INTENA = (INT_shadow.INTENA & 0x00ff) | ((*value & 0xff) << 8);
+            }
+        }
+    }
+
+    if ((far & ~1) == INTREQR) {
+        if (size == 2)
+        {
+            INT_shadow.INTREQ = *value;
+            if (INT_shadow.ARMPending)
+                *value |= 0x2000;
+        }
+        else {
+            if (far & 1) {
+                INT_shadow.INTREQ = (INT_shadow.INTREQ & 0xff00) | (*value & 0xff);
+            }
+            else {
+                INT_shadow.INTREQ = (INT_shadow.INTREQ & 0x00ff) | ((*value & 0xff) << 8);
+                if (INT_shadow.ARMPending)
+                    *value |= 0x20;
+            }
+        }
+    }
+
     if (far == CIAAPRA) {
         if (swap_df0_with_dfx && spoof_df0_id) {
             // DF0 doesn't emit a drive type ID on RDY pin
@@ -559,7 +651,6 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
 
 #undef D
 #define D(x) /* x  */
-
 
 int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
 {
