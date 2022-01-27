@@ -1523,10 +1523,13 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       99b                         \n" // branch back
 
 // Process the interrupt here
-"91:    cbz     w10, 911f                   \n" // If we are here and w10 != 10, skip pending flag in INT.ARM
+"91: \n"
+#if 0
+"91:    cbz     w10, 911f                   \n" // If we are here and w10 != 0, skip pending flag in INT.ARM
 "       ldrb    w10, [x0, #%[arm]]           \n"
 "       bic     w10, w10, #1                \n"
 "       strb    w10, [x0, #%[arm]]           \n"
+#endif
 "911:   tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
 "       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
 "       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
