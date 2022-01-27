@@ -19,7 +19,7 @@
 * SUB <ea>,Dn|Dn,<ea>                                                       *
 *                                                                           *
 * Operation: dest - src → dest                                              *
-* 	   X|N|Z|V|C                                                            *
+*      X|N|Z|V|C                                                            *
 * CC: (*|*|*|*|*)                                                           *
 *                                                                           *
 * Description: Subtracts the src operand from the dest operand and stores   *
@@ -360,12 +360,12 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 /****************************************************************************
-* 1001xxxmmmxxxxxx SUBX                                                     *
+* 1001xxx1mm00mxxx SUBX                                                     *
 *****************************************************************************
 * SUBX Dx,Dy|-(Ax),-(Ay)                                                    *
 *                                                                           *
 * Operation: dest - src → dest                                              *
-* 	   X|N|Z|V|C                                                            *
+*      X|N|Z|V|C                                                            *
 * CC: (*|*|*|*|*)                                                           *
 *                                                                           *
 * Description: Subtracts the src operand and the extended bit from the dest *
