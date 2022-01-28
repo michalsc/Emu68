@@ -141,8 +141,8 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x080              \n" // Disable IRQ interrupt so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
-"       adrp x1, %[int_shadow]          \n" // Load INTENA shadow
-"       add x1, x1, :lo12:%[int_shadow] \n"
+"       adrp x1, INT_shadow             \n" // Load INTENA shadow
+"       add x1, x1, :lo12:INT_shadow    \n"
 "       ldrh w0, [x1, #%[intena]]       \n"
 "       and w0, w0, #0x6000             \n" // Check if INTEN and EXTER are active
 "       cmp w0, #0x6000                 \n"
@@ -162,8 +162,8 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x0c0              \n" // Disable IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
-"       adrp x1, %[int_shadow]          \n" // Load INTENA shadow
-"       add x1, x1, :lo12:%[int_shadow] \n"
+"       adrp x1, INT_shadow             \n" // Load INTENA shadow
+"       add x1, x1, :lo12:INT_shadow    \n"
 "       ldrh w0, [x1, #%[intena]]       \n"
 "       and w0, w0, #0x6000             \n" // Check if INTEN and EXTER are active
 "       cmp w0, #0x6000                 \n"
@@ -261,7 +261,6 @@ void  __attribute__((used)) __stub_vectors()
 "       .section .text                  \n"
 :
 :[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
- [int_shadow]"i"((intptr_t)&INT_shadow),
  [intena]"i"(__builtin_offsetof(struct INT_shadow, INTENA)),
  [armpend]"i"(__builtin_offsetof(struct INT_shadow, ARMPending))
 
