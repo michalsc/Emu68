@@ -1035,6 +1035,24 @@ void boot(void *dtree)
 
     }
 
+    kprintf("[BOOT] Setting IRQ routing to core 0\n");
+    wr32le(0xf300000c, 0);
+    
+    kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
+    wr32le(0xf3000010, 1);      // Enable PMU IRQ on core 0
+    wr32le(0xf3000014, 0xfe);   // Disable PMU IRQ on all otehr cores
+
+    wr32le(0xf3000040, 0x0f);   // Enable all CNT IRQs on core 0
+    wr32le(0xf3000044, 0x00);   // Disable all CNT IRQs on core 1
+    wr32le(0xf3000048, 0x00);   // Disable all CNT IRQs on core 2
+    wr32le(0xf300004c, 0x00);   // Disable all CNT IRQs on core 3
+
+    kprintf("[BOOT] Disabling mailbox interrupts\n");
+    wr32le(0xf3000050, 0x00);   // Disable Mailbox IRQs on core 0
+    wr32le(0xf3000054, 0x00);   // Disable Mailbox IRQs on core 1
+    wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
+    wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
+
     //dt_dump_tree();
 
 #if 0
