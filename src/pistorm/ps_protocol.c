@@ -598,9 +598,6 @@ void ps_housekeeper()
       if (__m68k_state->INT.IPL)
         asm volatile("sev":::"memory");
 
-      if (__m68k_state->INT.ARM)
-        kprintf("ARM Int pending: %x\n", __m68k_state->INT.ARM);
-
       if ((pin & (1 << PIN_RESET)) == 0) {
 
         kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
