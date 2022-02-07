@@ -370,7 +370,7 @@ int RA_IsCCModified()
 /* Allocate register x0-x11 for JIT */
 static uint8_t __int_arm_alloc_reg()
 {
-    int reg = __builtin_ctz(~register_pool);
+    int reg = __builtin_ctz(~(register_pool | 15));
 
     if (reg < 12) {
         register_pool |= 1 << reg;
