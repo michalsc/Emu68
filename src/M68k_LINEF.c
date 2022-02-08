@@ -2358,7 +2358,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
                 tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 2); // NAN | Z -> Z
+                *ptr++ = bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I));
+                *ptr++ = orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2); // NAN | Z -> Z
                 *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // Invert N
                 *ptr++ = tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)); // Test N==0 && Z == 0
                 success_condition = A64_CC_EQ;
