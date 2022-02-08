@@ -153,6 +153,35 @@ static void int_ftoa(char *buf, double value)
     int exp = 0;
     char c;
 
+    union {
+        uint64_t u64;
+        double d;
+    } u;
+
+    u.d = value;
+
+    if ((u.u64 & 0x7ff0000000000000ULL) == 0x7ff0000000000000 && (u.u64 & 0x000fffffffffffff) != 0)
+    {
+        *buf++ = 'N';
+        *buf++ = 'a';
+        *buf++ = 'N';
+        *buf++ = 0;
+        return;
+    }
+
+    if ((u.u64 & 0x7fffffffffffffffULL) == 0x7ff0000000000000)
+    {
+        if (u.u64 & 0x8000000000000000)
+            *buf++ = '-';
+        else
+            *buf++ = ' ';
+        *buf++ = 'I';
+        *buf++ = 'n';
+        *buf++ = 'f';
+        *buf++ = 0;
+        return;
+    }
+
     if (value < 0)
     {
         *buf++ = '-';
