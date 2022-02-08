@@ -236,6 +236,10 @@ void M68K_PrintContext(void *);
 uint32_t debug_range_min = 0x00000000;
 uint32_t debug_range_max = 0xffffffff;
 
+// Bad hack: two registers holding addresses of Load96bit and Save96bit
+uint8_t reg_Load96;
+uint8_t reg_Save96;
+
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
@@ -250,6 +254,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t pop_cnt=0;
 
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
+
+    reg_Load96 = 0xff;
+    reg_Save96 = 0xff;
 
     int debug = 0;
     int disasm = 0;
@@ -640,6 +647,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     // Put a marker at the end of translation unit
     *end++ = 0xffffffff;
+
+    if (reg_Load96)
+        RA_FreeARMRegister(NULL, reg_Load96);
+    
+    if (reg_Save96)
+        RA_FreeARMRegister(NULL, reg_Save96);
 
     if (debug)
     {
