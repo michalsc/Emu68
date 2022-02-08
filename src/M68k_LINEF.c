@@ -4543,25 +4543,41 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
-#ifdef __aarch64__
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = csetm(tmp, success_condition);
-            *ptr++ = bfi(dest, tmp, 0, 8);
-            RA_FreeARMRegister(&ptr, tmp);
-#else
-            *ptr++ = orr_cc_immed(success_condition, dest, dest, 0xff);
-            *ptr++ = bfc_cc(success_condition ^ 1, dest, 0, 8);
-#endif
+            if ((predicate & 0x0f) == F_CC_F)
+            {
+                *ptr++ = bic_immed(dest, dest, 8, 0);
+            }
+            else if ((predicate & 0x0f) == F_CC_T)
+            {
+                *ptr++ = orr_immed(dest, dest, 8, 0);
+            }
+            else
+            {
+                uint8_t tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = csetm(tmp, success_condition);
+                *ptr++ = bfi(dest, tmp, 0, 8);
+                RA_FreeARMRegister(&ptr, tmp);
+            }
         }
         else
         {
             /* Load effective address */
             uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-            *ptr++ = csetm(tmp, success_condition);
+            if ((predicate & 0x0f) == F_CC_F)
+            {
+                *ptr++ = mov_immed_u16(tmp, 0, 0);
+            }
+            else if ((predicate & 0x0f) == F_CC_T)
+            {
+                *ptr++ = movn_immed_u16(tmp, 0, 0);
+            }
+            else
+            {
+                *ptr++ = csetm(tmp, success_condition);    
+            }
 
-            ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count);
-
+            ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count);                
             RA_FreeARMRegister(&ptr, tmp);
         }
 
