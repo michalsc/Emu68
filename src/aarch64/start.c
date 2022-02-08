@@ -1659,6 +1659,10 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     //*(uint32_t*)4 = 0;
 
+    for (int fp=0; fp < 8; fp++) {
+        __m68k.FP[fp].u64 = 0x7fffffffffffffffULL;
+    }
+
 #ifdef PISTORM
     (void)fdt;
     
