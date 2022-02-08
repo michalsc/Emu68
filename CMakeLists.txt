@@ -82,7 +82,11 @@ set(EMU68_FILES
     src/math/sin.c
     src/math/cos.c
     src/math/remquo.c
+    src/math/96bit.c
 )
+
+set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
+    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
