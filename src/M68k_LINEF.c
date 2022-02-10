@@ -17,6 +17,8 @@
 
 extern uint8_t reg_Load96;
 extern uint8_t reg_Save96;
+extern uint32_t val_FPIAR;
+
 uint64_t Load96bit(uintptr_t __ignore, uintptr_t base);
 uint64_t Store96bit(uintptr_t value, uintptr_t base);
 
@@ -2215,6 +2217,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             shown = 1;
         }
 
+        val_FPIAR = (uintptr_t)&(*m68k_ptr)[-1];
+
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -3861,6 +3865,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 case 0x0800:    /* FPSR */
                     reg = RA_GetFPSR(&ptr);
                     *ptr++ = mov_reg(dst, reg);
+                    reg = 0xff;
                     break;
             }
         }
@@ -3872,7 +3877,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             switch (opcode2 & 0x1c00)
             {
                 case 0x0400:    /* FPIAR */
-                    *ptr++ = mov_simd_to_reg(dst, 29, TS_S, 1);
+                    if (val_FPIAR != 0xffffffff) {
+                        *ptr++ = mov_immed_u16(dst, val_FPIAR & 0xffff, 0);
+                        *ptr++ = movk_immed_u16(dst, val_FPIAR >> 16, 1);
+                    }
+                    else {
+                        *ptr++ = mov_simd_to_reg(dst, 29, TS_S, 1);
+                    }
                     break;
             }
         }
@@ -3917,7 +3928,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if (opcode2 & 0x0400)
             {
                 reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_simd_to_reg(reg, 29, TS_S, 1);
+                if (val_FPIAR != 0xffffffff) {
+                    *ptr++ = mov_immed_u16(reg, val_FPIAR & 0xffff, 0);
+                    *ptr++ = movk_immed_u16(reg, val_FPIAR >> 16, 1);
+                }
+                else {
+                    *ptr++ = mov_simd_to_reg(reg, 29, TS_S, 1);
+                }
                 *ptr++ = str_offset(dst, reg, offset);
                 RA_FreeARMRegister(&ptr, reg);
                 reg = 0xff;
@@ -3950,7 +3967,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         // Handle move from Dn
         if ((opcode & 0x38) == 0)
         {
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
             switch (opcode2 & 0x1c00)
             {
                 case 0x1000:    /* FPCR */
@@ -3960,12 +3977,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     {
                         uint8_t round = RA_AllocARMRegister(&ptr);
 
-                        *ptr++ = get_fpcr(src);
+                        *ptr++ = get_fpcr(tmp);
                         *ptr++ = ubfx(round, reg, 4, 2);
                         *ptr++ = neg_reg(round, round, LSL, 0);
                         *ptr++ = add_immed(round, round, 4);
-                        *ptr++ = bfi(src, round, 22, 2);
-                        *ptr++ = set_fpcr(src);
+                        *ptr++ = bfi(tmp, round, 22, 2);
+                        *ptr++ = set_fpcr(tmp);
 
                         RA_FreeARMRegister(&ptr, round);
                     }
@@ -3979,10 +3996,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         // Handle move from An
         else if ((opcode & 0x38) == 0x8)
         {
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
             switch (opcode2 & 0x1c00)
             {
                 case 0x0400:    /* FPIAR */
+                    val_FPIAR = 0xffffffff;
                     *ptr++ = mov_reg_to_simd(29, TS_S, 1, src);
                     break;
             }
@@ -4040,6 +4058,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
             if (opcode2 & 0x0400)
             {
+                val_FPIAR = 0xffffffff;
                 *ptr++ = ldr_offset(src, tmp, offset);
                 *ptr++ = mov_reg_to_simd(29, TS_S, 1, tmp);
             }
