@@ -48,7 +48,7 @@ static struct ExpansionBoard board = {
     8*1024*1024,
     0,
     0,
-    1,
+    0,
     map
 };
 
@@ -64,19 +64,27 @@ static void init()
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
+            if (strstr(prop->op_value, "z2_ram_size=8")) {
+                board.rom_size = 4*1024*1024;
+                board.enabled = 1;
+                kprintf("[BOOT]   use 8MB expansion RAM\n");
+            }
             if (strstr(prop->op_value, "z2_ram_size=4")) {
                 board.rom_size = 4*1024*1024;
                 z2_ram[1] = 0x7000;
+                board.enabled = 1;
                 kprintf("[BOOT]   use 4MB expansion RAM\n");
             }
             else if (strstr(prop->op_value, "z2_ram_size=2")) {
                 board.rom_size = 2*1024*1024;
                 z2_ram[1] = 0x6000;
+                board.enabled = 1;
                 kprintf("[BOOT]   use 2MB expansion RAM\n");
             }
             else if (strstr(prop->op_value, "z2_ram_size=1")) {
                 board.rom_size = 1*1024*1024;
                 z2_ram[1] = 0x5000;
+                board.enabled = 1;
                 kprintf("[BOOT]   use 1MB expansion RAM\n");
             }
             else if (strstr(prop->op_value, "z2_ram_size=0")) {
@@ -84,7 +92,7 @@ static void init()
                 kprintf("[BOOT]   disable ZorroII expansion RAM\n");
             }
             else {
-                kprintf("[BOOT]   use 8MB expansion RAM\n");
+                kprintf("[BOOT]   Z2 expansion disabled\n");
             }
         }
     }
