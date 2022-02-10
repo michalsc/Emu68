@@ -239,6 +239,7 @@ uint32_t debug_range_max = 0xffffffff;
 // Bad hack: two registers holding addresses of Load96bit and Save96bit
 uint8_t reg_Load96;
 uint8_t reg_Save96;
+uint32_t val_FPIAR;
 
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
@@ -257,6 +258,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     reg_Load96 = 0xff;
     reg_Save96 = 0xff;
+    val_FPIAR = 0xffffffff;
 
     int debug = 0;
     int disasm = 0;
@@ -469,6 +471,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                 *end++ = fmov_from_reg(0, tmp);
                 *end++ = vadd_2d(30, 30, 0);
                 
+                if (val_FPIAR != 0xffffffff) {
+                    *end++ = mov_immed_u16(tmp, val_FPIAR & 0xffff, 0);
+                    *end++ = movk_immed_u16(tmp, val_FPIAR >> 16, 1);
+                    *end++ = mov_reg_to_simd(29, TS_S, 1, tmp);
+                }
+
                 RA_FreeARMRegister(&end, tmp);
 #endif
 
@@ -614,7 +622,13 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         }
         *end++ = fmov_from_reg(0, tmp);
         *end++ = vadd_2d(30, 30, 0);
-                
+        
+        if (val_FPIAR != 0xffffffff) {
+            *end++ = mov_immed_u16(tmp, val_FPIAR & 0xffff, 0);
+            *end++ = movk_immed_u16(tmp, val_FPIAR >> 16, 1);
+            *end++ = mov_reg_to_simd(29, TS_S, 1, tmp);
+        }
+
         RA_FreeARMRegister(&end, tmp);
     }
 #endif
