@@ -72,7 +72,7 @@ jobs:
       # Execute tests defined by the CMake configuration.  
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest -C $BUILD_TYPE
-    
+
     - name: Install
       working-directory: ${{runner.workspace}}/build
       shell: bash
@@ -83,7 +83,7 @@ jobs:
       working-directory: ${{runner.workspace}}/install
       shell: bash
       run: zip -r ./Emu68-${{matrix.targ}}.zip .
-      
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
@@ -94,18 +94,18 @@ jobs:
   deploy:
     runs-on: ubuntu-20.04
     needs: build
-    
+
     strategy:
       matrix:
         targ: [raspi, pistorm]
-    
+
     steps:  
     - name: Download Artifact
       uses: actions/download-artifact@v2
       with:
         name: emu68-archive
         path: ${{runner.workspace}}/uploads
-    
+
     - name: Deploy Raspi release
       uses: WebFreak001/deploy-nightly@v1.1.0
       env:
@@ -117,3 +117,18 @@ jobs:
         asset_name: Emu68-${{matrix.targ}}-$$.zip # name to upload the release as, use $$ to insert date (YYYYMMDD) and 6 letter commit hash
         asset_content_type: application/zip # required by GitHub API
         max_releases: 7 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
+
+    - name: Declare some variables
+      id: vars
+      shell: bash
+      run: |
+        echo "::set-output name=build_date::$(date +"%Y%m%d")"
+        echo "::set-output name=sha_short::${GITHUB_SHA::6}"
+
+    - name: Webhook
+      uses: fjogeleit/http-request-action@master
+      with:
+        url: "${{ secrets.DISCORD_WEBHOOK }}"
+        method: 'POST'
+        data: '{"username":"Ziggsty the friendly Emu","avatar_url":"https://repository-images.githubusercontent.com/168139345/df1ee280-f4d7-11e9-98df-201401d8d375","content":"[**Emu68**]: New nightly available!","embeds":[{"title":"Emu68-${{matrix.targ}}-${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.sha_short }}.zip","url":"https://github.com/michalsc/Emu68/releases/download/nightly/Emu68-${{matrix.targ}}-${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.sha_short }}.zip"}]}'
+        contentType: "application/json"
