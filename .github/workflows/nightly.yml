@@ -126,6 +126,7 @@ jobs:
         echo "::set-output name=sha_short::${GITHUB_SHA::6}"
 
     - name: Webhook
+      if: ${{ matrix.targ == 'pistorm' }}
       uses: fjogeleit/http-request-action@master
       with:
         url: "${{ secrets.DISCORD_WEBHOOK }}"
