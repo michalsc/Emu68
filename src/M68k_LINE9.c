@@ -364,7 +364,7 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 *****************************************************************************
 * SUBX Dx,Dy|-(Ax),-(Ay)                                                    *
 *                                                                           *
-* Operation: dest - src → dest                                              *
+* Operation: dest - src - X → dest                                          *
 *      X|N|Z|V|C                                                            *
 * CC: (*|*|*|*|*)                                                           *
 *                                                                           *
