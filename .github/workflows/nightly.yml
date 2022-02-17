@@ -107,6 +107,7 @@ jobs:
         path: ${{runner.workspace}}/uploads
 
     - name: Deploy Raspi release
+      id: deploy
       uses: WebFreak001/deploy-nightly@v1.1.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # automatically provided by github actions
@@ -126,7 +127,7 @@ jobs:
         echo "::set-output name=sha_short::${GITHUB_SHA::6}"
 
     - name: Webhook
-      if: ${{ matrix.targ == 'pistorm' }}
+      if: ${{ matrix.targ == 'pistorm' && steps.deploy.outputs.uploaded == 'yes' }}
       uses: fjogeleit/http-request-action@master
       with:
         url: "${{ secrets.DISCORD_WEBHOOK }}"
