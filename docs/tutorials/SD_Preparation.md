@@ -76,7 +76,9 @@ Ok, I hope you have selected correct disk and correct partition. The dangerous p
 
 In order to bring Emu68 to life, the boot partition needs to be populated with Emu68 and RasPi files. Please go to the Emu68 releases page on github (you can find it here: https://github.com/michalsc/Emu68/releases/tag/nightly) and locate most recent ``Emu68-pistorm`` file. Download it and open. Copy (per drag and drop for example) contents of the archive onto the FAT32 partition of the microSD card
 
- ![step_10](img/sd_prep/step_10.png)
+**Double check that you have downloaded the *pistorm* version of the nightly, *not* the raspi verison.**
+
+![step_10](img/sd_prep/step_10.png)
 
 If you are using a maprom-feature of Emu68, which I strongly advise, it is the right time to put your rom file onto the FAT32 partition and add a corresponding entry to the config.txt file. In my case I have just added the line
 
