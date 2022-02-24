@@ -400,6 +400,10 @@ static inline uint32_t cmn_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t am
 static inline uint32_t cmn64_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return adds64_reg(31, rn, rm, shift, amount); }
 static inline uint32_t cmp_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return subs_reg(31, rn, rm, shift, amount); }
 static inline uint32_t cmp64_reg(uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { return subs64_reg(31, rn, rm, shift, amount); }
+static inline uint32_t ccmp_reg(uint8_t rn, uint8_t rm, uint8_t alt_cc, uint8_t cond) { return I32(0x7a400000 | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12) | (alt_cc & 15)); }
+static inline uint32_t ccmp64_reg(uint8_t rn, uint8_t rm, uint8_t alt_cc, uint8_t cond) { return I32(0xfa400000 | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12) | (alt_cc & 15)); }
+static inline uint32_t ccmn_reg(uint8_t rn, uint8_t rm, uint8_t alt_cc, uint8_t cond) { return I32(0x3a400000 | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12) | (alt_cc & 15)); }
+static inline uint32_t ccmn64_reg(uint8_t rn, uint8_t rm, uint8_t alt_cc, uint8_t cond) { return I32(0xba400000 | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12) | (alt_cc & 15)); }
 static inline uint32_t neg_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return sub_reg(rd, 31, rm, shift, amount); }
 static inline uint32_t neg64_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return sub64_reg(rd, 31, rm, shift, amount); }
 static inline uint32_t negs_reg(uint8_t rd, uint8_t rm, shift_t shift, uint8_t amount) { return subs_reg(rd, 31, rm, shift, amount); }
