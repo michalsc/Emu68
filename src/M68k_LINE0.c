@@ -2263,25 +2263,41 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
     }
 
-    *ptr++ = subs_reg(31, reg, lower, LSL, 0);
-    *ptr++ = b_cc(A64_CC_CS, 2);
-    *ptr++ = subs_reg(31, higher, reg,  LSL, 0);
+    ptr = EMIT_ClearFlags(ptr, cc, SR_ZC);
+
+    *ptr++ = cmp_reg(lower, higher, LSL, 0);
+    *ptr++ = b_cc(A64_CC_NE, 6);
+    *ptr++ = cmp_reg(reg, lower, LSL, 0);
+    *ptr++ = orr_immed(higher, cc, 1, 31 & (32 - SRB_Z));
+    *ptr++ = orr_immed(lower, cc, 1, 31 & (32 - SRB_C));
+    *ptr++ = csel(cc, lower, higher, A64_CC_NE);
+    uint32_t *tmp = ptr;
+    *ptr++ = 0;
+
+    if (update_mask & SR_Z) {
+        *ptr++ = cmp_reg(reg, lower, LSL, 0);
+        *ptr++ = ccmp_reg(reg, higher, 4, A64_CC_NE);
+        ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, A64_CC_EQ);
+    }
+
+    if (update_mask & SR_C) {
+        *ptr++ = cmp_reg(lower, higher, LSL, 0);
+        *ptr++ = b_cc(A64_CC_CC, 4);
+
+        *ptr++ = cmp_reg(higher, reg, LSL, 0);
+        *ptr++ = ccmp_reg(reg, lower, 2, A64_CC_CC);
+        *ptr++ = b(3);
+
+        *ptr++ = cmp_reg(reg, lower, LSL, 0);
+        *ptr++ = ccmp_reg(higher, reg, 0, A64_CC_CS);
+
+        ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+    }
+
+    *tmp = b(ptr - tmp);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
-
-    if (update_mask)
-    {
-        if (__builtin_popcount(update_mask) > 1)
-            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
-        else
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
-            
-        if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-        if (update_mask & SR_C)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
-    }
 
     RA_FreeARMRegister(&ptr, ea);
     RA_FreeARMRegister(&ptr, reg);
@@ -2295,13 +2311,13 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         exception is generated */
         ptr = EMIT_FlushPC(ptr);
 
-        /* Skip exception if tested value is in range */
+        /* Skip exception if C is not set */
         uint32_t *t = ptr;
-        *ptr++ = b_cc(A64_CC_CC, 0);
+        *ptr++ = 0;
 
         /* Emit CHK exception */
         ptr = EMIT_Exception(ptr, VECTOR_CHK, 2, opcode_address);
-        *t = b_cc(A64_CC_CC, ptr - t);
+        *t = tbz(cc, SRB_C, ptr - t);
         *ptr++ = (uint32_t)(uintptr_t)t;
         *ptr++ = 1;
         *ptr++ = 0;
