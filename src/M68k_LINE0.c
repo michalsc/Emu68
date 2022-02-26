@@ -2265,36 +2265,62 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     ptr = EMIT_ClearFlags(ptr, cc, SR_ZC);
 
-    *ptr++ = cmp_reg(lower, higher, LSL, 0);
-    *ptr++ = b_cc(A64_CC_NE, 6);
+    uint32_t *exit_1, *exit_2;
+    uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+    uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+
     *ptr++ = cmp_reg(reg, lower, LSL, 0);
-    *ptr++ = orr_immed(higher, cc, 1, 31 & (32 - SRB_Z));
-    *ptr++ = orr_immed(lower, cc, 1, 31 & (32 - SRB_C));
-    *ptr++ = csel(cc, lower, higher, A64_CC_NE);
-    uint32_t *tmp = ptr;
+    *ptr++ = ccmp_reg(reg, higher, 4, A64_CC_NE);
+    *ptr++ = b_cc(A64_CC_NE, 3);
+    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Z));
+    exit_1 = ptr;
     *ptr++ = 0;
 
-    if (update_mask & SR_Z) {
-        *ptr++ = cmp_reg(reg, lower, LSL, 0);
-        *ptr++ = ccmp_reg(reg, higher, 4, A64_CC_NE);
-        ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, A64_CC_EQ);
-    }
+    *ptr++ = cmp_reg(reg, higher, LSL, 0);
+	*ptr++ = cset(tmp1, A64_CC_HI);
+	*ptr++ = cmp_reg(reg, lower, LSL, 0);
+	*ptr++ = cset(tmp2, A64_CC_CC);
+    *ptr++ = cmp_reg(lower, higher, LSL, 0);
+	*ptr++ = b_cc(A64_CC_HI, 6);
+	*ptr++ = cmp_reg(31, tmp2, LSL, 0);
+    *ptr++ = orr_immed(lower, cc, 1, 32 - SRB_C);
+	*ptr++ = ccmp_reg(tmp1, 31, 0, A64_CC_EQ);
+    *ptr++ = csel(cc, lower, cc, A64_CC_NE);
+    exit_2 = ptr;
+    *ptr++ = 0;
 
-    if (update_mask & SR_C) {
-        *ptr++ = cmp_reg(lower, higher, LSL, 0);
-        *ptr++ = b_cc(A64_CC_CC, 4);
+    *ptr++ = cmp_reg(31, tmp2, LSL, 0);
+    *ptr++ = orr_immed(lower, cc, 1, 32 - SRB_C);
+    *ptr++ = ccmp_reg(31, tmp1, 4, A64_CC_NE);
+    *ptr++ = csel(cc, lower, cc, A64_CC_NE);
 
-        *ptr++ = cmp_reg(higher, reg, LSL, 0);
-        *ptr++ = ccmp_reg(reg, lower, 2, A64_CC_CC);
-        *ptr++ = b(3);
+    RA_FreeARMRegister(&ptr, tmp1);
+    RA_FreeARMRegister(&ptr, tmp2);
 
-        *ptr++ = cmp_reg(reg, lower, LSL, 0);
-        *ptr++ = ccmp_reg(higher, reg, 0, A64_CC_CS);
+    *exit_2 = b(ptr - exit_2);
+    *exit_1 = b(ptr - exit_1);
 
-        ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
-    }
+#if 0
+    *ptr++ = cmp_reg(lower, higher, LSL, 0);
+    *ptr++ = b_cc(A64_CC_HI, 6);
+    *ptr++ = cmp_reg(reg, lower, LSL, 0);
+    *ptr++ = orr_immed(lower, cc, 1, 31 & (32 - SRB_C));
+    *ptr++ = ccmp_reg(reg, higher, 2, A64_CC_CS);
+    *ptr++ = csel(cc, lower, cc, A64_CC_HI);
+    exit_2 = ptr;
+    *ptr++ = 0;
 
-    *tmp = b(ptr - tmp);
+    *ptr++ = cmp_reg(reg, higher, LSL, 0);
+    *ptr++ = orr_immed(higher, cc, 1, 31 & (32 - SRB_C));
+    *ptr++ = ccmp_reg(reg, lower, 1, A64_CC_LE);
+    *ptr++ = csel(cc, higher, cc, A64_CC_LT);
+    
+    *exit_2 = b(ptr - exit_2);
+    *exit_1 = b(ptr - exit_1);
+#endif
+    
+
+    (void)update_mask;
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
