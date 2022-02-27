@@ -3256,7 +3256,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01320 ... 01327] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 0, 2 },
 	[01350 ... 01373] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 1, 2 },
 	[02320 ... 02327] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 0, 4 },
-	[02350 ... 02371] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 1, 4 },
+	[02350 ... 02373] = { { .od_Emit = EMIT_CMP2 }, NULL, SR_CCR, SR_NZVC, 2, 1, 4 },
 
 	[00410 ... 00417] = { { .od_Emit = EMIT_MOVEP }, NULL, 0, 0, 2, 0, 2 },
 	[00510 ... 00517] = { { .od_Emit = EMIT_MOVEP }, NULL, 0, 0, 2, 0, 4 },
