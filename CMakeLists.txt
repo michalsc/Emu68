@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 0.9.30)
+project(Emu68 VERSION 0.10.0)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
@@ -51,6 +51,7 @@ set(EMU68_FILES
     src/M68k_LINEF.c
     src/M68k_Exception.c
     src/M68k_CC.c
+    src/M68k_FPU.c
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
