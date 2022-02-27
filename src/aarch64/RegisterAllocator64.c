@@ -388,6 +388,8 @@ uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
     if (reg != 0xff)
         return reg;
 
+    kprintf("!!!warning - flushing regs!\n");
+
     RA_FlushFPCR(arm_stream);
 
     reg = __int_arm_alloc_reg();
