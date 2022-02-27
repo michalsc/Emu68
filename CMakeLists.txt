@@ -51,7 +51,6 @@ set(EMU68_FILES
     src/M68k_LINEF.c
     src/M68k_Exception.c
     src/M68k_CC.c
-    src/M68k_FPU.c
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
