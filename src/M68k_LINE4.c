@@ -2260,21 +2260,23 @@ static uint32_t *EMIT_JMP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
-#ifdef __aarch64__
+
+    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t ext_words = 0;
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
-    uint8_t nib = RA_AllocARMRegister(&ptr);
+
     uint8_t ea = -1;
     uint8_t cc = RA_ModifyCC(&ptr);
 
-    *ptr++ = mov_immed_u16(tmp, 0x99, 0);
+    uint8_t hi = RA_AllocARMRegister(&ptr);
+    uint8_t lo = RA_AllocARMRegister(&ptr);
 
     /* Dn mode */
     if ((opcode & 0x38) == 0)
     {
         uint8_t dn = RA_MapM68kRegister(&ptr, opcode & 7);
 
-        *ptr++ = sub_reg(tmp, tmp, dn, LSL, 0);
+        *ptr++ = and_immed(lo, dn, 4, 0);
+        *ptr++ = and_immed(hi, dn, 4, 28);
     }
     else
     {
@@ -2284,7 +2286,7 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
 
         /* -(An) mode? Decrease EA */
-        if ((opcode & 0x38) == 0x10)
+        if ((opcode & 0x38) == 0x20)
         {
             if ((opcode & 7) == 7) {
                 *ptr++ = ldrb_offset_preindex(ea, t, -2);
@@ -2297,29 +2299,62 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
             *ptr++ = ldrb_offset(ea, t, 0);
         }
 
-        *ptr++ = sub_reg(tmp, tmp, t, LSL, 0);
+        *ptr++ = and_immed(lo, t, 4, 0);
+        *ptr++ = and_immed(hi, t, 4, 28);
 
         RA_FreeARMRegister(&ptr, t);
     }
 
-    uint32_t *tbz_pos = ptr;
-    *ptr++ = tbnz(cc, SRB_X, 0); // Is X bit set? If yes, skip the adjustment
+    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t result = RA_AllocARMRegister(&ptr);
 
-    *ptr++ = and_immed(nib, tmp, 4, 0); // Extract lower nibble
-    *ptr++ = add_immed(nib, nib, 1);    // Increase by 1
-    *ptr++ = cmp_immed(nib, 9);         // Overflow?
-    *ptr++ = b_cc(A64_CC_LS, 2);        // No
-    *ptr++ = add_immed(nib, nib, 6);    // Overflow - adjust nibble
-    *ptr++ = bfi(tmp, nib, 0, 4);       // Insert back
-    *ptr++ = b_cc(A64_CC_LS, 7);        // No overflow - skip the rest
-    *ptr++ = bfxil(nib, tmp, 4, 4);     // Extract higher nibble
-    *ptr++ = add_immed(nib, nib, 1);    // Increase
-    *ptr++ = cmp_immed(nib, 9);         // Check for overflow
-    *ptr++ = b_cc(A64_CC_LS, 2);
-    *ptr++ = add_immed(nib, nib, 6);
-    *ptr++ = bfi(tmp, nib, 4, 4);
+    // Negate both loaded nibbles
+    *ptr++ = sub_reg(lo, 31, lo, LSL, 0);
+    *ptr++ = sub_reg(hi, 31, hi, LSL, 0);
 
-    *tbz_pos = tbnz(cc, SRB_X, ptr - tbz_pos);
+    // If X was set decrement lower nibble
+    *ptr++ = tbz(cc, SRB_X, 2);
+    *ptr++ = sub_immed(lo, lo, 1);
+
+    // Fix overflow in lower nibble
+    *ptr++ = cmp_immed(lo, 10);
+    *ptr++ = b_cc(A64_CC_CC, 2);
+    *ptr++ = sub_immed(lo, lo, 6);
+
+    *ptr++ = add_reg(result, lo, hi, LSL, 0);
+
+    // Fix overflow in higher nibble
+    *ptr++ = and_immed(tmp, result, 5, 28);
+    *ptr++ = cmp_immed(tmp, 0xa0);
+    *ptr++ = b_cc(A64_CC_CC, 2);
+    *ptr++ = sub_immed(result, result, 0x60);
+
+    if (update_mask & SR_XC) {
+        switch (update_mask & SR_XC)
+        {
+            case SR_C:
+                *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+                *ptr++ = orr_immed(tmp, cc, 1, 32 - SRB_C);
+                break;
+            case SR_X:
+                *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_X);
+                *ptr++ = orr_immed(tmp, cc, 1, 32 - SRB_X);
+                break;
+            default:
+                *ptr++ = mov_immed_u16(tmp, SR_XC, 0);
+                *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
+                *ptr++ = orr_reg(tmp, cc, tmp, LSL, 0);
+                break;
+        }
+
+        *ptr++ = csel(cc, tmp, cc, A64_CC_CS);
+    }
+
+    if (update_mask & SR_Z) {
+        *ptr++ = bic_immed(tmp, cc, 1, 32 - SRB_Z);
+        *ptr++ = ands_immed(31, result, 8, 0);
+        *ptr++ = csel(cc, tmp, cc, A64_CC_NE);
+    }
 
     /* Dn mode */
     if ((opcode & 0x38) == 0)
@@ -2328,38 +2363,33 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
 
         RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
-        *ptr++ = bfi(dn, tmp, 0, 8);
+        *ptr++ = bfi(dn, result, 0, 8);
     }
     else
     {
-        /* Load EA */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
-
-        /* -(An) mode? Decrease EA */
+        /* (An)+ mode? Increase EA */
         if ((opcode & 0x38) == 0x18)
         {
             if ((opcode & 7) == 7) {
-                *ptr++ = strb_offset_postindex(ea, tmp, 2);
+                *ptr++ = strb_offset_postindex(ea, result, 2);
             }
             else {
-                *ptr++ = strb_offset_postindex(ea, tmp, 1);
+                *ptr++ = strb_offset_postindex(ea, result, 1);
             }
         }
         else {
-            *ptr++ = strb_offset(ea, tmp, 0);
+            *ptr++ = strb_offset(ea, result, 0);
         }
     }
 
     RA_FreeARMRegister(&ptr, tmp);
-    RA_FreeARMRegister(&ptr, nib);
+    RA_FreeARMRegister(&ptr, hi);
+    RA_FreeARMRegister(&ptr, lo);
+    RA_FreeARMRegister(&ptr, result);
+    RA_FreeARMRegister(&ptr, ea);
 
     (*m68k_ptr) += ext_words;
     ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 1));
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] NBCD at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -2778,9 +2808,9 @@ static struct OpcodeDef InsnTable[4096] = {
     [05200 ... 05247] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 0, 4 },
     [05250 ... 05274] = { { .od_EmitMulti = EMIT_TST }, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [04000 ... 04007] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 0, 1 },
-    [04020 ... 04047] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 0, 1 },
-    [04050 ... 04071] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XNC, 1, 1, 1 },
+    [04000 ... 04007] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
+    [04020 ... 04047] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
+    [04050 ... 04071] = { { .od_EmitMulti = EMIT_NBCD }, NULL, SR_XZ, SR_XZC, 1, 1, 1 },
 
     [04120 ... 04127] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 0, 4 },
     [04150 ... 04173] = { { .od_EmitMulti = EMIT_PEA }, NULL, 0, 0, 1, 1, 4 },
