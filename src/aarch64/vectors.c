@@ -1650,6 +1650,10 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
                     4*i+2, ctx[4*i+2],
                     4*i+3, ctx[4*i+3]);
             }
+            uint64_t spsr;
+
+            asm volatile("mrs %0, SPSR_EL1":"=r"(spsr));
+            kprintf("[JIT:SYS]   SPSR=%08x\n", spsr);
         }
 
         if ((esr & 0xffff) == 0x101)
