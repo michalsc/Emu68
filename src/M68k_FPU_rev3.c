@@ -7296,10 +7296,25 @@ static EMIT_Function JumpTableOp[65536] = {
     [0xB800]            = { { EMIT_FMOVEM_L }, NULL, 0, 0 },
     [0xBC00]            = { { EMIT_FMOVEM_L }, NULL, 0, 0 },
 /* FMOVEM.X <ea>,<list> */
-    [0xC000 ... 0xC07F] = { { EMIT_FMOVEM }, NULL, 0, 0 }, //-(An)
-    [0xC800 ... 0xC87F] = { { EMIT_FMOVEM }, NULL, 0, 0 },
-    [0xE000]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD000 ... 0xD0FF] = { { EMIT_FMOVEM }, NULL, 0, 0 }, //(An)+
+    [0xD800]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD810]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD820]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD830]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD840]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD850]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD860]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xD870]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
 
+    [0xE000 ... 0xE0FF] = { { EMIT_FMOVEM }, NULL, 0, 0 }, //-(An)
+    [0xE800]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE810]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE820]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE830]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE840]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE850]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE860]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
+    [0xE870]            = { { EMIT_FMOVEM }, NULL, 0, 0 },
 }
 
 /* Any format function should preload specified registers according to format and jump to FPU Instruction table. */
