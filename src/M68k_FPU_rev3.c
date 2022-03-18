@@ -25,7 +25,6 @@ static EMIT_Function FPU[512] = {
     
 /* EA Decoding */
     [0000 ... 0074] = { { EMIT_FORMAT }, NULL, 0, 0, 2, 0, 0 },
-
 /* CC instructions */ //if cc is IEEE nonaware & NAN is set, Set BSUN and IOP to 1.
     [0100 ... 0107] = { { EMIT_FSCC_reg }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 2, 0, 1 },
     [0110 ... 0117] = { { EMIT_FDBCC }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
@@ -34,7 +33,6 @@ static EMIT_Function FPU[512] = {
     [0172]          = { { EMIT_FTRAPCC }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 3, 0, 0 },
     [0174]          = { { EMIT_FTRAPCC }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 2, 0, 0 },
     [0173]          = { { EMIT_FTRAPCC }, NULL, FPCC, FPSR_BSUN | FPSR_IOP, 4, 0, 0 },
-
 /* Branch */
     [0200 ... 0237] = { { EMIT_FBCC }, NULL, FPCC, 0, 2, 0, 0 },
     [0300 ... 0337] = { { EMIT_FBCC }, NULL, FPCC, 0, 3, 0, 0 },
@@ -42,7 +40,6 @@ static EMIT_Function FPU[512] = {
     [0420 ... 0427] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 0, 0 },
     [0440 ... 0447] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 0, 0 },
     [0450 ... 0471] = { { EMIT_FSAVE }, NULL, SR_S, 0, 1, 1, 0 },
-
     [0520 ... 0537] = { { EMIT_FRESTORE }, NULL, SR_S, 0, 1, 0, 0 },
     [0550 ... 0574] = { { EMIT_FRESTORE }, NULL, SR_S, 0, 1, 1, 0 },
 }
@@ -7875,66 +7872,73 @@ uint32_t *EMIT_FDBCC(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t 
             break;
     }
 }
-uint32_t *EMIT_FBF(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+uint32_t *EMIT_FBCC(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed){
 
-uint32_t *EMIT_FBEQ(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
-uint32_t *EMIT_FBOGT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBOGE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBOLT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBOLE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBOGL(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBOR(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBUN(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBUEQ(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBUGT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBUGE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBULT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBULE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBSF(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBSEQ(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBGT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBGE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBLT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBLE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBGL(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBGLE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNGLE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNGL(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNLE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNLT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNGE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBNGT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBSNE(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
-
-uint32_t *EMIT_FBST(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+    switch(opcode2 & 0x1f) {
+        case F_CC_F:
+            break;
+        case F_CC_EQ:
+            break;
+        case F_CC_OGT:
+            break;
+        case F_CC_OGE:
+            break;
+        case F_CC_OLT:
+            break;
+        case F_CC_OLE:
+            break;
+        case F_CC_OGL:
+            break;
+        case F_CC_OR:
+            break;
+        case F_CC_UN:
+            break;
+        case F_CC_UEQ:
+            break;
+        case F_CC_UGT:
+            break;
+        case F_CC_UGE:
+            break;
+        case F_CC_ULT:
+            break;
+        case F_CC_ULE:
+            break;
+        case F_CC_NE:
+            break;
+        case F_CC_T:
+            break;
+        case F_CC_SF:
+            break;
+        case F_CC_SEQ:
+            break;
+        case F_CC_GT:
+            break;
+        case F_CC_GE:
+            break;
+        case F_CC_LT:
+            break;
+        case F_CC_LE:
+            break;
+        case F_CC_GL:
+            break;
+        case F_CC_GLE:
+            break;
+        case F_CC_NGLE:
+            break;
+        case F_CC_NGL:
+            break;
+        case F_CC_NLE:
+            break;
+        case F_CC_NLT:
+            break;
+        case F_CC_NGE:
+            break;
+        case F_CC_NGT:
+            break;
+        case F_CC_SNE:
+            break;
+        case F_CC_ST:
+            break;
+    }
+}
