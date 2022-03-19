@@ -7319,8 +7319,8 @@ uint32_t *EMIT_FORMAT(uint32_t *ptr, uint16_t opcode, uint16_t opcode2, uint16_t
 
     uint8_t fmt = 1 << ((opcode2 & 0x1c00) >> 10) // this should be a value between 0 and 128
 
-    if (JumpTableOp[opcode2 & 0x7f].od_Emit)
-        ptr = JumpTableOp[opcode2 & 0x7f].od_Emit(ptr, opcode, opcode2, m68k_ptr, fmt);
+    if (JumpTableOp[opcode2].od_Emit)
+        ptr = JumpTableOp[opcode2].od_Emit(ptr, opcode, opcode2, m68k_ptr, fmt);
     else {
         ptr = EMIT_FlushPC(ptr);
         ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
