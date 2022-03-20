@@ -491,12 +491,15 @@ void boot(void *dtree)
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
+#ifdef PISTORM
             const char *tok;
+#endif
 
             if (find_token(prop->op_value, "enable_cache"))
                 enable_cache = 1;
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
+#ifdef PISTORM
             if ((tok = find_token(prop->op_value, "vc4.mem=")))
             {
                 uint32_t vmem = 0;
@@ -543,6 +546,7 @@ void boot(void *dtree)
                         break;
                 }
             }
+#endif
         }
     }
 
