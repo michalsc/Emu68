@@ -368,7 +368,7 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     }
 
     if (far >= 0xff000000) {
-        kprintf("Z3 write access with far %08x\n", far);
+        kprintf("Z3 write access with far %08x, size %d, value %08x\n", far, size, value);
     }
 
     if (far == CIAAPRA && size == 1) {
@@ -471,6 +471,7 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);
         *value = 0;
+        return 1;
     }
 
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
