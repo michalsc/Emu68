@@ -415,6 +415,16 @@ struct OpcodeDef {
     uint8_t         od_OpSize;
 };
 
+struct FPUOpcodeDef {
+    EMIT_Function   od_Emit;
+    void *          od_Interpret;   // Not used yet.
+    uint32_t        od_FPSRNeeds;
+    uint32_t        od_FPSRSets;
+    uint8_t         od_BaseLength;
+    uint8_t         od_HasEA;
+    uint8_t         od_OpSize;
+};
+
 uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
 uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args);
 uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ...);
@@ -426,6 +436,7 @@ int M68K_GetINSNLength(uint16_t *insn_stream);
 int M68K_IsBranch(uint16_t *insn_stream);
 
 uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
+uint8_t EMIT_TestFPUCondition(uint32_t **pptr, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
