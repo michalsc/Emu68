@@ -466,9 +466,9 @@ void boot(void *dtree)
     void *initramfs_loc = NULL;
     uintptr_t initramfs_size = 0;    
     boot_lock = 0;
-    int rom_copy = 0;
 
 #ifdef PISTORM
+    int rom_copy = 0;
     vid_memory = 16;
 #endif
 
