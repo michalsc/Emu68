@@ -76,7 +76,7 @@ void ps_write_8(unsigned int address, unsigned int data);
 void ps_write_16(unsigned int address, unsigned int data);
 void ps_write_32(unsigned int address, unsigned int data);
 
-void ps_buptest(unsigned int size_kb);
+void ps_buptest(unsigned int size_kb, unsigned int maxiter);
 
 unsigned int ps_read_status_reg();
 void ps_write_status_reg(unsigned int value);

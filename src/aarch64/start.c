@@ -470,6 +470,7 @@ void boot(void *dtree)
 #ifdef PISTORM
     int rom_copy = 0;
     int buptest = 0;
+    int bupiter = 5;
     vid_memory = 16;
 #endif
 
@@ -513,11 +514,29 @@ void boot(void *dtree)
                     bup = bup * 10 + tok[8 + i] - '0';
                 }
 
-                if (bup >= 2048) {
+                if (bup > 2048) {
                     bup = 2048;
                 }
                 
                 buptest = bup;
+            }
+            if ((tok = find_token(prop->op_value, "bupiter=")))
+            {
+                uint32_t iter = 0;
+
+                for (int i=0; i < 2; i++)
+                {
+                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                        break;
+
+                    iter = iter * 10 + tok[8 + i] - '0';
+                }
+
+                if (iter > 9) {
+                    iter = 9;
+                }
+                
+                bupiter = iter;
             }
             if ((tok = find_token(prop->op_value, "vc4.mem=")))
             {
@@ -1158,7 +1177,7 @@ void boot(void *dtree)
 #ifdef PISTORM
     if (buptest)
     {
-        ps_buptest(buptest);   
+        ps_buptest(buptest, bupiter);
     }
 #endif
 

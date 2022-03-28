@@ -810,7 +810,7 @@ uint32_t rnd() {
 
 /* BupTest by beeanyew, ported to Emu68 */
 
-void ps_buptest(unsigned int test_size)
+void ps_buptest(unsigned int test_size, unsigned int maxiter)
 {
   // Initialize RNG
   uint64_t tmp;
@@ -828,7 +828,7 @@ void ps_buptest(unsigned int test_size)
   ps_write_8(0xbfe201, 0x0101);       //CIA OVL
 	ps_write_8(0xbfe001, 0x0000);       //CIA OVL LOW
 
-  for (int iter = 0; iter < 5; iter++) {
+  for (unsigned int iter = 0; iter < maxiter; iter++) {
     kprintf_pc(__putc, NULL, "Iteration %d...\n", iter + 1);
 
     // Fill the garbage buffer and chip ram with random data
