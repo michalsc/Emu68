@@ -808,6 +808,8 @@ uint32_t rnd() {
   return _seed;
 }
 
+/* BupTest by beeanyew, ported to Emu68 */
+
 void ps_buptest(unsigned int test_size)
 {
   // Initialize RNG
