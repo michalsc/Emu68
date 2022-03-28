@@ -793,3 +793,174 @@ unsigned int ps_read_32(unsigned int address)
 {
   return ps_read_32_int(address);
 }
+
+void put_char(uint8_t c);
+
+static void __putc(void *data, char c)
+{
+  (void)data;
+  put_char(c);
+}
+
+static uint32_t _seed;
+uint32_t rnd() {
+  _seed = (_seed * 1103515245) + 12345;
+  return _seed;
+}
+
+void ps_buptest(unsigned int test_size)
+{
+  // Initialize RNG
+  uint64_t tmp;
+  asm volatile("mrs %0, CNTPCT_EL0":"=r"(tmp));
+
+  _seed = tmp;
+
+  kprintf_pc(__putc, NULL, "BUPTest with size %dK requested through commandline\n", test_size);
+
+  test_size *= 1024;
+  uint32_t frac = test_size / 16;
+
+  uint8_t *garbage = tlsf_malloc(tlsf, test_size);
+
+  ps_write_8(0xbfe201, 0x0101);       //CIA OVL
+	ps_write_8(0xbfe001, 0x0000);       //CIA OVL LOW
+
+  for (int iter = 0; iter < 5; iter++) {
+    kprintf_pc(__putc, NULL, "Iteration %d...\n", iter + 1);
+
+    // Fill the garbage buffer and chip ram with random data
+    kprintf_pc(__putc, NULL, "  Writing BYTE garbage data to Chip...            ");
+    for (uint32_t i = 0; i < test_size; i++) {
+      uint8_t val = 0;
+      val = rnd();
+      garbage[i] = val;
+      ps_write_8(i, val);
+
+      if ((i % (frac * 2)) == 0)
+        kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 0; i < test_size; i++) {
+        uint32_t c = ps_read_8(i);
+        if (c != garbage[i]) {
+            kprintf_pc(__putc, NULL, "\n    READ8: Garbege data mismatch at $%.6X: %.2X should be %.2X.\n", i, c, garbage[i]);
+            while(1);
+        }
+
+        if ((i % (frac * 4)) == 0)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 0; i < (test_size) - 2; i += 2) {
+        uint32_t c = BE16(ps_read_16(i));
+        if (c != *((uint16_t *)&garbage[i])) {
+            kprintf_pc(__putc, NULL, "\n    READ16_EVEN: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
+            while(1);
+        }
+
+        if ((i % (frac * 4)) == 0)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
+        uint32_t c = BE16((ps_read_8(i) << 8) | ps_read_8(i + 1));
+        if (c != *((uint16_t *)&garbage[i])) {
+            kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
+            while(1);
+        }
+
+        if ((i % (frac * 4)) == 1)
+          kprintf_pc(__putc, NULL, "*");
+    }
+    
+    for (uint32_t i = 0; i < (test_size) - 4; i += 2) {
+        uint32_t c = BE32(ps_read_32(i));
+        if (c != *((uint32_t *)&garbage[i])) {
+            kprintf_pc(__putc, NULL, "\n    READ32_EVEN: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
+            while(1);
+        }
+        
+        if ((i % (frac * 4)) == 0)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 1; i < (test_size) - 4; i += 2) {
+        uint32_t c = ps_read_8(i) << 24;
+        c |= (BE16(ps_read_16(i + 1)) << 8);
+        c |= ps_read_8(i + 3);
+        if (c != *((uint32_t *)&garbage[i])) {
+            kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
+            while(1);
+        }
+
+        if ((i % (frac * 4)) == 1)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 0; i < test_size; i++) {
+        ps_write_8(i, (uint32_t)0x0);
+
+        if ((i % (frac * 8)) == 0)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    kprintf_pc(__putc, NULL, "\n  Writing WORD garbage data to Chip, unaligned... ");
+    for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
+        uint16_t v = *((uint16_t *)&garbage[i]);
+        ps_write_8(i + 1, (v & 0x00FF));
+        ps_write_8(i, (v >> 8));
+
+        if ((i % (frac * 2)) == 1)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
+        uint32_t c = BE16((ps_read_8(i) << 8) | ps_read_8(i + 1));
+        if (c != *((uint16_t *)&garbage[i])) {
+            kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
+            while(1);
+        }
+
+        if ((i % (frac * 2)) == 1)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 0; i < test_size; i++) {
+        ps_write_8(i, (uint32_t)0x0);
+    }
+
+    kprintf_pc(__putc, NULL, "\n  Writing LONG garbage data to Chip, unaligned... ");
+    for (uint32_t i = 1; i < (test_size) - 4; i += 4) {
+        uint32_t v = *((uint32_t *)&garbage[i]);
+        ps_write_8(i , v & 0x0000FF);
+        ps_write_16(i + 1, BE16(((v & 0x00FFFF00) >> 8)));
+        ps_write_8(i + 3 , (v & 0xFF000000) >> 24);
+
+        if ((i % (frac * 2)) == 1)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    for (uint32_t i = 1; i < (test_size) - 4; i += 4) {
+        uint32_t c = ps_read_8(i);
+        c |= (BE16(ps_read_16(i + 1)) << 8);
+        c |= (ps_read_8(i + 3) << 24);
+        if (c != *((uint32_t *)&garbage[i])) {
+            kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
+            while(1);
+        }
+
+        if ((i % (frac * 2)) == 1)
+          kprintf_pc(__putc, NULL, "*");
+    }
+
+    kprintf_pc(__putc, NULL, "\n");
+  }
+
+
+  kprintf_pc(__putc, NULL, "All done. BUPTest completed.\n");
+
+  ps_pulse_reset();
+
+  tlsf_free(tlsf, garbage);
+}

@@ -469,6 +469,7 @@ void boot(void *dtree)
 
 #ifdef PISTORM
     int rom_copy = 0;
+    int buptest = 0;
     vid_memory = 16;
 #endif
 
@@ -500,6 +501,24 @@ void boot(void *dtree)
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
 #ifdef PISTORM
+            if ((tok = find_token(prop->op_value, "buptest=")))
+            {
+                uint32_t bup = 0;
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                        break;
+
+                    bup = bup * 10 + tok[8 + i] - '0';
+                }
+
+                if (bup >= 2048) {
+                    bup = 2048;
+                }
+                
+                buptest = bup;
+            }
             if ((tok = find_token(prop->op_value, "vc4.mem=")))
             {
                 uint32_t vmem = 0;
@@ -1135,6 +1154,13 @@ void boot(void *dtree)
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
     //dt_dump_tree();
+
+#ifdef PISTORM
+    if (buptest)
+    {
+        ps_buptest(buptest);   
+    }
+#endif
 
 #if 0
 
