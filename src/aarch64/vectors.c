@@ -368,7 +368,7 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     }
 
     if (far >= 0xff000000) {
-        kprintf("Z3 write access with far %08x\n", far);
+        kprintf("Z3 write access with far %08x, size %d, value %08x\n", far, size, value);
     }
 
     if (far == CIAAPRA && size == 1) {
@@ -471,6 +471,7 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);
         *value = 0;
+        return 1;
     }
 
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
@@ -1650,6 +1651,10 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
                     4*i+2, ctx[4*i+2],
                     4*i+3, ctx[4*i+3]);
             }
+            uint64_t spsr;
+
+            asm volatile("mrs %0, SPSR_EL1":"=r"(spsr));
+            kprintf("[JIT:SYS]   SPSR=%08x\n", spsr);
         }
 
         if ((esr & 0xffff) == 0x101)

@@ -468,6 +468,9 @@ void boot(void *dtree)
     boot_lock = 0;
 
 #ifdef PISTORM
+    int rom_copy = 0;
+    int buptest = 0;
+    int bupiter = 5;
     vid_memory = 16;
 #endif
 
@@ -490,12 +493,51 @@ void boot(void *dtree)
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
+#ifdef PISTORM
             const char *tok;
+#endif
 
             if (find_token(prop->op_value, "enable_cache"))
                 enable_cache = 1;
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
+#ifdef PISTORM
+            if ((tok = find_token(prop->op_value, "buptest=")))
+            {
+                uint32_t bup = 0;
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                        break;
+
+                    bup = bup * 10 + tok[8 + i] - '0';
+                }
+
+                if (bup > 2048) {
+                    bup = 2048;
+                }
+                
+                buptest = bup;
+            }
+            if ((tok = find_token(prop->op_value, "bupiter=")))
+            {
+                uint32_t iter = 0;
+
+                for (int i=0; i < 2; i++)
+                {
+                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                        break;
+
+                    iter = iter * 10 + tok[8 + i] - '0';
+                }
+
+                if (iter > 9) {
+                    iter = 9;
+                }
+                
+                bupiter = iter;
+            }
             if ((tok = find_token(prop->op_value, "vc4.mem=")))
             {
                 uint32_t vmem = 0;
@@ -512,6 +554,37 @@ void boot(void *dtree)
                     vid_memory = vmem & ~1;
                 }
             }
+            if ((tok = find_token(prop->op_value, "copy_rom=")))
+            {
+                tok += 9;
+                int c = 0;
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[i] < '0' || tok[i] > '9')
+                        break;
+
+                    c = c * 10 + tok[i] - '0';
+                }
+
+                switch (c) {
+                    case 256:
+                        rom_copy = 256;
+                        break;
+                    case 512:
+                        rom_copy = 512;
+                        break;
+                    case 1024:
+                        rom_copy = 1024;
+                        break;
+                    case 2048:
+                        rom_copy = 2048;
+                        break;
+                    default:
+                        break;
+                }
+            }
+#endif
         }
     }
 
@@ -923,7 +996,53 @@ void boot(void *dtree)
 
 #else
 
-    if (initramfs_loc != NULL && initramfs_size != 0)
+    if (rom_copy != 0)
+    {
+        kprintf("[BOOT] %dk ROM copy requested\n", rom_copy);
+
+        /* If ROM copy was requested, pull the 512K no matter what. On 256K kickstarts this will pull shadow copy too */
+        for (int i=0; i < 524288; i+=4)
+        {
+            *(uint32_t *)(0xffffff9000f80000 + i) = ps_read_32(0xf80000 + i);
+        }
+        mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+
+        /* For larger ROMs copy also 512K from 0xe00000 (1M) and 0xa80000, 0xb00000 (2M) */ 
+        if (rom_copy == 1024)
+        {
+            for (int i=0; i < 524288; i+=4)
+            {
+                *(uint32_t *)(0xffffff9000e00000 + i) = ps_read_32(0xe00000 + i);
+            }
+
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        }
+        else if (rom_copy == 2048)
+        {
+            for (int i=0; i < 524288; i+=4)
+            {
+                *(uint32_t *)(0xffffff9000e00000 + i) = ps_read_32(0xe00000 + i);
+            }
+            for (int i=0; i < 524288; i+=4)
+            {
+                *(uint32_t *)(0xffffff9000a80000 + i) = ps_read_32(0xa80000 + i);
+            }
+            for (int i=0; i < 524288; i+=4)
+            {
+                *(uint32_t *)(0xffffff9000b00000 + i) = ps_read_32(0xb00000 + i);
+            }
+
+            mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        }
+        else
+        {
+            /* For 512K or lower create shadow rom at 0xe00000 */
+            mmu_map(0xf80000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        }
+    }
+    else if (initramfs_loc != NULL && initramfs_size != 0)
     {
         extern uint32_t rom_mapped;
 
@@ -1054,6 +1173,13 @@ void boot(void *dtree)
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
     //dt_dump_tree();
+
+#ifdef PISTORM
+    if (buptest)
+    {
+        ps_buptest(buptest, bupiter);
+    }
+#endif
 
 #if 0
 
