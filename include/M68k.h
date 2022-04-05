@@ -340,6 +340,14 @@ struct M68KState
 #define VECTOR_INT_LEVEL7           0x07c
 
 #define VECTOR_INT_TRAP(n)          (0x080 + ((n) & 15)*4)
+//FPU Vector Exception
+#define VECTOR_UNORDERED_CONDITION  0xC0
+#define VECTOR_INEXACT_RESULT       0xC4
+#define VECTOR_FP_DIVIDE_BY_ZERO    0xC8
+#define VECTOR_UNDERFLOW            0xCC
+#define VECTOR_OPERAND_ERROR        0xD0
+#define VECTOR_OVERFLOW             0xD4
+#define VECTOR_SIGNALING_NAN        0xD8
 
 uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
 uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
