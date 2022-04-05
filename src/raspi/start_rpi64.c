@@ -35,6 +35,46 @@ uint32_t pitch;
 uint32_t fb_width;
 uint32_t fb_height;
 
+extern const uint32_t topaz8_charloc[];
+extern const uint8_t topaz8_chardata[];
+
+uint32_t text_x = 0;
+uint32_t text_y = 0;
+const int modulo = 192;
+
+void put_char(uint8_t c)
+{
+    if (framebuffer && pitch)
+    {
+        uint16_t *pos_in_image = (uint16_t*)((uintptr_t)framebuffer + (text_y * 16 + 5)* pitch);
+        pos_in_image += 4 + text_x * 8;
+
+        if (c == 10) {
+            text_x = 0;
+            text_y++;
+        }
+        else if (c >= 32) {
+            uint32_t loc = (topaz8_charloc[c - 32] >> 16) >> 3;
+            const uint8_t *data = &topaz8_chardata[loc];
+
+            for (int y = 0; y < 16; y++) {
+                const uint8_t byte = *data;
+
+                for (int x=0; x < 8; x++) {
+                    if (byte & (0x80 >> x)) {
+                        pos_in_image[x] = 0;
+                    }
+                }
+
+                if (y & 1)
+                    data += modulo;
+                pos_in_image += pitch / 2;
+            }
+            text_x++;
+        }
+    }
+}
+
 void display_logo()
 {
     struct Size sz = get_display_size();
