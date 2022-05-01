@@ -107,8 +107,9 @@ struct M68KState
     /* Async IRQ part */
     struct {
         uint8_t ARM;
+        uint8_t ARM_err;
         uint8_t IPL;
-        uint8_t pad[2];
+        uint8_t pad[1];
     } INT;
     uint64_t INSN_COUNT;
 
