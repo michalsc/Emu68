@@ -1061,7 +1061,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldr_offset_postindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldr_offset_postindex(int_reg, val_reg, post_sz);
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
@@ -1104,7 +1104,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldrsh_offset_postindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldrsh_offset_postindex(int_reg, val_reg, post_sz);
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
@@ -1147,7 +1147,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldrsb_offset_postindex(int_reg, val_reg, pre_sz);
+                        *ptr++ = ldrsb_offset_postindex(int_reg, val_reg, post_sz);
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
