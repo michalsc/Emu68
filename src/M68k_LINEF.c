@@ -869,7 +869,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             {
                 case SIZE_P:
                     {
-                        if (pre_sz)
+                        if (mode == 4)
                         {
                             *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
                         }
@@ -914,7 +914,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
 
-                        if (post_sz)
+                        if (mode == 3)
                         {
                             *ptr++ = add_immed(int_reg, int_reg, post_sz);
                         }
@@ -923,7 +923,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                 case SIZE_X:
                     {
-                        if (pre_sz)
+                        if (mode == 4)
                         {
                             *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
                         }
@@ -963,7 +963,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         //ptr = EMIT_Load96bitFP(ptr, *reg, int_reg, imm_offset);
 
-                        if (post_sz)
+                        if (mode == 3)
                         {
                             *ptr++ = add_immed(int_reg, int_reg, post_sz);
                         }
@@ -971,11 +971,11 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     break;
                 case SIZE_D:
                     {
-                        if (pre_sz)
+                        if (mode == 4)
                         {
                             *ptr++ = fldd_preindex(*reg, int_reg, pre_sz);
                         }
-                        else if (post_sz)
+                        else if (mode == 3)
                         {
                             *ptr++ = fldd_postindex(*reg, int_reg, post_sz);
                         }
@@ -1012,11 +1012,11 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     }
                     break;
                 case SIZE_S:
-                    if (pre_sz)
+                    if (mode == 4)
                     {
                         *ptr++ = flds_preindex(*reg, int_reg, pre_sz);
                     }
-                    else if (post_sz)
+                    else if (mode == 3)
                     {
                         *ptr++ = flds_postindex(*reg, int_reg, post_sz);
                     }
@@ -1055,11 +1055,11 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_L:
                     val_reg = RA_AllocARMRegister(&ptr);
 
-                    if (pre_sz)
+                    if (mode == 4)
                     {
                         *ptr++ = ldr_offset_preindex(int_reg, val_reg, pre_sz);
                     }
-                    else if (post_sz)
+                    else if (mode == 3)
                     {
                         *ptr++ = ldr_offset_postindex(int_reg, val_reg, post_sz);
                     }
@@ -1098,11 +1098,11 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_W:
                     val_reg = RA_AllocARMRegister(&ptr);
 
-                    if (pre_sz)
+                    if (mode == 4)
                     {
                         *ptr++ = ldrsh_offset_preindex(int_reg, val_reg, pre_sz);
                     }
-                    else if (post_sz)
+                    else if (mode == 3)
                     {
                         *ptr++ = ldrsh_offset_postindex(int_reg, val_reg, post_sz);
                     }
@@ -1141,11 +1141,11 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_B:
                     val_reg = RA_AllocARMRegister(&ptr);
 
-                    if (pre_sz)
+                    if (mode == 4)
                     {
                         *ptr++ = ldrsb_offset_preindex(int_reg, val_reg, pre_sz);
                     }
-                    else if (post_sz)
+                    else if (mode == 3)
                     {
                         *ptr++ = ldrsb_offset_postindex(int_reg, val_reg, post_sz);
                     }
