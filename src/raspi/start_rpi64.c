@@ -41,6 +41,7 @@ extern const uint8_t topaz8_chardata[];
 uint32_t text_x = 0;
 uint32_t text_y = 0;
 const int modulo = 192;
+int purple = 0;
 
 void put_char(uint8_t c)
 {
@@ -62,7 +63,12 @@ void put_char(uint8_t c)
 
                 for (int x=0; x < 8; x++) {
                     if (byte & (0x80 >> x)) {
-                        pos_in_image[x] = 0;
+                        if (purple) {
+                            pos_in_image[x] = LE16(0xed51);
+                        }
+                        else {
+                            pos_in_image[x] = 0;
+                        }
                     }
                 }
 
@@ -83,6 +89,18 @@ void display_logo()
     int32_t pix_cnt = (uint32_t)EmuLogo.el_Width * (uint32_t)EmuLogo.el_Height;
     uint8_t *rle = EmuLogo.el_Data;
     int x = 0;
+    of_node_t *e = NULL;
+
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        of_property_t * prop = dt_find_property(e, "bootargs");
+        if (prop)
+        {
+            if (find_token(prop->op_value, "logo=purple"))
+                purple = 1;
+        }
+    }
 
     kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
     fb_width = sz.width;
@@ -98,7 +116,28 @@ void display_logo()
     /* First clear the screen. Use color in top left corner of RLE image for that */
     {
         uint8_t gray = rle[0];
-        uint16_t color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        uint16_t color;
+
+        if (purple)
+        {
+            gray = 240 - gray;
+            int r=-330,g=-343,b=-91;
+            r += (gray * 848) >> 8;
+            g += (gray * 768) >> 8;
+            b += (gray * 341) >> 8;
+
+            if (r < 0) r = 0;
+            if (g < 0) g = 0;
+            if (b < 0) b = 0;
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+            color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+        }
+        else
+        {
+            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        }
 
         for (int i=0; i < sz.width * sz.height; i++)
             framebuffer[i] = LE16(color);
@@ -111,7 +150,29 @@ void display_logo()
     while(pix_cnt > 0) {
         uint8_t gray = *rle++;
         uint8_t cnt = *rle++;
-        uint16_t color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        uint16_t color;
+
+        if (purple)
+        {
+            gray = 240 - gray;
+            int r=-330,g=-343,b=-91;
+            r += (gray * 848) >> 8;
+            g += (gray * 768) >> 8;
+            b += (gray * 341) >> 8;
+
+            if (r < 0) r = 0;
+            if (g < 0) g = 0;
+            if (b < 0) b = 0;
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+            color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+        }
+        else
+        {
+            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        }
+
         pix_cnt -= cnt;
         while(cnt--) {
             buff[x++] = LE16(color);
