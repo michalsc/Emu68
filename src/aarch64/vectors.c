@@ -150,8 +150,7 @@ void  __attribute__((used)) __stub_vectors()
 "       strb w0, [x1, #%[armpend]]      \n"
 "       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
-"       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
-"       orr w0, w0, #0x1                \n" // Set level 6 IRQ
+"       mov w0, #6                      \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -171,8 +170,7 @@ void  __attribute__((used)) __stub_vectors()
 "       strb w0, [x1, #%[armpend]]      \n"
 "       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
-"       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
-"       orr w0, w0, #0x1                \n" // Set level 6 IRQ
+"       mov w0, #6                      \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -184,9 +182,8 @@ void  __attribute__((used)) __stub_vectors()
 "       orr x0, x0, #0x1c0              \n" // Disable SError, IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
-"       ldrb w0, [x1, #%[pint]]         \n" // Get pending interrupt reg
-"       orr w0, w0, #0x2                \n" // Set level 7 IRQ
-"       strb w0, [x1, #%[pint]]         \n"
+"       mov w0, #7                      \n" // Set level 7 IRQ
+"       strb w0, [x1, #%[perr]]         \n"
 "       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
 "                                       \n"
@@ -261,6 +258,7 @@ void  __attribute__((used)) __stub_vectors()
 "       .section .text                  \n"
 :
 :[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
+ [perr]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
  [intena]"i"(__builtin_offsetof(struct INT_shadow, INTENA)),
  [armpend]"i"(__builtin_offsetof(struct INT_shadow, ARMPending))
 
@@ -335,7 +333,7 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
             struct M68KState *ctx;
             asm volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
-            ctx->INT.ARM |= 0x01;
+            ctx->INT.ARM = 0x01;
         }
     }
 
@@ -349,7 +347,7 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         if ((value & 0xa000) == 0x2000) {
             struct M68KState *ctx;
             asm volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
-            ctx->INT.ARM &= ~0x01;
+            ctx->INT.ARM = 0;
             INT_shadow.ARMPending = 0;
         }
     }
@@ -1723,22 +1721,6 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
                 kprintf(".");
             
             kprintf("\n");
-
-#if EMU68_PC_REG_HISTORY         
-            uint32_t pc_0, pc_1, pc_2, pc_3;
-
-            asm volatile("mov %w0, v28.s[0]; mov %w1, v28.s[1]; mov %w2, v28.s[2]; mov %w3, v28.s[3]"
-                :"=r"(pc_0), "=r"(pc_1), "=r"(pc_2), "=r"(pc_3));
-
-            kprintf("[JIT]     PC history: %08x, %08x, %08x, %08x\n", pc_0, pc_1, pc_2, pc_3);
-            kprintf("[JIT]     Stack:");
-
-            uint32_t *sp = (uint32_t *)(uintptr_t)BE32(ctx[REG_A7]);
-            for (int i=-4; i < 8; i++) {
-                kprintf(" %s%08x", i == 0 ? "*":"", sp[i]);
-            }
-            kprintf("\n");
-#endif
         }
 
         if ((esr & 0xffff) == 0x102)

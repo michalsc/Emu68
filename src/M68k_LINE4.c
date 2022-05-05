@@ -2062,16 +2062,28 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x0e5: /* ARMCNTLO - lower 32 bits of ARM instruction counter */
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
-                *ptr++ = mov_reg(reg, tmp);
-                RA_FreeARMRegister(&ptr, tmp);
+                {
+                    uint8_t hosttmp = RA_AllocARMRegister(&ptr);
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_simd_to_reg(hosttmp, 28, TS_D, 0);
+                    *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
+                    *ptr++ = sub64_reg(tmp, tmp, hosttmp, LSL, 0);
+                    *ptr++ = mov_reg(reg, tmp);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    RA_FreeARMRegister(&ptr, hosttmp);
+                }
                 break;
             case 0x0e6: /* ARMCNTHI - higher 32 bits of ARM instruction counter */
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
-                *ptr++ = lsr64(reg, tmp, 32);
-                RA_FreeARMRegister(&ptr, tmp);
+                {
+                    uint8_t hosttmp = RA_AllocARMRegister(&ptr);
+                    tmp = RA_AllocARMRegister(&ptr);
+                    *ptr++ = mov_simd_to_reg(hosttmp, 28, TS_D, 0);
+                    *ptr++ = mrs(tmp, 3, 3, 9, 13, 0);
+                    *ptr++ = sub64_reg(tmp, tmp, hosttmp, LSL, 0);
+                    *ptr++ = lsr64(reg, tmp, 32);
+                    RA_FreeARMRegister(&ptr, tmp);
+                    RA_FreeARMRegister(&ptr, hosttmp);
+                }
                 break;
             case 0x0e7: /* JITSIZE - size of JIT cache, in bytes */
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_TOTAL));

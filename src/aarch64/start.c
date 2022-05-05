@@ -1181,49 +1181,6 @@ void boot(void *dtree)
     }
 #endif
 
-#if 0
-
-    uint32_t plane_idx = LE32(*(volatile uint32_t *)0xf2400024);
-    volatile uint32_t *displist = (uint32_t *)0xf2402000;
-
-    kprintf("DISPLIST1 index is %d\n", plane_idx);
-
-    uint32_t first = LE32(displist[plane_idx]);
-    first = (first >> 24) & 0x3f;
-    kprintf("DISPLIST1 length %d\n", first);
-    plane_idx += first;
-
-    kprintf("DISPLIST1 new pos %d, content %08x\n", plane_idx, LE32(displist[plane_idx]));
-
-
-    displist[plane_idx+1] = LE32(POS0_X(0) | POS0_Y(0) | POS0_ALPHA(0xff));
-    displist[plane_idx+2] = LE32(POS2_H(720) | POS2_W(1280) | (1 << 30));
-    displist[plane_idx+3] = LE32(0xdeadbeef);
-    uint32_t plane_ptr = plane_idx + 4;
-    displist[plane_idx+4] = LE32(0xc0000000 | 0x3e000000);
-    displist[plane_idx+5] = LE32(0xdeadbeef);
-    displist[plane_idx+6] = LE32(1280*2);
-    displist[plane_idx+7] = LE32(0x80000000);
-
-    displist[plane_idx] = LE32(
-    CONTROL_VALID
-    | CONTROL_WORDS(7)
-    | CONTROL_PIXEL_ORDER(HVS_PIXEL_ORDER_ABGR)
-//    | CONTROL0_VFLIP // makes the HVS addr count down instead, pointer word must be last line of image
-    | CONTROL_UNITY
-    | CONTROL_FORMAT(HVS_PIXEL_FORMAT_RGBA8888)
-    );
-
-
-//    *(uint32_t *)0xf2400024 = LE32(plane_idx - 8);
-
-    for (uint32_t x = 0x6000000; x != 0; x -= 4) {
-        kprintf("%08x\n", x);
-        displist[plane_ptr] = LE32(0xc0000000 | x);
-        //for (int i=0; i < 10000; i++) asm volatile("nop");
-    }
-*/
-#endif
     M68K_StartEmu(0, NULL);
 
 #endif
@@ -1467,26 +1424,22 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       stp     x23, x24, [sp, #3*16]       \n"
 "       stp     x21, x22, [sp, #4*16]       \n"
 "       stp     x19, x20, [sp, #5*16]       \n"
+"       mov     v28.d[0], xzr               \n"
 "       bl      M68K_LoadContext            \n"
 "       .align 6                            \n"
 "1:                                         \n"
+/*
+"       mrs     x0, PMCCNTR_EL0             \n"
+"       mov     v0.d[0], x0                 \n"
+"       sub     v28.2d, v28.2d, v0.2d       \n"
+*/
 #ifndef PISTORM
 "       cbz     w%[reg_pc], 4f              \n"
 #endif
 "       mrs     x0, TPIDRRO_EL0             \n"
 "       mrs     x2, TPIDR_EL1               \n"
-#if EMU68_PC_REG_HISTORY
-// Store last four PC values in v28 vector
-"       mov     w3, v28.s[2]                \n"
-"       mov     w4, v28.s[1]                \n"
-"       mov     w5, v28.s[0]                \n"
-"       mov     v28.s[3], w3                \n"
-"       mov     v28.s[2], w4                \n"
-"       mov     v28.s[1], w5                \n"
-"       mov     v28.s[0], w%[reg_pc]        \n"
-#endif
 
-"       ldr     w10, [x0, #%[intreq]]       \n"     // Interrupt request (either from ARM or IPL) is pending
+"       ldr     w10, [x0, #%[intreq]]       \n"     // Interrupt request (either from ARM, ARM_err or IPL) is pending
 "       cbnz    w10, 9f                     \n"
 
 "99:    mov     w3, v31.s[0]                \n"
@@ -1499,9 +1452,14 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
+/*
+"       mrs     x0, PMCCNTR_EL0             \n"
+"       mov     v0.d[0], x0                 \n"
+"       add     v28.2d, v28.2d, v0.2d       \n"
+*/
 "       blr     x12                         \n"
 "       b       1b                          \n"
-
+"       .align  6                           \n"
 "13:                                        \n"
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
 "       adrp    x4, ICache                  \n"
@@ -1541,9 +1499,15 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
+/*
+"       mrs     x0, PMCCNTR_EL0             \n"
+"       mov     v0.d[0], x0                 \n"
+"       add     v28.2d, v28.2d, v0.2d       \n"
+*/
 "       blr     x12                         \n"
 "       b       1b                          \n"
 
+"       .align  6                           \n"
 "5:     mrs     x0, TPIDRRO_EL0             \n"
 "       bl      M68K_SaveContext            \n"
 "       mov     w0, w%[reg_pc]              \n"
@@ -1563,10 +1527,15 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
+/*
+"       mrs     x0, PMCCNTR_EL0             \n"
+"       mov     v0.d[0], x0                 \n"
+"       add     v28.2d, v28.2d, v0.2d       \n"
+*/
 "       blr     x12                         \n"
 "       b       1b                          \n"
 
-
+"       .align  6                           \n"
 "2:                                         \n"
 "23:    bl      M68K_SaveContext            \n"
 "       mvn     w0, wzr                     \n"
@@ -1591,6 +1560,11 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       add     x1, x1, #1                  \n"
 "       str     x1, [x0, #-%[diff]]         \n"
 #endif
+/*
+"       mrs     x0, PMCCNTR_EL0             \n"
+"       mov     v0.d[0], x0                 \n"
+"       add     v28.2d, v28.2d, v0.2d       \n"
+*/
 "       blr     x12                         \n"
 "       b       1b                          \n"
 
@@ -1606,18 +1580,18 @@ void  __attribute__((used)) stub_ExecutionLoop()
 
 #ifdef PISTORM
 "9:                                         \n"
-"       ldrb    w10, [x0, #%[arm]]          \n" // If bit 2 of INT.ARM is set then it is serror, map it to NMI
-"       tbz     w10, #1, 991f               \n"
-"       bic     w10, w10, #2                \n"
-"       strb    w10, [x0, #%[arm]]          \n"
-"       mov     w1, #7                      \n" // Set IRQ level 7, go further skipping higher selection
+"       ldrb    w10, [x0, #%[err]]          \n" // If INT.ARM_err is set then it is serror, map it to NMI
+"       cbz     w10, 991f                   \n"
+"       strb    wzr, [x0, #%[err]]          \n"
+"       mov     w1, w10                     \n" // Set IRQ level 7, go further skipping higher selection
 "       b       999f                        \n"
-"991:   tbz     w10, #0, 992f               \n" // If bit 1 of INT.ARM is set then it is IRQ/FIQ. Map to IPL6
-"       mov     w10, #6                     \n"
+"991:   ldrb    w10, [x0, #%[arm]]          \n" // If bit 1 of INT.ARM is set then it is IRQ/FIQ. Map to IPL6
+"       strb    wzr, [x0, #%[arm]]          \n"
 "       ldrb    w1, [x0, #%[ipl]]           \n" // If IPL was 0 then there is no m68k interrupt pending, skip reading
 "       cbz     w1, 998f                    \n" // IPL in that case
+"992:                                       \n"
 #if PISTORM_WRITE_BUFFER
-"992:   adrp    x5, bus_lock                \n"
+"       adrp    x5, bus_lock                \n"
 "       add     x5, x5, :lo12:bus_lock      \n"
 "       mov     w1, 1                       \n"
 ".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
@@ -1754,6 +1728,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
         __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
  [intreq]"i"(__builtin_offsetof(struct M68KState, INT)),
  [arm]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
+ [err]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
  [ipl]"i"(__builtin_offsetof(struct M68KState, INT.IPL)),
  [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
  [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
