@@ -1549,6 +1549,11 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
     uint8_t ctx = RA_GetCTX(&ptr);
     uint32_t *start, *end;
+
+    // Don't wait for event if IRQ is already pending
+    *ptr++ = ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, INT));
+    *ptr++ = cbnz(tmpreg, 4);
+
     start = ptr;
 
     /* PiStorm waits for event and checks INT - aggregate of ~IPL0 and ARM */
