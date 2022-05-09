@@ -671,7 +671,16 @@ void wb_task()
                 ps_write_32_int(req.wr_addr, req.wr_value);
                 break;
         }
-
+#if CIA_DELAY
+        if (req.wr_addr >= 0xbf0000 && req.wr_addr <= 0xbfffff) {
+            ticksleep(CIA_DELAY);
+        }
+#endif
+#if CHIPSET_DELAY
+        if (req.wr_addr >= 0xde0000 && req.wr_addr <= 0xdfffff) {
+            ticksleep(CHIPSET_DELAY);
+        }
+#endif
         __atomic_clear(&bus_lock, __ATOMIC_RELEASE);
 
         wb_pop();
@@ -694,8 +703,6 @@ void ps_write_8(unsigned int address, unsigned int data)
     }
 #else
     ps_write_8_int(address, data);
-#endif
-
 #if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
         ticksleep(CIA_DELAY);
@@ -705,6 +712,7 @@ void ps_write_8(unsigned int address, unsigned int data)
     if (address >= 0xde0000 && address <= 0xdfffff) {
         ticksleep(CHIPSET_DELAY);
     }
+#endif
 #endif
 }
 
@@ -721,8 +729,6 @@ void ps_write_16(unsigned int address, unsigned int data)
     }
 #else
     ps_write_16_int(address, data);
-#endif
-
 #if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
         ticksleep(CIA_DELAY);
@@ -732,6 +738,7 @@ void ps_write_16(unsigned int address, unsigned int data)
     if (address >= 0xde0000 && address <= 0xdfffff) {
         ticksleep(CHIPSET_DELAY);
     }
+#endif
 #endif
 }
 
@@ -748,8 +755,6 @@ void ps_write_32(unsigned int address, unsigned int data)
     }
 #else
     ps_write_32_int(address, data);
-#endif
-
 #if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
         ticksleep(CIA_DELAY);
@@ -759,6 +764,7 @@ void ps_write_32(unsigned int address, unsigned int data)
     if (address >= 0xde0000 && address <= 0xdfffff) {
         ticksleep(CHIPSET_DELAY);
     }
+#endif
 #endif
 }
 
