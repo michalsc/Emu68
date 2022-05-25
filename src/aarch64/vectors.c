@@ -466,11 +466,13 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
         far &= 0xffffffff;
     }
 
+#if 0
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);
         *value = 0;
         return 1;
     }
+#endif
 
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
     {

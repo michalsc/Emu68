@@ -260,7 +260,7 @@ static void ps_write_16_int(unsigned int address, unsigned int data)
         *(gpio + 10) = LE32(1 << PIN_WR);
         *(gpio + 10) = LE32(0xffffec);
 
-        *(gpio + 7) = LE32(((0x0000 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+        *(gpio + 7) = LE32(((0x0000 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
         *(gpio + 7) = LE32(1 << PIN_WR);
         *(gpio + 10) = LE32(1 << PIN_WR);
         *(gpio + 10) = LE32(0xffffec);
@@ -281,7 +281,7 @@ static void ps_write_8_int(unsigned int address, unsigned int data)
     address &= 0xffffff;
 
     if ((address & 1) == 0)
-        data = (data & 0xff) | (data << 8);  // EVEN, A0=0,UDS
+        data = data << 8; // (data & 0xff) | (data << 8);  // EVEN, A0=0,UDS
     else
         data = data & 0xff;  // ODD , A0=1,LDS
 
@@ -299,7 +299,7 @@ static void ps_write_8_int(unsigned int address, unsigned int data)
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(0xffffec);
 
-    *(gpio + 7) = LE32(((0x0100 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+    *(gpio + 7) = LE32(((0x0100 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
     *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(0xffffec);
@@ -357,7 +357,7 @@ address &= 0xffffff;
         *(gpio + 10) = LE32(1 << PIN_WR);
         *(gpio + 10) = LE32(0xffffec);
 
-        *(gpio + 7) = LE32(((0x0200 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+        *(gpio + 7) = LE32(((0x0200 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
         *(gpio + 7) = LE32(1 << PIN_WR);
         *(gpio + 10) = LE32(1 << PIN_WR);
         *(gpio + 10) = LE32(0xffffec);
@@ -397,7 +397,7 @@ address &= 0xffffff;
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(0xffffec);
 
-    *(gpio + 7) = LE32(((0x0300 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0));
+    *(gpio + 7) = LE32(((0x0300 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
     *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(0xffffec);
