@@ -85,6 +85,12 @@ void put_char(uint8_t c)
     }
 }
 
+static void __putc(void *data, char c)
+{
+    (void)data;
+    put_char(c);
+}
+
 void display_logo()
 {
     struct Size sz = get_display_size();
@@ -124,6 +130,15 @@ void display_logo()
     start_y = (sz.height - EmuLogo.el_Height) / 2;
 
     kprintf("[BOOT] Logo start coordinate: %dx%d, size: %dx%d\n", start_x, start_y, EmuLogo.el_Width, EmuLogo.el_Height);
+
+    /* Calculate text coordinate for version string */
+#if 0
+    text_x = start_x / 8;
+    text_y = (start_y + EmuLogo.el_Height + 15) / 16;
+#else
+    text_y = (fb_height - 16) / 16;
+    text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
+#endif
 
     /* First clear the screen. Use color in top left corner of RLE image for that */
     {
@@ -210,6 +225,13 @@ void display_logo()
             }
         }
     }
+
+    /* Print EMu68 version number and git sha. */
+    kprintf_pc(__putc, NULL, &VERSION_STRING[6]);
+
+    /* Reset test coordinates for further text printing (e.g. buptest) */
+    text_x = 0;
+    text_y = 0;
 }
 
 uintptr_t top_of_ram;
