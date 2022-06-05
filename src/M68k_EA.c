@@ -999,7 +999,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     if (bd_reg == 0xff)
                     {
                         bd_reg = RA_AllocARMRegister(&ptr);
-                        *ptr++ = mov_reg(bd_reg, base_reg);
+                        if (base_reg == 0xff)
+                            *ptr++ = mov_reg(bd_reg, 31);
+                        else
+                            *ptr++ = mov_reg(bd_reg, base_reg);
                         base_reg = 0xff;
                     }
 
@@ -1262,7 +1265,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         if (bd_reg == 0xff)
                         {
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            *ptr++ = mov_reg(bd_reg, base_reg);
+                            if (base_reg == 0xff)
+                                *ptr++ = mov_reg(bd_reg, 31);
+                            else
+                                *ptr++ = mov_reg(bd_reg, base_reg);
                             RA_FreeARMRegister(&ptr, base_reg);
                             base_reg = 0xff;
                         }
@@ -1315,8 +1321,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             else
                             {
 #ifdef __aarch64__
-                                if (bd_reg != 0xff)
-                                    *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
+                                if (bd_reg != 0xff) {
+                                    if (base_reg != 0xff)
+                                        *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
+                                }
 #else
                                 if (bd_reg != 0xff)
                                     *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
