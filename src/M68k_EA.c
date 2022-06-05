@@ -1039,7 +1039,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         else
                         {
 #ifdef __aarch64__
-                            if (bd_reg != 0xff)
+                            if (bd_reg != 0xff && base_reg != 0xff)
                                 *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
 #else
                             if (bd_reg != 0xff)
