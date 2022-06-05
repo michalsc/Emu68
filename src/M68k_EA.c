@@ -1846,7 +1846,10 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     if (bd_reg == 0xff)
                     {
                         bd_reg = RA_AllocARMRegister(&ptr);
-                        *ptr++ = mov_reg(bd_reg, base_reg);
+                        if (base_reg == 0xff)
+                            *ptr++ = mov_reg(bd_reg, 31);
+                        else
+                            *ptr++ = mov_reg(bd_reg, base_reg);
                         base_reg = 0xff;
                     }
 
@@ -1879,7 +1882,6 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                 *ptr++ = ldr_offset(base_reg, bd_reg, 0);
                             }
                             else
-#ifdef __aarch64__
                             {
                                 if (base_reg == 0xff) {
                                     uint8_t t = RA_AllocARMRegister(&ptr);
@@ -1890,18 +1892,11 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                 else
                                     *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, UXTW, 0);
                             }
-#else
-                                *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, 0);
-#endif
                         }
                         else
                         {
-                            if (bd_reg != 0xff)
-#ifdef __aarch64__
+                            if (bd_reg != 0xff && base_reg != 0xff)
                                 *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                                *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
                             ptr = load_reg_from_addr(ptr, 4, bd_reg, bd_reg, index_reg, (brief >> 9) & 3, 0);
                         }
 
