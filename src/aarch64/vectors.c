@@ -1296,6 +1296,15 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
                 set_fpn_as_double(opcode & 31, value);
             }
         }
+        /* FLDD reg offset */
+        else if ((opcode & 0xfee00c00) == 0xfc600800)
+        {
+            handled = SYSReadValFromAddr(&value, 8, far);
+            if (handled)
+            {
+                set_fpn_as_double(opcode & 31, value);
+            }
+        }
         /* FLDD pre-index */
         else if ((opcode & 0xfee00c00) == 0xfc400400)
         {
