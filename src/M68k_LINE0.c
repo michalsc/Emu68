@@ -1530,7 +1530,7 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
 
     cc = RA_ModifyCC(&ptr);
-    
+
     /* EOR is here */
     *ptr++ = mov_reg(orig, cc);
     *ptr++ = eor_reg(cc, cc, immed, LSL, 0);
@@ -2473,7 +2473,6 @@ uint32_t *EMIT_CAS2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attri
 uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
-#ifdef __aarch64__
 
 #define CAS_ATOMIC() do { \
         uint32_t *l0 = ptr; \
@@ -2597,19 +2596,23 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         if (size==2)
         {
+            uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+            *ptr++ = and_immed(tmp1, dc1, 16, 0);
+            *ptr++ = and_immed(tmp2, dc2, 16, 0);
             *ptr++ = ldrh_offset(rn1, val1, 0);
             *ptr++ = ldrh_offset(rn2, val2, 0);
-            *ptr++ = lsl(val1, val1, 16);
-            *ptr++ = lsl(val2, val2, 16);
-            *ptr++ = subs_reg(31, val1, dc1, LSL, 16);
+            *ptr++ = subs_reg(31, val1, tmp1, LSL, 0);
             *ptr++ = b_cc(A64_CC_NE, 6);
-            *ptr++ = subs_reg(31, val2, dc2, LSL, 16);
+            *ptr++ = subs_reg(31, val2, tmp2, LSL, 0);
             *ptr++ = b_cc(A64_CC_NE, 4);
             *ptr++ = strh_offset(rn1, du1, 0);
             *ptr++ = strh_offset(rn2, du2, 0);
             *ptr++ = b(3);
-            *ptr++ = bfxil(dc1, val1, 16, 16);
-            *ptr++ = bfxil(dc2, val2, 16, 16);
+            *ptr++ = bfxil(dc1, val1, 0, 16);
+            *ptr++ = bfxil(dc2, val2, 0, 16);
+            RA_FreeARMRegister(&ptr, tmp1);
+            RA_FreeARMRegister(&ptr, tmp2);
         }
         else
         {
@@ -2802,11 +2805,7 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, status);
         RA_FreeARMRegister(&ptr, tmp);
     }
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] CAS/CAS2 at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
+
     return ptr;
 }
 
