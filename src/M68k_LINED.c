@@ -341,7 +341,7 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 {
     uint8_t size = (opcode >> 6) & 3;
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
-#ifdef __aarch64__
+
     uint8_t cc = RA_GetCC(&ptr);
     if (size == 2) {
         uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -353,10 +353,7 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     } else {
         *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
     }
-#else
-    M68K_GetCC(&ptr);
-    *ptr++ = tst_immed(REG_SR, SR_X);
-#endif
+
     /* Register to register */
     if ((opcode & 0x0008) == 0)
     {

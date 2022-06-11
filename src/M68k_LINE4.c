@@ -969,7 +969,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
 static uint32_t *EMIT_MOVEfromSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
-#ifdef __aarch64__
+
     uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t ext_words = 0;
     uint32_t *tmpptr;
@@ -999,11 +999,6 @@ static uint32_t *EMIT_MOVEfromSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k
     *ptr++ = INSN_TO_LE(0xfffffffe);
 
     (*m68k_ptr) += ext_words;
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVE from SR at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -1011,7 +1006,7 @@ static uint32_t *EMIT_MOVEfromSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k
 static uint32_t *EMIT_MOVEfromCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
-#ifdef __aarch64__
+
     uint8_t cc = RA_GetCC(&ptr);
     uint8_t ext_words = 0;
 
@@ -1039,10 +1034,6 @@ static uint32_t *EMIT_MOVEfromCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
     (*m68k_ptr) += ext_words;
-#else
-    kprintf("[LINE4] Not implemented MOVE from CCR @ %08x\n", *m68k_ptr - 1);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -1050,10 +1041,9 @@ static uint32_t *EMIT_MOVEfromCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68
 static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
-
+    uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t ext_words = 0;
     uint8_t src = 0xff;
-    uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t orig = RA_AllocARMRegister(&ptr);
     uint8_t changed = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
@@ -1067,6 +1057,7 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     tmpptr = ptr;
     ptr++;
     ptr = EMIT_Exception(ptr, VECTOR_PRIVILEGE_VIOLATION, 0);
+
     *tmpptr = tbnz(cc, SRB_S, 1 + ptr - tmpptr);
     tmpptr = ptr;
     ptr++;
@@ -1075,6 +1066,8 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = mov_immed_u16(changed, 0xf71f, 0);
     
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+    cc = RA_ModifyCC(&ptr);
 
     *ptr++ = and_reg(cc, changed, src, LSL, 0);
     *ptr++ = eor_reg(changed, orig, cc, LSL, 0);
@@ -1125,7 +1118,7 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 static uint32_t *EMIT_MOVEtoCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
-#ifdef __aarch64__
+
     uint8_t ext_words = 0;
     uint8_t src = 0xff;
     uint8_t cc = RA_ModifyCC(&ptr);
@@ -1139,10 +1132,6 @@ static uint32_t *EMIT_MOVEtoCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
     RA_FreeARMRegister(&ptr, src);
     
     (*m68k_ptr) += ext_words;
-#else
-    kprintf("[LINE4] Not implemented MOVE to CCR @ %08x\n", *m68k_ptr - 1);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -1397,7 +1386,6 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     (void)opcode;
     (void)m68k_ptr;
 
-#ifdef __aarch64__
     uint32_t *tmp;
     uint32_t *tmp2;
     ptr = EMIT_FlushPC(ptr);
@@ -1457,13 +1445,6 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     *ptr++ = 0;
     *ptr++ = INSN_TO_LE(0xfffffffe);
     *ptr++ = INSN_TO_LE(0xffffffff);
-#else
-    /* Allow only in supervisor!!! */
-    ptr = EMIT_InjectPrintContext(ptr);
-    ptr = EMIT_AdvancePC(ptr, 2);
-    ptr = EMIT_FlushPC(ptr);
-    *ptr++ = INSN_TO_LE(0xffffffff);
-#endif
 
     return ptr;
 }
@@ -1504,6 +1485,8 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     *tmpptr = tbnz(cc, SRB_S, 1 + ptr - tmpptr);
     tmpptr = ptr;
     ptr++;
+
+    cc = RA_ModifyCC(&ptr);
 
     /* Put new value into SR, check what has changed */
     *ptr++ = mov_reg(orig, cc);
@@ -1636,6 +1619,8 @@ static uint32_t *EMIT_RTE(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     *ptr++ = cmp_immed(tmp, 2);
     *ptr++ = b_cc(A64_CC_NE, 2);
     *ptr++ = add_immed(sp, sp, 4);
+
+    cc = RA_ModifyCC(&ptr);
 
     /* Use two EORs to generate changed mask and update SR */
     *ptr++ = mov_reg(orig, cc);
@@ -1799,15 +1784,10 @@ static uint32_t *EMIT_RTR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 
     /* Fetch status byte from stack */
     *ptr++ = ldrh_offset_postindex(sp, tmp, 2);
-#ifdef __aarch64__
+
     uint8_t cc = RA_ModifyCC(&ptr);
     *ptr++ = bfi(cc, tmp, 0, 5);
-#else
-    M68K_ModifyCC(&ptr);
-    *ptr++ = bic_immed(REG_SR, REG_SR, 0x1f);
-    *ptr++ = and_immed(tmp, tmp, 0x1f);
-    *ptr++ = orr_reg(REG_SR, REG_SR, tmp, 0);
-#endif
+
     /* Fetch return address from stack */
     *ptr++ = ldr_offset_postindex(sp, REG_PC, 4);
     ptr = EMIT_ResetOffsetPC(ptr);
@@ -2198,7 +2178,6 @@ static uint32_t *EMIT_MOVEUSP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     (void)insn_consumed;
     (void)m68k_ptr;
 
-#ifdef __aarch64__
     uint32_t *tmp;
     uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t an = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
@@ -2228,11 +2207,6 @@ static uint32_t *EMIT_MOVEUSP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     *tmp = b(ptr - tmp);
 
     *ptr++ = INSN_TO_LE(0xffffffff);
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] MOVE USP at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -2347,6 +2321,9 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     *ptr++ = sub_immed(result, result, 0x60);
 
     if (update_mask & SR_XC) {
+        
+        cc = RA_ModifyCC(&ptr);
+
         switch (update_mask & SR_XC)
         {
             case SR_C:
@@ -2368,6 +2345,8 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     }
 
     if (update_mask & SR_Z) {
+        cc = RA_ModifyCC(&ptr);
+
         *ptr++ = bic_immed(tmp, cc, 1, 32 - SRB_Z);
         *ptr++ = ands_immed(31, result, 8, 0);
         *ptr++ = csel(cc, tmp, cc, A64_CC_NE);
@@ -2649,12 +2628,11 @@ static uint32_t *EMIT_LEA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
-#ifdef __aarch64__
+
     uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
     uint8_t ext_words = 0;
     uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t src = -1;
-    uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
     /* word operation */
@@ -2667,6 +2645,8 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     {
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
     }
+
+    uint8_t cc = RA_ModifyCC(&ptr);
 
     // Clear Z, V and C flags, set Z back if operand is zero
     *ptr++ = mov_immed_u16(tmpreg, SR_NC, 0);
@@ -2711,12 +2691,6 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     *ptr++ = 1;
     *ptr++ = 0;
     *ptr++ = INSN_TO_LE(0xfffffffe);
-    
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] CHK at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }

@@ -226,9 +226,10 @@ static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t direction = (opcode >> 8) & 1;
     uint8_t dest = 0xff;
     uint8_t ext_words = 0;    
-    uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+    uint8_t cc = RA_ModifyCC(&ptr);
 
     if ((opcode & 0x38) == 0x20) {
         *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
