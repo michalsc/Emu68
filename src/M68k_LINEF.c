@@ -327,8 +327,6 @@ double TrimDoubleRange(double a)
     return out.d;
 }
 
-#ifdef __aarch64__
-
 void PolySine(void);
 void  __attribute__((used)) stub_PolySine(void)
 {
@@ -453,131 +451,6 @@ void  __attribute__((used)) stub_PolyCosineSingle(void)
     );
 }
 
-
-#else
-
-void PolySine(void);
-void  __attribute__((used)) stub_PolySine(void)
-{
-    asm volatile(
-        "   .align 4                \n"
-        "PolySine:                  \n"
-        "   vpush {d1,d2,d3}        \n"
-        "   push {r0}               \n"
-        "   ldr r0,=constants       \n"
-        "   vldr d1, [r0, %0]       \n"
-        "   vmul.f64 d3, d0, d0     \n"
-        "   vldr d2, [r0, %0+8]     \n"
-        "   vfma.f64 d2, d1, d3     \n"
-        "   vldr d1, [r0, %0+16]    \n"
-        "   vfma.f64 d1, d2, d3     \n"
-        "   vldr d2, [r0, %0+24]    \n"
-        "   vfma.f64 d2, d1, d3     \n"
-        "   vldr d1, [r0, %0+32]    \n"
-        "   vfma.f64 d1, d2, d3     \n"
-        "   vldr d2, [r0, %0+40]    \n"
-        "   vfma.f64 d2, d1, d3     \n"
-        "   vldr d1, [r0, %0+48]    \n"
-        "   vfma.f64 d1, d2, d3     \n"
-        "   vldr d2, [r0, %0+56]    \n"
-        "   vfma.f64 d2, d1, d3     \n"
-        "   vmul.f64 d0, d2, d0     \n"
-        "   pop {r0}                \n"
-        "   vpop {d1,d2,d3}         \n"
-        "   bx lr                   \n"
-        "   .ltorg                  \n"::"i"(C_SIN_COEFF*8)
-    );
-}
-
-void PolySineSingle(void);
-void  __attribute__((used)) stub_PolySineSingle(void)
-{
-    asm volatile(
-        "   .align 4                \n"
-        "PolySineSingle:            \n"
-        "   vpush {d1,d2,d3}        \n"
-        "   push {r0}               \n"
-        "   ldr r0,=constants       \n"
-        "   vldr d1, [r0, %0]       \n"
-        "   vmul.f64 d3, d0, d0     \n"
-        "   vldr d2, [r0, %0+8]     \n"
-        "   vfma.f64 d2, d1, d3     \n"
-        "   vldr d1, [r0, %0+16]    \n"
-        "   vfma.f64 d1, d2, d3     \n"
-        "   vldr d2, [r0, %0+24]    \n"
-        "   vfma.f64 d2, d1, d3     \n"
-        "   vldr d1, [r0, %0+32]    \n"
-        "   vfma.f64 d1, d2, d3     \n"
-        "   vmul.f64 d0, d1, d0     \n"
-        "   pop {r0}                \n"
-        "   vpop {d1,d2,d3}         \n"
-        "   bx lr                   \n"
-        "   .ltorg                  \n"::"i"(C_SIN_COEFF_SINGLE*8)
-    );
-}
-
-void PolyCosine(void);
-void  __attribute__((used)) stub_PolyCosine(void)
-{
-    asm volatile(
-        "   .align 4                \n"
-        "PolyCosine:                \n"
-        "   vpush {d1,d2}           \n"
-        "   push {r0}               \n"
-        "   ldr r0,=constants       \n"
-        "   vmul.f64 d2, d0, d0     \n"
-        "   vldr d0, [r0, %0]       \n"
-        "   vldr d1, [r0, %0+8]     \n"
-        "   vfma.f64 d1, d0, d2     \n"
-        "   vldr d0, [r0, %0+16]    \n"
-        "   vfma.f64 d0, d1, d2     \n"
-        "   vldr d1, [r0, %0+24]    \n"
-        "   vfma.f64 d1, d0, d2     \n"
-        "   vldr d0, [r0, %0+32]    \n"
-        "   vfma.f64 d0, d1, d2     \n"
-        "   vldr d1, [r0, %0+40]    \n"
-        "   vfma.f64 d1, d0, d2     \n"
-        "   vldr d0, [r0, %0+48]    \n"
-        "   vfma.f64 d0, d1, d2     \n"
-        "   vldr d1, [r0, %0+56]    \n"
-        "   vfma.f64 d1, d0, d2     \n"
-        "   vldr d0, [r0, %0+64]    \n"
-        "   vfma.f64 d0, d1, d2     \n"
-        "   pop {r0}                \n"
-        "   vpop {d1,d2}            \n"
-        "   bx lr                   \n"
-        "   .ltorg                  \n"::"i"(C_COS_COEFF*8)
-    );
-}
-
-void PolyCosineSingle(void);
-void  __attribute__((used)) stub_PolyCosineSingle(void)
-{
-    asm volatile(
-        "   .align 4                \n"
-        "PolyCosineSingle:          \n"
-        "   vpush {d1,d2}           \n"
-        "   push {r0}               \n"
-        "   ldr r0,=constants       \n"
-        "   vmul.f64 d2, d0, d0     \n"
-        "   vldr d0, [r0, %0]       \n"
-        "   vldr d1, [r0, %0+8]     \n"
-        "   vfma.f64 d1, d0, d2     \n"
-        "   vldr d0, [r0, %0+16]    \n"
-        "   vfma.f64 d0, d1, d2     \n"
-        "   vldr d1, [r0, %0+24]    \n"
-        "   vfma.f64 d1, d0, d2     \n"
-        "   vldr d0, [r0, %0+32]    \n"
-        "   vfma.f64 d0, d1, d2     \n"
-        "   pop {r0}                \n"
-        "   vpop {d1,d2}            \n"
-        "   bx lr                   \n"
-        "   .ltorg                  \n"::"i"(C_COS_COEFF_SINGLE*8)
-    );
-}
-
-#endif
-
 enum FPUOpSize {
     SIZE_L = 0,
     SIZE_S = 1,
@@ -659,12 +532,14 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
 
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
 uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
-        uint16_t opcode2, uint8_t *ext_count)
+        uint16_t opcode2, uint8_t *ext_count, uint8_t single)
 {
     union {
         uint64_t u64;
         uint32_t u32[2];
     } u;
+
+    (void)single;
 
     /* IF R/M is zero, then source identifier is FPU reg number. */
     if ((opcode2 & 0x4000) == 0)
@@ -1750,7 +1625,6 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
     return ptr;
 }
 
-#ifdef __aarch64__
 void clear_entire_dcache(void);
 /* Clean and invalidate entire data cache, code after ARMv8 architecture reference manual */
 void  __attribute__((used)) __clear_entire_dcache(void)
@@ -1873,91 +1747,6 @@ void __attribute__((used)) __invalidate_entire_dcache(void)
     );
 }
 
-#else
-/* Clean and invalidate entire data cache, code after ARMv7 architecture reference manual */
-void __attribute__((naked)) clear_entire_dcache(void)
-{
-    asm volatile(
-"   push {r0, r1, r2, r3, r4, r5, r7, r9, r10, r11, lr} \n"
-"   mrc p15, 1, r0, c0, c0, 1   \n"     // Read CLIDR into R0
-"   ands r3, r0, #0x07000000    \n"
-"   mov r3, r3, lsr #23         \n"     // Cache level value (naturally aligned)
-"   beq 5f                      \n"
-"   mov r10, #0                 \n"
-"1: add r2, r10, r10, lsr #1    \n"     // Work out 3 x cachelevel
-"   mov r1, r0, lsr r2          \n"     // bottom 3 bits are the Cache type for this level
-"   and r1, r1, #7              \n"     // get those 3 bits alone
-"   cmp r1, #2                  \n"
-"   blt 4f                      \n"     // no cache or only instruction cache at this level
-"   mcr p15, 2, r10, c0, c0, 0  \n"     // write CSSELR from R10
-"   isb                         \n"     // ISB to sync the change to the CCSIDR
-"   mrc p15, 1, r1, c0, c0, 0   \n"     // read current CCSIDR to R1
-"   and r2, r1, #7              \n"     // extract the line length field
-"   add r2, r2, #4              \n"     // add 4 for the line length offset (log2 16 bytes)
-"   ldr r4, =0x3FF              \n"
-"   ands r4, r4, r1, lsr #3     \n"     // R4 is the max number on the way size (right aligned)
-"   clz r5, r4                  \n"     // R5 is the bit position of the way size increment
-"   mov r9, r4                  \n"     // R9 working copy of the max way size (right aligned)
-"2: ldr r7, =0x00007FFF         \n"
-"   ands r7, r7, r1, lsr #13    \n"     // R7 is the max number of the index size (right aligned)
-"3: orr r11, r10, r9, lsl r5    \n"     // factor in the way number and cache number into R11
-"   orr r11, r11, r7, lsl r2    \n"     // factor in the index number
-"   mcr p15, 0, r11, c7, c14, 2 \n"     // clean and invalidate by set/way
-"   subs r7, r7, #1             \n"     // decrement the index
-"   bge 3b                      \n"
-"   subs r9, r9, #1             \n"     // decrement the way number
-"   bge 2b                      \n"
-"4: add r10, r10, #2            \n"     // increment the cache number
-"   cmp r3, r10                 \n"
-"   bgt 1b                      \n"
-"   dsb                         \n"
-"5: pop {r0, r1, r2, r3, r4, r5, r7, r9, r10, r11, pc} \n"
-"   .ltorg                      \n"
-    );
-}
-
-/* Clean and invalidate entire data cache, code after ARMv7 architecture reference manual */
-void __attribute__((naked)) invalidate_entire_dcache(void)
-{
-    asm volatile(
-"   push {r4, r5, r7, r9, r10, r11, lr} \n"
-"   mrc p15, 1, r0, c0, c0, 1   \n"     // Read CLIDR into R0
-"   ands r3, r0, #0x07000000    \n"
-"   mov r3, r3, lsr #23         \n"     // Cache level value (naturally aligned)
-"   beq 5f                      \n"
-"   mov r10, #0                 \n"
-"1: add r2, r10, r10, lsr #1    \n"     // Work out 3 x cachelevel
-"   mov r1, r0, lsr r2          \n"     // bottom 3 bits are the Cache type for this level
-"   and r1, r1, #7              \n"     // get those 3 bits alone
-"   cmp r1, #2                  \n"
-"   blt 4f                      \n"     // no cache or only instruction cache at this level
-"   mcr p15, 2, r10, c0, c0, 0  \n"     // write CSSELR from R10
-"   isb                         \n"     // ISB to sync the change to the CCSIDR
-"   mrc p15, 1, r1, c0, c0, 0   \n"     // read current CCSIDR to R1
-"   and r2, r1, #7              \n"     // extract the line length field
-"   add r2, r2, #4              \n"     // add 4 for the line length offset (log2 16 bytes)
-"   ldr r4, =0x3FF              \n"
-"   ands r4, r4, r1, lsr #3     \n"     // R4 is the max number on the way size (right aligned)
-"   clz r5, r4                  \n"     // R5 is the bit position of the way size increment
-"   mov r9, r4                  \n"     // R9 working copy of the max way size (right aligned)
-"2: ldr r7, =0x00007FFF         \n"
-"   ands r7, r7, r1, lsr #13    \n"     // R7 is the max number of the index size (right aligned)
-"3: orr r11, r10, r9, lsl r5    \n"     // factor in the way number and cache number into R11
-"   orr r11, r11, r7, lsl r2    \n"     // factor in the index number
-"   mcr p15, 0, r11, c7, c6, 2  \n"     // invalidate by set/way
-"   subs r7, r7, #1             \n"     // decrement the index
-"   bge 3b                      \n"
-"   subs r9, r9, #1             \n"     // decrement the way number
-"   bge 2b                      \n"
-"4: add r10, r10, #2            \n"     // increment the cache number
-"   cmp r3, r10                 \n"
-"   bgt 1b                      \n"
-"   dsb                         \n"
-"5: pop {r4, r5, r7, r9, r10, r11, pc} \n"
-"   .ltorg                      \n"
-    );
-}
-#endif
 
 void __clear_cache(void *begin, void *end);
 
@@ -1973,9 +1762,6 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     extern struct List LRU;
     extern void *jit_tlsf;
     extern struct M68KState *__m68k_state;
-    #ifndef __aarch64__
-    extern uint32_t last_PC;
-    #endif
 
     (void)jit_tlsf;
 
@@ -1993,11 +1779,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
-    #ifdef __aarch64__
     asm volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
-    #else
-    last_PC = 0xffffffff;
-    #endif
 
     /* Get the scope */
     switch (opcode & 0x18) {
@@ -2128,18 +1910,11 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     return &icache_epilogue[0];
 }
 
-#ifdef __aarch64__
 void trampoline_icache_invalidate(void);
 void __attribute__((used)) __trampoline_icache_invalidate(void)
 {
     asm volatile(".globl trampoline_icache_invalidate\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
 }
-#else
-void __attribute__((naked)) trampoline_icache_invalidate(void)
-{
-    asm volatile("bl invalidate_instruction_cache\n\tbx r0");
-}
-#endif
 
 uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
@@ -2232,7 +2007,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = fabsd(fp_dst, fp_src);
@@ -2272,7 +2047,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = faddd(fp_dst, fp_dst, fp_src);
@@ -2537,7 +2312,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fcmpd(fp_dst, fp_src);
@@ -2564,7 +2339,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
@@ -2595,7 +2370,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
@@ -2629,7 +2404,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
         uint8_t fp_dst_cos = opcode2 & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst_sin = RA_MapFPURegisterForWrite(&ptr, fp_dst_sin);
         fp_dst_cos = RA_MapFPURegisterForWrite(&ptr, fp_dst_cos);
 
@@ -2684,7 +2459,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = frint64x(fp_dst, fp_src);
@@ -2714,7 +2489,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
@@ -2749,7 +2524,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(&ptr);
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
@@ -2782,7 +2557,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = frint64z(fp_dst, fp_src);
@@ -2828,7 +2603,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 break;
             default:
                 int_src = RA_AllocARMRegister(&ptr);
-                ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+                ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
                 *ptr++ = fcvtzs_Dto32(int_src, fp_src);
                 break;
         }
@@ -2866,7 +2641,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -2920,7 +2695,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 1;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = fcpyd(0, fp_dst);
@@ -2987,7 +2762,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3040,7 +2815,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3093,7 +2868,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3146,7 +2921,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3199,7 +2974,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3252,7 +3027,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3305,7 +3080,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3358,7 +3133,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3411,7 +3186,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3464,7 +3239,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3517,7 +3292,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3570,7 +3345,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3623,7 +3398,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3676,7 +3451,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3729,7 +3504,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -3808,7 +3583,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         else
         {
             fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-            ptr = FPU_FetchData(ptr, m68k_ptr, &fp_dst, opcode, opcode2, &ext_count);
+            ptr = FPU_FetchData(ptr, m68k_ptr, &fp_dst, opcode, opcode2, &ext_count, 0);
         }
 #endif
 
@@ -4112,15 +3887,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     if ((opcode2 & (1 << i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
                         //*ptr++ = sub_immed(base_reg, base_reg, 12);
-#ifdef __aarch64__
+
                         *ptr++ = add_immed(1, base_reg, 12*cnt);
                         *ptr++ = mov_simd_to_reg(0, fp_reg, TS_D, 0);
                         *ptr++ = blr(reg_Save96);
                         //ptr = EMIT_Store96bitFP(ptr, fp_reg, base_reg, 12*cnt++);
                         //*ptr++ = fstd(fp_reg, base_reg, 12*cnt++);
-#else
-                        *ptr++ = fstd(fp_reg, base_reg, 3*cnt++);
-#endif
+
                         cnt++;
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
@@ -4137,16 +3910,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (0x80 >> i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
-#ifdef __aarch64__
+
                         *ptr++ = add_immed(1, base_reg, 12*cnt);
                         *ptr++ = mov_simd_to_reg(0, fp_reg, TS_D, 0);
                         *ptr++ = blr(reg_Save96);
 
                         //ptr = EMIT_Store96bitFP(ptr, fp_reg, base_reg, 12*cnt);
                         //*ptr++ = fstd(fp_reg, base_reg, cnt*12);
-#else
-                        *ptr++ = fstd(fp_reg, base_reg, cnt*3);
-#endif
                         cnt++;
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
@@ -4171,16 +3941,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (0x80 >> i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
-#ifdef __aarch64__
+
                         *ptr++ = add_immed(1, base_reg, 12*cnt);
                         *ptr++ = blr(reg_Load96);
                         *ptr++ = mov_reg_to_simd(fp_reg, TS_D, 0, 0);
 
                         //ptr = EMIT_Load96bitFP(ptr, fp_reg, base_reg, 12*cnt++);
                         //*ptr++ = fldd(fp_reg, base_reg, 12*cnt++);
-#else
-                        *ptr++ = fldd(fp_reg, base_reg, 3*cnt++);
-#endif
                         //*ptr++ = add_immed(base_reg, base_reg, 12);
                         RA_FreeFPURegister(&ptr, fp_reg);
                         cnt++;
@@ -4201,15 +3968,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (0x80 >> i)) != 0) {
                         uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
-#ifdef __aarch64__
+
                         *ptr++ = add_immed(1, base_reg, 12*cnt);
                         *ptr++ = blr(reg_Load96);
                         *ptr++ = mov_reg_to_simd(fp_reg, TS_D, 0, 0);
                         //ptr = EMIT_Load96bitFP(ptr, fp_reg, base_reg, 12*cnt);
                         //*ptr++ = fldd(fp_reg, base_reg, cnt*12);
-#else
-                        *ptr++ = fldd(fp_reg, base_reg, cnt*3);
-#endif
                         cnt++;
                         RA_FreeFPURegister(&ptr, fp_reg);
                     }
@@ -4245,7 +4009,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
@@ -4276,7 +4040,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
@@ -4319,7 +4083,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = fnegd(fp_dst, fp_src);
@@ -4347,7 +4111,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
         uint8_t fp_src = 0xff;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
 
         *ptr++ = fcmpzd(fp_src);
 
@@ -4379,47 +4143,26 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         switch (predicate & 0x0f)
         {
             case F_CC_EQ:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x404);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_NE:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x404);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_OGT:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = ARM_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x40d);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_ULE:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = ARM_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x40d);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -4427,16 +4170,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x404);    /* Copy fpsr to temporary reg, invert Z */
-                *ptr++ = tst_immed(tmp_cc, 0x404); // Test Z
-                *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x409); // Z == 1? Test N == 0 && NAN == 0
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -4444,45 +4179,23 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = and_reg(tmp_cc, fpsr, tmp_cc, LSL, 1); // !Z & N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x409);    /* Copy fpsr to temporary reg, invert N and NAN */
-                *ptr++ = tst_immed(tmp_cc, 0x401);  // Test NAN
-                *ptr++ = tst_cc_immed(ARM_CC_NE, fpsr, 0x40c); // !NAN == 1, test !N == 0 && Z == 0
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I));
                 *ptr++ = orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2); // NAN | Z -> Z
                 *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // Invert N
                 *ptr++ = tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)); // Test N==0 && Z == 0
                 success_condition = A64_CC_EQ;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
-                *ptr++ = tst_immed(tmp_cc, 0x40d);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N));
                 *ptr++ = bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I));
                 *ptr++ = tst_immed(tmp_cc, 4, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x408);    /* Copy fpsr to temporary reg, invert N */
-                *ptr++ = tst_immed(tmp_cc, 0x40d);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -4490,16 +4203,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3);   // !NAN & N -> N
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x40c);    /* Copy fpsr to temporary reg, invert Z and N */
-                *ptr++ = tst_immed(tmp_cc, 0x404);          /* Test if inverted Z == 0 */
-                *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x409);    /* Test if !N == 0 && NAN == 0 */
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 *ptr++ = b_cc(A64_CC_NE, 4);
@@ -4507,53 +4212,26 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
                 *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
                 success_condition = A64_CC_NE;
-#else
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 0x401);    /* Copy fpsr to temporary reg, invert NAN */
-                *ptr++ = tst_immed(tmp_cc, 0x401);          /* Test if inverted NAN == 0 */
-                *ptr++ = tst_cc_immed(ARM_CC_NE, tmp_cc, 0x40c);    /* Test if !N == 0 && Z == 0 */
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_OGL:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = A64_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x405);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UEQ:
-#ifdef __aarch64__
                 tmp_cc = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
                 *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
                 success_condition = A64_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x405);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
             case F_CC_OR:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_EQ;
-#else
-                *ptr++ = tst_immed(fpsr, 0x401);
-                success_condition = ARM_CC_EQ;
-#endif
                 break;
             case F_CC_UN:
-#ifdef __aarch64__
                 *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
                 success_condition = A64_CC_NE;
-#else
-                *ptr++ = tst_immed(fpsr, 0x401);
-                success_condition = ARM_CC_NE;
-#endif
                 break;
         }
         RA_FreeARMRegister(&ptr, tmp_cc);
@@ -4626,7 +4304,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         *ptr++ = fsqrtd(fp_dst, fp_src);
@@ -4665,7 +4343,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegister(&ptr, fp_dst);
 
         *ptr++ = fsubd(fp_dst, fp_dst, fp_src);
@@ -4696,7 +4374,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -4749,7 +4427,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
         fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
 
         union {
@@ -4945,10 +4623,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         RA_FreeARMRegister(&ptr, buf1);
         RA_FreeARMRegister(&ptr, buf2);
-#ifndef __aarch64__
-        RA_FreeARMRegister(&ptr, buf3);
-        RA_FreeARMRegister(&ptr, buf4);
-#endif
+
         (*m68k_ptr)+=2;
         *insn_consumed = 1;
         ptr = EMIT_AdvancePC(ptr, 4);
@@ -4960,10 +4635,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
         uint8_t buf1 = RA_AllocARMRegister(&ptr);
         uint8_t buf2 = RA_AllocARMRegister(&ptr);
-#ifndef __aarch64__
-        uint8_t buf3 = RA_AllocARMRegister(&ptr);
-        uint8_t buf4 = RA_AllocARMRegister(&ptr);
-#endif
         uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint32_t mem = (BE16((*m68k_ptr)[1]) << 16) | BE16((*m68k_ptr)[2]);
 
@@ -4994,10 +4665,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         RA_FreeARMRegister(&ptr, aligned_mem);
         RA_FreeARMRegister(&ptr, buf1);
         RA_FreeARMRegister(&ptr, buf2);
-#ifndef __aarch64__
-        RA_FreeARMRegister(&ptr, buf3);
-        RA_FreeARMRegister(&ptr, buf4);
-#endif
+
         (*m68k_ptr)+=3;
         *insn_consumed = 1;
         ptr = EMIT_AdvancePC(ptr, 6);
@@ -5056,7 +4724,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     RA_FreeARMRegister(&ptr, tmp2);
                     break;
                 case 0x18:  /* All */
-#ifdef __aarch64__
                     {
                         union {
                             uint64_t u64;
@@ -5073,14 +4740,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                         *ptr++ = u.u32[0];
                         *ptr++ = u.u32[1];
                     }
-#else
-                    *ptr++ = push(0x0f | (1 << 12));
-                    *ptr++ = ldr_offset(15, 12, 8);
-                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-                    *ptr++ = pop(0x0f | (1 << 12));
-                    *ptr++ = b_cc(ARM_CC_AL, 0);
-                    *ptr++ = BE32((uint32_t)invalidate_entire_dcache);
-#endif
                     break;
             }
         }
@@ -5088,7 +4747,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (opcode & 0x80) {
             int8_t off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &off);
-#ifdef __aarch64__
+
             union {
                 uint64_t u64;
                 uint32_t u32[2];
@@ -5120,29 +4779,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 *ptr++ = ldp64(31, i, i + 1, i * 8);
             *ptr++ = ldp64(31, 29, 30, 160);
             *ptr++ = ldp64_postindex(31, 0, 1, 176);
-#else
-            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
-            {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = push(0x0f | (1 << 12));
-                if (tmp != 0)
-                    *ptr++ = mov_reg(0, tmp);
-            }
-            else
-            {
-                *ptr++ = push(0x0f | (1 << 12));
-            }
-            if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
-            else
-                *ptr++ = sub_immed(1, REG_PC, -off);
-            *ptr++ = add_immed(2, 15, 4);
-            *ptr++ = ldr_offset(15, 12, 8);
-            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-            *ptr++ = pop(0x0f | (1 << 12));
-            *ptr++ = b_cc(ARM_CC_AL, 0);
-            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
-#endif
         }
 
         (*m68k_ptr)++;
@@ -5208,7 +4844,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     RA_FreeARMRegister(&ptr, tmp2);
                     break;
                 case 0x18:  /* All */
-#ifdef __aarch64__
                     {
                         union {
                             uint64_t u64;
@@ -5225,14 +4860,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                         *ptr++ = u.u32[0];
                         *ptr++ = u.u32[1];
                     }
-#else
-                    *ptr++ = push(0x0f | (1 << 12));
-                    *ptr++ = ldr_offset(15, 12, 8);
-                    *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-                    *ptr++ = pop(0x0f | (1 << 12));
-                    *ptr++ = b_cc(ARM_CC_AL, 0);
-                    *ptr++ = BE32((uint32_t)clear_entire_dcache);
-#endif
                     break;
             }
         }
@@ -5240,7 +4867,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         if (opcode & 0x80) {
             int8_t off = 0;
             ptr = EMIT_GetOffsetPC(ptr, &off);
-#ifdef __aarch64__
+
             union {
                 uint64_t u64;
                 uint32_t u32[2];
@@ -5272,29 +4899,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 *ptr++ = ldp64(31, i, i + 1, i * 8);
             *ptr++ = ldp64(31, 29, 30, 160);
             *ptr++ = ldp64_postindex(31, 0, 1, 176);
-#else
-            if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
-            {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = push(0x0f | (1 << 12));
-                if (tmp != 0)
-                    *ptr++ = mov_reg(0, tmp);
-            }
-            else
-            {
-                *ptr++ = push(0x0f | (1 << 12));
-            }
-            if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
-            else
-                *ptr++ = sub_immed(1, REG_PC, -off);
-            *ptr++ = add_immed(2, 15, 4);
-            *ptr++ = ldr_offset(15, 12, 8);
-            *ptr++ = blx_cc_reg(ARM_CC_AL, 12);
-            *ptr++ = pop(0x0f | (1 << 12));
-            *ptr++ = b_cc(ARM_CC_AL, 0);
-            *ptr++ = BE32((uint32_t)trampoline_icache_invalidate);
-#endif
         }
 
         (*m68k_ptr)++;
