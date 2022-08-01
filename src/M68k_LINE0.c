@@ -2598,8 +2598,8 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             uint8_t tmp1 = RA_AllocARMRegister(&ptr);
             uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-            *ptr++ = and_immed(tmp1, dc1, 16, 0);
-            *ptr++ = and_immed(tmp2, dc2, 16, 0);
+            *ptr++ = uxth(tmp1, dc1);
+            *ptr++ = uxth(tmp2, dc2);
             *ptr++ = ldrh_offset(rn1, val1, 0);
             *ptr++ = ldrh_offset(rn2, val2, 0);
             *ptr++ = subs_reg(31, val1, tmp1, LSL, 0);
