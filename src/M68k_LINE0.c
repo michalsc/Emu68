@@ -2204,7 +2204,6 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-    uint8_t cc = RA_ModifyCC(&ptr);
     uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
     uint8_t update_mask = SR_Z | SR_C;
     uint8_t ext_words = 1;
@@ -2216,6 +2215,8 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Get address of bounds */
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+    uint8_t cc = RA_ModifyCC(&ptr);
 
     /* load bounds into registers */
     switch ((opcode >> 9) & 3)
