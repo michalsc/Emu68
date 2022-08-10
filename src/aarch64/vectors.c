@@ -466,11 +466,13 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
         far &= 0xffffffff;
     }
 
+#if 0
     if (far > (0x1000000ULL - size)) {
      //   kprintf("Illegal FAR %08x\n", far);
         *value = 0;
         return 1;
     }
+#endif
 
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
     {
@@ -1287,6 +1289,15 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         }
         /* FLDD */
         else if ((opcode & 0xfee00c00) == 0xfc400000)
+        {
+            handled = SYSReadValFromAddr(&value, 8, far);
+            if (handled)
+            {
+                set_fpn_as_double(opcode & 31, value);
+            }
+        }
+        /* FLDD reg offset */
+        else if ((opcode & 0xfee00c00) == 0xfc600800)
         {
             handled = SYSReadValFromAddr(&value, 8, far);
             if (handled)

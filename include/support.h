@@ -131,6 +131,7 @@ void clear_entire_dcache();
 const char *remove_path(const char *in);
 size_t strlen(const char *c);
 int strcmp(const char *s1, const char *s2);
+int strncmp(const char *s1, const char *s2, size_t n);
 void *memmove(void *dst, const void *src, size_t sz);
 void *memcpy(void *dst, const void *src, size_t sz);
 void *memset(void *ptr, int fill, size_t sz);

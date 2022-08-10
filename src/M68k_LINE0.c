@@ -756,14 +756,10 @@ uint32_t *EMIT_ORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Load immediate into the register */
     *ptr++ = mov_immed_u8(immed, val8 & 0x1f);
+
     /* OR with status register, no need to check mask, ARM sequence way too short! */
-#ifdef __aarch64__
     uint8_t cc = RA_ModifyCC(&ptr);
     *ptr++ = orr_reg(cc, cc, immed, LSL, 0);
-#else
-    M68K_ModifyCC(&ptr);
-    *ptr++ = orr_reg(REG_SR, REG_SR, immed, 0);
-#endif
 
     RA_FreeARMRegister(&ptr, immed);
 
@@ -798,6 +794,8 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* Load immediate into the register */
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0); 
     
+    cc = RA_ModifyCC(&ptr);
+
     /* OR is here */
     *ptr++ = mov_reg(changed, cc);   
     *ptr++ = orr_reg(cc, cc, immed, LSL, 0);
@@ -1121,18 +1119,11 @@ uint32_t *EMIT_ANDI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint16_t val = BE16(*m68k_ptr[0]);
    
-    /* OR with status register, no need to check mask, ARM sequence way too short! */
-#ifdef __aarch64__
     /* Load immediate into the register */
     *ptr++ = mov_immed_u16(immed, 0xff00 | (val & 0x1f), 0);
     uint8_t cc = RA_ModifyCC(&ptr);
     *ptr++ = and_reg(cc, cc, immed, LSL, 0);
-#else
-    /* Load immediate into the register */
-    *ptr++ = mov_immed_u16(immed, 0xff00 | val);
-    M68K_ModifyCC(&ptr);
-    *ptr++ = and_reg(REG_SR, REG_SR, immed, 0);
-#endif
+
     RA_FreeARMRegister(&ptr, immed);
 
     ptr = EMIT_AdvancePC(ptr, 4);
@@ -1154,7 +1145,7 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     uint8_t cc = RA_ModifyCC(&ptr);
-    
+
     ptr = EMIT_FlushPC(ptr);
     
     /* If supervisor is not active, put an exception here */
@@ -1167,6 +1158,8 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Load immediate into the register */
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
+
+    cc = RA_ModifyCC(&ptr);
 
     /* AND is here */
     *ptr++ = mov_reg(orig, cc);
@@ -1499,14 +1492,9 @@ uint32_t *EMIT_EORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Load immediate into the register */
     *ptr++ = mov_immed_u8(immed, val & 0x1f);
-    /* OR with status register, no need to check mask, ARM sequence way too short! */
-#ifdef __aarch64__
+    /* EOR with status register, no need to check mask, ARM sequence way too short! */
     uint8_t cc = RA_ModifyCC(&ptr);
     *ptr++ = eor_reg(cc, cc, immed, LSL, 0);
-#else
-    M68K_ModifyCC(&ptr);
-    *ptr++ = eor_reg(REG_SR, REG_SR, immed, 0);
-#endif
     RA_FreeARMRegister(&ptr, immed);
 
     ptr = EMIT_AdvancePC(ptr, 4);
@@ -1540,6 +1528,8 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Load immediate into the register */
     *ptr++ = mov_immed_u16(immed, val & 0xf71f, 0);
+
+    cc = RA_ModifyCC(&ptr);
 
     /* EOR is here */
     *ptr++ = mov_reg(orig, cc);
@@ -2214,8 +2204,6 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-#ifdef __aarch64__
-    uint8_t cc = RA_ModifyCC(&ptr);
     uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
     uint8_t update_mask = SR_Z | SR_C;
     uint8_t ext_words = 1;
@@ -2227,6 +2215,8 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     /* Get address of bounds */
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+
+    uint8_t cc = RA_ModifyCC(&ptr);
 
     /* load bounds into registers */
     switch ((opcode >> 9) & 3)
@@ -2298,27 +2288,7 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_FreeARMRegister(&ptr, tmp2);
 
     *exit_2 = b(ptr - exit_2);
-    *exit_1 = b(ptr - exit_1);
-
-#if 0
-    *ptr++ = cmp_reg(lower, higher, LSL, 0);
-    *ptr++ = b_cc(A64_CC_HI, 6);
-    *ptr++ = cmp_reg(reg, lower, LSL, 0);
-    *ptr++ = orr_immed(lower, cc, 1, 31 & (32 - SRB_C));
-    *ptr++ = ccmp_reg(reg, higher, 2, A64_CC_CS);
-    *ptr++ = csel(cc, lower, cc, A64_CC_HI);
-    exit_2 = ptr;
-    *ptr++ = 0;
-
-    *ptr++ = cmp_reg(reg, higher, LSL, 0);
-    *ptr++ = orr_immed(higher, cc, 1, 31 & (32 - SRB_C));
-    *ptr++ = ccmp_reg(reg, lower, 1, A64_CC_LE);
-    *ptr++ = csel(cc, higher, cc, A64_CC_LT);
-    
-    *exit_2 = b(ptr - exit_2);
-    *exit_1 = b(ptr - exit_1);
-#endif
-    
+    *exit_1 = b(ptr - exit_1);  
 
     (void)update_mask;
 
@@ -2349,11 +2319,6 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *ptr++ = 0;
         *ptr++ = INSN_TO_LE(0xfffffffe);
     }
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] CMP2/CHK2 at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -2509,7 +2474,6 @@ uint32_t *EMIT_CAS2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attri
 uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
-#ifdef __aarch64__
 
 #define CAS_ATOMIC() do { \
         uint32_t *l0 = ptr; \
@@ -2633,19 +2597,23 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         if (size==2)
         {
+            uint8_t tmp1 = RA_AllocARMRegister(&ptr);
+            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+            *ptr++ = uxth(tmp1, dc1);
+            *ptr++ = uxth(tmp2, dc2);
             *ptr++ = ldrh_offset(rn1, val1, 0);
             *ptr++ = ldrh_offset(rn2, val2, 0);
-            *ptr++ = lsl(val1, val1, 16);
-            *ptr++ = lsl(val2, val2, 16);
-            *ptr++ = subs_reg(31, val1, dc1, LSL, 16);
+            *ptr++ = subs_reg(31, val1, tmp1, LSL, 0);
             *ptr++ = b_cc(A64_CC_NE, 6);
-            *ptr++ = subs_reg(31, val2, dc2, LSL, 16);
+            *ptr++ = subs_reg(31, val2, tmp2, LSL, 0);
             *ptr++ = b_cc(A64_CC_NE, 4);
             *ptr++ = strh_offset(rn1, du1, 0);
             *ptr++ = strh_offset(rn2, du2, 0);
             *ptr++ = b(3);
-            *ptr++ = bfxil(dc1, val1, 16, 16);
-            *ptr++ = bfxil(dc2, val2, 16, 16);
+            *ptr++ = bfxil(dc1, val1, 0, 16);
+            *ptr++ = bfxil(dc2, val2, 0, 16);
+            RA_FreeARMRegister(&ptr, tmp1);
+            RA_FreeARMRegister(&ptr, tmp2);
         }
         else
         {
@@ -2838,11 +2806,7 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, status);
         RA_FreeARMRegister(&ptr, tmp);
     }
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] CAS/CAS2 at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
+
     return ptr;
 }
 

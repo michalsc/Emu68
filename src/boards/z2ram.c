@@ -65,7 +65,7 @@ static void init()
         if (prop)
         {
             if (strstr(prop->op_value, "z2_ram_size=8")) {
-                board.rom_size = 4*1024*1024;
+                board.rom_size = 8*1024*1024;
                 board.enabled = 1;
                 kprintf("[BOOT]   use 8MB expansion RAM\n");
             }

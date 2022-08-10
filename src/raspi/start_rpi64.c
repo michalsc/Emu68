@@ -42,6 +42,7 @@ uint32_t text_x = 0;
 uint32_t text_y = 0;
 const int modulo = 192;
 int purple = 0;
+int black = 0;
 
 void put_char(uint8_t c)
 {
@@ -66,6 +67,9 @@ void put_char(uint8_t c)
                         if (purple) {
                             pos_in_image[x] = LE16(0xed51);
                         }
+                        else if (black) {
+                            pos_in_image[x] = LE16(0x630c);
+                        }
                         else {
                             pos_in_image[x] = 0;
                         }
@@ -79,6 +83,12 @@ void put_char(uint8_t c)
             text_x++;
         }
     }
+}
+
+static void __putc(void *data, char c)
+{
+    (void)data;
+    put_char(c);
 }
 
 void display_logo()
@@ -97,8 +107,16 @@ void display_logo()
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
-            if (find_token(prop->op_value, "logo=purple"))
-                purple = 1;
+            const char *tok;
+            if ((tok = find_token(prop->op_value, "logo=")))
+            {
+                tok += 5;
+
+                if (strncmp(tok, "purple", 6) == 0)
+                    purple = 1;
+                else if (strncmp(tok, "black", 5) == 0)
+                    black = 1;
+            }
         }
     }
 
@@ -112,6 +130,15 @@ void display_logo()
     start_y = (sz.height - EmuLogo.el_Height) / 2;
 
     kprintf("[BOOT] Logo start coordinate: %dx%d, size: %dx%d\n", start_x, start_y, EmuLogo.el_Width, EmuLogo.el_Height);
+
+    /* Calculate text coordinate for version string */
+#if 0
+    text_x = start_x / 8;
+    text_y = (start_y + EmuLogo.el_Height + 15) / 16;
+#else
+    text_y = (fb_height - 16) / 16;
+    text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
+#endif
 
     /* First clear the screen. Use color in top left corner of RLE image for that */
     {
@@ -133,6 +160,11 @@ void display_logo()
             if (g > 255) g = 255;
             if (b > 255) b = 255;
             color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+        }
+        else if (black)
+        {
+            gray = 0;
+            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
         }
         else
         {
@@ -168,6 +200,16 @@ void display_logo()
             if (b > 255) b = 255;
             color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
         }
+        else if (black)
+        {
+            int g = ((120 - (int)gray) * 5) / 4;
+            if (g < 0)
+                g = 0;
+            if (g > 255)
+                g = 255;
+
+            color = (g >> 3) | ((g >> 2) << 5) | ((g >> 3) << 11);
+        }
         else
         {
             color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
@@ -183,6 +225,13 @@ void display_logo()
             }
         }
     }
+
+    /* Print EMu68 version number and git sha. */
+    kprintf_pc(__putc, NULL, &VERSION_STRING[6]);
+
+    /* Reset test coordinates for further text printing (e.g. buptest) */
+    text_x = 0;
+    text_y = 0;
 }
 
 uintptr_t top_of_ram;
