@@ -32,6 +32,7 @@ set(BASE_FILES
     src/disasm.c
     src/findtoken.c
 )
+
 set(EMU68_FILES
     src/M68k_Translator.c
     src/M68k_SR.c
@@ -200,4 +201,8 @@ add_subdirectory(external)
 
 target_link_libraries(Emu68.elf tinystl capstone-static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
-target_compile_definitions(Emu68.elf PRIVATE VERSION_STRING="${VERSTRING}" GIT_SHA="${GIT_SHA}")
+target_include_directories(Emu68.elf PRIVATE ${CMAKE_BINARY_DIR}/include)
+target_compile_definitions(Emu68.elf PRIVATE)
+
+configure_file(include/version.h.in include/version.h @ONLY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/.git/index)

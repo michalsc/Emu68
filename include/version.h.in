@@ -1,0 +1,7 @@
+#ifndef _VERSION_H
+#define _VERSION_H
+
+#define VERSION_STRING  "@VERSTRING@"
+#define GIT_SHA         "@GIT_SHA@"
+
+#endif /* _VERSION_H */

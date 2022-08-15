@@ -24,6 +24,7 @@
 #include "RegisterAllocator.h"
 #include "md5.h"
 #include "disasm.h"
+#include "version.h"
 
 void _start();
 void _boot();
