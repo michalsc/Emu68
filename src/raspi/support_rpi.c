@@ -248,7 +248,7 @@ static void mbox_send(uint32_t channel, uint32_t data)
 }
 
 //uint32_t FBReq[128] __attribute__((aligned(16)));
-uint32_t *FBReq = (uint32_t *)0xffffff9000001000;
+uint32_t *FBReq = (uint32_t *)0x5000001000;
 
 uint32_t get_clock_rate(uint32_t clock_id)
 {
