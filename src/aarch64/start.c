@@ -141,6 +141,7 @@ asm("   .section .startup           \n"
 "       mov     sp, x9              \n"
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL2, EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
+"       msr     CPTR_EL2, x10       \n"
 "       isb     sy                  \n"
 "       isb     sy                  \n" /* Drain the insn queue */
 "       ic      IALLU               \n" /* Invalidate entire instruction cache */
@@ -222,7 +223,7 @@ asm(
 "       msr     TTBR0_EL2, x5       \n" /* Load new TTBR0 */
 
 "       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       tlbi    ALLE2IS             \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n"
 
@@ -240,7 +241,7 @@ asm(
 "       add     x3, x3, x7          \n" /* Add delta */
 "       str     x3, [x2, #256*8]    \n" /* Store back */
 "       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       tlbi    ALLE2IS             \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n"
 "       and     x2, x3, 0x3ffffff000\n" /* Copy L2 pointer to x5, discard the top 26 bits and bottom 12 bits*/
@@ -344,13 +345,20 @@ asm(
 "       ldr     x10, =0x80003519    \n" /* Upper and lower enabled, both 39bit in size */
 "       msr     TCR_EL2, x10        \n"
 
-"       adrp    x10, mmu_EL2_L1    \n" /* Load table pointers for low and high memory regions */
+"       adrp    x10, mmu_EL2_L1     \n" /* Load table pointers for low and high memory regions */
 "       msr     TTBR0_EL2, x10      \n"
+
+"       ldr     x10, =_sec_continue_boot  \n" /* Fallback to continue_boot in EL1 */
+"       msr     ELR_EL2, x10        \n"
+"       ldr     w10, =0x000003c9    \n"
+"       msr     SPSR_EL2, x10       \n"
 
 "       mrs     x10, SCTLR_EL2      \n"
 "       orr     x10, x10, #1        \n"
 "       msr     SCTLR_EL2, x10      \n"
+"       eret                        \n" /* Jump to correct address, once MMU was enabled */
 
+"_sec_continue_boot:                \n"
 "       adrp    x9, temp_stack      \n" /* Set up stack */
 "       add     x9, x9, #:lo12:temp_stack\n"
 "       ldr     x9, [x9]            \n"
@@ -381,7 +389,7 @@ void secondary_boot(void)
     /* Enable caches and cache maintenance instructions from EL0 */
     asm volatile("mrs %0, SCTLR_EL2":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
-    tmp &= ~0x8;                   // Disable stack alignment check
+    tmp &= ~0x8;                    // Disable stack alignment check
     asm volatile("msr SCTLR_EL2, %0"::"r"(tmp));
 
     asm volatile("msr VBAR_EL2, %0"::"r"((uintptr_t)&__vectors_start));
@@ -768,14 +776,6 @@ void boot(void *dtree)
         kprintf("[BOOT]    JIT: %p - %p (size: %5d KiB)\n", 0x6000000000,
                     0x6000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
 
-        {
-            uintptr_t p = 0;
-            asm volatile("msr VTCR_EL2, %0":"=r"(p));
-            kprintf("[BOOT] VTCR_EL2: %p\n", p);
-            asm volatile("msr VTTBR_EL2, %0":"=r"(p));
-            kprintf("[BOOT] VTTBR_EL2: %p\n", p);
-        }
-
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
         kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);
 
@@ -802,7 +802,7 @@ void boot(void *dtree)
 
         const uint32_t tlb_flusher[] = {
             LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd508831f),       // tlbi  vmalle1is
+            LE32(0xd50c831f),       // tlbi  alle2is
             LE32(0xd5033f9f),       // dsb   sy
             LE32(0xd5033fdf),       // isb
             LE32(0xd65f03c0)        // ret
@@ -816,6 +816,20 @@ void boot(void *dtree)
         tlsf_free(jit_tlsf, addr);
     }
 
+#if 0
+    {
+        uint64_t ptr = (intptr_t)_secondary_start;
+        uint64_t ret;
+
+        asm volatile("at s1e2r,%1; mrs %0,par_el1 ":"=r"(ret):"r"(ptr));
+
+        kprintf("translation %p to %p\n", ptr, ret);
+    }
+#endif
+
+    asm volatile("msr VBAR_EL2, %0"::"r"((uintptr_t)&__vectors_start));
+    kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
+
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -828,14 +842,12 @@ void boot(void *dtree)
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
 
-while(1) {}
-
     kprintf("[BOOT] Waking up CPU 2\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint64_t *)0xffffff90000000e8 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    *(uint64_t *)0x50000000e8 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
     clear_entire_dcache();
         
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e8), temp_stack);
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0x50000000e8), temp_stack);
 
     asm volatile("sev");
 
@@ -843,19 +855,16 @@ while(1) {}
 
     kprintf("[BOOT] Waking up CPU 3\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint64_t *)0xffffff90000000f0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    *(uint64_t *)0x50000000f0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
     clear_entire_dcache();
         
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000f0), temp_stack);
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0x50000000f0), temp_stack);
 
     asm volatile("sev");
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
-
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
-    kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
     kprintf("[BOOT] Timer frequency: %d kHz\n", (tmp + 500) / 1000);
@@ -1034,7 +1043,7 @@ while(1) {}
         /* If ROM copy was requested, pull the 512K no matter what. On 256K kickstarts this will pull shadow copy too */
         for (int i=0; i < 524288; i+=4)
         {
-            *(uint32_t *)(0xffffff9000f80000 + i) = ps_read_32(0xf80000 + i);
+            *(uint32_t *)(0x5000f80000 + i) = ps_read_32(0xf80000 + i);
         }
         mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
@@ -1043,7 +1052,7 @@ while(1) {}
         {
             for (int i=0; i < 524288; i+=4)
             {
-                *(uint32_t *)(0xffffff9000e00000 + i) = ps_read_32(0xe00000 + i);
+                *(uint32_t *)(0x5000e00000 + i) = ps_read_32(0xe00000 + i);
             }
 
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
@@ -1052,15 +1061,15 @@ while(1) {}
         {
             for (int i=0; i < 524288; i+=4)
             {
-                *(uint32_t *)(0xffffff9000e00000 + i) = ps_read_32(0xe00000 + i);
+                *(uint32_t *)(0x5000e00000 + i) = ps_read_32(0xe00000 + i);
             }
             for (int i=0; i < 524288; i+=4)
             {
-                *(uint32_t *)(0xffffff9000a80000 + i) = ps_read_32(0xa80000 + i);
+                *(uint32_t *)(0x5000a80000 + i) = ps_read_32(0xa80000 + i);
             }
             for (int i=0; i < 524288; i+=4)
             {
-                *(uint32_t *)(0xffffff9000b00000 + i) = ps_read_32(0xb00000 + i);
+                *(uint32_t *)(0x5000b00000 + i) = ps_read_32(0xb00000 + i);
             }
 
             mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
@@ -1084,38 +1093,38 @@ while(1) {}
         {
             /* Make a shadow of 0xf80000 at 0xe00000 */
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 262144 / 4);
-            DuffCopy((void*)0xffffff9000fc0000, initramfs_loc, 262144 / 4);
-            DuffCopy((void*)0xffffff9000e00000, (void*)0xffffff9000f80000, 524288 / 4);
+            DuffCopy((void*)0x5000f80000, initramfs_loc, 262144 / 4);
+            DuffCopy((void*)0x5000fc0000, initramfs_loc, 262144 / 4);
+            DuffCopy((void*)0x5000e00000, (void*)0x5000f80000, 524288 / 4);
         }
         else if (initramfs_size == 524288)
         {
             /* Make a shadow of 0xf80000 at 0xe00000 */
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
-            DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0x5000e00000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0x5000f80000, initramfs_loc, 524288 / 4);
         }
         else if (initramfs_size == 1048576)
         {
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xf00000, 0xf00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
-            DuffCopy((void*)0xffffff9000f00000, initramfs_loc, 524288 / 4);
-            DuffCopy((void*)0xffffff9000f80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
+            DuffCopy((void*)0x5000e00000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0x5000f00000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0x5000f80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
         }
         else if (initramfs_size == 2097152) {
             mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
-            DuffCopy((void*)0xffffff9000a80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
-            DuffCopy((void*)0xffffff9000b00000, (void*)((uintptr_t)initramfs_loc + 2*524288), 524288 / 4);
-            DuffCopy((void*)0xffffff9000f80000, (void*)((uintptr_t)initramfs_loc + 3*524288), 524288 / 4);
+            DuffCopy((void*)0x5000e00000, initramfs_loc, 524288 / 4);
+            DuffCopy((void*)0x5000a80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
+            DuffCopy((void*)0x5000b00000, (void*)((uintptr_t)initramfs_loc + 2*524288), 524288 / 4);
+            DuffCopy((void*)0x5000f80000, (void*)((uintptr_t)initramfs_loc + 3*524288), 524288 / 4);
         }
 
         /* Check if ROM is byte-swapped */
         {
-            uint8_t *rom_start = (uint8_t *)0xffffff9000f80000;
+            uint8_t *rom_start = (uint8_t *)0x5000f80000;
             if (rom_start[2] == 0xf9 && rom_start[3] == 0x4e) {
                 kprintf("[BOOT] Byte-swapped ROM detected. Fixing...\n");
                 for (int i=0; i < 524288; i+=2) {
@@ -1124,7 +1133,7 @@ while(1) {}
                     rom_start[i+1] = tmp;
                 }
                 if (initramfs_size == 0x100000 || initramfs_size == 0x200000) {
-                    rom_start = (uint8_t *)0xffffff9000e00000;
+                    rom_start = (uint8_t *)0x5000e00000;
 
                     for (int i=0; i < 524288; i+=2) {
                         uint8_t tmp = rom_start[i];
@@ -1133,7 +1142,7 @@ while(1) {}
                     }
 
                     if (initramfs_size == 0x200000) {
-                        rom_start = (uint8_t *)0xffffff9000a80000;
+                        rom_start = (uint8_t *)0x5000a80000;
 
                         for (int i=0; i < 2*524288; i+=2) {
                             uint8_t tmp = rom_start[i];
@@ -1204,8 +1213,10 @@ while(1) {}
     wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
-    amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
-    amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
+#if 0
+    amiga_checksum((void*)0x5000e00000, 524288, 524288-24, 1);
+    amiga_checksum((void*)0x5000f80000, 524288, 524288-24, 1);
+#endif
 
     //dt_dump_tree();
 
@@ -1893,7 +1904,7 @@ void M68K_StartEmu(void *addr, void *fdt)
 
 asm volatile(
 "       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       tlbi    ALLE2IS             \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
 
