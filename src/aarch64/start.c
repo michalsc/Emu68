@@ -66,14 +66,27 @@ asm("   .section .startup           \n"
 "2:     mrs     x9, CurrentEL       \n" /* Since we do not use EL2 mode yet, we fall back to EL1 immediately */
 "       and     x9, x9, #0xc        \n"
 "       cmp     x9, #8              \n"
-"       b.eq    leave_EL2           \n" /* In case of EL2 or EL3 switch back to EL1 */
-"       b.gt    leave_EL3           \n"
-"continue_boot:                     \n"
+"       b.lt    1b                  \n" /* EL1 only? let it hang, we need EL2 */
+"       b.gt    leave_EL3           \n" /* In case of EL3 switch back to EL2 */
+"continue_boot:                     \n" 
 #if EMU68_HOST_BIG_ENDIAN
-"       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
+"       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 */
 "       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
 "       msr     SCTLR_EL1, x10      \n"
+
+"       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
+"       orr     x10, x10, #(1 << 25)\n"
+"       msr     SCTLR_EL2, x10      \n"
 #endif
+
+"       mrs     x10, MDCR_EL2       \n" /* Enable event counters */
+"       orr     x10, x10, #0x80     \n"
+"       msr     MDCR_EL2, x10       \n"
+"       mov     x10, #3             \n" /* Enable CNTL access from EL1 and EL0 */
+"       msr     CNTHCTL_EL2, x10    \n"
+"       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
+"       msr     HCR_EL2, x10        \n"
+
 /*
     At this point we have correct endianess and the code is executing, but we do not really know where
     we are. The necessary step now is to prepare absolutely basic initial memory map and turn on MMU
@@ -87,7 +100,7 @@ asm("   .section .startup           \n"
 "       cbnz    w10, 1b             \n"
 "2:                                 \n"
 
-"       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
+"       adrp    x16, mmu_EL2_L1    \n" /* x16 - address of EL2 L1 map */
 "       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR(2)|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
@@ -98,15 +111,14 @@ asm("   .section .startup           \n"
 "       add     x9, x9, x10         \n"
 "       str     x9, [x16, #24]      \n"
 
-"       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
-"       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
+"       adrp    x17, mmu_EL2_L2     \n" /* x17 - address of kernel's L2 map */
 
 "       orr     x9, x17, #3         \n" /* valid + page table */
-"       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
+"       str     x9, [x16, #256*8]   \n" /* Entry 256 of the L1 kernel map points to L2 map now - address 0x40.0000.0000 */
 
-"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map of the address space from 0x0 at 0xffffff9000000000 (first 320GB) */
-"       mov     x18, 320            \n"
-"       add     x19, x16, #64*8     \n"
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map of the address space from 0x0 at 0x50.0000.0000 (first 64GB) */
+"       mov     x18, 64             \n"
+"       add     x19, x16, #320*8    \n"
 "1:     str     x9, [x19], #8       \n"
 "       add     x9, x9, x10         \n"
 "       sub     x18, x18, #1        \n"
@@ -127,7 +139,7 @@ asm("   .section .startup           \n"
 
 "       ldr     x9, =_boot          \n" /* Set up stack */
 "       mov     sp, x9              \n"
-"       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
+"       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL2, EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
 "       isb     sy                  \n"
 "       isb     sy                  \n" /* Drain the insn queue */
@@ -136,20 +148,19 @@ asm("   .section .startup           \n"
 
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable, Attr3 - write-through */
 "       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
+"       msr     MAIR_EL2, x10       \n" /* Set memory attributes */
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
-"       msr     TCR_EL1, x10        \n"
+"       ldr     x10, =0x80003519    \n" /* Address space is 39bit in size */
+"       msr     TCR_EL2, x10        \n"
 
-"       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
-"       msr     TTBR0_EL1, x10      \n" /* Initially only 4GB in each region is mapped, the rest comes later */
-"       adrp    x10, mmu_kernel_L1  \n"
-"       msr     TTBR1_EL1, x10      \n"
+"       adrp    x10, mmu_EL2_L1     \n" /* Load table pointers for low and high memory regions */
+"       msr     TTBR0_EL2, x10      \n" /*# Initially only 4GB in each region is mapped, the rest comes later */
 
 "       isb     sy                  \n"
-"       mrs     x10, SCTLR_EL1      \n"
+"       mrs     x10, SCTLR_EL2      \n"
 "       orr     x10, x10, #1        \n"
-"       msr     SCTLR_EL1, x10      \n"
+"       msr     SCTLR_EL2, x10      \n"
 "       isb     sy                  \n"
 
 "       ldr     x9, =__bss_start    \n"
@@ -167,32 +178,12 @@ asm("   .section .startup           \n"
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL3, x10      \n"
 #endif
-"       adr     x10, leave_EL2      \n" /* Fallback to continue_boot in EL2 here below */
+"       adr     x10, continue_boot  \n" /* Fallback to continue_boot in EL2 */
 "       msr     ELR_EL3, x10        \n"
 "       ldr     w10, =0x000003c9    \n"
 "       msr     SPSR_EL3, x10       \n"
 "       eret                        \n"
-
-"leave_EL2:                         \n"
-#if EMU68_HOST_BIG_ENDIAN
-"       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
-"       orr     x10, x10, #(1 << 25)\n"
-"       msr     SCTLR_EL2, x10      \n"
-#endif
-"       mrs     x10, MDCR_EL2       \n" /* Enable event counters */
-"       orr     x10, x10, #0x80     \n"
-"       msr     MDCR_EL2, x10       \n"
-"       mov     x10, #3             \n" /* Enable CNTL access from EL1 and EL0 */
-"       msr     CNTHCTL_EL2, x10    \n"
-"       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
-"       msr     HCR_EL2, x10        \n"
-"       adr     x10, continue_boot  \n" /* Fallback to continue_boot in EL1 */
-"       msr     ELR_EL2, x10        \n"
-"       ldr     w10, =0x000003c5    \n"
-"       msr     SPSR_EL2, x10       \n"
-"       eret                        \n"
-
-"       .section .text              \n"
+"       .ltorg                      \n"
 );
 
 void move_kernel(intptr_t from, intptr_t to);
@@ -208,8 +199,7 @@ asm(
 "       sub     w3, w3, #32         \n"
 "       cbnz    w3, 1b              \n"
 "       dsb     sy                  \n"
-"       movz    x28, #0xffff, lsl #48\n" /* 0xffffff9000000000 - this is where the phys starts from */
-"       movk    x28, #0xff90, lsl #32\n"
+"       movz    x28, #0x0050, lsl #32\n" /* 0x5000000000 - this is where the phys starts from */
 "       add     x0, x0, x28         \n" /* x0: phys "from" in topmost part of addr space */
 "       add     x1, x1, x28         \n" /* x1: phys "to" in topmost part of addr space */
 "       mov     x2, #" xstr(KERNEL_SYS_PAGES << 21) "\n"
@@ -227,12 +217,9 @@ asm(
 "       sub     x2, x2, #64         \n"
 "       cbnz    x2, 2b              \n"
 
-"       mrs     x5, TTBR1_EL1       \n"
+"       mrs     x5, TTBR0_EL2       \n"
 "       add     x5, x5, x7          \n"
-"       msr     TTBR1_EL1, x5       \n" /* Load new TTBR1 */
-"       mrs     x5, TTBR0_EL1       \n"
-"       add     x5, x5, x7          \n"
-"       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
+"       msr     TTBR0_EL2, x5       \n" /* Load new TTBR0 */
 
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
@@ -243,21 +230,21 @@ asm(
 
 "       adrp    x5, _boot           \n"
 "       adr     x2, 1f              \n"
-"       and     x2, x2, 0x7fffffffff\n"
+"       and     x2, x2, 0x3fffffffff\n"
 "       add     x2, x2, x1          \n"
 "       br      x2                  \n"
-"1:     mrs     x2, TTBR1_EL1       \n" /* Take address of L1 MMU map */
-"       and     x2, x2, 0x7ffffff000\n" /* Discard the top 25 bits and lowest 12 bits */
+"1:     mrs     x2, TTBR0_EL2       \n" /* Take address of L1 MMU map */
+"       and     x2, x2, 0x3ffffff000\n" /* Discard the top 26 bits and lowest 12 bits */
 "       add     x2, x2, x28         \n" /* Go to the 1:1 map at top of ram */
-"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
+"       ldr     x3, [x2, #256*8]    \n" /* Get 256th entry - pointer to L2 table */
 "       add     x3, x3, x7          \n" /* Add delta */
-"       str     x3, [x2]            \n" /* Store back */
+"       str     x3, [x2, #256*8]    \n" /* Store back */
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n"
-"       and     x2, x3, 0x7ffffff000\n" /* Copy L2 pointer to x5, discard the top 25 bits and bottom 12 bits*/
-"       and     x5, x5, 0xffffff8000000000 \n"
+"       and     x2, x3, 0x3ffffff000\n" /* Copy L2 pointer to x5, discard the top 26 bits and bottom 12 bits*/
+"       and     x5, x5, 0xffffffc000000000 \n"
 "       add     x2, x2, x28         \n"
 "       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
 "1:     ldr     x3, [x2]            \n" /* Get first entry - pointer to page */
@@ -315,15 +302,8 @@ asm(
 "       cmp     x9, #8              \n"
 "       b.eq    _sec_leave_EL2      \n" /* In case of EL2 or EL3 switch back to EL1 */
 "       b.gt    _sec_leave_EL3      \n"
-"_sec_continue_boot:                \n"
-
-"       adrp    x9, temp_stack      \n" /* Set up stack */
-"       add     x9, x9, #:lo12:temp_stack\n"
-"       ldr     x9, [x9]            \n"
-"       mov     sp, x9              \n"
-
-"2:     ldr     x30, =secondary_boot\n"
-"       br      x30                 \n"
+"1:     wfe                         \n"
+"       b       1b                  \n"
 
 "_sec_leave_EL3:                    \n"
 #if EMU68_HOST_BIG_ENDIAN
@@ -353,30 +333,32 @@ asm(
 "       msr     CNTHCTL_EL2, x10    \n"
 "       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
 "       msr     HCR_EL2, x10        \n"
-"       ldr     x10, =_sec_continue_boot  \n" /* Fallback to continue_boot in EL1 */
-"       msr     ELR_EL2, x10        \n"
-"       ldr     w10, =0x000003c5    \n"
-"       msr     SPSR_EL2, x10       \n"
 
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
 "       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
+"       msr     MAIR_EL2, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
-"       msr     TCR_EL1, x10        \n"
+"       ldr     x10, =0x80003519    \n" /* Upper and lower enabled, both 39bit in size */
+"       msr     TCR_EL2, x10        \n"
 
-"       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
-"       msr     TTBR0_EL1, x10      \n"
-"       adrp    x10, mmu_kernel_L1  \n"
-"       msr     TTBR1_EL1, x10      \n"
+"       adrp    x10, mmu_EL2_L1    \n" /* Load table pointers for low and high memory regions */
+"       msr     TTBR0_EL2, x10      \n"
 
-"       mrs     x10, SCTLR_EL1      \n"
+"       mrs     x10, SCTLR_EL2      \n"
 "       orr     x10, x10, #1        \n"
-"       msr     SCTLR_EL1, x10      \n"
+"       msr     SCTLR_EL2, x10      \n"
 
-"       eret                        \n"
+"       adrp    x9, temp_stack      \n" /* Set up stack */
+"       add     x9, x9, #:lo12:temp_stack\n"
+"       ldr     x9, [x9]            \n"
+"       mov     sp, x9              \n"
+
+"2:     ldr     x30, =secondary_boot\n"
+"       br      x30                 \n"
+
 "       .ltorg                      \n"
 );
 
@@ -397,13 +379,12 @@ void secondary_boot(void)
     cpu_id &= 3;
     
     /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    asm volatile("mrs %0, SCTLR_EL2":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
-    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
-    tmp &= ~0x18;                   // Disable stack alignment check
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    tmp &= ~0x8;                   // Disable stack alignment check
+    asm volatile("msr SCTLR_EL2, %0"::"r"(tmp));
 
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    asm volatile("msr VBAR_EL2, %0"::"r"((uintptr_t)&__vectors_start));
 
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
 
@@ -516,11 +497,10 @@ void boot(void *dtree)
 #endif
 
     /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    asm volatile("mrs %0, SCTLR_EL2":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
-    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
-    tmp &= ~0x18;                   // Disable stack alignment check
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    tmp &= ~0x8;                     // Disable stack alignment check
+    asm volatile("msr SCTLR_EL2, %0"::"r"(tmp));
 
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
@@ -654,7 +634,7 @@ void boot(void *dtree)
             initramfs_size = (uintptr_t)image_end - (uintptr_t)image_start;
             initramfs_loc = tlsf_malloc(tlsf, initramfs_size);
 
-            DuffCopy(initramfs_loc, (void*)(0xffffff9000000000 + (uintptr_t)image_start), initramfs_size / 4);
+            DuffCopy(initramfs_loc, (void*)(0x5000000000 + (uintptr_t)image_start), initramfs_size / 4);
         }
     }
 
@@ -778,15 +758,23 @@ void boot(void *dtree)
             mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
         }
 
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0x6000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0x7000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
 
-        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
+        jit_tlsf = tlsf_init_with_memory((void*)0x6000000000, KERNEL_JIT_PAGES << 21);
 
         kprintf("[BOOT] Local memory pools:\n");
         kprintf("[BOOT]    SYS: %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT: %p - %p (size: %5d KiB)\n", 0xffffffe000000000,
-                    0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
+        kprintf("[BOOT]    JIT: %p - %p (size: %5d KiB)\n", 0x6000000000,
+                    0x6000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
+
+        {
+            uintptr_t p = 0;
+            asm volatile("msr VTCR_EL2, %0":"=r"(p));
+            kprintf("[BOOT] VTCR_EL2: %p\n", p);
+            asm volatile("msr VTTBR_EL2, %0":"=r"(p));
+            kprintf("[BOOT] VTTBR_EL2: %p\n", p);
+        }
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
         kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);
@@ -795,7 +783,7 @@ void boot(void *dtree)
             Copy the kernel memory block from origin to new destination, use the top of
             the kernel space which is a 1:1 map of first 4GB region, uncached
         */
-        arm_flush_cache((uintptr_t)_boot & 0xffffff8000000000, KERNEL_SYS_PAGES << 21);
+        arm_flush_cache((uintptr_t)_boot & 0x4000000000, KERNEL_SYS_PAGES << 21);
 
         /*
             We use routine in assembler here, because we will move both kernel code *and* stack.
@@ -806,11 +794,11 @@ void boot(void *dtree)
 
         kprintf("[BOOT] Kernel moved, MMU tables updated\n");
 
-        uint64_t TTBR0, TTBR1;
+        uint64_t TTBR0;
 
-        asm volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
+        asm volatile("mrs %0, TTBR0_EL2":"=r"(TTBR0));
 
-        kprintf("[BOOT] MMU tables at %p and %p\n", TTBR0, TTBR1);
+        kprintf("[BOOT] MMU tables at %p\n", TTBR0);
 
         const uint32_t tlb_flusher[] = {
             LE32(0xd5033b9f),       // dsb   ish
@@ -831,14 +819,16 @@ void boot(void *dtree)
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint64_t *)0xffffff90000000e0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
+    *(uint64_t *)0x50000000e0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
     clear_entire_dcache();
         
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0x50000000e0), temp_stack);
 
     asm volatile("sev");
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
+while(1) {}
 
     kprintf("[BOOT] Waking up CPU 2\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;

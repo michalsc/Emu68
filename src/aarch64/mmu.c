@@ -17,7 +17,7 @@
 #define DMAP(x) /* x */
 
 /* Virtual base of physical address space at 0x0 (320GB) */
-static const uintptr_t PHYS_VIRT_OFFSET = 0xffffff9000000000;
+static const uintptr_t PHYS_VIRT_OFFSET = 0x5000000000;
 
 struct mmu_page
 {
@@ -29,12 +29,10 @@ struct mmu_page
 };
 
 /* L1 table for bottom half. Filled from startup code */
-__attribute__((used, section(".mmu"))) struct mmu_page mmu_user_L1;
+__attribute__((used, section(".mmu"))) struct mmu_page mmu_EL2_L1;
 
-/* L1 table for top half */
-__attribute__((used, section(".mmu"))) struct mmu_page mmu_kernel_L1;
 /* One additional directory to map the 1GB kernel address space in 2MB pages here */
-__attribute__((used, section(".mmu"))) struct mmu_page mmu_kernel_L2;
+__attribute__((used, section(".mmu"))) struct mmu_page mmu_EL2_L2;
 
 static struct mmu_page *mmu_free_pages;
 
@@ -45,63 +43,19 @@ static void *get_4k_page()
     /* Check if there is a free 4k page */
     if (!mmu_free_pages)
     {
-        /* No more 4K pages to use? Grab topmost 2MB of RAM */
-        of_node_t *e = dt_find_node("/memory");
-        if (e)
+        uintptr_t mmu_ploc = mmu_virt2phys((uintptr_t)tlsf_malloc_aligned(tlsf, 64*4096, 4096));
+
+        mmu_ploc += PHYS_VIRT_OFFSET;
+
+        /* Chain the new 512 4K pages in our page pool */
+        mmu_free_pages = (void *)mmu_ploc;
+        mmu_free_pages->mp_next = NULL;
+
+        for (int i=0; i < 511; i++)
         {
-            of_property_t *p = dt_find_property(e, "reg");
-            uint32_t *range = p->op_value;
-            int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
-            int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
-            int block_size = 4 * (size_cells + address_cells);
-            int block_count = p->op_length / block_size;
-            int block_top = 0;
-
-            uintptr_t top_of_ram = 0;
-
-            for (int block = 0; block < block_count; block++)
-            {
-                if (sys_memory[block].mb_Base + sys_memory[block].mb_Size > top_of_ram)
-                {
-                    block_top = block;
-                    top_of_ram = sys_memory[block].mb_Base + sys_memory[block].mb_Size;
-                }
-            }
-
-            /* Decrease the size of memory block by 2MB */
-            sys_memory[block_top].mb_Size -= (1 << 21);
-            uintptr_t mmu_ploc = sys_memory[block_top].mb_Base + sys_memory[block_top].mb_Size;
-            
-            /* Update reg property */
-            for (int block=0; block < block_count; block++)
-            {
-                uintptr_t size = sys_memory[block].mb_Size;
-
-                for (int i=0; i < size_cells; i++)
-                {
-                    range[address_cells + size_cells - 1 - i] = BE32(size);
-                    size >>= 32;
-                }
-
-                range += block_size / 4;
-            }
-
-            /*
-                Perform add of the range address with 0xffffff9000000000, that way it will
-                be 1:1 mapped to VA in an uncached region
-            */
-            mmu_ploc += PHYS_VIRT_OFFSET;
-
-            /* Chain the new 512 4K pages in our page pool */
-            mmu_free_pages = (void *)mmu_ploc;
-            mmu_free_pages->mp_next = NULL;
-
-            for (int i=0; i < 511; i++)
-            {
-                struct mmu_page *last = mmu_free_pages;
-                mmu_free_pages = mmu_free_pages + 1;
-                mmu_free_pages->mp_next = last;
-            }
+            struct mmu_page *last = mmu_free_pages;
+            mmu_free_pages = mmu_free_pages + 1;
+            mmu_free_pages->mp_next = last;
         }
     }
 
@@ -136,15 +90,9 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
 
     DV2P(kprintf("virt2phys(%p)\n", addr));
 
-    if (addr & 0xffff000000000000) {
-        DV2P(kprintf("selecting kernel tables\n"));
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-    } else {
-        DV2P(kprintf("selecting user tables\n"));
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-    }
+    DV2P(kprintf("selecting user tables\n"));
+    asm volatile("mrs %0, TTBR0_EL2":"=r"(tbl));
+    tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
 
     DV2P(kprintf("L1 table: %p\n", tbl));
 
@@ -298,14 +246,14 @@ void mmu_init()
         sys_memory[block_count].mb_Size = 0;
     }
 
-    mmu_user_L1.mp_entries[0] = 0;
-    mmu_user_L1.mp_entries[1] = 0;
-    mmu_user_L1.mp_entries[2] = 0;
-    mmu_user_L1.mp_entries[3] = 0;
+    /* Remove mapping of bottom 4GB */
+    mmu_EL2_L1.mp_entries[0] = 0;
+    mmu_EL2_L1.mp_entries[1] = 0;
+    mmu_EL2_L1.mp_entries[2] = 0;
+    mmu_EL2_L1.mp_entries[3] = 0;
 
-    arm_flush_cache((intptr_t)&mmu_user_L1, sizeof(mmu_user_L1));
-    arm_flush_cache((intptr_t)&mmu_kernel_L1, sizeof(mmu_kernel_L1));
-    arm_flush_cache((intptr_t)&mmu_kernel_L2, sizeof(mmu_kernel_L2));
+    arm_flush_cache((intptr_t)&mmu_EL2_L1, sizeof(mmu_EL2_L1));
+    arm_flush_cache((intptr_t)&mmu_EL2_L2, sizeof(mmu_EL2_L2));
 
     asm volatile(
 "       dsb     ish                 \n"
@@ -317,6 +265,8 @@ void mmu_init()
 void mirror_page(uintptr_t virt)
 {
     int idx_l1 = (virt >> 30) & 0x1ff;
+
+    return;
 
     /* For 0..4GB create a shadow in the 4..8GB and -4..0GB areas */
     if (0 == (virt  & 0xffff000000000000))
@@ -343,13 +293,8 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     struct mmu_page *tbl;
     int idx_l2, idx_l1;
 
-    if (virt & 0xffff000000000000) {
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-    } else {
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-    }
+    asm volatile("mrs %0, TTBR0_EL2":"=r"(tbl));
+    tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
 
     DMAP(kprintf("put_2m_page(%p, %p, %03x, %03x)\n", phys, virt, attr_low, attr_high));
 
@@ -369,9 +314,6 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = 0;
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
-
-        /* Mirror the l2 if necessary */
-        mirror_page(virt);
     }
     else if ((tbl_2 & 3) == 1)
     {
@@ -383,9 +325,6 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = (tbl_2 & 0x7fc0000fff) + (i << 21);
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
-
-        /* Mirror the l2 if necessary */
-        mirror_page(virt);
     }
     else
     {
@@ -413,13 +352,8 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     struct mmu_page *tbl;
     int idx_l3, idx_l2, idx_l1;
 
-    if (virt & 0xffff000000000000) {
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-    } else {
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-        tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-    }
+    asm volatile("mrs %0, TTBR0_EL2":"=r"(tbl));
+    tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
 
     DMAP(kprintf("put_4k_page(%p, %p, %03x, %03x)\n", phys, virt, attr_low, attr_high));
 
@@ -440,9 +374,6 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = 0;
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
-
-        /* Mirror the l2 if necessary */
-        mirror_page(virt);
     }
     else if ((tbl_2 & 3) == 1)
     {
@@ -454,9 +385,6 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
             p->mp_entries[i] = (tbl_2 & 0x7fc0000fff) + (i << 21);
 
         tbl->mp_entries[idx_l1] = 3 | ((uintptr_t)p - PHYS_VIRT_OFFSET);
-
-        /* Mirror the l2 if necessary */
-        mirror_page(virt);
     }
     else
     {

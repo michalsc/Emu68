@@ -1,7 +1,7 @@
 
 SECTIONS
 {
-    . = 0xffffff8000080000;
+    . = 0x4000080000;
 
     __bootstrap_start = . ;
 
