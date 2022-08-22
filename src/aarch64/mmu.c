@@ -257,7 +257,7 @@ void mmu_init()
 
     asm volatile(
 "       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       tlbi    ALLE2IS             \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
 }
@@ -471,7 +471,7 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
 
         asm volatile(
 "       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
+"       tlbi    ALLE2IS             \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
 }
