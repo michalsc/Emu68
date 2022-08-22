@@ -1630,9 +1630,9 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     int handled = 0;
     uint64_t elr, spsr, esr, far;
-    asm volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
-    asm volatile("mrs %0, ESR_EL1":"=r"(esr));
-    asm volatile("mrs %0, FAR_EL1":"=r"(far));
+    asm volatile("mrs %0, ELR_EL2; mrs %1, SPSR_EL2":"=r"(elr),"=r"(spsr));
+    asm volatile("mrs %0, ESR_EL2":"=r"(esr));
+    asm volatile("mrs %0, FAR_EL2":"=r"(far));
 
     if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x90000000)
     {
