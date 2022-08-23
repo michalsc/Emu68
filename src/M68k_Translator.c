@@ -940,8 +940,9 @@ void M68K_InitializeCache()
     kprintf("[ICache] Setting up ICache\n");
 //    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
     temporary_arm_code = tlsf_malloc(jit_tlsf, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
-    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
+    __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+    kprintf("[ICache] JIT cache free: %d MiB\n", __m68k_state->JIT_CACHE_FREE >> 20);
     local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[ICache] ICache array at %p\n", ICache);
     for (int i=0; i < 65536; i++)
