@@ -1797,12 +1797,12 @@ void M68K_StartEmu(void *addr, void *fdt)
     uint32_t m68k_pc;
     uint64_t cnt1 = 0, cnt2 = 0;
 
-    M68K_InitializeCache();
-
     bzero(&__m68k, sizeof(__m68k));
     //bzero((void *)4, 1020);
 
     __m68k_state = &__m68k;
+
+    M68K_InitializeCache();
 
     //*(uint32_t*)4 = 0;
 
