@@ -85,6 +85,7 @@ asm("   .section .startup           \n"
 "       mov     x10, #3             \n" /* Enable CNTL access from EL1 and EL0 */
 "       msr     CNTHCTL_EL2, x10    \n"
 "       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
+"       orr     x10, x10, #1        \n" /* Enable 2-level MMU translation for EL1&0 */
 "       msr     HCR_EL2, x10        \n"
 
 /*
@@ -333,6 +334,7 @@ asm(
 "       mov     x10, #3             \n" /* Enable CNTL access from EL1 and EL0 */
 "       msr     CNTHCTL_EL2, x10    \n"
 "       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
+"       orr     x10, x10, #1        \n" /* Enable 2-level MMU translation for EL1&0 */
 "       msr     HCR_EL2, x10        \n"
 
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
