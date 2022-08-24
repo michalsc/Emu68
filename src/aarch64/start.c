@@ -86,6 +86,7 @@ asm("   .section .startup           \n"
 "       msr     CNTHCTL_EL2, x10    \n"
 "       mov     x10, #0x80000000    \n" /* EL1 is AArch64 */
 "       orr     x10, x10, #1        \n" /* Enable 2-level MMU translation for EL1&0 */
+"       orr     x10, x10, #(1 << 12)\n" /* Set DC bit to force level 2 translation */
 "       msr     HCR_EL2, x10        \n"
 
 /*
@@ -498,6 +499,11 @@ void boot(void *dtree)
     void *initramfs_loc = NULL;
     uintptr_t initramfs_size = 0;    
     boot_lock = 0;
+    struct 
+    {
+        uintptr_t base;
+        uintptr_t size;
+    } memblocks[10];
 
 #ifdef PISTORM
     int rom_copy = 0;
@@ -675,8 +681,11 @@ void boot(void *dtree)
 
     e = dt_find_node("/memory");
 
+    bzero(memblocks, sizeof(memblocks));
+
     if (e)
     {
+        int memblock_cnt = 0;
         of_property_t *p = dt_find_property(e, "reg");
         uint32_t *range = p->op_value;
         int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
@@ -751,6 +760,11 @@ void boot(void *dtree)
 
                 mmu_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
                         MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+                
+                memblocks[memblock_cnt].base = sys_memory[block].mb_Base;
+                memblocks[memblock_cnt].size = size;
+
+                memblock_cnt++;
 
                 if (sys_memory[block].mb_Base + size > top_of_ram)
                 {
@@ -829,7 +843,24 @@ void boot(void *dtree)
     }
 #endif
 
+    /* Set up VMMU and clone there the kernel */
+    vmm_prepare();
+    vmm_map(mmu_virt2phys(0x4000000000), 0x4000000000, KERNEL_SYS_PAGES << 21, 0x7fc, 0);
+    vmm_map(mmu_virt2phys(0x6000000000), 0x6000000000, KERNEL_JIT_PAGES << 21, 0x7fc, 0);
+    vmm_map(mmu_virt2phys(0x7000000000), 0x7000000000, KERNEL_JIT_PAGES << 21, 0x7fc, 0);
+
+    for (int i = 0; memblocks[i].size != 0; i++)
+    {
+        vmm_map(memblocks[i].base, memblocks[i].base, memblocks[i].size, 0x7fc, 0);
+    }
+
+    if (vid_base)
+    {
+        vmm_map(vid_base, vid_base, vid_memory * 1024*1024, 0x7e8, 0);
+    }
+
     asm volatile("msr VBAR_EL2, %0"::"r"((uintptr_t)&__vectors_start));
+    //asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
@@ -1229,7 +1260,22 @@ void boot(void *dtree)
     }
 #endif
 
-    M68K_StartEmu(0, NULL);
+    {
+        uintptr_t stack_el1 = (uintptr_t)tlsf_malloc(tlsf, 262144);
+
+        asm volatile("msr SP_EL1, %0"::"r"(stack_el1 + 262144));
+
+        kprintf("[BOOT] EL1 stack at %p\n", stack_el1 + 262144);
+    }
+
+
+    kprintf("[BOOT] Dropping down to EL1\n");
+
+    asm volatile(
+        "msr SPSR_EL2, %0; msr ELR_EL2, %1; mov x0,#0; mov x1, #0; eret"::"r"(0x3c5), "r"(M68K_StartEmu):"x0","x1"
+    );
+
+    //M68K_StartEmu(0, NULL);
 
 #endif
 
