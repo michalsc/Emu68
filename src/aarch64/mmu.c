@@ -31,10 +31,13 @@ struct mmu_page
 /* L1 table for bottom half. Filled from startup code */
 __attribute__((used, section(".mmu"))) struct mmu_page mmu_EL2_L1;
 
+/* L1 table for VMMU */
+__attribute__((used, section(".mmu"))) struct mmu_page vmm_EL2_L1;
+
 /* One additional directory to map the 1GB kernel address space in 2MB pages here */
 __attribute__((used, section(".mmu"))) struct mmu_page mmu_EL2_L2;
 
-static struct mmu_page *mmu_free_pages;
+static struct mmu_page *mmu_free_pages = NULL;
 
 static void *get_4k_page()
 {
@@ -43,15 +46,21 @@ static void *get_4k_page()
     /* Check if there is a free 4k page */
     if (!mmu_free_pages)
     {
-        uintptr_t mmu_ploc = mmu_virt2phys((uintptr_t)tlsf_malloc_aligned(tlsf, 64*4096, 4096));
+        void *ptr = tlsf_malloc_aligned(tlsf, 64*4096, 4096);
+
+        uintptr_t mmu_ploc = mmu_virt2phys((uintptr_t)ptr);
+
+        DMAP(kprintf("get_4k_page allocated block at %p, phys %p\n", ptr, mmu_ploc));
+
+        bzero(ptr, 64*4096);
 
         mmu_ploc += PHYS_VIRT_OFFSET;
 
-        /* Chain the new 512 4K pages in our page pool */
+        /* Chain the new 64 4K pages in our page pool */
         mmu_free_pages = (void *)mmu_ploc;
         mmu_free_pages->mp_next = NULL;
 
-        for (int i=0; i < 511; i++)
+        for (int i=0; i < 63; i++)
         {
             struct mmu_page *last = mmu_free_pages;
             mmu_free_pages = mmu_free_pages + 1;
@@ -68,6 +77,8 @@ static void *get_4k_page()
         /* Update pointer to free pages */
         mmu_free_pages = p->mp_next;
     }
+
+    DMAP(kprintf("get_4k_page returns %p\n", p));
 
     return p;
 }
@@ -206,6 +217,26 @@ void mmu_init()
                 }
             }
 
+            if (mmu_free_pages == NULL)
+            {
+                uintptr_t mmu_ploc = (addr + size - (512*4096)) + PHYS_VIRT_OFFSET;
+                size -= 512*4096;
+                update_needed = 1;
+
+                bzero((void*)mmu_ploc, 64*4096);
+
+                /* Chain the new 64 4K pages in our page pool */
+                mmu_free_pages = (void *)mmu_ploc;
+                mmu_free_pages->mp_next = NULL;
+
+                for (int i=0; i < 511; i++)
+                {
+                    struct mmu_page *last = mmu_free_pages;
+                    mmu_free_pages = mmu_free_pages + 1;
+                    mmu_free_pages->mp_next = last;
+                }
+            }
+
 #ifdef PISTORM
             // Adjust base and size of the memory block
             if (addr < 0x01000000) {
@@ -262,38 +293,27 @@ void mmu_init()
 "       isb                         \n");
 }
 
-void mirror_page(uintptr_t virt)
+void vmm_prepare()
 {
-    int idx_l1 = (virt >> 30) & 0x1ff;
+    uintptr_t vmm_EL2_L1_phys = mmu_virt2phys((uintptr_t)&vmm_EL2_L1);
+    
+    kprintf("[BOOT] Preparing hypervisor VMM tables at %p\n", vmm_EL2_L1_phys);
 
-    return;
+    arm_flush_cache((intptr_t)&vmm_EL2_L1, sizeof(vmm_EL2_L1));
 
-    /* For 0..4GB create a shadow in the 4..8GB and -4..0GB areas */
-    if (0 == (virt  & 0xffff000000000000))
-    {
-        if (idx_l1 < 4) {
-            struct mmu_page *tbl_kernel;
-            struct mmu_page *tbl;
+    /* Prepare VTCR_EL2 and VTTBR_EL2 */
+    asm volatile("msr VTTBR_EL2, %0"::"r"(vmm_EL2_L1_phys));
 
-            /* Update user space area */
-            asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
-            tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
-            tbl->mp_entries[idx_l1 + 4] = tbl->mp_entries[idx_l1];
-            
-            /* Now fetch kernel table and update the topmost region, too */
-            asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl_kernel));
-            tbl_kernel = (struct mmu_page *)((uintptr_t)tbl_kernel + PHYS_VIRT_OFFSET);
-            tbl_kernel->mp_entries[508 + idx_l1] = tbl->mp_entries[idx_l1];
-        }
-    }
+    // Inner and outer write back allocate, start table walk at level 1, 39bit address space
+    asm volatile("msr VTCR_EL2, %0"::"r"(0x80023f59));
 }
 
-void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
+void put_2m_page(void *root, uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
 {
-    struct mmu_page *tbl;
+    struct mmu_page *tbl = root;
     int idx_l2, idx_l1;
 
-    asm volatile("mrs %0, TTBR0_EL2":"=r"(tbl));
+    
     tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
 
     DMAP(kprintf("put_2m_page(%p, %p, %03x, %03x)\n", phys, virt, attr_low, attr_high));
@@ -347,12 +367,11 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     DMAP(kprintf("L2[%d] = %016x\n", idx_l2, p->mp_entries[idx_l2]));
 }
 
-void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
+void put_4k_page(void *root, uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
 {
-    struct mmu_page *tbl;
+    struct mmu_page *tbl = root;
     int idx_l3, idx_l2, idx_l1;
 
-    asm volatile("mrs %0, TTBR0_EL2":"=r"(tbl));
     tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
 
     DMAP(kprintf("put_4k_page(%p, %p, %03x, %03x)\n", phys, virt, attr_low, attr_high));
@@ -436,12 +455,15 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
 
 void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low, uint32_t attr_high)
 {
+    void *root;
+    asm volatile("mrs %0, TTBR0_EL2":"=r"(root));
+
     DMAP(kprintf("mmu_map(%p, %p, %x, %04x00000000%04x)\n", phys, virt, length, attr_high, attr_low));
 
     /* Align virt up to 2M boundary with 4K pages */
     while ((virt & 0x1fffff) && (length >= 4096))
     {
-        put_4k_page(phys, virt, attr_low, attr_high);
+        put_4k_page(root, phys, virt, attr_low, attr_high);
         phys += 4096;
         virt += 4096;
         length -= 4096;
@@ -453,7 +475,7 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
         /* Phys was aligned. Continue pushing 2M pages */
         while (length >= 2*1024*1024)
         {
-            put_2m_page(phys, virt, attr_low, attr_high);
+            put_2m_page(root, phys, virt, attr_low, attr_high);
             phys += 2*1024*1024;
             virt += 2*1024*1024;
             length -= 2*1024*1024;
@@ -463,7 +485,7 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
     /* Put the rest using 4K pages */
     while (length >= 4096)
     {
-        put_4k_page(phys, virt, attr_low, attr_high);
+        put_4k_page(root, phys, virt, attr_low, attr_high);
         phys += 4096;
         virt += 4096;
         length -= 4096;
@@ -475,6 +497,52 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
 "       dsb     sy                  \n"
 "       isb                         \n");
 }
+
+void vmm_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low, uint32_t attr_high)
+{
+    void *root;
+    asm volatile("mrs %0, VTTBR_EL2":"=r"(root));
+
+    (kprintf("[BOOT] vmm_map(%p, %p, %08x, %04x00000000%04x)\n", phys, virt, length, attr_high, attr_low));
+
+    /* Align virt up to 2M boundary with 4K pages */
+    while ((virt & 0x1fffff) && (length >= 4096))
+    {
+        put_4k_page(root, phys, virt, attr_low, attr_high);
+        phys += 4096;
+        virt += 4096;
+        length -= 4096;
+    }
+
+    /* Now check if phys is sill aligned to 2M boundary. If not, continue using 4K pages */
+    if ((phys & 0x1fffff) == 0)
+    {
+        /* Phys was aligned. Continue pushing 2M pages */
+        while (length >= 2*1024*1024)
+        {
+            put_2m_page(root, phys, virt, attr_low, attr_high);
+            phys += 2*1024*1024;
+            virt += 2*1024*1024;
+            length -= 2*1024*1024;
+        }
+    }
+
+    /* Put the rest using 4K pages */
+    while (length >= 4096)
+    {
+        put_4k_page(root, phys, virt, attr_low, attr_high);
+        phys += 4096;
+        virt += 4096;
+        length -= 4096;
+    }
+
+        asm volatile(
+"       dsb     ish                 \n"
+"       tlbi    ALLE2IS             \n" /* Flush tlb */
+"       dsb     sy                  \n"
+"       isb                         \n");
+}
+
 
 void mmu_unmap(uintptr_t virt, uintptr_t length)
 {
