@@ -14,6 +14,7 @@ static void map(struct ExpansionBoard *board)
 {
     kprintf("[BOARD] Mapping ZII RAM board at address %08x\n", board->map_base);
     mmu_map(board->map_base, board->map_base, board->rom_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+    vmm_map(board->map_base, board->map_base, board->rom_size, 0x7fc, 0);
 }
 
 #define PRODUCT_ID      0x10
