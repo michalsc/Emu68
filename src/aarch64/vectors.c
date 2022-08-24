@@ -1633,7 +1633,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
     asm volatile("mrs %0, ELR_EL2; mrs %1, SPSR_EL2":"=r"(elr),"=r"(spsr));
     asm volatile("mrs %0, ESR_EL2":"=r"(esr));
     asm volatile("mrs %0, FAR_EL2":"=r"(far));
-
+#if 0
     if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x90000000)
     {
         handled = SYSPageFaultHandler(vector, ctx, elr, spsr, esr, far);
@@ -1774,10 +1774,16 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             asm volatile("msr ELR_EL1, %0"::"r"(elr));
         }
     }
-
+#endif
     if (!handled)
     {
-        kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
+        kprintf("[JIT:SYS] Exception with vector %04x\n[JIT:SYS] ELR_EL2=%p, SPSR_EL2=%08x, ESR_EL2=%p, FAR_EL2=%p\n", vector, elr, spsr, esr, far);
+        uintptr_t elr_1, spsr_1, esr_1, far_1;
+        asm volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr_1),"=r"(spsr_1));
+        asm volatile("mrs %0, ESR_EL1":"=r"(esr_1));
+        asm volatile("mrs %0, FAR_EL1":"=r"(far_1));
+        kprintf("[JIT:SYS] ELR_EL1=%p, SPSR_EL1=%08x, ESR_EL1=%p, FAR_EL1=%p\n", elr_1, spsr_1, esr_1, far_1);
+
         kprintf("[JIT:SYS] Failed instruction: %08x\n", LE32(*(uint32_t*)elr));
 
         for (int i=0; i < 16; i++)
