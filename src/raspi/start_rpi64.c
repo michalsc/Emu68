@@ -45,6 +45,7 @@ const int modulo = 192;
 int purple = 0;
 int black = 0;
 
+
 void put_char(uint8_t c)
 {
     if (framebuffer && pitch)
@@ -279,6 +280,9 @@ void platform_init()
 
             mmu_map(addr_cpu, start_map << 21, addr_len, 
                 MMU_ACCESS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
+            
+            vmm_map(addr_cpu, start_map << 21, addr_len, 
+                0x7c0, 0);
 
             kprintf("bus: %08x, cpu: %08x, len: %08x\n", addr_bus, addr_cpu, addr_len);
 
@@ -317,6 +321,7 @@ void platform_post_init()
     {
         mmu_map((uintptr_t)base_vcmem, (uintptr_t)base_vcmem, size_vcmem,
                 MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+        vmm_map((uintptr_t)base_vcmem, (uintptr_t)base_vcmem, size_vcmem, 0x7e8, 0);
     }
 
     display_logo();
