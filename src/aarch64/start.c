@@ -760,6 +760,8 @@ void boot(void *dtree)
 
                 mmu_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
                         MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+                vmm_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
+                        0x7fc, 0);
                 
                 memblocks[memblock_cnt].base = sys_memory[block].mb_Base;
                 memblocks[memblock_cnt].size = size;
@@ -780,10 +782,16 @@ void boot(void *dtree)
             dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
 
             mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+            vmm_map(vid_base, vid_base, vid_memory * 1024*1024, 0x7e8, 0);
         }
 
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0x6000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0x7000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+
+        /* Kernel mapping */
+        vmm_map(kernel_new_loc, 0x4000000000, KERNEL_SYS_PAGES << 21, 0x7fc, 0);
+        vmm_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0x6000000000, KERNEL_JIT_PAGES << 21, 0x7fc, 0);
+        vmm_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0x7000000000, KERNEL_JIT_PAGES << 21, 0x77c, 0);
 
         jit_tlsf = tlsf_init_with_memory((void*)0x6000000000, KERNEL_JIT_PAGES << 21);
 
@@ -845,22 +853,9 @@ void boot(void *dtree)
 
     /* Set up VMMU and clone there the kernel */
     vmm_prepare();
-    vmm_map(mmu_virt2phys(0x4000000000), 0x4000000000, KERNEL_SYS_PAGES << 21, 0x7fc, 0);
-    vmm_map(mmu_virt2phys(0x6000000000), 0x6000000000, KERNEL_JIT_PAGES << 21, 0x7fc, 0);
-    vmm_map(mmu_virt2phys(0x7000000000), 0x7000000000, KERNEL_JIT_PAGES << 21, 0x7fc, 0);
-
-    for (int i = 0; memblocks[i].size != 0; i++)
-    {
-        vmm_map(memblocks[i].base, memblocks[i].base, memblocks[i].size, 0x7fc, 0);
-    }
-
-    if (vid_base)
-    {
-        vmm_map(vid_base, vid_base, vid_memory * 1024*1024, 0x7e8, 0);
-    }
 
     asm volatile("msr VBAR_EL2, %0"::"r"((uintptr_t)&__vectors_start));
-    //asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
@@ -1079,6 +1074,7 @@ void boot(void *dtree)
             *(uint32_t *)(0x5000f80000 + i) = ps_read_32(0xf80000 + i);
         }
         mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        vmm_map(0xf80000, 0xf80000, 524288, 0x77c, 0);
 
         /* For larger ROMs copy also 512K from 0xe00000 (1M) and 0xa80000, 0xb00000 (2M) */ 
         if (rom_copy == 1024)
@@ -1089,6 +1085,7 @@ void boot(void *dtree)
             }
 
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xe00000, 0xe00000, 524288, 0x77c, 0);
         }
         else if (rom_copy == 2048)
         {
@@ -1108,11 +1105,15 @@ void boot(void *dtree)
             mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xa80000, 0xa80000, 524288, 0x77c, 0);
+            vmm_map(0xb00000, 0xb00000, 524288, 0x77c, 0);
+            vmm_map(0xe00000, 0xe00000, 524288, 0x77c, 0);
         }
         else
         {
             /* For 512K or lower create shadow rom at 0xe00000 */
             mmu_map(0xf80000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xf80000, 0xe00000, 524288, 0x77c, 0);
         }
     }
     else if (initramfs_loc != NULL && initramfs_size != 0)
@@ -1121,11 +1122,13 @@ void boot(void *dtree)
 
         kprintf("[BOOT] Loading ROM from %p, size %d\n", initramfs_loc, initramfs_size);
         mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            
+        vmm_map(0xf80000, 0xf80000, 524288, 0x77c, 0);
+
         if (initramfs_size == 262144)
         {
             /* Make a shadow of 0xf80000 at 0xe00000 */
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xe00000, 0xe00000, 524288, 0x77c, 0);
             DuffCopy((void*)0x5000f80000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0x5000fc0000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0x5000e00000, (void*)0x5000f80000, 524288 / 4);
@@ -1134,6 +1137,7 @@ void boot(void *dtree)
         {
             /* Make a shadow of 0xf80000 at 0xe00000 */
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xe00000, 0xe00000, 524288, 0x77c, 0);
             DuffCopy((void*)0x5000e00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0x5000f80000, initramfs_loc, 524288 / 4);
         }
@@ -1141,6 +1145,8 @@ void boot(void *dtree)
         {
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xf00000, 0xf00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xe00000, 0xe00000, 524288, 0x77c, 0);
+            vmm_map(0xf00000, 0xf00000, 524288, 0x77c, 0);
             DuffCopy((void*)0x5000e00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0x5000f00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0x5000f80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
@@ -1149,6 +1155,9 @@ void boot(void *dtree)
             mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
             mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            vmm_map(0xa80000, 0xa80000, 524288, 0x77c, 0);
+            vmm_map(0xb00000, 0xb00000, 524288, 0x77c, 0);
+            vmm_map(0xe00000, 0xe00000, 524288, 0x77c, 0);
             DuffCopy((void*)0x5000e00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0x5000a80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
             DuffCopy((void*)0x5000b00000, (void*)((uintptr_t)initramfs_loc + 2*524288), 524288 / 4);
@@ -1377,7 +1386,7 @@ void M68K_SaveContext(struct M68KState *ctx)
 
 void M68K_PrintContext(struct M68KState *m68k)
 {
-    kprintf("[JIT] M68K Context:\n[JIT] ");
+    kprintf("[JIT] M68K Context @ %p:\n[JIT] ", m68k);
 
     for (int i=0; i < 8; i++) {
         if (i==4)
@@ -1897,6 +1906,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
     *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 #endif
+
     of_node_t *node = dt_find_node("/chosen");
     if (node)
     {
