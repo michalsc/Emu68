@@ -293,6 +293,17 @@ void mmu_init()
 "       isb                         \n");
 }
 
+struct {
+    uint64_t map_virt;
+    uint64_t map_phys;
+    uint64_t map_size;
+    uint32_t map_attr_high;
+    uint32_t map_attr_low;
+} vmm_map_cache[64];
+
+int vmm_map_pos;
+int vmm_up;
+
 void vmm_prepare()
 {
     uintptr_t vmm_EL2_L1_phys = mmu_virt2phys((uintptr_t)&vmm_EL2_L1);
@@ -306,6 +317,14 @@ void vmm_prepare()
 
     // Inner and outer write back allocate, start table walk at level 1, 39bit address space
     asm volatile("msr VTCR_EL2, %0"::"r"(0x80023f59));
+
+    vmm_up = 1;
+    
+    // Map any postponed MMU pages
+    for (int i=0; i < vmm_map_pos; i++)
+    {
+        vmm_map(vmm_map_cache[i].map_phys, vmm_map_cache[i].map_virt, vmm_map_cache[i].map_size, vmm_map_cache[i].map_attr_low, vmm_map_cache[i].map_attr_high);
+    }
 }
 
 void put_2m_page(void *root, uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t attr_high)
@@ -502,6 +521,24 @@ void vmm_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
 {
     void *root;
     asm volatile("mrs %0, VTTBR_EL2":"=r"(root));
+
+    if (vmm_up == 0)
+    {
+        if (vmm_map_pos == 64)
+        {
+            kprintf("[BOOT] VMM map cache exhausted!!!\n");
+            return;
+        }
+
+        vmm_map_cache[vmm_map_pos].map_virt = virt;
+        vmm_map_cache[vmm_map_pos].map_phys = phys;
+        vmm_map_cache[vmm_map_pos].map_size = length;
+        vmm_map_cache[vmm_map_pos].map_attr_low = attr_low;
+        vmm_map_cache[vmm_map_pos].map_attr_high = attr_high;
+
+        vmm_map_pos++;
+        return;
+    }
 
     (kprintf("[BOOT] vmm_map(%p, %p, %08x, %04x00000000%04x)\n", phys, virt, length, attr_high, attr_low));
 
