@@ -31,5 +31,7 @@ By default M68k MMU does not recognize between code and data in its MMU table, b
 
 As a consequence the MMU crawler (corresponding to ATC cache) has to update up to four aarch64 MMU tables.
 
+**NOTE**: DTT/ITT works even if MMU is disabled!
+
 
 
