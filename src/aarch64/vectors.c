@@ -497,16 +497,16 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
             switch (size)
             {
                 case 1:
-                    *value = *(uint8_t*)(0xffffff9000e00000 + far);
+                    *value = *(uint8_t*)(0x5000e00000 + far);
                     break;
                 case 2:
-                    *value = *(uint16_t*)(0xffffff9000e00000 + far);
+                    *value = *(uint16_t*)(0x5000e00000 + far);
                     break;
                 case 4:
-                    *value = *(uint32_t*)(0xffffff9000e00000 + far);
+                    *value = *(uint32_t*)(0x5000e00000 + far);
                     break;
                 case 8:
-                    *value = *(uint64_t*)(0xffffff9000e00000 + far);
+                    *value = *(uint64_t*)(0x5000e00000 + far);
                     break;
             }
 
@@ -609,16 +609,16 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
     switch(size)
     {
         case 1:
-            *(uint8_t*)(far + 0xffffff9000000000) = value;
+            *(uint8_t*)(far + 0x5000000000) = value;
             break;
         case 2:
-            *(uint16_t*)(far + 0xffffff9000000000) = value;
+            *(uint16_t*)(far + 0x5000000000) = value;
             break;
         case 4:
-            *(uint32_t*)(far + 0xffffff9000000000) = value;
+            *(uint32_t*)(far + 0x5000000000) = value;
             break;
         case 8:
-            *(uint64_t*)(far + 0xffffff9000000000) = value;
+            *(uint64_t*)(far + 0x5000000000) = value;
             break;
     }
 
@@ -632,16 +632,16 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     switch(size)
     {
         case 1:
-            *value = *(uint8_t*)(far + 0xffffff9000000000);
+            *value = *(uint8_t*)(far + 0x5000000000);
             break;
         case 2:
-            *value = *(uint16_t*)(far + 0xffffff9000000000);
+            *value = *(uint16_t*)(far + 0x5000000000);
             break;
         case 4:
-            *value = *(uint32_t*)(far + 0xffffff9000000000);
+            *value = *(uint32_t*)(far + 0x5000000000);
             break;
         case 8:
-            *value = *(uint64_t*)(far + 0xffffff9000000000);
+            *value = *(uint64_t*)(far + 0x5000000000);
             break;
     }
 
@@ -1005,7 +1005,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
     size = getOPsize(opcode);
 
-    D(kprintf("[JIT:SYS] Fage fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far));
+    (kprintf("[JIT:SYS] Fage fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far));
 
     if (writeFault)
     {
@@ -1618,7 +1618,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
     }
 
     elr += 4;
-    asm volatile("msr ELR_EL1, %0"::"r"(elr));
+    asm volatile("msr ELR_EL2, %0"::"r"(elr));
 
     return handled;
 }
@@ -1633,11 +1633,12 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
     asm volatile("mrs %0, ELR_EL2; mrs %1, SPSR_EL2":"=r"(elr),"=r"(spsr));
     asm volatile("mrs %0, ESR_EL2":"=r"(esr));
     asm volatile("mrs %0, FAR_EL2":"=r"(far));
-#if 0
-    if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x90000000)
+
+    if ((vector & 0x7ff) == 0x400 && (esr & 0xf8000000) == 0x90000000)
     {
         handled = SYSPageFaultHandler(vector, ctx, elr, spsr, esr, far);
     }
+#if 0
     else if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x80000000)
     {
         if ((far >> 56) == 0xaa)
