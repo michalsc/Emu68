@@ -677,7 +677,7 @@ void wb_task()
         }
 #endif
 #if CHIPSET_DELAY
-        if (req.wr_addr >= 0xde0000 && req.wr_addr <= 0xdfffff) {
+        if (req.wr_addr >= 0xa00000) {
             ticksleep(CHIPSET_DELAY);
         }
 #endif
@@ -693,7 +693,7 @@ void wb_task()
 void ps_write_8(unsigned int address, unsigned int data)
 {
 #if PISTORM_WRITE_BUFFER
-    if (address < 0xa00000 || (address >= 0x00C00000 && address <= 0x00D7FFFF))
+    if (address < 0xa00000)
     {
         wb_push(address, data, 1);
     }
@@ -709,7 +709,7 @@ void ps_write_8(unsigned int address, unsigned int data)
     }
 #endif
 #if CHIPSET_DELAY
-    if (address >= 0xde0000 && address <= 0xdfffff) {
+    if (address >= 0xa00000) {
         ticksleep(CHIPSET_DELAY);
     }
 #endif
@@ -719,7 +719,7 @@ void ps_write_8(unsigned int address, unsigned int data)
 void ps_write_16(unsigned int address, unsigned int data)
 {
 #if PISTORM_WRITE_BUFFER
-    if (address < 0xa00000 || (address >= 0x00C00000 && address <= 0x00D7FFFF))
+    if (address < 0xa00000)
     {
         wb_push(address, data, 2);
     }
@@ -735,7 +735,7 @@ void ps_write_16(unsigned int address, unsigned int data)
     }
 #endif
 #if CHIPSET_DELAY
-    if (address >= 0xde0000 && address <= 0xdfffff) {
+    if (address >= 0xa00000) {
         ticksleep(CHIPSET_DELAY);
     }
 #endif
@@ -745,7 +745,7 @@ void ps_write_16(unsigned int address, unsigned int data)
 void ps_write_32(unsigned int address, unsigned int data)
 {
 #if PISTORM_WRITE_BUFFER
-    if (address < 0xa00000 || (address >= 0x00C00000 && address <= 0x00D7FFFF))
+    if (address < 0xa00000)
     {
         wb_push(address, data, 4);
     }
@@ -761,7 +761,7 @@ void ps_write_32(unsigned int address, unsigned int data)
     }
 #endif
 #if CHIPSET_DELAY
-    if (address >= 0xde0000 && address <= 0xdfffff) {
+    if (address >= 0xa00000) {
         ticksleep(CHIPSET_DELAY);
     }
 #endif
@@ -778,7 +778,7 @@ unsigned int ps_read_8(unsigned int address)
     }
 #endif
 #if CHIPSET_DELAY
-    if (address >= 0xde0000 && address <= 0xdfffff) {
+    if (address >= 0xa00000) {
         ticksleep(CHIPSET_DELAY);
     }
 #endif
@@ -794,7 +794,7 @@ unsigned int ps_read_16(unsigned int address)
     }
 #endif
 #if CHIPSET_DELAY
-    if (address >= 0xde0000 && address <= 0xdfffff) {
+    if (address >= 0xa00000) {
         ticksleep(CHIPSET_DELAY);
     }
 #endif
@@ -810,7 +810,7 @@ unsigned int ps_read_32(unsigned int address)
     }
 #endif
 #if CHIPSET_DELAY
-    if (address >= 0xde0000 && address <= 0xdfffff) {
+    if (address >= 0xa00000) {
         ticksleep(CHIPSET_DELAY);
     }
 #endif
