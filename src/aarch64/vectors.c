@@ -319,6 +319,8 @@ enum
     INTREQR = 0xDFF01E,
 };
 
+int block_c0;
+
 int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
@@ -432,6 +434,11 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         }
     }
 
+    if ((far >= 0xc00000 && far <= 0xc7ffff) && block_c0)
+    {
+        return 1;
+    }
+
     switch(size)
     {
         case 1:
@@ -464,6 +471,13 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
     */
     if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
         far &= 0xffffffff;
+    }
+
+
+    if ((far >= 0xc00000 && far <= 0xc7ffff) && block_c0)
+    {
+        *value = 0;
+        return 1;
     }
 
 #if 0
