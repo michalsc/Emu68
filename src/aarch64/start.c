@@ -855,7 +855,6 @@ void boot(void *dtree)
     vmm_prepare();
 
     asm volatile("msr VBAR_EL2, %0"::"r"((uintptr_t)&__vectors_start));
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
@@ -1388,16 +1387,20 @@ void M68K_PrintContext(struct M68KState *m68k)
 {
     kprintf("[JIT] M68K Context @ %p:\n[JIT] ", m68k);
 
-    for (int i=0; i < 8; i++) {
-        if (i==4)
-            kprintf("\n[JIT] ");
+    for (int i=0; i < 4; i++) {
+        kprintf("    D%d = 0x%08x", i, BE32(m68k->D[i].u32));
+    }
+    kprintf("\n[JIT] ");
+    for (int i=4; i < 8; i++) {
         kprintf("    D%d = 0x%08x", i, BE32(m68k->D[i].u32));
     }
     kprintf("\n[JIT] ");
 
-    for (int i=0; i < 8; i++) {
-        if (i==4)
-            kprintf("\n[JIT] ");
+    for (int i=0; i < 4; i++) {
+        kprintf("    A%d = 0x%08x", i, BE32(m68k->A[i].u32));
+    }
+    kprintf("\n[JIT] ");
+    for (int i=4; i < 8; i++) {
         kprintf("    A%d = 0x%08x", i, BE32(m68k->A[i].u32));
     }
     kprintf("\n[JIT] ");
@@ -1529,6 +1532,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       stp     x19, x20, [sp, #5*16]       \n"
 "       mov     v28.d[0], xzr               \n"
 "       bl      M68K_LoadContext            \n"
+"       b       1f                          \n"
 "       .align 6                            \n"
 "1:                                         \n"
 /*
@@ -1953,18 +1957,20 @@ void M68K_StartEmu(void *addr, void *fdt)
     }
 
     kprintf("[JIT]\n");
-    M68K_PrintContext(&__m68k);
+    M68K_PrintContext(__m68k_state);
 
     kprintf("[JIT] Let it go...\n");
 
 
     clear_entire_dcache();
 
+#if 0 // This is not needed, MMU is not enabled yet!!!
 asm volatile(
 "       dsb     ish                 \n"
-"       tlbi    ALLE2IS             \n" /* Flush tlb */
+"       tlbi    ALLE1IS             \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
+#endif
 
 #ifdef PISTORM
     extern volatile int housekeeper_enabled;
