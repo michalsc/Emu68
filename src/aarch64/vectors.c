@@ -1005,7 +1005,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
     size = getOPsize(opcode);
 
-    (kprintf("[JIT:SYS] Fage fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far));
+    D(kprintf("[JIT:SYS] Fage fault: opcode %08x at %p, %s %p (size %d). SPSR=%08x\n", opcode, elr, writeFault ? "write to" : "read from", far, size, spsr));
 
     if (writeFault)
     {
