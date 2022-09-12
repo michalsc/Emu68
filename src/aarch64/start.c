@@ -1200,6 +1200,30 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
+    /* Check if user requested to add some slow ram */
+    of_node_t *node = dt_find_node("/chosen");
+    if (node)
+    {
+        of_property_t * prop = dt_find_property(node, "bootargs");
+        if (prop)
+        {
+            if (strstr(prop->op_value, "enable_c0_slow"))
+            {
+                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+                vmm_map(0xC00000, 0xC00000, 524288, 0x7fc, 0);
+            }
+            if (strstr(prop->op_value, "enable_c8_slow"))
+            {
+                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+                vmm_map(0xC80000, 0xC80000, 524288, 0x7fc, 0);
+            }
+            if (strstr(prop->op_value, "enable_d0_slow"))
+            {
+                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+                vmm_map(0xd00000, 0xd00000, 524288, 0x7fc, 0);
+            }
+        }
+    }
 
     if (0)
     {
@@ -1919,12 +1943,6 @@ void M68K_StartEmu(void *addr, void *fdt)
         {
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
-            if (strstr(prop->op_value, "enable_c0_slow"))
-                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
-            if (strstr(prop->op_value, "enable_c8_slow"))
-                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
-            if (strstr(prop->op_value, "enable_d0_slow"))
-                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
 
             extern int disasm;
             extern int debug;
