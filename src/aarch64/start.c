@@ -1650,7 +1650,19 @@ void  __attribute__((used)) stub_ExecutionLoop()
 ".lock_acquired:                            \n"
 #endif
 "       mov     x2, #0xf2200000             \n" // GPIO base address
-
+#ifdef PISTORM32
+"       mov     w1, #8                      \n"
+"       mov     w3, #0x10000000             \n"
+"       str     w1, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+"       str     w3, [x2, #28]               \n"
+"       ldr     w3, [x2, 4*13]              \n"
+"       mov     w1, #0xff0f                 \n"
+"       movk    w1, #0xf3ff, lsl #16        \n"
+"       str     w1, [x2, 4*10]              \n"
+#else
 "       mov     w1, #0x0c000000             \n"
 "       mov     w3, #0x40000000             \n"
 
@@ -1665,11 +1677,21 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     w1, #0xff00                 \n"
 "       movk    w1, #0xecff, lsl #16        \n"
 "       str     w1, [x2, 4*10]              \n"
+#endif
 #if PISTORM_WRITE_BUFFER
 "       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
 #endif
+#ifdef PISTORM32
+"       rev     w1, w3                      \n"
+"       lsr     w3, w1, #9                  \n"
+"       ubfx    x1, x1, #8, #9              \n"
+"       and     w3, w3, #0xfe00             \n"
+"       orr     w1, w3, w1                  \n"
+"       ubfx    x1, x1, #8, #3              \n"
+#else
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
+#endif
 
 // We have w10 with ARM IPL here and w1 with m68k IPL, select higher, in case of ARM clear pending bit
 "998:   cmp     w1, w10                     \n" 

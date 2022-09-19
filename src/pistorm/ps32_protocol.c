@@ -368,6 +368,11 @@ unsigned int ps_read_status_reg()
     return pi_read(REG_STATUS);
 }
 
+unsigned int ps_read_ipl()
+{
+    return (pi_read(REG_STATUS) >> 8) & 7;
+}
+
 void ps_set_status_bits(unsigned int value)
 {
     set_output();
