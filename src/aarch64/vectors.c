@@ -288,7 +288,7 @@ static int getOPsize(uint32_t opcode)
 #undef D
 #define D(x) /* x */
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 
 #include "ps_protocol.h"
 

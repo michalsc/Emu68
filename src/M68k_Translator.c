@@ -600,7 +600,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     if (inner_loop)
     {
         uint8_t ctx = RA_GetCTX(&end);
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
         //*end++ = mov_immed_u16(tmp2, 0xf220, 1);
         //*end++ = ldr_offset(tmp2, tmp2, 0x34);;
 #endif
@@ -636,7 +636,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     if (inner_loop)
     {
         uint32_t *tmpptr = end;
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
         *end++ = cbz(tmp2, arm_code - tmpptr);
         //*end++ = tbnz(tmp2, 25, arm_code - tmpptr);
 #else

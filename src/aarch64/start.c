@@ -301,7 +301,7 @@ int enable_cache = 0;
 int limit_2g = 0;
 extern const char _verstring_object[];
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 #include "ps_protocol.h"
 #endif
 
@@ -431,7 +431,7 @@ void secondary_boot(void)
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
     if (cpu_id == 1)
     {
         if (async_log)
@@ -508,7 +508,7 @@ void boot(void *dtree)
     uintptr_t initramfs_size = 0;    
     boot_lock = 0;
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
     int rom_copy = 0;
     int buptest = 0;
     int bupiter = 5;
@@ -534,7 +534,7 @@ void boot(void *dtree)
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
             const char *tok;
 #endif
 
@@ -542,7 +542,7 @@ void boot(void *dtree)
                 enable_cache = 1;
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
             if ((tok = find_token(prop->op_value, "buptest=")))
             {
                 uint32_t bup = 0;
@@ -921,7 +921,7 @@ void boot(void *dtree)
         InitFunctions++;
     }
 
-#ifndef PISTORM
+#if !defined(PISTORM) && !defined(PISTORM32)
     if (initramfs_loc != NULL && initramfs_size != 0)
     {
         void *image_start, *image_end;
@@ -1214,12 +1214,14 @@ void boot(void *dtree)
     wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
-    amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
-    amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
+//    amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
+//    amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
 
     //dt_dump_tree();
 
-#ifdef PISTORM
+    kprintf("Status reg: %08x\n", ps_read_status_reg());
+
+#if defined(PISTORM) || defined(PISTORM32)
     if (buptest)
     {
         ps_buptest(buptest, bupiter);
@@ -1455,7 +1457,7 @@ void  __attribute__((used)) stub_FindUnit()
 ::[reg_pc]"i"(REG_PC));
 }
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 extern volatile unsigned char bus_lock;
 #endif
 
@@ -1478,7 +1480,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     v0.d[0], x0                 \n"
 "       sub     v28.2d, v28.2d, v0.2d       \n"
 */
-#ifndef PISTORM
+#if !defined(PISTORM) && !defined(PISTORM32)
 "       cbz     w%[reg_pc], 4f              \n"
 #endif
 "       mrs     x0, TPIDRRO_EL0             \n"
@@ -1623,7 +1625,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       ldp     x29, x30, [sp], #128        \n"
 "       ret                                 \n"
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 "9:                                         \n"
 "       ldrb    w10, [x0, #%[err]]          \n" // If INT.ARM_err is set then it is serror, map it to NMI
 "       cbz     w10, 991f                   \n"
@@ -1809,7 +1811,7 @@ void M68K_StartEmu(void *addr, void *fdt)
         __m68k.FP[fp].u64 = 0x7fffffffffffffffULL;
     }
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
     (void)fdt;
     
     asm volatile("mov %0, #0":"=r"(addr));
@@ -1876,7 +1878,7 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "disassemble"))
                 disasm = 1;
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
             extern uint32_t swap_df0_with_dfx;
             extern uint32_t move_slow_to_chip;
 
@@ -1907,7 +1909,7 @@ asm volatile(
 "       dsb     sy                  \n"
 "       isb                         \n");
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
     extern volatile int housekeeper_enabled;
     housekeeper_enabled = 1;
 #endif

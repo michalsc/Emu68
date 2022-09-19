@@ -15,7 +15,7 @@
 #include "mmu.h"
 #include "tlsf.h"
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 #include "ps_protocol.h"
 #endif
 
@@ -58,7 +58,7 @@ static int serial_up = 0;
 
 #define ARM_PERIIOBASE ((intptr_t)io_base)
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 
 uint8_t *q_buffer;
 volatile uint64_t q_head;
@@ -449,7 +449,7 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 #define GPPUD                                           (GPIO_BASE + 0x94)
 #define GPPUDCLK0                                       (GPIO_BASE + 0x98)
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 
 void setup_serial()
 {

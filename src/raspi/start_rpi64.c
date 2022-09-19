@@ -237,7 +237,7 @@ void display_logo()
 
 uintptr_t top_of_ram;
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
 #include "ps_protocol.h"
 
 extern int block_c0;
@@ -292,7 +292,7 @@ void platform_init()
             ranges += addr_bus_len + addr_cpu_len + size_bus_len;
         }
     }
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
     ps_setup_protocol();
     ps_reset_state_machine();
     ps_pulse_reset();
@@ -323,12 +323,12 @@ void platform_post_init()
 
     display_logo();
 
-#ifdef PISTORM
+#if defined(PISTORM) || defined(PISTORM32)
     kprintf("[BOOT] sending RESET signal to Amiga\n");
     ps_pulse_reset();
 
     block_c0 = 0;
-
+//#ifndef PISTORM32
     ps_write_8(0xde1000, 0);
     if (ps_read_8(0xde1000) & 0x80)
     {
@@ -344,6 +344,7 @@ void platform_post_init()
             }
         }
     }
+//#endif
 #endif
 
     //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);
