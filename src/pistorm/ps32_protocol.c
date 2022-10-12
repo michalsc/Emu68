@@ -86,7 +86,7 @@ static inline void ticksleep_wfe(uint64_t ticks)
 #undef REG_ADDR_LO
 #undef REG_ADDR_HI
 #undef REG_STATUS
-#
+
 #define IN      0
 #define OUT     1
 #define AF0     4
@@ -103,9 +103,8 @@ static inline void ticksleep_wfe(uint64_t ticks)
 
 #define SER_OUT_BIT             2
 #define SER_OUT_CLK             3
-
-#define PIN_TXN_IN_PROGRESS     0
 #define PIN_IPL_ZERO            1
+
 #define PIN_RD                  4
 #define PIN_WR                  7
 #define PIN_D(x)                ((x) < 9 ? (8 + (x)) : (9 + (x)))
@@ -122,22 +121,39 @@ static inline void ticksleep_wfe(uint64_t ticks)
 #define GPFSEL1_OUTPUT (GO(PIN_D(10)) | GO(PIN_D(9)) | GO(PIN_D(8)) | GO(PIN_D(7)) | GO(PIN_D(6)) | GO(PIN_D(5)) | GO(PIN_D(4)) | GO(PIN_D(3)) | GO(PIN_D(2)))
 #define GPFSEL2_OUTPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(PIN_D(11)))
 
+// REG_STATUS
+#define STATUS_IS_BM        (1 << 0)
+#define STATUS_RESET        (1 << 1)
+#define STATUS_HALT         (1 << 2)
+#define STATUS_IPL_MASK     (7 << 3)
+#define STATUS_IPL_SHIFT    3
+#define STATUS_TERM_NORMAL  (1 << 6)
+#define STATUS_REQ_ACTIVE   (1 << 7)
+
+// REG_CONTROL
+#define CONTROL_REQ_BM      (1 << 0)
+#define CONTROL_DRIVE_RESET (1 << 1)
+#define CONTROL_DRIVE_HALT  (1 << 2)
+#define CONTROL_DRIVE_INT2  (1 << 3)
+#define CONTROL_DRIVE_INT6  (1 << 4)
+
 #define REG_DATA_LO     0
 #define REG_DATA_HI     1
 #define REG_ADDR_LO     2
 #define REG_ADDR_HI     3
 #define REG_STATUS      4
+#define REG_CONTROL     4
 
 #define TXN_SIZE_SHIFT  8
 #define TXN_RW_SHIFT    10
+#define TXN_FC_SHIFT    11
 
-#define SIZE_BYTE       1
-#define SIZE_WORD       2
-#define SIZE_LONG       4
+#define SIZE_BYTE       0
+#define SIZE_WORD       1
+#define SIZE_LONG       3
 
 #define TXN_READ        (1 << TXN_RW_SHIFT)
 #define TXN_WRITE       (0 << TXN_RW_SHIFT)
-
 
 
 void bitbang_putByte(uint8_t byte)
@@ -205,18 +221,12 @@ void fastSerial_putByte(uint8_t byte)
     /* Start bit */
     *(gpio + 10) = LE32(1 << SER_OUT_BIT);
     *(gpio + 10) = LE32(1 << SER_OUT_BIT);
-    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
-    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
     /* Clock down */
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
 
     /* Clock up */
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
@@ -224,12 +234,8 @@ void fastSerial_putByte(uint8_t byte)
         if (byte & 1) {
             *(gpio + 7) = LE32(1 << SER_OUT_BIT);
             *(gpio + 7) = LE32(1 << SER_OUT_BIT);
-            *(gpio + 7) = LE32(1 << SER_OUT_BIT);
-            *(gpio + 7) = LE32(1 << SER_OUT_BIT);
         }
         else {
-            *(gpio + 10) = LE32(1 << SER_OUT_BIT);
-            *(gpio + 10) = LE32(1 << SER_OUT_BIT);
             *(gpio + 10) = LE32(1 << SER_OUT_BIT);
             *(gpio + 10) = LE32(1 << SER_OUT_BIT);
         }
@@ -237,12 +243,8 @@ void fastSerial_putByte(uint8_t byte)
         /* Clock down */
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
-        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
-        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
 
         /* Clock up */
-        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         
@@ -252,12 +254,8 @@ void fastSerial_putByte(uint8_t byte)
     /* DEST bit (0) */
     *(gpio + 10) = LE32(1 << SER_OUT_BIT);
     *(gpio + 10) = LE32(1 << SER_OUT_BIT);
-    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
-    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
     /* Clock down */
-    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
@@ -266,16 +264,8 @@ void fastSerial_putByte(uint8_t byte)
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
     /* Leave FS_CLK and FS_DO high */
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 7) = LE32(1 << SER_OUT_BIT);
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 7) = LE32(1 << SER_OUT_BIT);
-    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
-    *(gpio + 7) = LE32(1 << SER_OUT_BIT);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_BIT);
 }
@@ -334,308 +324,199 @@ unsigned int ps_get_ipl_zero()
     return value & LE32(1 << PIN_IPL_ZERO);
 }
 
-static void pi_write(unsigned int address, unsigned int data)
-{
-    *(gpio + 7) = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
+static void write_ps_reg(unsigned int address, unsigned int data) {
+  *(gpio + 7) = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
+  *(gpio + 7) = LE32(1 << PIN_WR);
+  *(gpio + 7) = LE32(1 << PIN_WR);
+  *(gpio + 7) = LE32(1 << PIN_WR);
 
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 7) = LE32(1 << PIN_WR);
-
-    *(gpio + 10) = LE32(0x0fffffff & ~((1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)));
+  *(gpio + 10) = LE32(0x0fffffff & ~((1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)));
 }
 
-static unsigned int pi_read(unsigned int address)
+static unsigned int read_ps_reg(unsigned int address) {
+  *(gpio + 7) = LE32((address << PIN_A(0)) | (1 << PIN_RD));
+
+  unsigned int data = LE32(*(gpio + 13));
+
+  *(gpio + 10) = LE32(0x0fffffff & ~((1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)));
+
+  data = MERGE_DATA(data >> PIN_D(0)) & 0xffff;
+  return data;
+}
+
+unsigned int get_status()
 {
-    *(gpio + 7) = LE32((address << PIN_A(0)));
+    return read_ps_reg(REG_STATUS);
+}
 
-    *(gpio + 7) = LE32(1 << PIN_RD);
-    *(gpio + 7) = LE32(1 << PIN_RD);
-    *(gpio + 7) = LE32(1 << PIN_RD);
-    *(gpio + 7) = LE32(1 << PIN_RD);
+unsigned int get_ipl()
+{
+    return (read_ps_reg(REG_STATUS) >> STATUS_IPL_SHIFT) & 7;
+}
 
-    unsigned int data = LE32(*(gpio + 13));
+void ps_set_control(unsigned int value) {
+  set_output();
+  write_ps_reg(REG_CONTROL, 0x8000 | (value & 0x7fff));
+  set_input();
+}
 
-    *(gpio + 10) = LE32(0x0fffffff & ~((1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)));
+void ps_clr_control(unsigned int value) {
+  set_output();
+  write_ps_reg(REG_CONTROL, value & 0x7fff);
+  set_input();
+}
 
+unsigned int ps_read_status() {
+  return read_ps_reg(REG_STATUS);
+}
+
+static unsigned int g_fc = 0;
+
+void cpu_set_fc(unsigned int fc) {
+  g_fc = fc;
+}
+
+static void do_write_access(unsigned int address, unsigned int data, unsigned int size) {
+  //kprintf("[PS32] Starting write, address=%08x, data=%08x, size=%d\n", address, data, size);
+
+  set_output();
+
+  write_ps_reg(REG_DATA_LO, data & 0xffff);
+  if (size == SIZE_LONG)
+    write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+  write_ps_reg(REG_ADDR_LO, address & 0xffff);
+  write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+  set_input();
+
+  *(gpio + 7) = LE32((REG_STATUS << PIN_A(0)) | (1 << PIN_RD));
+
+  while (1) {
+    data = LE32(*(gpio + 13));
     data = MERGE_DATA(data >> PIN_D(0)) & 0xffff;
-    return data;
+    if (!(data & STATUS_REQ_ACTIVE))
+      break;
+  }
+
+  *(gpio + 10) = LE32(0x0fffffff & ~((1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)));
+
+  // TODO: Add proper handling of unnormal termination.
+  if (!(data & STATUS_TERM_NORMAL)) {
+    // Should look at status bits to see if RESET/HALT are asserted.
+    // Could also read address to see which bus cycle failed.
+    kprintf("[PS32] Write access did not terminate normally, status = %04x\n", data);
+    while(1) asm volatile("wfi");
+  }
+
+  // TODO: Should look at IPL at this point,
+  // and if it has changed then should handle it right away.
+
+  //kprintf("[PS32] Write completed\n");
 }
 
-unsigned int ps_read_status_reg()
-{
-    return pi_read(REG_STATUS);
+static int do_read_access(unsigned int address, unsigned int size) {
+  //kprintf("[PS32] Starting read, address=%08x, size=%d\n", address, size);
+
+    if (address & 0xff000000) {
+        return 0xffffffff;
+    }
+    if ((address & 0x00ff0000) == 0x00f00000) {
+        return 0xffffffff;
+    }
+        
+
+  if (address == 0xf00000)
+    usleep(1000);
+
+  set_output();
+
+  write_ps_reg(REG_ADDR_LO, address & 0xffff);
+  write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+  set_input();
+
+  *(gpio + 7) = LE32((REG_STATUS << PIN_A(0)) | (1 << PIN_RD));
+
+  unsigned int data;
+
+  while (1) {
+    data = LE32(*(gpio + 13));
+    data = MERGE_DATA(data >> PIN_D(0)) & 0xffff;
+    if (!(data & STATUS_REQ_ACTIVE))
+      break;
+  }
+
+  *(gpio + 10) = LE32(0x0fffffff & ~((1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)));
+
+  // TODO: Add proper handling of unnormal termination.
+  if (!(data & STATUS_TERM_NORMAL)) {
+    kprintf("[PS32] Read access did not terminate normally, status = %04x\n", data);
+    while(1) asm volatile("wfi");
+  }
+
+  // TODO: Should look at IPL at this point,
+  // and if it has changed then should handle it right away.
+
+  data = read_ps_reg(REG_DATA_LO);
+  if (size == SIZE_BYTE)
+    data &= 0xff;
+  else if (size == SIZE_LONG)
+    data |= read_ps_reg(REG_DATA_HI) << 16;
+
+  //kprintf("[PS32] Read completed with data=%08x\n", data);
+  return data;
 }
 
-unsigned int ps_read_ipl()
-{
-    return (pi_read(REG_STATUS) >> 8) & 7;
+
+void ps_write_8(unsigned int address, unsigned int data) {
+  do_write_access(address, data, SIZE_BYTE);
 }
 
-void ps_set_status_bits(unsigned int value)
-{
-    set_output();
-    pi_write(REG_STATUS, 0x8000 | (value & 0x7fff));
-    set_input();
+void ps_write_16(unsigned int address, unsigned int data) {
+  do_write_access(address, data, SIZE_WORD);
 }
 
-void ps_clr_status_bits(unsigned int value)
-{
-    set_output();
-    pi_write(REG_STATUS, value & 0x7fff);
-    set_input();
+void ps_write_32(unsigned int address, unsigned int data) {
+  do_write_access(address, data, SIZE_LONG);
 }
+
+unsigned int ps_read_8(unsigned int address) {
+  return do_read_access(address, SIZE_BYTE);
+}
+
+unsigned int ps_read_16(unsigned int address) {
+  return do_read_access(address, SIZE_WORD);
+}
+
+unsigned int ps_read_32(unsigned int address) {
+  return do_read_access(address, SIZE_LONG);
+}
+
+
+
+#include <boards.h>
+extern struct ExpansionBoard **board;
+extern struct ExpansionBoard *__boards_start;
+extern int board_idx;
+extern uint32_t overlay;
 
 void ps_pulse_reset()
 {
-    kprintf("[PS32] Set REQUEST_BM\n");
-    ps_set_status_bits(1 << 0); // Detta är STATUS_REQUEST_BM egentligen
-    usleep(100000);
+  kprintf("[PS32] Set REQUEST_BM\n");
+  ps_set_control(CONTROL_REQ_BM);
+  usleep(100000);
 
-    kprintf("[PS32] Set RESET\n");
-    ps_set_status_bits(1 << 1);
-    usleep(100000);
+  kprintf("[PS32] Set DRIVE_RESET\n");
+  ps_set_control(CONTROL_DRIVE_RESET);
+  usleep(100000);
 
-    kprintf("[PS32] Clear RESET\n");
-    ps_clr_status_bits(1 << 1);
-}
+  kprintf("[PS32] Clear DRIVE_RESET\n");
+  ps_clr_control(CONTROL_DRIVE_RESET);
 
-uint32_t g_fc = 0;
-void cpu_set_fc(unsigned int fc)
-{
-    g_fc = fc;
-}
-
-static uint32_t do_bus_cycle_write(uint32_t address, uint32_t size, uint32_t data)
-{
-    set_output();
-    pi_write(REG_DATA_LO, data & 0xffff);
-    pi_write(REG_DATA_HI, (data >> 16) & 0xffff);
-    pi_write(REG_ADDR_LO, address & 0xffff);
-    pi_write(REG_ADDR_HI, TXN_WRITE | (g_fc << 11) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
-    set_input();
-
-    while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) asm volatile("nop");
-
-    return ps_read_status_reg();
-}
-
-static uint32_t do_bus_cycle_read(uint32_t address, uint32_t size, uint32_t *data)
-{
-    set_output();
-    pi_write(REG_ADDR_LO, address & 0xffff);
-    pi_write(REG_ADDR_HI, TXN_READ | (g_fc << 11) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
-    set_input();
-
-    while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) asm volatile("nop");
-
-    uint32_t data_lo = pi_read(REG_DATA_LO);
-    uint32_t data_hi = pi_read(REG_DATA_HI);
-    *data = (data_hi << 16) | data_lo;
-
-    return ps_read_status_reg();
-}
-
-static uint32_t make_data_out(uint32_t address, uint32_t data, uint32_t size)
-{
-    unsigned int data_out = 0;
-
-    unsigned int op0 = (data >> 24) & 0xff;
-    unsigned int op1 = (data >> 16) & 0xff;
-    unsigned int op2 = (data >> 8) & 0xff;
-    unsigned int op3 = (data >> 0) & 0xff;
-
-    switch (size)
-    {
-        case 1:
-            data_out = (op3 << 24) | (op3 << 16) | (op3 << 8) | (op3 << 0); break;
-        case 2:
-            if (!(address & 1))
-                data_out = (op2 << 24) | (op3 << 16) | (op2 << 8) | (op3 << 0);
-            else
-                data_out = (op2 << 24) | (op2 << 16) | (op3 << 8) | (op2 << 0);
-            break;
-        case 3:
-            switch (address & 3)
-            {
-                case 0: data_out = (op1 << 24) | (op2 << 16) | (op3 << 8) | (op0 << 0); break;
-                case 1: data_out = (op1 << 24) | (op1 << 16) | (op2 << 8) | (op3 << 0); break;
-                case 2: data_out = (op1 << 24) | (op2 << 16) | (op1 << 8) | (op2 << 0); break;
-                case 3: data_out = (op1 << 24) | (op1 << 16) | (op2 << 8) | (op1 << 0); break;
-            }
-            break;
-        case 4:
-            switch (address & 3)
-            {
-                case 0: data_out = (op0 << 24) | (op1 << 16) | (op2 << 8) | (op3 << 0); break;
-                case 1: data_out = (op0 << 24) | (op0 << 16) | (op1 << 8) | (op2 << 0); break;
-                case 2: data_out = (op0 << 24) | (op1 << 16) | (op0 << 8) | (op1 << 0); break;
-                case 3: data_out = (op0 << 24) | (op0 << 16) | (op1 << 8) | (op0 << 0); break;
-            }
-            break;
-    }
-
-    return data_out;
-}
-
-static void ps_write(unsigned int address, unsigned int data, unsigned int size)
-{
-    //kprintf("Starting write, address=%08x, data=%08x, size=%d\n", address, data, size);
-
-    while (size)
-    {
-        uint32_t data_out = make_data_out(address, data, size);
-        uint32_t size_out = size & 3;
-
-        uint32_t status = do_bus_cycle_write(address, size_out, data_out);
-
-        //uint32_t reset_sync = (status >> 13) & 1;
-        //uint32_t halt_sync = (status >> 12) & 1;
-        //uint32_t ipl = (status >> 8) & 7;
-        uint32_t halt_s4 = (status >> 7) & 1;
-        uint32_t halt_s2 = (status >> 6) & 1;
-        uint32_t berr_s4 = (status >> 5) & 1;
-        uint32_t berr_s2 = (status >> 4) & 1;
-        uint32_t dsack_s4 = (status >> 2) & 3;
-        uint32_t dsack_s2 = (status >> 0) & 3;
-        
-        //kprintf("Write BC: reset_sync=%d, halt_sync=%d, ipl=%d, halt_s4=%d, halt_s2=%d, berr_s4=%d, berr_s2=%d, dsack_s4=%d, dsack_s2=%d\n", reset_sync, halt_sync, ipl, halt_s4, halt_s2, berr_s4, berr_s2, dsack_s4, dsack_s2);
-
-        if (dsack_s2 != dsack_s4)
-        {
-            //kprintf("Dsack diffar mellan s2, s4\n");
-            //kprintf("Starting write, address=%08x, data=%08x, size=%d\n", address, data, size);
-            //kprintf("Write BC: reset_sync=%d, halt_sync=%d, ipl=%d, halt_s4=%d, halt_s2=%d, berr_s4=%d, berr_s2=%d, dsack_s4=%d, dsack_s2=%d\n", reset_sync, halt_sync, ipl, halt_s4, halt_s2, berr_s4, berr_s2, dsack_s4, dsack_s2);
-            //kprintf("\n");
-        }
-
-        if (halt_s2 || halt_s4 || berr_s2 || berr_s4)
-        {
-            kprintf("Error\n");
-            while(1) asm volatile("wfi");
-        }
-
-        uint32_t port_width = 0;
-        switch (dsack_s4)
-        {
-            case 1: port_width = 1; break;
-            case 2: port_width = 2; break;
-            case 3: port_width = 4; break;
-        }
-
-        uint32_t lshift = (address & 3) & (port_width - 1);
-        uint32_t transfered = port_width - lshift;
-
-        if (size <= transfered)
-            break;
-
-        size -= transfered;
-        address += size;
-    }
-
-    //kprintf("Write completed\n");
-}
-
-static int ps_read(unsigned int address, unsigned int size)
-{
-    //kprintf("Starting read, address=%08x, size=%d\n", address, size);
-
-    uint32_t data = 0;
-
-    while (size)
-    {
-        uint32_t data_in;
-        unsigned int size_out = size & 3;
-        uint32_t status = do_bus_cycle_read(address, size_out, &data_in);
-
-        //uint32_t reset_sync = (status >> 13) & 1;
-        //uint32_t halt_sync = (status >> 12) & 1;
-        //uint32_t ipl = (status >> 8) & 7;
-        uint32_t halt_s4 = (status >> 7) & 1;
-        uint32_t halt_s2 = (status >> 6) & 1;
-        uint32_t berr_s4 = (status >> 5) & 1;
-        uint32_t berr_s2 = (status >> 4) & 1;
-        uint32_t dsack_s4 = (status >> 2) & 3;
-        uint32_t dsack_s2 = (status >> 0) & 3;
-        
-        //kprintf("Read BC: reset_sync=%d, halt_sync=%d, ipl=%d, halt_s4=%d, halt_s2=%d, berr_s4=%d, berr_s2=%d, dsack_s4=%d, dsack_s2=%d, data=%08x\n", reset_sync, halt_sync, ipl, halt_s4, halt_s2, berr_s4, berr_s2, dsack_s4, dsack_s2, data_in);
-
-        if (dsack_s2 != dsack_s4)
-        {
-            //kprintf("Dsack diffar mellan s2, s4\n");
-            //kprintf("Starting read, address=%08x, size=%d\n", address, size);
-            //kprintf("Read BC: reset_sync=%d, halt_sync=%d, ipl=%d, halt_s4=%d, halt_s2=%d, berr_s4=%d, berr_s2=%d, dsack_s4=%d, dsack_s2=%d, data=%08x\n", reset_sync, halt_sync, ipl, halt_s4, halt_s2, berr_s4, berr_s2, dsack_s4, dsack_s2, data_in);
-            //kprintf("\n");
-        }
-
-        if (halt_s2 || halt_s4 || berr_s2 || berr_s4)
-        {
-            kprintf("Error\n");
-            while(1) asm volatile("wfi");
-        }
-
-        uint32_t port_width = 0;
-        switch (dsack_s4)
-        {
-            case 1: port_width = 1; break;
-            case 2: port_width = 2; break;
-            case 3: port_width = 4; break;
-        }
-
-        uint32_t lshift = (address & 3) & (port_width - 1);
-        uint32_t transfered = port_width - lshift;
-
-        data_in <<= lshift * 8;
-
-        switch (size)
-        {
-            case 1: data = (data & 0xffffff00) | ((data_in & 0xff000000) >> 24); break;
-            case 2: data = (data & 0xffff0000) | ((data_in & 0xffff0000) >> 16); break;
-            case 3: data = (data & 0xff000000) | ((data_in & 0xffffff00) >> 8); break;
-            case 4: data = (data & 0x00000000) | ((data_in & 0xffffffff) >> 0); break;
-        }
-
-        if (size <= transfered)
-            break;
-
-        size -= transfered;
-        address += transfered;
-    }
-
-    //kprintf("Read completed with data=%08x\n", data);
-    return data;
-}
-
-
-void ps_write_8(unsigned int address, unsigned int data)
-{
-    ps_write(address, data, SIZE_BYTE);
-}
-
-void ps_write_16(unsigned int address, unsigned int data)
-{
-    ps_write(address, data, SIZE_WORD);
-}
-
-void ps_write_32(unsigned int address, unsigned int data)
-{
-    ps_write(address, data, SIZE_LONG);
-}
-
-unsigned int ps_read_8(unsigned int address)
-{
-    return ps_read(address, SIZE_BYTE);
-}
-
-unsigned int ps_read_16(unsigned int address)
-{
-    return ps_read(address, SIZE_WORD);
-}
-
-unsigned int ps_read_32(unsigned int address)
-{
-    return ps_read(address, SIZE_LONG);
+    overlay = 1;
+    board = &__boards_start;
+    board_idx = 0;
 }
 
 #define PM_RSTC         ((volatile unsigned int*)(0xf2000000 + 0x0010001c))
