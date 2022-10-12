@@ -2,6 +2,7 @@
 kernel=Emu68.img
 disable_splash=1
 arm_64bit=1
+total_mem=1024
 
 # Default boot delay is one second. Uncomment this line if you want zero second delay
 #boot_delay=0
@@ -14,9 +15,12 @@ avoid_warnings=1
 # Keep in mind this may render your RasPi3 unstable and eventually void the warranty!
 #force_turbo=1
 #over_voltage=4
-#arm_freq=1500
+arm_freq=1800
 #core_freq=500
 #sdram_freq=600
+
+# over_voltage=6
+# arm_freq=2200
 
 # Force HDMI signal even if nothing is connected
 hdmi_force_hotplug=1
