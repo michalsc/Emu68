@@ -3,6 +3,9 @@ kernel=Emu68.img
 disable_splash=1
 arm_64bit=1
 
+# Limit total memory size to 1GB for now. Necessary for CM4/Pi4
+total_mem=1024
+
 # Default boot delay is one second. Uncomment this line if you want zero second delay
 #boot_delay=0
 
