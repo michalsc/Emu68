@@ -1219,8 +1219,6 @@ void boot(void *dtree)
 
     //dt_dump_tree();
 
-    kprintf("Status reg: %08x\n", ps_read_status_reg());
-
 #if defined(PISTORM) || defined(PISTORM32)
     if (buptest)
     {
@@ -1652,12 +1650,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       mov     x2, #0xf2200000             \n" // GPIO base address
 #ifdef PISTORM32
 "       mov     w1, #8                      \n"
-"       mov     w3, #0x10000000             \n"
+"       movk    w1, #0x1000, lsl #16        \n"
 "       str     w1, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
 "       ldr     w3, [x2, 4*13]              \n"
 "       mov     w1, #0xff0f                 \n"
 "       movk    w1, #0xf3ff, lsl #16        \n"
@@ -1682,12 +1676,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
 #endif
 #ifdef PISTORM32
-"       rev     w1, w3                      \n"
-"       lsr     w3, w1, #9                  \n"
-"       ubfx    x1, x1, #8, #9              \n"
-"       and     w3, w3, #0xfe00             \n"
-"       orr     w1, w3, w1                  \n"
-"       ubfx    x1, x1, #8, #3              \n"
+"       rev     w3, w3                      \n"
+"       ubfx    x1, x3, #11, #3              \n"
 #else
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
@@ -1820,12 +1810,12 @@ void M68K_StartEmu(void *addr, void *fdt)
     uint32_t m68k_pc;
     uint64_t cnt1 = 0, cnt2 = 0;
 
+    __m68k_state = &__m68k;
+
     M68K_InitializeCache();
 
     bzero(&__m68k, sizeof(__m68k));
     //bzero((void *)4, 1020);
-
-    __m68k_state = &__m68k;
 
     //*(uint32_t*)4 = 0;
 
