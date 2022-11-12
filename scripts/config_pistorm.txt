@@ -3,11 +3,11 @@ kernel=Emu68.img
 disable_splash=1
 arm_64bit=1
 
-# Limit total memory size to 1GB for now. Necessary for CM4/Pi4
-total_mem=1024
+# Limit total memory size to 2GB for now. Necessary for CM4/Pi4
+total_mem=2048
 
 # Default boot delay is one second. Uncomment this line if you want zero second delay
-#boot_delay=0
+boot_delay=0
 
 # This is important so that GPU firmware does not add its overlay icons on the screen
 # If you also want to disable speed throttling in case of undervoltage, set this value to 2
@@ -17,7 +17,7 @@ avoid_warnings=1
 # Keep in mind this may render your RasPi3 unstable and eventually void the warranty!
 #force_turbo=1
 #over_voltage=4
-#arm_freq=1500
+#arm_freq=1800
 #core_freq=500
 #sdram_freq=600
 
