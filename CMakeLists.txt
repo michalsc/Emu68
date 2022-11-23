@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 0.10.6)
+project(Emu68 VERSION 0.11.0)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
@@ -142,9 +142,10 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
             list(APPEND BASE_FILES
                 src/pistorm/ps_protocol.c
                 src/boards/devicetree.c
-                src/boards/z2ram.c
+                src/boards/z2ram.c                
                 src/boards/sdcard.c
                 src/boards/68040.c
+                src/boards/emmc.c
             )
         else()
             message(FATAL_ERROR "PiStorm variant is supported on raspi targets, only.")

@@ -125,26 +125,9 @@ void bitbang_putByte(uint8_t byte)
 #define FS_DO   (1 << 27)
 #define FS_CTS  (1 << 25)
 
-void fastSerial_init()
-{
-    if (!gpio)
-        gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
-  
-    /* Leave FS_CLK and FS_DO high */
-    *(gpio + 7) = LE32(FS_CLK);
-    *(gpio + 7) = LE32(FS_DO);
+void (*fs_putByte)(uint8_t);
 
-    for (int i=0; i < 16; i++) {
-        /* Clock down */
-        *(gpio + 10) = LE32(FS_CLK);
-        //*(gpio + 10) = LE32(FS_CLK);
-        /* Clock up */
-        *(gpio + 7) = LE32(FS_CLK);
-        //*(gpio + 7) = LE32(FS_CLK);
-    }
-}
-
-void fastSerial_putByte(uint8_t byte)
+void fastSerial_putByte_pi3(uint8_t byte)
 {
     if (!gpio)
         gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
@@ -193,6 +176,94 @@ void fastSerial_putByte(uint8_t byte)
     *(gpio + 7) = LE32(FS_DO);
 }
 
+void fastSerial_putByte_pi4(uint8_t byte)
+{
+    if (!gpio)
+        gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+  
+    /* Start bit */
+    *(gpio + 10) = LE32(FS_DO);
+
+    /* Clock down */
+    *(gpio + 10) = LE32(FS_CLK);
+    *(gpio + 10) = LE32(FS_CLK);
+    /* Clock up */
+    *(gpio + 7) = LE32(FS_CLK);
+    *(gpio + 7) = LE32(FS_CLK);
+
+    for (int i=0; i < 8; i++) {
+        if (byte & 1)
+            *(gpio + 7) = LE32(FS_DO);
+        else
+            *(gpio + 10) = LE32(FS_DO);
+
+        /* Clock down */
+        *(gpio + 10) = LE32(FS_CLK);
+        *(gpio + 10) = LE32(FS_CLK);
+        /* Clock up */
+        *(gpio + 7) = LE32(FS_CLK);
+        *(gpio + 7) = LE32(FS_CLK);
+        
+        byte = byte >> 1;
+    }
+
+    /* DEST bit (0) */
+    *(gpio + 10) = LE32(FS_DO);
+
+    /* Clock down */
+    *(gpio + 10) = LE32(FS_CLK);
+    *(gpio + 10) = LE32(FS_CLK);
+    /* Clock up */
+    *(gpio + 7) = LE32(FS_CLK);
+    *(gpio + 7) = LE32(FS_CLK);
+
+    /* Leave FS_CLK and FS_DO high */
+    *(gpio + 7) = LE32(FS_CLK);
+    *(gpio + 7) = LE32(FS_DO);
+}
+
+void fastSerial_putByte(uint8_t byte)
+{
+    if (!gpio)
+        gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+  
+    if (fs_putByte)
+        fs_putByte(byte);
+}
+
+void fastSerial_init()
+{
+    uint64_t tmp;
+
+    if (!gpio)
+        gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+  
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
+    if (tmp > 20000000)
+    {
+        fs_putByte = fastSerial_putByte_pi4;
+    }
+    else
+    {
+        fs_putByte = fastSerial_putByte_pi3;
+    }
+
+    /* Leave FS_CLK and FS_DO high */
+    *(gpio + 7) = LE32(FS_CLK);
+    *(gpio + 7) = LE32(FS_DO);
+
+    for (int i=0; i < 16; i++) {
+        /* Clock down */
+        *(gpio + 10) = LE32(FS_CLK);
+        *(gpio + 10) = LE32(FS_CLK);
+        /* Clock up */
+        *(gpio + 7) = LE32(FS_CLK);
+        *(gpio + 7) = LE32(FS_CLK);
+    }
+}
+
+
 static void pistorm_setup_io() {
     gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
     gpclk = ((volatile unsigned *)BCM2708_PERI_BASE) + GPCLK_ADDR / 4;
@@ -201,12 +272,19 @@ static void pistorm_setup_io() {
 static void setup_gpclk() {
     // Enable 200MHz CLK output on GPIO4, adjust divider and pll source depending
     // on pi model
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
     *(gpclk + (CLK_GP0_CTL / 4)) = LE32(CLK_PASSWD | (1 << 5));
     usleep(10);
     while ((*(gpclk + (CLK_GP0_CTL / 4))) & LE32(1 << 7));
     usleep(100);
-    *(gpclk + (CLK_GP0_DIV / 4)) =
-        LE32(CLK_PASSWD | (6 << 12));  // divider , 6=200MHz on pi3
+    if (tmp > 20000000)
+        *(gpclk + (CLK_GP0_DIV / 4)) =
+            LE32(CLK_PASSWD | (5 << 12));  // divider , 3=200MHz on pi4
+    else
+        *(gpclk + (CLK_GP0_DIV / 4)) =
+            LE32(CLK_PASSWD | (6 << 12));  // divider , 6=200MHz on pi3
     usleep(10);
     *(gpclk + (CLK_GP0_CTL / 4)) =
         LE32(CLK_PASSWD | 5 | (1 << 4));  // pll? 6=plld, 5=pllc
@@ -234,6 +312,9 @@ static void ps_write_8_int(unsigned int address, unsigned int data);
 
 static void ps_write_16_int(unsigned int address, unsigned int data)
 {
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
 //    if (address > 0xffffff)
 //        return;
 
@@ -251,18 +332,51 @@ static void ps_write_16_int(unsigned int address, unsigned int data)
         *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
         *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
-        *(gpio + 7) = LE32(1 << PIN_WR);
-        *(gpio + 10) = LE32(1 << PIN_WR);
+        if (tmp > 20000000)
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
+        else
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
         *(gpio + 10) = LE32(0xffffec);
 
         *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
-        *(gpio + 7) = LE32(1 << PIN_WR);
-        *(gpio + 10) = LE32(1 << PIN_WR);
+        if (tmp > 20000000)
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
+        else
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
         *(gpio + 10) = LE32(0xffffec);
 
         *(gpio + 7) = LE32(((0x0000 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
-        *(gpio + 7) = LE32(1 << PIN_WR);
-        *(gpio + 10) = LE32(1 << PIN_WR);
+        if (tmp > 20000000)
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
+        else
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
         *(gpio + 10) = LE32(0xffffec);
 
         *(gpio + 0) = LE32(GPFSEL0_INPUT);
@@ -275,6 +389,9 @@ static void ps_write_16_int(unsigned int address, unsigned int data)
 
 static void ps_write_8_int(unsigned int address, unsigned int data)
 {
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
 //    if (address > 0xffffff)
 //        return;
 
@@ -290,18 +407,51 @@ static void ps_write_8_int(unsigned int address, unsigned int data)
     *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
     *(gpio + 7) = LE32(((data & 0xffff) << 8) | (REG_DATA << PIN_A0));
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
+    else
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(0xffffec);
 
     *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
+    else
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(0xffffec);
 
     *(gpio + 7) = LE32(((0x0100 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
+    else
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(0xffffec);
 
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
@@ -328,6 +478,9 @@ static void ps_write_32_int(unsigned int address, unsigned int value)
 
 unsigned int ps_read_16_int(unsigned int address)
 {
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
 #if PISTORM_WRITE_BUFFER
     wb_waitfree();
 #endif
@@ -353,13 +506,35 @@ address &= 0xffffff;
         *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
         *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
-        *(gpio + 7) = LE32(1 << PIN_WR);
-        *(gpio + 10) = LE32(1 << PIN_WR);
+        if (tmp > 20000000)
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
+        else
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
         *(gpio + 10) = LE32(0xffffec);
 
         *(gpio + 7) = LE32(((0x0200 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
-        *(gpio + 7) = LE32(1 << PIN_WR);
-        *(gpio + 10) = LE32(1 << PIN_WR);
+        if (tmp > 20000000)
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
+        else
+        {
+            *(gpio + 7) = LE32(1 << PIN_WR);
+            *(gpio + 10) = LE32(1 << PIN_WR);
+        }
         *(gpio + 10) = LE32(0xffffec);
 
         *(gpio + 0) = LE32(GPFSEL0_INPUT);
@@ -368,6 +543,12 @@ address &= 0xffffff;
 
         *(gpio + 7) = LE32(REG_DATA << PIN_A0);
         *(gpio + 7) = LE32(1 << PIN_RD);
+        if (tmp > 20000000)
+        {
+            *(gpio + 7) = LE32(1 << PIN_RD);
+            *(gpio + 7) = LE32(1 << PIN_RD);
+            *(gpio + 7) = LE32(1 << PIN_RD);
+        }
 
         while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
         unsigned int value = LE32(*(gpio + 13));
@@ -379,11 +560,14 @@ address &= 0xffffff;
 
 unsigned int ps_read_8_int(unsigned int address)
 {
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
 #if PISTORM_WRITE_BUFFER
     wb_waitfree();
 #endif
 
-address &= 0xffffff;
+    address &= 0xffffff;
 
 //    if (address > 0xffffff)
 //        return 0xff;
@@ -393,13 +577,35 @@ address &= 0xffffff;
     *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
 
     *(gpio + 7) = LE32(((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0));
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
+    else
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(0xffffec);
 
     *(gpio + 7) = LE32(((0x0300 | ((address >> 16) & 0x00ff)) << 8) | (REG_ADDR_HI << PIN_A0));
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
+    else
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(0xffffec);
 
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
@@ -408,6 +614,12 @@ address &= 0xffffff;
 
     *(gpio + 7) = LE32(REG_DATA << PIN_A0);
     *(gpio + 7) = LE32(1 << PIN_RD);
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_RD);
+        *(gpio + 7) = LE32(1 << PIN_RD);
+        *(gpio + 7) = LE32(1 << PIN_RD);
+    }
 
     while (*(gpio + 13) & LE32(1 << PIN_TXN_IN_PROGRESS)) {}
     unsigned int value = LE32(*(gpio + 13));
@@ -446,6 +658,9 @@ unsigned int ps_read_32_int(unsigned int address)
 
 void ps_write_status_reg(unsigned int value)
 {
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
     *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
     *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
     *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
@@ -454,7 +669,17 @@ void ps_write_status_reg(unsigned int value)
 
     *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 7) = LE32(1 << PIN_WR);  // delay
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_WR);
+        *(gpio + 7) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(1 << PIN_WR);
+    if (tmp > 20000000)
+    {
+        *(gpio + 10) = LE32(1 << PIN_WR);
+        *(gpio + 10) = LE32(1 << PIN_WR);
+    }
     *(gpio + 10) = LE32(0xffffec);
 
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
@@ -464,12 +689,21 @@ void ps_write_status_reg(unsigned int value)
 
 unsigned int ps_read_status_reg()
 {
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
     *(gpio + 7) = LE32(REG_STATUS << PIN_A0);
     *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 7) = LE32(1 << PIN_RD);
-
+    if (tmp > 20000000)
+    {
+        *(gpio + 7) = LE32(1 << PIN_RD);
+        *(gpio + 7) = LE32(1 << PIN_RD);
+        *(gpio + 7) = LE32(1 << PIN_RD);
+        *(gpio + 7) = LE32(1 << PIN_RD);
+    }
     unsigned int value = LE32(*(gpio + 13));
 
     *(gpio + 10) = LE32(0xffffec);

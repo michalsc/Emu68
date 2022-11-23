@@ -1214,8 +1214,8 @@ void boot(void *dtree)
     wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
-    amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
-    amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
+    //amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
+    //amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
 
     //dt_dump_tree();
 
