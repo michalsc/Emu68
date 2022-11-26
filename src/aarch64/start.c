@@ -510,6 +510,7 @@ void boot(void *dtree)
 
 #ifdef PISTORM
     int rom_copy = 0;
+    int recalc_checksum = 0;
     int buptest = 0;
     int bupiter = 5;
     vid_memory = 16;
@@ -595,6 +596,10 @@ void boot(void *dtree)
                     vid_memory = vmem & ~1;
                 }
             }
+            if ((tok = find_token(prop->op_value, "checksum_rom")))
+            {
+                recalc_checksum = 1;
+            } 
             if ((tok = find_token(prop->op_value, "copy_rom=")))
             {
                 tok += 9;
@@ -1214,12 +1219,13 @@ void boot(void *dtree)
     wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
-    //amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
-    //amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
-
     //dt_dump_tree();
 
 #ifdef PISTORM
+    //amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
+    if (recalc_checksum)
+        amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
+
     if (buptest)
     {
         ps_buptest(buptest, bupiter);
