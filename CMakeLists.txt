@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 0.11.0)
+project(Emu68 VERSION 0.11.2)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
