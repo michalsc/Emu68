@@ -507,6 +507,9 @@ static void my_free(void *ptr)
     return tlsf_free(tlsf, ptr);
 }
 
+void *firmware_file = NULL;
+uint32_t firmware_size = 0;
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -673,7 +676,8 @@ void boot(void *dtree)
             initramfs_size = (uintptr_t)image_end - (uintptr_t)image_start;
             initramfs_loc = tlsf_malloc(tlsf, initramfs_size);
 
-            DuffCopy(initramfs_loc, (void*)(0xffffff9000000000 + (uintptr_t)image_start), initramfs_size / 4);
+            /* Align the length of image up to nearest 4 byte boundary */
+            DuffCopy(initramfs_loc, (void*)(0xffffff9000000000 + (uintptr_t)image_start), (initramfs_size + 3)/ 4);
         }
     }
 
@@ -699,6 +703,42 @@ void boot(void *dtree)
     kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
+
+    /* Test if the image begins with gzip header. If yes, then this is the firmware blob */
+    if (((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
+    {
+        struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
+        
+        if (decomp != NULL)
+        {
+            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            size_t in_size = 0;
+            size_t out_size = 0;
+            enum libdeflate_result result;
+
+            kprintf("[BOOT] Decompressing user specified firmware file\n");
+
+            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 8*1024*1024, &in_size, &out_size);
+
+            if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
+            {
+                kprintf("[BOOT] Processed %d bytes, decompressed size %d bytes\n", in_size, out_size);
+                
+                /* Shift the rest of initramfs back to original position. */
+                memcpy(initramfs_loc, (void*)((uintptr_t)initramfs_loc + in_size), initramfs_size - in_size);
+                initramfs_size -= in_size;
+                firmware_file = out_buffer;
+                firmware_size = out_size;
+                tlsf_realloc(tlsf, out_buffer, out_size);
+            }
+            else
+            {
+                tlsf_free(tlsf, out_buffer);
+            }
+
+            libdeflate_free_decompressor(decomp);
+        }
+    }
 
     disasm_init();
 
