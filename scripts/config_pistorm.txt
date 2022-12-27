@@ -42,4 +42,4 @@ hdmi_mode=82
 
 # The ROM is selected through initramfs parameter. As a file name give the full name of your
 # kickstart file which you have placed on the RasPi boot partition
-initramfs kick321.rom
+initramfs kick.rom
