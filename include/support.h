@@ -142,6 +142,8 @@ void platform_post_init();
 void setup_serial();
 const char * find_token(const char * string, const char * token);
 
+extern void * firmware_file;
+extern uint32_t firmware_size;
 extern void * tlsf;
 extern void * jit_tlsf;
 
