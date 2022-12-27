@@ -9,6 +9,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include "libdeflate.h"
 #include "A64.h"
 #include "config.h"
 #include "support.h"
@@ -496,6 +497,16 @@ int amiga_checksum(uint8_t *mem, uintptr_t size, uintptr_t chkoff, int update)
    return 0;
 }
 
+static void *my_malloc(size_t s)
+{
+    return tlsf_malloc(tlsf, s);
+}
+
+static void my_free(void *ptr)
+{
+    return tlsf_free(tlsf, ptr);
+}
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -525,6 +536,9 @@ void boot(void *dtree)
 
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
+
+    /* Initialize memory management for libdeflate */
+    libdeflate_set_memory_allocator(my_malloc, my_free);
 
     /* Parse device tree */
     dt_parse((void*)dtree);
