@@ -222,13 +222,43 @@ void fastSerial_putByte_pi4(uint8_t byte)
     *(gpio + 7) = LE32(FS_DO);
 }
 
+void fastSerial_reset()
+{
+    if (!gpio)
+        gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+
+    /* Leave FS_CLK and FS_DO high */
+    *(gpio + 7) = LE32(FS_CLK);
+    *(gpio + 7) = LE32(FS_DO);
+
+    for (int i=0; i < 16; i++) {
+        /* Clock down */
+        *(gpio + 10) = LE32(FS_CLK);
+        *(gpio + 10) = LE32(FS_CLK);
+        /* Clock up */
+        *(gpio + 7) = LE32(FS_CLK);
+        *(gpio + 7) = LE32(FS_CLK);
+    }
+}
+
 void fastSerial_putByte(uint8_t byte)
 {
+    static char reset_pending = 0;
+
+    if (reset_pending)
+    {
+        fastSerial_reset();
+        reset_pending = 0;
+    }
+
     if (!gpio)
         gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
   
     if (fs_putByte)
         fs_putByte(byte);
+    
+    if (byte == 10)
+        reset_pending = 1;
 }
 
 void fastSerial_init()
@@ -247,20 +277,9 @@ void fastSerial_init()
     else
     {
         fs_putByte = fastSerial_putByte_pi3;
-    }
+    }   
 
-    /* Leave FS_CLK and FS_DO high */
-    *(gpio + 7) = LE32(FS_CLK);
-    *(gpio + 7) = LE32(FS_DO);
-
-    for (int i=0; i < 16; i++) {
-        /* Clock down */
-        *(gpio + 10) = LE32(FS_CLK);
-        *(gpio + 10) = LE32(FS_CLK);
-        /* Clock up */
-        *(gpio + 7) = LE32(FS_CLK);
-        *(gpio + 7) = LE32(FS_CLK);
-    }
+    fastSerial_reset();
 }
 
 
