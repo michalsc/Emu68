@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 0.11.3)
+project(Emu68 VERSION 0.11.4)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
@@ -14,7 +14,7 @@ set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
-set(SUPPORTED_VARIANTS "none" "pistorm")
+set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm32lite")
 set(VARIANT "none" CACHE STRING "Compilation variant: ${SUPPORTED_VARIANTS}")
 set_property(CACHE VARIANT PROPERTY STRINGS ${SUPPORTED_VARIANTS})
 
@@ -102,7 +102,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         download_raspi_firmware()
         install(DIRECTORY ${CMAKE_BINARY_DIR}/firmware/ DESTINATION .)
         install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
-        if(${VARIANT} STREQUAL "pistorm")
+        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
             install(FILES ${CMAKE_SOURCE_DIR}/scripts/config_pistorm.txt DESTINATION . RENAME config.txt)
         else()
             install(FILES ${CMAKE_SOURCE_DIR}/scripts/config.txt DESTINATION .)
@@ -135,12 +135,22 @@ endif()
 
 if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
     message("-- Selected variant: ${VARIANT}")
-    if(${VARIANT} STREQUAL "pistorm")
+    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
         if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
             add_compile_definitions(PISTORM)
+            if(${VARIANT} STREQUAL "pistorm32lite")
+                add_compile_definitions(PISTORM32LITE)
+                add_compile_definitions(PISTORM32)
+                list(APPEND BASE_FILES
+                    src/pistorm/ps_protocol32.c
+                )
+            else()
+                list(APPEND BASE_FILES
+                    src/pistorm/ps_protocol.c
+                )
+            endif()
             include_directories(src/pistorm)
             list(APPEND BASE_FILES
-                src/pistorm/ps_protocol.c
                 src/boards/devicetree.c
                 src/boards/z2ram.c                
                 src/boards/sdcard.c
