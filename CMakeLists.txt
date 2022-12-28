@@ -142,7 +142,7 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
                 add_compile_definitions(PISTORM32LITE)
                 add_compile_definitions(PISTORM32)
                 list(APPEND BASE_FILES
-                    src/pistorm/ps_protocol32.c
+                    src/pistorm/ps32_protocol.c
                 )
             else()
                 list(APPEND BASE_FILES
