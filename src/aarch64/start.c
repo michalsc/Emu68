@@ -739,6 +739,47 @@ void boot(void *dtree)
             libdeflate_free_decompressor(decomp);
         }
     }
+    else
+    {
+#ifdef PISTORM32LITE
+        #include "../pistorm/efinix_firmware.h"
+        
+        struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
+        
+        if (decomp != NULL)
+        {
+            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            size_t in_size = 0;
+            size_t out_size = 0;
+            enum libdeflate_result result;
+
+            kprintf("[BOOT] Decompressing default firmware file\n");
+
+            result = libdeflate_gzip_decompress_ex(decomp, firmware_bin_gz, firmware_bin_gz_len, out_buffer, 8*1024*1024, &in_size, &out_size);
+
+            if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
+            {
+                kprintf("[BOOT] Processed %d bytes, decompressed size %d bytes\n", in_size, out_size);
+                
+                firmware_file = out_buffer;
+                firmware_size = out_size;
+                tlsf_realloc(tlsf, out_buffer, out_size);
+            }
+            else
+            {
+                tlsf_free(tlsf, out_buffer);
+            }
+
+            libdeflate_free_decompressor(decomp);
+        }
+#endif
+    }
+
+#ifdef PISTORM32LITE
+    kprintf("[BOOT] Preparing Efinix FPGA\n");
+    ps_efinix_setup();
+    ps_efinix_load(firmware_file, firmware_size);
+#endif
 
     disasm_init();
 

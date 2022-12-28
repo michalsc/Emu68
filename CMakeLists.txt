@@ -158,7 +158,7 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
                 src/boards/emmc.c
             )
         else()
-            message(FATAL_ERROR "PiStorm variant is supported on raspi targets, only.")
+            message(FATAL_ERROR "PiStorm variants are supported on raspi targets, only.")
         endif()
     endif()
     
