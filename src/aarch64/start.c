@@ -1737,6 +1737,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       cbz     w1, 998f                    \n" // IPL in that case
 "992:                                       \n"
 #if PISTORM_WRITE_BUFFER
+#ifndef PISTORM32
 "       adrp    x5, bus_lock                \n"
 "       add     x5, x5, :lo12:bus_lock      \n"
 "       mov     w1, 1                       \n"
@@ -1748,8 +1749,13 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       .lock                       \n"
 ".lock_acquired:                            \n"
 #endif
+#endif
 "       mov     x2, #0xf2200000             \n" // GPIO base address
-
+#ifdef PISTORM32
+"       ldr     w1, [x2, 4*13]              \n" // Load GPIO values, IPL is in GPIO0..2
+"       eor     w1, w1, #0xff000000         \n" // IPL is active low, negate it
+"       ubfx    w1, w1, #24, #3             \n" // Extract IPL to w1
+#else
 "       mov     w1, #0x0c000000             \n"
 "       mov     w3, #0x40000000             \n"
 
@@ -1769,6 +1775,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 #endif
 "       rev     w3, w3                      \n"
 "       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
+#endif
 
 // We have w10 with ARM IPL here and w1 with m68k IPL, select higher, in case of ARM clear pending bit
 "998:   cmp     w1, w10                     \n" 
