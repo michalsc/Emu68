@@ -85,6 +85,8 @@ static inline void ticksleep_wfe(uint64_t ticks)
 
 #define TXD_BIT (1 << 26)
 
+uint32_t bitbang_delay;
+ 
 void bitbang_putByte(uint8_t byte)
 {
     if (!gpio)
@@ -97,7 +99,7 @@ void bitbang_putByte(uint8_t byte)
   
     do {
         asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
-    } while(t1 < (t0 + BITBANG_DELAY));
+    } while(t1 < (t0 + bitbang_delay));
   
     for (int i=0; i < 8; i++) {
         asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
@@ -110,7 +112,7 @@ void bitbang_putByte(uint8_t byte)
 
         do {
             asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
-        } while(t1 < (t0 + BITBANG_DELAY));
+        } while(t1 < (t0 + bitbang_delay));
     }
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
 
@@ -118,7 +120,7 @@ void bitbang_putByte(uint8_t byte)
 
     do {
         asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
-    } while(t1 < (t0 + 3*BITBANG_DELAY / 2));
+    } while(t1 < (t0 + 3*bitbang_delay / 2));
 }
 
 #define FS_CLK  (1 << 26)
@@ -315,6 +317,14 @@ static void setup_gpclk() {
 }
 
 void ps_setup_protocol() {
+    uint64_t clock;
+    uint64_t delay;
+
+    /* Setup bitbang RS232 delay based on the RS232 speed and CPU tick frequency */
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(clock));
+    delay = (clock + PISTORM_BITBANG_SPEED / 2) / PISTORM_BITBANG_SPEED;
+    bitbang_delay = delay;
+
     pistorm_setup_io();
     setup_gpclk();
 

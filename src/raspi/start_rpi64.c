@@ -137,7 +137,7 @@ void display_logo()
     text_x = start_x / 8;
     text_y = (start_y + EmuLogo.el_Height + 15) / 16;
 #else
-    text_y = (fb_height - 16) / 16;
+    text_y = (fb_height - 16 - 5) / 16;
     text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
 #endif
 

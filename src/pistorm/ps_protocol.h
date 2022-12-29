@@ -95,5 +95,7 @@ void wb_task();
 void wb_init();
 void wb_waitfree();
 void wb_push(uint32_t address, uint32_t value, uint8_t size);
+void ps_efinix_load(char* buffer, long length);
+void ps_efinix_setup();
 
 #endif /* _PS_PROTOCOL_H */
