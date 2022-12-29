@@ -99,17 +99,17 @@ typedef unsigned int uint;
 #define PF(f, i)        ((f) << (((i) % 10) * 3)) // Pin function.
 #define GO(i)           PF(1, (i)) // GPIO output.
 
-#define PIN_TXN         0
-#define IPL_ZERO        1
-#define SER_OUT_BIT     2
-#define SER_OUT_CLK     3
+#define PIN_IPL0        0
+#define PIN_IPL1        1
+#define PIN_IPL2        2
+#define PIN_TXN         3
 #define PIN_KBRESET     4
-// GPIO5 is unused
+#define SER_OUT_BIT     5 //debug EMU68
 #define PIN_RD          6
 #define PIN_WR          7
-#define PIN_D(x)        (8 + (x))
-#define PIN_A(x)        (24 + (x))
-// GPIO27 is unused
+#define PIN_D(x)        (8 + x)
+#define PIN_A(x)        (24 + x)
+#define SER_OUT_CLK     27 //debug EMU68
 
 #define CLEAR_BITS      (0x0fffffff & ~((1 << PIN_RD) | (1 << PIN_WR) | (1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)))
 
@@ -650,7 +650,7 @@ void ps_housekeeper()
         if (housekeeper_enabled)
         {
             uint32_t pin = LE32(*(gpio + 13));
-            __m68k_state->INT.IPL = (pin & (1 << IPL_ZERO)) ? 0 : 1;
+            __m68k_state->INT.IPL = ((pin & 7) == 7) ? 0 : 1;
 
             asm volatile("":::"memory");
 
