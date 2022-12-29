@@ -687,23 +687,6 @@ void boot(void *dtree)
     /* Setup platform (peripherals etc) */
     platform_init();
 
-    /* Setup debug console on serial port */
-    setup_serial();
-
-    kprintf("\033[2J[BOOT] Booting %s\n", bootstrapName);
-    p = dt_find_property(dt_find_node("/"), "model");
-    if (p) {
-        kprintf("[BOOT] Machine: %s\n", p->op_value);
-    }
-    kprintf("[BOOT] Boot address is %p\n", _start);
-
-    print_build_id();
-
-    kprintf("[BOOT] ARM stack top at %p\n", &_boot);
-    kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
-
-    kprintf("[BOOT] Kernel args (%p)\n", dtree);
-
     /* Test if the image begins with gzip header. If yes, then this is the firmware blob */
     if (((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
     {
@@ -716,14 +699,10 @@ void boot(void *dtree)
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            kprintf("[BOOT] Decompressing user specified firmware file\n");
-
             result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 8*1024*1024, &in_size, &out_size);
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
-                kprintf("[BOOT] Processed %d bytes, decompressed size %d bytes\n", in_size, out_size);
-                
                 /* Shift the rest of initramfs back to original position. */
                 memcpy(initramfs_loc, (void*)((uintptr_t)initramfs_loc + in_size), initramfs_size - in_size);
                 initramfs_size -= in_size;
@@ -753,14 +732,10 @@ void boot(void *dtree)
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            kprintf("[BOOT] Decompressing default firmware file\n");
-
             result = libdeflate_gzip_decompress_ex(decomp, firmware_bin_gz, firmware_bin_gz_len, out_buffer, 8*1024*1024, &in_size, &out_size);
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
-                kprintf("[BOOT] Processed %d bytes, decompressed size %d bytes\n", in_size, out_size);
-                
                 firmware_file = out_buffer;
                 firmware_size = out_size;
                 tlsf_realloc(tlsf, out_buffer, out_size);
@@ -776,10 +751,26 @@ void boot(void *dtree)
     }
 
 #ifdef PISTORM32LITE
-    kprintf("[BOOT] Preparing Efinix FPGA\n");
     ps_efinix_setup();
     ps_efinix_load(firmware_file, firmware_size);
 #endif
+
+    /* Setup debug console on serial port */
+    setup_serial();
+
+    kprintf("\033[2J[BOOT] Booting %s\n", bootstrapName);
+    p = dt_find_property(dt_find_node("/"), "model");
+    if (p) {
+        kprintf("[BOOT] Machine: %s\n", p->op_value);
+    }
+    kprintf("[BOOT] Boot address is %p\n", _start);
+
+    print_build_id();
+
+    kprintf("[BOOT] ARM stack top at %p\n", &_boot);
+    kprintf("[BOOT] Bootstrap ends at %p\n", &__bootstrap_end);
+
+    kprintf("[BOOT] Kernel args (%p)\n", dtree);
 
     disasm_init();
 
