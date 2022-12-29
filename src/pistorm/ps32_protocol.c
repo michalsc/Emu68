@@ -134,13 +134,13 @@ typedef unsigned int uint;
 #define SPLIT_DATA(x)   (x)
 #define MERGE_DATA(x)   (x)
 
-#define GPFSEL0_INPUT (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT) | GO(SER_OUT_CLK))
+#define GPFSEL0_INPUT (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
 #define GPFSEL1_INPUT (0)
-#define GPFSEL2_INPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)))
+#define GPFSEL2_INPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK))
 
-#define GPFSEL0_OUTPUT (GO(PIN_D(1)) | GO(PIN_D(0)) | GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT) | GO(SER_OUT_CLK))
+#define GPFSEL0_OUTPUT (GO(PIN_D(1)) | GO(PIN_D(0)) | GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
 #define GPFSEL1_OUTPUT (GO(PIN_D(11)) | GO(PIN_D(10)) | GO(PIN_D(9)) | GO(PIN_D(8)) | GO(PIN_D(7)) | GO(PIN_D(6)) | GO(PIN_D(5)) | GO(PIN_D(4)) | GO(PIN_D(3)) | GO(PIN_D(2)))
-#define GPFSEL2_OUTPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)))
+#define GPFSEL2_OUTPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(SER_OUT_CLK))
 
 #define REG_DATA_LO     0
 #define REG_DATA_HI     1
@@ -437,7 +437,7 @@ void bitbang_putByte(uint8_t byte)
     uint64_t t0 = 0, t1 = 0;
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
 
-    *(gpio + 10) = LE32(SER_OUT_BIT); // Start bit - 0
+    *(gpio + 10) = LE32(1 << SER_OUT_BIT); // Start bit - 0
   
     do {
         asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
@@ -447,9 +447,9 @@ void bitbang_putByte(uint8_t byte)
         asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
 
         if (byte & 1)
-            *(gpio + 7) = LE32(SER_OUT_BIT);
+            *(gpio + 7) = LE32(1 << SER_OUT_BIT);
         else
-            *(gpio + 10) = LE32(SER_OUT_BIT);
+            *(gpio + 10) = LE32(1 << SER_OUT_BIT);
         byte = byte >> 1;
 
         do {
@@ -458,7 +458,7 @@ void bitbang_putByte(uint8_t byte)
     }
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
 
-    *(gpio + 7) = LE32(SER_OUT_BIT);  // Stop bit - 1
+    *(gpio + 7) = LE32(1 << SER_OUT_BIT);  // Stop bit - 1
 
     do {
         asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
@@ -473,42 +473,42 @@ void fastSerial_putByte_pi3(uint8_t byte)
         gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
   
     /* Start bit */
-    *(gpio + 10) = LE32(SER_OUT_BIT);
+    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
     /* Clock down */
-    *(gpio + 10) = LE32(SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     
     /* Clock up */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
     for (int i=0; i < 8; i++) {
         if (byte & 1)
-            *(gpio + 7) = LE32(SER_OUT_BIT);
+            *(gpio + 7) = LE32(1 << SER_OUT_BIT);
         else
-            *(gpio + 10) = LE32(SER_OUT_BIT);
+            *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
         /* Clock down */
-        *(gpio + 10) = LE32(SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         
         /* Clock up */
-        *(gpio + 7) = LE32(SER_OUT_CLK);
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         
         byte = byte >> 1;
     }
 
     /* DEST bit (0) */
-    *(gpio + 10) = LE32(SER_OUT_BIT);
+    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
     /* Clock down */
-    *(gpio + 10) = LE32(SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
 
     /* Clock up */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
-    *(gpio + 7) = LE32(SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
     /* Leave FS_CLK and FS_DO high */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
-    *(gpio + 7) = LE32(SER_OUT_BIT);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_BIT);
 }
 
 void fastSerial_putByte_pi4(uint8_t byte)
@@ -517,44 +517,44 @@ void fastSerial_putByte_pi4(uint8_t byte)
         gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
   
     /* Start bit */
-    *(gpio + 10) = LE32(SER_OUT_BIT);
+    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
     /* Clock down */
-    *(gpio + 10) = LE32(SER_OUT_CLK);
-    *(gpio + 10) = LE32(SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     /* Clock up */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
-    *(gpio + 7) = LE32(SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
     for (int i=0; i < 8; i++) {
         if (byte & 1)
-            *(gpio + 7) = LE32(SER_OUT_BIT);
+            *(gpio + 7) = LE32(1 << SER_OUT_BIT);
         else
-            *(gpio + 10) = LE32(SER_OUT_BIT);
+            *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
         /* Clock down */
-        *(gpio + 10) = LE32(SER_OUT_CLK);
-        *(gpio + 10) = LE32(SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         /* Clock up */
-        *(gpio + 7) = LE32(SER_OUT_CLK);
-        *(gpio + 7) = LE32(SER_OUT_CLK);
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         
         byte = byte >> 1;
     }
 
     /* DEST bit (0) */
-    *(gpio + 10) = LE32(SER_OUT_BIT);
+    *(gpio + 10) = LE32(1 << SER_OUT_BIT);
 
     /* Clock down */
-    *(gpio + 10) = LE32(SER_OUT_CLK);
-    *(gpio + 10) = LE32(SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     /* Clock up */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
-    *(gpio + 7) = LE32(SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
     /* Leave FS_CLK and FS_DO high */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
-    *(gpio + 7) = LE32(SER_OUT_BIT);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_BIT);
 }
 
 void fastSerial_reset()
@@ -563,16 +563,16 @@ void fastSerial_reset()
         gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
 
     /* Leave FS_CLK and FS_DO high */
-    *(gpio + 7) = LE32(SER_OUT_CLK);
-    *(gpio + 7) = LE32(SER_OUT_BIT);
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 7) = LE32(1 << SER_OUT_BIT);
 
     for (int i=0; i < 16; i++) {
         /* Clock down */
-        *(gpio + 10) = LE32(SER_OUT_CLK);
-        *(gpio + 10) = LE32(SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         /* Clock up */
-        *(gpio + 7) = LE32(SER_OUT_CLK);
-        *(gpio + 7) = LE32(SER_OUT_CLK);
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     }
 }
 
