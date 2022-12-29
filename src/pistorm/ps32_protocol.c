@@ -402,18 +402,20 @@ void ps_efinix_write(unsigned char data_out)
     for (loop=0,mask=0x80;loop<8;loop++, mask=mask>>1)
     {
         *(gpio + 10) = LE32(1 << PIN_CCK);
+        *(gpio + 10) = LE32(1 << PIN_CCK);
         if (data_out & mask) *(gpio + 7) = LE32(1 << PIN_CDI0);
         else *(gpio + 10) = LE32(1 << PIN_CDI0);
         *(gpio + 7) = LE32(1 << PIN_CCK);
+        *(gpio + 7) = LE32(1 << PIN_CCK);
         *(gpio + 7) = LE32(1 << PIN_CCK); //to get closer to 50/50 duty cycle
     }
+    *(gpio + 10) = LE32(1 << PIN_CCK);
     *(gpio + 10) = LE32(1 << PIN_CCK);
 }
 
 void ps_efinix_load(char* buffer, long length)
 {
     long i;
-    kprintf("[PS32] Loading FPGA\n");
     for (i = 0; i < length; ++i)
     {
         ps_efinix_write(buffer[i]);
@@ -424,7 +426,6 @@ void ps_efinix_load(char* buffer, long length)
     {
         ps_efinix_write(0x00);
     }
-    kprintf("[PS32] FPGA loaded\n");
 }
 
 #define BITBANG_DELAY PISTORM_BITBANG_DELAY
