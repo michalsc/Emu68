@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        targ: [raspi, pistorm]
+        targ: [raspi, pistorm, pistorm32lite]
 
     steps:
     - uses: actions/checkout@v2
@@ -60,6 +60,17 @@ jobs:
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DVARIANT=pistorm -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
 
+    - name: Configure CMake - PiStorm32-Lite
+      if: ${{ matrix.targ == 'pistorm32lite' }}
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DVARIANT=pistorm32lite -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
+
     - name: Build
       working-directory: ${{runner.workspace}}/build
       shell: bash
@@ -97,7 +108,7 @@ jobs:
 
     strategy:
       matrix:
-        targ: [raspi, pistorm]
+        targ: [raspi, pistorm, pistorm32lite]
 
     steps:  
     - name: Download Artifact
@@ -127,7 +138,7 @@ jobs:
         echo "::set-output name=sha_short::${GITHUB_SHA::6}"
 
     - name: Webhook
-      if: ${{ matrix.targ == 'pistorm' && steps.deploy.outputs.uploaded == 'yes' }}
+      if: ${{ (matrix.targ == 'pistorm' || matrix.targ == 'pistorm32lite') && steps.deploy.outputs.uploaded == 'yes' }}
       uses: fjogeleit/http-request-action@master
       with:
         url: "${{ secrets.DISCORD_WEBHOOK }}"
