@@ -1727,7 +1727,11 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       ldrb    w1, [x0, #%[ipl]]           \n" // If IPL was 0 then there is no m68k interrupt pending, skip reading
 "       cbz     w1, 998f                    \n" // IPL in that case
 "992:                                       \n"
-#if PISTORM_WRITE_BUFFER && !defined(PISTORM32)
+
+// No need to do anything on PiStorm32 - the w1 contains the IPL value already (see few lines above)
+#ifndef PISTORM32
+
+#if PISTORM_WRITE_BUFFER
 "       adrp    x5, bus_lock                \n"
 "       add     x5, x5, :lo12:bus_lock      \n"
 "       mov     w1, 1                       \n"
@@ -1739,8 +1743,6 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       .lock                       \n"
 ".lock_acquired:                            \n"
 #endif
-// No need to do anything on PiStorm32 - the w1 contains the IPL value already (see few lines above)
-#ifndef PISTORM32
 "       mov     x2, #0xf2200000             \n" // GPIO base address
 "       mov     w1, #0x0c000000             \n"
 "       mov     w3, #0x40000000             \n"
