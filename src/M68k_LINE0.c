@@ -19,7 +19,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t dest = 0xff;
     uint8_t size = 0;
     uint16_t lo16;
-    uint32_t u32;
+    uint32_t u32 = 0;
     int immediate = 0;
 
     /* Load immediate into the register */
