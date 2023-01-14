@@ -291,11 +291,107 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
     while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
 }
 
+static void do_write_access_64(unsigned int address, uint64_t data)
+{
+    set_output();
+
+    /* Set first long word to write */
+    write_ps_reg(REG_DATA_LO, (data >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data >> 48) & 0xffff);
+
+    /* Set address and start transaction */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    /* Advance the address, set second long word to write */
+    address += 4;
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Wait for completion of first transfer */
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    
+    /* Start second transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    /* Wait for completion of second transfer */
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+}
+
+static void do_write_access_128(unsigned int address, uint128_t data)
+{
+    set_output();
+
+    /* Set first long word to write */
+    write_ps_reg(REG_DATA_LO, (data.hi >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.hi >> 48) & 0xffff);
+
+    /* Set address and start transaction */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    /* Advance the address, set second long word to write */
+    address += 4;
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.hi >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Wait for completion of first transfer */
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    
+    /* Start second transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    address += 4;
+
+    /* Set third long word to write */
+    write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.lo >> 48) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Wait for completion of second transfer */
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    
+    /* Start third transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    address += 4;
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.lo >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Wait for completion of third transfer */
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    
+    /* Start fourth transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    /* Wait for completion of second transfer */
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+}
+
+
 static int do_read_access(unsigned int address, unsigned int size)
 {
-    if (address == 0xf00000)
-        usleep(1000);
-
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
@@ -315,6 +411,96 @@ static int do_read_access(unsigned int address, unsigned int size)
     return data;
 }
 
+static uint64_t do_read_access_64(unsigned int address)
+{
+    uint64_t data;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
+    address += 4;
+    data = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
+    data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    return data;
+}
+
+static uint128_t do_read_access_128(unsigned int address)
+{
+    uint128_t data;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
+    address += 4;
+    data.hi = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
+    address += 4;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
+    address += 4;
+    data.lo = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    return data;
+}
+
 void ps_write_8(unsigned int address, unsigned int data) {
     do_write_access(address, data, SIZE_BYTE);
 }
@@ -327,6 +513,14 @@ void ps_write_32(unsigned int address, unsigned int data) {
     do_write_access(address, data, SIZE_LONG);
 }
 
+void ps_write_64(unsigned int address, uint64_t data) {
+    do_write_access_64(address, data);
+}
+
+void ps_write_128(unsigned int address, uint128_t data) {
+    do_write_access_128(address, data);
+}
+
 unsigned int ps_read_8(unsigned int address) {
     return do_read_access(address, SIZE_BYTE);
 }
@@ -337,6 +531,14 @@ unsigned int ps_read_16(unsigned int address) {
 
 unsigned int ps_read_32(unsigned int address) {
     return do_read_access(address, SIZE_LONG);
+}
+
+uint64_t ps_read_64(unsigned int address) {
+    return do_read_access_64(address);
+}
+
+uint128_t ps_read_128(unsigned int address) {
+    return do_read_access_128(address);
 }
 
 void ps_reset_state_machine() {

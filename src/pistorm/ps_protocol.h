@@ -8,6 +8,7 @@
 #ifndef _PS_PROTOCOL_H
 #define _PS_PROTOCOL_H
 
+#include <stdint.h>
 #include "support.h"
 
 #ifdef PS_PROTOCOL_IMPL
@@ -68,13 +69,22 @@
 
 #endif
 
+typedef struct {
+    uint64_t hi;
+    uint64_t lo;
+} uint128_t;
+
 unsigned int ps_read_8(unsigned int address);
 unsigned int ps_read_16(unsigned int address);
 unsigned int ps_read_32(unsigned int address);
+uint64_t ps_read_64(unsigned int address);
+uint128_t ps_read_128(unsigned int address);
 
 void ps_write_8(unsigned int address, unsigned int data);
 void ps_write_16(unsigned int address, unsigned int data);
 void ps_write_32(unsigned int address, unsigned int data);
+void ps_write_64(unsigned int address, uint64_t data);
+void ps_write_128(unsigned int address, uint128_t data);
 
 void ps_buptest(unsigned int size_kb, unsigned int maxiter);
 

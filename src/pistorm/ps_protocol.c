@@ -1031,6 +1031,20 @@ void ps_write_32(unsigned int address, unsigned int data)
 #endif
 }
 
+void ps_write_64(unsigned int address, uint64_t data)
+{
+    ps_write_32(address, data >> 32);
+    ps_write_32(address + 4, data & 0xffffffff);
+}
+
+void ps_write_128(unsigned int address, uint128_t data)
+{
+    ps_write_32(address, data.hi >> 32);
+    ps_write_32(address + 4, data.hi & 0xffffffff);
+    ps_write_32(address + 8, data.lo >> 32);
+    ps_write_32(address + 12, data.lo & 0xffffffff);
+}
+
 unsigned int ps_read_8(unsigned int address)
 {
     int val = ps_read_8_int(address);
@@ -1078,6 +1092,34 @@ unsigned int ps_read_32(unsigned int address)
     }
 #endif
     return val;
+}
+
+uint64_t ps_read_64(unsigned int address)
+{
+    uint32_t hi, lo;
+
+    hi = ps_read_32(address);
+    lo = ps_read_32(address + 4);
+
+    return ((uint64_t)hi << 32) | lo;
+}
+
+uint128_t ps_read_128(unsigned int address)
+{
+    uint128_t res;
+    uint32_t hi, lo;
+
+    hi = ps_read_32(address);
+    lo = ps_read_32(address + 4);
+
+    res.hi = ((uint64_t)hi << 32) | lo;
+
+    hi = ps_read_32(address + 8);
+    lo = ps_read_32(address + 12);
+
+    res.lo = ((uint64_t)hi << 32) | lo;
+
+    return res;
 }
 
 void put_char(uint8_t c);
