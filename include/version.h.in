@@ -3,5 +3,6 @@
 
 #define VERSION_STRING  "@VERSTRING@"
 #define GIT_SHA         "@GIT_SHA@"
+#define BUILD_VARIANT   "@VARIANT@"
 
 #endif /* _VERSION_H */
