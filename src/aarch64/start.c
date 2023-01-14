@@ -654,6 +654,7 @@ void boot(void *dtree)
     e = dt_make_node("emu68");
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
+    dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
     dt_add_node(NULL, e);
 
     /*
