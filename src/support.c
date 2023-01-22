@@ -808,6 +808,12 @@ const int32_t **__ctype_tolower_loc(void)
     return (void *)&ptable;
 }
 
+int tolower(int c)
+{
+    if (c >= -128 && c < 256)
+        return ptable[c];
+    else return 0;
+}
 
 /*	$NetBSD: qsort.c,v 1.23 2017/05/19 19:48:19 christos Exp $	*/
 /*-
