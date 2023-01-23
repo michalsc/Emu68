@@ -625,7 +625,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
 
 #else
 
-int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
+int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
     
@@ -643,12 +643,16 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
         case 8:
             *(uint64_t*)(far + 0xffffff9000000000) = value;
             break;
+        case 16:
+            *(uint64_t*)(far + 0xffffff9000000000) = value;
+            *(uint64_t*)(far + 0xffffff9000000008) = value2;
+            break;
     }
 
     return 1;
 }
 
-int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
+int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
     
@@ -665,6 +669,10 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
             break;
         case 8:
             *value = *(uint64_t*)(far + 0xffffff9000000000);
+            break;
+        case 16:
+            *value = *(uint64_t*)(far + 0xffffff9000000000);
+            *value2 = *(uint64_t*)(far + 0xffffff9000000008);
             break;
     }
 
