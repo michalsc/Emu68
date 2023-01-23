@@ -227,7 +227,7 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
 
-    *(gpio + 7) = LE32(1 << PIN_WR);
+//    *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(CLEAR_BITS);
 }
@@ -239,9 +239,9 @@ static inline unsigned int read_ps_reg(unsigned int address)
     *(gpio + 10) = LE32(1 << PIN_RD);
 
     unsigned int data = LE32(*(gpio + 13));
-    data = LE32(*(gpio + 13)); //pi3
+//    data = LE32(*(gpio + 13)); //pi3
 
-    *(gpio + 7) = LE32(1 << PIN_RD);
+//    *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 10) = LE32(CLEAR_BITS);
 
@@ -275,6 +275,8 @@ void cpu_set_fc(unsigned int fc)
     g_fc = fc;
 }
 
+static uint write_pending = 0;
+
 static void do_write_access(unsigned int address, unsigned int data, unsigned int size)
 {
     set_output();
@@ -284,11 +286,15 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
         write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending)
+        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    write_pending = 1;
 }
 
 static void do_write_access_64(unsigned int address, uint64_t data)
@@ -301,6 +307,9 @@ static void do_write_access_64(unsigned int address, uint64_t data)
 
     /* Set address and start transaction */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     /* Advance the address, set second long word to write */
@@ -321,8 +330,7 @@ static void do_write_access_64(unsigned int address, uint64_t data)
 
     set_input();
 
-    /* Wait for completion of second transfer */
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    write_pending = 1;
 }
 
 static void do_write_access_128(unsigned int address, uint128_t data)
@@ -335,6 +343,9 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Set address and start transaction */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     /* Advance the address, set second long word to write */
@@ -385,16 +396,17 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     set_input();
 
-    /* Wait for completion of second transfer */
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    write_pending = 1;
 }
-
 
 static int do_read_access(unsigned int address, unsigned int size)
 {
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
@@ -408,6 +420,8 @@ static int do_read_access(unsigned int address, unsigned int size)
     else if (size == SIZE_LONG)
         data |= read_ps_reg(REG_DATA_HI) << 16;
 
+    write_pending = 0;
+
     return data;
 }
 
@@ -418,6 +432,9 @@ static uint64_t do_read_access_64(unsigned int address)
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
@@ -440,6 +457,8 @@ static uint64_t do_read_access_64(unsigned int address)
     data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
     data |= (uint64_t)read_ps_reg(REG_DATA_LO);
 
+    write_pending = 0;
+
     return data;
 }
 
@@ -450,6 +469,9 @@ static uint128_t do_read_access_128(unsigned int address)
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    
+    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
@@ -497,6 +519,8 @@ static uint128_t do_read_access_128(unsigned int address)
 
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    write_pending = 0;
 
     return data;
 }
@@ -866,6 +890,12 @@ void ps_housekeeper()
             if ((pin & (1 << PIN_KBRESET)) == 0) {
                 kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
 
+                ps_set_control(CONTROL_REQ_BM);
+                usleep(100000);
+
+                ps_set_control(CONTROL_DRIVE_RESET);
+                usleep(150000);
+
                 unsigned int r;
                 // trigger a restart by instructing the GPU to boot from partition 0
                 r = LE32(*PM_RSTS); r &= ~0xfffffaaa;
@@ -971,7 +1001,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
-            uint32_t c = BE16((ps_read_8(i) << 8) | ps_read_8(i + 1));
+            uint32_t c = BE16(ps_read_16(i));
             if (c != *((uint16_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
                 while(1);
@@ -993,9 +1023,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 1; i < (test_size) - 4; i += 2) {
-            uint32_t c = ps_read_8(i) << 24;
-            c |= (BE16(ps_read_16(i + 1)) << 8);
-            c |= ps_read_8(i + 3);
+            uint32_t c = BE32(ps_read_32(i));
             if (c != *((uint32_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
                 while(1);
@@ -1060,6 +1088,27 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
             if ((i % (frac * 2)) == 1)
                 kprintf_pc(__putc, NULL, "*");
         }
+
+        kprintf_pc(__putc, NULL, "\n  Writing QUAD garbage data to Chip... ");
+        for (uint32_t i = 0; i < (test_size) - 8; i += 8) {
+            uint64_t v = *((uint64_t *)&garbage[i]);
+            ps_write_64(i , v);
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 1; i < (test_size) - 16; i += 8) {
+            uint64_t c = ps_read_64(i);
+            if (c != *((uint64_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ64_ODD: Garbege data mismatch at $%.6X: %.16X should be %.16X.\n", i, c, *((uint64_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
 
         kprintf_pc(__putc, NULL, "\n");
     }
