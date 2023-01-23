@@ -321,7 +321,7 @@ enum
 
 int block_c0;
 
-int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
+int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
 
@@ -451,19 +451,24 @@ int SYSWriteValToAddr(uint64_t value, int size, uint64_t far)
             ps_write_32(far, value);
             break;
         case 8:
-            ps_write_32(far, value >> 32);
-            ps_write_32(far + 4, value & 0xffffffff);
+            ps_write_64(far, value);
             break;
+        case 16:
+        {
+            uint128_t val;
+            val.hi = value;
+            val.lo = value2;
+            ps_write_128(far, val);
+            break;
+        }
     }
     return 1;
 }
 
 
-int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
+int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far)
 {  
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
-
-    uint64_t a, b;
 
     /*
         Allow single wrap around the address space. This provides mirror areas for
@@ -552,10 +557,14 @@ int SYSReadValFromAddr(uint64_t *value, int size, uint64_t far)
             *value = ps_read_32(far);
             break;
         case 8:
-            a = ps_read_32(far);
-            b = ps_read_32(far + 4);
-            *value = (a << 32) | b;
+            *value = ps_read_64(far);
             break;
+        case 16:
+        {
+            uint128_t v = ps_read_128(far);
+            *value = v.hi;
+            *value2 = v.lo;
+        }
     }
 
     if ((far & ~1) == INTENAR) {
@@ -1017,6 +1026,11 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
     (void)vector;
     (void)spsr;
 
+    if (esr & (1 << 24))
+    {
+        kprintf("PageFault with valid instruction syndrome: %08x\n", esr);
+    }
+
     size = getOPsize(opcode);
 
     D(kprintf("[JIT:SYS] Fage fault: opcode %08x, %s %p\n", opcode, writeFault ? "write to" : "read from", far));
@@ -1033,13 +1047,13 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         if ((opcode & 0xfee00c00) == 0xbc000000)
         {
             value = get_fpn_as_single(opcode & 31);
-            handled = SYSWriteValToAddr(value, 4, far);
+            handled = SYSWriteValToAddr(value, 0, 4, far);
         }
         /* FSTS unsigned offset */
         else if ((opcode & 0xff400000) == 0xbd000000)
         {
             value = get_fpn_as_single(opcode & 31);
-            handled = SYSWriteValToAddr(value, 4, far);
+            handled = SYSWriteValToAddr(value, 0, 4, far);
         }
         /* FSTS pre-index */
         else if ((opcode & 0xfee00c00) == 0xbc000400)
@@ -1050,7 +1064,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             ctx[(opcode >> 5) & 31] += offset;
 
-            handled = SYSWriteValToAddr(value, 4, far);
+            handled = SYSWriteValToAddr(value, 0, 4, far);
         }
         /* FSTS post-index */
         else if ((opcode & 0xfee00c00) == 0xbc000c00)
@@ -1059,7 +1073,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             value = get_fpn_as_single(opcode & 31);
 
-            handled = SYSWriteValToAddr(value, 4, far);
+            handled = SYSWriteValToAddr(value, 0, 4, far);
 
             ctx[(opcode >> 5) & 31] += offset;
         }
@@ -1067,13 +1081,13 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         else if ((opcode & 0xfee00c00) == 0xfc000000)
         {
             value = get_fpn_as_double(opcode & 31);
-            handled = SYSWriteValToAddr(value, 8, far);
+            handled = SYSWriteValToAddr(value, 0, 8, far);
         }
         /* FSTD unsigned offset */
         else if ((opcode & 0xff400000) == 0xfd000000)
         {
             value = get_fpn_as_double(opcode & 31);
-            handled = SYSWriteValToAddr(value, 8, far);
+            handled = SYSWriteValToAddr(value, 0, 8, far);
         }
         /* FSTD pre-index */
         else if ((opcode & 0xfee00c00) == 0xfc000400)
@@ -1084,7 +1098,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             ctx[(opcode >> 5) & 31] += offset;
 
-            handled = SYSWriteValToAddr(value, 8, far);
+            handled = SYSWriteValToAddr(value, 0, 8, far);
         }
         /* FSTD post-index */
         else if ((opcode & 0xfee00c00) == 0xbc000c00)
@@ -1093,7 +1107,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             value = get_fpn_as_double(opcode & 31);
 
-            handled = SYSWriteValToAddr(value, 8, far);
+            handled = SYSWriteValToAddr(value, 0, 8, far);
 
             ctx[(opcode >> 5) & 31] += offset;
         }
@@ -1111,7 +1125,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (ptr + offset != far)
                 kprintf("address mismatch in STUR!\n");
 
-            handled = SYSWriteValToAddr(value, size, far);
+            handled = SYSWriteValToAddr(value, 0, size, far);
         }
         /* STR immediate post index */
         else if ((opcode & 0x3fe00c00) == 0x38000400)
@@ -1127,7 +1141,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (ptr != far)
                 kprintf("address mismatch in STR immediate post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
 
-            handled = SYSWriteValToAddr(value, size, far);
+            handled = SYSWriteValToAddr(value, 0, size, far);
             
             ctx[(opcode >> 5) & 31] += offset;
         }
@@ -1147,7 +1161,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             ctx[(opcode >> 5) & 31] += offset;
 
-            handled = SYSWriteValToAddr(value, size, far);
+            handled = SYSWriteValToAddr(value, 0, size, far);
         }
         /* STR unsigned offset */
         else if ((opcode & 0x3fc00000) == 0x39000000)
@@ -1162,7 +1176,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (ptr + offset != far)
                 kprintf("address mismatch in STR unsigned offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
 
-            handled = SYSWriteValToAddr(value, size, far);
+            handled = SYSWriteValToAddr(value, 0, size, far);
         }
         /* STR register */
         else if ((opcode & 0x3fe00c00) == 0x38200800)
@@ -1172,7 +1186,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             else
                 value = ctx[opcode & 31];
 
-            handled = SYSWriteValToAddr(value, size, far);
+            handled = SYSWriteValToAddr(value, 0, size, far);
         }
         /* ST(L)XR register - no exclusive in this case!!! But m68k bus does not support it anyway */
         else if ((opcode & 0x3fe07c00) == 0x08007c00)
@@ -1185,7 +1199,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             // Mark the store as successful
             ctx[(opcode >> 16) & 31] = 0;
 
-            handled = SYSWriteValToAddr(value, size, far);
+            handled = SYSWriteValToAddr(value, 0, size, far);
         }
         /* STP */
         else if ((opcode & 0x7fc00000) == 0x29000000)
@@ -1198,21 +1212,42 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             int16_t offset = size * (((int16_t)(opcode >> 6)) >> 9);
             uint64_t ptr = ctx[(opcode >> 5) & 31];
             if (ptr + offset != far)
+            {
                 kprintf("address mismatch in STP offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                // STP may fail on either register access, hence, update FAR accordingly now
+                far = ptr + offset;
+            }
 
-            if ((opcode & 31) == 31)
-                value = 0;
+            if (size == 4)
+            {
+                if ((opcode & 31) == 31)
+                    value = 0;
+                else
+                    value = ctx[opcode & 31];
+
+                value <<= 32;
+
+                if (((opcode >> 10) & 31) != 31)
+                    value |= (ctx[(opcode >> 10) & 31]) & 0xFFFFFFFFULL;
+
+                handled = SYSWriteValToAddr(value, 0, 8, far);
+            }
             else
-                value = ctx[opcode & 31];
+            {
+                uint128_t v;
+                
+                if ((opcode & 31) == 31)
+                    v.hi = 0;
+                else
+                    v.hi = ctx[opcode & 31];
 
-            handled = SYSWriteValToAddr(value, size, far);
+                if (((opcode >> 10) & 31) == 31)
+                    v.lo = 0;
+                else
+                    v.lo = ctx[(opcode >> 10) & 31];
 
-            if (((opcode >> 10) & 31) == 31)
-                value = 0;
-            else
-                value = ctx[(opcode >> 10) & 31];
-            
-            handled &= SYSWriteValToAddr(value, size, far + size);
+                handled = SYSWriteValToAddr(v.hi, v.lo, 16, far);
+            }
         }
         /* STP post index */
         else if ((opcode & 0x7fc00000) == 0x28800000)
@@ -1227,23 +1262,43 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
      
             uint64_t ptr = ctx[(opcode >> 5) & 31];
             if (ptr != far)
+            {
                 kprintf("address mismatch in STP post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
-
+                far = ptr;
+            }
+                
             ctx[(opcode >> 5) & 31] += offset;
 
-            if ((opcode & 31) == 31)
-                value = 0;
-            else
-                value = ctx[opcode & 31];
+            if (size == 4)
+            {
+                if ((opcode & 31) == 31)
+                    value = 0;
+                else
+                    value = ctx[opcode & 31];
 
-            handled = SYSWriteValToAddr(value, size, far);
+                value <<= 32;
 
-            if (((opcode >> 10) & 31) == 31)
-                value = 0;
+                if (((opcode >> 10) & 31) != 31)
+                    value |= (ctx[(opcode >> 10) & 31]) & 0xFFFFFFFFULL;
+
+                handled = SYSWriteValToAddr(value, 0, 8, far);
+            }
             else
-                value = ctx[(opcode >> 10) & 31];
-            
-            handled &= SYSWriteValToAddr(value, size, far + size);
+            {
+                uint128_t v;
+                
+                if ((opcode & 31) == 31)
+                    v.hi = 0;
+                else
+                    v.hi = ctx[opcode & 31];
+
+                if (((opcode >> 10) & 31) == 31)
+                    v.lo = 0;
+                else
+                    v.lo = ctx[(opcode >> 10) & 31];
+
+                handled = SYSWriteValToAddr(v.hi, v.lo, 16, far);
+            }
         }
         /* STP pre index */
         else if ((opcode & 0x7fc00000) == 0x29800000)
@@ -1258,23 +1313,43 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             
             uint64_t ptr = ctx[(opcode >> 5) & 31];
             if (ptr + offset != far)
+            {
                 kprintf("address mismatch in STP pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                far = ptr + offset;
+            } 
 
             ctx[(opcode >> 5) & 31] += offset;
             
-            if ((opcode & 31) == 31)
-                value = 0;
-            else
-                value = ctx[opcode & 31];
+            if (size == 4)
+            {
+                if ((opcode & 31) == 31)
+                    value = 0;
+                else
+                    value = ctx[opcode & 31];
 
-            handled = SYSWriteValToAddr(value, size, far);
+                value <<= 32;
 
-            if (((opcode >> 10) & 31) == 31)
-                value = 0;
+                if (((opcode >> 10) & 31) != 31)
+                    value |= (ctx[(opcode >> 10) & 31]) & 0xFFFFFFFFULL;
+
+                handled = SYSWriteValToAddr(value, 0, 8, far);
+            }
             else
-                value = ctx[(opcode >> 10) & 31];
-            
-            handled &= SYSWriteValToAddr(value, size, far + size);
+            {
+                uint128_t v;
+                
+                if ((opcode & 31) == 31)
+                    v.hi = 0;
+                else
+                    v.hi = ctx[opcode & 31];
+
+                if (((opcode >> 10) & 31) == 31)
+                    v.lo = 0;
+                else
+                    v.lo = ctx[(opcode >> 10) & 31];
+
+                handled = SYSWriteValToAddr(v.hi, v.lo, 16, far);
+            }
         }
     }
     else
@@ -1283,7 +1358,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         /* FLDS */
         if ((opcode & 0xfee00c00) == 0xbc400000)
         {
-            handled = SYSReadValFromAddr(&value, 4, far);
+            handled = SYSReadValFromAddr(&value, NULL, 4, far);
             if (handled)
             {
                 set_fpn_as_single(opcode & 31, value);
@@ -1292,7 +1367,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         /* FLDS unsigned offset */
         else if ((opcode & 0xff400000) == 0xbd400000)
         {
-            handled = SYSReadValFromAddr(&value, 4, far);
+            handled = SYSReadValFromAddr(&value, NULL, 4, far);
             if (handled)
             {
                 set_fpn_as_single(opcode & 31, value);
@@ -1303,7 +1378,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         {
             int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
 
-            handled = SYSReadValFromAddr(&value, 4, far);
+            handled = SYSReadValFromAddr(&value, NULL, 4, far);
             if (handled)
             {
                 set_fpn_as_single(opcode & 31, value);
@@ -1315,7 +1390,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         {
             int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
 
-            handled = SYSReadValFromAddr(&value, 4, far);
+            handled = SYSReadValFromAddr(&value, NULL, 4, far);
             if (handled)
             {
                 set_fpn_as_single(opcode & 31, value);
@@ -1325,7 +1400,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         /* FLDD */
         else if ((opcode & 0xfee00c00) == 0xfc400000)
         {
-            handled = SYSReadValFromAddr(&value, 8, far);
+            handled = SYSReadValFromAddr(&value, NULL, 8, far);
             if (handled)
             {
                 set_fpn_as_double(opcode & 31, value);
@@ -1334,7 +1409,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         /* FLDD unsigned offset */
         else if ((opcode & 0xff400000) == 0xfd400000)
         {
-            handled = SYSReadValFromAddr(&value, 8, far);
+            handled = SYSReadValFromAddr(&value, NULL, 8, far);
             if (handled)
             {
                 set_fpn_as_double(opcode & 31, value);
@@ -1343,7 +1418,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         /* FLDD reg offset */
         else if ((opcode & 0xfee00c00) == 0xfc600800)
         {
-            handled = SYSReadValFromAddr(&value, 8, far);
+            handled = SYSReadValFromAddr(&value, NULL, 8, far);
             if (handled)
             {
                 set_fpn_as_double(opcode & 31, value);
@@ -1354,7 +1429,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         {
             int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
 
-            handled = SYSReadValFromAddr(&value, 8, far);
+            handled = SYSReadValFromAddr(&value, NULL, 8, far);
             if (handled)
             {
                 set_fpn_as_double(opcode & 31, value);
@@ -1366,7 +1441,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         {
             int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
 
-            handled = SYSReadValFromAddr(&value, 8, far);
+            handled = SYSReadValFromAddr(&value, NULL, 8, far);
             if (handled)
             {
                 set_fpn_as_double(opcode & 31, value);
@@ -1384,11 +1459,24 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             int16_t offset = size * (((int16_t)(opcode >> 6)) >> 9);
             uint64_t ptr = ctx[(opcode >> 5) & 31];
-            if (ptr + offset != far)
-                kprintf("address mismatch in LDP offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
-            
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
-            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);    
+            if (ptr + offset != far) {
+                kprintf("address mismatch in LDP offset far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr);
+
+                // In case of LDP/STP it is possible that fetches are out of order, so the exception can trigger on second register or on first register
+                far = ptr + offset;
+            }
+
+            if (size == 4)
+            {
+                uint64_t tmp;
+                handled = SYSReadValFromAddr(&tmp, NULL, 8, far);
+                ctx[opcode & 31] = tmp >> 32;
+                ctx[(opcode >> 10) & 31] = tmp & 0xffffffffULL;
+            }
+            else
+            {
+                handled = SYSReadValFromAddr(&ctx[opcode & 31], &ctx[(opcode >> 10) & 31], 16, far);
+            }
         }
         /* LDP post- and pre-index */
         else if ((opcode & 0x7ec00000) == 0x28c00000)
@@ -1405,16 +1493,31 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             if (opcode & 0x01000000) {
                 if (ptr + offset != far)
-                    kprintf("address mismatch in LDP pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                {
+                    kprintf("address mismatch in LDP pre index far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr);
+                    far = ptr + offset;
+                }
             }
             else
             {
                 if (ptr != far)
-                    kprintf("address mismatch in LDP post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                {
+                    kprintf("address mismatch in LDP post index far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr);
+                    far = ptr;
+                }
             }
 
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
-            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
+            if (size == 4)
+            {
+                uint64_t tmp;
+                handled = SYSReadValFromAddr(&tmp, NULL, 8, far);
+                ctx[opcode & 31] = tmp >> 32;
+                ctx[(opcode >> 10) & 31] = tmp & 0xffffffffULL;
+            }
+            else
+            {
+                handled = SYSReadValFromAddr(&ctx[opcode & 31], &ctx[(opcode >> 10) & 31], 16, far);
+            }
                 
             ctx[(opcode >> 5) & 31] += offset;
         }
@@ -1426,18 +1529,23 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             int16_t offset = size * (((int16_t)(opcode >> 6)) >> 9);
             uint64_t ptr = ctx[(opcode >> 5) & 31];
             if (ptr + offset != far)
+            {
                 kprintf("address mismatch in LDPSW offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                far = ptr + offset;
+            }
 
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            uint64_t tmp;
+            handled = SYSReadValFromAddr(&tmp, NULL, 2 * size, far);
+
             if (handled) {
+                ctx[opcode & 31] = tmp >> 32;
                 if (ctx[opcode & 31] & 0x80000000)
                     ctx[opcode & 31] |= 0xffffffff00000000ULL;
-            }
-            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
-            if (handled) {
+
+                ctx[(opcode >> 10) & 31] = tmp & 0xffffffffULL;
                 if (ctx[(opcode >> 10) & 31] & 0x80000000)
                     ctx[(opcode >> 10) & 31] |= 0xffffffff00000000ULL;
-            }  
+            }
         }
         /* LDPSW post index */
         else if ((opcode & 0xffc00000) == 0x68c00000)
@@ -1448,18 +1556,24 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             
             uint64_t ptr = ctx[(opcode >> 5) & 31];
             if (ptr != far)
+            {
                 kprintf("address mismatch in LDPSW post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                far = ptr;
+            }
 
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            uint64_t tmp;
+            handled = SYSReadValFromAddr(&tmp, NULL, 2 * size, far);
+
             if (handled) {
+                ctx[opcode & 31] = tmp >> 32;
                 if (ctx[opcode & 31] & 0x80000000)
                     ctx[opcode & 31] |= 0xffffffff00000000ULL;
-            }
-            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
-            if (handled) {
+
+                ctx[(opcode >> 10) & 31] = tmp & 0xffffffffULL;
                 if (ctx[(opcode >> 10) & 31] & 0x80000000)
                     ctx[(opcode >> 10) & 31] |= 0xffffffff00000000ULL;
             }
+
             ctx[(opcode >> 5) & 31] += offset;
         }
         /* LDPSW pre index */
@@ -1471,18 +1585,24 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
             uint64_t ptr = ctx[(opcode >> 5) & 31];
             if (ptr + offset != far)
+            {
                 kprintf("address mismatch in LDPSW pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                far = ptr + offset;
+            }
 
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            uint64_t tmp;
+            handled = SYSReadValFromAddr(&tmp, NULL, 2 * size, far);
+
             if (handled) {
+                ctx[opcode & 31] = tmp >> 32;
                 if (ctx[opcode & 31] & 0x80000000)
                     ctx[opcode & 31] |= 0xffffffff00000000ULL;
-            }
-            handled &= SYSReadValFromAddr(&ctx[(opcode >> 10) & 31], size, far + size);
-            if (handled) {
+
+                ctx[(opcode >> 10) & 31] = tmp & 0xffffffffULL;
                 if (ctx[(opcode >> 10) & 31] & 0x80000000)
                     ctx[(opcode >> 10) & 31] |= 0xffffffff00000000ULL;
             }
+
             ctx[(opcode >> 5) & 31] += offset;
         }
         /* LDR (literal) */
@@ -1496,7 +1616,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (opcode & 0x80000000)
                 sext = 1;
             
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
             if (handled & sext) {
                 if (ctx[opcode & 31] & 0x80000000)
                     ctx[opcode & 31] |= 0xffffffff00000000ULL;
@@ -1505,29 +1625,29 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
         /* LDR register */
         else if ((opcode & 0x3fe00c00) == 0x38600800)
         {
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         }
         /* LDXR register - no exclusive in this case!!! But m68k bus does not support it anyway */
         else if ((opcode & 0x3ffffc00) == 0x085f7c00)
         {
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         }
         /* LDR immediate */
         else if ((opcode & 0x3fc00000) == 0x39400000)
         {
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         }
         /* LDUR(B/W) */
         else if ((opcode & 0x3fe00c00) == 0x38400000)
         {
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         }
         /* LDR immediate, post- and pre-index */
         else if ((opcode & 0x3fe00400) == 0x38400400)
         {
             int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
             
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
             if (handled)
                 ctx[(opcode >> 5) & 31] += offset;
         }
@@ -1538,7 +1658,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (opcode & (1 << 22))
                 sext64 = 0;
             
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
             if (handled) {
                 int sext = 0;
                 switch (size)
@@ -1568,7 +1688,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (opcode & (1 << 22))
                 sext64 = 0;
             
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
             if (handled) {
                 int sext = 0;
                 switch (size)
@@ -1598,7 +1718,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (opcode & (1 << 22))
                 sext64 = 0;
             
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
             if (handled) {
                 int sext = 0;
                 switch (size)
@@ -1629,7 +1749,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
             if (opcode & (1 << 22))
                 sext64 = 0;
             
-            handled = SYSReadValFromAddr(&ctx[opcode & 31], size, far);
+            handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
             if (handled) {
                 int sext = 0;
                 switch (size)
