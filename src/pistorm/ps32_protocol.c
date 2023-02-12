@@ -148,6 +148,7 @@ typedef unsigned int uint;
 #define REG_ADDR_HI     3
 #define REG_STATUS      4
 #define REG_CONTROL     4
+#define REG_VERSION     7
 
 #define TXN_SIZE_SHIFT  8
 #define TXN_RW_SHIFT    10
@@ -226,8 +227,9 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
 
-//    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(CLEAR_BITS);
 }
@@ -237,11 +239,12 @@ static inline unsigned int read_ps_reg(unsigned int address)
     *(gpio + 7) = LE32((address << PIN_A(0)));
     *(gpio + 10) = LE32(1 << PIN_RD);
     *(gpio + 10) = LE32(1 << PIN_RD);
+    *(gpio + 10) = LE32(1 << PIN_RD);
 
     unsigned int data = LE32(*(gpio + 13));
-//    data = LE32(*(gpio + 13)); //pi3
+    data = LE32(*(gpio + 13)); //pi3
 
-//    *(gpio + 7) = LE32(1 << PIN_RD);
+    *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 10) = LE32(CLEAR_BITS);
 
@@ -620,7 +623,7 @@ void ps_efinix_setup()
 
     //reset fpga, latching cbus and mode pins
     *(gpio + 10) = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
-    usleep(10000); //wait a bit for ps32-lite glitch filter RC to discharge
+    usleep(50000); //wait a bit for ps32-lite glitch filter RC to discharge
     *(gpio + 7) = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
 }
 
@@ -632,12 +635,15 @@ void ps_efinix_write(unsigned char data_out)
     {
         *(gpio + 10) = LE32(1 << PIN_CCK);
         *(gpio + 10) = LE32(1 << PIN_CCK);
+        *(gpio + 10) = LE32(1 << PIN_CCK);
         if (data_out & mask) *(gpio + 7) = LE32(1 << PIN_CDI0);
         else *(gpio + 10) = LE32(1 << PIN_CDI0);
         *(gpio + 7) = LE32(1 << PIN_CCK);
         *(gpio + 7) = LE32(1 << PIN_CCK);
+        *(gpio + 7) = LE32(1 << PIN_CCK);
         *(gpio + 7) = LE32(1 << PIN_CCK); //to get closer to 50/50 duty cycle
     }
+    *(gpio + 10) = LE32(1 << PIN_CCK);
     *(gpio + 10) = LE32(1 << PIN_CCK);
     *(gpio + 10) = LE32(1 << PIN_CCK);
 }
@@ -752,7 +758,9 @@ void fastSerial_putByte_pi4(uint8_t byte)
     /* Clock down */
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     /* Clock up */
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
@@ -765,7 +773,9 @@ void fastSerial_putByte_pi4(uint8_t byte)
         /* Clock down */
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         /* Clock up */
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         
@@ -778,7 +788,9 @@ void fastSerial_putByte_pi4(uint8_t byte)
     /* Clock down */
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     /* Clock up */
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
@@ -800,7 +812,9 @@ void fastSerial_reset()
         /* Clock down */
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         /* Clock up */
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     }
