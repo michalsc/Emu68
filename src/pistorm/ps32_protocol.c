@@ -752,7 +752,9 @@ void fastSerial_putByte_pi4(uint8_t byte)
     /* Clock down */
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     /* Clock up */
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
@@ -765,7 +767,9 @@ void fastSerial_putByte_pi4(uint8_t byte)
         /* Clock down */
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         /* Clock up */
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         
@@ -778,7 +782,9 @@ void fastSerial_putByte_pi4(uint8_t byte)
     /* Clock down */
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+    *(gpio + 10) = LE32(1 << SER_OUT_CLK);
     /* Clock up */
+    *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     *(gpio + 7) = LE32(1 << SER_OUT_CLK);
 
@@ -800,7 +806,9 @@ void fastSerial_reset()
         /* Clock down */
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         *(gpio + 10) = LE32(1 << SER_OUT_CLK);
+        *(gpio + 10) = LE32(1 << SER_OUT_CLK);
         /* Clock up */
+        *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
         *(gpio + 7) = LE32(1 << SER_OUT_CLK);
     }
