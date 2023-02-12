@@ -689,7 +689,7 @@ void boot(void *dtree)
     platform_init();
 
     /* Test if the image begins with gzip header. If yes, then this is the firmware blob */
-    if (((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
+    if (initramfs_size != 0 && ((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
     {
         struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
         
