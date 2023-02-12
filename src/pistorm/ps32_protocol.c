@@ -148,6 +148,7 @@ typedef unsigned int uint;
 #define REG_ADDR_HI     3
 #define REG_STATUS      4
 #define REG_CONTROL     4
+#define REG_VERSION     7
 
 #define TXN_SIZE_SHIFT  8
 #define TXN_RW_SHIFT    10
