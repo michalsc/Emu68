@@ -227,8 +227,9 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
+    *(gpio + 10) = LE32(1 << PIN_WR);
 
-//    *(gpio + 7) = LE32(1 << PIN_WR);
+    *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 7) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(CLEAR_BITS);
 }
@@ -238,11 +239,12 @@ static inline unsigned int read_ps_reg(unsigned int address)
     *(gpio + 7) = LE32((address << PIN_A(0)));
     *(gpio + 10) = LE32(1 << PIN_RD);
     *(gpio + 10) = LE32(1 << PIN_RD);
+    *(gpio + 10) = LE32(1 << PIN_RD);
 
     unsigned int data = LE32(*(gpio + 13));
-//    data = LE32(*(gpio + 13)); //pi3
+    data = LE32(*(gpio + 13)); //pi3
 
-//    *(gpio + 7) = LE32(1 << PIN_RD);
+    *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 7) = LE32(1 << PIN_RD);
     *(gpio + 10) = LE32(CLEAR_BITS);
 
