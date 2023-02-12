@@ -621,7 +621,7 @@ void ps_efinix_setup()
 
     //reset fpga, latching cbus and mode pins
     *(gpio + 10) = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
-    usleep(10000); //wait a bit for ps32-lite glitch filter RC to discharge
+    usleep(50000); //wait a bit for ps32-lite glitch filter RC to discharge
     *(gpio + 7) = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
 }
 
@@ -633,12 +633,15 @@ void ps_efinix_write(unsigned char data_out)
     {
         *(gpio + 10) = LE32(1 << PIN_CCK);
         *(gpio + 10) = LE32(1 << PIN_CCK);
+        *(gpio + 10) = LE32(1 << PIN_CCK);
         if (data_out & mask) *(gpio + 7) = LE32(1 << PIN_CDI0);
         else *(gpio + 10) = LE32(1 << PIN_CDI0);
         *(gpio + 7) = LE32(1 << PIN_CCK);
         *(gpio + 7) = LE32(1 << PIN_CCK);
+        *(gpio + 7) = LE32(1 << PIN_CCK);
         *(gpio + 7) = LE32(1 << PIN_CCK); //to get closer to 50/50 duty cycle
     }
+    *(gpio + 10) = LE32(1 << PIN_CCK);
     *(gpio + 10) = LE32(1 << PIN_CCK);
     *(gpio + 10) = LE32(1 << PIN_CCK);
 }
