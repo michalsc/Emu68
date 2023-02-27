@@ -846,7 +846,9 @@ void fastSerial_init()
 
     if (!gpio)
         gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
-  
+
+    pistorm_setup_serial();
+
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
 
     if (tmp > 20000000)
