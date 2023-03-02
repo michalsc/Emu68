@@ -224,7 +224,7 @@ void ps_setup_protocol() {
 static inline void write_ps_reg(unsigned int address, unsigned int data)
 {
     *(gpio + 7) = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
-    *(gpio + 10) = LE32(1 << PIN_WR);
+
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
     *(gpio + 10) = LE32(1 << PIN_WR);
@@ -237,9 +237,8 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
 static inline unsigned int read_ps_reg(unsigned int address)
 {
     *(gpio + 7) = LE32((address << PIN_A(0)));
-    *(gpio + 10) = LE32(1 << PIN_RD);
-    *(gpio + 10) = LE32(1 << PIN_RD);
-    *(gpio + 10) = LE32(1 << PIN_RD);
+    *(gpio + 10) = LE32(1 << PIN_RD); 
+    *(gpio + 10) = LE32(1 << PIN_RD); 
 
     unsigned int data = LE32(*(gpio + 13));
     data = LE32(*(gpio + 13)); //pi3
@@ -297,7 +296,13 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
 
     set_input();
 
-    write_pending = 1;
+    if (address > 0x00200000)
+    {
+        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
 }
 
 static void do_write_access_64(unsigned int address, uint64_t data)
@@ -333,7 +338,13 @@ static void do_write_access_64(unsigned int address, uint64_t data)
 
     set_input();
 
-    write_pending = 1;
+    if (address > 0x00200000)
+    {
+        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
 }
 
 static void do_write_access_128(unsigned int address, uint128_t data)
@@ -399,7 +410,13 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     set_input();
 
-    write_pending = 1;
+    if (address > 0x00200000)
+    {
+        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
 }
 
 static int do_read_access(unsigned int address, unsigned int size)
