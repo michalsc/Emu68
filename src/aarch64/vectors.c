@@ -1279,8 +1279,7 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
                 kprintf("address mismatch in STP post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
                 far = ptr;
             }
-                
-            ctx[(opcode >> 5) & 31] += offset;
+            
 
             if (size == 4)
             {
@@ -1312,6 +1311,8 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
                 handled = SYSWriteValToAddr(v.hi, v.lo, 16, far);
             }
+
+            ctx[(opcode >> 5) & 31] += offset;
         }
         /* STP pre index */
         else if ((opcode & 0x7fc00000) == 0x29800000)
@@ -1330,8 +1331,6 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
                 kprintf("address mismatch in STP pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
                 far = ptr + offset;
             } 
-
-            ctx[(opcode >> 5) & 31] += offset;
             
             if (size == 4)
             {
@@ -1363,6 +1362,8 @@ int SYSPageFaultHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t s
 
                 handled = SYSWriteValToAddr(v.hi, v.lo, 16, far);
             }
+
+            ctx[(opcode >> 5) & 31] += offset;
         }
     }
     else
