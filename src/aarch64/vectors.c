@@ -14,6 +14,9 @@
 #include "mmu.h"
 #include "tlsf.h"
 #include "M68k.h"
+#ifdef PISTORM
+#include "cache.h"
+#endif
 
 #define FULL_CONTEXT 1
 
@@ -320,6 +323,7 @@ enum
 };
 
 int block_c0;
+extern uint8_t translation_in_progress;
 
 int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
@@ -442,23 +446,23 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
     switch(size)
     {
         case 1:
-            ps_write_8(far, value);
+            if (cache_write_8(DCACHE, far, value, 0) == 0) ps_write_8(far, value);
             break;
         case 2:
-            ps_write_16(far, value);
+            if (cache_write_16(DCACHE, far, value, 0) == 0) ps_write_16(far, value);
             break;
         case 4:
-            ps_write_32(far, value);
+            if (cache_write_32(DCACHE, far, value, 0) == 0) ps_write_32(far, value);
             break;
         case 8:
-            ps_write_64(far, value);
+            if (cache_write_64(DCACHE, far, value, 0) == 0) ps_write_64(far, value);
             break;
         case 16:
         {
             uint128_t val;
             val.hi = value;
             val.lo = value2;
-            ps_write_128(far, val);
+            if (cache_write_128(DCACHE, far, val, 0) == 0)  ps_write_128(far, val);
             break;
         }
     }
@@ -548,22 +552,56 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     switch(size)
     {
         case 1:
-            *value = ps_read_8(far);
+        {
+            uint8_t v;
+            if (cache_read_8(translation_in_progress ? ICACHE : DCACHE, far, &v))
+                *value = v;
+            else
+                *value = ps_read_8(far);
+
             break;
+        }
         case 2:
-            *value = ps_read_16(far);
+        {
+            uint16_t v;
+            if (cache_read_16(translation_in_progress ? ICACHE : DCACHE, far, &v))
+                *value = v;
+            else
+                *value = ps_read_16(far);
+            
             break;
+        }
         case 4:
-            *value = ps_read_32(far);
+        {
+            uint32_t v;
+            if (cache_read_32(translation_in_progress ? ICACHE : DCACHE, far, &v))
+                *value = v;
+            else
+                *value = ps_read_32(far);
+            
             break;
+        }
         case 8:
-            *value = ps_read_64(far);
+        {
+            uint64_t v;
+            if (cache_read_64(translation_in_progress ? ICACHE : DCACHE, far, &v))
+                *value = v;
+            else
+                *value = ps_read_64(far);
+            
             break;
+        }
         case 16:
         {
-            uint128_t v = ps_read_128(far);
+            uint128_t v;
+
+            if (cache_read_128(translation_in_progress ? ICACHE : DCACHE, far, &v) == 0)
+                v = ps_read_128(far);
+
             *value = v.hi;
             *value2 = v.lo;
+
+            break;
         }
     }
 
