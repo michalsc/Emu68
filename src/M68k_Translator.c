@@ -240,9 +240,12 @@ uint32_t debug_range_max = 0xffffffff;
 uint8_t reg_Load96;
 uint8_t reg_Save96;
 uint32_t val_FPIAR;
+uint8_t translation_in_progress = 0;
 
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
+    translation_in_progress = 1;
+
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     int var_EMU68_MAX_LOOP_COUNT = (__m68k_state->JIT_CONTROL >> JCCB_LOOP_COUNT) & JCCB_LOOP_COUNT_MASK;
@@ -680,6 +683,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         uint32_t mean_f = mean % 100;
         kprintf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
     }
+
+    translation_in_progress = 0;
 
     return (uintptr_t)end - (uintptr_t)arm_code;
 }
