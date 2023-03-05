@@ -15,6 +15,10 @@
 #include "tlsf.h"
 #include "math/libm.h"
 
+#ifdef PISTORM
+#include "cache.h"
+#endif
+
 extern uint8_t reg_Load96;
 extern uint8_t reg_Save96;
 extern uint32_t val_FPIAR;
@@ -1785,6 +1789,9 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
             // kprintf("[LINEF] Invalidating line\n");
+#ifdef PISTORM
+            cache_invalidate_line(ICACHE, target_addr);
+#endif
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1817,6 +1824,12 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             break;
         case 0x10:  /* Page */
             // kprintf("[LINEF] Invalidating page\n");
+#ifdef PISTORM
+            for (int i=0; i < 4096; i+=16)
+            {
+                cache_invalidate_line(ICACHE, i + (target_addr & ~4095));
+            }
+#endif
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1850,6 +1863,9 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             break;
         case 0x18:  /* All */
             // kprintf("[LINEF] Invalidating all\n");            
+#ifdef PISTORM            
+            cache_invalidate_all(ICACHE);
+#endif
             if (__m68k_state->JIT_CONTROL & JCCF_SOFT)
             {
                 if (__m68k_state->JIT_UNIT_COUNT < __m68k_state->JIT_SOFTFLUSH_THRESH)
