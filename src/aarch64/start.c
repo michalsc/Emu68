@@ -26,6 +26,7 @@
 #include "md5.h"
 #include "disasm.h"
 #include "version.h"
+#include "cache.h"
 
 void _start();
 void _boot();
@@ -774,6 +775,10 @@ void boot(void *dtree)
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
 
     disasm_init();
+
+#ifdef PISTORM
+    cache_setup();
+#endif
 
     e = dt_find_node("/memory");
 
