@@ -44,6 +44,9 @@
 
 #ifdef PISTORM
 
+#define CACHE_SET_COUNT         64
+#define CACHE_WAY_COUNT         4
+
 /* Speed for bitbang RS232... */
 #define PISTORM_BITBANG_SPEED       921600
 
