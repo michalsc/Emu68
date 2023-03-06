@@ -906,18 +906,25 @@ void boot(void *dtree)
 
         const uint32_t tlb_flusher[] = {
             LE32(0xd5033b9f),       // dsb   ish
+            LE32(0xd5033b9f),       // dsb   ish
+            LE32(0xd5033b9f),       // dsb   ish
+            LE32(0xd508831f),       // tlbi  vmalle1is
+            LE32(0xd5033f9f),       // dsb   sy
+            LE32(0xd5033fdf),       // isb
             LE32(0xd508831f),       // tlbi  vmalle1is
             LE32(0xd5033f9f),       // dsb   sy
             LE32(0xd5033fdf),       // isb
             LE32(0xd65f03c0)        // ret
         };
 
-        void *addr = tlsf_malloc(jit_tlsf, 4*5);
+        void *addr = tlsf_malloc(jit_tlsf, 4*10);
         void (*flusher)() = (void (*)())((uintptr_t)addr | 0x1000000000);
-        DuffCopy(addr, tlb_flusher, 5);
-        arm_flush_cache((uintptr_t)addr, 4*5);
+        DuffCopy(addr, tlb_flusher, 10);
+        arm_flush_cache((uintptr_t)addr, 4*10);
         flusher();
         tlsf_free(jit_tlsf, addr);
+
+        kprintf("[BOOT] TLB invalidated\n");
     }
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
