@@ -96,8 +96,66 @@ void cache_invalidate_all(enum CacheType type)
     }
 }
 
+void cache_flush_all(enum CacheType type)
+{
+    if (type == ICACHE)
+        cache_invalidate_all(type);
+
+    struct Cache *cache = (type == ICACHE) ? IC : DC;
+
+    D(kprintf("[CACHE] %cCache flush all\n", type == ICACHE ? 'I':'D'));
+
+    for (int set=0; set < CACHE_SET_COUNT; set++)
+    {
+        cache->c_WaySelect[set] = 0;
+        for (int way=0; way < CACHE_WAY_COUNT; way++)
+        {
+            if ((cache->c_Flags[set][way] & F_VALID) && (cache->c_Flags[set][way] & (F_DIRTY0 | F_DIRTY1 | F_DIRTY2 | F_DIRTY3)) != 0)
+            {
+                uint32_t line_address = cache->c_Tags[set][way] + (set << 4);
+                D(kprintf("[CACHE]   cache line was previously used, tag=%08x, address=%08x, flushing\n",
+                    cache->c_Tags[set][way], line_address));
+                
+                /* Write cache back if the lines are dirty */
+                if (cache->c_Flags[set][way] & F_DIRTY0)
+                    ps_write_32(line_address, cache->c_Lines[set][way].cl_32[0]);
+                if (cache->c_Flags[set][way] & F_DIRTY1)
+                    ps_write_32(line_address, cache->c_Lines[set][way].cl_32[1]);
+                if (cache->c_Flags[set][way] & F_DIRTY2)
+                    ps_write_32(line_address, cache->c_Lines[set][way].cl_32[2]);
+                if (cache->c_Flags[set][way] & F_DIRTY3)
+                    ps_write_32(line_address, cache->c_Lines[set][way].cl_32[3]);
+            }
+            cache->c_Flags[set][way] = 0;
+        }        
+    }
+}
+
 void cache_invalidate_line(enum CacheType type, uint32_t address)
 {
+    struct Cache *cache = (type == ICACHE) ? IC : DC;
+
+    D(kprintf("[CACHE] %cCache invalidate line (%08lx)\n", type == ICACHE ? 'I':'D', address));
+
+    const uint32_t tag = GET_TAG(address);
+    const uint32_t set = GET_SET(address);
+
+    for (unsigned i=0; i < CACHE_WAY_COUNT; i++)
+    {
+        if ((cache->c_Tags[set][i] == tag) &&
+            (cache->c_Flags[set][i] & F_VALID))
+        {
+            cache->c_Flags[set][i] = 0;
+            cache->c_WaySelect[set] &= ~(1 << i);
+        }
+    }
+}
+
+void cache_flush_line(enum CacheType type, uint32_t address)
+{
+    if (type == ICACHE)
+        cache_invalidate_line(type, address);
+
     struct Cache *cache = (type == ICACHE) ? IC : DC;
 
     D(kprintf("[CACHE] %cCache invalidate line (%08lx)\n", type == ICACHE ? 'I':'D', address));

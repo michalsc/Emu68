@@ -1678,6 +1678,22 @@ void  __attribute__((used)) __clear_entire_dcache(void)
 "       dsb     sy                      \n" // Ensure completion of previous cache maintenance instruction
 "       b.gt    1b                      \n"
 "5:                                     \n"
+#ifdef PISTORM
+"       stp     x30, x6, [sp, #-16]!    \n"
+"       stp     x12, x13, [sp, #-16]!   \n"
+"       stp     x14, x15, [sp, #-16]!   \n"
+"       stp     x18, x19, [sp, #-16]!   \n"
+"       stp     x20, x29, [sp, #-16]!   \n"
+"       adr     x1, cache_flush_all     \n"
+"       movz    x0, 1                   \n"
+"       blr     x1                      \n"
+"       ldp     x20, x29, [sp], #16     \n"
+"       ldp     x18, x19, [sp], #16     \n"
+"       ldp     x14, x15, [sp], #16     \n"
+"       ldp     x12, x13, [sp], #16     \n"
+"       ldp     x30, x6, [sp], #16      \n"
+
+#endif
 "       ldp     x2, x3, [sp, #16]       \n"
 "       ldp     x4, x5, [sp, #2*16]     \n"
 "       ldp     x7, x8, [sp, #3*16]     \n"
@@ -1739,6 +1755,21 @@ void __attribute__((used)) __invalidate_entire_dcache(void)
 "       dsb     sy                      \n" // Ensure completion of previous cache maintenance instruction
 "       b.gt    1b                      \n"
 "5:                                     \n"
+#ifdef PISTORM
+"       stp     x30, x6, [sp, #-16]!    \n"
+"       stp     x12, x13, [sp, #-16]!   \n"
+"       stp     x14, x15, [sp, #-16]!   \n"
+"       stp     x18, x19, [sp, #-16]!   \n"
+"       stp     x20, x29, [sp, #-16]!   \n"
+"       adr     x1, cache_invalidate_all\n"
+"       movz    x0, 1                   \n"
+"       blr     x1                      \n"
+"       ldp     x20, x29, [sp], #16     \n"
+"       ldp     x18, x19, [sp], #16     \n"
+"       ldp     x14, x15, [sp], #16     \n"
+"       ldp     x12, x13, [sp], #16     \n"
+"       ldp     x30, x6, [sp], #16      \n"
+#endif
 "       ldp     x2, x3, [sp, #16]       \n"
 "       ldp     x4, x5, [sp, #2*16]     \n"
 "       ldp     x7, x8, [sp, #3*16]     \n"
