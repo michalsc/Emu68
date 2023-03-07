@@ -907,7 +907,17 @@ void ps_housekeeper()
     /* Configure timer-based event stream */
     /* Enable timer regs from EL0, enable event stream on posedge, monitor 2th bit */
     /* This gives a frequency of 2.4MHz for a 19.2MHz timer */
-    asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
+    if (tmp > 20000000)
+    {
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (4 << 4)));
+    }
+    else
+    {
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+    }
 
     for(;;) {
         if (housekeeper_enabled)
