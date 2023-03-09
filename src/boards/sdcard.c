@@ -14,7 +14,7 @@ __attribute__((aligned(4096)))
 static void map(struct ExpansionBoard *board)
 {
     kprintf("[BOARD] Mapping ZIII sdcard board at address %08x\n", board->map_base);
-    mmu_map(mmu_virt2phys((uintptr_t)board->rom_file), board->map_base, board->rom_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+    mmu_map(mmu_virt2phys((uintptr_t)board->rom_file), board->map_base, board->rom_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 }
 
 static struct ExpansionBoard board = {

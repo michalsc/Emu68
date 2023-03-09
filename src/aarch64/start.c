@@ -89,7 +89,7 @@ asm("   .section .startup           \n"
 "2:                                 \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
-"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR(2)|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
+"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
 "       add     x9, x9, x10         \n"
@@ -105,7 +105,7 @@ asm("   .section .startup           \n"
 "       orr     x9, x17, #3         \n" /* valid + page table */
 "       str     x9, [x16]           \n" /* Entry 0 of the L1 kernel map points to L2 map now */
 
-"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* Prepare 1:1 cached map of the address space from 0x0 at 0xffffff9000000000 (first 320GB) */
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR_CACHED|MMU_PAGE) "\n" /* Prepare 1:1 cached map of the address space from 0x0 at 0xffffff9000000000 (first 320GB) */
 "       mov     x18, 320            \n"
 "       add     x19, x16, #64*8     \n"
 "1:     str     x9, [x19], #8       \n"
@@ -115,7 +115,7 @@ asm("   .section .startup           \n"
 
 "       adrp    x16, _boot          \n" /* x16 - address of our kernel + offset */
 "       and     x16, x16, #~((1 << 21) - 1) \n" /* get the 2MB page */
-"       movk    x16, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR(0)|MMU_PAGE) "\n" /* set page attributes */
+"       movk    x16, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR_CACHED|MMU_PAGE) "\n" /* set page attributes */
 "       mov     x9, #" xstr(KERNEL_SYS_PAGES) "\n" /* Enable all pages used by the kernel */
 "1:     str     x16, [x17], #8      \n" /* Store pages in the L2 map */
 "       add     x16, x16, #0x200000 \n" /* Advance phys address by 2MB */
@@ -136,7 +136,7 @@ asm("   .section .startup           \n"
 "       isb     sy                  \n"
 
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable, Attr3 - write-through */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
+"       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -362,7 +362,7 @@ asm(
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
-"       ldr     x10, =" xstr(ATTR_CACHED | (ATTR_DEVICE_nGnRE << 8) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24)) "\n"
+"       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
 "       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
@@ -852,7 +852,7 @@ void boot(void *dtree)
                 }
 
                 mmu_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
-                        MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+                        MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
 
                 if (sys_memory[block].mb_Base + size > top_of_ram)
                 {
@@ -867,11 +867,11 @@ void boot(void *dtree)
             };
             dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
 
-            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
         jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
 
@@ -1138,7 +1138,7 @@ void boot(void *dtree)
         {
             *(uint32_t *)(0xffffff9000f80000 + i) = ps_read_32(0xf80000 + i);
         }
-        mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
         /* For larger ROMs copy also 512K from 0xe00000 (1M) and 0xa80000, 0xb00000 (2M) */ 
         if (rom_copy == 1024)
@@ -1148,7 +1148,7 @@ void boot(void *dtree)
                 *(uint32_t *)(0xffffff9000e00000 + i) = ps_read_32(0xe00000 + i);
             }
 
-            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
         }
         else if (rom_copy == 2048)
         {
@@ -1165,14 +1165,14 @@ void boot(void *dtree)
                 *(uint32_t *)(0xffffff9000b00000 + i) = ps_read_32(0xb00000 + i);
             }
 
-            mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+            mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
         }
         else
         {
             /* For 512K or lower create shadow rom at 0xe00000 */
-            mmu_map(0xf80000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xf80000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
         }
     }
     else if (initramfs_loc != NULL && initramfs_size != 0)
@@ -1180,12 +1180,12 @@ void boot(void *dtree)
         extern uint32_t rom_mapped;
 
         kprintf("[BOOT] Loading ROM from %p, size %d\n", initramfs_loc, initramfs_size);
-        mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+        mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             
         if (initramfs_size == 262144)
         {
             /* Make a shadow of 0xf80000 at 0xe00000 */
-            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0xffffff9000fc0000, initramfs_loc, 262144 / 4);
             DuffCopy((void*)0xffffff9000e00000, (void*)0xffffff9000f80000, 524288 / 4);
@@ -1193,22 +1193,22 @@ void boot(void *dtree)
         else if (initramfs_size == 524288)
         {
             /* Make a shadow of 0xf80000 at 0xe00000 */
-            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0xffffff9000f80000, initramfs_loc, 524288 / 4);
         }
         else if (initramfs_size == 1048576)
         {
-            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            mmu_map(0xf00000, 0xf00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+            mmu_map(0xf00000, 0xf00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0xffffff9000f00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0xffffff9000f80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
         }
         else if (initramfs_size == 2097152) {
-            mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
-            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR(0), 0);
+            mmu_map(0xa80000, 0xa80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+            mmu_map(0xb00000, 0xb00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+            mmu_map(0xe00000, 0xe00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             DuffCopy((void*)0xffffff9000e00000, initramfs_loc, 524288 / 4);
             DuffCopy((void*)0xffffff9000a80000, (void*)((uintptr_t)initramfs_loc + 524288), 524288 / 4);
             DuffCopy((void*)0xffffff9000b00000, (void*)((uintptr_t)initramfs_loc + 2*524288), 524288 / 4);
@@ -1954,11 +1954,11 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
             if (strstr(prop->op_value, "enable_c0_slow"))
-                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
             if (strstr(prop->op_value, "enable_c8_slow"))
-                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
             if (strstr(prop->op_value, "enable_d0_slow"))
-                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR(0), 0);
+                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
 
             extern int disasm;
             extern int debug;

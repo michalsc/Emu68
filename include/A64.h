@@ -98,6 +98,13 @@
 #define ATTR_CACHED         0xff
 #define ATTR_WRTHROUGH      0xbb
 
+/* Keep MMU_ATTR_ENTRIES and following MMU_ATTR_x in sync!!!! */
+#define MMU_ATTR_ENTRIES ((ATTR_CACHED << 8) | (ATTR_DEVICE_nGnRE) | (ATTR_NOCACHE << 16) | (ATTR_WRTHROUGH << 24))
+#define MMU_ATTR_CACHED         MMU_ATTR(1)
+#define MMU_ATTR_DEVICE         MMU_ATTR(0)
+#define MMU_ATTR_UNCACHED       MMU_ATTR(2)
+#define MMU_ATTR_WRITETHROUGH   MMU_ATTR(3)
+
 #define SP      31  /* 31 encodes SP base, or */
 #define ZR      31  /* Zero register, depending on usage */
 

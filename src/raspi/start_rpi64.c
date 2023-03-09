@@ -280,7 +280,7 @@ void platform_init()
             (void)addr_bus;
 
             mmu_map(addr_cpu, start_map << 21, addr_len, 
-                MMU_ACCESS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
+                MMU_ACCESS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
 
             kprintf("bus: %08x, cpu: %08x, len: %08x\n", addr_bus, addr_cpu, addr_len);
 
@@ -318,7 +318,7 @@ void platform_post_init()
     if (base_vcmem && size_vcmem)
     {
         mmu_map((uintptr_t)base_vcmem, (uintptr_t)base_vcmem, size_vcmem,
-                MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR(3), 0);
+                MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
     }
 
     display_logo();

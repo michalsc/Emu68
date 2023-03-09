@@ -177,8 +177,10 @@ typedef unsigned int uint;
 #define DIRECTION_INPUT 0
 #define DIRECTION_OUTPUT 1
 
-volatile unsigned int *gpio;
-volatile unsigned int *gpclk;
+volatile uint32_t *gpio;
+volatile uint32_t *gpset;
+volatile uint32_t *gpreset;
+volatile uint32_t *gpread;
 
 static inline void set_input() {
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
@@ -208,46 +210,48 @@ void pistorm_setup_serial()
 }
 
 static void pistorm_setup_io() {
-    gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
-    gpclk = ((volatile unsigned *)BCM2708_PERI_BASE) + GPCLK_ADDR / 4;
+    gpio =    ((volatile uint32_t *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
+    gpset =   ((volatile uint32_t *)gpio) + 7;// *(gpio + 7);
+    gpreset = ((volatile uint32_t *)gpio) + 10;// *(gpio + 10);
+    gpread =  ((volatile uint32_t *)gpio) + 13;// *(gpio + 13);
 }
 
 void ps_setup_protocol() {
     pistorm_setup_io();
     pistorm_setup_serial();
 
-    *(gpio + 10) = LE32(CLEAR_BITS);
+    *gpreset = LE32(CLEAR_BITS);
 
     set_input();
 }
 
 static inline void write_ps_reg(unsigned int address, unsigned int data)
 {
-    *(gpio + 7) = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
+    *gpset = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
 
-    *(gpio + 10) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(1 << PIN_WR);
+    //Delay for Pi4, 2*3.5nS
+    *gpreset = LE32(1 << PIN_WR); *gpreset = LE32(1 << PIN_WR); *gpreset = LE32(1 << PIN_WR);
 
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 7) = LE32(1 << PIN_WR);
-    *(gpio + 10) = LE32(CLEAR_BITS);
+    *gpset = LE32(1 << PIN_WR);
+    *gpreset = LE32(CLEAR_BITS);
 }
 
 static inline unsigned int read_ps_reg(unsigned int address)
 {
-    *(gpio + 7) = LE32((address << PIN_A(0)));
-    *(gpio + 10) = LE32(1 << PIN_RD); 
-    *(gpio + 10) = LE32(1 << PIN_RD); 
+    *gpset = LE32(address << PIN_A(0));
 
-    unsigned int data = LE32(*(gpio + 13));
-    data = LE32(*(gpio + 13)); //pi3
+    //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
+    *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD);
 
-    *(gpio + 7) = LE32(1 << PIN_RD);
-    *(gpio + 7) = LE32(1 << PIN_RD);
-    *(gpio + 10) = LE32(CLEAR_BITS);
+    unsigned int data = LE32(*gpread);
+    data = LE32(*gpread);
+    data = LE32(*gpread);
+    data = LE32(*gpread);
+    *gpset = LE32(1 << PIN_RD);
+    *gpreset = LE32(CLEAR_BITS);
 
     data = MERGE_DATA(data >> PIN_D(0)) & 0xffff;
+
     return data;
 }
 
@@ -279,7 +283,7 @@ void cpu_set_fc(unsigned int fc)
 
 static uint write_pending = 0;
 
-static void do_write_access(unsigned int address, unsigned int data, unsigned int size)
+static inline void do_write_access(unsigned int address, unsigned int data, unsigned int size)
 {
     set_output();
 
@@ -289,8 +293,7 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending)
-        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) while (*gpread & LE32(1 << PIN_TXN)) {}
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -298,14 +301,14 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
 
     if (address > 0x00200000)
     {
-        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+        while (*gpread & LE32(1 << PIN_TXN)) {}
         write_pending = 0;
     }
     else
         write_pending = 1;
 }
 
-static void do_write_access_64(unsigned int address, uint64_t data)
+static inline void do_write_access_64(unsigned int address, uint64_t data)
 {
     set_output();
 
@@ -316,12 +319,15 @@ static void do_write_access_64(unsigned int address, uint64_t data)
     /* Set address and start transaction */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) while (*gpread & LE32(1 << PIN_TXN)) {}
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     /* Advance the address, set second long word to write */
     address += 4;
+
+    /* Wait for completion of first transfer */
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     /* Set second long word to write */
     write_ps_reg(REG_DATA_LO, (data) & 0xffff);
@@ -329,10 +335,7 @@ static void do_write_access_64(unsigned int address, uint64_t data)
 
     /* Set address */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
-
-    /* Wait for completion of first transfer */
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
-    
+   
     /* Start second transaction */
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -340,14 +343,14 @@ static void do_write_access_64(unsigned int address, uint64_t data)
 
     if (address > 0x00200000)
     {
-        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+        while (*gpread & LE32(1 << PIN_TXN)) {}
         write_pending = 0;
     }
     else
         write_pending = 1;
 }
 
-static void do_write_access_128(unsigned int address, uint128_t data)
+static inline void do_write_access_128(unsigned int address, uint128_t data)
 {
     set_output();
 
@@ -358,12 +361,15 @@ static void do_write_access_128(unsigned int address, uint128_t data)
     /* Set address and start transaction */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) while (*gpread & LE32(1 << PIN_TXN)) {}
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     /* Advance the address, set second long word to write */
     address += 4;
+
+    /* Wait for completion of first transfer */
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     /* Set second long word to write */
     write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
@@ -371,14 +377,14 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Set address */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
-
-    /* Wait for completion of first transfer */
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
     
     /* Start second transaction */
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     address += 4;
+
+    /* Wait for completion of second transfer */
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     /* Set third long word to write */
     write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
@@ -386,14 +392,14 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Set address */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
-
-    /* Wait for completion of second transfer */
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
     
     /* Start third transaction */
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     address += 4;
+
+    /* Wait for completion of third transfer */
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     /* Set second long word to write */
     write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
@@ -401,9 +407,6 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Set address */
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
-
-    /* Wait for completion of third transfer */
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
     
     /* Start fourth transaction */
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
@@ -412,27 +415,27 @@ static void do_write_access_128(unsigned int address, uint128_t data)
 
     if (address > 0x00200000)
     {
-        while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+        while (*gpread & LE32(1 << PIN_TXN)) {}
         write_pending = 0;
     }
     else
         write_pending = 1;
 }
 
-static int do_read_access(unsigned int address, unsigned int size)
+static inline int do_read_access(unsigned int address, unsigned int size)
 {
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) while (*gpread & LE32(1 << PIN_TXN)) {}
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
     unsigned int data;
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     data = read_ps_reg(REG_DATA_LO);
     if (size == SIZE_BYTE)
@@ -445,7 +448,7 @@ static int do_read_access(unsigned int address, unsigned int size)
     return data;
 }
 
-static uint64_t do_read_access_64(unsigned int address)
+static inline uint64_t do_read_access_64(unsigned int address)
 {
     uint64_t data;
 
@@ -453,13 +456,13 @@ static uint64_t do_read_access_64(unsigned int address)
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) while (*gpread & LE32(1 << PIN_TXN)) {}
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     address += 4;
     data = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
@@ -472,7 +475,7 @@ static uint64_t do_read_access_64(unsigned int address)
 
     set_input();
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
     data |= (uint64_t)read_ps_reg(REG_DATA_LO);
@@ -482,7 +485,7 @@ static uint64_t do_read_access_64(unsigned int address)
     return data;
 }
 
-static uint128_t do_read_access_128(unsigned int address)
+static inline uint128_t do_read_access_128(unsigned int address)
 {
     uint128_t data;
 
@@ -490,7 +493,7 @@ static uint128_t do_read_access_128(unsigned int address)
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
     
-    if (write_pending) while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) while (*gpread & LE32(1 << PIN_TXN)) {}
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -509,7 +512,7 @@ static uint128_t do_read_access_128(unsigned int address)
 
     set_input();
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     address += 4;
     data.hi |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
@@ -522,7 +525,7 @@ static uint128_t do_read_access_128(unsigned int address)
 
     set_input();
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     address += 4;
     data.lo = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
@@ -535,7 +538,7 @@ static uint128_t do_read_access_128(unsigned int address)
 
     set_input();
 
-    while (*(gpio + 13) & LE32(1 << PIN_TXN)) {}
+    while (*gpread & LE32(1 << PIN_TXN)) {}
 
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);

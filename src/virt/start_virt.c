@@ -34,12 +34,12 @@ void platform_init()
     */
 
     mmu_map(0x09000000, 0x09000000, 0x00001000, 
-        MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
+        MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
     mmu_map(0x09000000, 0xf2201000, 0x00001000,
-        MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
+        MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
 
     mmu_map(0x40000000, 0x00000000, 0x10000000,
-                        MMU_ACCESS | MMU_ISHARE | MMU_ATTR(0), 0);
+                        MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
 }
 
 void platform_post_init()
