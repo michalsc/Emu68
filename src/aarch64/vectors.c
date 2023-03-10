@@ -688,6 +688,8 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
 #undef D
 #define D(x) /* x  */
 
+#define DWARN(x) /* x */
+
 int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr, uint64_t esr, uint64_t far)
 {
     (void)vector;
@@ -1070,7 +1072,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
 
         if (ptr != far)
         {
-            kprintf("address mismatch in STUR %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in STUR %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, far, ptr));
             far = ptr;
         }
 
@@ -1096,7 +1098,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
         
         if (ptr != far)
         {
-            kprintf("address mismatch in STR %c%d %s-index. FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, pre_index ? "pre":"post",far, ptr);
+            DWARN(kprintf("address mismatch in STR %c%d %s-index. FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, pre_index ? "pre":"post",far, ptr));
             far = ptr;
         }
 
@@ -1121,7 +1123,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
 
         if (far != ptr)
         {
-            kprintf("address mismatch in STR %c%d unsigned offset FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in STR %c%d unsigned offset FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, far, ptr));
             far = ptr;
         }
 
@@ -1168,7 +1170,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
 
         if (far != ptr + rm)
         {
-            kprintf("address mismatch in STR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in STR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'S' : 'D', opcode & 31, far, ptr));
             far = ptr + rm;
         }        
 
@@ -1645,7 +1647,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         int16_t offset = size * (((int16_t)(opcode >> 6)) >> 9);
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far) {
-            kprintf("address mismatch in LDP offset far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr);
+            DWARN(kprintf("address mismatch in LDP offset far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr));
 
             // In case of LDP/STP it is possible that fetches are out of order, so the exception can trigger on second register or on first register
             far = ptr + offset;
@@ -1679,7 +1681,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         if (opcode & 0x01000000) {
             if (ptr + offset != far)
             {
-                kprintf("address mismatch in LDP pre index far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr);
+                DWARN(kprintf("address mismatch in LDP pre index far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr));
                 far = ptr + offset;
             }
         }
@@ -1687,7 +1689,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         {
             if (ptr != far)
             {
-                kprintf("address mismatch in LDP post index far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr);
+                DWARN(kprintf("address mismatch in LDP post index far = %08x, reg = %08x, off = %d, opcode=%08x, esr=%08x!\n", far, ptr, offset, opcode, esr));
                 far = ptr;
             }
         }
@@ -1715,7 +1717,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far)
         {
-            kprintf("address mismatch in LDPSW offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in LDPSW offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr + offset;
         }
 
@@ -1742,7 +1744,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr != far)
         {
-            kprintf("address mismatch in LDPSW post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in LDPSW post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr;
         }
 
@@ -1771,7 +1773,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far)
         {
-            kprintf("address mismatch in LDPSW pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in LDPSW pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr + offset;
         }
 
@@ -1810,12 +1812,46 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
     /* LDR register */
     else if ((opcode & 0x3fe00c00) == 0x38600800)
     {
+        int option = (opcode >> 13) & 7;
+        int s = (opcode & 0x1000);
+
         uint64_t ptr = ctx[(opcode >> 5) & 31];
-        if (ptr  != far)
+        uint64_t rm = ctx[(opcode >> 16) & 31];
+
+        switch (option)
         {
-            //kprintf("address mismatch in LDR far = %08x, reg = %08x\n", far, ptr);
-            //far = ptr;
+            case 0b010: // UXTW
+                rm &= 0xffffffffULL;
+                break;
+            case 0b110: // SXTW
+                if (rm & 0x80000000)
+                    rm |= 0xffffffff00000000ULL;
+                else
+                    rm &= 0x00000000ffffffffULL;
+                break;
         }
+
+        if (s)
+        {
+            switch(size)
+            {
+                case 2:
+                    rm <<= 1;
+                    break;
+                case 4:
+                    rm <<= 2;
+                    break;
+                case 8:
+                    rm <<= 3;
+                    break;
+            }
+        }
+
+        if (far != ptr + rm)
+        {
+            kprintf("address mismatch in LDR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            far = ptr + rm;
+        }  
 
         handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
     }
@@ -1887,6 +1923,47 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         if (opcode & (1 << 22))
             sext64 = 0;
         
+        int option = (opcode >> 13) & 7;
+        int s = (opcode & 0x1000);
+
+        uint64_t ptr = ctx[(opcode >> 5) & 31];
+        uint64_t rm = ctx[(opcode >> 16) & 31];
+
+        switch (option)
+        {
+            case 0b010: // UXTW
+                rm &= 0xffffffffULL;
+                break;
+            case 0b110: // SXTW
+                if (rm & 0x80000000)
+                    rm |= 0xffffffff00000000ULL;
+                else
+                    rm &= 0x00000000ffffffffULL;
+                break;
+        }
+
+        if (s)
+        {
+            switch(size)
+            {
+                case 2:
+                    rm <<= 1;
+                    break;
+                case 4:
+                    rm <<= 2;
+                    break;
+                case 8:
+                    rm <<= 3;
+                    break;
+            }
+        }
+
+        if (far != ptr + rm)
+        {
+            kprintf("address mismatch in LDRSW/B/H %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            far = ptr + rm;
+        }  
+
         handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         if (handled) {
             int sext = 0;
@@ -1917,6 +1994,15 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         if (opcode & (1 << 22))
             sext64 = 0;
         
+        uint64_t ptr = ctx[(opcode >> 5) & 31];
+        ptr += ((opcode >> 10) & 0xfff) * size;
+
+        if (ptr != far)
+        {
+            kprintf("address mismatch in LDRSW/B/H imm. FAR = %08x, reg = %08x!\n", far, ptr);
+            far = ptr;
+        }
+
         handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         if (handled) {
             int sext = 0;
@@ -1986,7 +2072,20 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         int sext64 = 1;
         if (opcode & (1 << 22))
             sext64 = 0;
+
+        uint64_t ptr = ctx[(opcode >> 5) & 31];
+
+        if (opcode & 0x800)
+        {
+            ptr += offset;
+        }
         
+        if (far != ptr)
+        {
+            kprintf("address mismatch in LDRSW/B/H post-/pre-index. FAR = %08x, reg = %08x!\n", far, ptr);
+            far = ptr;
+        }
+
         handled = SYSReadValFromAddr(&ctx[opcode & 31], NULL, size, far);
         if (handled) {
             int sext = 0;
