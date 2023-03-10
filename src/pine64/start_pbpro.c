@@ -33,7 +33,7 @@ void platform_init()
         accessed from m68k.
     */
     mmu_map(0xf8000000, 0xf8000000, 0x08000000, 
-        MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR(1), 0);
+        MMU_ACCESS | MMU_NS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
 }
 
 void platform_post_init()
