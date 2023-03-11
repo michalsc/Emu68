@@ -142,6 +142,11 @@ void platform_post_init();
 void setup_serial();
 const char * find_token(const char * string, const char * token);
 
+typedef struct {
+    uint64_t hi;
+    uint64_t lo;
+} uint128_t;
+
 extern void * firmware_file;
 extern uint32_t firmware_size;
 extern void * tlsf;

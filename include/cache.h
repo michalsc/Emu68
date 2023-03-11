@@ -2,7 +2,7 @@
 #define _CACHE_H
 
 #include <stdint.h>
-#include "ps_protocol.h"
+#include "support.h"
 
 enum CacheType
 {
