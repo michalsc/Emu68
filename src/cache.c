@@ -3,7 +3,7 @@
 #include "support.h"
 #include "cache.h"
 #include "ps_protocol.h"
-#include "m68k.h"
+#include "M68k.h"
 #include <stdint.h>
 
 union CacheLine
