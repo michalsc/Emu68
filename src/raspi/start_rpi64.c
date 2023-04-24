@@ -311,6 +311,12 @@ void platform_post_init()
         set_clock_rate(3, get_max_clock_rate(3));
     }
     kprintf("[BOOT] ARM Clock at %d MHz\n", get_clock_rate(3) / 1000000);
+    
+    if (get_max_clock_rate(4) != get_clock_rate(4)) {
+        kprintf("[BOOT] Changing CORE clock from %d MHz to %d MHz\n", get_clock_rate(4)/1000000, get_max_clock_rate(4)/1000000);
+        set_clock_rate(4, get_max_clock_rate(4));
+    }
+    kprintf("[BOOT] CORE Clock at %d MHz\n", get_clock_rate(4) / 1000000);
 
     get_vc_memory(&base_vcmem, &size_vcmem);
     kprintf("[BOOT] VC4 memory: %p-%p\n", (intptr_t)base_vcmem, (intptr_t)base_vcmem + size_vcmem - 1);
