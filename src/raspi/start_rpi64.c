@@ -310,12 +310,7 @@ void platform_post_init()
         kprintf("[BOOT] Changing ARM clock from %d MHz to %d MHz\n", get_clock_rate(3)/1000000, get_max_clock_rate(3)/1000000);
         set_clock_rate(3, get_max_clock_rate(3));
     }
-    kprintf("[BOOT] ARM Clock at %d MHz\n", get_clock_rate(3) / 1000000);
-    
-    if (get_max_clock_rate(4) != get_clock_rate(4)) {
-        kprintf("[BOOT] Changing CORE clock from %d MHz to %d MHz\n", get_clock_rate(4)/1000000, get_max_clock_rate(4)/1000000);
-        set_clock_rate(4, get_max_clock_rate(4));
-    }
+    kprintf("[BOOT] ARM Clock at %d MHz\n", get_clock_rate(3) / 1000000);  
     kprintf("[BOOT] CORE Clock at %d MHz\n", get_clock_rate(4) / 1000000);
 
     get_vc_memory(&base_vcmem, &size_vcmem);
