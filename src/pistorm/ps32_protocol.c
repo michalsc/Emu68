@@ -548,43 +548,139 @@ static inline uint128_t do_read_access_128(unsigned int address)
     return data;
 }
 
+unsigned int caddress;
+union {
+    uint32_t u32;
+    uint16_t u16[2];
+    uint8_t  u8[4];
+} cdata;
+union {
+    uint32_t u32;
+    uint16_t u16[2];
+    uint8_t  u8[4];
+} cmask;
+
+void flush_cdata()
+{
+    if (cmask.u32 == 0xffffffff)
+    {
+        do_write_access(caddress, cdata.u32, SIZE_LONG);
+    }
+    else
+    {
+        if (cmask.u16[0] == 0xffff)
+        {
+            do_write_access(caddress, cdata.u16[0], SIZE_WORD);
+            cmask.u16[0] = 0;
+        }
+        if (cmask.u16[1] == 0xffff)
+        {
+            do_write_access(caddress + 2, cdata.u16[1], SIZE_WORD);
+            cmask.u16[1] = 0;
+        }
+
+        if (cmask.u32)
+        {
+            for (int i=0; i < 4; i++)
+            {
+                if (cmask.u8[i]) {
+                    do_write_access(caddress + i, cdata.u8[i], SIZE_BYTE);
+                }
+            }
+        }
+    }
+
+    caddress = 0xffffffff;
+    cmask.u32 = 0;
+}
+
 void ps_write_8(unsigned int address, unsigned int data) {
-    do_write_access(address, data, SIZE_BYTE);
+    if (address < 0x200000)
+    {
+        if ((address & 0xfffffffc) != caddress)
+        {
+            flush_cdata();
+        }
+
+        int off = address & 3;
+        caddress = address & 0xfffffffc;
+        cmask.u8[off] = 0xff;
+        cdata.u8[off] = data;
+
+        if (cmask.u32 == 0xffffffff)
+        {
+            flush_cdata();
+        }
+    }
+    else
+    {
+        flush_cdata();
+        do_write_access(address, data, SIZE_BYTE);
+    }
 }
 
 void ps_write_16(unsigned int address, unsigned int data) {
-    do_write_access(address, data, SIZE_WORD);
+    if (address < 0x200000 && !(address & 1))
+    {
+        if ((address & 0xfffffffc) != caddress)
+        {
+            flush_cdata();
+        }
+
+        int off = (address & 2) >> 1;
+        caddress = address & ~3;
+        cmask.u16[off] = 0xffff;
+        cdata.u16[off] = data;
+
+        if (cmask.u32 == 0xffffffff)
+        {
+            flush_cdata();
+        }
+    }
+    else
+    {
+        flush_cdata();
+        do_write_access(address, data, SIZE_WORD);
+    }
 }
 
 void ps_write_32(unsigned int address, unsigned int data) {
+    flush_cdata();
     do_write_access(address, data, SIZE_LONG);
 }
 
 void ps_write_64(unsigned int address, uint64_t data) {
+    flush_cdata();
     do_write_access_64(address, data);
 }
 
 void ps_write_128(unsigned int address, uint128_t data) {
+    flush_cdata();
     do_write_access_128(address, data);
 }
 
 unsigned int ps_read_8(unsigned int address) {
+    flush_cdata();
     return do_read_access(address, SIZE_BYTE);
 }
 
 unsigned int ps_read_16(unsigned int address) {
+    flush_cdata();
     return do_read_access(address, SIZE_WORD);
 }
 
 unsigned int ps_read_32(unsigned int address) {
+    flush_cdata();
     return do_read_access(address, SIZE_LONG);
 }
 
 uint64_t ps_read_64(unsigned int address) {
+    flush_cdata();
     return do_read_access_64(address);
 }
 
 uint128_t ps_read_128(unsigned int address) {
+    flush_cdata();
     return do_read_access_128(address);
 }
 
