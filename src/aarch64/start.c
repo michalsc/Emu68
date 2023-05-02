@@ -921,7 +921,7 @@ void boot(void *dtree)
         void (*flusher)() = (void (*)())((uintptr_t)addr | 0x1000000000);
         DuffCopy(addr, tlb_flusher, 10);
         arm_flush_cache((uintptr_t)addr, 4*10);
-        arm_flush_cache((uintptr_t)flusher, 4*10);
+        arm_icache_invalidate((uintptr_t)flusher, 4*10);
         flusher();
         tlsf_free(jit_tlsf, addr);
 
