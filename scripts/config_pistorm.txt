@@ -41,8 +41,10 @@ hdmi_mode=82
 #hdmi_pixel_freq_limit=400000000
 
 # The ROM is selected through initramfs parameter. As a file name give the full name of your
-# kickstart file which you have placed on the RasPi boot partition. If there is a FPGA firmware
-# to load (PS32Lite) or to upgrade (all others), it must be gzip-compressed and passed **before**
-# the ROM name, separated from the rom with a comma.
+# kickstart file which you have placed on the RasPi boot partition. If there is a development version
+# of FPGA firmware to load (PS32Lite) or to upgrade (all others, not yet implemented), it must be
+# gzip-compressed and passed **before** the ROM name, separated from the rom with a comma.
+# NOTE: The default firmware for PS32Lite is already embedded in Emu68!!! Above instruction is
+# for test/development purposes **ONLY**
 #initramfs firmware.bin.gz,kick.rom
 initramfs kick.rom
