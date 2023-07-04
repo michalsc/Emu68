@@ -79,7 +79,7 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
-            *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+            *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
@@ -104,7 +104,7 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         {
             *ptr++ = eor_reg(tmp, tmp, tmp, LSL, 1);
             *ptr++ = tbz(tmp, 16, 2);
-            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_V) & 31);
+            *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Valt) & 31);
         }
     }
     RA_FreeARMRegister(&ptr, tmp);
@@ -182,7 +182,7 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
-            *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+            *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
@@ -272,15 +272,17 @@ static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
         else if (update_mask & SR_V) {
-            *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_V);
+            *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Valt);
         }
-
+kprintf("[ERROR] ROXL mem not yet fixed!\n");
         if (update_mask_copy & SR_XC) {
             if (direction) {
-                *ptr++ = bfxil(cc, tmp, 16, 1);
+                *ptr++ = bfxil(tmp, tmp, 16, 1);
+                *ptr++ = bfi(cc, tmp, 1, 1);
             }
             else {
-                *ptr++ = bfxil(cc, tmp, 31, 1);
+                *ptr++ = bfxil(tmp, tmp, 31, 1);
+                *ptr++ = bfi(cc, tmp, 1, 1);
             }
             if (update_mask_copy & SR_X) {
                 *ptr++ = bfi(cc, cc, 4, 1);
@@ -362,7 +364,7 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = tst_immed(tmp, 1, 1);
             }
             *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_C));
+            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
         }
         RA_FreeARMRegister(&ptr, tmp2);
     }
@@ -535,7 +537,7 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
-            *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+            *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
@@ -549,7 +551,7 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = eor_reg(reg_orig, reg_orig, mask, LSL, 0);
             *ptr++ = ands_reg(31, reg_orig, mask, LSL, 0);
             *ptr++ = b_cc(A64_CC_EQ, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_V));
+            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
         }
 
         if (update_mask & (SR_Z | SR_N))
@@ -619,7 +621,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (size == 1 && width > 8)
             width = 8;
 
-        *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_V));
+        *ptr++ = bic_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
         *ptr++ = ands_immed(tmp_reg, reg, width, width + rot);
         *ptr++ = b_cc(A64_CC_EQ, (size == 1 && shift == 8) ? 2 : 5);
         if (!(size == 1 && shift == 8)) {
@@ -627,7 +629,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = ands_immed(tmp_reg, tmp_reg, width, width + rot);
             *ptr++ = b_cc(A64_CC_EQ, 2);
         }
-        *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_V));
+        *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
         
         update_mask &= ~SR_V;
         RA_FreeARMRegister(&ptr, tmp_reg);
@@ -694,13 +696,18 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+        uint8_t clear_mask = update_mask;
 
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        /* Swap C and V flags in immediate */
+        if ((clear_mask & 3) != 0 && (clear_mask & 3) < 3)
+            clear_mask ^= 3;
+
+        *ptr++ = mov_immed_u16(tmp2, clear_mask, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
-            *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+            *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
@@ -900,13 +907,18 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     {
 #ifdef __aarch64__
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+        uint8_t clear_mask = update_mask;
 
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        /* Swap C and V flags in immediate */
+        if ((clear_mask & 3) != 0 && (clear_mask & 3) < 3)
+            clear_mask ^= 3;
+
+        *ptr++ = mov_immed_u16(tmp2, clear_mask, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
-            *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+            *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
@@ -1047,7 +1059,7 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
-            *ptr++ = mov_immed_u16(tmp2, SR_C | SR_X, 0);
+            *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
             *ptr++ = orr_reg(cc, cc, tmp2, LSL, 0);
         }
 
@@ -1223,6 +1235,7 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_C) {
+            kprintf("[ERROR] ROL not yet fixed!\n");
             if (regshift) {
                 *ptr++ = cbz(shift_orig, 2);
                 RA_FreeARMRegister(&ptr, shift_orig);
@@ -1230,18 +1243,21 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             if (!direction) {
                 switch(size) {
                     case 4:
-                        *ptr++ = bfxil(cc, reg, 31, 1);
+                        *ptr++ = bfxil(tmp, reg, 31, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                     case 2:
-                        *ptr++ = bfxil(cc, reg, 15, 1);
+                        *ptr++ = bfxil(tmp, reg, 15, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                     case 1:
-                        *ptr++ = bfxil(cc, reg, 7, 1);
+                        *ptr++ = bfxil(tmp, reg, 7, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                 }
             }
             else {
-                *ptr++ = bfi(cc, reg, 0, 1);
+                *ptr++ = bfi(cc, reg, 1, 1);
             }
         }
 
@@ -1300,7 +1316,8 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
 
         if (update_mask & SR_C) {
-            *ptr++ = bfxil(cc, cc, 4, 1);
+            *ptr++ = lsr(0, cc, 4);
+            *ptr++ = bfi(cc, 0, 1, 1);
         }
 
         *ptr++ = 0;
@@ -1327,7 +1344,7 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
         }
         
-
+kprintf("[ERROR] ROXL not yet fixed!\n");
         // Fill the temporary register with repetitions of X and dest
         *ptr++ = tst_immed(cc, 1, 32 - SRB_X);
         if (dir)
@@ -1441,13 +1458,16 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 0:
-                    *ptr++ = bfxil(cc, tmp, 8, 1);
+                    *ptr++ = bfxil(tmp, tmp, 8, 1);
+                    *ptr++ = bfi(cc, tmp, 1, 1);
                     break;
                 case 1:
-                    *ptr++ = bfxil(cc, tmp, 16, 1);
+                    *ptr++ = bfxil(tmp, tmp, 16, 1);
+                    *ptr++ = bfi(cc, tmp, 1, 1);
                     break;
                 case 2:
-                    *ptr++ = bfxil64(cc, tmp, 32, 1);
+                    *ptr++ = bfxil64(tmp, tmp, 32, 1);
+                    *ptr++ = bfi(cc, tmp, 1, 1);
                     break;
             }
             
@@ -1577,13 +1597,16 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 switch(size)
                 {
                     case 0:
-                        *ptr++ = bfxil(cc, tmp, 31, 1);
+                        *ptr++ = bfxil(tmp, tmp, 31, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                     case 1:
-                        *ptr++ = bfxil(cc, tmp, 31, 1);
+                        *ptr++ = bfxil(tmp, tmp, 31, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                     case 2:
-                        *ptr++ = bfxil64(cc, tmp, 63, 1);
+                        *ptr++ = bfxil64(tmp, tmp, 63, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                 }
             }
@@ -1591,13 +1614,16 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 switch(size)
                 {
                     case 0:
-                        *ptr++ = bfxil(cc, tmp, 8, 1);
+                        *ptr++ = bfxil(tmp, tmp, 8, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                     case 1:
-                        *ptr++ = bfxil(cc, tmp, 16, 1);
+                        *ptr++ = bfxil(tmp, tmp, 16, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                     case 2:
-                        *ptr++ = bfxil64(cc, tmp, 32, 1);
+                        *ptr++ = bfxil64(tmp, tmp, 32, 1);
+                        *ptr++ = bfi(cc, tmp, 1, 1);
                         break;
                 }
             }
@@ -5367,7 +5393,7 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             }
             if (update_mask & (SR_C | SR_X)) {
                 *ptr++ = b_cc(A64_CC_CS ^ 1, 3);
-                *ptr++ = mov_immed_u16(tmp, SR_C | SR_X, 0);
+                *ptr++ = mov_immed_u16(tmp, SR_Calt | SR_X, 0);
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
             RA_FreeARMRegister(&ptr, tmp);

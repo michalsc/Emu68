@@ -307,15 +307,18 @@ void RA_FlushFPSR(uint32_t **ptr)
     mod_FPSR = 0;
 }
 
+/* Note! CC in ARM register has swapped C and V bits!!! */
 uint8_t RA_GetCC(uint32_t **ptr)
 {
     if (reg_CC == 0xff)
     {
+        uint32_t *p = *ptr;
         reg_CC = RA_AllocARMRegister(ptr);
+
 //        uint8_t reg_CTX = RA_GetCTX(ptr);
 //        **ptr = ldrh_offset(reg_CTX, reg_CC, __builtin_offsetof(struct M68KState, SR));
-        **ptr = mrs(reg_CC, 3, 3, 13, 0, 2);
-        (*ptr)++;
+        *p++ = mrs(reg_CC, 3, 3, 13, 0, 2);
+        *ptr = p;
         mod_CC = 0;
     }
 
@@ -333,10 +336,10 @@ void RA_StoreCC(uint32_t **ptr)
 {
     if (reg_CC != 0xff && mod_CC)
     {
-//        uint8_t reg_CTX = RA_GetCTX(ptr);
-//        **ptr = strh_offset(reg_CTX, reg_CC, __builtin_offsetof(struct M68KState, SR));
-        **ptr = msr(reg_CC, 3, 3, 13, 0, 2);
-        (*ptr)++;
+        uint32_t *p = *ptr;
+
+        *p++ = msr(reg_CC, 3, 3, 13, 0, 2);
+        *ptr = p;
     }
 }
 
@@ -346,10 +349,13 @@ void RA_FlushCC(uint32_t **ptr)
     {
         if (mod_CC)
         {
+            uint32_t *p = *ptr;
+
 //        uint8_t reg_CTX = RA_GetCTX(ptr);
 //        **ptr = strh_offset(reg_CTX, reg_CC, __builtin_offsetof(struct M68KState, SR));
-            **ptr = msr(reg_CC, 3, 3, 13, 0, 2);
-            (*ptr)++;
+            *p++ = msr(reg_CC, 3, 3, 13, 0, 2);
+
+            *ptr = p;
         }
         RA_FreeARMRegister(ptr, reg_CC);
     }

@@ -281,23 +281,23 @@ static uint32_t *EMIT_ADD_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         if (update_mask & SR_X)
-            ptr = EMIT_GetNZVCX(ptr, cc, &update_mask);
+            ptr = EMIT_GetNZCVX(ptr, cc, &update_mask);
         else
-            ptr = EMIT_GetNZVC(ptr, cc, &update_mask);
+            ptr = EMIT_GetNZCV(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
             if ((update_mask & (SR_X | SR_C)) == SR_X)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CS);
             else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CS);
             else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CS);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CS);
         }
     }
     return ptr;
@@ -333,6 +333,7 @@ static uint32_t *EMIT_ADDA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     return ptr;
 }
 
+// BROKEN!!!
 static uint32_t *EMIT_ADDX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 __attribute__((alias("EMIT_ADDX_reg")));
 static uint32_t *EMIT_ADDX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -610,14 +611,14 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
             if ((update_mask & (SR_X | SR_C)) == SR_X)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CS);
             else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CS);
             else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CS);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CS);
         }
     }
 

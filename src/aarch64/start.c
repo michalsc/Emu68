@@ -1368,7 +1368,7 @@ void M68K_LoadContext(struct M68KState *ctx)
     asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
     asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("ldrh w1, %0; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1");
+    asm volatile("ldrh w1, %0; rbit w2, w1; bfxil w1, w2, 30, 2; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1","x2");
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
@@ -1410,7 +1410,7 @@ void M68K_SaveContext(struct M68KState *ctx)
     asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
     asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("mrs x1, tpidr_EL0; strh w1, %0"::"m"(ctx->SR):"x1");
+    asm volatile("mrs x1, tpidr_EL0; rbit w2, w1; bfxil w1, w2, 30, 2; strh w1, %0"::"m"(ctx->SR):"x1","x2");
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
@@ -1805,6 +1805,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "94:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
 
 "93:    mov     w5, w2                      \n" // Make a copy of SR
+"       rbit    w3, w2                      \n" // Reverse C and V!
+"       bfxil   w2, w3, 30, 2               \n" // Put reversed C and V into old SR (to be pushed on stack)
 "       bfi     w5, w1, %[srb_ipm], 3       \n" // Insert IPL level to SR register IPM field
 "       lsl     w3, w1, #2                  \n" // Calculate vector offset
 "       add     w3, w3, #0x60               \n" 
@@ -1843,12 +1845,14 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
 "       strb     w1, [x0, #%[arm]]          \n" // Store PINT
 "       mov     w5, w2                      \n" // Make a copy of SR
+"       rbit    w3, w2                      \n" // Reverse C and V!
+"       bfxil   w2, w3, 30, 2               \n" // Put reversed C and V into old SR (to be pushed on stack)
 "       bfi     w5, w3, %[srb_ipm], 3       \n" // Insert level to SR register
 "       lsl     w3, w3, #2                  \n"
 "       add     w3, w3, #0x60               \n" // Calculate vector offset
-"       strh    w3, [x%[reg_sp], #-2]!      \n" // Push frame format 0
-"       str     w%[reg_pc], [x%[reg_sp], #-4]! \n" // Push address of next instruction
-"       strh    w2, [x%[reg_sp], #-2]!      \n" // Push old SR
+"       strh    w2, [x%[reg_sp], #-8]!      \n" // Push old SR
+"       str     w%[reg_pc], [x%[reg_sp], #2] \n" // Push address of next instruction
+"       strh    w3, [x%[reg_sp], #6]        \n" // Push frame format 0
 "       bic     w5, w5, #0xc000             \n" // Clear T0 and T1
 "       orr     w5, w5, #0x2000             \n" // Set S bit
 "       msr     TPIDR_EL0, x5               \n" // Update SR

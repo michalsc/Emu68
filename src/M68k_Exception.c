@@ -89,8 +89,15 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
         *ptr++ = str_offset(sp, vbr, 4);
     }
 
+    uint8_t cc_copy = RA_AllocARMRegister(&ptr);
+    /* Reverse C and V */
+    *ptr++ = mov_reg(cc_copy, cc);
+    *ptr++ = rbit(vbr, cc);
+    *ptr++ = bfxil(cc_copy, vbr, 30, 2);
     /* Store SR */
-    *ptr++ = strh_offset_preindex(sp, cc, -8);
+    *ptr++ = strh_offset_preindex(sp, cc_copy, -8);
+
+    RA_FreeARMRegister(&ptr, cc_copy);
 
     /* Store program counter */
     *ptr++ = stur_offset(sp, REG_PC, 2);

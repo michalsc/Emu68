@@ -169,7 +169,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         }
         if ((update_mask & SR_V) && 0 == (opcode2 & (1 << 10))) {
-            ptr = EMIT_ClearFlags(ptr, cc, SR_V);
+            ptr = EMIT_ClearFlags(ptr, cc, SR_Valt);
 
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             /* If signed multiply check higher 32bit against 0 or -1. For unsigned multiply upper 32 bit must be zero */
@@ -182,7 +182,7 @@ uint32_t *EMIT_MULS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = cmp64_reg(tmp, reg_dl, LSR, 32);
             RA_FreeARMRegister(&ptr, tmp);
 
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_NE);
         }
     }
 
@@ -271,7 +271,7 @@ uint32_t *EMIT_DIVS_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ptr = EMIT_ClearFlags(ptr, cc, update_mask);
 
         if (update_mask & SR_V) {
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_NE);
         }
         if (update_mask & (SR_Z | SR_N))
         {
@@ -387,7 +387,7 @@ uint32_t *EMIT_DIVU_W(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         if (update_mask & SR_V) {
             
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_NE);
         }
 
         if (update_mask & (SR_Z | SR_N))
@@ -556,7 +556,7 @@ uint32_t *EMIT_DIVUS_L(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (update_mask & SR_VC) {
             ptr = EMIT_ClearFlags(ptr, cc, SR_V | SR_C);
             if (div64) {
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_NE);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_NE);
             }
         }
         if (update_mask & (SR_Z | SR_N))

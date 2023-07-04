@@ -144,6 +144,23 @@ struct M68KState
 #define CACRB_IE 15
 
 //SR
+#define SR_Calt 0x0002
+#define SR_Valt 0x0001
+#define SR_ZCalt 0x0006
+#define SR_ZValt 0x0005
+#define SR_NCalt 0x000a
+#define SR_NValt 0x0009
+#define SR_NZCalt 0x000e
+#define SR_NZValt 0x000d
+#define SR_XCalt 0x0012
+#define SR_XValt 0x0011
+#define SR_XZCalt 0x0016
+#define SR_XZValt 0x0015
+#define SR_XNCalt 0x001a
+#define SR_XNValt 0x0019
+#define SR_XNZCalt 0x001e
+#define SR_XNZValt 0x001d
+
 #define SR_C    0x0001
 #define SR_V    0x0002
 #define SR_VC   0x0003
@@ -182,6 +199,9 @@ struct M68KState
 #define SR_T1   0x8000
 
 #define SR_ALL  0xf71f
+
+#define SRB_Calt 1
+#define SRB_Valt 0
 
 #define SRB_C    0
 #define SRB_V    1

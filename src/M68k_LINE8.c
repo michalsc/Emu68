@@ -336,6 +336,7 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+// BROKEN!!!!
 uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -349,6 +350,8 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t tmp_d = RA_AllocARMRegister(&ptr);
     uint8_t tmp_n = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
+
+kprintf("[ERROR] SBCD is not yet fixed!!!\n");
 
     /* Extract dest into further temp register (used to check overflow and flags) */
     *ptr++ = and_immed(tmp_n, dest, 8, 0);
@@ -430,7 +433,7 @@ uint32_t *EMIT_SBCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-
+// BROKEN!!!!
 uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -441,6 +444,8 @@ uint32_t *EMIT_SBCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t tmp_n = RA_AllocARMRegister(&ptr);
     uint8_t src = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
+
+kprintf("[ERROR] SBCD mem is not yet fixed!\n");
 
     uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     uint8_t an_dest = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));

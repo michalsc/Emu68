@@ -296,23 +296,23 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         if (update_mask & SR_X)
-            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
+            ptr = EMIT_GetNZnCVX(ptr, cc, &update_mask);
         else
-            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+            ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
             if ((update_mask & (SR_X | SR_C)) == SR_X)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
             else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
             else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CC);
         }
     }
 
@@ -375,6 +375,7 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 * operation, and which is the operand size.                                 *
 ****************************************************************************/
 
+// BROKEN!!!!
 uint32_t *EMIT_SUBX_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUBX_reg")));
 uint32_t *EMIT_SUBX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_SUBX_reg")));
 uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -426,6 +427,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
                     *ptr++ = bfxil(cc, tmp_3, 6, 2);
 
+kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
+
                     if (update_mask & SR_X) {
                         *ptr++ = bfi(cc, cc, 4, 1);
                     }
@@ -465,7 +468,7 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
-
+kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                     *ptr++ = eor_reg(tmp_3, tmp_2, regx, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, tmp_2, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
@@ -545,7 +548,7 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-
+kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                     *ptr++ = eor_reg(tmp_3, dest, src, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, dest, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
@@ -589,7 +592,7 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-
+kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                     *ptr++ = eor_reg(tmp_3, dest, src, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, dest, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
@@ -660,14 +663,14 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
             if ((update_mask & (SR_X | SR_C)) == SR_X)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
             else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
             else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CC);
         }
     }
 
