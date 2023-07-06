@@ -607,6 +607,8 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
 
 #ifdef __aarch64__
+
+/*
             uint8_t c_yes = RA_AllocARMRegister(&ptr);
             uint8_t c_no = RA_AllocARMRegister(&ptr);
 
@@ -616,6 +618,13 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
+*/
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = csetm(tmp, arm_condition);
+            *ptr++ = bfi(dest, tmp, 0, 8);
+
+            RA_FreeARMRegister(&ptr, tmp);
 #else
             *ptr++ = orr_cc_immed(arm_condition, dest, dest, 0xff);
             *ptr++ = bfc_cc(arm_condition^1, dest, 0, 8);
@@ -647,6 +656,8 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
+/*
+
             uint8_t c_yes = RA_AllocARMRegister(&ptr);
             uint8_t c_no = RA_AllocARMRegister(&ptr);
 
@@ -656,6 +667,13 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
+*/
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = csetm(tmp, arm_condition);
+            *ptr++ = bfi(dest, tmp, 0, 8);
+
+            RA_FreeARMRegister(&ptr, tmp);
         }
 
         ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
