@@ -2393,10 +2393,13 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
 
     if (update_mask & SR_Z) {
         cc = RA_ModifyCC(&ptr);
-
+/*
         *ptr++ = bic_immed(tmp, cc, 1, 32 - SRB_Z);
         *ptr++ = ands_immed(31, result, 8, 0);
         *ptr++ = csel(cc, tmp, cc, A64_CC_NE);
+*/
+        *ptr++ = cset(tmp, A64_CC_EQ);
+        *ptr++ = bfi(cc, tmp, SRB_Z, 1);
     }
 
     /* Dn mode */
