@@ -647,7 +647,6 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
-#ifdef __aarch64__
             uint8_t c_yes = RA_AllocARMRegister(&ptr);
             uint8_t c_no = RA_AllocARMRegister(&ptr);
 
@@ -657,10 +656,6 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
-#else
-            *ptr++ = orr_cc_immed(arm_condition, tmp, tmp, 0xff);
-            *ptr++ = bfc_cc(arm_condition^1, tmp, 0, 8);
-#endif
         }
 
         ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
@@ -784,12 +779,8 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
 
             /* Adjust PC, negated CC is loop condition, CC is loop break condition */
-#ifdef __aarch64__
             *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
-#else
-            *ptr++ = add_cc_immed(arm_condition^1, REG_PC, REG_PC, 2);
-            *ptr++ = add_cc_immed(arm_condition, REG_PC, REG_PC, 4);
-#endif
+
             /* conditionally exit loop */
             branch_1 = ptr;
             *ptr++ = b_cc(arm_condition, 0);

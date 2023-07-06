@@ -296,9 +296,9 @@ kprintf("[ERROR] ABCD reg not yet fixed!\n");
     *ptr++ = cmp_immed(tmp_d, 0x90);
     if (update_mask & SR_XC)
     {
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
         *ptr++ = b_cc(A64_CC_LS, 3);
-        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_Calt);
     }
     else
     {
@@ -309,7 +309,8 @@ kprintf("[ERROR] ABCD reg not yet fixed!\n");
     if (update_mask & SR_X)
     {
         // Copy C flag to X
-        *ptr++ = bfi(cc, cc, 4, 1);
+        *ptr++ = ror(0, cc, 1);
+        *ptr++ = bfi(cc, 0, 4, 1);
     }
     
     // Insert into result
@@ -394,9 +395,9 @@ kprintf("[ERROR] ABCD mem not yet fixed!\n");
     *ptr++ = cmp_immed(tmp_d, 0x90);
     if (update_mask & SR_XC)
     {
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
         *ptr++ = b_cc(A64_CC_LS, 3);
-        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_Calt);
     }
     else
     {
@@ -407,7 +408,8 @@ kprintf("[ERROR] ABCD mem not yet fixed!\n");
     if (update_mask & SR_X)
     {
         // Copy C flag to X
-        *ptr++ = bfi(cc, cc, 4, 1);
+        *ptr++ = ror(0, cc, 1);
+        *ptr++ = bfi(cc, 0, 4, 1);
     }
     
     // Insert into result

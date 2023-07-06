@@ -92,7 +92,12 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         if (update_mask & ~SR_Z)
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        {
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
+        }
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlags(ptr, cc, SR_Z);
     }
@@ -559,7 +564,8 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                         *ptr++ = bfxil(cc, tmp_2, 14, 2);
                         
                         if (update_mask & SR_X) {
-                           *ptr++ = bfi(cc, cc, 4, 1);
+                            *ptr++ = ror(0, cc, 1);
+                            *ptr++ = bfi(cc, 0, 4, 1);
                         }
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -589,7 +595,8 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                         *ptr++ = bfxil(cc, tmp_2, 6, 2);
                         
                         if (update_mask & SR_X) {
-                           *ptr++ = bfi(cc, cc, 4, 1);
+                            *ptr++ = ror(0, cc, 1);
+                            *ptr++ = bfi(cc, 0, 4, 1);
                         }
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -663,7 +670,8 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                 *ptr++ = bfxil(cc, tmp_2, 14, 2);
                     
                 if (update_mask & SR_X) {
-                    *ptr++ = bfi(cc, cc, 4, 1);
+                    *ptr++ = ror(0, cc, 1);
+                    *ptr++ = bfi(cc, 0, 4, 1);
                 }
 
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -704,7 +712,8 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                 *ptr++ = bfxil(cc, tmp_2, 6, 2);
                 
                 if (update_mask & SR_X) {
-                    *ptr++ = bfi(cc, cc, 4, 1);
+                    *ptr++ = ror(0, cc, 1);
+                    *ptr++ = bfi(cc, 0, 4, 1);
                 }
 
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -747,7 +756,11 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
         }
 
         if (update_mask) {
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            uint8_t alt_mask = update_mask;
+            if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
+                alt_mask ^= 3;
+
+            *ptr++ = mov_immed_u16(tmp, alt_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
         }
 
@@ -922,19 +935,13 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
-#ifdef __aarch64__
+
         *ptr++ = ldxrb(dest, tmpresult);
         *ptr++ = orr_immed(tmpreg, tmpresult, 1, 25);
         *ptr++ = stxrb(dest, tmpreg, tmpstate);
         *ptr++ = cmp_reg(31, tmpstate, LSL, 0);
         *ptr++ = b_cc(A64_CC_NE, -4);
-#else
-        *ptr++ = ldrexb(dest, tmpresult);
-        *ptr++ = orr_immed(tmpreg, tmpresult, 0x80);
-        *ptr++ = strexb(dest, tmpreg, tmpstate);
-        *ptr++ = teq_immed(tmpstate, 0);
-        *ptr++ = b_cc(ARM_CC_NE, -6);
-#endif
+
         if (mode == 3)
         {
             *ptr++ = add_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
@@ -951,12 +958,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
 
     if (update_mask)
     {
-#ifdef __aarch64__
         *ptr++ = cmn_reg(31, tmpresult, LSL, 24);
-#else
-        *ptr++ = lsl_immed(tmpresult, tmpresult, 24);
-        *ptr++ = teq_immed(tmpresult, 0);
-#endif
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 

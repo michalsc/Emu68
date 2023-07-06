@@ -430,7 +430,8 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
 
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -476,7 +477,8 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                     *ptr++ = bfxil(cc, tmp_3, 14, 2);
 
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -556,7 +558,8 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                     *ptr++ = bfxil(cc, tmp_3, 6, 2);
 
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -600,7 +603,8 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                     *ptr++ = bfxil(cc, tmp_3, 14, 2);
 
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -658,7 +662,10 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
             update_mask &= ~SR_Z;
         }
         
-        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        uint8_t alt_flags = update_mask;
+        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
 
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);

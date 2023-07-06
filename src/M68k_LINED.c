@@ -380,7 +380,7 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
-
+kprintf("[ERROR] ADDX mem not fixed yet!\n");
                     *ptr++ = eor_reg(tmp_3, tmp_2, tmp, LSL, 0); // D ^ R -> tmp_3
                     *ptr++ = eor_reg(tmp_2, regx, tmp, LSL, 0);  // S ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 7
@@ -388,7 +388,8 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                     *ptr++ = bfxil(cc, tmp_3, 6, 2);
 
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -430,9 +431,10 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 15
                     *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 14, V at position 15
                     *ptr++ = bfxil(cc, tmp_3, 14, 2);
-
+kprintf("[ERROR] ADDX mem not fixed yet!\n");
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -503,8 +505,11 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                     *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
                     *ptr++ = bfxil(cc, tmp_3, 6, 2);
 
+kprintf("[ERROR] ADDX mem not fixed yet!\n");
+
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -545,9 +550,10 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 15
                     *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 14, V at position 15
                     *ptr++ = bfxil(cc, tmp_3, 14, 2);
-
+kprintf("[ERROR] ADDX mem not fixed yet!\n");
                     if (update_mask & SR_X) {
-                        *ptr++ = bfi(cc, cc, 4, 1);
+                        *ptr++ = ror(0, cc, 1);
+                        *ptr++ = bfi(cc, 0, 4, 1);
                     }
 
                     RA_FreeARMRegister(&ptr, tmp_3);
@@ -607,7 +613,10 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 #endif
             update_mask &= ~SR_Z;
         }
-        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        uint8_t alt_flags = update_mask;
+        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)

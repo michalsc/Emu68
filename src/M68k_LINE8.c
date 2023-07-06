@@ -309,7 +309,6 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     if (update_mask)
     {
-#ifdef __aarch64__
         switch(size)
         {
             case 4:
@@ -322,7 +321,7 @@ uint32_t *EMIT_OR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = cmn_reg(31, test_register, LSL, 24);
                 break;
         }
-#endif
+
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
@@ -403,13 +402,14 @@ kprintf("[ERROR] SBCD is not yet fixed!!!\n");
     *ptr++ = sub_immed(tmp_b, tmp_b, 0x60);
 
     if (update_mask & SR_XC) {
-        *ptr++ = bic_immed(cc, cc, 1, 0);
+        *ptr++ = bic_immed(cc, cc, 1, 31);
         *ptr++ = ands_immed(31, tmp_d, 2, 24);
         *ptr++ = b_cc(A64_CC_EQ, 2);
-        *ptr++ = orr_immed(cc, cc, 1, 0);
+        *ptr++ = orr_immed(cc, cc, 1, 31);
 
         if (update_mask & SR_X) {
-            *ptr++ = bfi(cc, cc, 4, 1);
+            *ptr++ = ror(0, cc, 1);
+            *ptr++ = bfi(cc, 0, 4, 1);
         }
     }
 
@@ -506,13 +506,14 @@ kprintf("[ERROR] SBCD mem is not yet fixed!\n");
     *ptr++ = sub_immed(tmp_b, tmp_b, 0x60);
 
     if (update_mask & SR_XC) {
-        *ptr++ = bic_immed(cc, cc, 1, 0);
+        *ptr++ = bic_immed(cc, cc, 1, 31);
         *ptr++ = ands_immed(31, tmp_d, 2, 24);
         *ptr++ = b_cc(A64_CC_EQ, 2);
-        *ptr++ = orr_immed(cc, cc, 1, 0);
+        *ptr++ = orr_immed(cc, cc, 1, 31);
 
         if (update_mask & SR_X) {
-            *ptr++ = bfi(cc, cc, 4, 1);
+            *ptr++ = ror(0, cc, 1);
+            *ptr++ = bfi(cc, 0, 4, 1);
         }
     }
 

@@ -74,7 +74,10 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         uint8_t cc = RA_ModifyCC(&ptr);
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
         
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        uint8_t alt_mask = update_mask;
+        if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
+            alt_mask ^= 3;
+        *ptr++ = mov_immed_u16(tmp2, alt_mask, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & (SR_C | SR_X)) {
@@ -177,7 +180,10 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         uint8_t cc = RA_ModifyCC(&ptr);
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
         
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        uint8_t alt_mask = update_mask;
+        if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
+            alt_mask ^= 3;
+        *ptr++ = mov_immed_u16(tmp2, alt_mask, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & (SR_C | SR_X)) {
@@ -191,7 +197,11 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         if (update_mask & (SR_Z | SR_N))
         {
             *ptr++ = cmn_reg(31, tmp, LSL, 16);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            *ptr++ = mov_immed_u16(tmp, alt_flags, 0);
+            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
         
             if (update_mask & SR_Z) {
                 *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
@@ -285,7 +295,8 @@ kprintf("[ERROR] ROXL mem not yet fixed!\n");
                 *ptr++ = bfi(cc, tmp, 1, 1);
             }
             if (update_mask_copy & SR_X) {
-                *ptr++ = bfi(cc, cc, 4, 1);
+                *ptr++ = ror(0, cc, 1);
+                *ptr++ = bfi(cc, 0, 4, 1);
             }
         }
       
@@ -344,7 +355,10 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         {
             *ptr++ = cmn_reg(31, tmp, LSL, 16);
         }
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        uint8_t alt_flags = update_mask;
+        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+        *ptr++ = mov_immed_u16(tmp2, alt_flags, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & SR_Z) {
@@ -531,8 +545,10 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     if (update_mask)
     {
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        uint8_t alt_flags = update_mask;
+        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+        *ptr++ = mov_immed_u16(tmp2, alt_flags, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & (SR_C | SR_X)) {
@@ -1054,7 +1070,10 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t cc = RA_ModifyCC(&ptr);
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
-        *ptr++ = mov_immed_u16(tmp2, update_mask, 0);
+        uint8_t alt_flags = update_mask;
+        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+        *ptr++ = mov_immed_u16(tmp2, alt_flags, 0);
         *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
 
         if (update_mask & (SR_C | SR_X)) {
@@ -1472,7 +1491,8 @@ kprintf("[ERROR] ROXL not yet fixed!\n");
             }
             
             if (update_mask & SR_X) {
-                *ptr++ = bfi(cc, cc, 4, 1);
+                *ptr++ = ror(0, cc, 1);
+                *ptr++ = bfi(cc, 0, 4, 1);
             }
         }
 
@@ -1629,7 +1649,8 @@ kprintf("[ERROR] ROXL not yet fixed!\n");
             }
             
             if (update_mask & SR_X) {
-                *ptr++ = bfi(cc, cc, 4, 1);
+                *ptr++ = ror(0, cc, 1);
+                *ptr++ = bfi(cc, 0, 4, 1);
             }
         }
 
@@ -5380,7 +5401,10 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             uint8_t cc = RA_ModifyCC(&ptr);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             *ptr++ = cmn_reg(31, reg, LSL, 0);
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            *ptr++ = mov_immed_u16(tmp, alt_flags, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
 
             if (update_mask & SR_Z) {
