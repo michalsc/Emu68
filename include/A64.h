@@ -786,7 +786,9 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     {
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
-        *ptr++ = bic_immed(cc, cc, 2, 0);
+        // Clear C+V only if needed
+        if (*not_done & 3)
+            *ptr++ = bic_immed(cc, cc, 2, 0);
         (*not_done) &= 0x10;
     }
 
