@@ -380,12 +380,13 @@ static uint32_t *EMIT_ADDX_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] ADDX mem not fixed yet!\n");
+
                     *ptr++ = eor_reg(tmp_3, tmp_2, tmp, LSL, 0); // D ^ R -> tmp_3
                     *ptr++ = eor_reg(tmp_2, regx, tmp, LSL, 0);  // S ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 6, 2);
+                    *ptr++ = mov_reg(tmp_2, tmp);                // tmp_2 <-- tmp, C at position 8
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 8);            // C at position 8, V at position 7
+                    *ptr++ = bfxil(cc, tmp_2, 7, 2);
 
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
@@ -429,9 +430,10 @@ kprintf("[ERROR] ADDX mem not fixed yet!\n");
                     *ptr++ = eor_reg(tmp_3, tmp_2, tmp, LSL, 0); // D ^ R -> tmp_3
                     *ptr++ = eor_reg(tmp_2, regx, tmp, LSL, 0);  // S ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 15
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 14, V at position 15
-                    *ptr++ = bfxil(cc, tmp_3, 14, 2);
-kprintf("[ERROR] ADDX mem not fixed yet!\n");
+                    *ptr++ = mov_reg(tmp_2, tmp);                 // tmp_2 <-- tmp. C at position 16
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 16);            // C at position 16, V at position 15
+                    *ptr++ = bfxil(cc, tmp_2, 15, 2);
+
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
                         *ptr++ = bfi(cc, 0, 4, 1);
@@ -502,10 +504,9 @@ kprintf("[ERROR] ADDX mem not fixed yet!\n");
                     *ptr++ = eor_reg(tmp_3, dest, tmp, LSL, 0); // D ^ R -> tmp_3
                     *ptr++ = eor_reg(tmp_2, src, tmp, LSL, 0);  // S ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 6, 2);
-
-kprintf("[ERROR] ADDX mem not fixed yet!\n");
+                    *ptr++ = mov_reg(tmp_2, tmp);               // tmp_2 <-- tmp. C at position 8
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 8);           // C at position 8, V at position 7
+                    *ptr++ = bfxil(cc, tmp_2, 7, 2);
 
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
@@ -548,9 +549,10 @@ kprintf("[ERROR] ADDX mem not fixed yet!\n");
                     *ptr++ = eor_reg(tmp_3, dest, tmp, LSL, 0); // D ^ R -> tmp_3
                     *ptr++ = eor_reg(tmp_2, src, tmp, LSL, 0);  // S ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^R) & (S^R), bit 15
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 14, V at position 15
-                    *ptr++ = bfxil(cc, tmp_3, 14, 2);
-kprintf("[ERROR] ADDX mem not fixed yet!\n");
+                    *ptr++ = mov_reg(tmp_2, tmp);               // tmp_2 <-- tmp. C at position 16
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 16);          // C at position 16, V at position 15
+                    *ptr++ = bfxil(cc, tmp_2, 15, 2);
+
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
                         *ptr++ = bfi(cc, 0, 4, 1);

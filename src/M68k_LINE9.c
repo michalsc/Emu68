@@ -424,10 +424,9 @@ uint32_t *EMIT_SUBX_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = eor_reg(tmp_3, tmp_2, regx, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, tmp_2, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 6, 2);
-
-kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
+                    *ptr++ = mov_reg(tmp_2, tmp);                // tmp_2 <-- tmp. C at position 8
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 8);            // C at position 8, V at position 7
+                    *ptr++ = bfxil(cc, tmp_2, 7, 2);
 
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
@@ -469,12 +468,13 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
 
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
+
                     *ptr++ = eor_reg(tmp_3, tmp_2, regx, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, tmp_2, tmp, LSL, 0);  // D ^ R -> tmp_2
-                    *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 14, 2);
+                    *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 15
+                    *ptr++ = mov_reg(tmp_2, tmp);                 // tmp_2 <-- tmp. C at position 16
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 16);            // C at position 16, V at position 15
+                    *ptr++ = bfxil(cc, tmp_2, 15, 2);
 
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
@@ -550,12 +550,13 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
+
                     *ptr++ = eor_reg(tmp_3, dest, src, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, dest, tmp, LSL, 0);  // D ^ R -> tmp_2
                     *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 7);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 6, 2);
+                    *ptr++ = mov_reg(tmp_2, tmp);                // C at position 8
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 8);            // C at position 8, V at position 7
+                    *ptr++ = bfxil(cc, tmp_2, 7, 2);
 
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
@@ -595,12 +596,13 @@ kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
                 if (update_mask & SR_XVC) {
                     uint8_t tmp_3 = RA_AllocARMRegister(&ptr);
                     uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] SUBX reg C and V handling not yet fixed!\n");
+
                     *ptr++ = eor_reg(tmp_3, dest, src, LSL, 0); // D ^ S -> tmp_3
                     *ptr++ = eor_reg(tmp_2, dest, tmp, LSL, 0);  // D ^ R -> tmp_2
-                    *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 7
-                    *ptr++ = bfxil(tmp_3, tmp, 2, 15);            // C at position 6, V at position 7
-                    *ptr++ = bfxil(cc, tmp_3, 14, 2);
+                    *ptr++ = and_reg(tmp_3, tmp_2, tmp_3, LSL, 0); // V = (D^S) & (D^R), bit 15
+                    *ptr++ = mov_reg(tmp_2, tmp);                 // tmp_2 <-- tmp. C at position 16
+                    *ptr++ = bfi(tmp_2, tmp_3, 0, 16);            // C at position 16, V at position 15
+                    *ptr++ = bfxil(cc, tmp_2, 15, 2);
 
                     if (update_mask & SR_X) {
                         *ptr++ = ror(0, cc, 1);
