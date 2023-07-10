@@ -1254,7 +1254,6 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_C) {
-            kprintf("[ERROR] ROL not yet fixed!\n");
             if (regshift) {
                 *ptr++ = cbz(shift_orig, 2);
                 RA_FreeARMRegister(&ptr, shift_orig);
