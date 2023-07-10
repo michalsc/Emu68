@@ -41,24 +41,19 @@ static uint32_t *EMIT_CMPA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         
-        if (__builtin_popcount(update_mask) > 1)
+        if (__builtin_popcount(update_mask) != 0)
+        {
             ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
-        else {
-            uint8_t alt_flags = update_mask;
-            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
-                alt_flags ^= 3;
-            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
-        }
             
-
-        if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-        if (update_mask & SR_N)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
-        if (update_mask & SR_C)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            if (update_mask & SR_V)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+        }
     }
 
     return ptr;
@@ -117,23 +112,19 @@ static uint32_t *EMIT_CMPM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         
-        if (__builtin_popcount(update_mask) > 1)
+        if (__builtin_popcount(update_mask) != 0)
+        {
             ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
-        else {
-            uint8_t alt_flags = update_mask;
-            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
-                alt_flags ^= 3;
-            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
-        }
             
-        if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-        if (update_mask & SR_N)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
-        if (update_mask & SR_C)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            if (update_mask & SR_V)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+        }
     }
 
     return ptr;
@@ -196,23 +187,19 @@ static uint32_t *EMIT_CMP_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     {
         uint8_t cc = RA_ModifyCC(&ptr);
 
-        if (__builtin_popcount(update_mask) > 1)
+        if (__builtin_popcount(update_mask) != 0)
+        {
             ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
-        else {
-            uint8_t alt_flags = update_mask;
-            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
-                alt_flags ^= 3;
-            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
+
+            if (update_mask & SR_Z)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            if (update_mask & SR_N)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            if (update_mask & SR_V)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
+            if (update_mask & SR_C)
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
         }
-            
-        if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
-        if (update_mask & SR_N)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
-        if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
-        if (update_mask & SR_C)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
     }
 
     return ptr;
