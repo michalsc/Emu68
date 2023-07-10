@@ -935,9 +935,17 @@ uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     {
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
-        *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
-        *ptr++ = bic_immed(cc, cc, 1, 28);
-        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_CS);
+        if (*not_done & 0x10)
+        {
+#if 1
+            *ptr++ = cset(tmp_reg, A64_CC_CS);
+            *ptr++ = bfi(cc, tmp_reg, 4, 1);
+#else
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
+            *ptr++ = bic_immed(cc, cc, 1, 28);
+            *ptr++ = csel(cc, tmp_reg, cc, A64_CC_CS);
+#endif
+        }
         (*not_done) = 0;
     }
 
@@ -992,7 +1000,11 @@ uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     else 
     {
         *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
+        
+        /* If C is needed, inverse it */
+        if (*not_done & 0x01)
+            *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
+
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
         
         (*not_done) &= 0x10;
@@ -1054,11 +1066,22 @@ uint32_t * EMIT_GetNZnCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     else if (__builtin_popcount(*not_done) > 2)
     {
         *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
+        /* If C or X requested, invert the flag */
+        if (*not_done & 0x11)
+            *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
-        *ptr++ = bic_immed(cc, cc, 1, 28);
-        *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
-        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_CC);
+        /* If X requested, add it now */
+        if (*not_done & 0x10)
+        {
+#if 1
+            *ptr++ = cset(tmp_reg, A64_CC_CC);
+            *ptr++ = bfi(cc, tmp_reg, 4, 1);
+#else
+            *ptr++ = bic_immed(cc, cc, 1, 28);
+            *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
+            *ptr++ = csel(cc, tmp_reg, cc, A64_CC_CC);
+#endif
+        }
         *not_done = 0;
     }
 
