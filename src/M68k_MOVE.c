@@ -399,7 +399,14 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             switch (size)
             {
                 case 4:
-                    *ptr++ = cmn_reg(31, tmp_reg, LSL, 0);
+                    if (!loaded_in_dest && (tmp & 0x38) == 0)
+                    {
+                        uint8_t dst_reg = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                        *ptr++ = adds_reg(dst_reg, 31, tmp_reg, LSL, 0);
+                        loaded_in_dest = 1;
+                    }
+                    else
+                        *ptr++ = cmn_reg(31, tmp_reg, LSL, 0);
                     break;
                 case 2:
                     *ptr++ = cmn_reg(31, tmp_reg, LSL, 16);

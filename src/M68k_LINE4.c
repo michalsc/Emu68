@@ -92,7 +92,12 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         if (update_mask & ~SR_Z)
-            ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        {
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
+        }
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlags(ptr, cc, SR_Z);
     }
@@ -464,29 +469,30 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
     {
         uint8_t cc = RA_ModifyCC(&ptr);
         if (update_mask & SR_X)
-            ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
+            ptr = EMIT_GetNZnCVX(ptr, cc, &update_mask);
         else
-            ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+            ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
 
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
             if ((update_mask & (SR_X | SR_C)) == SR_X)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_NE);
             else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_NE);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_NE);
             else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_NE);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_NE);
         }
     }
 
     return ptr;
 }
 
+// BROKEN!!!!
 uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     (void)insn_consumed;
@@ -551,12 +557,15 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     if (update_mask & SR_XVC) {
                         uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
 
+kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+
                         *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
                         *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
                         *ptr++ = bfxil(cc, tmp_2, 14, 2);
                         
                         if (update_mask & SR_X) {
-                           *ptr++ = bfi(cc, cc, 4, 1);
+                            *ptr++ = ror(0, cc, 1);
+                            *ptr++ = bfi(cc, 0, 4, 1);
                         }
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -579,12 +588,15 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     if (update_mask & SR_XVC) {
                         uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
 
+kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+
                         *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
                         *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
                         *ptr++ = bfxil(cc, tmp_2, 6, 2);
                         
                         if (update_mask & SR_X) {
-                           *ptr++ = bfi(cc, cc, 4, 1);
+                            *ptr++ = ror(0, cc, 1);
+                            *ptr++ = bfi(cc, 0, 4, 1);
                         }
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -652,13 +664,14 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
 
             if (update_mask & SR_XVC) {
                 uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-
+kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                 *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
                 *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
                 *ptr++ = bfxil(cc, tmp_2, 14, 2);
                     
                 if (update_mask & SR_X) {
-                    *ptr++ = bfi(cc, cc, 4, 1);
+                    *ptr++ = ror(0, cc, 1);
+                    *ptr++ = bfi(cc, 0, 4, 1);
                 }
 
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -693,13 +706,14 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
 
             if (update_mask & SR_XVC) {
                 uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-
+kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                 *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
                 *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
                 *ptr++ = bfxil(cc, tmp_2, 6, 2);
                 
                 if (update_mask & SR_X) {
-                    *ptr++ = bfi(cc, cc, 4, 1);
+                    *ptr++ = ror(0, cc, 1);
+                    *ptr++ = bfi(cc, 0, 4, 1);
                 }
 
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -742,7 +756,11 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
         }
 
         if (update_mask) {
-            *ptr++ = mov_immed_u16(tmp, update_mask, 0);
+            uint8_t alt_mask = update_mask;
+            if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
+                alt_mask ^= 3;
+
+            *ptr++ = mov_immed_u16(tmp, alt_mask, 0);
             *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
         }
 
@@ -750,14 +768,14 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         
         if (update_mask & SR_V)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
         if (update_mask & (SR_X | SR_C)) {
             if ((update_mask & (SR_X | SR_C)) == SR_X)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
             else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
             else
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CC);
         }
         
         RA_FreeARMRegister(&ptr, tmp);
@@ -917,19 +935,13 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             *ptr++ = sub_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
             RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         }
-#ifdef __aarch64__
+
         *ptr++ = ldxrb(dest, tmpresult);
         *ptr++ = orr_immed(tmpreg, tmpresult, 1, 25);
         *ptr++ = stxrb(dest, tmpreg, tmpstate);
         *ptr++ = cmp_reg(31, tmpstate, LSL, 0);
         *ptr++ = b_cc(A64_CC_NE, -4);
-#else
-        *ptr++ = ldrexb(dest, tmpresult);
-        *ptr++ = orr_immed(tmpreg, tmpresult, 0x80);
-        *ptr++ = strexb(dest, tmpreg, tmpstate);
-        *ptr++ = teq_immed(tmpstate, 0);
-        *ptr++ = b_cc(ARM_CC_NE, -6);
-#endif
+
         if (mode == 3)
         {
             *ptr++ = add_immed(dest, dest, (opcode & 7) == 7 ? 2 : 1);
@@ -946,12 +958,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
 
     if (update_mask)
     {
-#ifdef __aarch64__
         *ptr++ = cmn_reg(31, tmpresult, LSL, 24);
-#else
-        *ptr++ = lsl_immed(tmpresult, tmpresult, 24);
-        *ptr++ = teq_immed(tmpresult, 0);
-#endif
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
@@ -981,7 +988,15 @@ static uint32_t *EMIT_MOVEfromSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k
     tmpptr = ptr;
     *ptr++ = b_cc(A64_CC_EQ, 23);
 
-    ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &cc, opcode & 0x3f, *m68k_ptr, &ext_words);
+    uint8_t tmp_cc = RA_AllocARMRegister(&ptr);
+
+    *ptr++ = mov_reg(tmp_cc, cc);
+    *ptr++ = rbit(0, cc);
+    *ptr++ = bfxil(tmp_cc, 0, 30, 2);
+
+    ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp_cc, opcode & 0x3f, *m68k_ptr, &ext_words);
+
+    RA_FreeARMRegister(&ptr, tmp_cc);
 
     *tmpptr = b_cc(A64_CC_EQ, 2 + ptr - tmpptr);
 
@@ -1015,7 +1030,9 @@ static uint32_t *EMIT_MOVEfromCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68
         uint8_t tmp = RA_AllocARMRegister(&ptr);
 
         *ptr++ = mov_reg(tmp, cc);
+        *ptr++ = rbit(0, cc);
         *ptr++ = bic_immed(tmp, tmp, 11, 27);
+        *ptr++ = bfxil(tmp, 0, 30, 2);
         ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
 
         RA_FreeARMRegister(&ptr, tmp);
@@ -1029,7 +1046,9 @@ static uint32_t *EMIT_MOVEfromCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68
         RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
         *ptr++ = bfi(dest, cc, 0, 5);
+        *ptr++ = rbit(0, cc);
         *ptr++ = bic_immed(dest, dest, 11, 27);
+        *ptr++ = bfxil(dest, 0, 30, 2);
     }
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
@@ -1066,6 +1085,14 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = mov_immed_u16(changed, 0xf71f, 0);
     
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    if ((opcode & 0x38) == 0) /* Dn direct into SR */
+    {
+        uint8_t src_mod = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_reg(src_mod, src);
+        src = src_mod;
+    }
+    *ptr++ = rbit(0, src);
+    *ptr++ = bfxil(src, 0, 30, 2);
 
     cc = RA_ModifyCC(&ptr);
 
@@ -1124,7 +1151,15 @@ static uint32_t *EMIT_MOVEtoCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
     uint8_t cc = RA_ModifyCC(&ptr);
 
     ptr = EMIT_LoadFromEffectiveAddress(ptr, 2, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
-
+    
+    if ((opcode & 0x38) == 0) /* Dn direct */
+    {
+        uint8_t src_mod = RA_AllocARMRegister(&ptr);
+        *ptr++ = mov_reg(src_mod, src);
+        src = src_mod;
+    }
+    *ptr++ = rbit(0, src);
+    *ptr++ = bfxil(src, 0, 30, 2);
     *ptr++ = bfi(cc, src, 0, 5);
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
@@ -1478,6 +1513,12 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
 
     ptr = EMIT_FlushPC(ptr);
 
+    /* Swap C and V in new SR */
+    if ((new_sr & 3) != 0 && (new_sr & 3) < 3)
+    {
+        new_sr ^= 3;
+    }
+
     /* If supervisor is not active, put an exception here */
     tmpptr = ptr;
     ptr++;
@@ -1612,6 +1653,9 @@ static uint32_t *EMIT_RTE(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 
     /* Fetch sr from stack */
     *ptr++ = ldrh_offset_postindex(sp, changed, 2);
+    /* Reverse C and V */
+    *ptr++ = rbit(orig, changed);
+    *ptr++ = bfxil(changed, orig, 30, 2);
     /* Fetch PC from stack, advance sp so that format word is skipped */
     *ptr++ = ldr_offset_postindex(sp, REG_PC, 6);
 
@@ -1677,18 +1721,21 @@ static uint32_t *EMIT_RTD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-    int8_t pc_off;
+    uint16_t addend = BE16((*m68k_ptr)[0]);
 
     /* Fetch return address from stack */
     *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
-    pc_off = 2;
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-    *ptr++ = ldrsh_offset(REG_PC, tmp, pc_off);
-#ifdef __aarch64__
-    *ptr++ = add_reg(sp, sp, tmp, LSL, 0);
-#else
-    *ptr++ = add_reg(sp, sp, tmp, 0);
-#endif
+
+    if (addend < 4096)
+    {
+        *ptr++ = add_immed(sp, sp, addend);
+    }
+    else
+    {
+        *ptr++ = mov_immed_u16(tmp, addend, 0);
+        *ptr++ = add_reg(sp, sp, tmp, LSL, 0);
+    }
+
     ptr = EMIT_ResetOffsetPC(ptr);
     *ptr++ = mov_reg(REG_PC, tmp2);
     RA_SetDirtyM68kRegister(&ptr, 15);
@@ -1757,7 +1804,7 @@ static uint32_t *EMIT_TRAPV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     ptr = EMIT_AdvancePC(ptr, 2);
     ptr = EMIT_FlushPC(ptr);
 
-    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_V);
+    *ptr++ = ands_immed(31, cc, 1, 32 - SRB_Valt);
     tmpptr = ptr;
     *ptr++ = b_cc(A64_CC_EQ, 0);
     
@@ -1784,7 +1831,10 @@ static uint32_t *EMIT_RTR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
 
     /* Fetch status byte from stack */
     *ptr++ = ldrh_offset_postindex(sp, tmp, 2);
-
+    /* Reverse C and V */
+    *ptr++ = rbit(0, tmp);
+    *ptr++ = bfxil(tmp, 0, 30, 2);
+    /* Insert XNZCV into SR */
     uint8_t cc = RA_ModifyCC(&ptr);
     *ptr++ = bfi(cc, tmp, 0, 5);
 
@@ -2327,15 +2377,15 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
         switch (update_mask & SR_XC)
         {
             case SR_C:
-                *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
-                *ptr++ = orr_immed(tmp, cc, 1, 32 - SRB_C);
+                *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
+                *ptr++ = orr_immed(tmp, cc, 1, 32 - SRB_Calt);
                 break;
             case SR_X:
                 *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_X);
                 *ptr++ = orr_immed(tmp, cc, 1, 32 - SRB_X);
                 break;
             default:
-                *ptr++ = mov_immed_u16(tmp, SR_XC, 0);
+                *ptr++ = mov_immed_u16(tmp, SR_XCalt, 0);
                 *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
                 *ptr++ = orr_reg(tmp, cc, tmp, LSL, 0);
                 break;
@@ -2346,10 +2396,13 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
 
     if (update_mask & SR_Z) {
         cc = RA_ModifyCC(&ptr);
-
+/*
         *ptr++ = bic_immed(tmp, cc, 1, 32 - SRB_Z);
         *ptr++ = ands_immed(31, result, 8, 0);
         *ptr++ = csel(cc, tmp, cc, A64_CC_NE);
+*/
+        *ptr++ = cset(tmp, A64_CC_EQ);
+        *ptr++ = bfi(cc, tmp, SRB_Z, 1);
     }
 
     /* Dn mode */
@@ -2649,7 +2702,7 @@ static uint32_t *EMIT_CHK(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t cc = RA_ModifyCC(&ptr);
 
     // Clear Z, V and C flags, set Z back if operand is zero
-    *ptr++ = mov_immed_u16(tmpreg, SR_NC, 0);
+    *ptr++ = mov_immed_u16(tmpreg, SR_NCalt, 0);
     *ptr++ = bic_reg(cc, cc, tmpreg, LSL, 0);
     *ptr++ = tbz(src, 31, 2);
     *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_N);

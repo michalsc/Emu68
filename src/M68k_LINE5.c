@@ -264,23 +264,23 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
             if (update_mask & SR_X)
-                ptr = EMIT_GetNZVCX(ptr, cc, &update_mask);
+                ptr = EMIT_GetNZCVX(ptr, cc, &update_mask);
             else
-                ptr = EMIT_GetNZVC(ptr, cc, &update_mask);
+                ptr = EMIT_GetNZCV(ptr, cc, &update_mask);
 
             if (update_mask & SR_Z)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
             if (update_mask & (SR_X | SR_C)) {
                 if ((update_mask & (SR_X | SR_C)) == SR_X)
                     ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CS);
                 else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CS);
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CS);
                 else
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CS);
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CS);
             }
         }
     }
@@ -549,23 +549,23 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             uint8_t cc = RA_ModifyCC(&ptr);
             if (update_mask & SR_X)
-                ptr = EMIT_GetNZVnCX(ptr, cc, &update_mask);
+                ptr = EMIT_GetNZnCVX(ptr, cc, &update_mask);
             else
-                ptr = EMIT_GetNZVnC(ptr, cc, &update_mask);
+                ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
 
             if (update_mask & SR_Z)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
                 ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_V, ARM_CC_VS);
+                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
             if (update_mask & (SR_X | SR_C)) {
                 if ((update_mask & (SR_X | SR_C)) == SR_X)
                     ptr = EMIT_SetFlagsConditional(ptr, cc, SR_X, ARM_CC_CC);
                 else if ((update_mask & (SR_X | SR_C)) == SR_C)
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C, ARM_CC_CC);
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
                 else
-                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_C | SR_X, ARM_CC_CC);
+                    ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt | SR_X, ARM_CC_CC);
             }
         }
     }
@@ -607,6 +607,8 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
 
 #ifdef __aarch64__
+
+/*
             uint8_t c_yes = RA_AllocARMRegister(&ptr);
             uint8_t c_no = RA_AllocARMRegister(&ptr);
 
@@ -616,6 +618,13 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
+*/
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = csetm(tmp, arm_condition);
+            *ptr++ = bfi(dest, tmp, 0, 8);
+
+            RA_FreeARMRegister(&ptr, tmp);
 #else
             *ptr++ = orr_cc_immed(arm_condition, dest, dest, 0xff);
             *ptr++ = bfc_cc(arm_condition^1, dest, 0, 8);
@@ -647,7 +656,8 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
-#ifdef __aarch64__
+/*
+
             uint8_t c_yes = RA_AllocARMRegister(&ptr);
             uint8_t c_no = RA_AllocARMRegister(&ptr);
 
@@ -657,10 +667,13 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             RA_FreeARMRegister(&ptr, c_yes);
             RA_FreeARMRegister(&ptr, c_no);
-#else
-            *ptr++ = orr_cc_immed(arm_condition, tmp, tmp, 0xff);
-            *ptr++ = bfc_cc(arm_condition^1, tmp, 0, 8);
-#endif
+*/
+            uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+            *ptr++ = csetm(tmp, arm_condition);
+            *ptr++ = bfi(dest, tmp, 0, 8);
+
+            RA_FreeARMRegister(&ptr, tmp);
         }
 
         ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
@@ -784,12 +797,8 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
 
             /* Adjust PC, negated CC is loop condition, CC is loop break condition */
-#ifdef __aarch64__
             *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
-#else
-            *ptr++ = add_cc_immed(arm_condition^1, REG_PC, REG_PC, 2);
-            *ptr++ = add_cc_immed(arm_condition, REG_PC, REG_PC, 4);
-#endif
+
             /* conditionally exit loop */
             branch_1 = ptr;
             *ptr++ = b_cc(arm_condition, 0);

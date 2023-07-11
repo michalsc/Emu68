@@ -251,6 +251,7 @@ uint32_t *EMIT_EXG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
+// BROKEN!!!
 static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -262,6 +263,8 @@ static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t tmp_b = RA_AllocARMRegister(&ptr);
     uint8_t tmp_c = RA_AllocARMRegister(&ptr);
     uint8_t tmp_d = RA_AllocARMRegister(&ptr);
+
+kprintf("[ERROR] ABCD reg not yet fixed!\n");
 
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
@@ -293,9 +296,9 @@ static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = cmp_immed(tmp_d, 0x90);
     if (update_mask & SR_XC)
     {
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
         *ptr++ = b_cc(A64_CC_LS, 3);
-        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_Calt);
     }
     else
     {
@@ -306,7 +309,8 @@ static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     if (update_mask & SR_X)
     {
         // Copy C flag to X
-        *ptr++ = bfi(cc, cc, 4, 1);
+        *ptr++ = ror(0, cc, 1);
+        *ptr++ = bfi(cc, 0, 4, 1);
     }
     
     // Insert into result
@@ -331,7 +335,7 @@ static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     return ptr;
 }
 
-
+// BROKEN!!!!
 static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
@@ -345,7 +349,7 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
     uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-
+kprintf("[ERROR] ABCD mem not yet fixed!\n");
     // Fetch initial data into regs tmp_a and tmp_b
     if ((opcode & 7) == 7) {
         *ptr++ = ldrb_offset_preindex(an_src, tmp_a, -2);
@@ -391,9 +395,9 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     *ptr++ = cmp_immed(tmp_d, 0x90);
     if (update_mask & SR_XC)
     {
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
         *ptr++ = b_cc(A64_CC_LS, 3);
-        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_C);
+        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_Calt);
     }
     else
     {
@@ -404,7 +408,8 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     if (update_mask & SR_X)
     {
         // Copy C flag to X
-        *ptr++ = bfi(cc, cc, 4, 1);
+        *ptr++ = ror(0, cc, 1);
+        *ptr++ = bfi(cc, 0, 4, 1);
     }
     
     // Insert into result

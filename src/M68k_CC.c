@@ -33,12 +33,12 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             break;
 
         case M_CC_CS:
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Calt));
             success_condition = A64_CC_NE;
             break;
 
         case M_CC_CC:
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Calt));
             success_condition = A64_CC_EQ;
             break;
 
@@ -53,69 +53,57 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             break;
 
         case M_CC_VS:
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Valt));
             success_condition = A64_CC_NE;
             break;
 
         case M_CC_VC:
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_V));
+            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Valt));
             success_condition = A64_CC_EQ;
             break;
 
         case M_CC_LS:   /* C == 1 || Z == 1 */
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_C);
-            *ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
-/*
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
-            *ptr++ = b_cc(A64_CC_NE, 2);
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
-*/
+            //cond_tmp = RA_AllocARMRegister(&ptr);
+            //*ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_Calt);
+            //*ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
+            *ptr++ = tst_immed(cc, 2, 31); // xnZCv
             success_condition = A64_CC_NE;
             break;
 
         case M_CC_HI:   /* C == 0 && Z == 0 */
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_C);
-            *ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
-/*
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
-            *ptr++ = b_cc(A64_CC_NE, 2);
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_C));
-*/
+            //cond_tmp = RA_AllocARMRegister(&ptr);
+            //*ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_Calt);
+            //*ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
+            *ptr++ = tst_immed(cc, 2, 31); // xnZCv
             success_condition = A64_CC_EQ;
             break;
 
         case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
-            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
-            success_condition = A64_CC_EQ;
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            success_condition = A64_CC_GE;
             break;
 
         case M_CC_LT:
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
-            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
-            success_condition = A64_CC_NE;
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            success_condition = A64_CC_LT;
             break;
 
         case M_CC_GT:
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
-            *ptr++ = b_cc(A64_CC_NE, 3);
-            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
-            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
-            success_condition = A64_CC_EQ;
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            success_condition = A64_CC_GT;
             break;
 
         case M_CC_LE:
             cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_Z));
-            *ptr++ = b_cc(A64_CC_NE, 3);
-            *ptr++ = eor_reg(cond_tmp, cc, cc, LSL, (SRB_N - SRB_V)); /* Calculate N ^ V. If both are equal, it returns 0 */
-            *ptr++ = tst_immed(cond_tmp, 1, 31 & (32 - SRB_N));
-            success_condition = A64_CC_NE;
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            success_condition = A64_CC_LE;
             break;
 
         default:
