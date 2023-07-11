@@ -2490,12 +2490,20 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
+#if 1
+        if (update_mask & SR_Z)
+        {
+            *ptr++ = cset(0, A64_CC_EQ);
+            *ptr++ = bfi(cc, 0, SRB_Z, 1);
+        }
+#else
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
         ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+#endif
     } else {
         for (uint32_t *p = tst_pos; p < ptr; p++)
             p[0] = p[1];
