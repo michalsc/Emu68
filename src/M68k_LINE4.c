@@ -1721,18 +1721,21 @@ static uint32_t *EMIT_RTD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-    int8_t pc_off;
+    uint16_t addend = BE16((*m68k_ptr)[0]);
 
     /* Fetch return address from stack */
     *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
-    pc_off = 2;
-    ptr = EMIT_GetOffsetPC(ptr, &pc_off);
-    *ptr++ = ldrsh_offset(REG_PC, tmp, pc_off);
-#ifdef __aarch64__
-    *ptr++ = add_reg(sp, sp, tmp, LSL, 0);
-#else
-    *ptr++ = add_reg(sp, sp, tmp, 0);
-#endif
+
+    if (addend < 4096)
+    {
+        *ptr++ = add_immed(sp, sp, addend);
+    }
+    else
+    {
+        *ptr++ = mov_immed_u16(tmp, addend, 0);
+        *ptr++ = add_reg(sp, sp, tmp, LSL, 0);
+    }
+
     ptr = EMIT_ResetOffsetPC(ptr);
     *ptr++ = mov_reg(REG_PC, tmp2);
     RA_SetDirtyM68kRegister(&ptr, 15);
