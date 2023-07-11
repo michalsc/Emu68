@@ -1861,27 +1861,14 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         if (immediate)
         {
-#ifdef __aarch64__
             *ptr++ = tst_immed(dest, 1, 31 & (32 - imm_shift));
-#else
-            int shifter_operand = imm_shift & 1 ? 2:1;
-            shifter_operand |= ((16 - (imm_shift >> 1)) & 15) << 8;
-            *ptr++ = tst_immed(dest, shifter_operand);
-#endif
         }
         else
         {
-#ifdef __aarch64__
             *ptr++ = and_immed(bit_number, bit_number, 5, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
             *ptr++ = tst_reg(dest, bit_mask, LSL, 0);
-#else
-            *ptr++ = and_immed(bit_number, bit_number, 31);
-            *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
-
-            *ptr++ = tst_reg(dest, bit_mask, 0);
-#endif
         }
     }
     else
@@ -1891,26 +1878,14 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         if (immediate)
         {
-#ifdef __aarch64__
             *ptr++ = tst_immed(dest, 1, 31 & (32 - (imm_shift & 7)));
-#else
-            int shifter_operand = 1 << (imm_shift & 7);
-            *ptr++ = tst_immed(dest, shifter_operand);
-#endif
         }
         else
         {
-#ifdef __aarch64__
             *ptr++ = and_immed(bit_number, bit_number, 3, 0);
             *ptr++ = lslv(bit_mask, bit_mask, bit_number);
 
             *ptr++ = tst_reg(dest, bit_mask, LSL, 0);
-#else
-            *ptr++ = and_immed(bit_number, bit_number, 7);
-            *ptr++ = lsl_reg(bit_mask, bit_mask, bit_number);
-
-            *ptr++ = tst_reg(dest, bit_mask, 0);
-#endif
         }
     }
 
@@ -1924,12 +1899,20 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
+#if 1
+        if (update_mask & SR_Z)
+        {
+            *ptr++ = cset(0, A64_CC_EQ);
+            *ptr++ = bfi(cc, 0, SRB_Z, 1);
+        }
+#else
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
         ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+#endif
     }
 
     return ptr;
@@ -2070,12 +2053,20 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
+#if 1
+        if (update_mask & SR_Z)
+        {
+            *ptr++ = cset(0, A64_CC_EQ);
+            *ptr++ = bfi(cc, 0, SRB_Z, 1);
+        }
+#else
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
         ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+#endif
     } else {
         for (uint32_t *p = tst_pos; p < ptr; p++)
             p[0] = p[1];
@@ -2220,12 +2211,20 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
+#if 1
+        if (update_mask & SR_Z)
+        {
+            *ptr++ = cset(0, A64_CC_EQ);
+            *ptr++ = bfi(cc, 0, SRB_Z, 1);
+        }
+#else
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
         ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
         if (update_mask & SR_Z)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+#endif
     } else {
         for (uint32_t *p = tst_pos; p < ptr; p++)
             p[0] = p[1];
