@@ -342,14 +342,62 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t size = (opcode & 0x0100) == 0x0100 ? 4 : 2;
     uint8_t reg = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
     uint8_t tmp = 0xff;
+    uint8_t immed = (opcode & 0x3f) == 0x3c;
+
     RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7) + 8);
 
     if (size == 2)
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
-    else
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    {
+        if (immed)
+        {
+            int16_t offset = (int16_t)BE16((*m68k_ptr)[0]);
 
-    *ptr++ = sub_reg(reg, reg, tmp, LSL, 0);
+            if (offset >= 0 && offset < 4096)
+            {
+                *ptr++ = sub_immed(reg, reg, offset);
+                ext_words = 1;
+            }
+            else if (offset > -4096 && offset < 0)
+            {
+                *ptr++ = add_immed(reg, reg, -offset);
+                ext_words = 1;
+            }
+            else immed = 0;
+        }
+
+        if (immed == 0)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    }
+    else
+    {
+        int32_t offset;
+        if (immed)
+        {
+            offset = ((int16_t)BE16((*m68k_ptr)[0]) << 16) | (uint16_t)BE16((*m68k_ptr)[1]);
+            
+            if (offset >= 0 && offset < 4096)
+            {
+                *ptr++ = sub_immed(reg, reg, offset);
+                ext_words = 2;
+            }
+            else if ((offset & 0xff000fff) == 0)
+            {
+                *ptr++ = sub_immed_lsl12(reg, reg, offset >> 12);
+                ext_words = 2;
+            }
+            else
+            {
+                immed = 0;
+            }
+        }
+
+        if (immed == 0)
+            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    }
+        
+
+    if (immed == 0)
+        *ptr++ = sub_reg(reg, reg, tmp, LSL, 0);
 
     RA_FreeARMRegister(&ptr, tmp);
 
