@@ -917,10 +917,11 @@ void boot(void *dtree)
             LE32(0xd65f03c0)        // ret
         };
 
-        void *addr = tlsf_malloc(jit_tlsf, 4*10);
+        void *addr = tlsf_malloc_aligned(jit_tlsf, 4*10, 4096);
         void (*flusher)() = (void (*)())((uintptr_t)addr | 0x1000000000);
         DuffCopy(addr, tlb_flusher, 10);
         arm_flush_cache((uintptr_t)addr, 4*10);
+        arm_flush_cache((uintptr_t)flusher, 4*10);
         flusher();
         tlsf_free(jit_tlsf, addr);
 
@@ -1524,7 +1525,7 @@ struct M68KTranslationUnit *_FindUnit(uint16_t *ptr)
 void  __attribute__((used)) stub_FindUnit()
 {
     asm volatile(
-"       .align  5                           \n"
+"       .align  8                           \n"
 "FindUnit:                                  \n"
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
@@ -1562,6 +1563,8 @@ extern volatile unsigned char bus_lock;
 void  __attribute__((used)) stub_ExecutionLoop()
 {
     asm volatile(
+"       .globl ExecutionLoop                \n"
+"       .align 8                            \n"
 "ExecutionLoop:                             \n"
 "       stp     x29, x30, [sp, #-128]!      \n"
 "       stp     x27, x28, [sp, #1*16]       \n"
@@ -1571,7 +1574,8 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       stp     x19, x20, [sp, #5*16]       \n"
 "       mov     v28.d[0], xzr               \n"
 "       bl      M68K_LoadContext            \n"
-"       .align 6                            \n"
+"       b       1f                          \n"
+"       .align 8                            \n"
 "1:                                         \n"
 /*
 "       mrs     x0, PMCCNTR_EL0             \n"

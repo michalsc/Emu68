@@ -20,7 +20,7 @@ SECTIONS
         *(.vectors)
     }
 
-    .rodata ALIGN(64) :
+    .rodata ALIGN(4096) :
     {
         *(.rodata)
         *(.rodata.*)
