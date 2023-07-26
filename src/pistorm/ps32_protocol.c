@@ -335,11 +335,24 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
+   
+    /* For chip memory advance to next slot, for chipset access wait for completion of the transaction */
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
+    {
+        while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
+        gpio_rdval = LE32(rdval);
+        slot_active[next_slot] = 0;
+    }
+    else
+    {
+        slot_active[next_slot] = 1;
+    }
 
     __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
-    slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
+
+    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline void do_write_access_64(unsigned int address, uint64_t data)
@@ -389,11 +402,24 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
+   
+    /* For chip memory advance to next slot, for chipset access wait for completion of the transaction */
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
+    {
+        while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
+        gpio_rdval = LE32(rdval);
+        slot_active[next_slot] = 0;
+    }
+    else
+    {
+        slot_active[next_slot] = 1;
+    }
 
     __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
-    slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
+
+    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline void do_write_access_128(unsigned int address, uint128_t data)
@@ -484,10 +510,23 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
 
     set_input();
 
+    /* For chip memory advance to next slot, for chipset access wait for completion of the transaction */
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
+    {
+        while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
+        gpio_rdval = LE32(rdval);
+        slot_active[next_slot] = 0;
+    }
+    else
+    {
+        slot_active[next_slot] = 1;
+    }
+
     __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
-    slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
+
+    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static int do_read_access(unsigned int address, unsigned int size)
