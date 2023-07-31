@@ -254,8 +254,10 @@ static inline unsigned int read_ps_reg(unsigned int address)
 
     unsigned int data = LE32(*gpread);
     data = LE32(*gpread);
+    /*
     data = LE32(*gpread);
     data = LE32(*gpread);
+    */
     *gpset = LE32(1 << PIN_RD);
     *gpreset = LE32(CLEAR_BITS);
 
