@@ -33,6 +33,8 @@ set(LIBDEFLATE_USE_SHARED_LIB OFF CACHE BOOL
        "Link the libdeflate-gzip and test programs to the shared library instead
        of the static library")
 
-add_subdirectory(capstone)
-add_subdirectory(tiny-stl)
-add_subdirectory(libdeflate)
+add_subdirectory(capstone EXCLUDE_FROM_ALL)
+add_subdirectory(tiny-stl EXCLUDE_FROM_ALL)
+add_subdirectory(libdeflate EXCLUDE_FROM_ALL)
+
+
