@@ -1721,18 +1721,32 @@ static uint32_t *EMIT_RTD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-    uint16_t addend = BE16((*m68k_ptr)[0]);
+    int16_t addend = BE16((*m68k_ptr)[0]);
 
     /* Fetch return address from stack */
     *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
 
-    if (addend < 4096)
+    if (addend > -4096 && addend < 4096)
     {
-        *ptr++ = add_immed(sp, sp, addend);
+        if (addend < 0)
+        {
+            *ptr++ = sub_immed(sp, sp, -addend);
+        }
+        else
+        {
+            *ptr++ = add_immed(sp, sp, addend);
+        }
     }
     else
     {
-        *ptr++ = mov_immed_u16(tmp, addend, 0);
+        if (addend < 0)
+        {
+            *ptr++ = movn_immed_u16(tmp, -addend - 1, 0);
+        }
+        else
+        {
+            *ptr++ = mov_immed_u16(tmp, addend, 0);
+        }
         *ptr++ = add_reg(sp, sp, tmp, LSL, 0);
     }
 
