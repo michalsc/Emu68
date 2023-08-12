@@ -29,7 +29,6 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         *ptr++ = ldrsh_offset(dest, tmp, 0);
     }
 
-#ifdef __aarch64__
     if (update_mask & (SR_C | SR_X)) {
         if (direction) {
             *ptr++ = tst_immed(tmp, 1, 32 - 15);
@@ -38,25 +37,14 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = tst_immed(tmp, 1, 0);
         }
     }
-#endif
 
     if (direction)
     {
-#ifdef __aarch64__
         *ptr++ = lsl(tmp, tmp, 1);
-
-#else
-        *ptr++ = lsls_immed(tmp, tmp, 17);
-        *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
     }
     else
     {
-#ifdef __aarch64__
         *ptr++ = asr(tmp, tmp, 1);
-#else
-        *ptr++ = asrs_immed(tmp, tmp, 1);
-#endif
     }
 
     if ((opcode & 0x38) == 0x18) {
@@ -77,8 +65,7 @@ static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         uint8_t alt_mask = update_mask;
         if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
             alt_mask ^= 3;
-        *ptr++ = mov_immed_u16(tmp2, alt_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, alt_mask);
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
@@ -170,8 +157,7 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         uint8_t alt_mask = update_mask;
         if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
             alt_mask ^= 3;
-        *ptr++ = mov_immed_u16(tmp2, alt_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, alt_mask);
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
@@ -330,8 +316,7 @@ static uint32_t *EMIT_ROL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
-        *ptr++ = mov_immed_u16(tmp2, alt_flags, 0);
-        *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
 
         if (update_mask & SR_Z) {
             *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
@@ -520,8 +505,7 @@ static uint32_t *EMIT_ASL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
-        *ptr++ = mov_immed_u16(tmp2, alt_flags, 0);
-        *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
@@ -690,8 +674,7 @@ static uint32_t *EMIT_ASL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         if ((clear_mask & 3) != 0 && (clear_mask & 3) < 3)
             clear_mask ^= 3;
 
-        *ptr++ = mov_immed_u16(tmp2, clear_mask, 0);
-        *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
+        ptr = EMIT_ClearFlags(ptr, cc, clear_mask);
 
         if (update_mask & (SR_C | SR_X)) {
             *ptr++ = b_cc(A64_CC_EQ, 3);
@@ -793,40 +776,24 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         switch (size)
         {
         case 4:
-#ifdef __aarch64__
             *ptr++ = lslv64(tmp, reg, shiftreg);
             *ptr++ = mov_reg(reg, tmp);
             if (update_mask & (SR_C | SR_X)) {
                 *ptr++ = tst64_immed(tmp, 1, 32, 1);
             }
-#else
-            *ptr++ = lsls_reg(reg, reg, shiftreg);
-#endif
             break;
         case 2:
-#ifdef __aarch64__
             *ptr++ = lslv64(tmp, reg, shiftreg);
             if (update_mask & (SR_C | SR_X)) {
                 *ptr++ = tst_immed(tmp, 1, 16);
             }
-#else
-            *ptr++ = mov_reg_shift(tmp, reg, 16);
-            *ptr++ = lsls_reg(tmp, tmp, shiftreg);
-            *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 16);
             break;
         case 1:
-#ifdef __aarch64__
             *ptr++ = lslv64(tmp, reg, shiftreg);
             if (update_mask & (SR_C | SR_X)) {
                 *ptr++ = tst_immed(tmp, 1, 24);
             }
-#else
-            *ptr++ = mov_reg_shift(tmp, reg, 24);
-            *ptr++ = lsls_reg(tmp, tmp, shiftreg);
-            *ptr++ = lsr_immed(tmp, tmp, 24);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 8);
             break;
         }
@@ -834,7 +801,6 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     else
     {
         uint8_t mask = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
         if (update_mask & (SR_C | SR_X))
         {
             uint8_t t = RA_AllocARMRegister(&ptr);
@@ -845,11 +811,9 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 */
             RA_FreeARMRegister(&ptr, t);
         }
-#endif
         switch (size)
         {
         case 4:
-#ifdef __aarch64__
             *ptr++ = mov_reg(tmp, reg);
             if (update_mask & (SR_C | SR_X))
             {
@@ -859,12 +823,8 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             }
             *ptr++ = lsrv64(tmp, tmp, shiftreg);
             *ptr++ = mov_reg(reg, tmp);
-#else
-            *ptr++ = lsrs_reg(reg, reg, shiftreg);
-#endif
             break;
         case 2:
-#ifdef __aarch64__
             *ptr++ = uxth(tmp, reg);
             if (update_mask & (SR_C | SR_X))
             {
@@ -873,14 +833,9 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = tst64_immed(0, 1, 1, 1);
             }
             *ptr++ = lsrv64(tmp, tmp, shiftreg);
-#else
-            *ptr++ = uxth(tmp, reg, 0);
-            *ptr++ = lsrs_reg(tmp, tmp, shiftreg);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 16);
             break;
         case 1:
-#ifdef __aarch64__
             *ptr++ = uxtb(tmp, reg);
             if (update_mask & (SR_C | SR_X))
             {
@@ -889,10 +844,6 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = tst64_immed(0, 1, 1, 1);
             }
             *ptr++ = lsrv64(tmp, tmp, shiftreg);
-#else
-            *ptr++ = uxtb(tmp, reg, 0);
-            *ptr++ = lsrs_reg(tmp, tmp, shiftreg);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 8);
             break;
         }
@@ -901,7 +852,6 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (update_mask)
     {
-#ifdef __aarch64__       
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
         /* C/X condition is already pre-computed. Insert the flags now! */       
@@ -928,19 +878,15 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             update_mask &= ~(SR_XC);
         }
 
+        RA_FreeARMRegister(&ptr, tmp2);
+
         uint8_t clear_mask = update_mask;
 
         /* Swap C and V flags in immediate */
         if ((clear_mask & 3) != 0 && (clear_mask & 3) < 3)
             clear_mask ^= 3;
 
-        if (clear_mask != 0)
-        {
-            *ptr++ = mov_immed_u16(tmp2, clear_mask, 0);
-            *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
-        }
-
-        RA_FreeARMRegister(&ptr, tmp2);
+        ptr = EMIT_ClearFlags(ptr, cc, clear_mask);
 
         if (update_mask & (SR_Z | SR_N))
         {
@@ -966,16 +912,6 @@ static uint32_t *EMIT_LSL_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
             }
         }
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-        if (update_mask & SR_Z)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        if (update_mask & (SR_X | SR_C))
-            *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
-#endif
     }
 
     if (tmpptr_1 != NULL) {
@@ -1096,17 +1032,13 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             update_mask &= ~(SR_XC);
         }
 
+        RA_FreeARMRegister(&ptr, tmp2);
+
         uint8_t alt_flags = update_mask;
         if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
             alt_flags ^= 3;
 
-        if (alt_flags != 0)
-        {
-            *ptr++ = mov_immed_u16(tmp2, alt_flags, 0);
-            *ptr++ = bic_reg(cc, cc, tmp2, LSL, 0);
-        }
-
-        RA_FreeARMRegister(&ptr, tmp2);
+        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
 
         if (update_mask & (SR_Z | SR_N))
         {
@@ -1178,31 +1110,19 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         switch (size)
         {
             case 4:
-#ifdef __aarch64__
                 *ptr++ = rorv(reg, reg, shift);
-#else
-                *ptr++ = rors_reg(reg, reg, shift);
-#endif
                 break;
             case 2:
                 *ptr++ = mov_reg(tmp, reg);
                 *ptr++ = bfi(tmp, tmp, 16, 16);
-#ifdef __aarch64__
                 *ptr++ = rorv(tmp, tmp, shift);
-#else
-                *ptr++ = rors_reg(tmp, tmp, shift);
-#endif
                 *ptr++ = bfi(reg, tmp, 0, 16);
                 break;
             case 1:
                 *ptr++ = mov_reg(tmp, reg);
                 *ptr++ = bfi(tmp, tmp, 8, 8);
                 *ptr++ = bfi(tmp, tmp, 16, 16);
-#ifdef __aarch64__
                 *ptr++ = rorv(tmp, tmp, shift);
-#else
-                *ptr++ = rors_reg(tmp, tmp, shift);
-#endif
                 *ptr++ = bfi(reg, tmp, 0, 8);
                 break;
         }
@@ -1222,31 +1142,19 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         switch (size)
         {
         case 4:
-#ifdef __aarch64__
             *ptr++ = ror(reg, reg, shift);
-#else
-            *ptr++ = rors_immed(reg, reg, shift);
-#endif
             break;
         case 2:
             *ptr++ = mov_reg(tmp, reg);
             *ptr++ = bfi(tmp, tmp, 16, 16);
-#ifdef __aarch64__
             *ptr++ = ror(tmp, tmp, shift);
-#else
-            *ptr++ = rors_immed(tmp, tmp, shift);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 16);
             break;
         case 1:
             *ptr++ = mov_reg(tmp, reg);
             *ptr++ = bfi(tmp, tmp, 8, 8);
             *ptr++ = bfi(tmp, tmp, 16, 16);
-#ifdef __aarch64__
             *ptr++ = ror(tmp, tmp, shift);
-#else
-            *ptr++ = rors_immed(tmp, tmp, shift);
-#endif
             *ptr++ = bfi(reg, tmp, 0, 8);
             break;
         }
@@ -1257,7 +1165,6 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-#ifdef __aarch64__
         switch(size)
         {
             case 4:
@@ -1270,7 +1177,6 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = cmn_reg(31, tmp, LSL, 24);
                 break;
         }
-#endif
         uint8_t old_mask = update_mask & SR_C;
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         update_mask |= old_mask;
