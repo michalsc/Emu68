@@ -134,7 +134,6 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         *ptr++ = ldrh_offset(dest, tmp, 0);
     }
 
-#ifdef __aarch64__
     if (update_mask & (SR_C | SR_X)) {
         if (direction) {
             *ptr++ = tst_immed(tmp, 1, 32 - 15);
@@ -143,25 +142,14 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = tst_immed(tmp, 1, 0);
         }
     }
-#endif
 
     if (direction)
     {
-#ifdef __aarch64__
         *ptr++ = lsl(tmp, tmp, 1);
-#else
-        *ptr++ = lsls_immed(tmp, tmp, 17);
-        *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
     }
     else
     {
-#ifdef __aarch64__
         *ptr++ = lsr(tmp, tmp, 1);
-
-#else
-        *ptr++ = lsrs_immed(tmp, tmp, 1);
-#endif
     }
 
     if ((opcode & 0x38) == 0x18) {
@@ -176,7 +164,6 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (update_mask)
     {
-#ifdef __aarch64__
         uint8_t cc = RA_ModifyCC(&ptr);
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
         
@@ -197,11 +184,6 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         if (update_mask & (SR_Z | SR_N))
         {
             *ptr++ = cmn_reg(31, tmp, LSL, 16);
-            uint8_t alt_flags = update_mask;
-            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
-                alt_flags ^= 3;
-            *ptr++ = mov_immed_u16(tmp, alt_flags, 0);
-            *ptr++ = bic_reg(cc, cc, tmp, LSL, 0);
         
             if (update_mask & SR_Z) {
                 *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
@@ -212,16 +194,6 @@ static uint32_t *EMIT_LSL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
             }
         }
-#else
-        M68K_ModifyCC(&ptr);
-        *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-        if (update_mask & SR_N)
-            *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-        if (update_mask & SR_Z)
-            *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-        if (update_mask & (SR_X | SR_C))
-            *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_X | SR_C);
-#endif
     }
     RA_FreeARMRegister(&ptr, tmp);
     RA_FreeARMRegister(&ptr, dest);
