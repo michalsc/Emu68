@@ -1092,6 +1092,12 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             uint8_t shift_mod = RA_AllocARMRegister(&ptr);
             shift = RA_MapM68kRegister(&ptr, shift);
+
+            if (update_mask & SR_C) {
+                shift_orig = RA_AllocARMRegister(&ptr);
+                *ptr++ = and_immed(shift_orig, shift, 6, 0);
+            }
+
             *ptr++ = neg_reg(shift_mod, shift, LSL, 0);
             *ptr++ = add_immed(shift_mod, shift_mod, 32);
 
@@ -1100,13 +1106,12 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else
         {
             shift = RA_CopyFromM68kRegister(&ptr, shift);
+            if (update_mask & SR_C) {
+                shift_orig = RA_AllocARMRegister(&ptr);
+                *ptr++ = and_immed(shift_orig, shift, 6, 0);
+            }
         }
-            
-        if (update_mask & SR_C) {
-            shift_orig = RA_AllocARMRegister(&ptr);
-            *ptr++ = and_immed(shift_orig, shift, 6, 0);
-        }
-    
+
         switch (size)
         {
             case 4:
@@ -1187,7 +1192,10 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
         if (update_mask & SR_C) {
             if (regshift) {
-                *ptr++ = cbz(shift_orig, 2);
+                if (!direction)
+                    *ptr++ = cbz(shift_orig, 3);
+                else
+                    *ptr++ = cbz(shift_orig, 2);
                 RA_FreeARMRegister(&ptr, shift_orig);
             }
             if (!direction) {
