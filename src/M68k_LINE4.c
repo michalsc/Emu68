@@ -555,18 +555,36 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     *ptr++ = sub_immed(tmp, tmp, 1);
 
                     if (update_mask & SR_XVC) {
+
+                        ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
+
                         uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
 
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
-
                         *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
-                        *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
-                        *ptr++ = bfxil(cc, tmp_2, 14, 2);
-                        
-                        if (update_mask & SR_X) {
-                            *ptr++ = ror(0, cc, 1);
-                            *ptr++ = bfi(cc, 0, 4, 1);
+
+                        if (update_mask & SR_V)
+                        {
+                            *ptr++ = tbz(tmp_2, 15, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
                         }
+                        
+                        if ((update_mask & SR_XC) == SR_XC)
+                        {
+                            *ptr++ = tbz(tmp, 16, 3);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                        }
+                        else if ((update_mask & SR_XC) == SR_C)
+                        {
+                            *ptr++ = tbz(tmp, 16, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                        }
+                        else if ((update_mask & SR_XC) == SR_X)
+                        {
+                            *ptr++ = tbz(tmp, 16, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                        }
+
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
 
@@ -580,23 +598,39 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                     *ptr++ = bfxil(dest, tmp, 0, 16);       // Insert result
                     break;
                 case 1:
-                    *ptr++ = and_immed(tmp, dest, 8, 0);    // Take lower 16 bits of destination
+                    *ptr++ = and_immed(tmp, dest, 8, 0);    // Take lower 8 bits of destination
                     *ptr++ = neg_reg(tmp, tmp, LSL, 0);     // negate
                     *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
                     *ptr++ = sub_immed(tmp, tmp, 1);
 
                     if (update_mask & SR_XVC) {
+                        ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
+
                         uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
 
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);  // C at position 8 in tmp, V at position 7 in tmp2
 
-                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
-                        *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
-                        *ptr++ = bfxil(cc, tmp_2, 6, 2);
+                        if (update_mask & SR_V)
+                        {
+                            *ptr++ = tbz(tmp_2, 7, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
+                        }
                         
-                        if (update_mask & SR_X) {
-                            *ptr++ = ror(0, cc, 1);
-                            *ptr++ = bfi(cc, 0, 4, 1);
+                        if ((update_mask & SR_XC) == SR_XC)
+                        {
+                            *ptr++ = tbz(tmp, 8, 3);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                        }
+                        else if ((update_mask & SR_XC) == SR_C)
+                        {
+                            *ptr++ = tbz(tmp, 8, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                        }
+                        else if ((update_mask & SR_XC) == SR_X)
+                        {
+                            *ptr++ = tbz(tmp, 8, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
                         }
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -663,15 +697,32 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
             *ptr++ = sub_immed(tmp, tmp, 1);
 
             if (update_mask & SR_XVC) {
+                ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
                 uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+
                 *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
-                *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
-                *ptr++ = bfxil(cc, tmp_2, 14, 2);
-                    
-                if (update_mask & SR_X) {
-                    *ptr++ = ror(0, cc, 1);
-                    *ptr++ = bfi(cc, 0, 4, 1);
+
+                if (update_mask & SR_V)
+                {
+                    *ptr++ = tbz(tmp_2, 15, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
+                }
+                
+                if ((update_mask & SR_XC) == SR_XC)
+                {
+                    *ptr++ = tbz(tmp, 16, 3);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                }
+                else if ((update_mask & SR_XC) == SR_C)
+                {
+                    *ptr++ = tbz(tmp, 16, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                }
+                else if ((update_mask & SR_XC) == SR_X)
+                {
+                    *ptr++ = tbz(tmp, 16, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
                 }
 
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -705,9 +756,35 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
             *ptr++ = sub_immed(tmp, tmp, 1);
 
             if (update_mask & SR_XVC) {
+                ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
+
                 uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+
                 *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
+
+                if (update_mask & SR_V)
+                {
+                    *ptr++ = tbz(tmp_2, 7, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
+                }
+                
+                if ((update_mask & SR_XC) == SR_XC)
+                {
+                    *ptr++ = tbz(tmp, 8, 3);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                }
+                else if ((update_mask & SR_XC) == SR_C)
+                {
+                    *ptr++ = tbz(tmp, 8, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                }
+                else if ((update_mask & SR_XC) == SR_X)
+                {
+                    *ptr++ = tbz(tmp, 8, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                }
+#if 0
                 *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
                 *ptr++ = bfxil(cc, tmp_2, 6, 2);
                 
@@ -715,7 +792,7 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                     *ptr++ = ror(0, cc, 1);
                     *ptr++ = bfi(cc, 0, 4, 1);
                 }
-
+#endif
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
 
                 RA_FreeARMRegister(&ptr, tmp_2);
