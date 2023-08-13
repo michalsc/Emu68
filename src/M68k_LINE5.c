@@ -750,11 +750,11 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     int32_t branch_offset = 2 + (int16_t)BE16(*(*m68k_ptr)++);
     uint16_t *bra_rel_ptr = *m68k_ptr - 2;
 
-    //*ptr++ = b(0);
-
     /* Selcom case of DBT which does nothing */
     if (m68k_condition == M_CC_T)
     {
+        /* Emu68 needs to emit at least one aarch64 opcode, push nop */
+        *ptr++ = nop();
         ptr = EMIT_AdvancePC(ptr, 4);
     }
     else
