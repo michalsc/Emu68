@@ -2650,6 +2650,7 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = b_cc(A64_CC_NE, 6);
             *ptr++ = subs_reg(31, val2, dc2, LSL, 16);
             *ptr++ = b_cc(A64_CC_NE, 4);
+            // 68040 stores du2 first, then du1
             *ptr++ = strh_offset(rn2, du2, 0);
             *ptr++ = strh_offset(rn1, du1, 0);
             *ptr++ = b(3);
@@ -2666,8 +2667,9 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = b_cc(A64_CC_NE, 6);
             *ptr++ = subs_reg(31, val2, dc2, LSL, 0);
             *ptr++ = b_cc(A64_CC_NE, 4);
-            *ptr++ = str_offset(rn1, du1, 0);
+            // 68040 stores du2 first, then du1
             *ptr++ = str_offset(rn2, du2, 0);
+            *ptr++ = str_offset(rn1, du1, 0);
             *ptr++ = b(3);
             *ptr++ = mov_reg(dc1, val1);
             *ptr++ = mov_reg(dc2, val2);
