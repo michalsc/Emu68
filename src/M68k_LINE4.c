@@ -2565,6 +2565,8 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     uint16_t mask = BE16((*m68k_ptr)[0]);
     uint8_t block_size = 0;
     uint8_t ext_words = 0;
+    extern int debug;
+    uint32_t *ptr_orig = ptr;
 
     (*m68k_ptr)++;
 
@@ -2734,6 +2736,10 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 1));
     (*m68k_ptr) += ext_words;
+
+    /* No opcode was emited? At least flush PC counter now */
+    if (ptr == ptr_orig)
+        ptr = EMIT_FlushPC(ptr);
 
     return ptr;
 }
