@@ -2642,19 +2642,19 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             uint8_t tmp1 = RA_AllocARMRegister(&ptr);
             uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-            *ptr++ = uxth(tmp1, dc1);
-            *ptr++ = uxth(tmp2, dc2);
             *ptr++ = ldrh_offset(rn1, val1, 0);
             *ptr++ = ldrh_offset(rn2, val2, 0);
-            *ptr++ = subs_reg(31, val1, tmp1, LSL, 0);
+            *ptr++ = lsl(val1, val1, 16);
+            *ptr++ = lsl(val2, val2, 16);
+            *ptr++ = subs_reg(31, val1, dc1, LSL, 16);
             *ptr++ = b_cc(A64_CC_NE, 6);
-            *ptr++ = subs_reg(31, val2, tmp2, LSL, 0);
+            *ptr++ = subs_reg(31, val2, dc2, LSL, 16);
             *ptr++ = b_cc(A64_CC_NE, 4);
-            *ptr++ = strh_offset(rn1, du1, 0);
             *ptr++ = strh_offset(rn2, du2, 0);
+            *ptr++ = strh_offset(rn1, du1, 0);
             *ptr++ = b(3);
-            *ptr++ = bfxil(dc1, val1, 0, 16);
-            *ptr++ = bfxil(dc2, val2, 0, 16);
+            *ptr++ = bfxil(dc1, val1, 16, 16);
+            *ptr++ = bfxil(dc2, val2, 16, 16);
             RA_FreeARMRegister(&ptr, tmp1);
             RA_FreeARMRegister(&ptr, tmp2);
         }
