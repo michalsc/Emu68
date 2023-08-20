@@ -229,34 +229,38 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 uint8_t dst_reg_2 = RA_MapM68kRegisterForWrite(&ptr, ((opcode2 >> 9) & 0x7) + ((opcode2 >> 3) & 8));
                 uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
 
-                /* Allow merging if two dest registers differ */
-                if (dst_reg_1 != dst_reg_2)
+                /* merging not allowed if any of the registers stored is also address register */
+                if (!(dst_reg_1 == addr_reg || dst_reg_2 == addr_reg))
                 {
-                    /* Two subsequent register moves from (An)+ */
-                    (*m68k_ptr)+=2;
-                    
-                    *ptr++ = ldp_postindex(addr_reg, dst_reg_1, dst_reg_2, 8);
+                    /* Allow merging if two dest registers differ */
+                    if (dst_reg_1 != dst_reg_2)
+                    {
+                        /* Two subsequent register moves from (An)+ */
+                        (*m68k_ptr)+=2;
+                        
+                        *ptr++ = ldp_postindex(addr_reg, dst_reg_1, dst_reg_2, 8);
 
-                    if (!is_movea2) {
-                        update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+                        if (!is_movea2) {
+                            update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+                                if (update_mask) {
+                                *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
+                                tmp_reg = dst_reg_2;
+                            }
+                        }
+                        else if (!is_movea) {
                             if (update_mask) {
-                            *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
-                            tmp_reg = dst_reg_2;
+                                *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
+                                tmp_reg = dst_reg_1;
+                            }
                         }
-                    }
-                    else if (!is_movea) {
-                        if (update_mask) {
-                            *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
-                            tmp_reg = dst_reg_1;
-                        }
-                    }
 
-                    is_movea = is_movea && is_movea2;
-                            
-                    done = 1;
-                    ptr = EMIT_AdvancePC(ptr, 4);
-                    *insn_consumed = 2;
-                    size = 4;
+                        is_movea = is_movea && is_movea2;
+                                
+                        done = 1;
+                        ptr = EMIT_AdvancePC(ptr, 4);
+                        *insn_consumed = 2;
+                        size = 4;
+                    }
                 }
             }
         }
@@ -276,34 +280,38 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 uint8_t dst_reg_2 = RA_MapM68kRegisterForWrite(&ptr, ((opcode2 >> 9) & 0x7) + ((opcode2 >> 3) & 8));
                 uint8_t is_movea2 = (opcode2 & 0x01c0) == 0x0040;
 
-                /* Allow merging if two dest registers differ */
-                if (dst_reg_1 != dst_reg_2)
+                /* merging not allowed if any of the registers stored is also address register */
+                if (!(dst_reg_1 == addr_reg || dst_reg_2 == addr_reg))
                 {
-                    /* Two subsequent register moves to (An)+ */
-                    (*m68k_ptr)+=2;
+                    /* Allow merging if two dest registers differ */
+                    if (dst_reg_1 != dst_reg_2)
+                    {
+                        /* Two subsequent register moves to (An)+ */
+                        (*m68k_ptr)+=2;
 
-                    *ptr++ = ldp_preindex(addr_reg, dst_reg_2, dst_reg_1, -8);
+                        *ptr++ = ldp_preindex(addr_reg, dst_reg_2, dst_reg_1, -8);
 
-                    if (!is_movea2) {
-                        update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+                        if (!is_movea2) {
+                            update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+                                if (update_mask) {
+                                *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
+                                tmp_reg = dst_reg_2;
+                            }
+                        }
+                        else if (!is_movea) {
                             if (update_mask) {
-                            *ptr++ = cmn_reg(31, dst_reg_2, LSL, 0);
-                            tmp_reg = dst_reg_2;
+                                *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
+                                tmp_reg = dst_reg_1;
+                            }
                         }
-                    }
-                    else if (!is_movea) {
-                        if (update_mask) {
-                            *ptr++ = cmn_reg(31, dst_reg_1, LSL, 0);
-                            tmp_reg = dst_reg_1;
-                        }
-                    }
 
-                    is_movea = is_movea && is_movea2;
-                
-                    done = 1;
-                    ptr = EMIT_AdvancePC(ptr, 4);
-                    *insn_consumed = 2;
-                    size = 4;
+                        is_movea = is_movea && is_movea2;
+                    
+                        done = 1;
+                        ptr = EMIT_AdvancePC(ptr, 4);
+                        *insn_consumed = 2;
+                        size = 4;
+                    }
                 }
             }
         }
