@@ -2067,8 +2067,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
-    /* FNOP */
-    else if (opcode == 0xf280 && opcode2 == 0)
+    /* FNOP as well as FBF.W to *any* target */
+    else if (opcode == 0xf280)
     {
         static int shown = 0;
         if (!shown) {
