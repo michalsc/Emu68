@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 0.16.0)
+project(Emu68 VERSION 0.16.1)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
@@ -31,6 +31,7 @@ set(BASE_FILES
     src/md5.c
     src/disasm.c
     src/findtoken.c
+    src/cache.c
 )
 
 set(EMU68_FILES
