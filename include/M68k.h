@@ -119,6 +119,7 @@ struct M68KState
     uint32_t JIT_CACHE_FREE;
     uint32_t JIT_SOFTFLUSH_THRESH;
     uint32_t JIT_CONTROL;
+    uint32_t JIT_CONTROL2;
 };
 
 #define JCCB_SOFT               0
@@ -131,6 +132,8 @@ struct M68KState
 #define JCCB_LOOP_COUNT         4
 #define JCCB_LOOP_COUNT_MASK    0xf
 
+#define JC2B_CHIP_SLOWDOWN      0
+#define JC2F_CHIP_SLOWDOWN      (1 << JC2B_CHIP_SLOWDOWN)
 
 #define DCB_VERBOSE 0
 #define DCB_VERBOSE_MASK 0x3
