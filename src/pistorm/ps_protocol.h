@@ -69,11 +69,6 @@
 
 #endif
 
-typedef struct {
-    uint64_t hi;
-    uint64_t lo;
-} uint128_t;
-
 unsigned int ps_read_8(unsigned int address);
 unsigned int ps_read_16(unsigned int address);
 unsigned int ps_read_32(unsigned int address);
