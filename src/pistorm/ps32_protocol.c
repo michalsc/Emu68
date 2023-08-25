@@ -6,8 +6,6 @@
  * Copyright 2022 Michal Schulz (Emu68 adaptations)
  */
 
-#define SLOTS 1
-
 #undef PS_PROTOCOL_IMPL
 
 #include <stdint.h>
@@ -18,8 +16,8 @@
 #include "ps_protocol.h"
 #include "M68k.h"
 
-volatile uint8_t gpio_lock;
-volatile uint32_t gpio_rdval;
+//volatile uint8_t gpio_lock;
+//volatile uint32_t gpio_rdval;
 
 static void usleep(uint64_t delta)
 {
@@ -187,6 +185,8 @@ volatile uint32_t *gpset;
 volatile uint32_t *gpreset;
 volatile uint32_t *gpread;
 
+uint32_t use_2slot = 0;
+
 static inline void set_input() {
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
     *(gpio + 1) = LE32(GPFSEL1_INPUT);
@@ -222,18 +222,6 @@ static void pistorm_setup_io()
     gpread =  ((volatile uint32_t *)gpio) + 13;// *(gpio + 13);
 }
 
-void ps_setup_protocol()
-{
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
-
-    pistorm_setup_io();
-    pistorm_setup_serial();
-
-    *gpreset = LE32(CLEAR_BITS);
-
-    set_input();
-}
-
 static inline void write_ps_reg(unsigned int address, unsigned int data)
 {
     *gpset = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
@@ -250,9 +238,33 @@ static inline unsigned int read_ps_reg(unsigned int address)
     *gpset = LE32(address << PIN_A(0));
 
     //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
-    *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD);
+    *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); // *gpreset = LE32(1 << PIN_RD);
 
     unsigned int data = LE32(*gpread);
+    /*
+    data = LE32(*gpread);
+    data = LE32(*gpread);
+    data = LE32(*gpread);
+    */
+    *gpset = LE32(1 << PIN_RD);
+    *gpreset = LE32(CLEAR_BITS);
+
+//    gpio_rdval = data;
+
+    data = MERGE_DATA(data >> PIN_D(0)) & 0xffff;
+
+    return data;
+}
+
+static inline unsigned int read_ps_reg_with_wait(unsigned int address)
+{
+    *gpset = LE32(address << PIN_A(0));
+
+    //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
+    *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); *gpreset = LE32(1 << PIN_RD); //*gpreset = LE32(1 << PIN_RD);
+
+    unsigned int data;
+    while ((data = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
     data = LE32(*gpread);
     /*
     data = LE32(*gpread);
@@ -261,42 +273,43 @@ static inline unsigned int read_ps_reg(unsigned int address)
     *gpset = LE32(1 << PIN_RD);
     *gpreset = LE32(CLEAR_BITS);
 
-    gpio_rdval = data;
+//    gpio_rdval = data;
 
     data = MERGE_DATA(data >> PIN_D(0)) & 0xffff;
 
     return data;
 }
 
+
 void ps_set_control(unsigned int value)
 {
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
     write_ps_reg(REG_CONTROL, 0x8000 | (value & 0x7fff));
     set_input();
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 }
 
 void ps_clr_control(unsigned int value)
 {
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
     write_ps_reg(REG_CONTROL, value & 0x7fff);
     set_input();
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 }
 
 unsigned int ps_read_status()
 {
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
     
     unsigned int status = read_ps_reg(REG_STATUS);
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     return status;
 }
@@ -308,17 +321,16 @@ void cpu_set_fc(unsigned int fc)
     g_fc = fc;
 }
 
-#ifdef SLOTS
 static int next_slot = 0;
 static int slot_active[2] = {0, 0};
 #define REG_SLOT        5
 #define CONTROL_INC_EXEC_SLOT (1 << 5)
 
-static void do_write_access(unsigned int address, unsigned int data, unsigned int size)
+static void do_write_access_2s(unsigned int address, unsigned int data, unsigned int size)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
@@ -326,7 +338,7 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     write_ps_reg(REG_DATA_LO, data & 0xffff);
@@ -342,7 +354,7 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
     if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
         slot_active[next_slot] = 0;
     }
     else
@@ -350,18 +362,18 @@ static void do_write_access(unsigned int address, unsigned int data, unsigned in
         slot_active[next_slot] = 1;
     }
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     next_slot = (next_slot + 1) & 1;
 
     if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
-static inline void do_write_access_64(unsigned int address, uint64_t data)
+static inline void do_write_access_64_2s(unsigned int address, uint64_t data)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
@@ -369,7 +381,7 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     /* Set first long word to write */
@@ -387,7 +399,7 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     /* Advance the address, set second long word to write */
@@ -409,7 +421,7 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
     if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
         slot_active[next_slot] = 0;
     }
     else
@@ -417,25 +429,25 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
         slot_active[next_slot] = 1;
     }
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     next_slot = (next_slot + 1) & 1;
 
     if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
-static inline void do_write_access_128(unsigned int address, uint128_t data)
+static inline void do_write_access_128_2s(unsigned int address, uint128_t data)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+    //while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
     write_ps_reg(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+        //gpio_rdval = LE32(rdval);
     }
 
     /* Set first long word to write */
@@ -452,7 +464,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     /* Advance the address, set second long word to write */
@@ -474,7 +486,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     address += 4;
@@ -497,7 +509,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     /* Set second long word to write */
@@ -516,7 +528,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
     if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
         slot_active[next_slot] = 0;
     }
     else
@@ -524,25 +536,25 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
         slot_active[next_slot] = 1;
     }
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     next_slot = (next_slot + 1) & 1;
 
     if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
-static int do_read_access(unsigned int address, unsigned int size)
+static int do_read_access_2s(unsigned int address, unsigned int size)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
     write_ps_reg(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+        //gpio_rdval = LE32(rdval);
     }
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
@@ -552,7 +564,7 @@ static int do_read_access(unsigned int address, unsigned int size)
     unsigned int data;
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     data = read_ps_reg(REG_DATA_LO);
     if (size == SIZE_BYTE)
@@ -560,7 +572,7 @@ static int do_read_access(unsigned int address, unsigned int size)
     else if (size == SIZE_LONG)
         data |= read_ps_reg(REG_DATA_HI) << 16;
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
@@ -568,19 +580,19 @@ static int do_read_access(unsigned int address, unsigned int size)
     return data;
 }
 
-static inline uint64_t do_read_access_64(unsigned int address)
+static inline uint64_t do_read_access_64_2s(unsigned int address)
 {
     uint64_t data;
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
     write_ps_reg(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
@@ -589,7 +601,7 @@ static inline uint64_t do_read_access_64(unsigned int address)
     set_input();
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
 
@@ -612,7 +624,7 @@ static inline uint64_t do_read_access_64(unsigned int address)
     set_input();
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
@@ -620,24 +632,24 @@ static inline uint64_t do_read_access_64(unsigned int address)
     data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
     data |= (uint64_t)read_ps_reg(REG_DATA_LO);
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     return data;
 }
 
-static inline uint128_t do_read_access_128(unsigned int address)
+static inline uint128_t do_read_access_128_2s(unsigned int address)
 {
     uint128_t data;
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
     write_ps_reg(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
     }
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
@@ -646,7 +658,7 @@ static inline uint128_t do_read_access_128(unsigned int address)
     set_input();
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
     data.hi = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
@@ -668,7 +680,7 @@ static inline uint128_t do_read_access_128(unsigned int address)
     set_input();
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
     data.hi |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
@@ -690,7 +702,7 @@ static inline uint128_t do_read_access_128(unsigned int address)
     set_input();
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
     data.lo = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
@@ -712,7 +724,7 @@ static inline uint128_t do_read_access_128(unsigned int address)
     set_input();
 
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
@@ -720,12 +732,10 @@ static inline uint128_t do_read_access_128(unsigned int address)
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     return data;
 }
-
-#else
 
 static uint write_pending = 0;
 
@@ -733,7 +743,7 @@ static inline void do_write_access(unsigned int address, unsigned int data, unsi
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
@@ -744,7 +754,7 @@ static inline void do_write_access(unsigned int address, unsigned int data, unsi
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -753,21 +763,21 @@ static inline void do_write_access(unsigned int address, unsigned int data, unsi
     if (address > 0x00200000)
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
 
         write_pending = 0;
     }
     else
         write_pending = 1;
     
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 }
 
 static inline void do_write_access_64(unsigned int address, uint64_t data)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
@@ -779,7 +789,7 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -788,7 +798,7 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
 
     /* Wait for completion of first transfer */
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     /* Set second long word to write */
     write_ps_reg(REG_DATA_LO, (data) & 0xffff);
@@ -805,21 +815,21 @@ static inline void do_write_access_64(unsigned int address, uint64_t data)
     if (address > 0x00200000)
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
 
         write_pending = 0;
     }
     else
         write_pending = 1;
     
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 }
 
 static inline void do_write_access_128(unsigned int address, uint128_t data)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
@@ -831,7 +841,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -840,7 +850,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Wait for completion of first transfer */
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     /* Set second long word to write */
     write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
@@ -856,7 +866,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Wait for completion of second transfer */
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     /* Set third long word to write */
     write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
@@ -872,7 +882,7 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
 
     /* Wait for completion of third transfer */
     while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     /* Set second long word to write */
     write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
@@ -889,38 +899,38 @@ static inline void do_write_access_128(unsigned int address, uint128_t data)
     if (address > 0x00200000)
     {
         while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-        gpio_rdval = LE32(rdval);
+//        gpio_rdval = LE32(rdval);
 
         write_pending = 0;
     }
     else
         write_pending = 1;
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 }
 
 static inline int do_read_access(unsigned int address, unsigned int size)
 {
     uint32_t rdval = 0;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
     unsigned int data;
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
-    data = read_ps_reg(REG_DATA_LO);
+    data = read_ps_reg_with_wait(REG_DATA_LO);
     if (size == SIZE_BYTE)
         data &= 0xff;
     else if (size == SIZE_LONG)
@@ -928,7 +938,7 @@ static inline int do_read_access(unsigned int address, unsigned int size)
 
     write_pending = 0;
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     return data;
 }
@@ -938,24 +948,24 @@ static inline uint64_t do_read_access_64(unsigned int address)
     uint32_t rdval = 0;
     uint64_t data;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
-    data = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
     data |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
 
     set_output();
@@ -965,15 +975,15 @@ static inline uint64_t do_read_access_64(unsigned int address)
 
     set_input();
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
-    data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
     data |= (uint64_t)read_ps_reg(REG_DATA_LO);
 
     write_pending = 0;
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     return data;
 }
@@ -983,24 +993,24 @@ static inline uint128_t do_read_access_128(unsigned int address)
     uint32_t rdval = 0;
     uint128_t data;
 
-    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+//    while(__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
 
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
     
     if (write_pending) while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    gpio_rdval = LE32(rdval);
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
-    data.hi = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data.hi = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
     data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
 
     set_output();
@@ -1010,11 +1020,11 @@ static inline uint128_t do_read_access_128(unsigned int address)
 
     set_input();
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
-    data.hi |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data.hi |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
     data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO);
 
     set_output();
@@ -1024,11 +1034,11 @@ static inline uint128_t do_read_access_128(unsigned int address)
 
     set_input();
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
     address += 4;
-    data.lo = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data.lo = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
 
     set_output();
@@ -1038,20 +1048,63 @@ static inline uint128_t do_read_access_128(unsigned int address)
 
     set_input();
 
-    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
-    gpio_rdval = LE32(rdval);
+//    while ((rdval = *gpread) & LE32(1 << PIN_TXN)) {}
+//    gpio_rdval = LE32(rdval);
 
-    data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data.lo |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
     data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
 
     write_pending = 0;
 
-    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
 
     return data;
 }
 
-#endif
+int (*read_access)(unsigned int address, unsigned int size);
+uint64_t (*read_access_64)(unsigned int address);
+uint128_t (*read_access_128)(unsigned int address);
+void (*write_access)(unsigned int address, unsigned int data, unsigned int size);
+void (*write_access_64)(unsigned int address, uint64_t data);
+void (*write_access_128)(unsigned int address, uint128_t data);
+
+void ps_setup_protocol()
+{
+    if (use_2slot)
+    {
+        kprintf("[PS32] Setting up two-slot protocol\n");
+        
+        read_access = do_read_access_2s;
+        read_access_64 = do_read_access_64_2s;
+        read_access_128 = do_read_access_128_2s;
+
+        write_access = do_write_access_2s;
+        write_access_64 = do_write_access_64_2s;
+        write_access_128 = do_write_access_128_2s;
+    }
+    else
+    {
+        kprintf("[PS32] Setting up protocol\n");
+
+        read_access = do_read_access;
+        read_access_64 = do_read_access_64;
+        read_access_128 = do_read_access_128;
+
+        write_access = do_write_access;
+        write_access_64 = do_write_access_64;
+        write_access_128 = do_write_access_128;
+    }
+
+//    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+
+    pistorm_setup_io();
+    pistorm_setup_serial();
+
+    *gpreset = LE32(CLEAR_BITS);
+
+    set_input();
+}
+
 
 unsigned int caddress;
 union {
@@ -1069,18 +1122,18 @@ void flush_cdata()
 {
     if (cmask.u32 == 0xffffffff)
     {
-        do_write_access(caddress, cdata.u32, SIZE_LONG);
+        write_access(caddress, cdata.u32, SIZE_LONG);
     }
     else
     {
         if (cmask.u16[0] == 0xffff)
         {
-            do_write_access(caddress, cdata.u16[0], SIZE_WORD);
+            write_access(caddress, cdata.u16[0], SIZE_WORD);
             cmask.u16[0] = 0;
         }
         if (cmask.u16[1] == 0xffff)
         {
-            do_write_access(caddress + 2, cdata.u16[1], SIZE_WORD);
+            write_access(caddress + 2, cdata.u16[1], SIZE_WORD);
             cmask.u16[1] = 0;
         }
 
@@ -1089,7 +1142,7 @@ void flush_cdata()
             for (int i=0; i < 4; i++)
             {
                 if (cmask.u8[i]) {
-                    do_write_access(caddress + i, cdata.u8[i], SIZE_BYTE);
+                    write_access(caddress + i, cdata.u8[i], SIZE_BYTE);
                 }
             }
         }
@@ -1120,7 +1173,7 @@ void ps_write_8(unsigned int address, unsigned int data) {
     else
     {
         flush_cdata();
-        do_write_access(address, data, SIZE_BYTE);
+        write_access(address, data, SIZE_BYTE);
     }
 }
 
@@ -1145,48 +1198,48 @@ void ps_write_16(unsigned int address, unsigned int data) {
     else
     {
         flush_cdata();
-        do_write_access(address, data, SIZE_WORD);
+        write_access(address, data, SIZE_WORD);
     }
 }
 
 void ps_write_32(unsigned int address, unsigned int data) {
     flush_cdata();
-    do_write_access(address, data, SIZE_LONG);
+    write_access(address, data, SIZE_LONG);
 }
 
 void ps_write_64(unsigned int address, uint64_t data) {
     flush_cdata();
-    do_write_access_64(address, data);
+    write_access_64(address, data);
 }
 
 void ps_write_128(unsigned int address, uint128_t data) {
     flush_cdata();
-    do_write_access_128(address, data);
+    write_access_128(address, data);
 }
 
 unsigned int ps_read_8(unsigned int address) {
     flush_cdata();
-    return do_read_access(address, SIZE_BYTE);
+    return read_access(address, SIZE_BYTE);
 }
 
 unsigned int ps_read_16(unsigned int address) {
     flush_cdata();
-    return do_read_access(address, SIZE_WORD);
+    return read_access(address, SIZE_WORD);
 }
 
 unsigned int ps_read_32(unsigned int address) {
     flush_cdata();
-    return do_read_access(address, SIZE_LONG);
+    return read_access(address, SIZE_LONG);
 }
 
 uint64_t ps_read_64(unsigned int address) {
     flush_cdata();
-    return do_read_access_64(address);
+    return read_access_64(address);
 }
 
 uint128_t ps_read_128(unsigned int address) {
     flush_cdata();
-    return do_read_access_128(address);
+    return read_access_128(address);
 }
 
 void ps_reset_state_machine() {
@@ -1211,9 +1264,8 @@ void ps_pulse_reset()
     kprintf("[PS32] Clear DRIVE_RESET\n");
     ps_clr_control(CONTROL_DRIVE_RESET);
 
-#ifdef SLOTS
-    ps_set_control(CONTROL_INC_EXEC_SLOT);
-#endif
+    if (use_2slot)
+        ps_set_control(CONTROL_INC_EXEC_SLOT);
 
     overlay = 1;
     board = &__boards_start;
@@ -1530,13 +1582,13 @@ void ps_housekeeper()
     for(;;) {
         if (housekeeper_enabled)
         {
-            if (!__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE))
-            {
-                gpio_rdval = LE32(*gpread);
-                __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
-            }
+            //if (!__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE))
+            //{
+            //    gpio_rdval = LE32(*gpread);
+            //    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+            //}
 
-            uint32_t pin = gpio_rdval;
+            uint32_t pin = LE32(*gpread);
             __m68k_state->INT.IPL = ~pin & 7;
 
             asm volatile("":::"memory");
