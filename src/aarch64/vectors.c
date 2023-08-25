@@ -625,11 +625,6 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
 
 #else
 
-typedef struct {
-    uint64_t hi;
-    uint64_t lo;
-} uint128_t;
-
 int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
