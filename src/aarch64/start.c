@@ -563,12 +563,13 @@ void boot(void *dtree)
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
 #ifdef PISTORM
+#ifdef PISTORM32LITE
             if (find_token(prop->op_value, "two_slot"))
             {
                 extern uint32_t use_2slot;
                 use_2slot = 1;
             }
-
+#endif
             if (find_token(prop->op_value, "chip_slowdown"))
             {
                 chip_slowdown = 1;
