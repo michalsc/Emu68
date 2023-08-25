@@ -26,6 +26,7 @@
 #include "md5.h"
 #include "disasm.h"
 #include "version.h"
+#include "cache.h"
 
 void _start();
 void _boot();
@@ -300,6 +301,7 @@ void __vectors_start(void);
 extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
+int chip_slowdown;
 extern const char _verstring_object[];
 
 #ifdef PISTORM
@@ -561,6 +563,21 @@ void boot(void *dtree)
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
 #ifdef PISTORM
+            if (find_token(prop->op_value, "two_slot"))
+            {
+                extern uint32_t use_2slot;
+                use_2slot = 1;
+            }
+
+            if (find_token(prop->op_value, "chip_slowdown"))
+            {
+                chip_slowdown = 1;
+            }
+            else
+            {
+                chip_slowdown = 0;
+            }
+
             if ((tok = find_token(prop->op_value, "buptest=")))
             {
                 uint32_t bup = 0;
@@ -1908,6 +1925,8 @@ void M68K_StartEmu(void *addr, void *fdt)
     uint32_t m68k_pc;
     uint64_t cnt1 = 0, cnt2 = 0;
 
+    cache_setup();
+
     M68K_InitializeCache();
 
     bzero(&__m68k, sizeof(__m68k));
@@ -1938,6 +1957,8 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
     __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
+    __m68k.JIT_CONTROL2 = chip_slowdown ? JC2F_CHIP_SLOWDOWN : 0;
+
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
