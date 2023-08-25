@@ -2063,6 +2063,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
+            case 0x0f0: /* JITEXTRA - JIT second control register */
+                *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2));
+                break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = bic_immed(tmp, reg, 30, 16);
@@ -2270,6 +2273,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = u.u32[0];
                 *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x0f0: /* JITEXTRA - JIT second control register */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2));
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
