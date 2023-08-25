@@ -18,6 +18,7 @@
 #include "config.h"
 #include "DuffCopy.h"
 #include "disasm.h"
+#include "cache.h"
 
 #if SET_FEATURES_AT_RUNTIME
 features_t Features;
@@ -143,13 +144,14 @@ static uint32_t * (*line_array[16])(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint
     EMIT_lineF
 };
 
+extern struct M68KState *__m68k_state;
+
 static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint32_t *ptr = arm_ptr;
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)*m68k_ptr);
     uint8_t group = opcode >> 12;
 
-#ifdef __aarch64__
     if (debug > 2)
     {
         *ptr++ = hint(0);
@@ -166,7 +168,13 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_
         *ptr++ = msr(reg, 3, 3, 9, 12, 4);
         RA_FreeARMRegister(&ptr, reg);
     }
-#endif
+
+    if ((__m68k_state->JIT_CONTROL2 & JC2F_CHIP_SLOWDOWN) && (uintptr_t)*m68k_ptr < 0x200000)
+    {
+        int8_t off = 0;
+        ptr = EMIT_GetOffsetPC(ptr, &off);
+        *ptr++ = ldurh_offset(REG_PC, 0, off);
+    }
 
     ptr = line_array[group](ptr, m68k_ptr, insn_consumed);
 
@@ -228,7 +236,6 @@ uint32_t prologue_size = 0;
 uint32_t epilogue_size = 0;
 uint32_t conditionals_count = 0;
 
-extern struct M68KState *__m68k_state;
 void M68K_PrintContext(void *);
 
 
@@ -262,6 +269,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     int debug = 0;
     int disasm = 0;
+
+    cache_invalidate_all(ICACHE);
 
     if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
         debug = globalDebug();
