@@ -569,6 +569,11 @@ void boot(void *dtree)
                 extern uint32_t use_2slot;
                 use_2slot = 1;
             }
+            else if (find_token(prop->op_value, "one_slot"))
+            {
+                extern uint32_t use_2slot;
+                use_2slot = 0;
+            }
 #endif
             if (find_token(prop->op_value, "chip_slowdown"))
             {

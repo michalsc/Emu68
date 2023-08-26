@@ -185,7 +185,7 @@ volatile uint32_t *gpset;
 volatile uint32_t *gpreset;
 volatile uint32_t *gpread;
 
-uint32_t use_2slot = 0;
+uint32_t use_2slot = 1;
 
 static inline void set_input() {
     *(gpio + 0) = LE32(GPFSEL0_INPUT);
