@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 /* Line9 is one large SUBX/SUB/SUBA */
 
@@ -350,7 +351,7 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         if (immed)
         {
-            int16_t offset = (int16_t)BE16((*m68k_ptr)[0]);
+            int16_t offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
             if (offset >= 0 && offset < 4096)
             {
@@ -373,7 +374,7 @@ uint32_t *EMIT_SUBA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         int32_t offset;
         if (immed)
         {
-            offset = ((int16_t)BE16((*m68k_ptr)[0]) << 16) | (uint16_t)BE16((*m68k_ptr)[1]);
+            offset = ((int16_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]) << 16) | (uint16_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
             
             if (offset >= 0 && offset < 4096)
             {
@@ -771,7 +772,7 @@ static struct OpcodeDef InsnTable[512] = {
 
 uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
@@ -809,7 +810,7 @@ uint32_t GetSR_Line9(uint16_t opcode)
 
 int M68K_GetLine9Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)insn_stream);
     
     int length = 0;
     int need_ea = 0;

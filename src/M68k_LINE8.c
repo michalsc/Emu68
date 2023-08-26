@@ -11,6 +11,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 static uint32_t *EMIT_MUL_DIV_(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -29,7 +30,7 @@ uint32_t *EMIT_PACK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __a
 uint32_t *EMIT_PACK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
-    uint16_t addend = BE16((*m68k_ptr)[0]);
+    uint16_t addend = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t tmp = -1;
 
     if (opcode & 8)
@@ -92,7 +93,7 @@ uint32_t *EMIT_UNPK_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __a
 uint32_t *EMIT_UNPK_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
-    uint16_t addend = BE16((*m68k_ptr)[0]);
+    uint16_t addend = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t tmp = -1;
 
     if (opcode & 8)
@@ -575,7 +576,7 @@ static struct OpcodeDef InsnTable[512] = {
 
 uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
@@ -614,7 +615,7 @@ uint32_t GetSR_Line8(uint16_t opcode)
 
 int M68K_GetLine8Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)insn_stream);
     
     int length = 0;
     int need_ea = 0;

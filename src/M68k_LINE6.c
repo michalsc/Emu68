@@ -11,6 +11,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 extern struct M68KState *__m68k_state;
 
@@ -32,14 +33,14 @@ uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if ((opcode & 0x00ff) == 0x00)
     {
         addend = 2;
-        bra_off = (int16_t)(BE16((*m68k_ptr)[0]));
+        bra_off = (int16_t)(cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]));
         (*m68k_ptr)++;
     }
     /* use 32-bit offset */
     else if ((opcode & 0x00ff) == 0xff)
     {
         addend = 4;
-        bra_off = (int32_t)(BE32(*(uint32_t*)*m68k_ptr));
+        bra_off = (int32_t)(cache_read_32(ICACHE, (uintptr_t)&(*m68k_ptr)[0]));
         (*m68k_ptr) += 2;
     }
     else
@@ -159,14 +160,14 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     /* use 16-bit offset */
     if ((opcode & 0x00ff) == 0x00)
     {
-        branch_offset = (int16_t)BE16(*(*m68k_ptr)++);
+        branch_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
     }
     /* use 32-bit offset */
     else if ((opcode & 0x00ff) == 0xff)
     {
         uint16_t lo16, hi16;
-        hi16 = BE16(*(*m68k_ptr)++);
-        lo16 = BE16(*(*m68k_ptr)++);
+        hi16 = cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
+        lo16 = cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
         branch_offset = lo16 | (hi16 << 16);
     }
     else
@@ -326,7 +327,7 @@ static struct OpcodeDef InsnTable[16] = {
 
 uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     *insn_consumed = 1;
     (*m68k_ptr)++;
 
@@ -342,7 +343,7 @@ uint32_t GetSR_Line6(uint16_t opcode)
 
 int M68K_GetLine6Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)insn_stream);
     int length = 1;
     
     if ((opcode & 0xff) == 0) {

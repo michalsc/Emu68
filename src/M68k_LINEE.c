@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 static uint32_t *EMIT_ASR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attribute__((alias("EMIT_ASL_mem")));
 static uint32_t *EMIT_ASL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
@@ -1604,7 +1605,7 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
@@ -1918,7 +1919,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
@@ -2288,7 +2289,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     
     /* Special case: Source is Dn */
     if ((opcode & 0x0038) == 0)
@@ -2653,7 +2654,7 @@ static uint32_t *EMIT_BFFFO_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 
@@ -2859,7 +2860,7 @@ static uint32_t *EMIT_BFFFO(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
@@ -3062,7 +3063,7 @@ static uint32_t *EMIT_BFCHG_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 
     RA_SetDirtyM68kRegister(&ptr, opcode & 7);
@@ -3284,7 +3285,7 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
@@ -3507,7 +3508,7 @@ static uint32_t *EMIT_BFSET_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 
     RA_SetDirtyM68kRegister(&ptr, opcode & 7);
@@ -3729,7 +3730,7 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
@@ -3952,7 +3953,7 @@ static uint32_t *EMIT_BFCLR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
 
     RA_SetDirtyM68kRegister(&ptr, opcode & 7);
@@ -4174,7 +4175,7 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
@@ -4398,7 +4399,7 @@ static uint32_t *EMIT_BFINS_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
     uint8_t src = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
 
@@ -4646,7 +4647,7 @@ static uint32_t *EMIT_BFINS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t base = 0xff;
 
     uint8_t src = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
@@ -5313,15 +5314,15 @@ static struct OpcodeDef InsnTable[4096] = {
 
 uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
     /* Special case: the combination of RO(R/L).W #8, Dn; SWAP Dn; RO(R/L).W, Dn
         this is replaced by REV instruction */
     if (((opcode & 0xfef8) == 0xe058) &&
-        BE16((*m68k_ptr)[0]) == (0x4840 | (opcode & 7)) &&
-        (BE16((*m68k_ptr)[1]) & 0xfeff) == (opcode & 0xfeff))
+        cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]) == (0x4840 | (opcode & 7)) &&
+        (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]) & 0xfeff) == (opcode & 0xfeff))
     {
         uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
         uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
@@ -5409,7 +5410,7 @@ uint32_t GetSR_LineE(uint16_t opcode)
 
 int M68K_GetLineELength(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)insn_stream);
     
     int length = 0;
     int need_ea = 0;

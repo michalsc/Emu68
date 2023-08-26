@@ -112,7 +112,7 @@ uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr)
 
 uint32_t *EMIT_lineA(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     (*insn_consumed)++;
 

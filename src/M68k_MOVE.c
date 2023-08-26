@@ -10,11 +10,12 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     int8_t value = opcode & 0xff;
     uint8_t reg = (opcode >> 9) & 7;
     uint8_t tmp_reg = RA_MapM68kRegisterForWrite(&ptr, reg);
@@ -68,7 +69,7 @@ uint32_t GetSR_Line7(uint16_t opcode)
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t ext_count = 0;
     uint8_t tmp_reg = 0xff;
     uint8_t size = 1;
@@ -136,7 +137,7 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
     if ((opcode & 0xf000) == 0x2000)
     {
         // Fetch 2nd opcode just now
-        uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+        uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
 
         // Is move.l Reg, -(An) ?: Dest mode 100, source mode 000 or 001
         if ((opcode & 0x01f0) == 0x0100)
@@ -386,10 +387,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             is_load_immediate = 1;
             switch (size) {
                 case 4:
-                    immediate_value = BE32(*(uint32_t*)(*m68k_ptr));
+                    immediate_value = cache_read_32(ICACHE, (uintptr_t)&(*(uint32_t*)(*m68k_ptr)));
                     break;
                 case 2:
-                    immediate_value = BE16(**m68k_ptr);
+                    immediate_value = cache_read_16(ICACHE, (uintptr_t)&(**m68k_ptr));
                     break;
                 case 1:
                     immediate_value = ((uint8_t*)*m68k_ptr)[1];

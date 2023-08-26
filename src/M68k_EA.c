@@ -11,6 +11,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 static inline __attribute__((always_inline)) uint32_t * load_s16_ext32(uint32_t *ptr, uint8_t reg, int16_t s16)
 {
@@ -636,7 +637,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 }
                 break;
             case 0:
-                kprintf("Load form EA: Dn with wrong operand size! Opcode %04x at %08x\n", BE16(m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
+                kprintf("Load form EA: Dn with wrong operand size! Opcode %04x at %08x\n", cache_read_16(ICACHE, (uint32_t)(uintptr_t)&m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
                 break;
             default:
                 kprintf("Wrong size\n");
@@ -667,7 +668,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 }
                 break;
             case 0:
-                kprintf("Load form EA: An with wrong operand size! Opcode %04x at %08x\n", BE16(m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
+                kprintf("Load form EA: An with wrong operand size! Opcode %04x at %08x\n", cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[-*ext_words]), m68k_ptr - *ext_words);
                 {
                     uint16_t *ptr = &m68k_ptr[-*ext_words] - 8;
                     for (int i=0; i < 16; i++)
@@ -823,19 +824,19 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             {
                 RA_FreeARMRegister(&ptr, *arm_reg);
                 *arm_reg = RA_MapM68kRegister(&ptr, src_reg + 8);
-                *imm_offset = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
+                *imm_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
             }
             else
             {
                 uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
-                int16_t off16 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
+                int16_t off16 = (int16_t)cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 ptr = load_reg_from_addr_offset(ptr, size, reg_An, *arm_reg, off16, 0, sign_ext);
             }
         }
         else if (mode == 6) /* Mode 006: (d8, An, Xn.SIZE*SCALE) */
         {
-            uint16_t brief = BE16(m68k_ptr[(*ext_words)++]);
+            uint16_t brief = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
             uint8_t extra_reg = (brief >> 12) & 7;
 
             if ((brief & 0x0100) == 0)
@@ -942,13 +943,13 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 {
                     case 2: /* Word displacement */
                         bd_reg = RA_AllocARMRegister(&ptr);
-                        lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         ptr = load_s16_ext32(ptr, bd_reg, lo16);
                         break;
                     case 3: /* Long displacement */
                         bd_reg = RA_AllocARMRegister(&ptr);
-                        hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                        lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                        hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         *ptr++ = movw_immed_u16(bd_reg, lo16);
                         if (hi16 != 0)
                             *ptr++ = movt_immed_u16(bd_reg, hi16);
@@ -960,13 +961,13 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 {
                     case 2: /* Word outer displacement */
                         outer_reg = RA_AllocARMRegister(&ptr);
-                        lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         ptr = load_s16_ext32(ptr, outer_reg, lo16);
                         break;
                     case 3: /* Long outer displacement */
                         outer_reg = RA_AllocARMRegister(&ptr);
-                        hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                        lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                        hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         *ptr++ = movw_immed_u16(outer_reg, lo16);
                         if (hi16 != 0)
                             *ptr++ = movt_immed_u16(outer_reg, hi16);
@@ -1081,20 +1082,20 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     ptr = EMIT_GetOffsetPC(ptr, &off8);
                     RA_FreeARMRegister(&ptr, *arm_reg);
                     *arm_reg = REG_PC;
-                    *imm_offset = off8 + (int16_t)BE16(m68k_ptr[(*ext_words)++]);
+                    *imm_offset = off8 + (int16_t)cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                 }
                 else
                 {
                     int8_t off8 = 2 + 2*(*ext_words);
                     ptr = EMIT_GetOffsetPC(ptr, &off8);
-                    int32_t off = off8 + (int16_t)(BE16(m68k_ptr[(*ext_words)++]));
+                    int32_t off = off8 + (int16_t)(cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]));
 
                     ptr = load_reg_from_addr_offset(ptr, size, REG_PC, *arm_reg, off, 1, sign_ext);
                 }
             }
             else if (src_reg == 3)
             {
-                uint16_t brief = BE16(m68k_ptr[(*ext_words)++]);
+                uint16_t brief = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                 uint8_t extra_reg = (brief >> 12) & 7;
 
                 if ((brief & 0x0100) == 0)
@@ -1356,7 +1357,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             else if (src_reg == 0)
             {
                 uint16_t lo16;
-                lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
                     ptr = load_s16_ext32(ptr, *arm_reg, lo16);
@@ -1372,8 +1373,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
             else if (src_reg == 1)
             {
                 uint16_t hi16, lo16;
-                hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
 #ifdef __aarch64__
@@ -1448,8 +1449,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 switch (size)
                 {
                     case 4:
-                        hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                        lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                        hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                         if (lo16 == 0 && hi16 == 0)
                         {
@@ -1467,7 +1468,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         }
                         break;
                     case 2:
-                        off = BE16(m68k_ptr[(*ext_words)++]);
+                        off = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                         if (sign_ext && (off & 0x8000))
                             *ptr++ = movn_immed_u16(*arm_reg, ~off, 0);
@@ -1475,7 +1476,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             *ptr++ = mov_immed_u16(*arm_reg, off, 0);
                         break;
                     case 1:
-                        off = BE16(m68k_ptr[(*ext_words)++]) & 0xff;
+                        off = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]) & 0xff;
                         if (sign_ext && (off & 0x80))
                             *ptr++ = movn_immed_u16(*arm_reg, ~off, 0);
                         else
@@ -1683,13 +1684,13 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         else if (mode == 5) /* Mode 005: (d16, An) */
         {
             uint8_t reg_An = RA_MapM68kRegister(&ptr, src_reg + 8);
-            int16_t off16 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
+            int16_t off16 = (int16_t)cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
             ptr = store_reg_to_addr_offset(ptr, size, reg_An, *arm_reg, off16, 0);
         }
         else if (mode == 6) /* Mode 006: (d8, An, Xn.SIZE*SCALE) */
         {
-            uint16_t brief = BE16(m68k_ptr[(*ext_words)++]);
+            uint16_t brief = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
             uint8_t extra_reg = (brief >> 12) & 7;
 
             if ((brief & 0x0100) == 0)
@@ -1788,13 +1789,13 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 {
                 case 2: /* Word displacement */
                     bd_reg = RA_AllocARMRegister(&ptr);
-                    lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                     ptr = load_s16_ext32(ptr, bd_reg, lo16);
                     break;
                 case 3: /* Long displacement */
                     bd_reg = RA_AllocARMRegister(&ptr);
-                    hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                    lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                    hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                     *ptr++ = movw_immed_u16(bd_reg, lo16);
                     if (hi16)
                         *ptr++ = movt_immed_u16(bd_reg, hi16);
@@ -1806,13 +1807,13 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 {
                 case 2: /* Word outer displacement */
                     outer_reg = RA_AllocARMRegister(&ptr);
-                    lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                     ptr = load_s16_ext32(ptr, outer_reg, lo16);
                     break;
                 case 3: /* Long outer displacement */
                     outer_reg = RA_AllocARMRegister(&ptr);
-                    hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                    lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                    hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                     *ptr++ = movw_immed_u16(outer_reg, lo16);
                     if (hi16)
                         *ptr++ = movt_immed_u16(outer_reg, hi16);
@@ -1926,7 +1927,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             if (src_reg == 2) /* (d16, PC) mode */
             {
                 int8_t off = 2;
-                int32_t off32 = (int16_t)BE16(m68k_ptr[(*ext_words)++]);
+                int32_t off32 = (int16_t)cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                 ptr = EMIT_GetOffsetPC(ptr, &off);
                 off32 += off;
 
@@ -1934,7 +1935,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             }
             else if (src_reg == 3)
             {
-                uint16_t brief = BE16(m68k_ptr[(*ext_words)++]);
+                uint16_t brief = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                 uint8_t extra_reg = (brief >> 12) & 7;
 
                 if ((brief & 0x0100) == 0)
@@ -2045,13 +2046,13 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         case 2: /* Word displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                            lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                             ptr = load_s16_ext32(ptr, bd_reg, lo16);
                             break;
                         case 3: /* Long displacement */
                             bd_reg = RA_AllocARMRegister(&ptr);
-                            hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                            lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                            hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                            lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                             *ptr++ = movw_immed_u16(bd_reg, lo16);
                             if (hi16)
                                 *ptr++ = movt_immed_u16(bd_reg, hi16);
@@ -2063,13 +2064,13 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         case 2: /* Word outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                            lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                             ptr = load_s16_ext32(ptr, outer_reg, lo16);
                             break;
                         case 3: /* Long outer displacement */
                             outer_reg = RA_AllocARMRegister(&ptr);
-                            hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                            lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                            hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                            lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                             *ptr++ = movw_immed_u16(outer_reg, lo16);
                             if (hi16)
                                 *ptr++ = movt_immed_u16(outer_reg, hi16);
@@ -2170,7 +2171,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             else if (src_reg == 0)
             {
                 uint16_t lo16;
-                lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
                     ptr = load_s16_ext32(ptr, *arm_reg, lo16);
@@ -2186,8 +2187,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
             else if (src_reg == 1)
             {
                 uint16_t lo16, hi16;
-                hi16 = BE16(m68k_ptr[(*ext_words)++]);
-                lo16 = BE16(m68k_ptr[(*ext_words)++]);
+                hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
 #ifdef __aarch64__

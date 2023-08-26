@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -26,7 +27,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
 #else
@@ -35,7 +36,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             *ptr++ = mov_immed_u16(immed, lo16, 1);
 #else
@@ -49,8 +50,8 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
-            u32 |= BE16((*m68k_ptr)[ext_count++]);
+            u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
+            u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             if (u32 < 4096)
             {
                 immediate = 1;
@@ -188,22 +189,22 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]) & 0xff;
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 0xff;
             if (!(update_mask == 0)) {
                 *ptr++ = mov_immed_u16(immed, lo16 << 8, 1);
             }
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             if (!(update_mask == 0)) {
                 *ptr++ = mov_immed_u16(immed, lo16, 1);
             }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
-            u32 |= BE16((*m68k_ptr)[ext_count++]);
+            u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
+            u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             if (u32 < 4096)
             {
                 immediate = 1;
@@ -474,22 +475,22 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]) & 0xff;
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 0xff;
             if (!(update_mask == 0)) {
                 *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
             }
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             if (!(update_mask == 0)) {
                 *ptr++ = mov_immed_u16(immed, lo16, 1);
             }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
-            u32 |= BE16((*m68k_ptr)[ext_count++]);
+            u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
+            u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
 #ifdef __aarch64__
             if (u32 < 4096)
             {
@@ -752,7 +753,7 @@ uint32_t *EMIT_ORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    uint16_t val8 = BE16(*m68k_ptr[0]);
+    uint16_t val8 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr[0]));
 
     /* Swap C and V flags in immediate */
     if ((val8 & 3) != 0 && (val8 & 3) < 3)
@@ -778,7 +779,7 @@ uint32_t *EMIT_ORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
     uint8_t changed = RA_AllocARMRegister(&ptr);
-    int16_t val = BE16((*m68k_ptr)[0]);
+    int16_t val = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmp;
     RA_SetDirtyM68kRegister(&ptr, 15);
@@ -865,7 +866,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]) & 0xff;
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 0xff;
             if (update_mask == 0) {
                 mask32 = number_to_mask(lo16);
                 if (mask32 == 0 || mask32 == 0xffffffff) {
@@ -879,7 +880,7 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             if (update_mask == 0) {
                 mask32 = number_to_mask(lo16 & 0xffff);
                 if (mask32 == 0 || mask32 == 0xffffffff) {
@@ -893,8 +894,8 @@ uint32_t *EMIT_ORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
-            u32 |= BE16((*m68k_ptr)[ext_count++]);
+            u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
+            u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             mask32 = number_to_mask(u32);
             if (mask32 == 0 || mask32 == 0xffffffff)
             {
@@ -1125,7 +1126,7 @@ uint32_t *EMIT_ANDI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    uint16_t val = BE16(*m68k_ptr[0]);
+    uint16_t val = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
    
     /* Swap C and V flags in immediate */
     if ((val & 3) != 0 && (val & 3) < 3)
@@ -1148,7 +1149,7 @@ uint32_t *EMIT_ANDI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    int16_t val = BE16((*m68k_ptr)[0]);
+    int16_t val = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint32_t *tmp;
 
     uint8_t changed = RA_AllocARMRegister(&ptr);
@@ -1242,7 +1243,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]) & 0xff;
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 0xff;
             if (update_mask == 0) {
                 if ((opcode & 0x0038) == 0) {
                     if (lo16 != 0xff) {
@@ -1268,7 +1269,7 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             if (update_mask == 0) {
                 if ((opcode & 0x0038) == 0) {
                     if (lo16 != 0xffff) 
@@ -1294,8 +1295,8 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
-            u32 |= BE16((*m68k_ptr)[ext_count++]);
+            u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
+            u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             mask32 = number_to_mask(u32);
             if (mask32 == 0 || mask32 == 0xffffffff)
             {
@@ -1504,7 +1505,7 @@ uint32_t *EMIT_EORI_TO_CCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    int16_t val = BE16((*m68k_ptr)[0]);
+    int16_t val = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     /* Swap C and V flags in immediate */
     if ((val & 3) != 0 && (val & 3) < 3)
@@ -1527,7 +1528,7 @@ uint32_t *EMIT_EORI_TO_SR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     (void)opcode;
     uint8_t immed = RA_AllocARMRegister(&ptr);
-    int16_t val = BE16((*m68k_ptr)[0]);
+    int16_t val = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint32_t *tmp;
 
     uint8_t orig = RA_AllocARMRegister(&ptr);
@@ -1617,31 +1618,18 @@ uint32_t *EMIT_EORI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
-#ifdef __aarch64__
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
-#else
-            *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 4);
-#endif
             size = 1;
             break;
         case 0x0040:    /* Short operation */
-            lo16 = BE16((*m68k_ptr)[ext_count++]);
-#ifdef __aarch64__
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             *ptr++ = mov_immed_u16(immed, lo16, 1);
-#else
-            if (lo16 <= 0xff)
-                *ptr++ = mov_immed_u8_shift(immed, lo16 & 0xff, 8);
-            else {
-                *ptr++ = sub_reg(immed, immed, immed, 0);
-                *ptr++ = movt_immed_u16(immed, lo16);
-            }
-#endif
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = BE16((*m68k_ptr)[ext_count++]) << 16;
-            u32 |= BE16((*m68k_ptr)[ext_count++]);
+            u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
+            u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
             mask32 = number_to_mask(u32);
             if (mask32 == 0 || mask32 == 0xffffffff)
             {
@@ -1844,7 +1832,7 @@ uint32_t *EMIT_BTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if ((opcode & 0xffc0) == 0x0800)
     {
         immediate = 1;
-        imm_shift = BE16((*m68k_ptr)[ext_count++]) & 31;
+        imm_shift = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 31;
     }
     else
     {
@@ -1933,7 +1921,7 @@ uint32_t *EMIT_BCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if ((opcode & 0xffc0) == 0x0840)
     {
         immediate = 1;
-        imm_shift = BE16((*m68k_ptr)[ext_count++]) & 31;
+        imm_shift = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 31;
     }
     else
     {
@@ -2091,7 +2079,7 @@ uint32_t *EMIT_BCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if ((opcode & 0xffc0) == 0x0880)
     {
         immediate = 1;
-        imm_shift = BE16((*m68k_ptr)[ext_count++]) & 31;
+        imm_shift = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 31;
     }
     else
     {
@@ -2239,7 +2227,7 @@ uint32_t *EMIT_CMP2(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint32_t opcode_address = (uint32_t)(uintptr_t)((*m68k_ptr) - 1);
     uint8_t update_mask = SR_Z | SR_C;
     uint8_t ext_words = 1;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t ea = -1;
     uint8_t lower = RA_AllocARMRegister(&ptr);
     uint8_t higher = RA_AllocARMRegister(&ptr);
@@ -2370,7 +2358,7 @@ uint32_t *EMIT_BSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if ((opcode & 0xffc0) == 0x08c0)
     {
         immediate = 1;
-        imm_shift = BE16((*m68k_ptr)[ext_count++]) & 31;
+        imm_shift = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) & 31;
     }
     else
     {
@@ -2622,8 +2610,8 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         uint8_t ext_words = 2;
         uint8_t size = (opcode >> 9) & 3;
-        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
-        uint16_t opcode3 = BE16((*m68k_ptr)[1]);
+        uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
+        uint16_t opcode3 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
 
         uint8_t rn1 = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 15);
         uint8_t rn2 = RA_MapM68kRegister(&ptr, (opcode3 >> 12) & 15);
@@ -2706,7 +2694,7 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else
     {
         uint8_t ext_words = 1;
-        uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+        uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
         uint8_t ea = -1;
         uint8_t du = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t dc = RA_MapM68kRegister(&ptr, opcode2 & 7);
@@ -2750,13 +2738,13 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 2:
-                    if (BE16((*m68k_ptr)[1]) & 1)
+                    if (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]) & 1)
                         CAS_UNSAFE();
                     else
                         CAS_ATOMIC();
                     break;
                 case 3:
-                    if ((BE16((*m68k_ptr)[1]) & 3) == 0)
+                    if ((cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]) & 3) == 0)
                         CAS_ATOMIC();
                     else
                         CAS_UNSAFE();
@@ -2768,13 +2756,13 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             switch(size)
             {
                 case 2:
-                    if (BE16((*m68k_ptr)[2]) & 1)
+                    if (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[2]) & 1)
                         CAS_UNSAFE();
                     else
                         CAS_ATOMIC();
                     break;
                 case 3:
-                    if ((BE16((*m68k_ptr)[2]) & 3) == 0)
+                    if ((cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[2]) & 3) == 0)
                         CAS_ATOMIC();
                     else
                         CAS_UNSAFE();
@@ -2858,7 +2846,7 @@ uint32_t *EMIT_CAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 uint32_t *EMIT_MOVEP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
 #ifdef __aarch64__
-    int32_t offset = (int16_t)BE16((*m68k_ptr)[0]);
+    int32_t offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t an = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     uint8_t dn = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
@@ -2970,7 +2958,7 @@ uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t cc = RA_GetCC(&ptr);
     uint8_t size = (opcode >> 6) & 3;
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint32_t *tmp;
     uint32_t *tmp_priv;
     uint8_t ext_count = 1;
@@ -3311,7 +3299,7 @@ static struct OpcodeDef InsnTable[4096] = {
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
 
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     *insn_consumed = 1;
     (*m68k_ptr)++;
 
@@ -3349,7 +3337,7 @@ uint32_t GetSR_Line0(uint16_t opcode)
 
 int M68K_GetLine0Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*insn_stream));
     
     int length = 0;
     int need_ea = 0;

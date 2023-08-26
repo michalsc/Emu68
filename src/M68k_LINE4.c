@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
@@ -1261,7 +1262,7 @@ static uint32_t *EMIT_EXT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
         then combine both to extb.l 
     */
 
-    if ((mode == 2) && (opcode ^ BE16((*m68k_ptr)[0])) == 0x40) {
+    if ((mode == 2) && (opcode ^ cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0])) == 0x40) {
         (*m68k_ptr)++;
         mode = 7;
         (*insn_consumed)++;
@@ -1313,7 +1314,7 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int32_t offset = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
+    int32_t offset = (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]) << 16) | cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
 
     displ = RA_AllocARMRegister(&ptr);
     *ptr++ = movw_immed_u16(displ, offset & 0xffff);
@@ -1350,7 +1351,7 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int16_t offset = BE16((*m68k_ptr)[0]);
+    int16_t offset = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     displ = RA_AllocARMRegister(&ptr);
 
@@ -1580,7 +1581,7 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     (void)opcode;
 
     uint32_t *tmpptr;
-    uint16_t new_sr = BE16((*m68k_ptr)[0]) & 0xf71f;
+    uint16_t new_sr = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]) & 0xf71f;
     uint8_t changed = RA_AllocARMRegister(&ptr);
     uint8_t orig = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
@@ -1798,7 +1799,7 @@ static uint32_t *EMIT_RTD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-    int16_t addend = BE16((*m68k_ptr)[0]);
+    int16_t addend = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     /* Fetch return address from stack */
     *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
@@ -1944,7 +1945,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 {
     (void)insn_consumed;
 
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t dr = opcode & 1;
     uint8_t reg = RA_MapM68kRegister(&ptr, opcode2 >> 12);
     uint8_t ctx = RA_GetCTX(&ptr);
@@ -2565,7 +2566,7 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     (void)insn_consumed;
     uint8_t dir = (opcode >> 10) & 1;
     uint8_t size = (opcode >> 6) & 1;
-    uint16_t mask = BE16((*m68k_ptr)[0]);
+    uint16_t mask = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t block_size = 0;
     uint8_t ext_words = 0;
     extern int debug;
@@ -3059,7 +3060,7 @@ static struct OpcodeDef InsnTable[4096] = {
 
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
@@ -3098,7 +3099,7 @@ uint32_t GetSR_Line4(uint16_t opcode)
 
 int M68K_GetLine4Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*insn_stream));
     
     int length = 0;
     int need_ea = 0;
