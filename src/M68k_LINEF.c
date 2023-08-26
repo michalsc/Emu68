@@ -14,6 +14,7 @@
 #include "lists.h"
 #include "tlsf.h"
 #include "math/libm.h"
+#include "cache.h"
 
 extern uint8_t reg_Load96;
 extern uint8_t reg_Save96;
@@ -477,7 +478,7 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
 {
     int cnt = 0;
 
-    while((BE16(*ptr) & 0xfe00) != 0xf200)
+    while((cache_read_16(ICACHE, (uintptr_t)ptr) & 0xfe00) != 0xf200)
     {
         if (cnt++ > 15)
             return 1;
@@ -490,8 +491,8 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
         ptr += len;
     }
 
-    uint16_t opcode = BE16(ptr[0]);
-    uint16_t opcode2 = BE16(ptr[1]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&ptr[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&ptr[1]);
 
     /* In case of FNOP check subsequent instruction */
     if (opcode == 0xf280 && opcode2 == 0x0000)
@@ -628,7 +629,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_W:
                 {
                     int_reg = RA_AllocARMRegister(&ptr);
-                    int16_t imm = (int16_t)BE16((*m68k_ptr)[1]);
+                    int16_t imm = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
                     *ptr++ = movw_immed_u16(int_reg, imm & 0xffff);
                     if (imm < 0)
                         *ptr++ = movt_immed_u16(int_reg, 0xffff);
@@ -640,7 +641,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 case SIZE_B:
                 {
                     int_reg = RA_AllocARMRegister(&ptr);
-                    int8_t imm = (int8_t)BE16((*m68k_ptr)[1]);
+                    int8_t imm = (int8_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
                     *ptr++ = mov_immed_s8(int_reg, imm);
                     *ptr++ = scvtf_32toD(*reg, int_reg);
                     *ext_count += 1;
@@ -1756,7 +1757,7 @@ uint32_t icache_epilogue[MAX_EPILOGUE_LENGTH];
 void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t *arm_pc)
 {
     int i;
-    uint16_t opcode = BE16(pc[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
     struct M68KTranslationUnit *u;
     struct Node *n, *next;
     extern struct List LRU;
@@ -1918,8 +1919,8 @@ void __attribute__((used)) __trampoline_icache_invalidate(void)
 
 uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
-    uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
     uint8_t ext_count = 1;
     (*m68k_ptr)++;
     *insn_consumed = 1;
@@ -2067,8 +2068,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             ptr = EMIT_GetFPUFlags(ptr, fpsr);
         }
     }
-    /* FNOP */
-    else if (opcode == 0xf280 && opcode2 == 0)
+    /* FNOP as well as FBF.W to *any* target */
+    else if (opcode == 0xf280)
     {
         static int shown = 0;
         if (!shown) {
@@ -2210,14 +2211,14 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         /* use 16-bit offset */
         if ((opcode & 0x0040) == 0x0000)
         {
-            branch_offset = (int16_t)BE16(*(*m68k_ptr)++);
+            branch_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
         }
         /* use 32-bit offset */
         else
         {
             uint16_t lo16, hi16;
-            hi16 = BE16(*(*m68k_ptr)++);
-            lo16 = BE16(*(*m68k_ptr)++);
+            hi16 = cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
             branch_offset = lo16 | (hi16 << 16);
         }
 
@@ -4569,8 +4570,8 @@ int DisableFPU = 0;
 
 uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
-    uint16_t opcode2 = BE16((*m68k_ptr)[1]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
 
     /* Check destination coprocessor - if it is FPU go to separate function */
     if (DisableFPU == 0 && (opcode & 0x0e00) == 0x0200)
@@ -4636,7 +4637,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         uint8_t buf1 = RA_AllocARMRegister(&ptr);
         uint8_t buf2 = RA_AllocARMRegister(&ptr);
         uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-        uint32_t mem = (BE16((*m68k_ptr)[1]) << 16) | BE16((*m68k_ptr)[2]);
+        uint32_t mem = (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]) << 16) | cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[2]);
 
         /* Align memory pointer */
         mem &= 0xfffffff0;

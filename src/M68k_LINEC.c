@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_MULU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 uint32_t *EMIT_MULS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
@@ -44,35 +45,17 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         switch (size)
         {
-#ifdef __aarch64__
-        case 4:
-            *ptr++ = ands_reg(dest, dest, src, LSL, 0);
-            break;
-        case 2:
-            *ptr++ = and_reg(src, src, dest, LSL, 0);
-            *ptr++ = bfi(dest, src, 0, 16);
-            break;
-        case 1:
-            *ptr++ = and_reg(src, src, dest, LSL, 0);
-            *ptr++ = bfi(dest, src, 0, 8);
-            break;
-#else
-        case 4:
-            *ptr++ = ands_reg(dest, dest, src, 0);
-            break;
-        case 2:
-            *ptr++ = lsl_immed(src, src, 16);
-            *ptr++ = ands_reg(src, src, dest, 16);
-            *ptr++ = lsr_immed(src, src, 16);
-            *ptr++ = bfi(dest, src, 0, 16);
-            break;
-        case 1:
-            *ptr++ = lsl_immed(src, src, 24);
-            *ptr++ = ands_reg(src, src, dest, 24);
-            *ptr++ = lsr_immed(src, src, 24);
-            *ptr++ = bfi(dest, src, 0, 8);
-            break;
-#endif
+            case 4:
+                *ptr++ = ands_reg(dest, dest, src, LSL, 0);
+                break;
+            case 2:
+                *ptr++ = and_reg(src, src, dest, LSL, 0);
+                *ptr++ = bfi(dest, src, 0, 16);
+                break;
+            case 1:
+                *ptr++ = and_reg(src, src, dest, LSL, 0);
+                *ptr++ = bfi(dest, src, 0, 8);
+                break;
         }
 
         RA_FreeARMRegister(&ptr, src);
@@ -104,11 +87,8 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-#ifdef __aarch64__
             *ptr++ = ands_reg(tmp, tmp, src, LSL, 0);
-#else
-            *ptr++ = ands_reg(tmp, tmp, src, 0);
-#endif
+
             /* Store back */
             if (mode == 3)
             {
@@ -126,14 +106,10 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             }
             else
                 *ptr++ = ldrh_offset(dest, tmp, 0);
+
             /* Perform calcualtion */
-#ifdef __aarch64__
             *ptr++ = and_reg(tmp, tmp, src, LSL, 0);
-#else
-            *ptr++ = lsl_immed(tmp, tmp, 16);
-            *ptr++ = ands_reg(tmp, tmp, src, 16);
-            *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
+
             /* Store back */
             if (mode == 3)
             {
@@ -153,13 +129,8 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = ldrb_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-#ifdef __aarch64__
             *ptr++ = and_reg(tmp, tmp, src, LSL, 0);
-#else
-            *ptr++ = lsl_immed(tmp, tmp, 24);
-            *ptr++ = ands_reg(tmp, tmp, src, 24);
-            *ptr++ = lsr_immed(tmp, tmp, 24);
-#endif
+
             /* Store back */
             if (mode == 3)
             {
@@ -179,7 +150,6 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (update_mask)
     {
-#ifdef __aarch64__
         switch(size)
         {
             case 2:
@@ -189,7 +159,7 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = cmn_reg(31, test_register, LSL, 24);
                 break;
         }
-#endif
+
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
@@ -251,7 +221,6 @@ uint32_t *EMIT_EXG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     return ptr;
 }
 
-// BROKEN!!!
 static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
@@ -263,8 +232,6 @@ static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t tmp_b = RA_AllocARMRegister(&ptr);
     uint8_t tmp_c = RA_AllocARMRegister(&ptr);
     uint8_t tmp_d = RA_AllocARMRegister(&ptr);
-
-kprintf("[ERROR] ABCD reg not yet fixed!\n");
 
     RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
 
@@ -335,10 +302,8 @@ kprintf("[ERROR] ABCD reg not yet fixed!\n");
     return ptr;
 }
 
-// BROKEN!!!!
 static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
-#ifdef __aarch64__
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t cc = RA_ModifyCC(&ptr);
 
@@ -349,7 +314,7 @@ static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
 
     uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
     uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-kprintf("[ERROR] ABCD mem not yet fixed!\n");
+
     // Fetch initial data into regs tmp_a and tmp_b
     if ((opcode & 7) == 7) {
         *ptr++ = ldrb_offset_preindex(an_src, tmp_a, -2);
@@ -429,11 +394,6 @@ kprintf("[ERROR] ABCD mem not yet fixed!\n");
     RA_FreeARMRegister(&ptr, tmp_d);
     
     ptr = EMIT_AdvancePC(ptr, 2);
-#else
-    ptr = EMIT_InjectDebugString(ptr, "[JIT] ABCD at %08x not implemented\n", *m68k_ptr - 1);
-    ptr = EMIT_InjectPrintContext(ptr);
-    *ptr++ = udf(opcode);
-#endif
 
     return ptr;
 }
@@ -474,7 +434,7 @@ static struct OpcodeDef InsnTable[512] = {
 
 uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
@@ -515,7 +475,7 @@ uint32_t GetSR_LineC(uint16_t opcode)
 
 int M68K_GetLineCLength(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)insn_stream);
     
     int length = 0;
     int need_ea = 0;

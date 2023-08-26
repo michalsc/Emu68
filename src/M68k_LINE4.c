@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_MUL_DIV(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
 
@@ -555,18 +556,36 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     *ptr++ = sub_immed(tmp, tmp, 1);
 
                     if (update_mask & SR_XVC) {
+
+                        ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
+
                         uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
 
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
-
                         *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
-                        *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
-                        *ptr++ = bfxil(cc, tmp_2, 14, 2);
-                        
-                        if (update_mask & SR_X) {
-                            *ptr++ = ror(0, cc, 1);
-                            *ptr++ = bfi(cc, 0, 4, 1);
+
+                        if (update_mask & SR_V)
+                        {
+                            *ptr++ = tbz(tmp_2, 15, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
                         }
+                        
+                        if ((update_mask & SR_XC) == SR_XC)
+                        {
+                            *ptr++ = tbz(tmp, 16, 3);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                        }
+                        else if ((update_mask & SR_XC) == SR_C)
+                        {
+                            *ptr++ = tbz(tmp, 16, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                        }
+                        else if ((update_mask & SR_XC) == SR_X)
+                        {
+                            *ptr++ = tbz(tmp, 16, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                        }
+
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
 
@@ -580,23 +599,39 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                     *ptr++ = bfxil(dest, tmp, 0, 16);       // Insert result
                     break;
                 case 1:
-                    *ptr++ = and_immed(tmp, dest, 8, 0);    // Take lower 16 bits of destination
+                    *ptr++ = and_immed(tmp, dest, 8, 0);    // Take lower 8 bits of destination
                     *ptr++ = neg_reg(tmp, tmp, LSL, 0);     // negate
                     *ptr++ = b_cc(A64_CC_EQ, 2);            // Skip if X not set
                     *ptr++ = sub_immed(tmp, tmp, 1);
 
                     if (update_mask & SR_XVC) {
+                        ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
+
                         uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
 
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);  // C at position 8 in tmp, V at position 7 in tmp2
 
-                        *ptr++ = and_reg(tmp_2, tmp, dest, LSL, 0);
-                        *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
-                        *ptr++ = bfxil(cc, tmp_2, 6, 2);
+                        if (update_mask & SR_V)
+                        {
+                            *ptr++ = tbz(tmp_2, 7, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
+                        }
                         
-                        if (update_mask & SR_X) {
-                            *ptr++ = ror(0, cc, 1);
-                            *ptr++ = bfi(cc, 0, 4, 1);
+                        if ((update_mask & SR_XC) == SR_XC)
+                        {
+                            *ptr++ = tbz(tmp, 8, 3);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                        }
+                        else if ((update_mask & SR_XC) == SR_C)
+                        {
+                            *ptr++ = tbz(tmp, 8, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                        }
+                        else if ((update_mask & SR_XC) == SR_X)
+                        {
+                            *ptr++ = tbz(tmp, 8, 2);
+                            *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
                         }
 
                         update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -663,15 +698,32 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
             *ptr++ = sub_immed(tmp, tmp, 1);
 
             if (update_mask & SR_XVC) {
+                ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
                 uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+
                 *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
-                *ptr++ = bfxil(tmp_2, tmp, 2, 15);            // C at position 14, V at position 15
-                *ptr++ = bfxil(cc, tmp_2, 14, 2);
-                    
-                if (update_mask & SR_X) {
-                    *ptr++ = ror(0, cc, 1);
-                    *ptr++ = bfi(cc, 0, 4, 1);
+
+                if (update_mask & SR_V)
+                {
+                    *ptr++ = tbz(tmp_2, 15, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
+                }
+                
+                if ((update_mask & SR_XC) == SR_XC)
+                {
+                    *ptr++ = tbz(tmp, 16, 3);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                }
+                else if ((update_mask & SR_XC) == SR_C)
+                {
+                    *ptr++ = tbz(tmp, 16, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                }
+                else if ((update_mask & SR_XC) == SR_X)
+                {
+                    *ptr++ = tbz(tmp, 16, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
                 }
 
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
@@ -705,9 +757,35 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
             *ptr++ = sub_immed(tmp, tmp, 1);
 
             if (update_mask & SR_XVC) {
+                ptr = EMIT_ClearFlags(ptr, cc, SR_XVC);
+
                 uint8_t tmp_2 = RA_AllocARMRegister(&ptr);
-kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
+
                 *ptr++ = and_reg(tmp_2, tmp, src, LSL, 0);
+
+                if (update_mask & SR_V)
+                {
+                    *ptr++ = tbz(tmp_2, 7, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Valt));
+                }
+                
+                if ((update_mask & SR_XC) == SR_XC)
+                {
+                    *ptr++ = tbz(tmp, 8, 3);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                }
+                else if ((update_mask & SR_XC) == SR_C)
+                {
+                    *ptr++ = tbz(tmp, 8, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_Calt));
+                }
+                else if ((update_mask & SR_XC) == SR_X)
+                {
+                    *ptr++ = tbz(tmp, 8, 2);
+                    *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
+                }
+#if 0
                 *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
                 *ptr++ = bfxil(cc, tmp_2, 6, 2);
                 
@@ -715,7 +793,7 @@ kprintf("[ERROR] NEGX not fixed yet! C and V are swapped!\n");
                     *ptr++ = ror(0, cc, 1);
                     *ptr++ = bfi(cc, 0, 4, 1);
                 }
-
+#endif
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
 
                 RA_FreeARMRegister(&ptr, tmp_2);
@@ -1063,8 +1141,8 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t ext_words = 0;
     uint8_t src = 0xff;
-    uint8_t orig = RA_AllocARMRegister(&ptr);
-    uint8_t changed = RA_AllocARMRegister(&ptr);
+    uint8_t orig = 1; //RA_AllocARMRegister(&ptr);
+    uint8_t changed = 2; //RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmpptr;
 
@@ -1184,7 +1262,7 @@ static uint32_t *EMIT_EXT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
         then combine both to extb.l 
     */
 
-    if ((mode == 2) && (opcode ^ BE16((*m68k_ptr)[0])) == 0x40) {
+    if ((mode == 2) && (opcode ^ cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0])) == 0x40) {
         (*m68k_ptr)++;
         mode = 7;
         (*insn_consumed)++;
@@ -1236,7 +1314,7 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int32_t offset = (BE16((*m68k_ptr)[0]) << 16) | BE16((*m68k_ptr)[1]);
+    int32_t offset = (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]) << 16) | cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
 
     displ = RA_AllocARMRegister(&ptr);
     *ptr++ = movw_immed_u16(displ, offset & 0xffff);
@@ -1273,7 +1351,7 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     uint8_t sp;
     uint8_t displ;
     uint8_t reg;
-    int16_t offset = BE16((*m68k_ptr)[0]);
+    int16_t offset = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     displ = RA_AllocARMRegister(&ptr);
 
@@ -1503,7 +1581,7 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     (void)opcode;
 
     uint32_t *tmpptr;
-    uint16_t new_sr = BE16((*m68k_ptr)[0]) & 0xf71f;
+    uint16_t new_sr = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]) & 0xf71f;
     uint8_t changed = RA_AllocARMRegister(&ptr);
     uint8_t orig = RA_AllocARMRegister(&ptr);
     uint8_t cc = RA_ModifyCC(&ptr);
@@ -1607,11 +1685,11 @@ static uint32_t *EMIT_RTE(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     (void)opcode;
     (void)m68k_ptr;
 
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = 1; //RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint8_t cc = RA_ModifyCC(&ptr);
-    uint8_t changed = RA_AllocARMRegister(&ptr);
-    uint8_t orig = RA_AllocARMRegister(&ptr);
+    uint8_t changed = 2; //RA_AllocARMRegister(&ptr);
+    uint8_t orig = 3; //RA_AllocARMRegister(&ptr);
     uint32_t *tmpptr;
     uint32_t *branch_privilege;
     uint32_t *branch_format;
@@ -1721,18 +1799,32 @@ static uint32_t *EMIT_RTD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t tmp = RA_AllocARMRegister(&ptr);
     uint8_t tmp2 = RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
-    uint16_t addend = BE16((*m68k_ptr)[0]);
+    int16_t addend = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
 
     /* Fetch return address from stack */
     *ptr++ = ldr_offset_postindex(sp, tmp2, 4);
 
-    if (addend < 4096)
+    if (addend > -4096 && addend < 4096)
     {
-        *ptr++ = add_immed(sp, sp, addend);
+        if (addend < 0)
+        {
+            *ptr++ = sub_immed(sp, sp, -addend);
+        }
+        else
+        {
+            *ptr++ = add_immed(sp, sp, addend);
+        }
     }
     else
     {
-        *ptr++ = mov_immed_u16(tmp, addend, 0);
+        if (addend < 0)
+        {
+            *ptr++ = movn_immed_u16(tmp, -addend - 1, 0);
+        }
+        else
+        {
+            *ptr++ = mov_immed_u16(tmp, addend, 0);
+        }
         *ptr++ = add_reg(sp, sp, tmp, LSL, 0);
     }
 
@@ -1853,7 +1945,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 {
     (void)insn_consumed;
 
-    uint16_t opcode2 = BE16((*m68k_ptr)[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t dr = opcode & 1;
     uint8_t reg = RA_MapM68kRegister(&ptr, opcode2 >> 12);
     uint8_t ctx = RA_GetCTX(&ptr);
@@ -1971,6 +2063,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = u.u32[0];
                 *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x1e0: /* JITCTRL2 - JIT second control register */
+                *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2));
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
@@ -2179,6 +2274,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 *ptr++ = u.u32[0];
                 *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 0x1e0: /* JITCTRL2 - JIT second control register */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2));
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 *ptr++ = ldrh_offset(ctx, reg, __builtin_offsetof(struct M68KState, TCR));
@@ -2396,13 +2494,10 @@ static uint32_t *EMIT_NBCD(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
 
     if (update_mask & SR_Z) {
         cc = RA_ModifyCC(&ptr);
-/*
-        *ptr++ = bic_immed(tmp, cc, 1, 32 - SRB_Z);
+
         *ptr++ = ands_immed(31, result, 8, 0);
+        *ptr++ = bic_immed(tmp, cc, 1, 32 - SRB_Z);
         *ptr++ = csel(cc, tmp, cc, A64_CC_NE);
-*/
-        *ptr++ = cset(tmp, A64_CC_EQ);
-        *ptr++ = bfi(cc, tmp, SRB_Z, 1);
     }
 
     /* Dn mode */
@@ -2471,9 +2566,11 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     (void)insn_consumed;
     uint8_t dir = (opcode >> 10) & 1;
     uint8_t size = (opcode >> 6) & 1;
-    uint16_t mask = BE16((*m68k_ptr)[0]);
+    uint16_t mask = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     uint8_t block_size = 0;
     uint8_t ext_words = 0;
+    extern int debug;
+    uint32_t *ptr_orig = ptr;
 
     (*m68k_ptr)++;
 
@@ -2643,6 +2740,10 @@ static uint32_t *EMIT_MOVEM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     ptr = EMIT_AdvancePC(ptr, 2*(ext_words + 1));
     (*m68k_ptr) += ext_words;
+
+    /* No opcode was emited? At least flush PC counter now */
+    if (ptr == ptr_orig)
+        ptr = EMIT_FlushPC(ptr);
 
     return ptr;
 }
@@ -2959,7 +3060,7 @@ static struct OpcodeDef InsnTable[4096] = {
 
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
@@ -2998,7 +3099,7 @@ uint32_t GetSR_Line4(uint16_t opcode)
 
 int M68K_GetLine4Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*insn_stream));
     
     int length = 0;
     int need_ea = 0;

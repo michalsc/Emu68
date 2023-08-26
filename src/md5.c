@@ -107,6 +107,8 @@ struct MD5 CalcMD5(void *_start, void *_end)
     return md;
 }
 
+#include "cache.h"
+
 uint32_t CalcCRC32(void *_start, void *_end)
 {
     intptr_t s = (intptr_t)_start;
@@ -116,28 +118,52 @@ uint32_t CalcCRC32(void *_start, void *_end)
 
     while((e - s) >= 16) {
         uint64_t val1; uint64_t val2;
-        asm volatile("ldp %0, %1, [%2]":"=r"(val1), "=r"(val2):"r"(s));
+        if (s > 0x01000000)
+        {
+            asm volatile("ldp %0, %1, [%2]":"=r"(val1), "=r"(val2):"r"(s));
+        }
+        else
+        {
+            val1 = cache_read_64(ICACHE, s);
+            val2 = cache_read_64(ICACHE, s + 8);
+        }
         asm volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val1));
         asm volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val2));
         s += 16;
     }
     if ((e - s) >= 8) {
-        uint64_t val = *(uint64_t *)s;
+        uint64_t val;
+        if (s > 0x01000000)
+            val = *(uint64_t *)s;
+        else
+            val = cache_read_64(ICACHE, s);
         asm volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val));
         s += 8;
     }
     if ((e - s) >= 4) {
-        uint32_t val = *(uint32_t *)s;
+        uint32_t val;
+        if (s > 0x01000000)
+            val = *(uint32_t *)s;
+        else
+            val = cache_read_32(ICACHE, s);
         asm volatile("crc32w %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
         s += 4;
     }
     if ((e - s) >= 2) {
-        uint16_t val = *(uint16_t *)s;
+        uint16_t val;
+        if (s > 0x01000000)
+            val = *(uint16_t *)s;
+        else
+            val = cache_read_16(ICACHE, s);
         asm volatile("crc32h %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
         s += 2;
     }
     if (e != s) {
-        uint16_t val = *(uint16_t *)s;
+        uint16_t val;
+        if (s > 0x01000000)
+            val = *(uint16_t *)s;
+        else
+            val = cache_read_8(ICACHE, s);
         asm volatile("crc32b %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
     }
 

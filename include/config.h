@@ -10,6 +10,9 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
+#define CACHE_SET_COUNT         128
+#define CACHE_WAY_COUNT         8
+
 #define ARM_FEATURE_HAS_DIV     1
 #define ARM_FEATURE_HAS_BITFLD  1
 #define ARM_FEATURE_HAS_BITCNT  1

@@ -29,6 +29,11 @@
 #define xstr(s) str(s)
 #define str(s) #s
 
+typedef struct {
+    uint64_t hi;
+    uint64_t lo;
+} uint128_t;
+
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
 #define L16(x) ((((x) & 0xff00) >> 8) | (((x) & 0x00ff) << 8))

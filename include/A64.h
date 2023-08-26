@@ -133,8 +133,12 @@ static inline uint32_t INSN_TO_LE(uint32_t insn)
 void kprintf(const char * format, ...);
 #define ASSERT_REG(reg) \
     do { if ((reg) > 31) kprintf("[ASSERT] %s: Using uninitialized register (%x) at line %d?\n", __PRETTY_FUNCTION__, (reg), __LINE__); } while(0)
+#if 0
 #define ASSERT_OFFSET(offset, mask) \
     do { if ((offset) & ~(mask)) kprintf("[ASSERT] %s: Offset out of range: %x mask %x at line %d\n", __PRETTY_FUNCTION__, (offset), (mask), __LINE__); } while(0)
+#else
+#define ASSERT_OFFSET(offset, mask) /* */
+#endif
 
 /* Branches */
 static inline uint32_t b_cc(uint8_t cc, int32_t offset19) { ASSERT_OFFSET(offset19, 0x7ffff); return I32(0x54000000 | (cc & 15) | ((offset19 & 0x7ffff) << 5)); }

@@ -10,6 +10,7 @@
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
+#include "cache.h"
 
 uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -747,14 +748,14 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t arm_condition = 0;
     uint32_t *branch_1 = NULL;
     uint32_t *branch_2 = NULL;
-    int32_t branch_offset = 2 + (int16_t)BE16(*(*m68k_ptr)++);
+    int32_t branch_offset = 2 + (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
     uint16_t *bra_rel_ptr = *m68k_ptr - 2;
-
-    //*ptr++ = b(0);
 
     /* Selcom case of DBT which does nothing */
     if (m68k_condition == M_CC_T)
     {
+        /* Emu68 needs to emit at least one aarch64 opcode, push nop */
+        *ptr++ = nop();
         ptr = EMIT_AdvancePC(ptr, 4);
     }
     else
@@ -916,7 +917,7 @@ static struct OpcodeDef InsnTable[512] = {
 
 uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
-    uint16_t opcode = BE16((*m68k_ptr)[0]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
     (*m68k_ptr)++;
     *insn_consumed = 1;
 
@@ -955,7 +956,7 @@ uint32_t GetSR_Line5(uint16_t opcode)
 
 int M68K_GetLine5Length(uint16_t *insn_stream)
 {
-    uint16_t opcode = BE16(*insn_stream);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*insn_stream));
     
     int length = 0;
     int need_ea = 0;
