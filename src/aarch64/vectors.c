@@ -14,6 +14,7 @@
 #include "mmu.h"
 #include "tlsf.h"
 #include "M68k.h"
+#include "cache.h"
 
 #define FULL_CONTEXT 1
 
@@ -696,6 +697,8 @@ int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr,
     uint16_t *m68k_pc;
     uintptr_t corrected_far = far | (0xff00000000000000ULL);    // Fix the topmost bits
     uintptr_t unit_far = corrected_far & ~0x0000001000000000;   // Clear the executable region bit
+
+    cache_invalidate_all(ICACHE);
 
     /* Adjust far of the M68KTranslationUnit */
     unit_far = unit_far - __builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode);
