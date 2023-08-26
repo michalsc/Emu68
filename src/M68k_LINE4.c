@@ -1140,8 +1140,8 @@ static uint32_t *EMIT_MOVEtoSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
     uint8_t cc = RA_ModifyCC(&ptr);
     uint8_t ext_words = 0;
     uint8_t src = 0xff;
-    uint8_t orig = RA_AllocARMRegister(&ptr);
-    uint8_t changed = RA_AllocARMRegister(&ptr);
+    uint8_t orig = 1; //RA_AllocARMRegister(&ptr);
+    uint8_t changed = 2; //RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint32_t *tmpptr;
 
@@ -1684,11 +1684,11 @@ static uint32_t *EMIT_RTE(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     (void)opcode;
     (void)m68k_ptr;
 
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = 1; //RA_AllocARMRegister(&ptr);
     uint8_t sp = RA_MapM68kRegister(&ptr, 15);
     uint8_t cc = RA_ModifyCC(&ptr);
-    uint8_t changed = RA_AllocARMRegister(&ptr);
-    uint8_t orig = RA_AllocARMRegister(&ptr);
+    uint8_t changed = 2; //RA_AllocARMRegister(&ptr);
+    uint8_t orig = 3; //RA_AllocARMRegister(&ptr);
     uint32_t *tmpptr;
     uint32_t *branch_privilege;
     uint32_t *branch_format;
