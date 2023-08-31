@@ -771,7 +771,7 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
 /* Get number of 16-bit words this instruction occupies */
 int M68K_GetINSNLength(uint16_t *insn_stream)
 {
-    uint16_t opcode = *insn_stream;
+    uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)&insn_stream[0]);
     int length = 0;
 
     switch(opcode & 0xf000)
