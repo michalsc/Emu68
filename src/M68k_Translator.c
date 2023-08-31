@@ -316,15 +316,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t *tmpptr = end;
     pop_update_loc[pop_cnt++] = end;
 
-#ifndef __aarch64__
-    *end++ = push(0); // Space for register saving, aarch32 only
-
-#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-    *end++ = setend_be();
-#endif
-
-    *end++ = ldr_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
-#else
     if (debug_cnt & 2)
     {
         uint8_t reg = RA_AllocARMRegister(&end);
@@ -332,7 +323,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         *end++ = msr(reg, 3, 3, 9, 12, 4);
         RA_FreeARMRegister(&end, reg);
     }
-#endif
 
     prologue_size = end - tmpptr;
 
@@ -379,10 +369,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         local_state[insn_count].mls_ARMOffset = end - arm_code;
         local_state[insn_count].mls_M68kPtr = m68kcodeptr;
         local_state[insn_count].mls_PCRel = _pc_rel;
-#ifndef __aarch64__
-        for (int r=0; r < 16; r++)
-            local_state[insn_count].mls_RegMap[r] = RA_GetMappedARMRegister(r);
-#endif
+
         end = EmitINSN(end, &m68kcodeptr, &insn_consumed);
         insn_count+=insn_consumed;
         if (end[-1] == INSN_TO_LE(0xfffffff0))
@@ -413,9 +400,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             for (unsigned i=0; i < branch_cnt; i++)
             {
                 uintptr_t ptr = *(uint32_t *)--end;
-#ifdef __aarch64__
                 ptr |= (uintptr_t)end & 0xffffffff00000000;
-#endif
                 branch_mod[i] = (uint32_t *)ptr;
             }
 
@@ -428,50 +413,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                 RA_StoreDirtyFPURegs(&end);
                 RA_StoreDirtyM68kRegs(&end);
                 end = EMIT_FlushPC(end);
-#ifndef __aarch64__
+
                 RA_StoreCC(&end);
                 RA_StoreFPCR(&end);
                 RA_StoreFPSR(&end);
-
-                *end++ = str_offset(REG_CTX, REG_PC, __builtin_offsetof(struct M68KState, PC));
-#if !(EMU68_HOST_BIG_ENDIAN) && EMU68_HAS_SETEND
-                *end++ = setend_le();
-#endif
-
-#else
-                RA_StoreCC(&end);
-                RA_StoreFPCR(&end);
-                RA_StoreFPSR(&end);
-#endif
-#ifndef __aarch64__
-                pop_update_loc[pop_cnt++] = end;
-                *end++ = pop((1 << REG_SR));// | (1 << REG_CTX));
-                if (!lr_is_saved)
-                    *end++ = bx_lr();
-#else
 
 #if EMU68_INSN_COUNTER
-
-#if 0
-                uint8_t ctx_free = 0;
-                uint8_t ctx = RA_TryCTX(&end);
-                uint8_t tmp = RA_AllocARMRegister(&end);
-                if (ctx == 0xff)
-                {
-                    ctx = RA_AllocARMRegister(&end);
-                    *end++ = mrs(ctx, 3, 3, 13, 0, 3);
-                    ctx_free = 1;
-                }
-                *end++ = ldr64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
-                *end++ = add64_immed(tmp, tmp, insn_count & 0xfff);
-                if (insn_count & 0xfff000)
-                    *end++ = adds64_immed_lsl12(tmp, tmp, insn_count >> 12);
-                *end++ = str64_offset(ctx, tmp, __builtin_offsetof(struct M68KState, INSN_COUNT));
-
-                RA_FreeARMRegister(&end, tmp);
-                if (ctx_free)
-                    RA_FreeARMRegister(&end, ctx);
-#else
                 uint8_t tmp = RA_AllocARMRegister(&end);
                 *end++ = mov_immed_u16(tmp, insn_count & 0xffff, 0);
                 if (insn_count & 0xffff0000) {
@@ -489,20 +436,14 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
                 RA_FreeARMRegister(&end, tmp);
 #endif
 
-#endif
                 pop_update_loc[pop_cnt++] = end;
                 *end++ = bx_lr();
-#endif
             }
             int distance = end - tmpptr;
 
             for (unsigned i=0; i < branch_cnt; i++) {
                 //kprintf("[ICache] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
-#ifdef __aarch64__
                 *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
-#else
-                *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + distance));
-#endif
             }
             epilogue_size += distance;
         }
