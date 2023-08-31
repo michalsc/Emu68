@@ -1514,7 +1514,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
     Output:
         ptr     pointer to ARM instruction stream after the newly generated code
 */
-uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words)
+uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, int sign_extend)
 {
     uint8_t mode = ea >> 3;
     uint8_t src_reg = ea & 7;
@@ -1529,36 +1529,37 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         switch (size)
         {
             case 4:
-#ifdef __aarch64__
                 reg_dest = RA_MapM68kRegisterForWrite(&ptr, src_reg);
                 *ptr++ = mov_reg(reg_dest, *arm_reg);
-#else
-                if (RA_IsARMRegisterMapped(*arm_reg)) {
+                break;
+            case 2:
+                if (sign_extend)
+                {
                     reg_dest = RA_MapM68kRegisterForWrite(&ptr, src_reg);
-                    *ptr++ = mov_reg(reg_dest, *arm_reg);
+                    *ptr++ = sxth(reg_dest, *arm_reg);
                 }
                 else
                 {
-                    RA_AssignM68kRegister(&ptr, src_reg, *arm_reg);
+                    reg_dest = RA_MapM68kRegister(&ptr, src_reg);
+                    RA_SetDirtyM68kRegister(&ptr, src_reg);
+                    *ptr++ = bfi(reg_dest, *arm_reg, 0, 16);
                 }
-#endif
-                break;
-            case 2:
-                reg_dest = RA_MapM68kRegister(&ptr, src_reg);
-                RA_SetDirtyM68kRegister(&ptr, src_reg);
-                *ptr++ = bfi(reg_dest, *arm_reg, 0, 16);
                 break;
             case 1:
-                reg_dest = RA_MapM68kRegister(&ptr, src_reg);
-                RA_SetDirtyM68kRegister(&ptr, src_reg);
-                *ptr++ = bfi(reg_dest, *arm_reg, 0, 8);
+                if (sign_extend)
+                {
+                    reg_dest = RA_MapM68kRegisterForWrite(&ptr, src_reg);
+                    *ptr++ = sxtb(reg_dest, *arm_reg);
+                }
+                else
+                {
+                    reg_dest = RA_MapM68kRegister(&ptr, src_reg);
+                    RA_SetDirtyM68kRegister(&ptr, src_reg);
+                    *ptr++ = bfi(reg_dest, *arm_reg, 0, 8);
+                }
                 break;
             case 0:
-#ifdef __aarch64__
                 kprintf("Store to EA with wrong operand size 0\n");
-#else
-                *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, D[src_reg]));
-#endif
                 break;
             default:
                 kprintf("Wrong size\n");
@@ -1571,32 +1572,24 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
         switch (size)
         {
             case 4:
-#ifdef __aarch64__
                 reg_dest = RA_MapM68kRegisterForWrite(&ptr, 8 + src_reg);
                 *ptr++ = mov_reg(reg_dest, *arm_reg);
-#else
-                if (RA_IsARMRegisterMapped(*arm_reg)) {
+                break;
+            case 2:
+                if (sign_extend)
+                {
                     reg_dest = RA_MapM68kRegisterForWrite(&ptr, 8 + src_reg);
-                    *ptr++ = mov_reg(reg_dest, *arm_reg);
+                    *ptr++ = sxth(reg_dest, *arm_reg);
                 }
                 else
                 {
-                    RA_AssignM68kRegister(&ptr, 8 + src_reg, *arm_reg);
+                    reg_dest = RA_MapM68kRegister(&ptr, 8 + src_reg);
+                    RA_SetDirtyM68kRegister(&ptr, src_reg + 8);
+                    *ptr++ = bfi(reg_dest, *arm_reg, 0, 16);
                 }
-#endif
                 break;
-            case 2:
-                reg_dest = RA_MapM68kRegister(&ptr, 8 + src_reg);
-                RA_SetDirtyM68kRegister(&ptr, src_reg + 8);
-                *ptr++ = bfi(reg_dest, *arm_reg, 0, 16);
-                break;
-                ;
             case 0:
-#ifdef __aarch64__
                 kprintf("Store to EA with wrong operand size 0\n");
-#else
-                *ptr++ = add_immed(*arm_reg, REG_CTX, __builtin_offsetof(struct M68KState, A[src_reg]));
-#endif
                 break;
             default:
                 kprintf("Wrong size\n");

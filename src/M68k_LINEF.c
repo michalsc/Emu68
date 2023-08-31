@@ -4277,7 +4277,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 *ptr++ = csetm(tmp, success_condition);    
             }
 
-            ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count);                
+            ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
             RA_FreeARMRegister(&ptr, tmp);
         }
 
@@ -4548,7 +4548,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         ext_count = 0;
 
         *ptr++ = mov_immed_u16(tmp, 0x4100, 1);
-        ptr = EMIT_StoreToEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_StoreToEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 
         RA_FreeARMRegister(&ptr, tmp);
 

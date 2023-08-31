@@ -2995,7 +2995,7 @@ uint32_t *EMIT_MOVES(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             reg = tmpreg;
         }
 
-        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
     }
     // Transfer from EA to Register
     else {

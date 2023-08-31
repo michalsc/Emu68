@@ -82,7 +82,7 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
         }
     }
     else
-        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 #ifndef __aarch64__
     RA_FreeARMRegister(&ptr, zero);
 #endif
@@ -1072,7 +1072,7 @@ static uint32_t *EMIT_MOVEfromSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k
     *ptr++ = rbit(0, cc);
     *ptr++ = bfxil(tmp_cc, 0, 30, 2);
 
-    ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp_cc, opcode & 0x3f, *m68k_ptr, &ext_words);
+    ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp_cc, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
     RA_FreeARMRegister(&ptr, tmp_cc);
 
@@ -1111,7 +1111,7 @@ static uint32_t *EMIT_MOVEfromCCR(uint32_t *ptr, uint16_t opcode, uint16_t **m68
         *ptr++ = rbit(0, cc);
         *ptr++ = bic_immed(tmp, tmp, 11, 27);
         *ptr++ = bfxil(tmp, 0, 30, 2);
-        ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words);
+        ptr = EMIT_StoreToEffectiveAddress(ptr, 2, &tmp, opcode & 0x3f, *m68k_ptr, &ext_words, 0);
 
         RA_FreeARMRegister(&ptr, tmp);
     }

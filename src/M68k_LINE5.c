@@ -677,7 +677,7 @@ uint32_t *EMIT_Scc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             RA_FreeARMRegister(&ptr, tmp);
         }
 
-        ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count);
+        ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
 
         RA_FreeARMRegister(&ptr, tmp);
         RA_FreeARMRegister(&ptr, dest);
