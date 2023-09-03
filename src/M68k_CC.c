@@ -12,6 +12,97 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
+uint32_t * EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance)
+{
+	uint8_t cond_tmp = 0xff;
+	uint8_t cc = RA_GetCC(&ptr);
+
+    switch (m68k_condition)
+    {
+        case M_CC_EQ:
+            *ptr++ = tbnz(cc, SRB_Z, distance);//tst_immed(cc, 1, 31 & (32 - SRB_Z));
+            break;
+
+        case M_CC_NE:
+            *ptr++ = tbz(cc, SRB_Z, distance);
+            break;
+
+        case M_CC_CS:
+            *ptr++ = tbnz(cc, SRB_Calt, distance);
+            break;
+
+        case M_CC_CC:
+            *ptr++ = tbz(cc, SRB_Calt, distance);
+            break;
+
+        case M_CC_PL:
+            *ptr++ = tbz(cc, SRB_N, distance);
+            break;
+
+        case M_CC_MI:
+            *ptr++ = tbnz(cc, SRB_N, distance);
+            break;
+
+        case M_CC_VS:
+            *ptr++ = tbnz(cc, SRB_Valt, distance);
+            break;
+
+        case M_CC_VC:
+            *ptr++ = tbz(cc, SRB_Valt, distance);
+            break;
+
+        case M_CC_LS:   /* C == 1 || Z == 1 */
+            *ptr++ = tst_immed(cc, 2, 31); // xnZCv
+			*ptr++ = b_cc(A64_CC_NE, distance);
+            break;
+
+        case M_CC_HI:   /* C == 0 && Z == 0 */
+            //cond_tmp = RA_AllocARMRegister(&ptr);
+            //*ptr++ = mov_immed_u8(cond_tmp, SR_Z | SR_Calt);
+            //*ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
+            *ptr++ = tst_immed(cc, 2, 31); // xnZCv
+			*ptr++ = b_cc(A64_CC_EQ, distance);
+            break;
+
+        case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
+            cond_tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+			*ptr++ = b_cc(A64_CC_GE, distance);
+            break;
+
+        case M_CC_LT:
+            cond_tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            *ptr++ = b_cc(A64_CC_LT, distance);
+            break;
+
+        case M_CC_GT:
+            cond_tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            *ptr++ = b_cc(A64_CC_GT, distance);
+            break;
+
+        case M_CC_LE:
+            cond_tmp = RA_AllocARMRegister(&ptr);
+            *ptr++ = ror(cond_tmp, cc, 4);
+            *ptr++ = set_nzcv(cond_tmp);
+            *ptr++ = b_cc(A64_CC_LE, distance);
+            break;
+
+        default:
+            kprintf("Default CC called! Can't be!\n");
+            *ptr++ = udf(0x0bcc);
+            break;
+    }
+
+    RA_FreeARMRegister(&ptr, cond_tmp);
+
+	return ptr;
+}
+
 uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
 {
     uint32_t *ptr = *pptr;
