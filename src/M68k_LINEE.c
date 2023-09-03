@@ -1007,6 +1007,13 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
+
+        uint8_t alt_flags = update_mask;
+        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
+
         uint8_t tmp2 = RA_AllocARMRegister(&ptr);
 
         /* C/X condition is already pre-computed. Insert the flags now! */       
@@ -1014,9 +1021,8 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             if ((update_mask & SR_XC) == SR_XC)
             {
                 *ptr++ = mov_immed_u16(tmp2, SR_Calt | SR_X, 0);
-                *ptr++ = bic_reg(0, cc, tmp2, LSL, 0);
                 *ptr++ = orr_reg(tmp2, cc, tmp2, LSL, 0);
-                *ptr++ = csel(cc, 0, tmp2, A64_CC_EQ);
+                *ptr++ = csel(cc, cc, tmp2, A64_CC_EQ);
             }
             else if ((update_mask & SR_XC) == SR_X)
             {
@@ -1035,12 +1041,6 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         RA_FreeARMRegister(&ptr, tmp2);
 
-        uint8_t alt_flags = update_mask;
-        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
-            alt_flags ^= 3;
-
-        ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
-
         if (update_mask & (SR_Z | SR_N))
         {
             switch(size)
@@ -1057,12 +1057,12 @@ static uint32_t *EMIT_LSL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
 
             if (update_mask & SR_Z) {
-                *ptr++ = b_cc(A64_CC_EQ ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_Z) & 31);
+                *ptr++ = orr_immed(0, cc, 1, (32 - SRB_Z) & 31);
+                *ptr++ = csel(cc, 0, cc, A64_CC_EQ);
             }
             if (update_mask & SR_N) {
-                *ptr++ = b_cc(A64_CC_MI ^ 1, 2);
-                *ptr++ = orr_immed(cc, cc, 1, (32 - SRB_N) & 31);
+                *ptr++ = orr_immed(0, cc, 1, (32 - SRB_N) & 31);
+                *ptr++ = csel(cc, 0, cc, A64_CC_MI);
             }
         }
     }
@@ -1646,10 +1646,11 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
             else
             {
+                /* Emit empty bftst just in case no flags need to be tested */
+                *ptr++ = cmn_reg(31, src, LSL, 0);
                 if (update_mask)
                 {
                     uint8_t cc = RA_ModifyCC(&ptr);
-                    *ptr++ = cmn_reg(31, src, LSL, 0);
                     ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
                 }
             }
