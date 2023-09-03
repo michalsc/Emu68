@@ -14,6 +14,7 @@
 #include "cache.h"
 
 extern struct M68KState *__m68k_state;
+extern uint16_t * m68k_entry_point;
 
 uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -117,20 +118,15 @@ uint32_t *EMIT_BSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attrib
 uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint32_t *tmpptr;
+    uint32_t *distance_ptr;
     uint8_t m68k_condition = (opcode >> 8) & 15;
-    uint8_t success_condition = 0;
-
+    intptr_t branch_target = (intptr_t)(*m68k_ptr);
+    intptr_t branch_offset = 0;
     int8_t local_pc_off = 2;
+    int take_branch = 1;
 
     ptr = EMIT_GetOffsetPC(ptr, &local_pc_off);
     ptr = EMIT_ResetOffsetPC(ptr);
-
-    uint8_t reg = RA_AllocARMRegister(&ptr);
-
-    intptr_t branch_target = (intptr_t)(*m68k_ptr);
-    intptr_t branch_offset = 0;
-
-    success_condition = EMIT_TestCondition(&ptr, m68k_condition);
 
     /* use 16-bit offset */
     if ((opcode & 0x00ff) == 0x00)
@@ -152,7 +148,14 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
 
     branch_offset += local_pc_off;
+    branch_target += branch_offset - local_pc_off;
 
+#if EMU68_DEF_BRANCH_BREAK
+    (void)take_branch;
+    (void)tmpptr;
+    (void)distance_ptr;
+    
+    uint8_t success_condition = EMIT_TestCondition(&ptr, m68k_condition);
     uint8_t pc_yes = RA_AllocARMRegister(&ptr);
     uint8_t pc_no = RA_AllocARMRegister(&ptr);
 
@@ -161,10 +164,10 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else if (branch_offset > -4096 && branch_offset < 0)
         *ptr++ = sub_immed(pc_yes, REG_PC, -branch_offset);
     else if (branch_offset != 0) {
-        *ptr++ = movw_immed_u16(reg, branch_offset);
+        *ptr++ = movw_immed_u16(0, branch_offset);
         if ((branch_offset >> 16) & 0xffff)
-            *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
-        *ptr++ = add_reg(pc_yes, REG_PC, reg, LSL, 0);
+            *ptr++ = movt_immed_u16(0, (branch_offset >> 16) & 0xffff);
+        *ptr++ = add_reg(pc_yes, REG_PC, 0, LSL, 0);
     }
     else { 
         RA_FreeARMRegister(&ptr, pc_yes);
@@ -196,10 +199,10 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
         *ptr++ = sub_immed(pc_no, REG_PC, -local_pc_off_16);
     else if (local_pc_off_16 != 0) {
-        *ptr++ = movw_immed_u16(reg, local_pc_off_16);
+        *ptr++ = movw_immed_u16(0, local_pc_off_16);
         if ((local_pc_off_16 >> 16) & 0xffff)
-            *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
-        *ptr++ = add_reg(pc_no, REG_PC, reg, LSL, 0);
+            *ptr++ = movt_immed_u16(0, local_pc_off_16 >> 16);
+        *ptr++ = add_reg(pc_no, REG_PC, 0, LSL, 0);
     }
     else
     {
@@ -210,40 +213,140 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     *ptr++ = csel(REG_PC, pc_yes, pc_no, success_condition);
     RA_FreeARMRegister(&ptr, pc_yes);
     RA_FreeARMRegister(&ptr, pc_no);
-    tmpptr = ptr;
+    *ptr++ = LE32(0xffffffff);
+
+#else
 #if EMU68_DEF_BRANCH_AUTO
+    /* Branch backward with distance up to EMU68_DEF_BRANCH_AUTO_RANGE bytes considered as taken */
     if(
         branch_target < (intptr_t)*m68k_ptr &&
         ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
     )
-        *ptr++ = b_cc(success_condition, 1);
+        take_branch = 1;
     else
-        *ptr++ = b_cc(success_condition^1, 1);
+        take_branch = 0;
 #else
 #if EMU68_DEF_BRANCH_TAKEN
-    *ptr++ = b_cc(success_condition, 1);
+    take_branch = 1;
 #else
-    *ptr++ = b_cc(success_condition^1, 1);
+    take_branch = 0;
 #endif
 #endif
 
-#if EMU68_DEF_BRANCH_AUTO
-    if(
-        branch_target < (intptr_t)*m68k_ptr &&
-        ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
-    )
+    if (!take_branch)
+    {
+        m68k_condition ^= 1;
+    }
+
+    /* Force getting CC in place */
+    RA_GetCC(&ptr);
+
+    /* Prepare fake jump on condition, assume def branch is taken */
+    tmpptr = ptr;
+    ptr = EMIT_JumpOnCondition(ptr, m68k_condition, 0);
+    distance_ptr = ptr;
+
+    /* Insert the first case here */
+    if (take_branch)
+    {
+        intptr_t local_pc_off_16 = local_pc_off - 2;
+
+        /* Adjust PC accordingly */
+        if ((opcode & 0x00ff) == 0x00)
+        {
+            local_pc_off_16 += 4;
+        }
+        /* use 32-bit offset */
+        else if ((opcode & 0x00ff) == 0xff)
+        {
+            local_pc_off_16 += 6;
+        }
+        else
+        /* otherwise use 8-bit offset */
+        {
+            local_pc_off_16 += 2;
+        }
+
+        if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
+            *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
+        else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
+        else if (local_pc_off_16 != 0) {
+            *ptr++ = movw_immed_u16(0, local_pc_off_16);
+            if ((local_pc_off_16 >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(0, local_pc_off_16 >> 16);
+            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
+        }
+    }
+    else
+    {
+        if (branch_offset > 0 && branch_offset < 4096)
+            *ptr++ = add_immed(REG_PC, REG_PC, branch_offset);
+        else if (branch_offset > -4096 && branch_offset < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -branch_offset);
+        else if (branch_offset != 0) {
+            *ptr++ = movw_immed_u16(0, branch_offset);
+            if ((branch_offset >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(0, (branch_offset >> 16) & 0xffff);
+            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
+        }
+    }
+
+    /* Insert local exit */
+    ptr = EMIT_LocalExit(ptr, 1);
+
+    /* Fixup jump on condition */
+    EMIT_JumpOnCondition(tmpptr, m68k_condition, 1 + ptr - distance_ptr);
+
+    /* Insert the second case here */
+    if (!take_branch)
+    {
+        intptr_t local_pc_off_16 = local_pc_off - 2;
+
+        /* Adjust PC accordingly */
+        if ((opcode & 0x00ff) == 0x00)
+        {
+            local_pc_off_16 += 4;
+        }
+        /* use 32-bit offset */
+        else if ((opcode & 0x00ff) == 0xff)
+        {
+            local_pc_off_16 += 6;
+        }
+        else
+        /* otherwise use 8-bit offset */
+        {
+            local_pc_off_16 += 2;
+        }
+
+        if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
+            *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
+        else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
+        else if (local_pc_off_16 != 0) {
+            *ptr++ = movw_immed_u16(0, local_pc_off_16);
+            if ((local_pc_off_16 >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(0, local_pc_off_16 >> 16);
+            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
+        }
+    }
+    else
+    {
+        if (branch_offset > 0 && branch_offset < 4096)
+            *ptr++ = add_immed(REG_PC, REG_PC, branch_offset);
+        else if (branch_offset > -4096 && branch_offset < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -branch_offset);
+        else if (branch_offset != 0) {
+            *ptr++ = movw_immed_u16(0, branch_offset);
+            if ((branch_offset >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(0, (branch_offset >> 16) & 0xffff);
+            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
+        }
+
         *m68k_ptr = (uint16_t *)branch_target;
-#else
-#if EMU68_DEF_BRANCH_TAKEN
-    *m68k_ptr = (uint16_t *)branch_target;
-#endif
-#endif
+    }
 
-    RA_FreeARMRegister(&ptr, reg);
-    *ptr++ = (uint32_t)(uintptr_t)tmpptr;
-    *ptr++ = 1;
-    *ptr++ = branch_target;
-    *ptr++ = INSN_TO_LE(0xfffffffe);
+#endif
 
     return ptr;
 }
