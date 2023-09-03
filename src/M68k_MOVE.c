@@ -42,7 +42,10 @@ uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+        uint8_t alt_mask = update_mask;
+        if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
+            alt_mask ^= 3;
+        ptr = EMIT_ClearFlags(ptr, cc, alt_mask);
         if (value <= 0) {
             if (value < 0)
                 ptr = EMIT_SetFlags(ptr, cc, SR_N);
@@ -483,7 +486,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
             if (is_load_immediate) {
                 int32_t tmp_immediate = 0;
-                ptr = EMIT_ClearFlags(ptr, cc, update_mask);
+                uint8_t alt_mask = update_mask;
+                if ((alt_mask & 3) != 0 && (alt_mask & 3) < 3)
+                    alt_mask ^= 3;
+                ptr = EMIT_ClearFlags(ptr, cc, alt_mask);
                 switch (size)
                 {
                     case 4:
