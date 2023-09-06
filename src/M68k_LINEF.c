@@ -3787,6 +3787,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             tmp = RA_AllocARMRegister(&ptr);
             int regnum = 0;
             int offset = 0;
+
             if ((opcode & 0x38) == 0x20 || (opcode & 0x38) == 0x18) {
                 ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
                 RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
@@ -3797,6 +3798,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             if (opcode2 & 0x0400) regnum++;
             if (opcode2 & 0x0800) regnum++;
             if (opcode2 & 0x1000) regnum++;
+
+            /* For immediate mode advance the ext_count accordingly */
+            if ((opcode & 0x3f) == 0x3c)
+            {
+                ext_count += 2*regnum;
+            }
 
             // In predecrement mode reserve whole space first
             if ((opcode & 0x38) == 0x20)
