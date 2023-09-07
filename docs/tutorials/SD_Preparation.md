@@ -14,6 +14,12 @@ The microSD card can be used as a hard drive on your system without any further 
 
 In this document I will guide you step by step from a freshly bought microSD card to an AmigaOS installed on it. This guide assumes that you have access to a Windows machine, but nearly the same steps can be performed on Linux or macOS. Also, keep in mind that the card has to use MBR partition layout. GPT is not yet supported by the SDHC driver of Emu68.
 
+### CM4 with eMMC
+
+If you happen to be a happy user of ComputeModule 4 you might have noticed that these are sold in two options - with or without eMMC memory. This difference is **very** important for you and your journey with Emu68. In case of CM4 as well as Pi4B+ the microSD card is not connected to SDHOST controller anymore. Instead, the SDHC-compatible eMMC interface is used. As a consequence the eMMC/microSD media is accessed by ``brcm-emmc.device ``on this models. It also means that your CM4 can use either eMMC or microSD, but not both. If you have bought a version with eMMC memory, the eMMC interface will be physically wired to that memory and you will not be able to use microSD at all! Be warned, choose wisely!
+
+If you have the CM4 version with eMMC, you will need to put compute module into USB boot mode and start RPi-boot utility (https://github.com/raspberrypi/usbboot). It will load small firmware to your CM4 and will change it to a mass storage device exposing the eMMC memory. Once this is done you may use it as if it was a microSD card plugged into your computer.
+
 ## First steps
 
 First open the Computer Management tool on windows and proceed to the Disk Management. There, you need to identify the microSD card which, I assume, is already inserted into the card reader. In the case shown below the microSD is visible as ``Disk 1``.
@@ -28,7 +34,7 @@ A new dialog will appear asking you several questions. First one is about the si
 
 ![step_03](img/sd_prep/step_03.png)
 
-Now, we will use the remaining space as a virtual drive for Emu68. In order to do that create a new simple volume there.   In the dialog window **do not** assign a letter to that volume, otherwise Windows will prompt you to format it later. Please select that windows shall not format the volume and finish dialog. Now you should have something like this, with our special partition marked as ``RAW``:
+Now, we will use the remaining space as a virtual drive for Emu68. In order to do that create a new simple volume there.   In the dialog window **do not** assign a letter to that volume, otherwise Windows will prompt you to format it later. On some systems you will be forced to assign the drive letter - in that case **do not** initialise partition after it is created. Please select that windows shall not format the volume and finish dialog. Now you should have something like this, with our special partition marked as ``RAW``:
 
 ![step_04](img/sd_prep/step_04.png)
 
@@ -74,7 +80,7 @@ Ok, I hope you have selected correct disk and correct partition. The dangerous p
 
 ## Copying Emu68 files
 
-In order to bring Emu68 to life, the boot partition needs to be populated with Emu68 and RasPi files. Please go to the Emu68 releases page on github (you can find it here: https://github.com/michalsc/Emu68/releases/tag/nightly) and locate most recent ``Emu68-pistorm`` file. Download it and open. Copy (per drag and drop for example) contents of the archive onto the FAT32 partition of the microSD card
+In order to bring Emu68 to life, the boot partition needs to be populated with Emu68 and RasPi files. Please go to the Emu68 releases page on github (you can find it here: https://github.com/michalsc/Emu68/releases) and locate either most recent Emu68 release or, if you prefer living on the edge, most recent ``Emu68-pistorm`` file. Remember to pick the version matching your PiStorm model. Users of classic PiStorm (A500/A600/A1000/A2000) should select ``Emu68-pistorm.zip``. Those of you who use PiStorm32-lite should go for ``Emu68-pistorm32lite.zip``. Copy (per drag and drop for example) contents of the archive onto the FAT32 partition of the microSD card
 
 **Double check that you have downloaded the *pistorm* version of the nightly, *not* the raspi verison.**
 
@@ -96,7 +102,12 @@ Once Workbench pops up you will notice that you do not see your hard drive yet. 
 
 ![step_12](img/sd_prep/step_12.png)
 
-As you may see I have changed the ``SCSI_DEVICE_NAME`` so that it points to Emu68 SDHC driver, named ``brcm-sdhc.device``. If you want to reduce startup time of HDToolBox, consider reducing ``SCSI_MAX_LUN`` to ``0``, as the device driver is not using logical units. Now you may start HDToolBox. It should successfully report two unknown SCSI hard drives at addresses 0 and 1. You have to change the drive type before partitioning can begin, so let's do it.
+As you may see I have changed the ``SCSI_DEVICE_NAME`` so that it points to Emu68 driver. The driver name will differ depending on model of RaspberryPi which you are using:
+
+- Pi Zero2, Pi3A+, Pi3B, Pi3B+ should use ``brcm-sdhc.device``,
+- Pi 4B+ and CM4 should use ``brcm-emmc.device``.
+
+If you want to reduce startup time of HDToolBox, consider reducing ``SCSI_MAX_LUN`` to ``0``, as the device driver is not using logical units. Now you may start HDToolBox. It should successfully report two unknown SCSI hard drives at addresses 0 and 1. You have to change the drive type before partitioning can begin, so let's do it.
 
 ![step_13](img/sd_prep/step_13.png)
 
