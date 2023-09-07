@@ -2752,6 +2752,55 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         *ptr++ = INSN_TO_LE(0xfffffff0);
     }
+    else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0021)
+    {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FMOD\n");
+            shown = 1;
+        }
+
+        uint8_t fp_src = 0xff;
+        uint8_t fp_dst = (opcode2 >> 7) & 7;
+        uint8_t tmp = RA_AllocARMRegister(&ptr);
+
+        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+
+        /* Need to check if this method is working... */
+        /* Compute FPn / Source */
+        *ptr++ = fdivd(0, fp_dst, fp_src);
+        /* Round to zero the result -> N */
+        *ptr++ = frint64z(0, 0);
+        /* And store for later */
+        *ptr++ = fcvtzs_Dto64(tmp, 0);
+        /* Get Source * N */
+        *ptr++ = fmuld(1, 0, fp_src);
+        /* Calculate reminder */
+        *ptr++ = fsubd(fp_dst, fp_dst, 1);
+        /* Test sign of result */
+        *ptr++ = fcmpzd(0);
+        *ptr++ = bic_immed(1, 0, 25, 25);
+        *ptr++ = orr_immed(0, 0, 25, 25);
+        *ptr++ = csel(0, 1, 0, A64_CC_PL);
+
+        uint8_t fpsr = RA_ModifyFPSR(&ptr);
+        *ptr++ = bfi(fpsr, 0, 16, 8);
+
+        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeARMRegister(&ptr, tmp);
+
+        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
+        (*m68k_ptr) += ext_count;
+
+        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        {
+            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+
+            *ptr++ = fcmpzd(fp_dst);
+            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+        }
+    }
     /* FLOGNP1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0006)
     {
