@@ -46,6 +46,10 @@ Below are currently implemented options, grouped by the affected modules and/or 
 * ``sd.clock=num`` 
   Selects the clock speed in MHz which will be switched on instead of default 50 MHz if the card supports the high-speed mode. The option has no effect if ``sd.low_speed`` was also applied.
 
+### brcm-emmc.device
+
+The same set of options as in case of ``brcm-sdhc.device``. Replace ``sd``  with ``emmc`` prefix in this case.
+
 ### 68040.library
 
 * ``vbr_move`` 
@@ -55,6 +59,11 @@ Below are currently implemented options, grouped by the affected modules and/or 
 
 * ``vc4.mem=num`` 
   Sets size of VC4 memory reported to P96 subsystem to ``num``  MB. Default is 16 in case of PiStorm build and 0 in all other Emu68 variants. Please note this is not the same as ``gpu_mem`` setting in config.txt file. The latter is used to assign general purpose memory to the VPU.
+
+### PiStorm32-lite only
+
+* ``one_slot``
+  Forces a one-slot pistorm32 protocol resulting in slower write accesses to chipset and to CHIP memory
 
 ### Debugging
 
@@ -66,6 +75,10 @@ Below are currently implemented options, grouped by the affected modules and/or 
   Use asynchronous log on separate ARM core with a 8 MB large ring buffer. Improves performance of m68k when debug is enabled.
 * ``fast_serial`` 
   Use synchronous serial port running at a speed varying between 10 and 50 MBit instead of regular serial protocol at 921.6 kBit. Requires proper hardware such as e.g. FT232H.
+* ``buptest=num``
+  When Emu68 is starting it will perform a bus test of the PiStorm interface. A ``num`` kilobytes of CHIP memory will be written with random patterns and subsequently will be read in many different ways with varying read sizes and data alignment. In case of error, which indicates some issues with PiStorm interface or connection to the Amiga, the test will stop and Emu68 will not start.
+* ``bupiter=num``
+  Sets the number of iterations (of different randomised data patterns) of the bus test mentioned above.
 
 ### Memory
 
@@ -84,6 +97,12 @@ Below are currently implemented options, grouped by the affected modules and/or 
 
 ### Miscellaneous 
 
+* ``chip_slowdown``
+  Every translated m68k opcode will have additional ARM instruction reading the opcode word from memory before executing it. Can improve compatibility of old software using busy loops for delay purposes.
+* ``checksum_rom``
+  Recalculates checksum of mapped rom. Might be useful in case of modded kickstart files with broken checksum.
+* ``copy_rom=256 | 512 | 1024 | 2048``
+  When Emu68 is starting the original Amiga ROM installed in your computer will be copied to fast ARM memory. The number determines size of the ROM image (in KB) which should be copied.
 * ``enable_cache`` 
   Turns on JIT cache in ``CACR`` register on startup. Useful in case of bare metal software started instead of AROS or AmigaOS ROM.
 * ``nofpu`` 
