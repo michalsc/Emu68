@@ -1601,6 +1601,259 @@ kprintf("[ERROR] ROXL not yet fixed!\n");
     return ptr;
 }
 
+enum BF_OP {
+    OP_EOR,
+    OP_SET,
+    OP_CLR,
+    OP_TST,
+};
+
+static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask)
+{
+    uint8_t mask_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t width = Dw;
+    uint8_t off_reg = Do;
+
+    if (width == 0)
+        width = 32;
+
+    // Adjust base register according to the offset
+    *ptr++ = add_reg(base, base, off_reg, ASR, 3);
+    *ptr++ = and_immed(off_reg, off_reg, 3, 0);
+
+    if (width == 1)
+    {
+        // Build up a mask
+        *ptr++ = orr_immed(mask_reg, 31, width, 24 + width);
+
+        // Load data 
+        *ptr++ = ldrb_offset(base, tmp, 0);
+
+        // Shift mask to correct position
+        *ptr++ = lsrv(mask_reg, mask_reg, off_reg);
+
+        if (update_mask)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+
+            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
+
+            *ptr++ = ands_reg(31, tmp, mask_reg, LSL, 0);
+
+            *ptr++ = orr_immed(0, cc, 1, 32 - SRB_N);
+            *ptr++ = orr_immed(1, cc, 1, 32 - SRB_Z);
+            *ptr++ = csel(cc, 1, 0, A64_CC_NE);
+        }
+
+        if (op != OP_TST)
+        {
+            switch(op)
+            {
+                case OP_EOR:
+                    // Exclusive-or all bits
+                    *ptr++ = eor_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+                
+                case OP_SET:
+                    // Exclusive-or all bits
+                    *ptr++ = orr_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+
+                case OP_CLR:
+                    // Exclusive-or all bits
+                    *ptr++ = bic_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+
+                default:
+                    break;
+            }
+
+            // Store back
+            *ptr++ = strb_offset(base, tmp, 0);
+        }
+    }
+    else if (width <= 8)
+    {
+        // Build up a mask
+        *ptr++ = orr_immed(mask_reg, 31, width, 16 + width);
+
+        // Load data 
+        *ptr++ = ldrh_offset(base, tmp, 0);
+
+        if (update_mask)
+        {
+            uint8_t testreg = RA_AllocARMRegister(&ptr);
+            uint8_t cc = RA_ModifyCC(&ptr);
+
+            // Shift source to correct position
+            *ptr++ = lslv(testreg, tmp, off_reg);
+            *ptr++ = lsl(testreg, testreg, 16);
+
+            // Mask the bitfield, update condition codes
+            *ptr++ = ands_reg(31, testreg, mask_reg, LSL, 16);
+
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+
+            RA_FreeARMRegister(&ptr, testreg);
+        }
+
+        if (op != OP_TST)
+        {
+            // Shift mask to correct position
+            *ptr++ = lsrv(mask_reg, mask_reg, off_reg);
+
+            switch(op)
+            {
+                case OP_EOR:
+                    // Exclusive-or all bits
+                    *ptr++ = eor_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+                
+                case OP_SET:
+                    // Exclusive-or all bits
+                    *ptr++ = orr_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+                
+                case OP_CLR:
+                    // Exclusive-or all bits
+                    *ptr++ = bic_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+
+                default:
+                    break;
+            }
+
+            // Store back
+            *ptr++ = strh_offset(base, tmp, 0);
+        }
+    }
+    else if (width <= 24)
+    {
+        // Build up a mask
+        *ptr++ = orr_immed(mask_reg, 31, width, width);
+
+        // Load data 
+        *ptr++ = ldr_offset(base, tmp, 0);
+
+        if (update_mask)
+        {
+            uint8_t testreg = RA_AllocARMRegister(&ptr);
+            uint8_t cc = RA_ModifyCC(&ptr);
+
+            // Shift source to correct position
+            *ptr++ = lslv(testreg, tmp, off_reg);
+
+            // Mask the bitfield, update condition codes
+            *ptr++ = ands_reg(31, testreg, mask_reg, LSL, 0);
+
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+
+            RA_FreeARMRegister(&ptr, testreg);
+        }
+
+        if (op != OP_TST)
+        {
+            // Shift mask to correct position
+            *ptr++ = lsrv(mask_reg, mask_reg, off_reg);
+
+            switch(op)
+            {
+                case OP_EOR:
+                    // Exclusive-or all bits
+                    *ptr++ = eor_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+                
+                case OP_SET:
+                    // Exclusive-or all bits
+                    *ptr++ = orr_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+                
+                case OP_CLR:
+                    // Exclusive-or all bits
+                    *ptr++ = bic_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+
+                default:
+                    break;
+            }
+
+            // Store back
+            *ptr++ = str_offset(base, tmp, 0);
+        }
+    }
+    else
+    {
+        // Build up a mask
+        *ptr++ = orr64_immed(mask_reg, 31, width, width, 1);
+
+        // Load data and shift it left according to reminder in offset reg
+        *ptr++ = ldr64_offset(base, tmp, 0);
+
+        if (update_mask)
+        {
+            uint8_t testreg = RA_AllocARMRegister(&ptr);
+            uint8_t cc = RA_ModifyCC(&ptr);
+
+            // Shift source to correct position
+            *ptr++ = lslv64(testreg, tmp, off_reg);
+
+            // Mask the bitfield, update condition codes
+            *ptr++ = ands64_reg(31, testreg, mask_reg, LSL, 0);
+
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+
+            RA_FreeARMRegister(&ptr, testreg);
+        }
+
+        if (op != OP_TST)
+        {
+            // Shift mask to correct position
+            *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+
+            switch(op)
+            {
+                case OP_EOR:
+                    // Exclusive-or all bits
+                    *ptr++ = eor64_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+                
+                case OP_SET:
+                    // Exclusive-or all bits
+                    *ptr++ = orr64_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+
+                case OP_CLR:
+                    // Exclusive-or all bits
+                    *ptr++ = bic64_reg(tmp, tmp, mask_reg, LSL, 0);
+                    break;
+
+                default:
+                    break;
+            }
+
+            // Store back
+            *ptr++ = str64_offset(base, tmp, 0);
+        }
+    }
+
+    RA_FreeARMRegister(&ptr, tmp);
+    RA_FreeARMRegister(&ptr, mask_reg);
+
+    return ptr;
+}
+
+#if 0
+static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask)
+{
+    return ptr;
+}
+#endif
+
 static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint8_t update_mask = M68K_GetSRMask(&(*m68k_ptr)[-1]);
@@ -1836,34 +2089,10 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
         {
             uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
-            uint8_t mask_reg = RA_AllocARMRegister(&ptr);
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
             uint8_t width = opcode2 & 31;
 
-            if (width == 0)
-                width = 32;
+            ptr = EMIT_BFxxx_RI(ptr, base, OP_TST, off_reg, width, update_mask);
 
-            // Adjust base register according to the offset
-            *ptr++ = add_reg(base, base, off_reg, ASR, 3);
-            *ptr++ = and_immed(off_reg, off_reg, 3, 0);
-
-            // Build up a mask
-            *ptr++ = orr64_immed(mask_reg, 31, width, width, 1);
-
-            // Load data and shift it left according to reminder in offset reg
-            *ptr++ = ldr64_offset(base, tmp, 0);
-            *ptr++ = lslv64(tmp, tmp, off_reg);
-
-            // Mask the bitfield, update condition codes
-            *ptr++ = ands64_reg(tmp, tmp, mask_reg, LSL, 0);
-
-            if (update_mask) {
-                uint8_t cc = RA_ModifyCC(&ptr);
-                ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
-            }
-
-            RA_FreeARMRegister(&ptr, tmp);
-            RA_FreeARMRegister(&ptr, mask_reg);
             RA_FreeARMRegister(&ptr, off_reg);
         }
 
@@ -3395,50 +3624,10 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
-        uint8_t mask_reg = RA_AllocARMRegister(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t width = opcode2 & 31;
 
-        if (width == 0)
-            width = 32;
+        ptr = EMIT_BFxxx_RI(ptr, base, OP_EOR, off_reg, width, update_mask);
 
-        // Adjust base register according to the offset
-        *ptr++ = add_reg(base, base, off_reg, ASR, 3);
-        *ptr++ = and_immed(off_reg, off_reg, 3, 0);
-
-        // Build up a mask
-        *ptr++ = orr64_immed(mask_reg, 31, width, width, 1);
-
-        // Load data and shift it left according to reminder in offset reg
-        *ptr++ = ldr64_offset(base, tmp, 0);
-
-        if (update_mask)
-        {
-            uint8_t testreg = RA_AllocARMRegister(&ptr);
-            uint8_t cc = RA_ModifyCC(&ptr);
-
-            // Shift source to correct position
-            *ptr++ = lslv64(testreg, tmp, off_reg);
-
-            // Mask the bitfield, update condition codes
-            *ptr++ = ands64_reg(31, testreg, mask_reg, LSL, 0);
-
-            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
-
-            RA_FreeARMRegister(&ptr, testreg);
-        }
-
-        // Shift mask to correct position
-        *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
-
-        // Set all bits to zeros
-        *ptr++ = eor64_reg(tmp, tmp, mask_reg, LSL, 0);
-
-        // Store back
-        *ptr++ = str64_offset(base, tmp, 0);
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, mask_reg);
         RA_FreeARMRegister(&ptr, off_reg);
     }
 
@@ -3840,50 +4029,10 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
-        uint8_t mask_reg = RA_AllocARMRegister(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t width = opcode2 & 31;
 
-        if (width == 0)
-            width = 32;
+        ptr = EMIT_BFxxx_RI(ptr, base, OP_SET, off_reg, width, update_mask);
 
-        // Adjust base register according to the offset
-        *ptr++ = add_reg(base, base, off_reg, ASR, 3);
-        *ptr++ = and_immed(off_reg, off_reg, 3, 0);
-
-        // Build up a mask
-        *ptr++ = orr64_immed(mask_reg, 31, width, width, 1);
-
-        // Load data and shift it left according to reminder in offset reg
-        *ptr++ = ldr64_offset(base, tmp, 0);
-
-        if (update_mask)
-        {
-            uint8_t testreg = RA_AllocARMRegister(&ptr);
-            uint8_t cc = RA_ModifyCC(&ptr);
-
-            // Shift source to correct position
-            *ptr++ = lslv64(testreg, tmp, off_reg);
-
-            // Mask the bitfield, update condition codes
-            *ptr++ = ands64_reg(31, testreg, mask_reg, LSL, 0);
-
-            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
-
-            RA_FreeARMRegister(&ptr, testreg);
-        }
-
-        // Shift mask to correct position
-        *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
-
-        // Set all bits to one
-        *ptr++ = orr64_reg(tmp, tmp, mask_reg, LSL, 0);
-
-        // Store back
-        *ptr++ = str64_offset(base, tmp, 0);
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, mask_reg);
         RA_FreeARMRegister(&ptr, off_reg);
     }
 
@@ -4285,50 +4434,10 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
-        uint8_t mask_reg = RA_AllocARMRegister(&ptr);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t width = opcode2 & 31;
 
-        if (width == 0)
-            width = 32;
+        ptr = EMIT_BFxxx_RI(ptr, base, OP_CLR, off_reg, width, update_mask);
 
-        // Adjust base register according to the offset
-        *ptr++ = add_reg(base, base, off_reg, ASR, 3);
-        *ptr++ = and_immed(off_reg, off_reg, 3, 0);
-
-        // Build up a mask
-        *ptr++ = orr64_immed(mask_reg, 31, width, width, 1);
-
-        // Load data and shift it left according to reminder in offset reg
-        *ptr++ = ldr64_offset(base, tmp, 0);
-
-        if (update_mask)
-        {
-            uint8_t testreg = RA_AllocARMRegister(&ptr);
-            uint8_t cc = RA_ModifyCC(&ptr);
-
-            // Shift source to correct position
-            *ptr++ = lslv64(testreg, tmp, off_reg);
-
-            // Mask the bitfield, update condition codes
-            *ptr++ = ands64_reg(31, testreg, mask_reg, LSL, 0);
-
-            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
-
-            RA_FreeARMRegister(&ptr, testreg);
-        }
-
-        // Shift mask to correct position
-        *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
-
-        // Set all bits to zeros
-        *ptr++ = bic64_reg(tmp, tmp, mask_reg, LSL, 0);
-
-        // Store back
-        *ptr++ = str64_offset(base, tmp, 0);
-
-        RA_FreeARMRegister(&ptr, tmp);
-        RA_FreeARMRegister(&ptr, mask_reg);
         RA_FreeARMRegister(&ptr, off_reg);
     }
 
