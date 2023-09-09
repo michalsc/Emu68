@@ -1606,15 +1606,21 @@ enum BF_OP {
     OP_SET,
     OP_CLR,
     OP_TST,
+    OP_INS,
 };
 
-static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask)
+static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask, uint8_t data)
 {
     uint8_t mask_reg = RA_AllocARMRegister(&ptr);
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = 2;
     uint8_t off_reg = RA_AllocARMRegister(&ptr);
+    uint8_t csel_1 = 0;
+    uint8_t csel_2 = 1;
+    //uint8_t insert_reg = 3;
     uint8_t width = Dw;
     uint8_t off_reg_orig = Do;
+
+(void)data;
 
     if (width == 0)
         width = 32;
@@ -1646,9 +1652,9 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 
             *ptr++ = ands_reg(31, tmp, mask_reg, LSL, 0);
 
-            *ptr++ = orr_immed(0, cc, 1, 32 - SRB_N);
-            *ptr++ = orr_immed(1, cc, 1, 32 - SRB_Z);
-            *ptr++ = csel(cc, 1, 0, A64_CC_NE);
+            *ptr++ = orr_immed(csel_1, cc, 1, 32 - SRB_N);
+            *ptr++ = orr_immed(csel_2, cc, 1, 32 - SRB_Z);
+            *ptr++ = csel(cc, csel_2, csel_1, A64_CC_NE);
         }
 
         if (op != OP_TST)
@@ -1849,12 +1855,14 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
     return ptr;
 }
 
-static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask)
+static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask, uint8_t data)
 {
     uint8_t width_reg_orig = Dw;
     uint8_t off_reg_orig = Do;
-    uint8_t width_reg = RA_AllocARMRegister(&ptr);
-    uint8_t mask_reg = RA_AllocARMRegister(&ptr);
+    uint8_t width_reg = 3;
+    uint8_t mask_reg = 2;
+    uint8_t test_reg = 1;
+    uint8_t insert_reg = test_reg;
     uint8_t off_reg = RA_AllocARMRegister(&ptr);
     uint8_t data_reg = 0;
 
@@ -1893,14 +1901,32 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
     *ptr++ = b(2);
     *ptr++ = ldr64_offset(base, data_reg, 0);
 
-    /* Shall bitfield be investigated before? */
-    if (update_mask)
+    /* In case of INS, prepare the source data accordingly */
+    if (op == OP_INS)
     {
-        uint8_t cc = RA_ModifyCC(&ptr);
+        /* Put inserted value to topmost bits of 64bit reg */
+        *ptr++ = rorv64(insert_reg, data, width_reg);
+        /* CLear with insert mask, set condition codes */
+        *ptr++ = ands64_reg(insert_reg, insert_reg, mask_reg, LSL, 0);
+        
+        /* If XNZVC needs to be set, do it now */
+        if (update_mask)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+        }
+    }
+    else
+    {
+        /* Shall bitfield be investigated before? */
+        if (update_mask)
+        {
+            uint8_t cc = RA_ModifyCC(&ptr);
 
-        *ptr++ = lslv64(1, 0, off_reg);
-        *ptr++ = ands64_reg(31, data_reg, 1, LSL, 0);
-        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+            *ptr++ = lslv64(test_reg, data_reg, off_reg);
+            *ptr++ = ands64_reg(31, mask_reg, test_reg, LSL, 0);
+            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+        }
     }
 
     /* For all operations other than TST perform the action */
@@ -1912,18 +1938,27 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
         switch (op)
         {
             case OP_EOR:
-                    // Exclusive-or all bits
+                // Exclusive-or all bits
                 *ptr++ = eor64_reg(data_reg, data_reg, mask_reg, LSL, 0);
                 break;
                 
             case OP_SET:
-                // Exclusive-or all bits
+                // Set all bits
                 *ptr++ = orr64_reg(data_reg, data_reg, mask_reg, LSL, 0);
                 break;
 
             case OP_CLR:
-                // Exclusive-or all bits
+                // Clear all bits
                 *ptr++ = bic64_reg(data_reg, data_reg, mask_reg, LSL, 0);
+                break;
+
+            case OP_INS:
+                // Move inserted value to location
+                *ptr++ = lsrv64(insert_reg, insert_reg, off_reg);
+                // Clear all bits
+                *ptr++ = bic64_reg(data_reg, data_reg, mask_reg, LSL, 0);
+                // Insert data
+                *ptr++ = orr64_reg(data_reg, data_reg, insert_reg, LSL, 0);
                 break;
 
             default:
@@ -2196,12 +2231,18 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
             uint8_t width = opcode2 & 31;
 
-            ptr = EMIT_BFxxx_RI(ptr, base, OP_TST, off_reg, width, update_mask);
+            ptr = EMIT_BFxxx_RI(ptr, base, OP_TST, off_reg, width, update_mask, -1);
         }
 
         // Do == REG, Dw == REG
         else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
         {
+#if 1
+            uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+            uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+            ptr = EMIT_BFxxx_RR(ptr, base, OP_TST, off_reg, width_reg, update_mask, -1);
+#else
             uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
             uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
             uint8_t mask_reg = RA_AllocARMRegister(&ptr);
@@ -2236,6 +2277,7 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             RA_FreeARMRegister(&ptr, mask_reg);
             RA_FreeARMRegister(&ptr, width_reg);
             RA_FreeARMRegister(&ptr, off_reg);
+#endif
         }
 
         RA_FreeARMRegister(&ptr, base);
@@ -3728,7 +3770,7 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
-        ptr = EMIT_BFxxx_RI(ptr, base, OP_EOR, off_reg, width, update_mask);
+        ptr = EMIT_BFxxx_RI(ptr, base, OP_EOR, off_reg, width, update_mask, -1);
     }
 
     // Do == REG, Dw == REG
@@ -3738,7 +3780,7 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
 
-        ptr = EMIT_BFxxx_RR(ptr, base, OP_EOR, off_reg, width_reg, update_mask);
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_EOR, off_reg, width_reg, update_mask, -1);
 #else
 
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
@@ -4139,7 +4181,7 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
-        ptr = EMIT_BFxxx_RI(ptr, base, OP_SET, off_reg, width, update_mask);
+        ptr = EMIT_BFxxx_RI(ptr, base, OP_SET, off_reg, width, update_mask, -1);
     }
 
     // Do == REG, Dw == REG
@@ -4149,7 +4191,7 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
 
-        ptr = EMIT_BFxxx_RR(ptr, base, OP_SET, off_reg, width_reg, update_mask);
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_SET, off_reg, width_reg, update_mask, -1);
 #else
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
@@ -4549,7 +4591,7 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
-        ptr = EMIT_BFxxx_RI(ptr, base, OP_CLR, off_reg, width, update_mask);
+        ptr = EMIT_BFxxx_RI(ptr, base, OP_CLR, off_reg, width, update_mask, -1);
     }
 
     // Do == REG, Dw == REG
@@ -4559,7 +4601,7 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
 
-        ptr = EMIT_BFxxx_RR(ptr, base, OP_CLR, off_reg, width_reg, update_mask);
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_CLR, off_reg, width_reg, update_mask, -1);
 #else
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
@@ -5031,6 +5073,13 @@ static uint32_t *EMIT_BFINS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     // Do == REG, Dw == REG
     else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
+#if 1
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_INS, off_reg, width_reg, update_mask, src);
+#else
+
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
         uint8_t mask_reg = RA_AllocARMRegister(&ptr);
@@ -5084,6 +5133,7 @@ static uint32_t *EMIT_BFINS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, width_reg);
         RA_FreeARMRegister(&ptr, off_reg);
         RA_FreeARMRegister(&ptr, masked_src);
+#endif
     }
 
     RA_FreeARMRegister(&ptr, base);
