@@ -1612,15 +1612,16 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 {
     uint8_t mask_reg = RA_AllocARMRegister(&ptr);
     uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t off_reg = RA_AllocARMRegister(&ptr);
     uint8_t width = Dw;
-    uint8_t off_reg = Do;
+    uint8_t off_reg_orig = Do;
 
     if (width == 0)
         width = 32;
 
     // Adjust base register according to the offset
-    *ptr++ = add_reg(base, base, off_reg, ASR, 3);
-    *ptr++ = and_immed(off_reg, off_reg, 3, 0);
+    *ptr++ = add_reg(base, base, off_reg_orig, ASR, 3);
+    *ptr++ = and_immed(off_reg, off_reg_orig, 3, 0);
 
     if (width == 1)
     {
@@ -1843,16 +1844,120 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 
     RA_FreeARMRegister(&ptr, tmp);
     RA_FreeARMRegister(&ptr, mask_reg);
+    RA_FreeARMRegister(&ptr, off_reg);
 
     return ptr;
 }
 
-#if 0
 static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask)
 {
+    uint8_t width_reg_orig = Dw;
+    uint8_t off_reg_orig = Do;
+    uint8_t width_reg = RA_AllocARMRegister(&ptr);
+    uint8_t mask_reg = RA_AllocARMRegister(&ptr);
+    uint8_t off_reg = RA_AllocARMRegister(&ptr);
+    uint8_t data_reg = 0;
+
+    /* Build up the mask from reg value */
+    *ptr++ = and_immed(width_reg, width_reg_orig, 5, 0);
+    *ptr++ = cbnz(width_reg, 2);
+    *ptr++ = mov_immed_u16(width_reg, 32, 0);
+    *ptr++ = mov_immed_u16(mask_reg, 1, 0);
+    *ptr++ = lslv64(mask_reg, mask_reg, width_reg);
+    *ptr++ = sub64_immed(mask_reg, mask_reg, 1);
+    /* Move mask to the topmost bits of 64-bit mask_reg */
+    *ptr++ = rbit64(mask_reg, mask_reg);
+
+    // Adjust base register according to the offset
+    *ptr++ = add_reg(base, base, off_reg_orig, ASR, 3);
+    *ptr++ = and_immed(off_reg, off_reg_orig, 3, 0);
+    
+    /* Fetch the data */
+    /* Width == 1? Fetch byte */
+    *ptr++ = cmp_immed(width_reg, 1);
+    *ptr++ = b_cc(A64_CC_NE, 4);
+    *ptr++ = ldrb_offset(base, data_reg, 0);
+    *ptr++ = ror64(data_reg, data_reg, 8);
+    *ptr++ = b(12);
+    /* Width <= 8? Fetch half word */
+    *ptr++ = cmp_immed(width_reg, 8);
+    *ptr++ = b_cc(A64_CC_GT, 4);
+    *ptr++ = ldrh_offset(base, data_reg, 0);
+    *ptr++ = ror64(data_reg, data_reg, 16);
+    *ptr++ = b(7);
+    /* Width <= 24? Fetch long word */
+    *ptr++ = cmp_immed(width_reg, 24);
+    *ptr++ = b_cc(A64_CC_GT, 4);
+    *ptr++ = ldr_offset(base, data_reg, 0);
+    *ptr++ = ror64(data_reg, data_reg, 32);
+    *ptr++ = b(2);
+    *ptr++ = ldr64_offset(base, data_reg, 0);
+
+    /* Shall bitfield be investigated before? */
+    if (update_mask)
+    {
+        uint8_t cc = RA_ModifyCC(&ptr);
+
+        *ptr++ = lslv64(1, 0, off_reg);
+        *ptr++ = ands64_reg(31, data_reg, 1, LSL, 0);
+        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+    }
+
+    /* For all operations other than TST perform the action */
+    if (op != OP_TST)
+    {
+        // Shift mask to correct position
+        *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+
+        switch (op)
+        {
+            case OP_EOR:
+                    // Exclusive-or all bits
+                *ptr++ = eor64_reg(data_reg, data_reg, mask_reg, LSL, 0);
+                break;
+                
+            case OP_SET:
+                // Exclusive-or all bits
+                *ptr++ = orr64_reg(data_reg, data_reg, mask_reg, LSL, 0);
+                break;
+
+            case OP_CLR:
+                // Exclusive-or all bits
+                *ptr++ = bic64_reg(data_reg, data_reg, mask_reg, LSL, 0);
+                break;
+
+            default:
+                break;
+        }
+
+        /* Store the data back */
+        /* Width == 1? Fetch byte */
+        *ptr++ = cmp_immed(width_reg, 1);
+        *ptr++ = b_cc(A64_CC_NE, 4);
+        *ptr++ = ror64(data_reg, data_reg, 64 - 8);
+        *ptr++ = strb_offset(base, data_reg, 0);
+        *ptr++ = b(12);
+        /* Width <= 8? Fetch half word */
+        *ptr++ = cmp_immed(width_reg, 8);
+        *ptr++ = b_cc(A64_CC_GT, 4);
+        *ptr++ = ror64(data_reg, data_reg, 64 - 16);
+        *ptr++ = strh_offset(base, data_reg, 0);
+        *ptr++ = b(7);
+        /* Width <= 24? Fetch long word */
+        *ptr++ = cmp_immed(width_reg, 24);
+        *ptr++ = b_cc(A64_CC_GT, 4);
+        *ptr++ = ror64(data_reg, data_reg, 32);
+        *ptr++ = str_offset(base, data_reg, 0);
+        *ptr++ = b(2);
+        *ptr++ = str64_offset(base, data_reg, 0);
+    }
+
+    RA_FreeARMRegister(&ptr, width_reg);
+    RA_FreeARMRegister(&ptr, mask_reg);
+    RA_FreeARMRegister(&ptr, off_reg);
+
     return ptr;
 }
-#endif
 
 static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -2088,12 +2193,10 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         // Do == REG, Dw == immed
         else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
         {
-            uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
+            uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
             uint8_t width = opcode2 & 31;
 
             ptr = EMIT_BFxxx_RI(ptr, base, OP_TST, off_reg, width, update_mask);
-
-            RA_FreeARMRegister(&ptr, off_reg);
         }
 
         // Do == REG, Dw == REG
@@ -2143,7 +2246,6 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     return ptr;
 }
-
 
 static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -3623,17 +3725,22 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     // Do == REG, Dw == immed
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
         ptr = EMIT_BFxxx_RI(ptr, base, OP_EOR, off_reg, width, update_mask);
-
-        RA_FreeARMRegister(&ptr, off_reg);
     }
 
     // Do == REG, Dw == REG
     else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
+#if 1
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_EOR, off_reg, width_reg, update_mask);
+#else
+
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
         uint8_t mask_reg = RA_AllocARMRegister(&ptr);
@@ -3684,6 +3791,7 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, mask_reg);
         RA_FreeARMRegister(&ptr, width_reg);
         RA_FreeARMRegister(&ptr, off_reg);
+#endif
     }
 
     RA_FreeARMRegister(&ptr, base);
@@ -4028,17 +4136,21 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     // Do == REG, Dw == immed
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
         ptr = EMIT_BFxxx_RI(ptr, base, OP_SET, off_reg, width, update_mask);
-
-        RA_FreeARMRegister(&ptr, off_reg);
     }
 
     // Do == REG, Dw == REG
     else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
+#if 1
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_SET, off_reg, width_reg, update_mask);
+#else
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
         uint8_t mask_reg = RA_AllocARMRegister(&ptr);
@@ -4089,6 +4201,7 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, mask_reg);
         RA_FreeARMRegister(&ptr, width_reg);
         RA_FreeARMRegister(&ptr, off_reg);
+#endif
     }
 
     RA_FreeARMRegister(&ptr, base);
@@ -4433,17 +4546,21 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     // Do == REG, Dw == immed
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
         ptr = EMIT_BFxxx_RI(ptr, base, OP_CLR, off_reg, width, update_mask);
-
-        RA_FreeARMRegister(&ptr, off_reg);
     }
 
     // Do == REG, Dw == REG
     else if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
+#if 1
+        uint8_t off_reg = RA_MapM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t width_reg = RA_MapM68kRegister(&ptr, opcode2 & 7);
+
+        ptr = EMIT_BFxxx_RR(ptr, base, OP_CLR, off_reg, width_reg, update_mask);
+#else
         uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
         uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
         uint8_t mask_reg = RA_AllocARMRegister(&ptr);
@@ -4494,6 +4611,7 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         RA_FreeARMRegister(&ptr, mask_reg);
         RA_FreeARMRegister(&ptr, width_reg);
         RA_FreeARMRegister(&ptr, off_reg);
+#endif
     }
 
     RA_FreeARMRegister(&ptr, base);
