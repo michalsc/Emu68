@@ -1478,7 +1478,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     case 1:
                         off = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]) & 0xff;
                         if (sign_ext && (off & 0x80))
-                            *ptr++ = movn_immed_u16(*arm_reg, ~off, 0);
+                            *ptr++ = movn_immed_u16(*arm_reg, ~(off | 0xff00), 0);
                         else
                             *ptr++ = mov_immed_u16(*arm_reg, off, 0);
                         break;
