@@ -1096,6 +1096,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
     {
         uint8_t int_reg = 0xff;
         uint8_t tmp_reg = 0xff;
+        uint8_t tmp_reg_2 = 0xff;
         uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
 
         switch (size)
@@ -1117,23 +1118,41 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
             case SIZE_W:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
+                tmp_reg_2 = RA_AllocARMRegister(&ptr);
                 *ptr++ = frint64x(vfp_reg, reg);
                 *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
+                /* Saturate the result to match in 16 bits */
+                *ptr++ = cmn_immed_lsl12(tmp_reg, 8);
+                *ptr++ = movn_immed_u16(tmp_reg_2, 0x7fff, 0);
+                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_GE);
+                *ptr++ = mov_immed_u16(tmp_reg_2, 0x7fff, 0);
+                *ptr++ = cmp_reg(tmp_reg, tmp_reg_2, LSL, 0);
+                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_LE);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 16);
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
+                RA_FreeARMRegister(&ptr, tmp_reg_2);
                 RA_FreeARMRegister(&ptr, int_reg);
                 break;
 
             case SIZE_B:
                 int_reg = RA_MapM68kRegister(&ptr, ea & 7);
                 tmp_reg = RA_AllocARMRegister(&ptr);
+                tmp_reg_2 = RA_AllocARMRegister(&ptr);
                 *ptr++ = frint64x(vfp_reg, reg);
                 *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
+                /* Saturate the result to match in 16 bits */
+                *ptr++ = cmn_immed(tmp_reg, 128);
+                *ptr++ = movn_immed_u16(tmp_reg_2, 0x7f, 0);
+                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_GE);
+                *ptr++ = mov_immed_u16(tmp_reg_2, 0x7f, 0);
+                *ptr++ = cmp_immed(tmp_reg, 127);
+                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_LE);
                 *ptr++ = bfi(int_reg, tmp_reg, 0, 8);
                 RA_SetDirtyM68kRegister(&ptr, ea & 7);
                 RA_FreeARMRegister(&ptr, tmp_reg);
                 RA_FreeARMRegister(&ptr, int_reg);
+                RA_FreeARMRegister(&ptr, tmp_reg_2);
                 break;
 
             default:
