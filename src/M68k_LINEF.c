@@ -1171,7 +1171,6 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         int8_t pre_sz = 0;
         int8_t post_sz = 0;
         int8_t k = 0;
-        uint8_t tmp64 = RA_AllocARMRegister(&ptr);
         uint8_t tmp32 = RA_AllocARMRegister(&ptr);
         union {
             uint64_t u64;
@@ -1542,6 +1541,14 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = frint64x(vfp_reg, reg);
                 *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
+                
+                /* Saturate the result to match in 16 bits */
+                *ptr++ = cmn_immed_lsl12(val_reg, 8);
+                *ptr++ = movn_immed_u16(tmp32, 0x7fff, 0);
+                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_GE);
+                *ptr++ = mov_immed_u16(tmp32, 0x7fff, 0);
+                *ptr++ = cmp_reg(val_reg, tmp32, LSL, 0);
+                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_LE);
 
                 if (pre_sz)
                 {
@@ -1586,6 +1593,14 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 val_reg = RA_AllocARMRegister(&ptr);
                 *ptr++ = frint64x(vfp_reg, reg);
                 *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
+
+                /* Saturate the result to match in 16 bits */
+                *ptr++ = cmn_immed(val_reg, 128);
+                *ptr++ = movn_immed_u16(tmp32, 0x7f, 0);
+                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_GE);
+                *ptr++ = mov_immed_u16(tmp32, 0x7f, 0);
+                *ptr++ = cmp_immed(val_reg, 127);
+                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_LE);
 
                 if (pre_sz)
                 {
@@ -1636,7 +1651,6 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         }
 
         RA_FreeARMRegister(&ptr, tmp32);
-        RA_FreeARMRegister(&ptr, tmp64);
         RA_FreeFPURegister(&ptr, vfp_reg);
         RA_FreeARMRegister(&ptr, int_reg);
         RA_FreeARMRegister(&ptr, val_reg);
