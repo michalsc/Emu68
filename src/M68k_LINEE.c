@@ -1654,7 +1654,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 
             *ptr++ = orr_immed(csel_1, cc, 1, 32 - SRB_N);
             *ptr++ = orr_immed(csel_2, cc, 1, 32 - SRB_Z);
-            *ptr++ = csel(cc, csel_2, csel_1, A64_CC_NE);
+            *ptr++ = csel(cc, csel_2, csel_1, A64_CC_EQ);
         }
 
         if (op != OP_TST)
