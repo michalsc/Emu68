@@ -1677,7 +1677,7 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
         {
             uint8_t cc = RA_ModifyCC(&ptr);
 
-            *ptr++ = lslv64(test_reg, data_reg, bit_offset);
+            *ptr++ = lsl64(test_reg, data_reg, bit_offset);
             *ptr++ = ands64_reg(31, mask_reg, test_reg, LSL, 0);
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
