@@ -1607,6 +1607,9 @@ enum BF_OP {
     OP_CLR,
     OP_TST,
     OP_INS,
+    OP_EXTS,
+    OP_EXTU,
+    OP_FFO
 };
 
 static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op, uint8_t Do, uint8_t Dw, uint8_t update_mask, uint8_t data)
