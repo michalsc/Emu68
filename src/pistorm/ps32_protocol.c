@@ -1579,9 +1579,9 @@ void ps_housekeeper()
         asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
     }
 
+    uint8_t pin_prev = LE32(*gpread);
+    
     for(;;) {
-        uint8_t pin_prev = LE32(*gpread);
-
         if (housekeeper_enabled)
         {
             //if (!__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE))
