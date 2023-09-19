@@ -1870,6 +1870,8 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
     //uint8_t insert_reg = 3;
     uint8_t width = Dw;
     uint8_t off_reg_orig = Do;
+    uint8_t base_orig = base;
+    int base_allocated = 0;
 
 (void)data;
 
@@ -1877,7 +1879,15 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         width = 32;
 
     // Adjust base register according to the offset
-    *ptr++ = add_reg(base, base, off_reg_orig, ASR, 3);
+    // If base register is m68k register (directly), make a copy and do adjustment there!
+    if (RA_IsM68kRegister(base))
+    {
+        base = RA_AllocARMRegister(&ptr);
+        base_allocated = 1;
+    }
+
+    /* If base was allocated, it will differ from base_orig so the adjustment will be correct in *any* case */
+    *ptr++ = add_reg(base, base_orig, off_reg_orig, ASR, 3);
     *ptr++ = and_immed(off_reg, off_reg_orig, 3, 0);
 
     if (width == 1)
@@ -2099,6 +2109,10 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         }
     }
 
+    if (base_allocated)
+    {
+        RA_FreeARMRegister(&ptr, base);
+    }
     RA_FreeARMRegister(&ptr, tmp);
     RA_FreeARMRegister(&ptr, mask_reg);
     RA_FreeARMRegister(&ptr, off_reg);
@@ -2116,6 +2130,8 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
     uint8_t insert_reg = test_reg;
     uint8_t off_reg = RA_AllocARMRegister(&ptr);
     uint8_t data_reg = 0;
+    uint8_t base_orig = base;
+    int base_allocated = 0;
 
     /* Build up the mask from reg value */
     *ptr++ = and_immed(width_reg, width_reg_orig, 5, 0);
@@ -2128,7 +2144,15 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
     *ptr++ = rbit64(mask_reg, mask_reg);
 
     // Adjust base register according to the offset
-    *ptr++ = add_reg(base, base, off_reg_orig, ASR, 3);
+    // If base register is m68k register (directly), make a copy and do adjustment there!
+    if (RA_IsM68kRegister(base))
+    {
+        base = RA_AllocARMRegister(&ptr);
+        base_allocated = 1;
+    }
+
+    /* If base was allocated, it will differ from base_orig so the adjustment will be correct in *any* case */
+    *ptr++ = add_reg(base, base_orig, off_reg_orig, ASR, 3);
     *ptr++ = and_immed(off_reg, off_reg_orig, 3, 0);
     
     /* Fetch the data */
@@ -2238,6 +2262,10 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
         *ptr++ = str64_offset(base, data_reg, 0);
     }
 
+    if (base_allocated)
+    {
+        RA_FreeARMRegister(&ptr, base);
+    }
     RA_FreeARMRegister(&ptr, width_reg);
     RA_FreeARMRegister(&ptr, mask_reg);
     RA_FreeARMRegister(&ptr, off_reg);
@@ -2416,7 +2444,7 @@ static uint32_t *EMIT_BFTST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     // Do == Immed, Dw == immed
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
@@ -3845,7 +3873,7 @@ static uint32_t *EMIT_BFCHG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     // Do == Immed, Dw == immed
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
@@ -4118,7 +4146,7 @@ static uint32_t *EMIT_BFSET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     // Do == Immed, Dw == immed
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
@@ -4427,7 +4455,7 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t base = 0xff;
 
     // Get EA address into a temporary register
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     // Do == Immed, Dw == immed
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
@@ -4505,7 +4533,6 @@ static uint32_t *EMIT_BFCLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     return ptr;
 }
-
 
 static uint32_t *EMIT_BFINS_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
@@ -4765,7 +4792,7 @@ static uint32_t *EMIT_BFINS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint8_t src = RA_MapM68kRegister(&ptr, (opcode2 >> 12) & 7);
 
     // Get EA address into a temporary register
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
     // Do == Immed, Dw == immed
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
@@ -4880,7 +4907,6 @@ static uint32_t *EMIT_BFINS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     return ptr;
 }
-
 
 static struct OpcodeDef InsnTable[4096] = {
 	[00000 ... 00007] = { { EMIT_ASR }, NULL, SR_X, SR_CCR, 1, 0, 1 },  //immediate 8, Byte, Dn
