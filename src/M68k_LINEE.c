@@ -1660,7 +1660,7 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
             *ptr++ = cmn_reg(31, data, LSL, 32 - width);
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
-        else
+        else if (op != OP_EXTS && op != OP_EXTU)
         {
             /* Test bitfield */
             *ptr++ = lsl64(test_reg, data_reg, data_offset + bit_offset);
@@ -1789,7 +1789,7 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
     }
-    else
+    else if (op != OP_EXTS && op != OP_EXTU)
     {
         /* Shall bitfield be investigated before? */
         if (update_mask)
@@ -1919,7 +1919,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 *ptr++ = csel(cc, csel_2, csel_1, A64_CC_EQ);
             }
         }
-        else
+        else if (op != OP_EXTS && op != OP_EXTU)
         {
             if (update_mask)
             {
@@ -2001,7 +2001,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 RA_FreeARMRegister(&ptr, testreg);
             }
         }
-        else
+        else if (op != OP_EXTS && op != OP_EXTU)
         {
             if (update_mask)
             {
@@ -2087,7 +2087,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 RA_FreeARMRegister(&ptr, testreg);
             }
         }
-        else
+        else if (op != OP_EXTS && op != OP_EXTU)
         {
             if (update_mask)
             {
@@ -2179,7 +2179,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 RA_FreeARMRegister(&ptr, testreg);
             }
         }
-        else
+        else if (op != OP_EXTS && op != OP_EXTU)
         {
             if (update_mask)
             {
@@ -2323,7 +2323,7 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
     }
-    else
+    else if (op != OP_EXTS && op != OP_EXTU)
     {
         /* Shall bitfield be investigated before? */
         if (update_mask)
