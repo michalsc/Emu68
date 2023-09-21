@@ -1664,7 +1664,7 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
         {
             /* Test bitfield */
             *ptr++ = lsl64(test_reg, data_reg, data_offset + bit_offset);
-            *ptr++ = ands64_immed(test_reg, data_reg, width, width, 1);
+            *ptr++ = ands64_immed(test_reg, test_reg, width, width, 1);
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
     }
