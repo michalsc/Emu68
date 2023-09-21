@@ -1710,21 +1710,24 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
                 break;
         }
 
-        /* Store data back... */
-        switch (fetched_size)
+        if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
         {
-            case 1:
-                *ptr++ = sturb_offset(base, data_reg, base_offset);
-                break;
-            case 2:
-                *ptr++ = sturh_offset(base, data_reg, base_offset);
-                break;
-            case 4:
-                *ptr++ = stur_offset(base, data_reg, base_offset);
-                break;
-            case 8:
-                *ptr++ = stur64_offset(base, data_reg, base_offset);
-                break;
+            /* Store data back... */
+            switch (fetched_size)
+            {
+                case 1:
+                    *ptr++ = sturb_offset(base, data_reg, base_offset);
+                    break;
+                case 2:
+                    *ptr++ = sturh_offset(base, data_reg, base_offset);
+                    break;
+                case 4:
+                    *ptr++ = stur_offset(base, data_reg, base_offset);
+                    break;
+                case 8:
+                    *ptr++ = stur64_offset(base, data_reg, base_offset);
+                    break;
+            }
         }
     }
 
@@ -1833,26 +1836,29 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
                 break;
         }
 
-        /* Store the data back */
-        /* Width == 1? Fetch byte */
-        *ptr++ = cmp_immed(width_reg, 1);
-        *ptr++ = b_cc(A64_CC_NE, 4);
-        *ptr++ = ror64(data_reg, data_reg, 64 - 8);
-        *ptr++ = sturb_offset(base, data_reg, base_offset);
-        *ptr++ = b(12);
-        /* Width <= 8? Fetch half word */
-        *ptr++ = cmp_immed(width_reg, 8);
-        *ptr++ = b_cc(A64_CC_GT, 4);
-        *ptr++ = ror64(data_reg, data_reg, 64 - 16);
-        *ptr++ = sturh_offset(base, data_reg, base_offset);
-        *ptr++ = b(7);
-        /* Width <= 24? Fetch long word */
-        *ptr++ = cmp_immed(width_reg, 24);
-        *ptr++ = b_cc(A64_CC_GT, 4);
-        *ptr++ = ror64(data_reg, data_reg, 32);
-        *ptr++ = stur_offset(base, data_reg, base_offset);
-        *ptr++ = b(2);
-        *ptr++ = stur64_offset(base, data_reg, base_offset);
+        if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
+        {
+            /* Store the data back */
+            /* Width == 1? Fetch byte */
+            *ptr++ = cmp_immed(width_reg, 1);
+            *ptr++ = b_cc(A64_CC_NE, 4);
+            *ptr++ = ror64(data_reg, data_reg, 64 - 8);
+            *ptr++ = sturb_offset(base, data_reg, base_offset);
+            *ptr++ = b(12);
+            /* Width <= 8? Fetch half word */
+            *ptr++ = cmp_immed(width_reg, 8);
+            *ptr++ = b_cc(A64_CC_GT, 4);
+            *ptr++ = ror64(data_reg, data_reg, 64 - 16);
+            *ptr++ = sturh_offset(base, data_reg, base_offset);
+            *ptr++ = b(7);
+            /* Width <= 24? Fetch long word */
+            *ptr++ = cmp_immed(width_reg, 24);
+            *ptr++ = b_cc(A64_CC_GT, 4);
+            *ptr++ = ror64(data_reg, data_reg, 32);
+            *ptr++ = stur_offset(base, data_reg, base_offset);
+            *ptr++ = b(2);
+            *ptr++ = stur64_offset(base, data_reg, base_offset);
+        }
     }
 
     RA_FreeARMRegister(&ptr, mask_reg);
@@ -1973,8 +1979,11 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                     break;
             }
 
-            // Store back
-            *ptr++ = strb_offset(base, tmp, 0);
+            if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
+            {
+                // Store back
+                *ptr++ = strb_offset(base, tmp, 0);
+            }
         }
     }
     else if (width <= 8)
@@ -2059,8 +2068,11 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                     break;
             }
 
-            // Store back
-            *ptr++ = strh_offset(base, tmp, 0);
+            if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
+            {
+                // Store back
+                *ptr++ = strh_offset(base, tmp, 0);
+            }
         }
     }
     else if (width <= 24)
@@ -2144,8 +2156,11 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                     break;
             }
 
-            // Store back
-            *ptr++ = str_offset(base, tmp, 0);
+            if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
+            {
+                // Store back
+                *ptr++ = str_offset(base, tmp, 0);
+            }
         }
     }
     else
@@ -2236,8 +2251,11 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                     break;
             }
 
-            // Store back
-            *ptr++ = str64_offset(base, tmp, 0);
+            if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
+            {
+                // Store back
+                *ptr++ = str64_offset(base, tmp, 0);
+            }
         }
     }
 
@@ -2372,26 +2390,29 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
                 break;
         }
 
-        /* Store the data back */
-        /* Width == 1? Fetch byte */
-        *ptr++ = cmp_immed(width_reg, 1);
-        *ptr++ = b_cc(A64_CC_NE, 4);
-        *ptr++ = ror64(data_reg, data_reg, 64 - 8);
-        *ptr++ = strb_offset(base, data_reg, 0);
-        *ptr++ = b(12);
-        /* Width <= 8? Fetch half word */
-        *ptr++ = cmp_immed(width_reg, 8);
-        *ptr++ = b_cc(A64_CC_GT, 4);
-        *ptr++ = ror64(data_reg, data_reg, 64 - 16);
-        *ptr++ = strh_offset(base, data_reg, 0);
-        *ptr++ = b(7);
-        /* Width <= 24? Fetch long word */
-        *ptr++ = cmp_immed(width_reg, 24);
-        *ptr++ = b_cc(A64_CC_GT, 4);
-        *ptr++ = ror64(data_reg, data_reg, 32);
-        *ptr++ = str_offset(base, data_reg, 0);
-        *ptr++ = b(2);
-        *ptr++ = str64_offset(base, data_reg, 0);
+        if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
+        {
+            /* Store the data back */
+            /* Width == 1? Fetch byte */
+            *ptr++ = cmp_immed(width_reg, 1);
+            *ptr++ = b_cc(A64_CC_NE, 4);
+            *ptr++ = ror64(data_reg, data_reg, 64 - 8);
+            *ptr++ = strb_offset(base, data_reg, 0);
+            *ptr++ = b(12);
+            /* Width <= 8? Fetch half word */
+            *ptr++ = cmp_immed(width_reg, 8);
+            *ptr++ = b_cc(A64_CC_GT, 4);
+            *ptr++ = ror64(data_reg, data_reg, 64 - 16);
+            *ptr++ = strh_offset(base, data_reg, 0);
+            *ptr++ = b(7);
+            /* Width <= 24? Fetch long word */
+            *ptr++ = cmp_immed(width_reg, 24);
+            *ptr++ = b_cc(A64_CC_GT, 4);
+            *ptr++ = ror64(data_reg, data_reg, 32);
+            *ptr++ = str_offset(base, data_reg, 0);
+            *ptr++ = b(2);
+            *ptr++ = str64_offset(base, data_reg, 0);
+        }
     }
 
     if (base_allocated)
