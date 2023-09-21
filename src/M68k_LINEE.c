@@ -1706,6 +1706,24 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
                 }
                 break;
 
+            case OP_EXTS:
+            case OP_EXTU:
+                {
+                    *ptr++ = lsl64(test_reg, data_reg, data_offset + bit_offset);
+                    if (update_mask)
+                    {
+                        uint8_t cc = RA_ModifyCC(&ptr);
+                        *ptr++ = ands64_immed(test_reg, test_reg, width, width, 1);
+                        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                    }
+                    if (op == OP_EXTU) {
+                        *ptr++ = lsr64(data, test_reg, 64 - width);
+                    } else {
+                        *ptr++ = asr64(data, test_reg, 64 - width);
+                    }
+                }
+                break;
+
             default:
                 break;
         }
@@ -2848,29 +2866,10 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t offset = (opcode2 >> 6) & 31;
         uint8_t width = opcode2 & 31;
         
-        if (width == 0)
-            width = 32;
-
-        // No need to precalculate base address here, we are all good if we fetch full 64 bit now
-        *ptr++ = ldr64_offset(base, tmp, 0);
-
-        // Extract bitfield
-        *ptr++ = ubfx64(tmp, tmp, 64 - offset - width, width);
-
-        // Copy to destination
-        *ptr++ = mov_reg(dest, tmp);
-
-        if (update_mask) {
-            uint8_t cc = RA_ModifyCC(&ptr);
-            *ptr++ = cmn64_reg(31, tmp, LSL, 64 - width);
-            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
-        }
-
-        RA_FreeARMRegister(&ptr, tmp);
+        ptr = EMIT_BFxxx_II(ptr, base, OP_EXTU, offset, width, update_mask, dest);
     }
 
     // Do == immed, Dw == reg
@@ -3217,29 +3216,10 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     if (!(opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
         uint8_t offset = (opcode2 >> 6) & 31;
         uint8_t width = opcode2 & 31;
         
-        if (width == 0)
-            width = 32;
-
-        // No need to precalculate base address here, we are all good if we fetch full 64 bit now
-        *ptr++ = ldr64_offset(base, tmp, 0);
-
-        // Extract bitfield
-        *ptr++ = sbfx64(tmp, tmp, 64 - offset - width, width);
-
-        // Copy to destination
-        *ptr++ = mov_reg(dest, tmp);
-
-        if (update_mask) {
-            uint8_t cc = RA_ModifyCC(&ptr);
-            *ptr++ = cmn64_reg(31, tmp, LSL, 64 - width);
-            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
-        }
-
-        RA_FreeARMRegister(&ptr, tmp);
+        ptr = EMIT_BFxxx_II(ptr, base, OP_EXTS, offset, width, update_mask, dest);
     }
 
     // Do == immed, Dw == reg
