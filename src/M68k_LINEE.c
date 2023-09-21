@@ -1660,7 +1660,7 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
             *ptr++ = cmn_reg(31, data, LSL, 32 - width);
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
-        else if (op != OP_EXTS && op != OP_EXTU)
+        else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
         {
             /* Test bitfield */
             *ptr++ = lsl64(test_reg, data_reg, data_offset + bit_offset);
@@ -1721,6 +1721,25 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
                     } else {
                         *ptr++ = asr64(data, test_reg, 64 - width);
                     }
+                }
+                break;
+
+            case OP_FFO:
+                {
+                    /* Shift bitfield to the left */
+                    *ptr++ = lsl64(test_reg, data_reg, data_offset + bit_offset);
+                    if (update_mask)
+                    {
+                        /* Test bitfield if necessary */
+                        uint8_t cc = RA_ModifyCC(&ptr);
+                        *ptr++ = ands64_immed(test_reg, test_reg, width, width, 1);
+                        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                    }
+
+                    /* Set lower bits to 1, so that CLZ can catch such cases */
+                    *ptr++ = orr64_immed(test_reg, test_reg, 64 - width, 0, 1);
+                    *ptr++ = clz64(data, test_reg);
+                    *ptr++ = add_immed(data, data, bit_offset);
                 }
                 break;
 
