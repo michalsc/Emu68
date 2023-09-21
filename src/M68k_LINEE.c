@@ -1829,7 +1829,7 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
     }
-    else if (op != OP_EXTS && op != OP_EXTU)
+    else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
     {
         /* Shall bitfield be investigated before? */
         if (update_mask)
@@ -1891,6 +1891,26 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
                     } else {
                         *ptr++ = lsrv64(data, test_reg, width_reg);
                     }
+                }
+                break;
+            
+            case OP_FFO:
+                {
+                    *ptr++ = lsl64(test_reg, data_reg, bit_offset);
+
+                    if (update_mask)
+                    {
+                        uint8_t cc = RA_ModifyCC(&ptr);
+                        
+                        *ptr++ = ands64_reg(31, mask_reg, test_reg, LSL, 0);
+                        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                    }
+
+                    // invert mask
+                    *ptr++ = mvn64_reg(mask_reg, mask_reg, LSL, 0);
+                    *ptr++ = orr64_reg(test_reg, test_reg, mask_reg, LSL, 0);
+                    *ptr++ = clz64(data, test_reg);
+                    *ptr++ = add_immed(data, data, bit_offset);
                 }
                 break;
 
@@ -1987,7 +2007,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 *ptr++ = csel(cc, csel_2, csel_1, A64_CC_EQ);
             }
         }
-        else if (op != OP_EXTS && op != OP_EXTU)
+        else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
         {
             if (update_mask)
             {
@@ -2062,6 +2082,30 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         }
                     }
                     break;
+                
+                case OP_FFO:
+                    {
+                        *ptr++ = ands_reg(31, tmp, mask_reg, LSL, 0);
+
+                        if (update_mask)
+                        {
+                            uint8_t cc = RA_ModifyCC(&ptr);
+                            
+                            uint8_t alt_flags = update_mask;
+                            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                                alt_flags ^= 3;
+
+                            ptr = EMIT_ClearFlags(ptr, cc, alt_flags);
+
+                            *ptr++ = orr_immed(csel_1, cc, 1, 32 - SRB_N);
+                            *ptr++ = orr_immed(csel_2, cc, 1, 32 - SRB_Z);
+                            *ptr++ = csel(cc, csel_2, csel_1, A64_CC_EQ);
+                        }
+
+                        *ptr++ = add_immed(csel_2, off_reg, 1);
+                        *ptr++ = csel(data, csel_2, off_reg, A64_CC_EQ);
+                    }
+                    break;
 
                 default:
                     break;
@@ -2098,7 +2142,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 RA_FreeARMRegister(&ptr, testreg);
             }
         }
-        else if (op != OP_EXTS && op != OP_EXTU)
+        else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
         {
             if (update_mask)
             {
@@ -2121,7 +2165,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         if (op != OP_TST)
         {
             // Shift mask to correct position
-            if (op != OP_EXTU && op != OP_EXTS)
+            if (op != OP_EXTU && op != OP_EXTS && op != OP_FFO)
             {
                 *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
             }
@@ -2181,6 +2225,32 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         RA_FreeARMRegister(&ptr, testreg);
                     }
                     break;
+                
+                case OP_FFO:
+                    {
+                        uint8_t testreg = RA_AllocARMRegister(&ptr);
+
+                        // Shift source to correct position
+                        *ptr++ = lslv(testreg, tmp, off_reg);
+                        *ptr++ = lsl(testreg, testreg, 16);
+
+                        if (update_mask)
+                        {   
+                            uint8_t cc = RA_ModifyCC(&ptr);
+
+                            // Mask the bitfield, update condition codes
+                            *ptr++ = ands_reg(31, testreg, mask_reg, LSL, 16);
+
+                            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);   
+                        }
+
+                        *ptr++ = orr_immed(testreg, testreg, 32 - width, 0);
+                        *ptr++ = clz(data, testreg);
+                        *ptr++ = add_reg(data, data, off_reg, LSL, 0);
+
+                        RA_FreeARMRegister(&ptr, testreg);
+                    }
+                    break;
 
                 default:
                     break;
@@ -2217,7 +2287,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 RA_FreeARMRegister(&ptr, testreg);
             }
         }
-        else if (op != OP_EXTS && op != OP_EXTU)
+        else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
         {
             if (update_mask)
             {
@@ -2239,7 +2309,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         if (op != OP_TST)
         {
             // Shift mask to correct position
-            if (op != OP_EXTU && op != OP_EXTS)
+            if (op != OP_EXTU && op != OP_EXTS && op != OP_FFO)
             {
                 *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
             }
@@ -2298,6 +2368,31 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         RA_FreeARMRegister(&ptr, testreg);
                     }
                     break;
+                
+                case OP_FFO:
+                    {
+                        uint8_t testreg = RA_AllocARMRegister(&ptr);
+
+                        // Shift source to correct position
+                        *ptr++ = lslv(testreg, tmp, off_reg);
+
+                        if (update_mask)
+                        {    
+                            uint8_t cc = RA_ModifyCC(&ptr);
+
+                            // Mask the bitfield, update condition codes
+                            *ptr++ = ands_reg(31, testreg, mask_reg, LSL, 0);
+
+                            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                        }
+
+                        *ptr++ = orr_immed(testreg, testreg, 32 - width, 0);
+                        *ptr++ = clz(data, testreg);
+                        *ptr++ = add_reg(data, data, off_reg, LSL, 0);
+
+                        RA_FreeARMRegister(&ptr, testreg);
+                    }
+                    break;
 
                 default:
                     break;
@@ -2341,7 +2436,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                 RA_FreeARMRegister(&ptr, testreg);
             }
         }
-        else if (op != OP_EXTS && op != OP_EXTU)
+        else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
         {
             if (update_mask)
             {
@@ -2363,7 +2458,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         if (op != OP_TST)
         {
             // Shift mask to correct position
-            if (op != OP_EXTU && op != OP_EXTS)
+            if (op != OP_EXTU && op != OP_EXTS && op != OP_FFO)
             {
                 *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
             }
@@ -2418,6 +2513,31 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         } else {
                             *ptr++ = asr64(data, testreg, 64 - width);
                         }
+
+                        RA_FreeARMRegister(&ptr, testreg);
+                    }
+                    break;
+
+                case OP_FFO:
+                    {
+                        uint8_t testreg = RA_AllocARMRegister(&ptr);
+
+                        // Shift source to correct position
+                        *ptr++ = lslv64(testreg, tmp, off_reg);
+
+                        if (update_mask)
+                        {    
+                            uint8_t cc = RA_ModifyCC(&ptr);
+
+                            // Mask the bitfield, update condition codes
+                            *ptr++ = ands64_reg(31, testreg, mask_reg, LSL, 0);
+
+                            ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                        }
+
+                        *ptr++ = orr64_immed(testreg, testreg, 64 - width, 0, 1);
+                        *ptr++ = clz64(data, testreg);
+                        *ptr++ = add_reg(data, data, off_reg, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2517,7 +2637,7 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
             ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
         }
     }
-    else if (op != OP_EXTS && op != OP_EXTU)
+    else if (op != OP_EXTS && op != OP_EXTU && op != OP_FFO)
     {
         /* Shall bitfield be investigated before? */
         if (update_mask)
@@ -2534,7 +2654,7 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
     if (op != OP_TST)
     {
         // Shift mask to correct position
-        if (op != OP_EXTU && op != OP_EXTS)
+        if (op != OP_EXTU && op != OP_EXTS && op != OP_FFO)
         {
             *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
         }
@@ -2587,6 +2707,26 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
                     } else {
                         *ptr++ = lsrv64(data, test_reg, width_reg);
                     }
+                }
+                break;
+            
+            case OP_FFO:
+                {
+                    *ptr++ = lslv64(test_reg, data_reg, off_reg);
+
+                    if (update_mask)
+                    {
+                        uint8_t cc = RA_ModifyCC(&ptr);
+                        
+                        *ptr++ = ands64_reg(31, mask_reg, test_reg, LSL, 0);
+                        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                    }
+
+                    // invert mask
+                    *ptr++ = mvn64_reg(mask_reg, mask_reg, LSL, 0);
+                    *ptr++ = orr64_reg(test_reg, test_reg, mask_reg, LSL, 0);
+                    *ptr++ = clz64(data, test_reg);
+                    *ptr++ = add_reg(data, data, off_reg, LSL, 0);
                 }
                 break;
 
