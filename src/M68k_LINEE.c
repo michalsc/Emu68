@@ -2037,9 +2037,9 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                             *ptr++ = csel(cc, csel_2, csel_1, A64_CC_EQ);
                         }
                         if (op == OP_EXTU) {
-                            *ptr++ = csinc(data, 31, 31, A64_CC_NE);
+                            *ptr++ = csinc(data, 31, 31, A64_CC_EQ);
                         } else {
-                            *ptr++ = csinv(data, 31, 31, A64_CC_NE);
+                            *ptr++ = csinv(data, 31, 31, A64_CC_EQ);
                         }
                     }
                     break;
@@ -2102,7 +2102,10 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         if (op != OP_TST)
         {
             // Shift mask to correct position
-            *ptr++ = lsrv(mask_reg, mask_reg, off_reg);
+            if (op != OP_EXTU && op != OP_EXTS)
+            {
+                *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+            }
 
             switch(op)
             {
@@ -2217,7 +2220,10 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         if (op != OP_TST)
         {
             // Shift mask to correct position
-            *ptr++ = lsrv(mask_reg, mask_reg, off_reg);
+            if (op != OP_EXTU && op != OP_EXTS)
+            {
+                *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+            }
 
             switch(op)
             {
@@ -2338,7 +2344,10 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
         if (op != OP_TST)
         {
             // Shift mask to correct position
-            *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+            if (op != OP_EXTU && op != OP_EXTS)
+            {
+                *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+            }
 
             switch(op)
             {
@@ -2506,7 +2515,10 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
     if (op != OP_TST)
     {
         // Shift mask to correct position
-        *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+        if (op != OP_EXTU && op != OP_EXTS)
+        {
+            *ptr++ = lsrv64(mask_reg, mask_reg, off_reg);
+        }
 
         switch (op)
         {
