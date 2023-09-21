@@ -3031,7 +3031,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     else if (!(opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
+        uint8_t width_reg = RA_MapM68kRegisterForWrite(&ptr, opcode2 & 7);
         uint8_t offset = (opcode2 >> 6) & 31;
 
         ptr = EMIT_BFxxx_IR(ptr, base, OP_EXTU, offset, width_reg, update_mask, dest);
@@ -3041,7 +3041,7 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t off_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
         ptr = EMIT_BFxxx_RI(ptr, base, OP_EXTU, off_reg, width, update_mask, dest);
@@ -3051,8 +3051,8 @@ static uint32_t *EMIT_BFEXTU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
-        uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
+        uint8_t off_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 6) & 7);
+        uint8_t width_reg = RA_MapM68kRegisterForWrite(&ptr, opcode2 & 7);
 
         ptr = EMIT_BFxxx_RR(ptr, base, OP_EXTU, off_reg, width_reg, update_mask, dest);
     }
@@ -3274,7 +3274,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     else if (!(opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
+        uint8_t width_reg = RA_MapM68kRegisterForWrite(&ptr, opcode2 & 7);
         uint8_t offset = (opcode2 >> 6) & 31;
 
         ptr = EMIT_BFxxx_IR(ptr, base, OP_EXTS, offset, width_reg, update_mask, dest);
@@ -3284,7 +3284,7 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     else if ((opcode2 & (1 << 11)) && !(opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
+        uint8_t off_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 6) & 7);
         uint8_t width = opcode2 & 31;
 
         ptr = EMIT_BFxxx_RI(ptr, base, OP_EXTS, off_reg, width, update_mask, dest);
@@ -3294,8 +3294,8 @@ static uint32_t *EMIT_BFEXTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     if ((opcode2 & (1 << 11)) && (opcode2 & (1 << 5)))
     {
         uint8_t dest = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 12) & 7);
-        uint8_t off_reg = RA_CopyFromM68kRegister(&ptr, (opcode2 >> 6) & 7);
-        uint8_t width_reg = RA_CopyFromM68kRegister(&ptr, opcode2 & 7);
+        uint8_t off_reg = RA_MapM68kRegisterForWrite(&ptr, (opcode2 >> 6) & 7);
+        uint8_t width_reg = RA_MapM68kRegisterForWrite(&ptr, opcode2 & 7);
 
         ptr = EMIT_BFxxx_RR(ptr, base, OP_EXTS, off_reg, width_reg, update_mask, dest);
     }
