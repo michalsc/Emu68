@@ -1739,7 +1739,7 @@ static inline uint32_t *EMIT_BFxxx_II(uint32_t *ptr, uint8_t base, enum BF_OP op
                     /* Set lower bits to 1, so that CLZ can catch such cases */
                     *ptr++ = orr64_immed(test_reg, test_reg, 64 - width, 0, 1);
                     *ptr++ = clz64(data, test_reg);
-                    *ptr++ = add_immed(data, data, bit_offset);
+                    *ptr++ = add_immed(data, data, Do);
                 }
                 break;
 
@@ -1910,7 +1910,7 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
                     *ptr++ = mvn64_reg(mask_reg, mask_reg, LSL, 0);
                     *ptr++ = orr64_reg(test_reg, test_reg, mask_reg, LSL, 0);
                     *ptr++ = clz64(data, test_reg);
-                    *ptr++ = add_immed(data, data, bit_offset);
+                    *ptr++ = add_immed(data, data, Do);
                 }
                 break;
 
@@ -2102,8 +2102,8 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                             *ptr++ = csel(cc, csel_2, csel_1, A64_CC_EQ);
                         }
 
-                        *ptr++ = add_immed(csel_2, off_reg, 1);
-                        *ptr++ = csel(data, csel_2, off_reg, A64_CC_EQ);
+                        *ptr++ = add_immed(csel_2, off_reg_orig, 1);
+                        *ptr++ = csel(data, csel_2, off_reg_orig, A64_CC_EQ);
                     }
                     break;
 
@@ -2246,7 +2246,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 
                         *ptr++ = orr_immed(testreg, testreg, 32 - width, 0);
                         *ptr++ = clz(data, testreg);
-                        *ptr++ = add_reg(data, data, off_reg, LSL, 0);
+                        *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2388,7 +2388,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 
                         *ptr++ = orr_immed(testreg, testreg, 32 - width, 0);
                         *ptr++ = clz(data, testreg);
-                        *ptr++ = add_reg(data, data, off_reg, LSL, 0);
+                        *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2537,7 +2537,7 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
 
                         *ptr++ = orr64_immed(testreg, testreg, 64 - width, 0, 1);
                         *ptr++ = clz64(data, testreg);
-                        *ptr++ = add_reg(data, data, off_reg, LSL, 0);
+                        *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2726,7 +2726,7 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
                     *ptr++ = mvn64_reg(mask_reg, mask_reg, LSL, 0);
                     *ptr++ = orr64_reg(test_reg, test_reg, mask_reg, LSL, 0);
                     *ptr++ = clz64(data, test_reg);
-                    *ptr++ = add_reg(data, data, off_reg, LSL, 0);
+                    *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
                 }
                 break;
 
