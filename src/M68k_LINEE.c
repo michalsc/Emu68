@@ -1850,6 +1850,31 @@ static inline uint32_t *EMIT_BFxxx_IR(uint32_t *ptr, uint8_t base, enum BF_OP op
                 *ptr++ = orr64_reg(data_reg, data_reg, insert_reg, LSR, bit_offset);
                 break;
 
+            case OP_EXTU:
+            case OP_EXTS:
+                {
+                    /* Shift data left as much as possible */
+                    *ptr++ = lsl64(test_reg, data_reg, bit_offset);
+
+                    /* If mask is to be updated do it now*/
+                    if (update_mask)
+                    {
+                        uint8_t cc = RA_ModifyCC(&ptr);
+                        *ptr++ = ands64_reg(31, mask_reg, test_reg, LSL, 0);
+                        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                    }
+
+                    /* Compute how far do we shift right: 64 - width */
+                    *ptr++ = neg_reg(width_reg, width_reg, LSL, 0);
+                    *ptr++ = add_immed(width_reg, width_reg, 64);
+                    if (op == OP_EXTS) {
+                        *ptr++ = asrv64(data, test_reg, width_reg);
+                    } else {
+                        *ptr++ = lsrv64(data, test_reg, width_reg);
+                    }
+                }
+                break;
+
             default:
                 break;
         }
@@ -2402,6 +2427,31 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
                 *ptr++ = bic64_reg(data_reg, data_reg, mask_reg, LSL, 0);
                 // Insert data
                 *ptr++ = orr64_reg(data_reg, data_reg, insert_reg, LSL, 0);
+                break;
+            
+            case OP_EXTU:
+            case OP_EXTS:
+                {
+                    /* Shift data left as much as possible */
+                    *ptr++ = lslv64(test_reg, data_reg, off_reg);
+
+                    /* If mask is to be updated do it now*/
+                    if (update_mask)
+                    {
+                        uint8_t cc = RA_ModifyCC(&ptr);
+                        *ptr++ = ands64_reg(31, mask_reg, test_reg, LSL, 0);
+                        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+                    }
+
+                    /* Compute how far do we shift right: 64 - width */
+                    *ptr++ = neg_reg(width_reg, width_reg, LSL, 0);
+                    *ptr++ = add_immed(width_reg, width_reg, 64);
+                    if (op == OP_EXTS) {
+                        *ptr++ = asrv64(data, test_reg, width_reg);
+                    } else {
+                        *ptr++ = lsrv64(data, test_reg, width_reg);
+                    }
+                }
                 break;
 
             default:
