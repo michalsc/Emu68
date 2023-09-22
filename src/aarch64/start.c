@@ -27,6 +27,7 @@
 #include "disasm.h"
 #include "version.h"
 #include "cache.h"
+#include "sponsoring.h"
 
 void _start();
 void _boot();
@@ -678,6 +679,7 @@ void boot(void *dtree)
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
     dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
+    dt_add_property(e, "support", supporters, supporters_size);
     dt_add_node(NULL, e);
 
     /*
@@ -1964,6 +1966,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
     __m68k.JIT_CONTROL2 = chip_slowdown ? JC2F_CHIP_SLOWDOWN : 0;
+    __m68k.JIT_CONTROL2 |= (20 << JC2B_CCR_SCAN_DEPTH); 
 
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
