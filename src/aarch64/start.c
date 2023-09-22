@@ -27,6 +27,7 @@
 #include "disasm.h"
 #include "version.h"
 #include "cache.h"
+#include "sponsoring.h"
 
 void _start();
 void _boot();
@@ -678,6 +679,7 @@ void boot(void *dtree)
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
     dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
+    dt_add_property(e, "support", supporters, supporters_size);
     dt_add_node(NULL, e);
 
     /*
