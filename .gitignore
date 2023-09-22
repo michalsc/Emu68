@@ -1,3 +1,6 @@
+# macOS
+.DS_Store
+
 # VSCode
 .vscode/c_cpp_properties.json
 .vscode/settings.json

@@ -106,6 +106,19 @@ void RA_SetDirtyM68kRegister(uint32_t **arm_stream, uint8_t m68k_reg)
     (void)m68k_reg;
 }
 
+/* Test if given register is a m68k register */
+int RA_IsM68kRegister(uint8_t arm_reg)
+{
+    const uint32_t test_field = 
+        (1 << REG_D0) | (1 << REG_D1) | (1 << REG_D2) | (1 << REG_D3) |
+        (1 << REG_D4) | (1 << REG_D5) | (1 << REG_D6) | (1 << REG_D7) |
+        (1 << REG_A0) | (1 << REG_A1) | (1 << REG_A2) | (1 << REG_A3) |
+        (1 << REG_A4) | (1 << REG_A5) | (1 << REG_A6) | (1 << REG_A7);
+    
+    if (arm_reg >= 32) return 0;
+    else return (test_field & (1 << arm_reg)) != 0;
+}
+
 /*
     Make a discardable copy of m68k register (e.g. temporary value from reg which can be later worked on)
 */
