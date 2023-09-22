@@ -1153,6 +1153,9 @@ void flush_cdata()
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
+#if 1
+    write_access(address, data, SIZE_BYTE);
+#else
     if (address < 0x200000)
     {
         if ((address & 0xfffffffc) != caddress)
@@ -1175,9 +1178,13 @@ void ps_write_8(unsigned int address, unsigned int data) {
         flush_cdata();
         write_access(address, data, SIZE_BYTE);
     }
+#endif
 }
 
 void ps_write_16(unsigned int address, unsigned int data) {
+#if 1
+    write_access(address, data, SIZE_WORD);
+#else
     if (address < 0x200000 && !(address & 1))
     {
         if ((address & 0xfffffffc) != caddress)
@@ -1200,45 +1207,46 @@ void ps_write_16(unsigned int address, unsigned int data) {
         flush_cdata();
         write_access(address, data, SIZE_WORD);
     }
+#endif
 }
 
 void ps_write_32(unsigned int address, unsigned int data) {
-    flush_cdata();
+//    flush_cdata();
     write_access(address, data, SIZE_LONG);
 }
 
 void ps_write_64(unsigned int address, uint64_t data) {
-    flush_cdata();
+//    flush_cdata();
     write_access_64(address, data);
 }
 
 void ps_write_128(unsigned int address, uint128_t data) {
-    flush_cdata();
+//    flush_cdata();
     write_access_128(address, data);
 }
 
 unsigned int ps_read_8(unsigned int address) {
-    flush_cdata();
+//    flush_cdata();
     return read_access(address, SIZE_BYTE);
 }
 
 unsigned int ps_read_16(unsigned int address) {
-    flush_cdata();
+//    flush_cdata();
     return read_access(address, SIZE_WORD);
 }
 
 unsigned int ps_read_32(unsigned int address) {
-    flush_cdata();
+//    flush_cdata();
     return read_access(address, SIZE_LONG);
 }
 
 uint64_t ps_read_64(unsigned int address) {
-    flush_cdata();
+//    flush_cdata();
     return read_access_64(address);
 }
 
 uint128_t ps_read_128(unsigned int address) {
-    flush_cdata();
+//    flush_cdata();
     return read_access_128(address);
 }
 
