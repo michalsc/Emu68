@@ -1572,13 +1572,15 @@ void ps_housekeeper()
 
     if (tmp > 20000000)
     {
-        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (4 << 4)));
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
     }
     else
     {
         asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
     }
 
+    uint8_t pin_prev = LE32(*gpread);
+    
     for(;;) {
         if (housekeeper_enabled)
         {
@@ -1589,12 +1591,21 @@ void ps_housekeeper()
             //}
 
             uint32_t pin = LE32(*gpread);
-            __m68k_state->INT.IPL = ~pin & 7;
 
-            asm volatile("":::"memory");
+            // Reall 680x0 CPU filters IPL lines in order to avoid false interrupts if
+            // there is a clock skew between three IPL bits. We need to do the same.
+            // Update IPL if and only if two subsequent IPL reads are the same.
+            if ((pin & 7) == (pin_prev & 7))
+            {
+                __m68k_state->INT.IPL = ~pin & 7;
 
-            if (__m68k_state->INT.IPL)
-                asm volatile("sev":::"memory");
+                asm volatile("":::"memory");
+
+                if (__m68k_state->INT.IPL)
+                    asm volatile("sev":::"memory");
+            }
+
+            pin_prev = pin;
 
             if ((pin & (1 << PIN_KBRESET)) == 0) {
                 kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
