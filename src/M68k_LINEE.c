@@ -2245,8 +2245,8 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         }
 
                         *ptr++ = orr_immed(testreg, testreg, 32 - width, 0);
-                        *ptr++ = clz(data, testreg);
-                        *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
+                        *ptr++ = clz(testreg, testreg);
+                        *ptr++ = add_reg(data, testreg, off_reg_orig, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2387,8 +2387,8 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         }
 
                         *ptr++ = orr_immed(testreg, testreg, 32 - width, 0);
-                        *ptr++ = clz(data, testreg);
-                        *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
+                        *ptr++ = clz(testreg, testreg);
+                        *ptr++ = add_reg(data, testreg, off_reg_orig, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2536,8 +2536,8 @@ static inline uint32_t *EMIT_BFxxx_RI(uint32_t *ptr, uint8_t base, enum BF_OP op
                         }
 
                         *ptr++ = orr64_immed(testreg, testreg, 64 - width, 0, 1);
-                        *ptr++ = clz64(data, testreg);
-                        *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
+                        *ptr++ = clz64(testreg, testreg);
+                        *ptr++ = add_reg(data, testreg, off_reg_orig, LSL, 0);
 
                         RA_FreeARMRegister(&ptr, testreg);
                     }
@@ -2725,8 +2725,8 @@ static inline uint32_t *EMIT_BFxxx_RR(uint32_t *ptr, uint8_t base, enum BF_OP op
                     // invert mask
                     *ptr++ = mvn64_reg(mask_reg, mask_reg, LSL, 0);
                     *ptr++ = orr64_reg(test_reg, test_reg, mask_reg, LSL, 0);
-                    *ptr++ = clz64(data, test_reg);
-                    *ptr++ = add_reg(data, data, off_reg_orig, LSL, 0);
+                    *ptr++ = clz64(test_reg, test_reg);
+                    *ptr++ = add_reg(data, test_reg, off_reg_orig, LSL, 0);
                 }
                 break;
 
