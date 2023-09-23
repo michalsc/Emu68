@@ -610,6 +610,8 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 {
     if (unit)
     {
+        cache_invalidate_all(ICACHE);
+        
         uint32_t crc = CalcCRC32(unit->mt_M68kLow, unit->mt_M68kHigh);
 
         if (crc != unit->mt_CRC32)
