@@ -151,6 +151,17 @@ void cache_invalidate_line(enum CacheType type, uint32_t address)
     }
 }
 
+void cache_invalidate_range(enum CacheType type, uint32_t address, uint32_t len)
+{
+    const uint32_t start = address & 0xfffffff0;
+    const uint32_t end = (address + len - 1) & 0xfffffff0;
+
+    for (uint32_t addr = start; addr <= end; addr += 16)
+    {
+        cache_invalidate_line(type, addr);
+    }
+}
+
 void cache_flush_line(enum CacheType type, uint32_t address)
 {
     if (type == ICACHE)

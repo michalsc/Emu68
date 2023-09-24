@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "ps_protocol.h"
 #include "M68k.h"
+#include "cache.h"
 
 //volatile uint8_t gpio_lock;
 //volatile uint32_t gpio_rdval;
@@ -1159,6 +1160,7 @@ void ps_write_8(unsigned int address, unsigned int data) {
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 1);
 #else
     if (address < 0x200000)
     {
@@ -1192,6 +1194,7 @@ void ps_write_16(unsigned int address, unsigned int data) {
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 2);
 #else
     if (address < 0x200000 && !(address & 1))
     {
@@ -1225,6 +1228,7 @@ void ps_write_32(unsigned int address, unsigned int data) {
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 4);
 }
 
 void ps_write_64(unsigned int address, uint64_t data) {
@@ -1234,6 +1238,7 @@ void ps_write_64(unsigned int address, uint64_t data) {
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 8);
 }
 
 void ps_write_128(unsigned int address, uint128_t data) {
@@ -1243,6 +1248,7 @@ void ps_write_128(unsigned int address, uint128_t data) {
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 16);
 }
 
 unsigned int ps_read_8(unsigned int address) {

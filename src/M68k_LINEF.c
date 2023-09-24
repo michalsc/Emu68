@@ -1802,6 +1802,11 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%p\n", opcode, target_addr, pc, arm_pc);
     // kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
 
+    // Invalidate entire instruction cache
+    // FIXME: Could be more precise (but most of the time everything is probably flushed anyway)
+    // NOT: cache_invalidate_range does not handle length of >16 bytes
+    cache_invalidate_all(ICACHE);
+
     for (i=0; i < MAX_EPILOGUE_LENGTH; i++)
     {
         if (arm_pc[i] == 0xffffffff)

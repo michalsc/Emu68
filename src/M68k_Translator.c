@@ -307,8 +307,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int debug = 0;
     int disasm = 0;
 
-    cache_invalidate_all(ICACHE);
-
     if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
         debug = globalDebug();
         disasm = globalDisasm();
@@ -610,8 +608,6 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 {
     if (unit)
     {
-        cache_invalidate_all(ICACHE);
-        
         uint32_t crc = CalcCRC32(unit->mt_M68kLow, unit->mt_M68kHigh);
 
         if (crc != unit->mt_CRC32)
