@@ -743,6 +743,7 @@ uint32_t *EMIT_TRAPcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
 uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
+    extern struct M68KState *__m68k_state;
     uint8_t counter_reg = RA_MapM68kRegister(&ptr, opcode & 7);
     uint8_t m68k_condition = (opcode >> 8) & 0x0f;
     uint8_t arm_condition = 0;
@@ -764,6 +765,21 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         uint8_t c_false = RA_AllocARMRegister(&ptr);
         int8_t off8 = 0;
         int32_t off = 4;
+
+        // Suggested by Paraj - a way to allow old code using DBF as busy loop work:
+        // For busy loops (of the form l dbf dN,l) in chip mem add extra delay that is
+        // at least 10 7MHz clocks (For old school replayer routines)
+        if (__m68k_state->JIT_CONTROL2 & JC2F_DBF_SLOWDOWN)
+        {
+            if (m68k_condition == M_CC_F && branch_offset == 0 && (uintptr_t)*m68k_ptr < 0x200000)
+            {
+                *ptr++ = mov_immed_u16(c_true, 0, 0);
+                *ptr++ = ldrb_offset(c_true, c_false, 0);
+                *ptr++ = ldrb_offset(c_true, c_false, 0);
+                *ptr++ = ldrb_offset(c_true, c_false, 0);
+            }
+        }
+
         ptr = EMIT_GetOffsetPC(ptr, &off8);
         off += off8;
         ptr = EMIT_ResetOffsetPC(ptr);
