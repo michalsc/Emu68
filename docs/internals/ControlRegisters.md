@@ -6,24 +6,25 @@ parent: Emu68 Internals
 
 # Emu68 Control Registers
 
-| Register name    | Number   | RW   | Size | Description                                          |
-| ---------------- | -------- | ---- | ---- | ---------------------------------------------------- |
-| ``CNTFRQ``       | ``0xe0`` | RO   | LONG | Frequency in Hz of the free running counter          |
-| ``CNTVALLO``     | ``0xe1`` | RO   | LONG | Free running counter value, lower 32 bits            |
-| ``CNTVALHI``     | ``0xe2`` | RO   | LONG | Free running counter value, higher 32 bits           |
-| ``INSNCNTLO``    | ``0xe3`` | RO   | LONG | Number of executed M68k instructions, lower 32 bits  |
-| ``INSNCNTHI``    | ``0xe4`` | RO   | LONG | Number of executed M68k instructions, higher 32 bits |
-| ``ARMCNTLO``     | ``0xe5`` | RO   | LONG | Number of executed ARM instructions, lower 32 bits   |
-| ``ARMCNTHI``     | ``0xe6`` | RO   | LONG | Number of executed ARM instructions, higher 32 bits  |
-| ``JITSIZE``      | ``0xe7`` | RO   | LONG | Total cache size in bytes                            |
-| ``JITFREE``      | ``0xe8`` | RO   | LONG | Number of bytes free in the JIT cache                |
-| ``JITCOUNT``     | ``0xe9`` | RO   | LONG | Number of JIT units in the cache                     |
-| ``JITSCFTHRESH`` | ``0xea`` | RW   | LONG | JIT threshold for soft cache flushes                 |
-| ``JITCTRL``      | ``0xeb`` | RW   | LONG | JIT control register                                 |
-| ``JITCMISS``     | ``0xec`` | RO   | LONG | Number of JIT cache misses                           |
-| ``DBGCTRL``      | ``0xed`` | RW   | LONG | Debug control register                               |
-| ``DBGADDRLO``    | ``0xee`` | RW   | LONG | Lowest debug address                                 |
-| ``DBGADDRHI``    | ``0xef`` | RW   | LONG | Highest debug address                                |
+| Register name    | Number    | RW   | Size | Description                                          |
+| ---------------- | --------- | ---- | ---- | ---------------------------------------------------- |
+| ``CNTFRQ``       | ``0xe0``  | RO   | LONG | Frequency in Hz of the free running counter          |
+| ``CNTVALLO``     | ``0xe1``  | RO   | LONG | Free running counter value, lower 32 bits            |
+| ``CNTVALHI``     | ``0xe2``  | RO   | LONG | Free running counter value, higher 32 bits           |
+| ``INSNCNTLO``    | ``0xe3``  | RO   | LONG | Number of executed M68k instructions, lower 32 bits  |
+| ``INSNCNTHI``    | ``0xe4``  | RO   | LONG | Number of executed M68k instructions, higher 32 bits |
+| ``ARMCNTLO``     | ``0xe5``  | RO   | LONG | Number of executed ARM instructions, lower 32 bits   |
+| ``ARMCNTHI``     | ``0xe6``  | RO   | LONG | Number of executed ARM instructions, higher 32 bits  |
+| ``JITSIZE``      | ``0xe7``  | RO   | LONG | Total cache size in bytes                            |
+| ``JITFREE``      | ``0xe8``  | RO   | LONG | Number of bytes free in the JIT cache                |
+| ``JITCOUNT``     | ``0xe9``  | RO   | LONG | Number of JIT units in the cache                     |
+| ``JITSCFTHRESH`` | ``0xea``  | RW   | LONG | JIT threshold for soft cache flushes                 |
+| ``JITCTRL``      | ``0xeb``  | RW   | LONG | JIT control register                                 |
+| ``JITCMISS``     | ``0xec``  | RO   | LONG | Number of JIT cache misses                           |
+| ``DBGCTRL``      | ``0xed``  | RW   | LONG | Debug control register                               |
+| ``DBGADDRLO``    | ``0xee``  | RW   | LONG | Lowest debug address                                 |
+| ``DBGADDRHI``    | ``0xef``  | RW   | LONG | Highest debug address                                |
+| ``JITCTRL2``     | ``0x1e0`` | RW   | LONG | JIT control register 2                               |
 
 ## CNTFRQ - Counter frequency
 
@@ -113,4 +114,33 @@ Configures behaviour of debug messages. It can be switched on the fly to change 
 ## DBGADDRLO, DBGADDRHI - Debug range
 
 Debug information about  JIT units is usually shown for all blocks of the memory going into the translator. Since such debug can be extremely huge (above 200 megabytes on regular system boot), the range where the verbosity of JIT units is elevated through ``DBGCTRL`` register may be limited. If M68k address is not within a range between ``DBGADDRLO`` and ``DBGADDRHI``, no information about such JIT unit will be written to the console.
+
+## JITCTRL2 - second JIT control register
+
+Second control register influencing behavior of Emu68
+
+| Name                   | Offset | Field size | Description                                  |
+| ---------------------- | ------ | ---------- | -------------------------------------------- |
+| ``JC2_CHIP_SLOWDOWN``  | 0      | 1          | Slow down code executing from CHIP memory    |
+| ``JC2_DBF_SLOWDOWN``   | 1      | 1          | Slow down special case of DBF busy loops     |
+| ``JC2_CCR_SCAN_DEPTH`` | 3      | 5          | Controls forward scan depth of CCR optimizer |
+
+### JC2_CHIP_SLOWDOWN
+
+If this bit is set, Emu68 will add a word read from current PC location before every translated m68k instruction. This setting will make code executed from CHIP memory significantly slower. Might be used in case of some ancient software designed for much slower CPUs.
+
+### JC2_DBF_SLOWDOWN
+
+This bit slows down special case of DBF instruction often used e.g. in old MOD replayers as a busy loop delay:
+
+```assembly
+        move.w #xxx, Dn
+loop:   dbf    Dn, loop
+```
+
+Due to nature of Emu68 such busy loops are much faster then expected. When this bit is set, each DBF executed from CHIP memory branching to itself will take the same amount of time as three subsequent byte reads from CHIP.
+
+### JC2_CCR_SCAN_DEPTH
+
+When Emu68 is translating m68k code to AArch64 code, it perform forward scanning of further m68k instructions to estimate if and, if yes, which bits of CCR should be updated. This greatly reduces amount of generated AArch64 code, but might be prone to errors e.g. in case of self-modifying code. By adjusting JC2_CCR_SCAN_DEPTH field it is possible to instruct Emu68 how many opcodes shall be scanned in advance. Valid values vary from 0 (CCR optimization completely disabled) up to 31. Default value on startup of Emu68 is 20.
 
