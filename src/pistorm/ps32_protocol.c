@@ -1153,9 +1153,11 @@ void flush_cdata()
     cmask.u32 = 0;
 }
 
+#define SLOW_IO(address) ((address) >= 0xDFF09A && (address) < 0xDFF09E)
+
 void ps_write_8(unsigned int address, unsigned int data) {
     write_access(address, data, SIZE_BYTE);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
@@ -1164,7 +1166,7 @@ void ps_write_8(unsigned int address, unsigned int data) {
 
 void ps_write_16(unsigned int address, unsigned int data) {
     write_access(address, data, SIZE_WORD);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
@@ -1173,7 +1175,7 @@ void ps_write_16(unsigned int address, unsigned int data) {
 
 void ps_write_32(unsigned int address, unsigned int data) {
     write_access(address, data, SIZE_LONG);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
@@ -1182,7 +1184,7 @@ void ps_write_32(unsigned int address, unsigned int data) {
 
 void ps_write_64(unsigned int address, uint64_t data) {
     write_access_64(address, data);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
@@ -1191,7 +1193,7 @@ void ps_write_64(unsigned int address, uint64_t data) {
 
 void ps_write_128(unsigned int address, uint128_t data) {
     write_access_128(address, data);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
