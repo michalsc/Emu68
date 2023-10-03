@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "ps_protocol.h"
 #include "M68k.h"
+#include "cache.h"
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
@@ -977,6 +978,7 @@ void ps_write_8(unsigned int address, unsigned int data)
     }
 #endif
 #endif
+    cache_invalidate_range(ICACHE, address, 1);
 }
 
 void ps_write_16(unsigned int address, unsigned int data)
@@ -1003,6 +1005,7 @@ void ps_write_16(unsigned int address, unsigned int data)
     }
 #endif
 #endif
+    cache_invalidate_range(ICACHE, address, 2);
 }
 
 void ps_write_32(unsigned int address, unsigned int data)
@@ -1029,6 +1032,7 @@ void ps_write_32(unsigned int address, unsigned int data)
     }
 #endif
 #endif
+    cache_invalidate_range(ICACHE, address, 4);
 }
 
 void ps_write_64(unsigned int address, uint64_t data)
