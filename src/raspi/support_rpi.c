@@ -89,7 +89,7 @@ uint8_t q_pop()
 int redirect = 0;
 int fast_serial = 0;
 
-static inline void putByte(void *io_base, char chr)
+void putByte(void *io_base, char chr)
 {
     (void)io_base;
 
