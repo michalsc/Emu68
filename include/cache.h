@@ -13,6 +13,7 @@ enum CacheType
 void cache_setup();
 void cache_invalidate_all(enum CacheType cache);
 void cache_invalidate_line(enum CacheType type, uint32_t address);
+void cache_invalidate_range(enum CacheType type, uint32_t address, uint32_t len);
 uint8_t cache_read_8(enum CacheType type, uint32_t address);
 uint16_t cache_read_16(enum CacheType type, uint32_t address);
 uint32_t cache_read_32(enum CacheType type, uint32_t address);

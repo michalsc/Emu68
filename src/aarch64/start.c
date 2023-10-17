@@ -303,6 +303,7 @@ extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
 int chip_slowdown;
+int dbf_slowdown;
 extern const char _verstring_object[];
 
 #ifdef PISTORM
@@ -583,6 +584,15 @@ void boot(void *dtree)
             else
             {
                 chip_slowdown = 0;
+            }
+
+            if (find_token(prop->op_value, "dbf_slowdown"))
+            {
+                dbf_slowdown = 1;
+            }
+            else
+            {
+                dbf_slowdown = 0;
             }
 
             if ((tok = find_token(prop->op_value, "buptest=")))
@@ -1966,6 +1976,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
     __m68k.JIT_CONTROL2 = chip_slowdown ? JC2F_CHIP_SLOWDOWN : 0;
+    __m68k.JIT_CONTROL2 |= dbf_slowdown ? JC2F_DBF_SLOWDOWN : 0;
     __m68k.JIT_CONTROL2 |= (20 << JC2B_CCR_SCAN_DEPTH); 
 
 #else

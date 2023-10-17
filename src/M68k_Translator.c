@@ -307,8 +307,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int debug = 0;
     int disasm = 0;
 
-    cache_invalidate_all(ICACHE);
-
     if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
         debug = globalDebug();
         disasm = globalDisasm();

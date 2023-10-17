@@ -23,9 +23,12 @@ static uint32_t allocated_len;
 
 void put_word(uint32_t word)
 {
-    if ((sizeof(uint32_t) * (data_len + 1)) > allocated_len)
+    while ((sizeof(uint32_t) * (data_len + 1)) > allocated_len)
     {
-        data = tlsf_realloc(tlsf, data, allocated_len + 4096);
+        uint32_t *new_data = tlsf_malloc(tlsf, allocated_len + 4096);
+        memcpy(new_data, data, allocated_len);
+        tlsf_free(tlsf, data);
+        data = new_data;
         allocated_len += 4096;
     }
 
@@ -34,9 +37,12 @@ void put_word(uint32_t word)
 
 void put_words(uint32_t *words, uint32_t count)
 {
-    if ((sizeof(uint32_t) * (data_len + count)) > allocated_len)
+    while ((sizeof(uint32_t) * (data_len + count)) > allocated_len)
     {
-        data = tlsf_realloc(tlsf, data, allocated_len + 4096);
+        uint32_t *new_data = tlsf_malloc(tlsf, allocated_len + 4096);
+        memcpy(new_data, data, allocated_len);
+        tlsf_free(tlsf, data);
+        data = new_data;
         allocated_len += 4096;
     }
 

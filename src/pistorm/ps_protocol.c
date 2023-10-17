@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "ps_protocol.h"
 #include "M68k.h"
+#include "cache.h"
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
@@ -800,7 +801,17 @@ void ps_housekeeper()
     /* Configure timer-based event stream */
     /* Enable timer regs from EL0, enable event stream on posedge, monitor 2th bit */
     /* This gives a frequency of 2.4MHz for a 19.2MHz timer */
-    asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
+    if (tmp > 20000000)
+    {
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+    }
+    else
+    {
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+    }
 
     for(;;) {
         if (housekeeper_enabled)
@@ -977,6 +988,7 @@ void ps_write_8(unsigned int address, unsigned int data)
     }
 #endif
 #endif
+    cache_invalidate_range(ICACHE, address, 1);
 }
 
 void ps_write_16(unsigned int address, unsigned int data)
@@ -1003,6 +1015,7 @@ void ps_write_16(unsigned int address, unsigned int data)
     }
 #endif
 #endif
+    cache_invalidate_range(ICACHE, address, 2);
 }
 
 void ps_write_32(unsigned int address, unsigned int data)
@@ -1029,12 +1042,14 @@ void ps_write_32(unsigned int address, unsigned int data)
     }
 #endif
 #endif
+    cache_invalidate_range(ICACHE, address, 4);
 }
 
 void ps_write_64(unsigned int address, uint64_t data)
 {
     ps_write_32(address, data >> 32);
     ps_write_32(address + 4, data & 0xffffffff);
+    cache_invalidate_range(ICACHE, address, 8);
 }
 
 void ps_write_128(unsigned int address, uint128_t data)
@@ -1043,6 +1058,7 @@ void ps_write_128(unsigned int address, uint128_t data)
     ps_write_32(address + 4, data.hi & 0xffffffff);
     ps_write_32(address + 8, data.lo >> 32);
     ps_write_32(address + 12, data.lo & 0xffffffff);
+    cache_invalidate_range(ICACHE, address, 16);
 }
 
 unsigned int ps_read_8(unsigned int address)
@@ -1123,10 +1139,12 @@ uint128_t ps_read_128(unsigned int address)
 }
 
 void put_char(uint8_t c);
+void putByte(void *io_base, char chr);
 
 static void __putc(void *data, char c)
 {
     (void)data;
+    putByte(data, c);
     put_char(c);
 }
 

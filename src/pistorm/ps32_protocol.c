@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "ps_protocol.h"
 #include "M68k.h"
+#include "cache.h"
 
 //volatile uint8_t gpio_lock;
 //volatile uint32_t gpio_rdval;
@@ -1152,121 +1153,70 @@ void flush_cdata()
     cmask.u32 = 0;
 }
 
+#define SLOW_IO(address) ((address) >= 0xDFF09A && (address) < 0xDFF09E)
+
 void ps_write_8(unsigned int address, unsigned int data) {
-#if 1
     write_access(address, data, SIZE_BYTE);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
-#else
-    if (address < 0x200000)
-    {
-        if ((address & 0xfffffffc) != caddress)
-        {
-            flush_cdata();
-        }
-
-        int off = address & 3;
-        caddress = address & 0xfffffffc;
-        cmask.u8[off] = 0xff;
-        cdata.u8[off] = data;
-
-        if (cmask.u32 == 0xffffffff)
-        {
-            flush_cdata();
-        }
-    }
-    else
-    {
-        flush_cdata();
-        write_access(address, data, SIZE_BYTE);
-    }
-#endif
+    cache_invalidate_range(ICACHE, address, 1);
 }
 
 void ps_write_16(unsigned int address, unsigned int data) {
-#if 1
     write_access(address, data, SIZE_WORD);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
-#else
-    if (address < 0x200000 && !(address & 1))
-    {
-        if ((address & 0xfffffffc) != caddress)
-        {
-            flush_cdata();
-        }
-
-        int off = (address & 2) >> 1;
-        caddress = address & ~3;
-        cmask.u16[off] = 0xffff;
-        cdata.u16[off] = data;
-
-        if (cmask.u32 == 0xffffffff)
-        {
-            flush_cdata();
-        }
-    }
-    else
-    {
-        flush_cdata();
-        write_access(address, data, SIZE_WORD);
-    }
-#endif
+    cache_invalidate_range(ICACHE, address, 2);
 }
 
 void ps_write_32(unsigned int address, unsigned int data) {
-//    flush_cdata();
     write_access(address, data, SIZE_LONG);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 4);
 }
 
 void ps_write_64(unsigned int address, uint64_t data) {
-//    flush_cdata();
     write_access_64(address, data);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 8);
 }
 
 void ps_write_128(unsigned int address, uint128_t data) {
-//    flush_cdata();
     write_access_128(address, data);
-    if (address >= 0x00a00000 && address < 0x00f00000)
+    if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
+    cache_invalidate_range(ICACHE, address, 16);
 }
 
 unsigned int ps_read_8(unsigned int address) {
-//    flush_cdata();
     return read_access(address, SIZE_BYTE);
 }
 
 unsigned int ps_read_16(unsigned int address) {
-//    flush_cdata();
     return read_access(address, SIZE_WORD);
 }
 
 unsigned int ps_read_32(unsigned int address) {
-//    flush_cdata();
     return read_access(address, SIZE_LONG);
 }
 
 uint64_t ps_read_64(unsigned int address) {
-//    flush_cdata();
     return read_access_64(address);
 }
 
 uint128_t ps_read_128(unsigned int address) {
-//    flush_cdata();
     return read_access_128(address);
 }
 
