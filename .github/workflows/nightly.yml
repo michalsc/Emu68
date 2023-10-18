@@ -16,14 +16,14 @@ jobs:
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
     # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     strategy:
       matrix:
         targ: [raspi, pistorm, pistorm32lite]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with: 
         submodules: 'true'
 
@@ -96,14 +96,14 @@ jobs:
       run: zip -r ./Emu68-${{matrix.targ}}.zip .
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: emu68-archive
         path: ${{runner.workspace}}/install/Emu68-${{matrix.targ}}.zip
         retention-days: 5
 
   deploy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: build
 
     strategy:
@@ -112,14 +112,14 @@ jobs:
 
     steps:  
     - name: Download Artifact
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: emu68-archive
         path: ${{runner.workspace}}/uploads
 
     - name: Deploy Raspi release
       id: deploy
-      uses: WebFreak001/deploy-nightly@v1.1.0
+      uses: WebFreak001/deploy-nightly@v2.0.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # automatically provided by github actions
       with:
@@ -134,8 +134,8 @@ jobs:
       id: vars
       shell: bash
       run: |
-        echo "::set-output name=build_date::$(date +"%Y%m%d")"
-        echo "::set-output name=sha_short::${GITHUB_SHA::6}"
+        echo "build_date=$(date +"%Y%m%d")" >> $GITHUB_OUTPUT
+        echo "sha_short=${GITHUB_SHA::6}" >> $GITHUB_OUTPUT
 
     - name: Webhook
       if: ${{ (matrix.targ == 'pistorm' || matrix.targ == 'pistorm32lite') && steps.deploy.outputs.uploaded == 'yes' }}
