@@ -513,6 +513,7 @@ static void my_free(void *ptr)
 
 void *firmware_file = NULL;
 uint32_t firmware_size = 0;
+uint32_t cs_dist = 1;
 
 void boot(void *dtree)
 {
@@ -584,6 +585,27 @@ void boot(void *dtree)
             else
             {
                 chip_slowdown = 0;
+            }
+
+            if ((tok = find_token(prop->op_value, "cs_dist=")))
+            {
+                uint32_t cs = 0;
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                        break;
+
+                    cs = cs * 10 + tok[8 + i] - '0';
+                }
+
+                if (cs == 0) cs = 1;
+
+                if (cs > 8) {
+                    cs = 8;
+                }
+                
+                cs_dist = cs;
             }
 
             if (find_token(prop->op_value, "dbf_slowdown"))
@@ -1978,6 +2000,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL2 = chip_slowdown ? JC2F_CHIP_SLOWDOWN : 0;
     __m68k.JIT_CONTROL2 |= dbf_slowdown ? JC2F_DBF_SLOWDOWN : 0;
     __m68k.JIT_CONTROL2 |= (20 << JC2B_CCR_SCAN_DEPTH); 
+    __m68k.JIT_CONTROL2 |= ((cs_dist - 1) << JC2B_CHIP_SLOWDOWN_RATIO);
 
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);

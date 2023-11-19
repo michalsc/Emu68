@@ -863,7 +863,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 {
     uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream);
     int scan_depth = 0;
-    const int max_scan_depth = (__m68k_state->JIT_CONTROL2 >> JC2B_CCR_SCAN_DEPTH) & JC2B_CCR_SCAN_MASK;
+    const int max_scan_depth = (__m68k_state->JIT_CONTROL2 >> JC2B_CCR_SCAN_DEPTH) & JC2_CCR_SCAN_MASK;
     uint8_t mask = 0;
     uint8_t needed = 0;
     uint8_t tmp_sets = 0;
