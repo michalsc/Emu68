@@ -132,12 +132,14 @@ struct M68KState
 #define JCCB_LOOP_COUNT         4
 #define JCCB_LOOP_COUNT_MASK    0xf
 
-#define JC2B_CHIP_SLOWDOWN      0
-#define JC2F_CHIP_SLOWDOWN      (1 << JC2B_CHIP_SLOWDOWN)
-#define JC2B_DBF_SLOWDOWN       1
-#define JC2F_DBF_SLOWDOWN       (1 << JC2B_DBF_SLOWDOWN)
-#define JC2B_CCR_SCAN_DEPTH     3
-#define JC2B_CCR_SCAN_MASK      0x1f
+#define JC2B_CHIP_SLOWDOWN              0
+#define JC2F_CHIP_SLOWDOWN              (1 << JC2B_CHIP_SLOWDOWN)
+#define JC2B_DBF_SLOWDOWN               1
+#define JC2F_DBF_SLOWDOWN               (1 << JC2B_DBF_SLOWDOWN)
+#define JC2B_CCR_SCAN_DEPTH             3
+#define JC2_CCR_SCAN_MASK               0x1f
+#define JC2B_CHIP_SLOWDOWN_RATIO        8
+#define JC2_CHIP_SLOWDOWN_RATIO_MASK    0x07
 
 #define DCB_VERBOSE 0
 #define DCB_VERBOSE_MASK 0x3

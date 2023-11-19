@@ -171,9 +171,14 @@ static inline uint32_t *EmitINSN(uint32_t *arm_ptr, uint16_t **m68k_ptr, uint16_
 
     if ((__m68k_state->JIT_CONTROL2 & JC2F_CHIP_SLOWDOWN) && (uintptr_t)*m68k_ptr < 0x200000)
     {
-        int8_t off = 0;
-        ptr = EMIT_GetOffsetPC(ptr, &off);
-        *ptr++ = ldurh_offset(REG_PC, 0, off);
+        static uint32_t counter;
+        const uint32_t repeat_every = 1 + ((__m68k_state->JIT_CONTROL2 >> JC2B_CHIP_SLOWDOWN_RATIO) & JC2_CHIP_SLOWDOWN_RATIO_MASK);
+        if (counter++ % repeat_every == 0)
+        {
+            int8_t off = 0;
+            ptr = EMIT_GetOffsetPC(ptr, &off);
+            *ptr++ = ldurh_offset(REG_PC, 0, off);
+        }
     }
 
     ptr = line_array[group](ptr, m68k_ptr, insn_consumed);
