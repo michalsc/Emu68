@@ -99,6 +99,8 @@ The same set of options as in case of ``brcm-sdhc.device``. Replace ``sd``  with
 
 * ``chip_slowdown``
   Every translated m68k opcode will have additional ARM instruction reading the opcode word from memory before executing it. Can improve compatibility of old software using busy loops for delay purposes.
+* ``cs_dist=1..8``
+  Adjust the distance between chip slowdown instructions. This option has effect only when ``chip_slowdown`` is active, either by cmdline.txt or enabled with EmuControl tool. For a number ``n`` specified here the slowdown applies to every n-th instruction, only.
 * ``checksum_rom``
   Recalculates checksum of mapped rom. Might be useful in case of modded kickstart files with broken checksum.
 * ``copy_rom=256 | 512 | 1024 | 2048``
