@@ -20,6 +20,8 @@
 //volatile uint8_t gpio_lock;
 //volatile uint32_t gpio_rdval;
 
+extern struct M68KState *__m68k_state;
+
 static void usleep(uint64_t delta)
 {
     uint64_t hi = LE32(*(volatile uint32_t*)0xf2003008);
@@ -1155,6 +1157,25 @@ void flush_cdata()
 
 #define SLOW_IO(address) ((address) >= 0xDFF09A && (address) < 0xDFF09E)
 
+static inline void check_blit_active(unsigned int addr, unsigned int size) {
+    if (!(__m68k_state->JIT_CONTROL2 & JC2F_BLITWAIT))
+        return;
+
+    const uint32_t bstart = 0xDFF040;   // BLTCON0
+    const uint32_t bend = 0xDFF076;     // BLTADAT+2
+    if (addr >= bend || addr + size <= bstart)
+        return;
+
+    const uint16_t mask = 1<<14 | 1<<9 | 1<<6; // BBUSY | DMAEN | BLTEN
+    while ((read_access(0xdff002, SIZE_WORD) & mask) == mask) {
+        // Dummy reads to not steal too many cycles from the blitter.
+        // But don't use e.g. CIA reads as we expect the operation
+        // to finish soon.
+        read_access(0x00f00000, SIZE_BYTE);
+        read_access(0x00f00000, SIZE_BYTE);
+    }
+}
+
 void ps_write_8(unsigned int address, unsigned int data) {
     write_access(address, data, SIZE_BYTE);
     if (SLOW_IO(address))
@@ -1165,6 +1186,7 @@ void ps_write_8(unsigned int address, unsigned int data) {
 }
 
 void ps_write_16(unsigned int address, unsigned int data) {
+    check_blit_active(address, 2);
     write_access(address, data, SIZE_WORD);
     if (SLOW_IO(address))
     {
@@ -1174,6 +1196,7 @@ void ps_write_16(unsigned int address, unsigned int data) {
 }
 
 void ps_write_32(unsigned int address, unsigned int data) {
+    check_blit_active(address, 4);
     write_access(address, data, SIZE_LONG);
     if (SLOW_IO(address))
     {
@@ -1183,6 +1206,7 @@ void ps_write_32(unsigned int address, unsigned int data) {
 }
 
 void ps_write_64(unsigned int address, uint64_t data) {
+    check_blit_active(address, 8);
     write_access_64(address, data);
     if (SLOW_IO(address))
     {
@@ -1192,6 +1216,7 @@ void ps_write_64(unsigned int address, uint64_t data) {
 }
 
 void ps_write_128(unsigned int address, uint128_t data) {
+    check_blit_active(address, 16);
     write_access_128(address, data);
     if (SLOW_IO(address))
     {
@@ -1525,7 +1550,6 @@ void fastSerial_init()
 #define PM_RSTC_FULLRST 0x00000020
 
 volatile int housekeeper_enabled = 0;
-extern struct M68KState *__m68k_state;
 
 void ps_housekeeper() 
 {

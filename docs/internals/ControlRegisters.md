@@ -119,11 +119,13 @@ Debug information about  JIT units is usually shown for all blocks of the memory
 
 Second control register influencing behavior of Emu68
 
-| Name                   | Offset | Field size | Description                                  |
-| ---------------------- | ------ | ---------- | -------------------------------------------- |
-| ``JC2_CHIP_SLOWDOWN``  | 0      | 1          | Slow down code executing from CHIP memory    |
-| ``JC2_DBF_SLOWDOWN``   | 1      | 1          | Slow down special case of DBF busy loops     |
-| ``JC2_CCR_SCAN_DEPTH`` | 3      | 5          | Controls forward scan depth of CCR optimizer |
+| Name                        | Offset | Field size | Description                                          |
+| --------------------------- | ------ | ---------- | ---------------------------------------------------- |
+| ``JC2_CHIP_SLOWDOWN``       | 0      | 1          | Slow down code executing from CHIP memory            |
+| ``JC2_DBF_SLOWDOWN``        | 1      | 1          | Slow down special case of DBF busy loops             |
+| ``JC2_CCR_SCAN_DEPTH``      | 3      | 5          | Controls forward scan depth of CCR optimizer         |
+| ``JC2_CHIP_SLOWDOWN_RATIO`` | 8      | 3          | Controls amount of slowdown running from CHIP memory |
+| ``JC2_BLITWAIT``            | 11     | 1          | Automatically wait for blitter to finish             |
 
 ### JC2_CHIP_SLOWDOWN
 
@@ -144,3 +146,10 @@ Due to nature of Emu68 such busy loops are much faster then expected. When this 
 
 When Emu68 is translating m68k code to AArch64 code, it perform forward scanning of further m68k instructions to estimate if and, if yes, which bits of CCR should be updated. This greatly reduces amount of generated AArch64 code, but might be prone to errors e.g. in case of self-modifying code. By adjusting JC2_CCR_SCAN_DEPTH field it is possible to instruct Emu68 how many opcodes shall be scanned in advance. Valid values vary from 0 (CCR optimization completely disabled) up to 31. Default value on startup of Emu68 is 20.
 
+### JC2_CHIP_SLOWDOWN_RATIO
+
+When ``JC2_CHIP_SLOWDOWN`` is enabled, controls the ratio of instructions that are slowed down.
+
+### JC2_BLITWAIT
+
+If this bit is set, Emu68 monitors writes by the CPU to blitter registers, and ensures the blitter is not active before proceeding. This will fix issues caused by missing blitter waits in software that was written to expect A500 speed when executing code from CHIP or SLOW memory. Blitter heavy code will be slowed down a bit by this setting.
