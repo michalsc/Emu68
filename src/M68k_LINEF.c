@@ -3675,6 +3675,13 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
 #endif
 
+        if (precision == 4)
+        {
+            // FSMOVE (Needed by e.g. https://www.pouet.net/prod.php?which=74668)
+            *ptr++ = fcvtsd(fp_dst, fp_dst);
+            *ptr++ = fcvtds(fp_dst, fp_dst);
+        }
+
         RA_FreeFPURegister(&ptr, fp_src);
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
