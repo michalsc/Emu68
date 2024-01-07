@@ -45,6 +45,7 @@
 
 #define EMU68_WEAK_CFLUSH_SLOW  0
 #define EMU68_PC_REG_HISTORY    0
+#define EMU68_CCR_SCAN_DEPTH    20
 
 #ifdef PISTORM
 
