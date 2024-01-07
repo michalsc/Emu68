@@ -159,6 +159,7 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
                 src/boards/sdcard.c
                 src/boards/68040.c
                 src/boards/emmc.c
+                src/boards/unicam.c
             )
         else()
             message(FATAL_ERROR "PiStorm variants are supported on raspi targets, only.")
