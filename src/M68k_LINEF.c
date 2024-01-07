@@ -4679,8 +4679,8 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     {
         return EMIT_FPU(ptr, m68k_ptr, insn_consumed);
     }
-    /* PFLUSHA - ignore */
-    else if ((opcode & 0xffe0) == 0xf500)
+    /* PFLUSHA or PTEST - ignore */
+    else if ((opcode & 0xffe0) == 0xf500 || (opcode & 0xffd8) == 0xf548)
     {
         *ptr++ = nop();
         (*m68k_ptr)+=1;
