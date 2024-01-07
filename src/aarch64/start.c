@@ -304,6 +304,7 @@ int enable_cache = 0;
 int limit_2g = 0;
 int chip_slowdown;
 int dbf_slowdown;
+static int blitwait;
 extern const char _verstring_object[];
 
 #ifdef PISTORM
@@ -616,6 +617,8 @@ void boot(void *dtree)
             {
                 dbf_slowdown = 0;
             }
+
+            blitwait = !!find_token(prop->op_value, "blitwait");
 
             if ((tok = find_token(prop->op_value, "buptest=")))
             {
@@ -2001,6 +2004,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL2 |= dbf_slowdown ? JC2F_DBF_SLOWDOWN : 0;
     __m68k.JIT_CONTROL2 |= (20 << JC2B_CCR_SCAN_DEPTH); 
     __m68k.JIT_CONTROL2 |= ((cs_dist - 1) << JC2B_CHIP_SLOWDOWN_RATIO);
+    __m68k.JIT_CONTROL2 |= blitwait ? JC2F_BLITWAIT : 0;
 
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);

@@ -140,6 +140,8 @@ struct M68KState
 #define JC2_CCR_SCAN_MASK               0x1f
 #define JC2B_CHIP_SLOWDOWN_RATIO        8
 #define JC2_CHIP_SLOWDOWN_RATIO_MASK    0x07
+#define JC2B_BLITWAIT                   11
+#define JC2F_BLITWAIT                   (1 << JC2B_BLITWAIT)
 
 #define DCB_VERBOSE 0
 #define DCB_VERBOSE_MASK 0x3
