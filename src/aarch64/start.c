@@ -304,7 +304,9 @@ int enable_cache = 0;
 int limit_2g = 0;
 int chip_slowdown;
 int dbf_slowdown;
+#ifdef PISTORM
 static int blitwait;
+#endif
 extern const char _verstring_object[];
 
 #ifdef PISTORM
