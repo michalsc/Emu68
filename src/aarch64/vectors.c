@@ -326,6 +326,14 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
 
+    /*
+        Allow single wrap around the address space. This provides mirror areas for
+        simplified aarch64 pointer arithmetic
+    */
+    if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
+        far &= 0xffffffff;
+    }
+
     if (far == INTENA) {
         if (value & 0x8000) {
             INT_shadow.INTENA |= value & 0x7fff;
@@ -355,14 +363,6 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
     }
 
-    /*
-        Allow single wrap around the address space. This provides mirror areas for
-        simplified aarch64 pointer arithmetic
-    */
-    if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
-        far &= 0xffffffff;
-    }
-
     if (far == 0xdeadbeef && size == 1) {
         kprintf("%c", value);
         return 1;
@@ -370,6 +370,10 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 
     if (far >= 0xff000000) {
         kprintf("Z3 write access with far %08x, size %d, value %08x\n", far, size, value);
+    }
+
+    if (far >= 0x1000000) {
+        return 1; // Unmapped Z3 address
     }
 
     if (far == CIAAPRA && size == 1) {
@@ -479,6 +483,13 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         far &= 0xffffffff;
     }
 
+    if (far >= 0x1000000) {
+        // Unmapped Z3 address
+        *value = ~0ULL;
+        if (size == 16)
+            *value2 = ~0ULL;
+        return 1;
+    }
 
     if ((far >= 0xc00000 && far <= 0xc7ffff) && block_c0)
     {
