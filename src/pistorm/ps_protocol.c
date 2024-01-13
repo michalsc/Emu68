@@ -506,16 +506,12 @@ static void ps_write_32_int(unsigned int address, unsigned int value)
     }
 }
 
-unsigned int ps_read_16_int(unsigned int address)
+static unsigned int ps_read_16_int_nowbwait(unsigned int address)
 {
     uint64_t tmp;
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
 
-#if PISTORM_WRITE_BUFFER
-    wb_waitfree();
-#endif
-
-address &= 0xffffff;
+    address &= 0xffffff;
 
 //    if (address > 0xffffff)
 //        return 0xffff;
@@ -586,6 +582,14 @@ address &= 0xffffff;
         *(gpio + 10) = LE32(0xffffec);
         return (value >> 8) & 0xffff;
     }
+}
+
+unsigned int ps_read_16_int(unsigned int address)
+{
+#if PISTORM_WRITE_BUFFER
+    wb_waitfree();
+#endif
+    return ps_read_16_int_nowbwait(address);
 }
 
 unsigned int ps_read_8_int(unsigned int address)
@@ -924,6 +928,28 @@ void wb_init()
 #endif
 }
 
+static inline void check_blit_active(unsigned int addr, unsigned int size)
+{
+    if (!__m68k_state || !(__m68k_state->JIT_CONTROL2 & JC2F_BLITWAIT))
+        return;
+
+    addr &= 0xffffff;
+
+    const uint32_t bstart = 0xDFF040;   // BLTCON0
+    const uint32_t bend = 0xDFF076;     // BLTADAT+2
+    if (addr >= bend || addr + size <= bstart)
+        return;
+
+    const uint16_t mask = 1<<14 | 1<<9 | 1<<6; // BBUSY | DMAEN | BLTEN
+    while ((ps_read_16_int_nowbwait(0xdff002) & mask) == mask) {
+        // Dummy reads to not steal too many cycles from the blitter.
+        // But don't use e.g. CIA reads as we expect the operation
+        // to finish soon.
+        ps_read_16_int_nowbwait(0x00f00000);
+        ps_read_16_int_nowbwait(0x00f00000);
+    }
+}
+
 void wb_task()
 {
 #if PISTORM_WRITE_BUFFER
@@ -933,6 +959,8 @@ void wb_task()
         struct WriteRequest req = wb_peek();
 
         while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+
+        check_blit_active(req.wr_addr, req.wr_size);
 
         switch (req.wr_size) {
             case 1:
@@ -1003,6 +1031,7 @@ void ps_write_16(unsigned int address, unsigned int data)
         wb_waitfree();
     }
 #else
+    check_blit_active(address, 2);
     ps_write_16_int(address, data);
 #if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
@@ -1030,6 +1059,7 @@ void ps_write_32(unsigned int address, unsigned int data)
         wb_waitfree();
     }
 #else
+    check_blit_active(address, 4);
     ps_write_32_int(address, data);
 #if CIA_DELAY
     if (address >= 0xbf0000 && address <= 0xbfffff) {
