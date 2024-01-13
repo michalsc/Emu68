@@ -304,6 +304,10 @@ int enable_cache = 0;
 int limit_2g = 0;
 int chip_slowdown;
 int dbf_slowdown;
+int emu68_icnt = EMU68_M68K_INSN_DEPTH;
+int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
+int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
+
 #ifdef PISTORM
 static int blitwait;
 #endif
@@ -581,7 +585,7 @@ void boot(void *dtree)
                 use_2slot = 0;
             }
 #endif
-            if (find_token(prop->op_value, "chip_slowdown"))
+            if (find_token(prop->op_value, "chip_slowdown") || find_token(prop->op_value, "SC"))
             {
                 chip_slowdown = 1;
             }
@@ -611,7 +615,29 @@ void boot(void *dtree)
                 cs_dist = cs;
             }
 
-            if (find_token(prop->op_value, "dbf_slowdown"))
+            if ((tok = find_token(prop->op_value, "SCS=")))
+            {
+                uint32_t cs = 0;
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[4 + i] < '0' || tok[4 + i] > '9')
+                        break;
+
+                    cs = cs * 10 + tok[4 + i] - '0';
+                }
+
+                if (cs == 0) cs = 1;
+
+                if (cs > 8) {
+                    cs = 8;
+                }
+                
+                cs_dist = cs;
+            }
+
+
+            if (find_token(prop->op_value, "dbf_slowdown") || find_token(prop->op_value, "DBF"))
             {
                 dbf_slowdown = 1;
             }
@@ -620,7 +646,81 @@ void boot(void *dtree)
                 dbf_slowdown = 0;
             }
 
-            blitwait = !!find_token(prop->op_value, "blitwait");
+            blitwait = !(!find_token(prop->op_value, "blitwait") && !find_token(prop->op_value, "BW"));
+
+            if ((tok = find_token(prop->op_value, "ICNT=")))
+            {
+                uint32_t val = 0;
+                const char *c = &tok[5];
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (c[i] < '0' || c[i] > '9')
+                        break;
+
+                    val = val * 10 + c[i] - '0';
+                }
+
+                if (val == 0) val = 1;
+                if (val > 256) val = 256;
+
+                emu68_icnt = val;
+            }
+
+            if ((tok = find_token(prop->op_value, "CCRD=")))
+            {
+                uint32_t val = 0;
+                const char *c = &tok[5];
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (c[i] < '0' || c[i] > '9')
+                        break;
+
+                    val = val * 10 + c[i] - '0';
+                }
+
+                if (val > 31) val = 31;
+
+                emu68_ccrd = val;
+            }
+
+            if ((tok = find_token(prop->op_value, "IRNG=")))
+            {
+                uint32_t val = 0;
+                const char *c = &tok[5];
+
+                for (int i=0; i < 7; i++)
+                {
+                    if (c[i] < '0' || c[i] > '9')
+                        break;
+
+                    val = val * 10 + c[i] - '0';
+                }
+
+                if (val > 65535) val = 65535;
+
+                emu68_irng = val;
+            }
+
+            if ((tok = find_token(prop->op_value, "ICNT=")))
+            {
+                uint32_t val = 0;
+                const char *c = &tok[5];
+
+                for (int i=0; i < 4; i++)
+                {
+                    if (c[i] < '0' || c[i] > '9')
+                        break;
+
+                    val = val * 10 + c[i] - '0';
+                }
+
+                if (val == 0) val = 1;
+                if (val > 256) val = 256;
+
+                emu68_icnt = val;
+            }
 
             if ((tok = find_token(prop->op_value, "buptest=")))
             {
@@ -1999,12 +2099,12 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_UNIT_COUNT = 0;
     __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
     __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
-    __m68k.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
-    __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
+    __m68k.JIT_CONTROL |= (emu68_icnt & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
+    __m68k.JIT_CONTROL |= (emu68_irng & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
     __m68k.JIT_CONTROL2 = chip_slowdown ? JC2F_CHIP_SLOWDOWN : 0;
     __m68k.JIT_CONTROL2 |= dbf_slowdown ? JC2F_DBF_SLOWDOWN : 0;
-    __m68k.JIT_CONTROL2 |= (20 << JC2B_CCR_SCAN_DEPTH); 
+    __m68k.JIT_CONTROL2 |= (emu68_ccrd  << JC2B_CCR_SCAN_DEPTH); 
     __m68k.JIT_CONTROL2 |= ((cs_dist - 1) << JC2B_CHIP_SLOWDOWN_RATIO);
     __m68k.JIT_CONTROL2 |= blitwait ? JC2F_BLITWAIT : 0;
 

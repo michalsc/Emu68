@@ -127,8 +127,8 @@ void build_fdt()
     struct fdt_header *fdt_orig = dt_fdt_base();
     struct fdt_header fdt = *fdt_orig;
 
-    data = tlsf_malloc(tlsf, 4096);
-    allocated_len = 4096;
+    data = tlsf_malloc(tlsf, 262144);
+    allocated_len = 262144;
     data_len = 0;
     strings_len = 0;
     strings = NULL;
