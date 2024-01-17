@@ -29,6 +29,8 @@
 #define xstr(s) str(s)
 #define str(s) #s
 
+#define _abs(x) ((x) < 0 ? -(x) : (x))
+
 typedef struct {
     uint64_t hi;
     uint64_t lo;

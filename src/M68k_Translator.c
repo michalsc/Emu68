@@ -893,7 +893,7 @@ uint32_t *EMIT_InjectPrintContext(uint32_t *ptr)
 #ifdef __aarch64__
     union {
         uint64_t u64;
-        uint32_t u32[2];
+        uint16_t u16[4];
     } u;
 
     u.u64 = (uintptr_t)M68K_PrintContext;
@@ -905,12 +905,13 @@ uint32_t *EMIT_InjectPrintContext(uint32_t *ptr)
     *ptr++ = str64_offset(31, 30, 64);
 
     *ptr++ = mrs(0, 3, 3, 13, 0, 3);
-    *ptr++ = adr(30, 20);
-    *ptr++ = ldr64_pcrel(1, 2);
-    *ptr++ = br(1);
 
-    *ptr++ = u.u32[0];
-    *ptr++ = u.u32[1];
+    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+
+    *ptr++ = blr(1);
 
     *ptr++ = ldp64(31, 2, 3, 16);
     *ptr++ = ldp64(31, 4, 5, 32);
@@ -942,7 +943,7 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
 
     union {
         uint64_t u64;
-        uint32_t u32[2];
+        uint16_t u16[4];
     } u;
 
     u.u64 = (uintptr_t)kprintf;
@@ -954,12 +955,13 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
 
     tmpptr = ptr;
     *ptr++ = adr(0, 48);
-    *ptr++ = adr(30, 20);
-    *ptr++ = ldr64_pcrel(1, 2);
-    *ptr++ = br(1);
 
-    *ptr++ = u.u32[0];
-    *ptr++ = u.u32[1];
+    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+
+    *ptr++ = blr(0);
 
     for (int i=2; i < 30; i += 2)
         *ptr++ = ldp64(31, i, i+1, i*8);
