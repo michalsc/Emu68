@@ -330,7 +330,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     M68K_ResetReturnStack();
 
     if (debug) {
-        kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", (hash ^ (hash >> 16)) & 0xffff, (void*)m68kcodeptr);
+        uint32_t hash_calc = (hash >> 5) & 0xffff;
+        kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash_calc, (void*)m68kcodeptr);
         if (debug > 1)
             M68K_PrintContext(__m68k_state);
     }
@@ -639,7 +640,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 */
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 {
-    struct M68KTranslationUnit *unit = NULL, *n;
+    struct M68KTranslationUnit *unit = NULL; //, *n;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     
@@ -653,11 +654,16 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     m68k_high = m68kcodeptr;
 
     /* Get 16-bit has from the pointer to m68k code */
+#if 1
+    hash = (hash >> 5) & 0xffff;
+#else
     hash = (hash ^ (hash >> 16)) & 0xffff;
+#endif
 
     if (debug > 2)
         kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
+#if 0
     /* Find entry with correct address */
     ForeachNode(&ICache[hash], n)
     {
@@ -697,6 +703,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             return unit;
         }
     }
+#endif
 
     if (unit == NULL)
     {

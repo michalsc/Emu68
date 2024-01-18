@@ -31,6 +31,7 @@ struct List
         struct Node * lh_TailPred;
         struct List * lh_TailPred_;
     };
+    void *__dummy;
 };
 
 /**************************************
