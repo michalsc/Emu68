@@ -1692,7 +1692,7 @@ void  __attribute__((used)) stub_FindUnit()
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
 #if 1
-"       and     w0, w%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
+"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
 "       ldr     x0, [x4, x0]                \n"
 #else
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
@@ -1778,7 +1778,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       .align  6                           \n"
 "13:                                        \n"
 #if 1
-"       and     w0, w%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
+"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
 "       ldr     x0, [x4, x0]                \n"
