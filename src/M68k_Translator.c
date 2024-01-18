@@ -968,7 +968,7 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
     *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
     *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
 
-    *ptr++ = blr(0);
+    *ptr++ = blr(1);
 
     for (int i=2; i < 30; i += 2)
         *ptr++ = ldp64(31, i, i+1, i*8);
