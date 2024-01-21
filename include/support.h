@@ -13,11 +13,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-#ifdef __aarch64__
 #include "A64.h"
-#else
-#include "ARM.h"
-#endif
 
 #ifdef NULL
 #undef NULL
@@ -108,7 +104,6 @@ static inline void wr8(uintptr_t iobase, uint8_t value) {
     *(volatile uint8_t *)(iobase) = value;
 }
 
-#ifdef __aarch64__
 static inline void dsb() {
     asm volatile ("dsb sy");
 }
@@ -116,15 +111,6 @@ static inline void dsb() {
 static inline void dmb() {
     asm volatile ("dmb sy");
 }
-#else
-static inline void dsb() {
-    asm volatile ("mcr p15,#0,%[zero],c7,c10,#4" : : [zero] "r" (0));
-}
-
-static inline void dmb() {
-    asm volatile ("mcr p15,#0,%[zero],c7,c10,#5" : : [zero] "r" (0));
-}
-#endif
 
 typedef void (*putc_func)(void *data, char c);
 void vkprintf_pc(putc_func putc_f, void *putc_data, const char * format, va_list args);
