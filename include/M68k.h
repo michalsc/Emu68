@@ -26,7 +26,7 @@ struct M68KLocalState {
 
 struct M68KTranslationUnit {
     struct Node     mt_HashNode;
-    struct Node     mt_LRUNode;
+    struct Node     mt_LRUNode__unused;
     uint16_t *      mt_M68kAddress;
     uint16_t *      mt_M68kLow;
     uint16_t *      mt_M68kHigh;

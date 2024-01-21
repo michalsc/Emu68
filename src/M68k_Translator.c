@@ -619,7 +619,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 
         if (crc != unit->mt_CRC32)
         {
-            REMOVE(&unit->mt_LRUNode);
+            //REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
 
