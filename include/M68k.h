@@ -37,6 +37,7 @@ struct M68KTranslationUnit {
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;
     uint64_t        mt_FetchCount;
+    uint64_t        mt_TranslationTime;
     void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
     uint32_t        mt_CRC32;
@@ -481,6 +482,7 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
 uint8_t EMIT_TestFPUCondition(uint32_t **pptr, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
+void M68K_FlushICache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void *M68K_TranslateNoCache(uint16_t *m68kcodeptr);
 struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit);
@@ -489,6 +491,7 @@ uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
 
+#if 0
 static inline __attribute__((always_inline)) struct M68KTranslationUnit *M68K_FindTranslationUnit(uint16_t *ptr)
 {
     struct M68KTranslationUnit *unit = NULL, *n;
@@ -541,5 +544,6 @@ static inline __attribute__((always_inline)) struct M68KTranslationUnit *M68K_Fi
 
     return NULL;
 }
+#endif
 
 #endif /* _M68K_H */

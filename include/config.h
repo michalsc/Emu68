@@ -47,6 +47,9 @@
 #define EMU68_PC_REG_HISTORY    0
 #define EMU68_CCR_SCAN_DEPTH    20
 
+#define EMU68_HASHSIZE          256
+#define EMU68_HASHMASK          0xff
+
 #ifdef PISTORM
 
 /* Speed for bitbang RS232... */

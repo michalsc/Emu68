@@ -1679,10 +1679,12 @@ uint32_t fb_height  __attribute__((weak))= 0;
 
 void ExecutionLoop(struct M68KState *ctx);
 
+#if 0
 struct M68KTranslationUnit *_FindUnit(uint16_t *ptr)
 {
     return M68K_FindTranslationUnit(ptr);
 }
+#endif
 
 void  __attribute__((used)) stub_FindUnit()
 {
@@ -1692,7 +1694,7 @@ void  __attribute__((used)) stub_FindUnit()
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
 #if 1
-"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
+"       and     x0, x%[reg_pc], %[hash_mask]\n" // Hash is (address >> 5) & 0xffff !!!!
 "       ldr     x0, [x4, x0]                \n"
 #else
 "       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
@@ -1703,13 +1705,14 @@ void  __attribute__((used)) stub_FindUnit()
 "       b       1f                          \n"
 "3:                                         \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    2f                          \n"
+"       b.eq    4f                          \n"
 "       mov     x0, x4                      \n"
 "1:     ldr     x4, [x0]                    \n"
 "       ldr     x5, [x0, #32]               \n"
 "       cbnz    x4, 3b                      \n"
 "       mov     x0, #0                      \n"
 "4:     ret                                 \n"
+#if 0
 "2:     ldp     x6, x4, [x0, #16]           \n"
 "       ldr     x5, [x4, #8]                \n"
 "       cbz     x5, 4b                      \n"
@@ -1719,8 +1722,11 @@ void  __attribute__((used)) stub_FindUnit()
 "       stp     x6, x7, [x4]                \n"
 "       str     x4, [x6, #8]                \n"
 "       ret                                 \n"
+#endif
 
-::[reg_pc]"i"(REG_PC));
+::
+[reg_pc]"i"(REG_PC),
+[hash_mask]"i"(EMU68_HASHMASK << 5));
 }
 
 #ifdef PISTORM
@@ -1778,7 +1784,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       .align  6                           \n"
 "13:                                        \n"
 #if 1
-"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
+"       and     x0, x%[reg_pc], %[hash_mask]\n" // Hash is (address >> 5) & 0xffff !!!!
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
 "       ldr     x0, [x4, x0]                \n"
@@ -1793,12 +1799,13 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       51f                         \n"
 "53:                                        \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    52f                         \n"
+"       b.eq    55f                         \n"
 "       mov     x0, x4                      \n"
 "51:    ldr     x4, [x0]                    \n"
 "       ldr     x5, [x0, #32]               \n" // Fetch PC address now, we assume that the search was successful
 "       cbnz    x4, 53b                     \n"
 "       b 5f                                \n"
+#if 0
 "52:    ldp     x6, x4, [x0, #16]           \n"
 "       ldr     x5, [x4, #8]                \n"
 "       cbz     x5, 55f                     \n"
@@ -1807,7 +1814,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       str     x7, [x5]                    \n"
 "       stp     x6, x7, [x4]                \n"
 "       str     x4, [x6, #8]                \n"
-
+#endif
 "55:                                        \n"
 "       ldr     x12, [x0, #%[offset]]       \n"
 #if EMU68_LOG_FETCHES
@@ -2044,6 +2051,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 :
 :[reg_pc]"i"(REG_PC),
  [reg_sp]"i"(REG_A7),
+ [hash_mask]"i"(EMU68_HASHMASK << 5),
  [cacr_ie]"i"(CACR_IE),
  [cacr_ie_bit]"i"(CACRB_IE),
  [sr_ipm]"i"(SR_IPL),

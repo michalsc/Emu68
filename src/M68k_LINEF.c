@@ -1796,16 +1796,17 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 {
     int i;
     uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
-    struct M68KTranslationUnit *u;
-    struct Node *n, *next;
-    extern struct List LRU;
+//    struct M68KTranslationUnit *u;
+//    struct Node *n, *next;
+//    extern struct List LRU;
     extern void *jit_tlsf;
-    extern struct M68KState *__m68k_state;
+//    extern struct M68KState *__m68k_state;
 
     (void)jit_tlsf;
 
     //kprintf("[LINEF] ICache flush... Opcode=%04x, Target=%08x, PC=%08x, ARM PC=%p\n", opcode, target_addr, pc, arm_pc);
     // kprintf("[LINEF] ARM insn: %08x\n", *arm_pc);
+    (void)target_addr;
 
     // Invalidate entire instruction cache
     // FIXME: Could be more precise (but most of the time everything is probably flushed anyway)
@@ -1828,7 +1829,8 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     /* Get the scope */
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
-            // kprintf("[LINEF] Invalidating line\n");
+            kprintf("[LINEF] Invalidating line\n");
+#if 0
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1858,9 +1860,11 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
                 }
             }
+#endif
             break;
         case 0x10:  /* Page */
-            // kprintf("[LINEF] Invalidating page\n");
+#if 0
+            kprintf("[LINEF] Invalidating page\n");
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1891,9 +1895,12 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
                 }
             }
+#endif
             break;
         case 0x18:  /* All */
-            // kprintf("[LINEF] Invalidating all\n");            
+            #if 1
+            M68K_FlushICache();
+            #else
             if (__m68k_state->JIT_CONTROL & JCCF_SOFT)
             {
                 if (__m68k_state->JIT_UNIT_COUNT < __m68k_state->JIT_SOFTFLUSH_THRESH)
@@ -1948,6 +1955,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
                 __m68k_state->JIT_UNIT_COUNT = 0;
                 __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
             }
+            #endif
             break;
     }
 

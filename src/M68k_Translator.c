@@ -43,8 +43,9 @@ static inline int globalDisasm() {
     return disasm;
 }
 
-struct List ICache[65536];
-struct List LRU;
+struct List ICache[EMU68_HASHSIZE];
+//struct List LRU;
+struct List ICacheFlushed[EMU68_HASHSIZE];
 static uint32_t *temporary_arm_code;
 static struct M68KLocalState *local_state;
 
@@ -330,7 +331,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     M68K_ResetReturnStack();
 
     if (debug) {
-        uint32_t hash_calc = (hash >> 5) & 0xffff;
+        uint32_t hash_calc = (hash >> 5) & EMU68_HASHMASK;
         kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash_calc, (void*)m68kcodeptr);
         if (debug > 1)
             M68K_PrintContext(__m68k_state);
@@ -633,6 +634,43 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 }
 
 /*
+    Invalidate entire instruction cache - throw all translated units into the second instruction cache
+    block. They will be fetched from there and veified for validity before translation is actually done again
+*/
+
+void M68K_FlushICache()
+{
+    for (int i=0; i < EMU68_HASHSIZE; i++)
+    {
+        struct Node *first;
+        struct Node *last;
+
+        first = GetHead(&ICache[i]);
+
+        /* For each entry in the hashtable. If the entry is not empty, move **entire** list to second hash table */
+        if (first != NULL)
+        {
+            last = GetTail(&ICache[i]);
+
+            /* Last node in moved list points to first node of flushed list */
+            last->ln_Succ = ICacheFlushed[i].lh_Head;
+            /* First node in moved list points to the "protector" on flushed list */
+            first->ln_Pred = (struct Node *)&ICacheFlushed[i].lh_Head;
+            /* Pred field of actual head points to tail of newly added */
+            ICacheFlushed[i].lh_Head->ln_Pred = last;
+            /* Head of the list points to first node of moved list */
+            ICacheFlushed[i].lh_Head = first;
+
+            /* Clear original list */
+            NEWLIST(&ICache[i]);
+        }
+    }
+
+    /* Clear LRU */
+    //NEWLIST(&LRU);
+}
+
+/*
     Get M68K code unit from the instruction cache. Return NULL if code was not found and needs to be
     translated first.
 
@@ -640,10 +678,12 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 */
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 {
-    struct M68KTranslationUnit *unit = NULL; //, *n;
+    struct M68KTranslationUnit *unit = NULL, *n;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     
+    uint64_t t1, t2;
+
     int debug = 0;
 
     if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
@@ -655,7 +695,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
     /* Get 16-bit has from the pointer to m68k code */
 #if 1
-    hash = (hash >> 5) & 0xffff;
+    hash = (hash >> 5) & EMU68_HASHMASK;
 #else
     hash = (hash ^ (hash >> 16)) & 0xffff;
 #endif
@@ -663,6 +703,55 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     if (debug > 2)
         kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
+    /* Get cycle counter at the beginning */
+    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(t1));
+
+    /* Before re-translating the unit, check alternative icache */
+    ForeachNode(&ICacheFlushed[hash], n)
+    {
+        if (n->mt_M68kAddress == m68kcodeptr)
+        {
+            /* Unit found? Verify it and break the search now */
+            uint32_t crc = CalcCRC32(n->mt_M68kLow, n->mt_M68kHigh);
+
+            /* CRC match, unit still valid. Relink it to proper cache and add to LRU */
+            if (crc == n->mt_CRC32)
+            {
+                /* Remove from ICacheFlushed */
+                REMOVE(&n->mt_HashNode);
+                /* Insert to ICache and LRU */
+                ADDHEAD(&ICache[hash], &n->mt_HashNode);
+                //ADDHEAD(&LRU, &n->mt_LRUNode);
+                /* All good */
+                unit = n;
+
+                /* Get time after verify is complete */
+                asm volatile("mrs %0, PMCCNTR_EL0":"=r"(t2));
+                t2 -= t1;
+                uint64_t save_ratio = 1000 * n->mt_TranslationTime / t2;
+
+                if (debug > 2)
+                    kprintf("[ICache] Flushed unit recycled, m68k @ %08x, save ratio %ld.%03ld\n", (uint32_t)(uintptr_t)m68kcodeptr, save_ratio / 1000, save_ratio % 1000);
+            }
+            else
+            {
+                /* Unit invalid. Remove from invalidated cache forever, don't touch LRU! */
+                REMOVE(&n->mt_HashNode);
+                tlsf_free(jit_tlsf, n);
+
+                __m68k_state->JIT_UNIT_COUNT--;
+                __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+                if (debug > 2)
+                    kprintf("[ICache] Flushed unit failed, m68k @ %08x\n", (uint32_t)(uintptr_t)m68kcodeptr);
+
+                unit = NULL;
+            }
+
+            /* Break anyway */
+            break;
+        }
+    }
 #if 0
     /* Find entry with correct address */
     ForeachNode(&ICache[hash], n)
@@ -703,59 +792,100 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             return unit;
         }
     }
-#endif
+#endif  
 
     if (unit == NULL)
     {
         uintptr_t line_length = M68K_Translate(m68kcodeptr);
         uintptr_t arm_insn_count = line_length/4 - 1;
 
+        /* Get time after translation is complete */
+        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(t2));
+
 #ifdef __aarch64__
         uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
 #else
         uintptr_t unit_length = (line_length + 31 + sizeof(struct M68KTranslationUnit)) & ~31;
 #endif
-        do {
-#ifdef __aarch64__
-            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
-#else
-            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 32);
-#endif
-            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
 
-            if (unit == NULL)
+        /* Try allocating unit */
+        unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
+        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+        /* In first attempt remove every last node from flushed hashtable */
+        while (unit == NULL)
+        {
+            int unit_removed = 0;
+
+            for (int i=0; i < EMU68_HASHSIZE; i++)
             {
-                #ifndef __aarch64__
-                extern uint32_t last_PC;
-                #endif
-                if (debug > 0) {
-                    kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
-                }
-
-                for (int i=0; i < 8; i++) {
-                    struct Node *n = REMTAIL(&LRU);
-
-                    if (n == NULL)
-                        break;
-
-                    void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
-                    REMOVE((struct Node *)ptr);
-                    if (debug > 0)
-                    {    
-                        kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
-                    }
-                    tlsf_free(jit_tlsf, ptr);
+                struct Node *n = REMTAIL(&ICacheFlushed[i]);
+                if (n != NULL)
+                {
+                    tlsf_free(jit_tlsf, n);
+                    unit_removed = 1;
                     __m68k_state->JIT_UNIT_COUNT--;
                 }
-                __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-                
-                #ifdef __aarch64__
-                asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
-                #else
-                last_PC = 0xffffffff;
-                #endif
             }
-        } while(unit == NULL);
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+            if (unit_removed == 0) break;
+
+            /* Try reallocating unit */
+            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+        }
+
+        while (unit == NULL)
+        {
+            int unit_removed = 0;
+
+            for (int i=0; i < EMU68_HASHSIZE; i++)
+            {
+                struct Node *n = REMTAIL(&ICache[i]);
+                if (n != NULL)
+                {
+                    tlsf_free(jit_tlsf, n);
+                    unit_removed = 1;
+                    __m68k_state->JIT_UNIT_COUNT--;
+                }
+            }
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+            if (unit_removed == 0) break;
+
+            /* Try reallocating unit */
+            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+#if 0
+            if (debug > 0) {
+                kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
+            }
+
+            for (int i=0; i < 8; i++) {
+                struct Node *n = REMTAIL(&LRU);
+
+                if (n == NULL)
+                    break;
+
+                void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
+                REMOVE((struct Node *)ptr);
+                if (debug > 0)
+                {    
+                    kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
+                }
+                tlsf_free(jit_tlsf, ptr);
+                __m68k_state->JIT_UNIT_COUNT--;
+            }
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+                
+            asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+
+            /* Try reallocating unit */
+            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+#endif
+        }
 
         unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
 #ifdef __aarch64__
@@ -772,9 +902,10 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_PrologueSize = prologue_size;
         unit->mt_EpilogueSize = epilogue_size;
         unit->mt_Conditionals = conditionals_count;
+        unit->mt_TranslationTime = t2 - t1;
         DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
 
-        ADDHEAD(&LRU, &unit->mt_LRUNode);
+        //ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
 
         __m68k_state->JIT_UNIT_COUNT++;
@@ -837,30 +968,34 @@ void M68K_InitializeCache()
 
 #endif
 
-    kprintf("[ICache] Setting up LRU\n");
-    NEWLIST(&LRU);
+//    kprintf("[ICache] Setting up LRU\n");
+//    NEWLIST(&LRU);
 
     kprintf("[ICache] Setting up ICache\n");
-//    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
+//    ICache = tlsf_malloc(tlsf, sizeof(struct List) * EMU68_HASHSIZE);
     temporary_arm_code = tlsf_malloc(jit_tlsf, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
     local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[ICache] ICache array at %p\n", ICache);
-    for (int i=0; i < 65536; i++)
+    for (int i=0; i < EMU68_HASHSIZE; i++)
+    {
         NEWLIST(&ICache[i]);
+        NEWLIST(&ICacheFlushed[i]);
+    }
 }
 
 void M68K_DumpStats()
 {
-    struct M68KTranslationUnit *unit = NULL;
-    struct Node *n;
-    unsigned cnt = 0;
-    uintptr_t size = 0;
+//    struct M68KTranslationUnit *unit = NULL;
+//    struct Node *n;
+//    unsigned cnt = 0;
+//    uintptr_t size = 0;
     unsigned m68k_count = 0;
     unsigned arm_count = 0;
     unsigned total_arm_count = 0;
 
+#if 0
     if (debug)
         kprintf("[ICache] Listing translation units:\n");
     ForeachNode(&LRU, n)
@@ -879,6 +1014,7 @@ void M68K_DumpStats()
         arm_count += unit->mt_ARMInsnCnt - (unit->mt_PrologueSize + unit->mt_EpilogueSize);
     }
     kprintf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
+#endif
 
     uint32_t mean = 100 * (arm_count);
     mean = mean / m68k_count;
