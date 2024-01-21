@@ -478,7 +478,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
         }
 
-        #if 1
         if (!break_loop && (orig_m68kcodeptr == m68kcodeptr))
         {
             if (debug)
@@ -487,10 +486,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             inner_loop = TRUE;
             break;
         }
-        #else
-        (void)orig_m68kcodeptr;
-        #endif
-
     }
     uint32_t *out_code = end;
     tmpptr = end;

@@ -739,15 +739,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     *ptr++ = tbz(tmp, 8, 2);
                     *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
                 }
-#if 0
-                *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
-                *ptr++ = bfxil(cc, tmp_2, 6, 2);
-                
-                if (update_mask & SR_X) {
-                    *ptr++ = ror(0, cc, 1);
-                    *ptr++ = bfi(cc, 0, 4, 1);
-                }
-#endif
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
 
                 RA_FreeARMRegister(&ptr, tmp_2);
