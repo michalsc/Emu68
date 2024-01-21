@@ -15,11 +15,7 @@
  * TLSF implementation, we do not allow smaller blocks here.
  * Size needs to be aligned to at least 8, see THIS_FREE_MASK comment.
  */
-#ifdef __aarch64__
 #define SIZE_ALIGN      64
-#else
-#define SIZE_ALIGN      32
-#endif
 
 /*
  * Settings for TLSF allocator:

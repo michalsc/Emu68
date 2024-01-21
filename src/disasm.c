@@ -82,11 +82,7 @@ void disasm_open()
 {
     cs_err err;
     err = cs_open(CS_ARCH_M68K, CS_MODE_BIG_ENDIAN | CS_MODE_M68K_040, &h_m68k);
-#ifdef __aarch64__
     err = cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &h_arm);
-#else
-    err = cs_open(CS_ARCH_ARM, CS_MODE_BIG_ENDIAN | CS_MODE_ARM, h_arm);
-#endif
     (void)err;
 }
 

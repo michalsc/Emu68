@@ -517,8 +517,6 @@ void kprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format,
     va_end(v);
 }
 
-#ifdef __aarch64__
-
 void arm_flush_cache(uintptr_t addr, uint32_t length)
 {
     int line_size = 0;
@@ -580,46 +578,6 @@ void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
     }
     __asm__ __volatile__("dsb sy");
 }
-
-#else
-
-void arm_flush_cache(uintptr_t addr, uint32_t length)
-{
-        length = (length + 31) & ~31;
-        while (length)
-        {
-                __asm__ __volatile__("mcr p15, 0, %0, c7, c14, 1"::"r"(addr));
-                addr += 32;
-                length -= 32;
-        }
-        __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
-}
-
-void arm_icache_invalidate(uintptr_t addr, uint32_t length)
-{
-    length = (length + 31) & ~31;
-        while (length)
-        {
-                __asm__ __volatile__("mcr p15, 0, %0, c7, c5, 1"::"r"(addr));
-                addr += 32;
-                length -= 32;
-        }
-        __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
-}
-
-void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
-{
-    length = (length + 31) & ~31;
-        while (length)
-        {
-                __asm__ __volatile__("mcr p15, 0, %0, c7, c6, 1"::"r"(addr));
-                addr += 32;
-                length -= 32;
-        }
-        __asm__ __volatile__("mcr p15, 0, %0, c7, c10, 4"::"r"(addr));
-}
-
-#endif
 
 void putc_s(void *data, char c)
 {

@@ -1668,10 +1668,6 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
 
-#ifndef __aarch64__
-uint32_t last_PC = 0xffffffff;
-#endif
-
 uint16_t *framebuffer __attribute__((weak)) = NULL;
 uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
@@ -2208,47 +2204,14 @@ asm volatile(
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
-
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
-
-#ifdef __aarch64__
     asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
-#else
-    last_PC = 0xffffffff;
-#endif
+
     *(void**)(&arm_code) = NULL;
 
-#if 1
     (void)unit;
     ExecutionLoop(&__m68k);
-#else
-    do
-    {
-        if (__m68k.CACR & CACR_IE)
-        {
-            if (last_PC != m68k_pc)
-            {
-                //unit = M68K_FindTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-                //if (!unit)
-                    unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-                last_PC = m68k_pc;
-                *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-            }
-        }
-        else
-        {
-            //if (last_PC != m68k_pc)
-            {
-                *(void**)(&arm_code) = M68K_TranslateNoCache((uint16_t *)(uintptr_t)m68k_pc);
-                //last_PC = m68k_pc;
-                last_PC = 0xffffffff;
-            }
-        }
-        arm_code();
-        asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
-    } while(m68k_pc != 0);
-#endif
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
     uint64_t frq;
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
