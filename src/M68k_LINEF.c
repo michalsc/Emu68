@@ -1830,7 +1830,9 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
             kprintf("[LINEF] Invalidating line\n");
-#if 0
+#if 1
+            M68K_FlushICache();
+#else
             ForeachNodeSafe(&LRU, n, next)
             {
                 u = (struct M68KTranslationUnit *)((intptr_t)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
@@ -1863,7 +1865,10 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 #endif
             break;
         case 0x10:  /* Page */
-#if 0
+            kprintf("[LINEF] Invalidating page\n");
+#if 1
+            M68K_FlushICache();
+#else
             kprintf("[LINEF] Invalidating page\n");
             ForeachNodeSafe(&LRU, n, next)
             {
