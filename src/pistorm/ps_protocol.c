@@ -427,14 +427,7 @@ static void ps_write_8_int(unsigned int address, unsigned int data)
 
     address &= 0xffffff;
 
-#if 0
-    if ((address & 1) == 0)
-        data = data << 8; // (data & 0xff) | (data << 8);  // EVEN, A0=0,UDS
-    else
-        data = data & 0xff;  // ODD , A0=1,LDS
-#else
     data = (data & 0xff) | (data << 8);
-#endif
 
     *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
     *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
