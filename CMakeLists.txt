@@ -11,7 +11,7 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
-set(SUPPORTED_TARGETS "raspi" "raspi64" "pbpro" "rockpro64" "virt")
+set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
@@ -93,12 +93,8 @@ set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
-    if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
-        if (${TARGET} STREQUAL "raspi64")
-            list(APPEND TARGET_FILES src/raspi/start_rpi64.c)
-        else()
-            list(APPEND TARGET_FILES src/raspi/start_rpi.c)
-        endif()
+    if(${TARGET} STREQUAL "raspi64")
+        list(APPEND TARGET_FILES src/raspi/start_rpi64.c)
         list(APPEND TARGET_FILES src/raspi/support_rpi.c)
         list(APPEND TARGET_FILES src/raspi/topaz.c)
         download_raspi_firmware()
@@ -127,11 +123,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
     endif()
 
-    if (${TARGET} STREQUAL "raspi")
-        set(TARGET_ARCH "armhf")
-    else()
-        set(TARGET_ARCH "aarch64")
-    endif()
+    set(TARGET_ARCH "aarch64")
 else()
     message(FATAL_ERROR "Wrong target machine specified: ${TARGET}")
 endif()
@@ -139,7 +131,7 @@ endif()
 if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
     message("-- Selected variant: ${VARIANT}")
     if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
-        if(${TARGET} STREQUAL "raspi64" OR ${TARGET} STREQUAL "raspi")
+        if(${TARGET} STREQUAL "raspi64")
             add_compile_definitions(PISTORM)
             if(${VARIANT} STREQUAL "pistorm32lite")
                 add_compile_definitions(PISTORM32LITE)
@@ -173,30 +165,19 @@ endif()
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
 add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
 
-if(${TARGET_ARCH} STREQUAL "armhf")
-    list(APPEND ARCH_FILES
-        src/armhf/start.c
-        src/armhf/RegisterAllocator.c
-    )
-    set(CAPSTONE_ARM_SUPPORT ON CACHE BOOL "CAPSTONE_ARM_SUPPORT")
-    set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be.lds)
-    add_link_options(-Wl,--be8 -Wl,--format=elf32-bigarm -T ${LINKER_SCRIPT})
-    add_compile_options(-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -O3 -ffixed-r11 -fomit-frame-pointer)
-else()
-    list(APPEND ARCH_FILES
-        src/aarch64/start.c
-        src/aarch64/mmu.c
-        src/aarch64/RegisterAllocator64.c
-        src/aarch64/vectors.c
-    )
-    set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
-    set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
-    add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-    add_compile_options(-march=armv8-a+crc -mtune=cortex-a72 -fomit-frame-pointer -O3 -ffixed-x12 -ffixed-q31 -ffixed-q30 -ffixed-q29 -ffixed-q28)
+list(APPEND ARCH_FILES
+    src/aarch64/start.c
+    src/aarch64/mmu.c
+    src/aarch64/RegisterAllocator64.c
+    src/aarch64/vectors.c
+)
+set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
+set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
+add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
+add_compile_options(-march=armv8-a+crc -mtune=cortex-a72 -fomit-frame-pointer -O3 -ffixed-x12 -ffixed-q31 -ffixed-q30 -ffixed-q29 -ffixed-q28)
 
-    if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
-        add_compile_options(-mno-outline-atomics)
-    endif()
+if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+    add_compile_options(-mno-outline-atomics)
 endif()
 
 add_executable(Emu68.elf

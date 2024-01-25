@@ -507,14 +507,6 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         return 1;
     }
 
-#if 0
-    if (far > (0x1000000ULL - size)) {
-     //   kprintf("Illegal FAR %08x\n", far);
-        *value = 0;
-        return 1;
-    }
-#endif
-
     if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
     {
         while(board[board_idx] && !board[board_idx]->enabled) {

@@ -3662,13 +3662,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        /* Was such a construct really necessary */
-#if 0
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-        *ptr++ = fcpyd(fp_dst, fp_src);
-#else
         if ((opcode2 & 0x4000) == 0)
         {
             fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
@@ -3680,7 +3673,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
             ptr = FPU_FetchData(ptr, m68k_ptr, &fp_dst, opcode, opcode2, &ext_count, 0);
         }
-#endif
 
         if (precision == 4)
         {
@@ -4702,14 +4694,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
-#if 0
-        if (dst != src) {
-            *ptr++ = ldp64_postindex(src, buf1, buf2, 16);
-        } else {
-            *ptr++ = ldp64(src, buf1, buf2, 0);
-        }
-        *ptr++ = stp64_postindex(dst, buf1, buf2, 16);
-#else
         uint8_t aligned_src = RA_AllocARMRegister(&ptr);
         uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
 
@@ -4726,7 +4710,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         RA_FreeARMRegister(&ptr, aligned_src);
         RA_FreeARMRegister(&ptr, aligned_dst);
-#endif
+
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 

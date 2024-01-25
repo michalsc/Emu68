@@ -1676,10 +1676,6 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
 
-#ifndef __aarch64__
-uint32_t last_PC = 0xffffffff;
-#endif
-
 uint16_t *framebuffer __attribute__((weak)) = NULL;
 uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
@@ -1699,15 +1695,8 @@ void  __attribute__((used)) stub_FindUnit()
 "FindUnit:                                  \n"
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
-#if 1
 "       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
 "       ldr     x0, [x4, x0]                \n"
-#else
-"       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
-"       and     x0, x0, #0xffff             \n"
-"       add     x0, x0, x0, lsl #1          \n"
-"       ldr     x0, [x4, x0, lsl #3]        \n"
-#endif
 "       b       1f                          \n"
 "3:                                         \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
@@ -1785,19 +1774,10 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       1b                          \n"
 "       .align  6                           \n"
 "13:                                        \n"
-#if 1
 "       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
 "       adrp    x4, ICache                  \n"
 "       add     x4, x4, :lo12:ICache        \n"
 "       ldr     x0, [x4, x0]                \n"
-#else
-"       eor     w0, w%[reg_pc], w%[reg_pc], lsr #16 \n"
-"       adrp    x4, ICache                  \n"
-"       add     x4, x4, :lo12:ICache        \n"
-"       and     x0, x0, #0xffff             \n"
-"       add     x0, x0, x0, lsl #1          \n"
-"       ldr     x0, [x4, x0, lsl #3]        \n"
-#endif
 "       b       51f                         \n"
 "53:                                        \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
@@ -1977,12 +1957,6 @@ void  __attribute__((used)) stub_ExecutionLoop()
 
 // Process the interrupt here
 "91: \n"
-#if 0
-"91:    cbz     w10, 911f                   \n" // If we are here and w10 != 0, skip pending flag in INT.ARM
-"       ldrb    w10, [x0, #%[arm]]           \n"
-"       bic     w10, w10, #1                \n"
-"       strb    w10, [x0, #%[arm]]           \n"
-#endif
 "911:   tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
 "       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
 "       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
@@ -2216,47 +2190,14 @@ asm volatile(
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
-
     asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
-
-#ifdef __aarch64__
     asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
-#else
-    last_PC = 0xffffffff;
-#endif
+
     *(void**)(&arm_code) = NULL;
 
-#if 1
     (void)unit;
     ExecutionLoop(&__m68k);
-#else
-    do
-    {
-        if (__m68k.CACR & CACR_IE)
-        {
-            if (last_PC != m68k_pc)
-            {
-                //unit = M68K_FindTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-                //if (!unit)
-                    unit = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)m68k_pc);
-                last_PC = m68k_pc;
-                *(void**)(&arm_code) = unit->mt_ARMEntryPoint;
-            }
-        }
-        else
-        {
-            //if (last_PC != m68k_pc)
-            {
-                *(void**)(&arm_code) = M68K_TranslateNoCache((uint16_t *)(uintptr_t)m68k_pc);
-                //last_PC = m68k_pc;
-                last_PC = 0xffffffff;
-            }
-        }
-        arm_code();
-        asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
 
-    } while(m68k_pc != 0);
-#endif
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
     uint64_t frq;
     asm volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));

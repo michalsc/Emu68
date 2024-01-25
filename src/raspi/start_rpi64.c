@@ -133,13 +133,8 @@ void display_logo()
     kprintf("[BOOT] Logo start coordinate: %dx%d, size: %dx%d\n", start_x, start_y, EmuLogo.el_Width, EmuLogo.el_Height);
 
     /* Calculate text coordinate for version string */
-#if 0
-    text_x = start_x / 8;
-    text_y = (start_y + EmuLogo.el_Height + 15) / 16;
-#else
     text_y = (fb_height - 16 - 5) / 16;
     text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
-#endif
 
     /* First clear the screen. Use color in top left corner of RLE image for that */
     {

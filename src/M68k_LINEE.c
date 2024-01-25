@@ -5342,7 +5342,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         if (update_mask)
         {
-#ifdef __aarch64__
             uint8_t cc = RA_ModifyCC(&ptr);
             uint8_t tmp = RA_AllocARMRegister(&ptr);
             *ptr++ = cmn_reg(31, reg, LSL, 0);
@@ -5366,17 +5365,6 @@ uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                 *ptr++ = orr_reg(cc, cc, tmp, LSL, 0);
             }
             RA_FreeARMRegister(&ptr, tmp);
-#else
-            M68K_ModifyCC(&ptr);
-            *ptr++ = cmp_immed(reg, 0);
-            *ptr++ = bic_immed(REG_SR, REG_SR, update_mask);
-            if (update_mask & SR_N)
-                *ptr++ = orr_cc_immed(ARM_CC_MI, REG_SR, REG_SR, SR_N);
-            if (update_mask & SR_Z)
-                *ptr++ = orr_cc_immed(ARM_CC_EQ, REG_SR, REG_SR, SR_Z);
-            if (update_mask & (SR_C))
-                *ptr++ = orr_cc_immed(ARM_CC_CS, REG_SR, REG_SR, SR_C);
-#endif
         }
 
         return ptr;
