@@ -380,6 +380,16 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         if ((value & 1) != overlay) {
             kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);
             overlay = value & 1;
+            extern int fast_page0;
+
+            /* If fast_page_zero is active either map to ROM or to physical ARM RAM at address 0 */
+            if (fast_page0)
+            {
+                if (overlay)
+                    mmu_map(0xf80000, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+                else
+                    mmu_map(0x0, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+            }
         }
     }
 

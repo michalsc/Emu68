@@ -521,6 +521,7 @@ static void my_free(void *ptr)
 void *firmware_file = NULL;
 uint32_t firmware_size = 0;
 uint32_t cs_dist = 1;
+int fast_page0 = 0;
 
 void boot(void *dtree)
 {
@@ -585,6 +586,8 @@ void boot(void *dtree)
                 use_2slot = 0;
             }
 #endif
+            fast_page0 = !!find_token(prop->op_value, "fast_page_zero");
+
             if (find_token(prop->op_value, "chip_slowdown") || find_token(prop->op_value, "SC"))
             {
                 chip_slowdown = 1;
@@ -1489,6 +1492,11 @@ void boot(void *dtree)
     }
 #endif
 
+    /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
+    if (fast_page0) {
+        mmu_map(0xf80000, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+    }
+    
     M68K_StartEmu(0, NULL);
 
 #endif
