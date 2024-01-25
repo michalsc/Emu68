@@ -75,31 +75,17 @@ static uint32_t *EMIT_CMPM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
     switch (size)
     {
-#ifdef __aarch64__
-    case 4:
-        *ptr++ = subs_reg(tmp, dst, src, LSL, 0);
-        break;
-    case 2:
-        *ptr++ = lsl(tmp, dst, 16);
-        *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
-        break;
-    case 1:
-        *ptr++ = lsl(tmp, dst, 24);
-        *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
-        break;
-#else
-    case 4:
-        *ptr++ = rsbs_reg(tmp, src, dst, 0);
-        break;
-    case 2:
-        *ptr++ = lsl_immed(tmp, src, 16);
-        *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
-        break;
-    case 1:
-        *ptr++ = lsl_immed(tmp, src, 24);
-        *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
-        break;
-#endif
+        case 4:
+            *ptr++ = subs_reg(tmp, dst, src, LSL, 0);
+            break;
+        case 2:
+            *ptr++ = lsl(tmp, dst, 16);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
+            break;
+        case 1:
+            *ptr++ = lsl(tmp, dst, 24);
+            *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
+            break;
     }
 
     RA_FreeARMRegister(&ptr, tmp);
@@ -151,7 +137,6 @@ static uint32_t *EMIT_CMP_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     switch(size)
     {
-#ifdef __aarch64__
         case 4:
             *ptr++ = subs_reg(31, dst, src, LSL, 0);
             break;
@@ -163,19 +148,6 @@ static uint32_t *EMIT_CMP_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             *ptr++ = lsl(tmp, dst, 24);
             *ptr++ = subs_reg(31, tmp, src, LSL, 24);
             break;
-#else
-        case 4:
-            *ptr++ = rsbs_reg(tmp, src, dst, 0);
-            break;
-        case 2:
-            *ptr++ = lsl_immed(tmp, src, 16);
-            *ptr++ = rsbs_reg(tmp, tmp, dst, 16);
-            break;
-        case 1:
-            *ptr++ = lsl_immed(tmp, src, 24);
-            *ptr++ = rsbs_reg(tmp, tmp, dst, 24);
-            break;
-#endif
     }
 
     RA_FreeARMRegister(&ptr, tmp);
@@ -232,43 +204,21 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
         switch (size)
         {
-#ifdef __aarch64__
-        case 4:
-            *ptr++ = eor_reg(dest, dest, src, LSL, 0);
-            break;
-        case 2:
-            tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = eor_reg(tmp, src, dest, LSL, 0);
-            *ptr++ = bfi(dest, tmp, 0, 16);
-            RA_FreeARMRegister(&ptr, tmp);
-            break;
-        case 1:
-            tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = eor_reg(tmp, src, dest, LSL, 0);
-            *ptr++ = bfi(dest, tmp, 0, 8);
-            RA_FreeARMRegister(&ptr, tmp);
-            break;
-#else
-        case 4:
-            *ptr++ = eors_reg(dest, dest, src, 0);
-            break;
-        case 2:
-            tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = lsl_immed(tmp, src, 16);
-            *ptr++ = eors_reg(tmp, src, dest, 16);
-            *ptr++ = lsr_immed(tmp, tmp, 16);
-            *ptr++ = bfi(dest, tmp, 0, 16);
-            RA_FreeARMRegister(&ptr, tmp);
-            break;
-        case 1:
-            tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = lsl_immed(tmp, src, 24);
-            *ptr++ = eors_reg(tmp, src, dest, 24);
-            *ptr++ = lsr_immed(tmp, tmp, 24);
-            *ptr++ = bfi(dest, tmp, 0, 8);
-            RA_FreeARMRegister(&ptr, tmp);
-            break;
-#endif
+            case 4:
+                *ptr++ = eor_reg(dest, dest, src, LSL, 0);
+                break;
+            case 2:
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_reg(tmp, src, dest, LSL, 0);
+                *ptr++ = bfi(dest, tmp, 0, 16);
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
+            case 1:
+                tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = eor_reg(tmp, src, dest, LSL, 0);
+                *ptr++ = bfi(dest, tmp, 0, 8);
+                RA_FreeARMRegister(&ptr, tmp);
+                break;
         }
 
         RA_FreeARMRegister(&ptr, src);
@@ -300,11 +250,8 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-#ifdef __aarch64__
             *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
-#else
-            *ptr++ = eors_reg(tmp, tmp, src, 0);
-#endif
+
             /* Store back */
             if (mode == 3)
             {
@@ -314,6 +261,7 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             else
                 *ptr++ = str_offset(dest, tmp, 0);
             break;
+        
         case 2:
             if (mode == 4)
             {
@@ -322,14 +270,10 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
             }
             else
                 *ptr++ = ldrh_offset(dest, tmp, 0);
+            
             /* Perform calcualtion */
-#ifdef __aarch64__
             *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
-#else
-            *ptr++ = lsl_immed(tmp, tmp, 16);
-            *ptr++ = eors_reg(tmp, tmp, src, 16);
-            *ptr++ = lsr_immed(tmp, tmp, 16);
-#endif
+
             /* Store back */
             if (mode == 3)
             {
@@ -349,13 +293,8 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = ldrb_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-#ifdef __aarch64__
             *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
-#else
-            *ptr++ = lsl_immed(tmp, tmp, 24);
-            *ptr++ = eors_reg(tmp, tmp, src, 24);
-            *ptr++ = lsr_immed(tmp, tmp, 24);
-#endif
+
             /* Store back */
             if (mode == 3)
             {
@@ -375,7 +314,6 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (update_mask)
     {
-#ifdef __aarch64__
         switch(size)
         {
             case 4:
@@ -388,7 +326,7 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = cmn_reg(31, test_register, LSL, 24);
                 break;
         }
-#endif
+        
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
