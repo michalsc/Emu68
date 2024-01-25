@@ -368,6 +368,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int soft_break = FALSE;
     int max_rev_jumps = 0;
 
+    m68k_low = m68kcodeptr;
+    m68k_high = m68kcodeptr + 16;
+
     while (break_loop == FALSE && soft_break == FALSE && insn_count < var_EMU68_M68K_INSN_DEPTH)
     {
         uint16_t insn_consumed;
@@ -398,16 +401,17 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
         }
 
-        if (m68kcodeptr < m68k_low)
-            m68k_low = m68kcodeptr;
-        if (m68kcodeptr + 16 > m68k_high)
-            m68k_high = m68kcodeptr + 16;
-
         local_state[insn_count].mls_ARMOffset = end - arm_code;
         local_state[insn_count].mls_M68kPtr = m68kcodeptr;
         local_state[insn_count].mls_PCRel = _pc_rel;
 
         end = EmitINSN(end, &m68kcodeptr, &insn_consumed);
+
+        if (m68kcodeptr < m68k_low)
+            m68k_low = m68kcodeptr;
+        if (m68kcodeptr + 16 > m68k_high)
+            m68k_high = m68kcodeptr + 16;
+
         insn_count+=insn_consumed;
         if (end[-1] == INSN_TO_LE(0xfffffff0))
         {
@@ -642,9 +646,6 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
         debug = globalDebug();
     }
-
-    m68k_low = m68kcodeptr;
-    m68k_high = m68kcodeptr;
 
     /* Get 16-bit has from the pointer to m68k code */
     hash = (hash >> 5) & 0xffff;
