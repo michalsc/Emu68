@@ -1703,13 +1703,23 @@ void  __attribute__((used)) stub_FindUnit()
 "       b       1f                          \n"
 "3:                                         \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    4f                          \n"
+"       b.eq    2f                          \n"
 "       mov     x0, x4                      \n"
 "1:     ldr     x4, [x0]                    \n"
 "       ldr     x5, [x0, #32]               \n"
 "       cbnz    x4, 3b                      \n"
 "       mov     x0, #0                      \n"
 "4:     ret                                 \n"
+#if 1
+"2:     ldp     x6, x4, [x0]                \n" // x6 - next, x4 - prev
+"       ldr     x5, [x4, #8]                \n" // x5 - prev->prev
+"       cbz     x5, 4b                      \n" // x5 == 0 - end of chain
+"       stp     x4, x5, [x0]                \n" // this->next = prev, this->prev = prev->prev 
+"       str     x0, [x5]                    \n"
+"       stp     x6, x0, [x4]                \n"
+"       str     x4, [x6, #8]                \n"
+"       ret                                 \n"
+#endif
 #if 0
 "2:     ldp     x6, x4, [x0, #16]           \n"
 "       ldr     x5, [x4, #8]                \n"
@@ -1788,12 +1798,21 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "       b       51f                         \n"
 "53:                                        \n" // 2 -> 5
 "       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    55f                         \n"
+"       b.eq    52f                         \n"
 "       mov     x0, x4                      \n"
 "51:    ldr     x4, [x0]                    \n"
 "       ldr     x5, [x0, #32]               \n" // Fetch PC address now, we assume that the search was successful
 "       cbnz    x4, 53b                     \n"
 "       b 5f                                \n"
+#if 1
+"52:    ldp     x6, x4, [x0]                \n" // x6 - next, x4 - prev
+"       ldr     x5, [x4, #8]                \n" // x5 - prev->prev
+"       cbz     x5, 55f                     \n" // x5 == 0 - end of chain
+"       stp     x4, x5, [x0]                \n" // this->next = prev, this->prev = prev->prev 
+"       str     x0, [x5]                    \n"
+"       stp     x6, x0, [x4]                \n"
+"       str     x4, [x6, #8]                \n"
+#endif
 #if 0
 "52:    ldp     x6, x4, [x0, #16]           \n"
 "       ldr     x5, [x4, #8]                \n"
