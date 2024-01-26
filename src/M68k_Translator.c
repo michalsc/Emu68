@@ -806,34 +806,6 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             /* Try reallocating unit */
             unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
             __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-#if 0
-            if (debug > 0) {
-                kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
-            }
-
-            for (int i=0; i < 8; i++) {
-                struct Node *n = REMTAIL(&LRU);
-
-                if (n == NULL)
-                    break;
-
-                void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
-                REMOVE((struct Node *)ptr);
-                if (debug > 0)
-                {    
-                    kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
-                }
-                tlsf_free(jit_tlsf, ptr);
-                __m68k_state->JIT_UNIT_COUNT--;
-            }
-            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-                
-            asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
-
-            /* Try reallocating unit */
-            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
-            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-#endif
         }
 
         unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
