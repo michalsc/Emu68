@@ -110,7 +110,7 @@ struct M68KState
             uint8_t ARM;
             uint8_t ARM_err;
             uint8_t IPL;
-            uint8_t pad[1];
+            uint8_t RESET;
         } INT;
         uint32_t INT32;
     };
