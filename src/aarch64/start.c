@@ -2049,6 +2049,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 }
 
 struct M68KState *__m68k_state;
+void MainLoop();
 
 void M68K_StartEmu(void *addr, void *fdt)
 {
@@ -2191,7 +2192,12 @@ asm volatile(
     *(void**)(&arm_code) = NULL;
 
     (void)unit;
-    ExecutionLoop(&__m68k);
+
+    /* Save the context to TPIDRRO_EL0, it will be fetched in main loop */
+    asm volatile("msr TPIDRRO_EL0, %0"::"r"(&__m68k));
+
+    /* Start M68k now */
+    MainLoop();
 
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
     uint64_t frq;
