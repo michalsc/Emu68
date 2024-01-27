@@ -1683,11 +1683,6 @@ uint32_t fb_height  __attribute__((weak))= 0;
 
 void ExecutionLoop(struct M68KState *ctx);
 
-struct M68KTranslationUnit *_FindUnit(uint16_t *ptr)
-{
-    return M68K_FindTranslationUnit(ptr);
-}
-
 void  __attribute__((used)) stub_FindUnit()
 {
     asm volatile(
