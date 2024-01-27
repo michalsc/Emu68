@@ -54,6 +54,7 @@ set(EMU68_FILES
     src/M68k_LINEF.c
     src/M68k_Exception.c
     src/M68k_CC.c
+    src/ExecutionLoop.c
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
@@ -89,7 +90,15 @@ set(EMU68_FILES
 )
 
 set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
-    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
+    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
+    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
+    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
+
+set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
+    "-ffixed-x18 -fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
+     -fcall-used-x9 -fcall-used-x10 -fcall-used-x11  -ffixed-x19 -ffixed-x20 -ffixed-x21 \
+     -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 \
+     -ffixed-x12 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17")
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
