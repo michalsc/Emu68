@@ -173,4 +173,7 @@ struct Result64 sldiv(int64_t n, int64_t d);
 #include "support_rpi.h"
 #endif
 
+#define likely(x)      __builtin_expect(!!(x), 1) 
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+
 #endif /* _SUPPORT_H */
