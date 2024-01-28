@@ -328,7 +328,7 @@ void MainLoop()
 
             M68K_LoadContext(getCTX());
             ARM = node->mt_ARMEntryPoint;
-            asm volatile("":"=r"(ARM):"r"(ARM));
+            asm volatile("":"=r"(ARM):"0"(ARM));
             CallARMCode();
         }
     }
