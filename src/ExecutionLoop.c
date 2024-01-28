@@ -274,15 +274,17 @@ void MainLoop()
                     continue;
                 }
 
-                /* If we are that far there was no JIT unit found */
-                M68K_SaveContext(ctx);
                 /* Store PC*/
                 asm volatile("msr TPIDR_EL1, %0":"=r"(PC));
+                /* If we are that far there was no JIT unit found */
+                M68K_SaveContext(ctx);
                 /* Get the code. This never fails */
                 node = M68K_GetTranslationUnit(PC);
+                /* Load context pointer and context itself */
                 asm volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
-                asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
                 M68K_LoadContext(ctx);
+                /* Prepare ARM pointer in x12 and call it */
+                asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
                 CallARMCode();
             }
         }
@@ -292,7 +294,7 @@ void MainLoop()
 
             /* Uncached mode - reset LastPC */
             asm volatile("msr TPIDR_EL1, %0"::"r"(0));
-            
+
             /* Save context since C code will be called */
             M68K_SaveContext(ctx);
             /* Find the unit */
@@ -303,14 +305,12 @@ void MainLoop()
             /* If node was not found, translate code */
             if (unlikely(node == NULL))
             {
-                /* Force reload of PC*/
-                asm volatile("":"=r"(PC));
                 /* Get the code */
-                node = M68K_GetTranslationUnit(PC);
+                node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)ctx->PC);
             }
 
-            asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
             M68K_LoadContext(ctx);
+            asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
             CallARMCode();
         }
     }
