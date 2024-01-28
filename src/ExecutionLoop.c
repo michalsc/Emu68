@@ -110,6 +110,11 @@ static inline uint32_t getSR()
     return sr;
 }
 
+static inline void setSR(uint32_t sr)
+{
+    asm volatile("msr TPIDR_EL0, %0"::"r"(sr));
+}
+
 void MainLoop()
 {
     register uint16_t *PC asm("x18");
@@ -189,13 +194,13 @@ void MainLoop()
             {
                 register uint64_t sp asm("r29");
 
-                if ((SR & SR_S) == 0)
+                if (likely((SR & SR_S) == 0))
                 {
                     /* If we are not yet in supervisor mode, the USP needs to be updated */
                     asm volatile("mov v31.S[1], %w0"::"r"(sp));
 
                     /* Load eiter ISP or MSP */
-                    if (unlikely(SR & SR_M))
+                    if (unlikely((SR & SR_M) != 0))
                     {
                         asm volatile("mov %w0, v31.S[3]":"=r"(sp));
                     }
@@ -207,7 +212,7 @@ void MainLoop()
                 
                 SRcopy = SR;
                 /* Swap C and V flags in the copy */
-                if ((SRcopy & 3) != 0 && (SRcopy & 3) < 3)
+                if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3)
                 SRcopy ^= 3;
                 vector = 0x60 + (level << 2);
 
@@ -223,11 +228,11 @@ void MainLoop()
 
                 /* Push exception frame */
                 asm volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
-                asm volatile("str %w0, [%1, #2]"::"r"(PC),"r"(sp));
-                asm volatile("strh %w0, [%1, #6]"::"r"(vector),"r"(sp));
+                asm volatile("str %w1, [%0, #2]"::"r"(sp),"r"(PC));
+                asm volatile("strh %w1, [%0, #6]"::"r"(sp),"r"(vector));
 
                 /* Set SR */
-                asm volatile("msr TPIDR_EL0, %0"::"r"(SR));
+                setSR(SR);
 
                 /* Get VBR */
                 vbr = ctx->VBR;
@@ -264,10 +269,11 @@ void MainLoop()
                 if (node != NULL)
                 {
                     /* This is the case, load entry point into x12 */
-                    asm volatile("ldr x12, %0"::"m"(node->mt_ARMEntryPoint));
+                    ARM = node->mt_ARMEntryPoint;
+                    asm volatile(""::"r"(ARM));
                     /* Store m68k PC of corresponding ARM code in TPIDR_EL1 */
                     asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
-
+                    
                     CallARMCode();
 
                     /* Go back to beginning of the loop */
@@ -284,7 +290,8 @@ void MainLoop()
                 asm volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
                 M68K_LoadContext(ctx);
                 /* Prepare ARM pointer in x12 and call it */
-                asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
+                ARM = node->mt_ARMEntryPoint;
+                asm volatile(""::"r"(ARM));
                 CallARMCode();
             }
         }
@@ -310,7 +317,8 @@ void MainLoop()
             }
 
             M68K_LoadContext(ctx);
-            asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
+            ARM = node->mt_ARMEntryPoint;
+            asm volatile(""::"r"(ARM));
             CallARMCode();
         }
     }
