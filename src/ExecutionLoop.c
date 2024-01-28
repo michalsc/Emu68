@@ -45,12 +45,15 @@ static inline struct M68KTranslationUnit *FindUnit()
 #elif 0
             struct Node *prev = node->mt_HashNode.ln_Pred;
             struct Node *succ = node->mt_HashNode.ln_Succ;
+            struct Node *prevprev = prev->ln_Pred;
             
             /* If node is not head, then move it one level up */
-            if (prev->ln_Pred != NULL)
+            if (prevprev != NULL)
             {
-                node->mt_HashNode.ln_Pred = prev->ln_Pred;
+                node->mt_HashNode.ln_Pred = prevprev;
                 node->mt_HashNode.ln_Succ = prev;
+
+                prevprev->ln_Succ = &node->mt_HashNode;
 
                 prev->ln_Succ = succ;
                 prev->ln_Pred = &node->mt_HashNode;
