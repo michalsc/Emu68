@@ -307,7 +307,7 @@ void MainLoop()
             struct M68KTranslationUnit *node = NULL;
 
             /* Uncached mode - reset LastPC */
-            setLastPC(NULL);
+            setLastPC((void*)~(0));
 
             /* Save context since C code will be called */
             M68K_SaveContext(ctx);
