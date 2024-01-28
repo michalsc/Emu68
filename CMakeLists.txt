@@ -94,11 +94,13 @@ set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS
     -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
     -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
 
+# ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
+# The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
-    "-ffixed-x18 -fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
-     -fcall-used-x9 -fcall-used-x10 -fcall-used-x11  -ffixed-x19 -ffixed-x20 -ffixed-x21 \
-     -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 -ffixed-x28 \
-     -ffixed-x12 -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17")
+    "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
+     -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
+     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26  \
+     -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x27 -ffixed-x28 -ffixed-x29")
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
