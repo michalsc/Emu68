@@ -42,7 +42,7 @@ static inline struct M68KTranslationUnit *FindUnit()
             /* Move node to front of the list */
             REMOVE(&node->mt_HashNode);
             ADDHEAD(bucket, &node->mt_HashNode);
-#elif 0
+#elif 1
             struct Node *prev = node->mt_HashNode.ln_Pred;
             struct Node *succ = node->mt_HashNode.ln_Succ;
             struct Node *prevprev = prev->ln_Pred;
