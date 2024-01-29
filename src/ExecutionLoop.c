@@ -8,7 +8,7 @@
 #endif
 #endif
 
-extern struct List ICache[65536];
+extern struct List ICache[EMU68_HASHSIZE];
 void M68K_LoadContext(struct M68KState *ctx);
 void M68K_SaveContext(struct M68KState *ctx);
 
@@ -26,7 +26,7 @@ static inline struct M68KTranslationUnit *FindUnit()
     
     /* Perform search */
     uint32_t hash = (uint32_t)(uintptr_t)PC;
-    struct List *bucket = &ICache[(hash >> 5) & 0xffff];
+    struct List *bucket = &ICache[(hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK];
     struct M68KTranslationUnit *node;
     
     /* Go through the list of translated units */
@@ -45,12 +45,15 @@ static inline struct M68KTranslationUnit *FindUnit()
 #elif 0
             struct Node *prev = node->mt_HashNode.ln_Pred;
             struct Node *succ = node->mt_HashNode.ln_Succ;
+            struct Node *prevprev = prev->ln_Pred;
             
             /* If node is not head, then move it one level up */
-            if (prev->ln_Pred != NULL)
+            if (prevprev != NULL)
             {
-                node->mt_HashNode.ln_Pred = prev->ln_Pred;
+                node->mt_HashNode.ln_Pred = prevprev;
                 node->mt_HashNode.ln_Succ = prev;
+
+                prevprev->ln_Succ = &node->mt_HashNode;
 
                 prev->ln_Succ = succ;
                 prev->ln_Pred = &node->mt_HashNode;
@@ -108,6 +111,16 @@ static inline uint32_t getSR()
     uint32_t sr;
     asm volatile("mrs %0, TPIDR_EL0":"=r"(sr));
     return sr;
+}
+
+static inline void setLastPC(uint16_t *pc)
+{
+    asm volatile("msr TPIDR_EL1, %0"::"r"(pc));
+}
+
+static inline void setSR(uint32_t sr)
+{
+    asm volatile("msr TPIDR_EL0, %0"::"r"(sr));
 }
 
 void MainLoop()
@@ -189,13 +202,13 @@ void MainLoop()
             {
                 register uint64_t sp asm("r29");
 
-                if ((SR & SR_S) == 0)
+                if (likely((SR & SR_S) == 0))
                 {
                     /* If we are not yet in supervisor mode, the USP needs to be updated */
                     asm volatile("mov v31.S[1], %w0"::"r"(sp));
 
                     /* Load eiter ISP or MSP */
-                    if (unlikely(SR & SR_M))
+                    if (unlikely((SR & SR_M) != 0))
                     {
                         asm volatile("mov %w0, v31.S[3]":"=r"(sp));
                     }
@@ -207,7 +220,7 @@ void MainLoop()
                 
                 SRcopy = SR;
                 /* Swap C and V flags in the copy */
-                if ((SRcopy & 3) != 0 && (SRcopy & 3) < 3)
+                if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3)
                 SRcopy ^= 3;
                 vector = 0x60 + (level << 2);
 
@@ -223,11 +236,11 @@ void MainLoop()
 
                 /* Push exception frame */
                 asm volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
-                asm volatile("str %w0, [%1, #2]"::"r"(PC),"r"(sp));
-                asm volatile("strh %w0, [%1, #6]"::"r"(vector),"r"(sp));
+                asm volatile("str %w1, [%0, #2]"::"r"(sp),"r"(PC));
+                asm volatile("strh %w1, [%0, #6]"::"r"(sp),"r"(vector));
 
                 /* Set SR */
-                asm volatile("msr TPIDR_EL0, %0"::"r"(SR));
+                setSR(SR);
 
                 /* Get VBR */
                 vbr = ctx->VBR;
@@ -251,6 +264,7 @@ void MainLoop()
             /* The last PC is the same as currently set PC? */
             if (LastPC == PC)
             {
+                asm volatile("":"=r"(ARM));
                 /* Jump to the code now */
                 CallARMCode();
                 continue;
@@ -263,28 +277,31 @@ void MainLoop()
                 /* Unit exists ? */
                 if (node != NULL)
                 {
-                    /* This is the case, load entry point into x12 */
-                    asm volatile("ldr x12, %0"::"m"(node->mt_ARMEntryPoint));
                     /* Store m68k PC of corresponding ARM code in TPIDR_EL1 */
                     asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
 
+                    /* This is the case, load entry point into x12 */
+                    ARM = node->mt_ARMEntryPoint;
+                    asm volatile("":"=r"(ARM):"0"(ARM));
+                    
                     CallARMCode();
 
                     /* Go back to beginning of the loop */
                     continue;
                 }
 
-                /* Store PC*/
-                asm volatile("msr TPIDR_EL1, %0":"=r"(PC));
                 /* If we are that far there was no JIT unit found */
+                asm volatile("":"=r"(PC));
+                uint16_t *copyPC = PC;
                 M68K_SaveContext(ctx);
                 /* Get the code. This never fails */
-                node = M68K_GetTranslationUnit(PC);
-                /* Load context pointer and context itself */
-                asm volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
-                M68K_LoadContext(ctx);
+                node = M68K_GetTranslationUnit(copyPC);
+                /* Load CPU context */
+                M68K_LoadContext(getCTX());
+                asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
                 /* Prepare ARM pointer in x12 and call it */
-                asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
+                ARM = node->mt_ARMEntryPoint;
+                asm volatile("":"=r"(ARM):"0"(ARM));
                 CallARMCode();
             }
         }
@@ -293,24 +310,28 @@ void MainLoop()
             struct M68KTranslationUnit *node = NULL;
 
             /* Uncached mode - reset LastPC */
-            asm volatile("msr TPIDR_EL1, %0"::"r"(0));
+            setLastPC((void*)~(0));
 
             /* Save context since C code will be called */
             M68K_SaveContext(ctx);
+
             /* Find the unit */
             node = FindUnit();
-            /* Verify it, if NULL was returned Verify will return NULL too */
-            node = M68K_VerifyUnit(node);
-
-            /* If node was not found, translate code */
+            /* If node is found verify it */
+            if (likely(node != NULL))
+            {
+                node = M68K_VerifyUnit(node);
+            }
+            /* If node was not found or invalidated, translate code */
             if (unlikely(node == NULL))
             {
                 /* Get the code */
-                node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)ctx->PC);
+                node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)getCTX()->PC);
             }
 
-            M68K_LoadContext(ctx);
-            asm volatile("mov %0, %1":"=r"(ARM):"r"(node->mt_ARMEntryPoint));
+            M68K_LoadContext(getCTX());
+            ARM = node->mt_ARMEntryPoint;
+            asm volatile("":"=r"(ARM):"0"(ARM));
             CallARMCode();
         }
     }

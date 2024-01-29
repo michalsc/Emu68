@@ -44,7 +44,6 @@ static inline int globalDisasm() {
 }
 
 struct List ICache[EMU68_HASHSIZE];
-//struct List LRU;
 struct List ICacheFlushed[EMU68_HASHSIZE];
 static uint32_t *temporary_arm_code;
 static struct M68KLocalState *local_state;
@@ -331,7 +330,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     M68K_ResetReturnStack();
 
     if (debug) {
-        uint32_t hash_calc = (hash >> 5) & EMU68_HASHMASK;
+        uint32_t hash_calc = (hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
         kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash_calc, (void*)m68kcodeptr);
         if (debug > 1)
             M68K_PrintContext(__m68k_state);
@@ -688,11 +687,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     }
 
     /* Get 16-bit has from the pointer to m68k code */
-#if 1
-    hash = (hash >> 5) & EMU68_HASHMASK;
-#else
-    hash = (hash ^ (hash >> 16)) & 0xffff;
-#endif
+    hash = (hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
 
     if (debug > 2)
         kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);

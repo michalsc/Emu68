@@ -47,8 +47,9 @@
 #define EMU68_PC_REG_HISTORY    0
 #define EMU68_CCR_SCAN_DEPTH    20
 
-#define EMU68_HASHSIZE          4096
-#define EMU68_HASHMASK          0xfff
+#define EMU68_HASHSIZE          65536
+#define EMU68_HASHMASK          (EMU68_HASHSIZE - 1)
+#define EMU68_HASHSHIFT         5
 
 #ifdef PISTORM
 
