@@ -31,6 +31,7 @@ struct List
         struct Node * lh_TailPred;
         struct List * lh_TailPred_;
     };
+    void *__dummy;  // Dummy entry just to keep the struct of 32 bytes
 };
 
 /**************************************

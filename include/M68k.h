@@ -105,12 +105,15 @@ struct M68KState
     uint32_t DTT1;
 
     /* Async IRQ part */
-    struct {
-        uint8_t ARM;
-        uint8_t ARM_err;
-        uint8_t IPL;
-        uint8_t pad[1];
-    } INT;
+    union {
+        struct {
+            uint8_t ARM;
+            uint8_t ARM_err;
+            uint8_t IPL;
+            uint8_t RESET;
+        } INT;
+        uint32_t INT32;
+    };
     uint64_t INSN_COUNT;
 
     uint32_t JIT_CACHE_MISS;
@@ -488,58 +491,5 @@ void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
-
-static inline __attribute__((always_inline)) struct M68KTranslationUnit *M68K_FindTranslationUnit(uint16_t *ptr)
-{
-    struct M68KTranslationUnit *unit = NULL, *n;
-    uintptr_t hash = (uintptr_t)ptr;
-    extern struct List ICache[65536];
-    extern struct List LRU;
-
-    /* Get 16-bit has from the pointer to m68k code */
-    hash = (hash ^ (hash >> 16)) & 0xffff;
-
-    /* Find entry with correct address */
-    ForeachNode(&ICache[hash], n)
-    {
-        if (n->mt_M68kAddress == ptr)
-        {
-            /* Unit found? Move it to the front of LRU list */
-            unit = n;
-
-            struct Node *this = &unit->mt_LRUNode;
-
-#ifdef __aarch64__
-            /* Correct unit found. Preload ICache */
-            //asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
-#endif
-            if (1)
-            {
-                // Update LRU for least *frequently* used strategy
-                if (this->ln_Pred->ln_Pred) {
-                    struct Node *pred = this->ln_Pred;
-                    struct Node *succ = this->ln_Succ;
-
-                    this->ln_Pred = pred->ln_Pred;
-                    this->ln_Succ = pred;
-                    this->ln_Pred->ln_Succ = this;
-                    pred->ln_Pred = this;
-                    pred->ln_Succ = succ;
-                    succ->ln_Pred = pred;
-                }
-            }
-            else
-            {
-                // Update LRU for least *recently* used strategy
-                REMOVE(&unit->mt_LRUNode);
-                ADDHEAD(&LRU, &unit->mt_LRUNode);
-            }
-
-            return unit;
-        }
-    }
-
-    return NULL;
-}
 
 #endif /* _M68K_H */

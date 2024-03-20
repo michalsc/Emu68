@@ -537,7 +537,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 {
     union {
         uint64_t u64;
-        uint32_t u32[2];
+        uint16_t u16[4];
     } u;
 
     (void)single;
@@ -690,12 +690,13 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         *ptr++ = ldr64_offset(int_reg, 0, 0);
                         *ptr++ = ldr64_offset(int_reg, 1, 8);
-                        *ptr++ = adr(30, 20);
-                        *ptr++ = ldr64_pcrel(2, 2);
-                        *ptr++ = br(2);
+                        
+                        *ptr++ = mov64_immed_u16(2, u.u16[3], 0);
+                        *ptr++ = movk64_immed_u16(2, u.u16[2], 1);
+                        *ptr++ = movk64_immed_u16(2, u.u16[1], 2);
+                        *ptr++ = movk64_immed_u16(2, u.u16[0], 3);
 
-                        *ptr++ = u.u32[0];
-                        *ptr++ = u.u32[1];
+                        *ptr++ = blr(2);
 
                         *ptr++ = fcpyd(*reg, 0);
 
@@ -779,13 +780,14 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
                         *ptr++ = ldur64_offset(int_reg, 0, imm_offset);
                         *ptr++ = ldur64_offset(int_reg, 1, imm_offset + 8);
-                        *ptr++ = adr(30, 20);
-                        *ptr++ = ldr64_pcrel(2, 2);
-                        *ptr++ = br(2);
+                        
+                        *ptr++ = mov64_immed_u16(2, u.u16[3], 0);
+                        *ptr++ = movk64_immed_u16(2, u.u16[2], 1);
+                        *ptr++ = movk64_immed_u16(2, u.u16[1], 2);
+                        *ptr++ = movk64_immed_u16(2, u.u16[0], 3);
 
-                        *ptr++ = u.u32[0];
-                        *ptr++ = u.u32[1];
-
+                        *ptr++ = blr(2);
+                        
                         *ptr++ = fcpyd(*reg, 0);
 
                         ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
@@ -1174,7 +1176,7 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         uint8_t tmp32 = RA_AllocARMRegister(&ptr);
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         if (mode == 4 || mode == 3)
@@ -1220,13 +1222,14 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
                     *ptr++ = mov_reg(19, int_reg);
                     *ptr++ = mov_immed_s8(0, k);
-                    *ptr++ = adr(30, 20);
-                    *ptr++ = ldr64_pcrel(1, 2);
-                    *ptr++ = br(1);
+                    
+                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
 
-                    *ptr++ = u.u32[0];
-                    *ptr++ = u.u32[1];
-
+                    *ptr++ = blr(1);
+                
                     *ptr++ = ror64(1, 1, 32);
                     *ptr++ = stur64_offset(19, 0, imm_offset);
                     *ptr++ = stur_offset(19, 1, imm_offset + 8);
@@ -1257,12 +1260,13 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                     }
 
                     *ptr++ = mov_immed_s8(0, k);
-                    *ptr++ = adr(30, 20);
-                    *ptr++ = ldr64_pcrel(1, 2);
-                    *ptr++ = br(1);
 
-                    *ptr++ = u.u32[0];
-                    *ptr++ = u.u32[1];
+                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+
+                    *ptr++ = blr(1);
 
                     *ptr++ = ror64(1, 1, 32);
                     *ptr++ = stur64_offset(19, 0, 0);
@@ -1296,12 +1300,13 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
                     *ptr++ = mov_reg(0, k);
                     *ptr++ = mov_reg(19, int_reg);
-                    *ptr++ = adr(30, 20);
-                    *ptr++ = ldr64_pcrel(1, 2);
-                    *ptr++ = br(1);
 
-                    *ptr++ = u.u32[0];
-                    *ptr++ = u.u32[1];
+                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+
+                    *ptr++ = blr(1);
 
                     *ptr++ = ror64(1, 1, 32);
                     *ptr++ = stur64_offset(19, 0, imm_offset);
@@ -1334,12 +1339,12 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                         *ptr++ = add_reg(off, int_reg, off, LSL, 0);
                     }
 
-                    *ptr++ = adr(30, 20);
-                    *ptr++ = ldr64_pcrel(1, 2);
-                    *ptr++ = br(1);
+                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
 
-                    *ptr++ = u.u32[0];
-                    *ptr++ = u.u32[1];
+                    *ptr++ = blr(1);
 
                     *ptr++ = ror64(1, 1, 32);
                     *ptr++ = stur64_offset(19, 0, 0);
@@ -1974,7 +1979,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             double d;
-            uint32_t u32[2];
+            uint64_t u64;
+            uint16_t u16[4];
         } u;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t offset = opcode2 & 0x7f;
@@ -1993,11 +1999,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             *ptr++ = fmov_0(fp_dst);
         }
         else {
-            u.d = constants[offset];
-            *ptr++ = fldd_pcrel(fp_dst, 2);
-            *ptr++ = b(3);
-            *ptr++ = u.u32[0];
-            *ptr++ = u.u32[1];
+            u.u64 = (uintptr_t)constants;
+            *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+            *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+            *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+            *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+            *ptr++ = fldd_pimm(fp_dst, 0, offset);
         }
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
         (*m68k_ptr) += ext_count;
@@ -2449,7 +2456,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)sincos;
@@ -2460,12 +2467,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst_cos, 1);
         *ptr++ = fcpyd(fp_dst_sin, 0);
@@ -2685,7 +2692,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)log;
@@ -2696,12 +2703,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -2741,7 +2748,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)remquo;
@@ -2752,12 +2759,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         // Clear V0
         *ptr++ = fmov_0(0);
@@ -2855,7 +2862,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)log1p;
@@ -2866,12 +2873,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -2908,7 +2915,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)log10;
@@ -2919,12 +2926,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -2961,7 +2968,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)log2;
@@ -2972,12 +2979,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3014,7 +3021,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)exp;
@@ -3025,12 +3032,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3067,7 +3074,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)expm1;
@@ -3078,12 +3085,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3120,7 +3127,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)sinh;
@@ -3131,12 +3138,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3173,7 +3180,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)cosh;
@@ -3184,12 +3191,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3226,7 +3233,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)atan;
@@ -3237,12 +3244,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3279,7 +3286,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)atanh;
@@ -3290,12 +3297,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3332,7 +3339,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)acos;
@@ -3343,12 +3350,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3385,7 +3392,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)asin;
@@ -3396,12 +3403,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3438,7 +3445,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)tan;
@@ -3449,12 +3456,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3491,7 +3498,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)tanh;
@@ -3502,12 +3509,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3544,7 +3551,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)exp10;
@@ -3555,12 +3562,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
         
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3597,7 +3604,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)exp2;
@@ -3608,12 +3615,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -3655,13 +3662,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        /* Was such a construct really necessary */
-#if 0
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-
-        *ptr++ = fcpyd(fp_dst, fp_src);
-#else
         if ((opcode2 & 0x4000) == 0)
         {
             fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
@@ -3673,7 +3673,6 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
             ptr = FPU_FetchData(ptr, m68k_ptr, &fp_dst, opcode, opcode2, &ext_count, 0);
         }
-#endif
 
         if (precision == 4)
         {
@@ -4481,7 +4480,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)sin;
@@ -4492,12 +4491,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -4534,7 +4533,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         union {
             uint64_t u64;
-            uint32_t u32[2];
+            uint16_t u16[4];
         } u;
 
         u.u64 = (uintptr_t)cos;
@@ -4545,12 +4544,12 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = adr(30, 20);
-        *ptr++ = ldr64_pcrel(0, 2);
-        *ptr++ = br(0);
+        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
 
-        *ptr++ = u.u32[0];
-        *ptr++ = u.u32[1];
+        *ptr++ = blr(0);
 
         *ptr++ = fcpyd(fp_dst, 0);
 
@@ -4695,14 +4694,6 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
         uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
-#if 0
-        if (dst != src) {
-            *ptr++ = ldp64_postindex(src, buf1, buf2, 16);
-        } else {
-            *ptr++ = ldp64(src, buf1, buf2, 0);
-        }
-        *ptr++ = stp64_postindex(dst, buf1, buf2, 16);
-#else
         uint8_t aligned_src = RA_AllocARMRegister(&ptr);
         uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
 
@@ -4719,7 +4710,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
         RA_FreeARMRegister(&ptr, aligned_src);
         RA_FreeARMRegister(&ptr, aligned_dst);
-#endif
+
         RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
         RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
 
@@ -4829,18 +4820,18 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     {
                         union {
                             uint64_t u64;
-                            uint32_t u32[2];
+                            uint16_t u16[4];
                         } u;
 
                         u.u64 = (uintptr_t)invalidate_entire_dcache;
 
                         *ptr++ = stp64_preindex(31, 0, 30, -16);
-                        *ptr++ = ldr64_pcrel(0, 4);
+                        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+                        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+                        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+                        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
                         *ptr++ = blr(0);
                         *ptr++ = ldp64_postindex(31, 0, 30, 16);
-                        *ptr++ = b(3);
-                        *ptr++ = u.u32[0];
-                        *ptr++ = u.u32[1];
                     }
                     break;
             }
@@ -4852,7 +4843,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
             union {
                 uint64_t u64;
-                uint32_t u32[2];
+                uint16_t u16[4];
             } u;
             u.u64 = (uintptr_t)trampoline_icache_invalidate;
 
@@ -4870,12 +4861,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             else
                 *ptr++ = sub_immed(1, REG_PC, -off);
 
-            *ptr++ = adr(2, 4*6);
-            *ptr++ = ldr64_pcrel(3, 3);
+            *ptr++ = mov64_immed_u16(3, u.u16[3], 0);
+            *ptr++ = movk64_immed_u16(3, u.u16[2], 1);
+            *ptr++ = movk64_immed_u16(3, u.u16[1], 2);
+            *ptr++ = movk64_immed_u16(3, u.u16[0], 3);
+            *ptr++ = adr(2, 4*2);
             *ptr++ = br(3);
-            *ptr++ = b(3);
-            *ptr++ = u.u32[0];
-            *ptr++ = u.u32[1];
 
             for (int i=2; i < 20; i+=2)
                 *ptr++ = ldp64(31, i, i + 1, i * 8);
@@ -4949,18 +4940,18 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
                     {
                         union {
                             uint64_t u64;
-                            uint32_t u32[2];
+                            uint16_t u16[4];
                         } u;
 
                         u.u64 = (uintptr_t)clear_entire_dcache;
 
                         *ptr++ = stp64_preindex(31, 0, 30, -16);
-                        *ptr++ = ldr64_pcrel(0, 4);
+                        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
+                        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
+                        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
+                        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
                         *ptr++ = blr(0);
                         *ptr++ = ldp64_postindex(31, 0, 30, 16);
-                        *ptr++ = b(3);
-                        *ptr++ = u.u32[0];
-                        *ptr++ = u.u32[1];
                     }
                     break;
             }
@@ -4972,7 +4963,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
             union {
                 uint64_t u64;
-                uint32_t u32[2];
+                uint16_t u16[4];
             } u;
             u.u64 = (uintptr_t)trampoline_icache_invalidate;
 
@@ -4990,12 +4981,12 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             else
                 *ptr++ = sub_immed(1, REG_PC, -off);
 
-            *ptr++ = adr(2, 4*6);
-            *ptr++ = ldr64_pcrel(3, 3);
+            *ptr++ = mov64_immed_u16(3, u.u16[3], 0);
+            *ptr++ = movk64_immed_u16(3, u.u16[2], 1);
+            *ptr++ = movk64_immed_u16(3, u.u16[1], 2);
+            *ptr++ = movk64_immed_u16(3, u.u16[0], 3);
+            *ptr++ = adr(2, 4*2);
             *ptr++ = br(3);
-            *ptr++ = b(3);
-            *ptr++ = u.u32[0];
-            *ptr++ = u.u32[1];
 
             for (int i=2; i < 20; i+=2)
                 *ptr++ = ldp64(31, i, i + 1, i * 8);

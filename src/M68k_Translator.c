@@ -43,7 +43,7 @@ static inline int globalDisasm() {
     return disasm;
 }
 
-struct List ICache[65536];
+struct List ICache[EMU68_HASHSIZE];
 struct List LRU;
 static uint32_t *temporary_arm_code;
 static struct M68KLocalState *local_state;
@@ -330,7 +330,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     M68K_ResetReturnStack();
 
     if (debug) {
-        kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", (hash ^ (hash >> 16)) & 0xffff, (void*)m68kcodeptr);
+        uint32_t hash_calc = (hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+        kprintf("[ICache] Creating new translation unit with hash %04x (m68k code @ %p)\n", hash_calc, (void*)m68kcodeptr);
         if (debug > 1)
             M68K_PrintContext(__m68k_state);
     }
@@ -367,6 +368,9 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     int soft_break = FALSE;
     int max_rev_jumps = 0;
 
+    m68k_low = m68kcodeptr;
+    m68k_high = m68kcodeptr + 16;
+
     while (break_loop == FALSE && soft_break == FALSE && insn_count < var_EMU68_M68K_INSN_DEPTH)
     {
         uint16_t insn_consumed;
@@ -397,16 +401,17 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
         }
 
-        if (m68kcodeptr < m68k_low)
-            m68k_low = m68kcodeptr;
-        if (m68kcodeptr + 16 > m68k_high)
-            m68k_high = m68kcodeptr + 16;
-
         local_state[insn_count].mls_ARMOffset = end - arm_code;
         local_state[insn_count].mls_M68kPtr = m68kcodeptr;
         local_state[insn_count].mls_PCRel = _pc_rel;
 
         end = EmitINSN(end, &m68kcodeptr, &insn_consumed);
+
+        if (m68kcodeptr < m68k_low)
+            m68k_low = m68kcodeptr;
+        if (m68kcodeptr + 16 > m68k_high)
+            m68k_high = m68kcodeptr + 16;
+
         insn_count+=insn_consumed;
         if (end[-1] == INSN_TO_LE(0xfffffff0))
         {
@@ -477,7 +482,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             }
         }
 
-        #if 1
         if (!break_loop && (orig_m68kcodeptr == m68kcodeptr))
         {
             if (debug)
@@ -486,10 +490,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             inner_loop = TRUE;
             break;
         }
-        #else
-        (void)orig_m68kcodeptr;
-        #endif
-
     }
     uint32_t *out_code = end;
     tmpptr = end;
@@ -590,9 +590,7 @@ void *M68K_TranslateNoCache(uint16_t *m68kcodeptr)
     uintptr_t line_length = M68K_Translate(m68kcodeptr);
     void *entry_point = (void*)temporary_arm_code;
 
-#ifdef __aarch64__
-    entry_point = (void *)((uintptr_t)entry_point | 0x0000001000000000);
-#endif
+    entry_point = (void *)((uintptr_t)entry_point | 0x0000001000000000ULL);
 
     arm_flush_cache((uintptr_t)entry_point, line_length);
     arm_icache_invalidate((intptr_t)entry_point, line_length);
@@ -639,7 +637,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 */
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 {
-    struct M68KTranslationUnit *unit = NULL, *n;
+    struct M68KTranslationUnit *unit = NULL; //, *n;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     
@@ -649,78 +647,26 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         debug = globalDebug();
     }
 
-    m68k_low = m68kcodeptr;
-    m68k_high = m68kcodeptr;
-
     /* Get 16-bit has from the pointer to m68k code */
-    hash = (hash ^ (hash >> 16)) & 0xffff;
+    hash = (hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
 
     if (debug > 2)
         kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
-
-    /* Find entry with correct address */
-    ForeachNode(&ICache[hash], n)
-    {
-        if (n->mt_M68kAddress == m68kcodeptr)
-        {
-            /* Unit found? Move it to the front of LRU list */
-            unit = n;
-
-            struct Node *this = &unit->mt_LRUNode;
-
-#ifdef __aarch64__
-            /* Correct unit found. Preload ICache */
-            //asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
-#endif
-            if (1)
-            {
-                // Update LRU for least *frequently* used strategy
-                if (this->ln_Pred->ln_Pred) {
-                    struct Node *pred = this->ln_Pred;
-                    struct Node *succ = this->ln_Succ;
-
-                    this->ln_Pred = pred->ln_Pred;
-                    this->ln_Succ = pred;
-                    this->ln_Pred->ln_Succ = this;
-                    pred->ln_Pred = this;
-                    pred->ln_Succ = succ;
-                    succ->ln_Pred = pred;
-                }
-            }
-            else
-            {
-                // Update LRU for least *recently* used strategy
-                REMOVE(&unit->mt_LRUNode);
-                ADDHEAD(&LRU, &unit->mt_LRUNode);
-            }
-
-            return unit;
-        }
-    }
 
     if (unit == NULL)
     {
         uintptr_t line_length = M68K_Translate(m68kcodeptr);
         uintptr_t arm_insn_count = line_length/4 - 1;
 
-#ifdef __aarch64__
         uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
-#else
-        uintptr_t unit_length = (line_length + 31 + sizeof(struct M68KTranslationUnit)) & ~31;
-#endif
+
         do {
-#ifdef __aarch64__
             unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
-#else
-            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 32);
-#endif
+
             __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
 
             if (unit == NULL)
             {
-                #ifndef __aarch64__
-                extern uint32_t last_PC;
-                #endif
                 if (debug > 0) {
                     kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
                 }
@@ -742,18 +688,12 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 }
                 __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
                 
-                #ifdef __aarch64__
                 asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
-                #else
-                last_PC = 0xffffffff;
-                #endif
             }
         } while(unit == NULL);
 
         unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
-#ifdef __aarch64__
-        unit->mt_ARMEntryPoint = (void *)((uintptr_t)unit->mt_ARMEntryPoint | 0x0000001000000000);
-#endif
+        unit->mt_ARMEntryPoint = (void *)((uintptr_t)unit->mt_ARMEntryPoint | 0x0000001000000000ULL);
         unit->mt_M68kInsnCnt = insn_count;
         unit->mt_ARMInsnCnt = arm_insn_count;
         unit->mt_UseCount = 0;
@@ -813,9 +753,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
     }
 
-#ifdef __aarch64__
     //asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
-#endif
 
     return unit;
 }
@@ -824,22 +762,17 @@ void M68K_InitializeCache()
 {
     kprintf("[ICache] Initializing caches\n");
 
-#ifndef __aarch64__
-
-    jit_tlsf = tlsf;
-
-#endif
-
     kprintf("[ICache] Setting up LRU\n");
     NEWLIST(&LRU);
 
     kprintf("[ICache] Setting up ICache\n");
-//    ICache = tlsf_malloc(tlsf, sizeof(struct List) * 65536);
+
     temporary_arm_code = tlsf_malloc(jit_tlsf, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
     local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[ICache] ICache array at %p\n", ICache);
+
     for (int i=0; i < 65536; i++)
         NEWLIST(&ICache[i]);
 }
@@ -890,10 +823,9 @@ uint32_t *EMIT_InjectPrintContext(uint32_t *ptr)
 {
     extern void M68K_PrintContext(void*);
 
-#ifdef __aarch64__
     union {
         uint64_t u64;
-        uint32_t u32[2];
+        uint16_t u16[4];
     } u;
 
     u.u64 = (uintptr_t)M68K_PrintContext;
@@ -905,24 +837,22 @@ uint32_t *EMIT_InjectPrintContext(uint32_t *ptr)
     *ptr++ = str64_offset(31, 30, 64);
 
     *ptr++ = mrs(0, 3, 3, 13, 0, 3);
-    *ptr++ = adr(30, 20);
-    *ptr++ = ldr64_pcrel(1, 2);
-    *ptr++ = br(1);
 
-    *ptr++ = u.u32[0];
-    *ptr++ = u.u32[1];
+    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+
+    *ptr++ = blr(1);
 
     *ptr++ = ldp64(31, 2, 3, 16);
     *ptr++ = ldp64(31, 4, 5, 32);
     *ptr++ = ldp64(31, 6, 7, 48);
     *ptr++ = ldr64_offset(31, 30, 64);
     *ptr++ = ldp64_postindex(31, 0, 1, 80);
-#else
 
-#endif
     return ptr;
 }
-
 
 static void put_to_stream(void *d, char c)
 {
@@ -936,13 +866,12 @@ static void put_to_stream(void *d, char c)
 
 uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args)
 {
-#ifdef __aarch64__
     void *tmp;
     uint32_t *tmpptr;
 
     union {
         uint64_t u64;
-        uint32_t u32[2];
+        uint16_t u16[4];
     } u;
 
     u.u64 = (uintptr_t)kprintf;
@@ -954,12 +883,13 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
 
     tmpptr = ptr;
     *ptr++ = adr(0, 48);
-    *ptr++ = adr(30, 20);
-    *ptr++ = ldr64_pcrel(1, 2);
-    *ptr++ = br(1);
 
-    *ptr++ = u.u32[0];
-    *ptr++ = u.u32[1];
+    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+
+    *ptr++ = blr(1);
 
     for (int i=2; i < 30; i += 2)
         *ptr++ = ldp64(31, i, i+1, i*8);
@@ -980,9 +910,7 @@ uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, v
     ptr[-1] = b(1 + ((uintptr_t)tmp - (uintptr_t)ptr) / 4);
     
     ptr = (uint32_t *)tmp;
-#else
 
-#endif
     return ptr;
 }
 

@@ -283,28 +283,9 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
         *ptr++ = mov_reg(base, 31);
     }
 
-#ifndef __aarch64__
-    if (size == 0 ||
-        (size == 2 && (offset < -255 || offset > 255)) ||
-        (offset < -4095 || offset > 4095))
-    {
-        if (offset_32bit) {
-            *ptr++ = movw_immed_u16(reg_d16, offset);
-            if ((offset >> 16) & 0xffff) {
-                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
-            }
-        } else {
-            *ptr++ = movw_immed_u16(reg_d16, offset);
-            if (offset & 0x8000)
-                *ptr++ = movt_immed_u16(reg_d16, 0xffff);
-        }
-    }
-#endif
-
     switch (size)
     {
         case 4:
-#ifdef __aarch64__
             if (offset == 0)
                 *ptr++ = str_offset(base, reg, 0);
             else if (offset > -256 && offset < 256)
@@ -335,126 +316,103 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr_offset
                 *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
                 *ptr++ = str_offset(reg_d16, reg, 0);
             }
-#else
-                if (offset > -4096 && offset < 4096)
-                    *ptr++ = str_offset(base, reg, offset);
-                else
-                    *ptr++ = str_regoffset(base, reg, reg_d16, 0);
-#endif
-                break;
-            case 2:
-#ifdef __aarch64__
-                if (offset > -256 && offset < 256)
-                    *ptr++ = sturh_offset(base, reg, offset & 0x1ff);
-                else if (offset >= 0 && offset < 8192 && (offset & 1) == 0)
-                    *ptr++ = strh_offset(base, reg, offset);
-                else {
-                    if (offset_32bit) {
-                        if (offset & 0xffff) {
-                            *ptr++ = movw_immed_u16(reg_d16, offset);
-                            if ((offset >> 16) & 0xffff) {
-                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
-                            }
-                        } else {
-                            if ((offset >> 16) & 0xffff) {
-                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
-                            } else {
-                                *ptr++ = mov_reg(reg_d16, 31);
-                            }
+            break;
+        case 2:
+            if (offset > -256 && offset < 256)
+                *ptr++ = sturh_offset(base, reg, offset & 0x1ff);
+            else if (offset >= 0 && offset < 8192 && (offset & 1) == 0)
+                *ptr++ = strh_offset(base, reg, offset);
+            else {
+                if (offset_32bit) {
+                    if (offset & 0xffff) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
                         }
                     } else {
-                        if (offset > 0)
-                            *ptr++ = mov_immed_u16(reg_d16, offset, 0);
-                        else
-                            *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
-                    }
-                    *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
-                    *ptr++ = strh_offset(reg_d16, reg, 0);
-                }
-#else
-                if (offset > -256 && offset < 256)
-                    *ptr++ = strh_offset(base, reg, offset);
-                else
-                    *ptr++ = strh_regoffset(base, reg, reg_d16);
-#endif
-                break;
-            case 1:
-#ifdef __aarch64__
-                if (offset > -256 && offset < 256)
-                    *ptr++ = sturb_offset(base, reg, offset);
-                else if (offset >= 0 && offset < 4096)
-                    *ptr++ = strb_offset(base, reg, offset);
-                else {
-                    if (offset_32bit) {
-                        if (offset & 0xffff) {
-                            *ptr++ = movw_immed_u16(reg_d16, offset);
-                            if ((offset >> 16) & 0xffff) {
-                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
-                            }
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
                         } else {
-                            if ((offset >> 16) & 0xffff) {
-                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
-                            } else {
-                                *ptr++ = mov_reg(reg_d16, 31);
+                            *ptr++ = mov_reg(reg_d16, 31);
                         }
                     }
-                    } else {
-                        if (offset > 0)
-                            *ptr++ = mov_immed_u16(reg_d16, offset, 0);
-                        else
-                            *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
-                    }
-                    *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
-                    *ptr++ = strb_offset(reg_d16, reg, 0);
-                }
-#else
-                if (offset > -4096 && offset < 4096)
-                    *ptr++ = strb_offset(base, reg, offset);
-                else
-                    *ptr++ = strb_regoffset(base, reg, reg_d16, 0);
-#endif
-                break;
-            case 0:
-#ifdef __aarch64__
-                if (offset > -4096 && offset < 4096)
-                {
-                    if (offset < 0)
-                        *ptr++ = sub_immed(reg, base, -offset);
+                } else {
+                    if (offset > 0)
+                        *ptr++ = mov_immed_u16(reg_d16, offset, 0);
                     else
-                        *ptr++ = add_immed(reg, base, offset);
+                        *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
                 }
-                else
-                {
-                    if (offset_32bit) {
-                        if (offset & 0xffff) {
-                            *ptr++ = movw_immed_u16(reg_d16, offset);
-                            if ((offset >> 16) & 0xffff) {
-                                *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
-                            }
-                        } else {
-                            if ((offset >> 16) & 0xffff) {
-                                *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
-                            } else {
-                                *ptr++ = mov_reg(reg_d16, 31);
-                            }
+                *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                *ptr++ = strh_offset(reg_d16, reg, 0);
+            }
+            break;
+        case 1:
+            if (offset > -256 && offset < 256)
+                *ptr++ = sturb_offset(base, reg, offset);
+            else if (offset >= 0 && offset < 4096)
+                *ptr++ = strb_offset(base, reg, offset);
+            else {
+                if (offset_32bit) {
+                    if (offset & 0xffff) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
                         }
                     } else {
-                        if (offset > 0)
-                            *ptr++ = mov_immed_u16(reg_d16, offset, 0);
-                        else
-                            *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                        } else {
+                            *ptr++ = mov_reg(reg_d16, 31);
                     }
-                    *ptr++ = add_reg(reg, base, reg_d16, LSL, 0);
                 }
-#else
-                *ptr++ = add_reg(reg, base, reg_d16, 0);
-#endif
-                break;
-            default:
-                kprintf("Unknown size opcode\n");
-                break;
-        }
-        RA_FreeARMRegister(&ptr, reg_d16);
+                } else {
+                    if (offset > 0)
+                        *ptr++ = mov_immed_u16(reg_d16, offset, 0);
+                    else
+                        *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                }
+                *ptr++ = add_reg(reg_d16, base, reg_d16, LSL, 0);
+                *ptr++ = strb_offset(reg_d16, reg, 0);
+            }
+            break;
+        case 0:
+            if (offset > -4096 && offset < 4096)
+            {
+                if (offset < 0)
+                    *ptr++ = sub_immed(reg, base, -offset);
+                else
+                    *ptr++ = add_immed(reg, base, offset);
+            }
+            else
+            {
+                if (offset_32bit) {
+                    if (offset & 0xffff) {
+                        *ptr++ = movw_immed_u16(reg_d16, offset);
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = movt_immed_u16(reg_d16, (offset >> 16) & 0xffff);
+                        }
+                    } else {
+                        if ((offset >> 16) & 0xffff) {
+                            *ptr++ = mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1);
+                        } else {
+                            *ptr++ = mov_reg(reg_d16, 31);
+                        }
+                    }
+                } else {
+                    if (offset > 0)
+                        *ptr++ = mov_immed_u16(reg_d16, offset, 0);
+                    else
+                        *ptr++ = movn_immed_u16(reg_d16, -offset - 1, 0);
+                }
+                *ptr++ = add_reg(reg, base, reg_d16, LSL, 0);
+            }
+            break;
+        default:
+            kprintf("Unknown size opcode\n");
+            break;
+    }
+    
+    RA_FreeARMRegister(&ptr, reg_d16);
 
     if (free_base)
         RA_FreeARMRegister(&ptr, base);
@@ -496,7 +454,6 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
     }
     else
     {
-#ifdef __aarch64__
         uint8_t tmp = RA_AllocARMRegister(&ptr);
         switch (size)
         {
@@ -520,30 +477,6 @@ static inline __attribute__((always_inline)) uint32_t * store_reg_to_addr(uint32
                 break;
         }
         RA_FreeARMRegister(&ptr, tmp);
-#else
-        switch (size)
-        {
-            case 4:
-                *ptr++ = str_regoffset(base, reg, index, shift);
-                break;
-            case 2:
-                tmp = RA_AllocARMRegister(&ptr);
-                if (shift)
-                    *ptr++ = lsl_immed(tmp, index, shift);
-                *ptr++ = strh_regoffset(base, reg, tmp);
-                RA_FreeARMRegister(&ptr, tmp);
-                break;
-            case 1:
-                *ptr++ = strb_regoffset(base, reg, index, shift);
-                break;
-            case 0:
-                *ptr++ = add_reg(reg, base, index, shift);
-                break;
-            default:
-                kprintf("Unknown size opcode\n");
-                break;
-        }
-#endif
     }
 
     if (free_base)
@@ -861,7 +794,6 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     //*ptr++ = mov_reg(tmp1, reg_An);
                 }
 
-
                 if (brief & (1 << 11))
                 {
                     if (brief & 0x8000)
@@ -877,11 +809,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
                     
                     uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                     *ptr++ = sxth(tmp3, tmp2);
-#else
-                    *ptr++ = sxth(tmp3, tmp2, 0);
-#endif
                     RA_FreeARMRegister(&ptr, tmp2);
                     tmp2 = tmp3;
                 }
@@ -926,11 +854,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             index_reg = RA_MapM68kRegister(&ptr, extra_reg);
 
                         uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                         *ptr++ = sxth(tmp3, index_reg);
-#else
-                        *ptr++ = sxth(tmp3, index_reg, 0);
-#endif
                         RA_FreeARMRegister(&ptr, index_reg);
                         index_reg = tmp3;
                     }
@@ -979,11 +903,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     /* Address register indirect with index mode */
                     if (base_reg != 0xff && bd_reg != 0xff)
                     {
-#ifdef __aarch64__
                         *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                        *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
                     }
                     else if (bd_reg == 0xff && base_reg != 0xff)
                     {
@@ -1014,17 +934,10 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         if (base_reg == 0xff)
                             *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
                         else
-#ifdef __aarch64__
                             *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, UXTW, 0);
-#else
-                            *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, 0);
-#endif
+                        
                         if (outer_reg != 0xff)
-#ifdef __aarch64__
                             *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                            *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
 
                         ptr = load_reg_from_addr(ptr, size, bd_reg, *arm_reg, index_reg, (brief >> 9) & 3, sign_ext);
                     }
@@ -1042,22 +955,14 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         }
                         else
                         {
-#ifdef __aarch64__
                             if (bd_reg != 0xff && base_reg != 0xff)
                                 *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                            if (bd_reg != 0xff)
-                                *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
                             ptr = load_reg_from_addr(ptr, 4, bd_reg, bd_reg, index_reg, (brief >> 9) & 3, 0);
                         }
 
                         if (outer_reg != 0xff)
-#ifdef __aarch64__
                             *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                            *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
+
                         ptr = load_reg_from_addr(ptr, size, bd_reg, *arm_reg, 0xff, 0, sign_ext);
                     }
                 }
@@ -1133,11 +1038,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
 
                         uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                         *ptr++ = sxth(tmp3, tmp2);
-#else
-                        *ptr++ = sxth(tmp3, tmp2, 0);
-#endif
+
                         RA_FreeARMRegister(&ptr, tmp2);
                         tmp2 = tmp3;
                     }
@@ -1187,11 +1089,8 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                 index_reg = RA_MapM68kRegister(&ptr, extra_reg);
 
                             uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                             *ptr++ = sxth(tmp3, index_reg);
-#else
-                            *ptr++ = sxth(tmp3, index_reg, 0);
-#endif
+
                             RA_FreeARMRegister(&ptr, index_reg);
                             index_reg = tmp3;
                         }
@@ -1245,11 +1144,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                         /* Address register indirect with index mode */
                         if (base_reg != 0xff && bd_reg != 0xff)
                         {
-#ifdef __aarch64__
                             *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                            *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
                         }
                         else if (bd_reg == 0xff && base_reg != 0xff)
                         {
@@ -1281,15 +1176,11 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                             if (base_reg == 0xff)
                                 *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
                             else
-#ifdef __aarch64__
                                 *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, UXTW, 0);
+
                             if (outer_reg != 0xff)
                                 *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                                *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, 0);
-                            if (outer_reg != 0xff)
-                                *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
+
                             ptr = load_reg_from_addr(ptr, size, bd_reg, *arm_reg, index_reg, (brief >> 9) & 3, sign_ext);
                         }
                         else /* Preindexed mode */
@@ -1302,7 +1193,6 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                     *ptr++ = ldr_offset(base_reg, bd_reg, 0);
                                 }
                                 else
-#ifdef __aarch64__
                                 {
                                     if (base_reg == 0xff) {
                                         uint8_t t = RA_AllocARMRegister(&ptr);
@@ -1314,32 +1204,20 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                                         *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, UXTW, 0);
                                     }
                                 }
-                                    
-#else
-                                    *ptr++ = ldr_regoffset(base_reg, bd_reg, bd_reg, 0);
-#endif
                             }
                             else
                             {
-#ifdef __aarch64__
                                 if (bd_reg != 0xff) {
                                     if (base_reg != 0xff)
                                         *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
                                 }
-#else
-                                if (bd_reg != 0xff)
-                                    *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
 
-#endif
                                 ptr = load_reg_from_addr(ptr, 4, bd_reg, bd_reg, index_reg, (brief >> 9) & 3, 0);
                             }
 
                             if (outer_reg != 0xff)
-#ifdef __aarch64__
                                 *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                                *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
+
                             ptr = load_reg_from_addr_offset(ptr, size, bd_reg, *arm_reg, 0, 0, sign_ext);
                         }
                     }
@@ -1377,7 +1255,6 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                 lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
-#ifdef __aarch64__
                     if (lo16 == 0 && hi16 == 0)
                     {
                         *ptr++ = mov_reg(*arm_reg, 31);
@@ -1392,16 +1269,11 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     {
                         *ptr++ = mov_immed_u16(*arm_reg, hi16, 1);
                     }
-#else
-                    *ptr++ = movw_immed_u16(*arm_reg, lo16);
-                    if (hi16 != 0 || lo16 & 0x8000)
-                        *ptr++ = movt_immed_u16(*arm_reg, hi16);
-#endif
                 }
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
+
                     if (lo16 == 0 && hi16 == 0)
                     {
                         *ptr++ = mov_reg(tmp_reg, 31);
@@ -1416,11 +1288,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
                     {
                         *ptr++ = mov_immed_u16(tmp_reg, hi16, 1);
                     }
-#else
-                    *ptr++ = movw_immed_u16(tmp_reg, lo16);
-                    if (hi16 != 0 || lo16 & 0x8000)
-                        *ptr++ = movt_immed_u16(tmp_reg, hi16);
-#endif
+
                     switch (size)
                     {
                         case 4:
@@ -1719,11 +1587,8 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
 
                     uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
                     *ptr++ = sxth(tmp3, tmp2);
-#else
-                    *ptr++ = sxth(tmp3, tmp2, 0);
-#endif
+
                     RA_FreeARMRegister(&ptr, tmp2);
                     tmp2 = tmp3;
                 }
@@ -1766,11 +1631,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             index_reg = RA_MapM68kRegister(&ptr, extra_reg);
 
                         uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
+
                         *ptr++ = sxth(tmp3, index_reg);
-#else
-                        *ptr++ = sxth(tmp3, index_reg, 0);
-#endif
+
                         RA_FreeARMRegister(&ptr, index_reg);
                         index_reg = tmp3;
                     }
@@ -1780,37 +1643,37 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 /* Check if base displacement needs to be fetched */
                 switch ((brief & M68K_EA_BD_SIZE) >> 4)
                 {
-                case 2: /* Word displacement */
-                    bd_reg = RA_AllocARMRegister(&ptr);
-                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                    ptr = load_s16_ext32(ptr, bd_reg, lo16);
-                    break;
-                case 3: /* Long displacement */
-                    bd_reg = RA_AllocARMRegister(&ptr);
-                    hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                    *ptr++ = movw_immed_u16(bd_reg, lo16);
-                    if (hi16)
-                        *ptr++ = movt_immed_u16(bd_reg, hi16);
-                    break;
+                    case 2: /* Word displacement */
+                        bd_reg = RA_AllocARMRegister(&ptr);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        ptr = load_s16_ext32(ptr, bd_reg, lo16);
+                        break;
+                    case 3: /* Long displacement */
+                        bd_reg = RA_AllocARMRegister(&ptr);
+                        hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        *ptr++ = movw_immed_u16(bd_reg, lo16);
+                        if (hi16)
+                            *ptr++ = movt_immed_u16(bd_reg, hi16);
+                        break;
                 }
 
                 /* Check if outer displacement needs to be fetched */
                 switch ((brief & M68K_EA_IIS) & 3)
                 {
-                case 2: /* Word outer displacement */
-                    outer_reg = RA_AllocARMRegister(&ptr);
-                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                    ptr = load_s16_ext32(ptr, outer_reg, lo16);
-                    break;
-                case 3: /* Long outer displacement */
-                    outer_reg = RA_AllocARMRegister(&ptr);
-                    hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                    lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                    *ptr++ = movw_immed_u16(outer_reg, lo16);
-                    if (hi16)
-                        *ptr++ = movt_immed_u16(outer_reg, hi16);
-                    break;
+                    case 2: /* Word outer displacement */
+                        outer_reg = RA_AllocARMRegister(&ptr);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        ptr = load_s16_ext32(ptr, outer_reg, lo16);
+                        break;
+                    case 3: /* Long outer displacement */
+                        outer_reg = RA_AllocARMRegister(&ptr);
+                        hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
+                        *ptr++ = movw_immed_u16(outer_reg, lo16);
+                        if (hi16)
+                            *ptr++ = movt_immed_u16(outer_reg, hi16);
+                        break;
                 }
 
                 if ((brief & 0x0f) == 0)
@@ -1818,11 +1681,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     /* Address register indirect with index mode */
                     if (base_reg != 0xff && bd_reg != 0xff)
                     {
-#ifdef __aarch64__
                         *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                        *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
                     }
                     else if (bd_reg == 0xff && base_reg != 0xff)
                     {
@@ -1854,15 +1713,11 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         if (base_reg == 0xff)
                             *ptr++ = ldr_offset(bd_reg, bd_reg, 0);
                         else
-#ifdef __aarch64__
                             *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, UXTW, 0);
+                        
                         if (outer_reg != 0xff)
                             *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                            *ptr++ = ldr_regoffset(bd_reg, bd_reg, base_reg, 0);
-                        if (outer_reg != 0xff)
-                            *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
+
                         ptr = store_reg_to_addr(ptr, size, bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
                     }
                     else /* Preindexed mode */
@@ -1895,11 +1750,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         }
 
                         if (outer_reg != 0xff)
-#ifdef __aarch64__
                             *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                            *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
 
                         ptr = store_reg_to_addr(ptr, size, bd_reg, *arm_reg, 0xff, 0);
                     }
@@ -1966,11 +1817,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             tmp2 = RA_MapM68kRegister(&ptr, extra_reg);
 
                         uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
+
                         *ptr++ = sxth(tmp3, tmp2);
-#else
-                        *ptr++ = sxth(tmp3, tmp2, 0);
-#endif
+
                         RA_FreeARMRegister(&ptr, tmp2);
                         tmp2 = tmp3;
                     }
@@ -2022,11 +1871,9 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                 index_reg = RA_MapM68kRegister(&ptr, extra_reg);
 
                             uint8_t tmp3 = RA_AllocARMRegister(&ptr);
-#ifdef __aarch64__
+
                             *ptr++ = sxth(tmp3, index_reg);
-#else
-                            *ptr++ = sxth(tmp3, index_reg, 0);
-#endif
+
                             RA_FreeARMRegister(&ptr, index_reg);
                             index_reg = tmp3;
                         }
@@ -2075,11 +1922,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                         /* Address register indirect with index mode */
                         if (base_reg != 0xff && bd_reg != 0xff)
                         {
-#ifdef __aarch64__
                             *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                            *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
                         }
                         else if (bd_reg == 0xff && base_reg != 0xff)
                         {
@@ -2110,11 +1953,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                                 ptr = load_reg_from_addr(ptr, 4, bd_reg, bd_reg, base_reg, 0, 0);
 
                             if (outer_reg != 0xff)
-#ifdef __aarch64__
                                 *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                                *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
 
                             ptr = store_reg_to_addr(ptr, size, bd_reg, *arm_reg, index_reg, (brief >> 9) & 3);
                         }
@@ -2133,20 +1972,14 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                             else
                             {
                                 if (bd_reg != 0xff)
-#ifdef __aarch64__
                                     *ptr++ = add_reg(bd_reg, base_reg, bd_reg, LSL, 0);
-#else
-                                    *ptr++ = add_reg(bd_reg, base_reg, bd_reg, 0);
-#endif
+
                                 ptr = load_reg_from_addr(ptr, 4, bd_reg, bd_reg, index_reg, (brief >> 9) & 3, 0);
                             }
 
                             if (outer_reg != 0xff)
-#ifdef __aarch64__
                                 *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, LSL, 0);
-#else
-                                *ptr++ = add_reg(bd_reg, bd_reg, outer_reg, 0);
-#endif
+
                             ptr = store_reg_to_addr(ptr, size, bd_reg, *arm_reg, 0xff, 0);
                         }
                     }
@@ -2184,7 +2017,6 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                 lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
-#ifdef __aarch64__
                     if (lo16 == 0 && hi16 == 0)
                     {
                         *ptr++ = mov_reg(*arm_reg, 31);
@@ -2199,18 +2031,11 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         *ptr++ = mov_immed_u16(*arm_reg, hi16, 1);
                     }
-#else
-                    *ptr++ = movw_immed_u16(*arm_reg, lo16);
-                    if (hi16 != 0 || lo16 & 0x8000)
-                        *ptr++ = movt_immed_u16(*arm_reg, hi16);
-#endif
-                //    *ptr++ = ldr_offset(REG_PC, *arm_reg, pc_off);
                 }
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-                    //*ptr++ = ldr_offset(REG_PC, tmp_reg, pc_off);
-#ifdef __aarch64__
+
                     if (lo16 == 0 && hi16 == 0)
                     {
                         *ptr++ = mov_reg(tmp_reg, 31);
@@ -2225,11 +2050,7 @@ uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm
                     {
                         *ptr++ = mov_immed_u16(tmp_reg, hi16, 1);
                     }
-#else
-                    *ptr++ = movw_immed_u16(tmp_reg, lo16);
-                    if (hi16 != 0 || lo16 & 0x8000)
-                        *ptr++ = movt_immed_u16(tmp_reg, hi16);
-#endif
+
                     ptr = store_reg_to_addr(ptr, size, tmp_reg, *arm_reg, 0xff, 0);
 
                     RA_FreeARMRegister(&ptr, tmp_reg);

@@ -30,12 +30,8 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
     uint8_t ext_count = 0;
     uint8_t size = 1;
     uint8_t zero = 0xff;
-#ifdef __aarch64__
+
     zero = 31;
-#else
-    RA_AllocARMRegister(&ptr);
-    *ptr++ = mov_immed_u8(zero, 0);
-#endif
 
     /* Determine the size of operation */
     switch (opcode & 0x00c0)
@@ -58,34 +54,20 @@ uint32_t *EMIT_CLR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
             switch (size) {
                 case 1:
-#ifdef __aarch64__
                     *ptr++ = bic_immed(dn, dn, 8, 0);
-#else
-                    *ptr++ = bic_immed(dn, dn, 0xff);
-#endif
                     break;
                 case 2:
-#ifdef __aarch64__
                     *ptr++ = bic_immed(dn, dn, 16, 0);
-#else
-                    *ptr++ = bic_immed(dn, dn, 0xffff);
-#endif
             }
         }
         else {
             uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
-#ifdef __aarch64__
             *ptr++ = mov_reg(dn, 31);
-#else
-            *ptr++ = sub_reg(dn, dn, dn, 0);
-#endif
         }
     }
     else
         ptr = EMIT_StoreToEffectiveAddress(ptr, size, &zero, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
-#ifndef __aarch64__
-    RA_FreeARMRegister(&ptr, zero);
-#endif
+
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
     (*m68k_ptr) += ext_count;
 
@@ -136,11 +118,8 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
             test_register = dest;
-#ifdef __aarch64__
+
             *ptr++ = mvn_reg(dest, dest, LSL, 0);
-#else
-            *ptr++ = mvns_reg(dest, dest, 0);
-#endif
         }
         else
         {
@@ -192,11 +171,8 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             }
             else
                 *ptr++ = ldr_offset(dest, tmp, 0);
-#ifdef __aarch64__
+
             *ptr++ = mvn_reg(tmp, tmp, LSL, 0);
-#else
-            *ptr++ = mvns_reg(tmp, tmp, 0);
-#endif
 
             if (mode == 3)
             {
@@ -256,7 +232,6 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
     {
         uint8_t cc = RA_ModifyCC(&ptr);
 
-#ifdef __aarch64__
         switch(size) {
             case 4:
                 *ptr++ = cmn_reg(31, test_register, LSL, 0);
@@ -268,7 +243,6 @@ uint32_t *EMIT_NOT(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                 *ptr++ = cmn_reg(31, test_register, LSL, 24);
                 break;
         }
-#endif
 
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
@@ -312,11 +286,8 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
         {
             dest = RA_MapM68kRegister(&ptr, opcode & 7);
             RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-#ifdef __aarch64__
+
             *ptr++ = negs_reg(dest, dest, LSL, 0);
-#else
-            *ptr++ = rsbs_immed(dest, dest, 0);
-#endif
         }
         else
         {
@@ -331,7 +302,6 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             switch(size)
             {
                 case 2:
-#ifdef __aarch64__
                     if (update_mask == 0) {
                         *ptr++ = negs_reg(tmp, dest, LSL, 0);
                         *ptr++ = bfxil(dest, tmp, 0, 16);
@@ -340,15 +310,9 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                         *ptr++ = negs_reg(tmp, dest, LSL, 16);
                         *ptr++ = bfxil(dest, tmp, 16, 16);
                     }
-#else
-                    *ptr++ = lsl_immed(tmp, dest, 16);
-                    *ptr++ = rsbs_immed(tmp, tmp, 0);
-                    *ptr++ = lsr_immed(tmp, tmp, 16);
-                    *ptr++ = bfi(dest, tmp, 0, 16);
-#endif
                     break;
+                
                 case 1:
-#ifdef __aarch64__
                     if (update_mask == 0) {
                         *ptr++ = negs_reg(tmp, dest, LSL, 0);
                         *ptr++ = bfxil(dest, tmp, 0, 8);
@@ -357,12 +321,6 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
                         *ptr++ = negs_reg(tmp, dest, LSL, 24);
                         *ptr++ = bfxil(dest, tmp, 24, 8);
                     }
-#else
-                    *ptr++ = lsl_immed(tmp, dest, 24);
-                    *ptr++ = rsbs_immed(tmp, tmp, 0);
-                    *ptr++ = lsr_immed(tmp, tmp, 24);
-                    *ptr++ = bfi(dest, tmp, 0, 8);
-#endif
                     break;
             }
 
@@ -392,11 +350,7 @@ uint32_t *EMIT_NEG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             else
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
-#ifdef __aarch64__
             *ptr++ = negs_reg(tmp, tmp, LSL, 0);
-#else
-            *ptr++ = rsbs_immed(tmp, tmp, 0);
-#endif
 
             if (mode == 3)
             {
@@ -785,15 +739,6 @@ uint32_t *EMIT_NEGX(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_
                     *ptr++ = tbz(tmp, 8, 2);
                     *ptr++ = orr_immed(cc, cc, 1, 31 & (32 - SRB_X));
                 }
-#if 0
-                *ptr++ = bfxil(tmp_2, tmp, 2, 7);            // C at position 6, V at position 7
-                *ptr++ = bfxil(cc, tmp_2, 6, 2);
-                
-                if (update_mask & SR_X) {
-                    *ptr++ = ror(0, cc, 1);
-                    *ptr++ = bfi(cc, 0, 4, 1);
-                }
-#endif
                 update_mask &= ~SR_XVC;             // Don't nag anymore with the flags
 
                 RA_FreeARMRegister(&ptr, tmp_2);
@@ -895,7 +840,6 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
         /* Perform add operation */
         switch (size)
         {
-#ifdef __aarch64__
             case 4:
                 *ptr++ = cmn_reg(31, dest, LSL, 0);
                 break;
@@ -905,31 +849,16 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             case 1:
                 *ptr++ = cmn_reg(31, dest, LSL, 24);
                 break;
-#else
-            case 4:
-                *ptr++ = cmp_immed(dest, 0); //rsbs_reg(immed, immed, dest, 0);
-                break;
-            case 2:
-                *ptr++ = movs_reg_shift(immed, dest, 16); //rsbs_reg(immed, immed, dest, 16);
-                break;
-            case 1:
-                *ptr++ = movs_reg_shift(immed, dest, 24); //rsbs_reg(immed, immed, dest, 24);
-                break;
-#endif
         }
     }
     else
     {
         /* Load effective address */
-#ifdef __aarch64__
         ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
-#else
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-#endif
+
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
         {
-#ifdef __aarch64__
             case 4:
                 *ptr++ = cmn_reg(31, dest, LSL, 0);
                 break;
@@ -939,20 +868,6 @@ uint32_t *EMIT_TST(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
             case 1:
                 *ptr++ = cmn_reg(31, dest, LSL, 24);
                 break;
-#else
-            case 4:
-                /* Perform calcualtion */
-                *ptr++ = cmp_immed(dest, 0); //rsbs_reg(immed, immed, dest, 0);
-                break;
-            case 2:
-                /* Perform calcualtion */
-                *ptr++ = movs_reg_shift(immed, dest, 16); //rsbs_reg(immed, immed, dest, 16);
-                break;
-            case 1:
-                /* Perform calcualtion */
-                *ptr++ = movs_reg_shift(immed, dest, 24); //rsbs_reg(immed, immed, dest, 24);
-                break;
-#endif
         }
     }
 
@@ -994,11 +909,7 @@ uint32_t *EMIT_TAS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t
         RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
         *ptr++ = mov_reg(tmpresult, dest);
-#ifdef __aarch64__
         *ptr++ = orr_immed(dest, dest, 1, 25);
-#else
-        *ptr++ = orr_immed(dest, dest, 0x80);
-#endif
     }
     else
     {
@@ -1330,11 +1241,9 @@ static uint32_t *EMIT_LINK32(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
     *ptr++ = mov_reg(reg, sp);
     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-#ifdef __aarch64__
+
     *ptr++ = add_reg(sp, sp, displ, LSL, 0);
-#else
-    *ptr++ = add_reg(sp, sp, displ, 0);
-#endif
+
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     (*m68k_ptr)+=2;
@@ -1366,7 +1275,7 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
     *ptr++ = str_offset_preindex(sp, reg, -4);  /* SP = SP - 4; An -> (SP) */
     *ptr++ = mov_reg(reg, sp);
     RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-#ifdef __aarch64__
+
     if (offset > 0 && offset < 4096)
     {
         *ptr++ = add_immed(sp, sp, offset);
@@ -1383,9 +1292,6 @@ static uint32_t *EMIT_LINK16(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr
         *ptr++ = add_reg(sp, sp, displ, LSL, 0);
     }
     
-#else
-    *ptr++ = add_reg(sp, sp, displ, 0);
-#endif
     RA_SetDirtyM68kRegister(&ptr, 15);
 
     (*m68k_ptr)++;
@@ -1403,18 +1309,14 @@ static uint32_t *EMIT_SWAP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
     uint8_t reg = RA_MapM68kRegister(&ptr, opcode & 7);
     RA_SetDirtyM68kRegister(&ptr, opcode & 7);
-#ifdef __aarch64__
+
     *ptr++ = ror(reg, reg, 16);
-#else
-    *ptr++ = rors_immed(reg, reg, 16);
-#endif
+
     ptr = EMIT_AdvancePC(ptr, 2);
 
     if (update_mask)
     {
-#ifdef __aarch64__
         *ptr++ = cmn_reg(31, reg, LSL, 0);
-#endif
         uint8_t cc = RA_ModifyCC(&ptr);
         ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
 
@@ -1527,7 +1429,7 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     union {
         uint64_t u64;
-        uint32_t u32[2];
+        uint16_t u16[4];
     } u;
 
     u.u64 = (uintptr_t)do_reset;
@@ -1537,12 +1439,12 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
         *ptr++ = stp64(31, i, i+1, i*8);
     *ptr++ = str64_offset(31, 30, 240);
 
-    *ptr++ = adr(30, 20);
-    *ptr++ = ldr64_pcrel(1, 2);
-    *ptr++ = br(1);
+    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
+    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
+    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
+    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
 
-    *ptr++ = u.u32[0];
-    *ptr++ = u.u32[1];
+    *ptr++ = blr(1);
 
     for (int i=2; i < 30; i += 2)
         *ptr++ = ldp64(31, i, i+1, i*8);
@@ -1863,12 +1765,12 @@ static uint32_t *EMIT_RTS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
         */
         uint8_t reg = RA_AllocARMRegister(&ptr);
         uint32_t *tmp;
-        *ptr++ = ldr_pcrel(reg, 4);
+        uint32_t ret = (uint32_t)(uintptr_t)ret_addr;
+        *ptr++ = mov_immed_u16(reg, ret & 0xffff, 0);
+        *ptr++ = movk_immed_u16(reg, ret >> 16, 1);
         *ptr++ = cmp_reg(reg, REG_PC, LSL, 0);
         tmp = ptr;
         *ptr++ = b_cc(ARM_CC_EQ, 0);
-        *ptr++ = b(2);
-        *ptr++ = (uint32_t)(uintptr_t)ret_addr;
 
         *m68k_ptr = ret_addr;
 
@@ -1959,7 +1861,7 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
     extern int disasm;
     extern int debug;
     union {
-        uint32_t u32[2];
+        uint16_t u16[4];
         uint64_t u64;
     } u;
 
@@ -2028,18 +1930,29 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                 tmp = RA_AllocARMRegister(&ptr);
                 u.u64 = (uintptr_t)&debug;
-                *ptr++ = ldr64_pcrel(tmp, 7);
+                *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
                 *ptr++ = ubfx(tmp2, reg, 0, 2);
                 *ptr++ = str_offset(tmp, tmp2, 0);
-                *ptr++ = ldr64_pcrel(tmp, 6);
-                *ptr++ = ubfx(tmp2, reg, 2, 1);
-                *ptr++ = str_offset(tmp, tmp2, 0);
-                *ptr++ = b(5);
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
-                u.u64 = (uintptr_t)&disasm;
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
+                
+                if (_abs((intptr_t)&debug - (intptr_t)&disasm) < 255)
+                {
+                    int delta = (uintptr_t)&disasm - (uintptr_t)&debug;
+                    *ptr++ = ubfx(tmp2, reg, 2, 1);
+                    *ptr++ = stur_offset(tmp, tmp2, delta);
+                }
+                else
+                {
+                    u.u64 = (uintptr_t)&disasm;
+                    *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                    *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                    *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                    *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
+                    *ptr++ = ubfx(tmp2, reg, 2, 1);
+                    *ptr++ = str_offset(tmp, tmp2, 0);
+                }
                 RA_FreeARMRegister(&ptr, tmp);
                 RA_FreeARMRegister(&ptr, tmp2);
                 break;
@@ -2047,21 +1960,21 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             case 0x0ee: /* DBGADDRLO */
                 tmp = RA_AllocARMRegister(&ptr);
                 u.u64 = (uintptr_t)&debug_range_min;
-                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
                 *ptr++ = str_offset(tmp, reg, 0);
-                *ptr++ = b(3);
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x0ef: /* DBGADDRHI */
                 tmp = RA_AllocARMRegister(&ptr);
                 u.u64 = (uintptr_t)&debug_range_max;
-                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
                 *ptr++ = str_offset(tmp, reg, 0);
-                *ptr++ = b(3);
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x1e0: /* JITCTRL2 - JIT second control register */
@@ -2238,19 +2151,31 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 uint8_t tmp2 = RA_AllocARMRegister(&ptr);
                 tmp = RA_AllocARMRegister(&ptr);
                 u.u64 = (uintptr_t)&debug;
-                *ptr++ = ldr64_pcrel(tmp, 8);
+                *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
+
                 *ptr++ = ldr_offset(tmp, tmp2, 0);
                 *ptr++ = ubfx(reg, tmp2, 0, 2);
-                *ptr++ = ldr64_pcrel(tmp, 7);
-                *ptr++ = ldr_offset(tmp, tmp2, 0);
-                *ptr++ = cbz(tmp2, 7);
+
+                if (_abs((intptr_t)&debug - (intptr_t)&disasm) < 255)
+                {
+                    int delta = (uintptr_t)&disasm - (uintptr_t)&debug;
+                    *ptr++ = ldur_offset(tmp, tmp2, delta);
+                }
+                else
+                {
+                    u.u64 = (uintptr_t)&disasm;
+                    *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                    *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                    *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                    *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
+                    *ptr++ = ldr_offset(tmp, tmp2, 0);
+                }
+                *ptr++ = cbz(tmp2, 2);
                 *ptr++ = orr_immed(reg, reg, 1, 30);
-                *ptr++ = b(5);
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
-                u.u64 = (uintptr_t)&disasm;
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
+
                 RA_FreeARMRegister(&ptr, tmp);
                 RA_FreeARMRegister(&ptr, tmp2);
                 break;
@@ -2258,21 +2183,21 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             case 0x0ee: /* DBGADDRLO */
                 tmp = RA_AllocARMRegister(&ptr);
                 u.u64 = (uintptr_t)&debug_range_min;
-                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
                 *ptr++ = ldr_offset(tmp, reg, 0);
-                *ptr++ = b(3);
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x0ef: /* DBGADDRHI */
                 tmp = RA_AllocARMRegister(&ptr);
                 u.u64 = (uintptr_t)&debug_range_max;
-                *ptr++ = ldr64_pcrel(tmp, 3);
+                *ptr++ = mov64_immed_u16(tmp, u.u16[3], 0);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[2], 1);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[1], 2);
+                *ptr++ = movk64_immed_u16(tmp, u.u16[0], 3);
                 *ptr++ = ldr_offset(tmp, reg, 0);
-                *ptr++ = b(3);
-                *ptr++ = u.u32[0];
-                *ptr++ = u.u32[1];
                 RA_FreeARMRegister(&ptr, tmp);
                 break;
             case 0x1e0: /* JITCTRL2 - JIT second control register */
@@ -2754,7 +2679,7 @@ static uint32_t *EMIT_LEA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     uint8_t dest = 0xff;
     uint8_t ea = 0xff;
     uint8_t ext_words = 0;
-#ifdef __aarch64__
+
     /* On AArch64 we can always map destination reg for write - it is always there! */
     dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
 
@@ -2766,11 +2691,7 @@ static uint32_t *EMIT_LEA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, u
     }
     else
         ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
-#else
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &ea, opcode & 0x3f, (*m68k_ptr), &ext_words, 1, NULL);
-    dest = RA_MapM68kRegisterForWrite(&ptr, 8 + ((opcode >> 9) & 7));
-    *ptr++ = mov_reg(dest, ea);
-#endif
+
     (*m68k_ptr) += ext_words;
 
     ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));

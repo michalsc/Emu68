@@ -19,41 +19,6 @@
 #include "ps_protocol.h"
 #endif
 
-#ifdef __aarch64__
-
-#else
-
-asm(
-"       .globl __aeabi_uidiv                \n"
-"       .type _start,%function              \n"
-"__aeabi_uidiv:                             \n"
-"       push {%lr}                          \n"
-"       sub %sp, %sp, #8                    \n"
-"       push {%r0, %r1}                     \n"
-"       pop  {%r1, %r2}                     \n"
-"       mov %r0, %sp                        \n"
-"       bl uidiv                            \n"
-"       pop {%r0}                           \n"
-"       add %sp, %sp, #4                    \n"
-"       pop {%pc}                           \n"
-
-
-"       .globl __aeabi_uidivmod             \n"
-"       .type _start,%function              \n"
-"__aeabi_uidivmod:                          \n"
-"       push {%lr}                          \n"
-"       sub %sp, %sp, #8                    \n"
-"       push {%r0, %r1}                     \n"
-"       pop  {%r1, %r2}                     \n"
-"       mov %r0, %sp                        \n"
-"       bl uidiv                            \n"
-"       pop {%r0}                           \n"
-"       pop {%r1}                           \n"
-"       pop {%pc}                           \n"
-);
-
-#endif
-
 static int serial_up = 0;
 
 #define ARM_PERIIOBASE ((intptr_t)io_base)
