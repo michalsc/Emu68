@@ -56,7 +56,7 @@
 /* Speed for bitbang RS232... */
 #define PISTORM_BITBANG_SPEED       921600
 
-#ifdef PISTORM32
+#if defined (PISTORM32) || defined (PISTORM16)
 
 #define PISTORM_BITBANG_DELAY       59
 #define PISTORM_CHIPSET_DELAY       12

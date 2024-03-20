@@ -2,7 +2,7 @@
 #include <support.h>
 #include <config.h>
 #ifdef PISTORM
-#ifndef PISTORM32
+#if !defined(PISTORM32) && !defined(PISTORM16)
 #define PS_PROTOCOL_IMPL
 #include "pistorm/ps_protocol.h"
 #endif
@@ -69,7 +69,7 @@ static inline struct M68KTranslationUnit *FindUnit()
 }
 
 #ifdef PISTORM
-#ifndef PISTORM32
+#if !defined(PISTORM32) && !defined(PISTORM16)
 
 extern volatile unsigned char bus_lock;
 
@@ -162,7 +162,7 @@ void MainLoop()
                     level = 6;
                     ctx->INT.ARM = 0;
                 }
-#ifdef PISTORM32
+#if defined(PISTORM32) || defined(PISTORM16)
                 /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
                 if (ctx->INT.IPL > level)
                 {

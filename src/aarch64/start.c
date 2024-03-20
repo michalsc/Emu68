@@ -574,7 +574,7 @@ void boot(void *dtree)
             if (find_token(prop->op_value, "limit_2g"))
                 limit_2g = 1;
 #ifdef PISTORM
-#ifdef PISTORM32LITE
+#if defined(PISTORM32LITE)
             if (find_token(prop->op_value, "two_slot"))
             {
                 extern uint32_t use_2slot;
@@ -886,9 +886,12 @@ void boot(void *dtree)
     }
     else
     {
+#if defined(PISTORM32LITE) || defined(PISTORM16)
 #ifdef PISTORM32LITE
         #include "../pistorm/efinix_firmware.h"
-        
+#else
+	#include "../pistorm/efinix_firmware_ps16.h"
+#endif
         struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
         
         if (decomp != NULL)
@@ -916,7 +919,7 @@ void boot(void *dtree)
 #endif
     }
 
-#ifdef PISTORM32LITE
+#if defined(PISTORM32LITE) || defined(PISTORM16)
     ps_efinix_setup();
     ps_efinix_load(firmware_file, firmware_size);
 #endif
@@ -1898,7 +1901,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "992:                                       \n"
 
 // No need to do anything on PiStorm32 - the w1 contains the IPL value already (see few lines above)
-#ifndef PISTORM32
+#if !defined(PISTORM32) && !defined(PISTORM16)
 
 #if PISTORM_WRITE_BUFFER
 "       adrp    x5, bus_lock                \n"

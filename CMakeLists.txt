@@ -15,7 +15,7 @@ set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
-set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm32lite")
+set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm32lite" "pistorm16")
 set(VARIANT "none" CACHE STRING "Compilation variant: ${SUPPORTED_VARIANTS}")
 set_property(CACHE VARIANT PROPERTY STRINGS ${SUPPORTED_VARIANTS})
 
@@ -109,7 +109,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         list(APPEND TARGET_FILES src/raspi/support_rpi.c)
         list(APPEND TARGET_FILES src/raspi/topaz.c)
         download_raspi_firmware()
-        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
+        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite" OR ${VARIANT} STREQUAL "pistorm16")
             configure_file(scripts/config_pistorm.txt scripts/config.txt @ONLY)
             install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION . RENAME Emu68-${VARIANT})
             install(FILES ${CMAKE_BINARY_DIR}/scripts/config.txt DESTINATION .)
@@ -141,7 +141,7 @@ endif()
 
 if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
     message("-- Selected variant: ${VARIANT}")
-    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
+    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite" OR ${VARIANT} STREQUAL "pistorm16")
         if(${TARGET} STREQUAL "raspi64")
             add_compile_definitions(PISTORM)
             if(${VARIANT} STREQUAL "pistorm32lite")
@@ -149,6 +149,11 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
                 add_compile_definitions(PISTORM32)
                 list(APPEND BASE_FILES
                     src/pistorm/ps32_protocol.c
+                )
+            elseif(${VARIANT} STREQUAL "pistorm16")
+                add_compile_definitions(PISTORM16)
+                list(APPEND BASE_FILES
+                    src/pistorm/ps16_protocol.c
                 )
             else()
                 list(APPEND BASE_FILES
