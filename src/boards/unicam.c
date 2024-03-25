@@ -26,4 +26,4 @@ static struct ExpansionBoard board = {
     map
 };
 
-static void * __attribute__((used, section(".boards.z3"))) _board = &board;
+static void * __attribute__((used, section(".boards.xz3"))) _board = &board;
