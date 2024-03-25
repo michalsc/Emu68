@@ -480,7 +480,6 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
     return 1;
 }
 
-
 int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far)
 {  
     D(kprintf("[JIT:SYS] SYSReadValFromAddr(%d, %p)\n", size, far));
@@ -495,9 +494,33 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
 
     if (far >= 0x1000000) {
         // Unmapped Z3 address
-        *value = ~0ULL;
-        if (size == 16)
-            *value2 = ~0ULL;
+
+        static const uint64_t u64[5] = {
+            0xBAD00BAD00BAD00BULL, 0xAD00BAD00BAD00BAULL,
+            0x00BAD00BAD00BAD0ULL, 0x0BAD00BAD00BAD00ULL
+        };
+        uintptr_t p64 = (uintptr_t)&u64[2] - (15 - (far & 15));
+
+        switch (size)
+        {
+            case 1:
+                *value = *(uint8_t*)p64;
+                break;
+            case 2:
+                *value = *(uint16_t*)p64;
+                break;
+            case 4:
+                *value = *(uint32_t*)p64;
+                break;
+            case 8:
+                *value = *(uint64_t*)p64;
+                break;
+            case 16:
+                *value = *(uint64_t*)p64;
+                *value2 = *(uint64_t*)(p64 + 8);
+                break;
+        }
+
         return 1;
     }
 
