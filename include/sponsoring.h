@@ -85,6 +85,7 @@ unsigned char supporters[] = {
     "HPh\0"
     "Igor Ianov\0"
     "Ingo Schmitz\0"
+    "iMICA Ltd.\0"
     "Ireneusz Bohatyrewicz\0"
     "IridiumFX\0"
     "Jachym Cinematic Studio\0"
