@@ -1665,6 +1665,158 @@ uint32_t rnd() {
     return _seed;
 }
 
+/* Membench */
+
+void ps_memtest(unsigned int test_size)
+{
+    ps_write_8(0xbfe201, 0x0101);       //CIA OVL
+    ps_write_8(0xbfe001, 0x0000);       //CIA OVL LOW
+
+    int num_iter = 1;
+    uint64_t clkspeed;
+    uint64_t t0, t1;
+    uint32_t ns;
+    double result;
+
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(clkspeed));
+
+    kprintf_pc(__putc, NULL, "MemBench with size %dK requested through commandline\n", test_size);
+    test_size <<= 10;
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr++)
+            {
+                (void)ps_read_8(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 1E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ BYTE:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr+=2)
+            {
+                (void)ps_read_16(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 2E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ WORD:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr+=4)
+            {
+                (void)ps_read_32(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 4E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ LONG:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr++)
+            {
+                (void)ps_write_8(addr, 0x00);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 1E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE BYTE: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr+=2)
+            {
+                (void)ps_write_16(addr, 0);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 2E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE WORD: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr+=4)
+            {
+                (void)ps_write_32(addr, 0);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 4E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE LONG: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+}
+
 /* BupTest by beeanyew, ported to Emu68 */
 
 void ps_buptest(unsigned int test_size, unsigned int maxiter)

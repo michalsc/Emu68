@@ -540,6 +540,7 @@ void boot(void *dtree)
     int recalc_checksum = 0;
     int buptest = 0;
     int bupiter = 5;
+    unsigned int membench = 0;
     vid_memory = 16;
 #endif
 
@@ -723,6 +724,24 @@ void boot(void *dtree)
                 if (val > 256) val = 256;
 
                 emu68_icnt = val;
+            }
+            
+            if ((tok = find_token(prop->op_value, "membench=")))
+            {
+                uint32_t bench = 0;
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[9 + i] < '0' || tok[9 + i] > '9')
+                        break;
+
+                    bench = bench * 10 + tok[9 + i] - '0';
+                }
+
+                if (bench > 2047) {
+                    bench = 2047;
+                }
+
+                membench = bench;
             }
 
             if ((tok = find_token(prop->op_value, "buptest=")))
@@ -1497,6 +1516,11 @@ void boot(void *dtree)
         mmu_map(0xf80000, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
     }
     
+    if (membench)
+    {
+        ps_memtest(membench);
+    }
+
     M68K_StartEmu(0, NULL);
 
 #endif
