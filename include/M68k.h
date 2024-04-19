@@ -123,7 +123,28 @@ struct M68KState
     uint32_t JIT_SOFTFLUSH_THRESH;
     uint32_t JIT_CONTROL;
     uint32_t JIT_CONTROL2;
+    union {
+        struct {
+            uint8_t VEC_STATUS;
+            uint8_t VEC_ERR;
+            uint8_t VEC_FIQ;
+            uint8_t VEC_IRQ;
+        };
+        uint32_t VEC;
+    };
 };
+
+#define VEC_CLEAR_BIT           0x80000000
+#define VEC_SET_VECTORS         0x40000000
+#define VEC_IS_ERR              0x04000000
+#define VEC_IS_FIQ              0x02000000
+#define VEC_IS_IRQ              0x01000000
+#define VEC_IRQ_MASK            0x000000ff
+#define VEC_IRQ_SHIFT           0
+#define VEC_FIQ_MASK            0x0000ff00
+#define VEC_FIQ_SHIFT           8
+#define VEC_ERR_MASK            0x00ff0000
+#define VEC_ERR_SHIFT           16
 
 #define JCCB_SOFT               0
 #define JCCF_SOFT               0x00000001
