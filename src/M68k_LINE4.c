@@ -1980,6 +1980,34 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
             case 0x1e0: /* JITCTRL2 - JIT second control register */
                 *ptr++ = str_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2));
                 break;
+            case 0x1e1: /* VEC - ARM Quick Vector mapping */
+            {
+                uint8_t tmp2 = RA_AllocARMRegister(&ptr);
+                tmp = RA_AllocARMRegister(&ptr);
+                
+                /* Get old value of VEC into tmp */
+                *ptr++ = ldr_offset(ctx, tmp, __builtin_offsetof(struct M68KState, VEC));
+                
+                /* Bit 29 is copied as it is */
+                *ptr++ = tst_immed(reg, 1, 3);
+                *ptr++ = bic_immed(tmp, tmp, 1, 3);
+                *ptr++ = orr_immed(tmp2, tmp, 1, 3);
+                *ptr++ = csel(tmp, tmp, tmp2, A64_CC_EQ);
+
+                /* If bit 30 is clear, do not overwrite IRQ, otherwise copy new  */
+                *ptr++ = tbz(reg, 30, 2);
+                *ptr++ = bfi(tmp, reg, 0, 24);
+
+                /* If bit 31 is clear, do not reset interrupt flags */
+                *ptr++ = tbz(reg, 31, 3);
+                *ptr++ = and_immed(tmp2, reg, 3, 8);
+                *ptr++ = bic_reg(tmp, tmp, tmp2, LSL, 0);
+
+                *ptr++ = str_offset(ctx, tmp, __builtin_offsetof(struct M68KState, VEC));
+                RA_FreeARMRegister(&ptr, tmp);
+                RA_FreeARMRegister(&ptr, tmp2);
+                break;
+            }
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(&ptr);
                 *ptr++ = bic_immed(tmp, reg, 30, 16);
@@ -2145,6 +2173,9 @@ static uint32_t *EMIT_MOVEC(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
                 break;
             case 0x0ec: /* JITCMISS */
                 *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_MISS));
+                break;
+            case 0x1e1: /* VEC */
+                *ptr++ = ldr_offset(ctx, reg, __builtin_offsetof(struct M68KState, VEC));
                 break;
             case 0x0ed: /* DBGCTRL */
             {
