@@ -21,6 +21,9 @@ avoid_warnings=1
 #core_freq=500
 #sdram_freq=600
 
+# If you have CM4 and want to use external antenna with it, uncomment following option
+# dtparam=ant2
+
 # Force HDMI signal even if nothing is connected
 hdmi_force_hotplug=1
 
