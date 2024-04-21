@@ -136,6 +136,7 @@ struct M68KState
 
 #define VEC_CLEAR_BIT           0x80000000
 #define VEC_SET_VECTORS         0x40000000
+#define VEC_INHIBIT_ALL         0x20000000
 #define VEC_IS_ERR              0x04000000
 #define VEC_IS_FIQ              0x02000000
 #define VEC_IS_IRQ              0x01000000
