@@ -150,11 +150,13 @@ void MainLoop()
             int level = 0;
             uint32_t vector;
             uint32_t vbr;
+            uint32_t arm_irq = 0;
 
             /* Find out requested IPL level based on ARM state and real IPL line */
             if (ctx->INT.ARM_err)
             {
                 level = 7;
+                arm_irq = ctx->INT.ARM_err;
                 ctx->INT.ARM_err = 0;
             }
             else
@@ -162,7 +164,7 @@ void MainLoop()
                 if (ctx->INT.ARM)
                 {
                     level = 6;
-                    ctx->INT.ARM = 0;
+                    arm_irq = ctx->INT.ARM;
                 }
 #ifdef PISTORM32
                 /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
@@ -190,7 +192,7 @@ void MainLoop()
                     {
                         level = ipl_level;
                     }
-                }           
+                }
 #endif
             }
 
@@ -222,9 +224,17 @@ void MainLoop()
                 
                 SRcopy = SR;
                 /* Swap C and V flags in the copy */
-                if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3)
-                SRcopy ^= 3;
-                vector = 0x60 + (level << 2);
+                if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3) SRcopy ^= 3;
+                /* If ARM irq, get the stored vector number */
+                if (arm_irq) {
+                    /* If IRQ level 6, then it was regular ARM int, clear the reg now */
+                    if (level != 7) {
+                        ctx->INT.ARM = 0;
+                    }
+                    vector = arm_irq << 2;
+                }
+                /* HW IRQ from Amiga, use AutoVector */
+                else vector = 0x60 + (level << 2);
 
                 /* Set supervisor mode */
                 SR |= SR_S;

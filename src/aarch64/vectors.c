@@ -87,11 +87,13 @@
 #define LOAD_CONTEXT    LOAD_SHORT_CONTEXT
 #endif
 
+#if 0
 struct INT_shadow {
     uint16_t INTENA;
     uint16_t INTREQ;
     uint8_t  ARMPending;
 } INT_shadow;
+#endif
 
 void  __attribute__((used)) __stub_vectors()
 { asm volatile(
@@ -142,16 +144,11 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x080              \n" // Disable IRQ interrupt so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
-"       adrp x1, INT_shadow             \n" // Load INTENA shadow
-"       add x1, x1, :lo12:INT_shadow    \n"
-"       ldrh w0, [x1, #%[intena]]       \n"
-"       and w0, w0, #0x6000             \n" // Check if INTEN and EXTER are active
-"       cmp w0, #0x6000                 \n"
-"       mov w0, #1                      \n" // Set ARM int pending so that we can fake INTREQ
-"       strb w0, [x1, #%[armpend]]      \n"
-"       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
-"       mov w0, #6                      \n" // Set level 6 IRQ
+"       ldrb w0, [x1, #%[status]]       \n"
+"       orr  w0, w0, #1                 \n"
+"       strb w0, [x1, #%[status]]       \n"
+"       ldrb w0, [x1, #%[src_irq]]      \n"
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -162,16 +159,11 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x0c0              \n" // Disable IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
-"       adrp x1, INT_shadow             \n" // Load INTENA shadow
-"       add x1, x1, :lo12:INT_shadow    \n"
-"       ldrh w0, [x1, #%[intena]]       \n"
-"       and w0, w0, #0x6000             \n" // Check if INTEN and EXTER are active
-"       cmp w0, #0x6000                 \n"
-"       mov w0, #1                      \n" // Set ARM int pending so that we can fake INTREQ
-"       strb w0, [x1, #%[armpend]]      \n"
-"       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
-"       mov w0, #6                      \n" // Set level 6 IRQ
+"       ldrb w0, [x1, #%[status]]       \n"
+"       orr  w0, w0, #2                 \n"
+"       strb w0, [x1, #%[status]]       \n"
+"       ldrb w0, [x1, #%[src_fiq]]      \n"
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -183,7 +175,10 @@ void  __attribute__((used)) __stub_vectors()
 "       orr x0, x0, #0x1c0              \n" // Disable SError, IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
 "       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
-"       mov w0, #7                      \n" // Set level 7 IRQ
+"       ldrb w0, [x1, #%[status]]       \n"
+"       orr  w0, w0, #4                 \n"
+"       strb w0, [x1, #%[status]]       \n"
+"       ldrb w0, [x1, #%[src_err]]      \n"
 "       strb w0, [x1, #%[perr]]         \n"
 "       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
@@ -260,9 +255,10 @@ void  __attribute__((used)) __stub_vectors()
 :
 :[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
  [perr]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
- [intena]"i"(__builtin_offsetof(struct INT_shadow, INTENA)),
- [armpend]"i"(__builtin_offsetof(struct INT_shadow, ARMPending))
-
+ [status]"i"(__builtin_offsetof(struct M68KState, VEC_STATUS)),
+ [src_irq]"i"(__builtin_offsetof(struct M68KState, VEC_IRQ)),
+ [src_fiq]"i"(__builtin_offsetof(struct M68KState, VEC_FIQ)),
+ [src_err]"i"(__builtin_offsetof(struct M68KState, VEC_ERR))
 );}
 
 static int getOPsize(uint32_t opcode)
@@ -333,7 +329,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
     if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
         far &= 0xffffffff;
     }
-
+#if 0
     if (far == INTENA) {
         if (value & 0x8000) {
             INT_shadow.INTENA |= value & 0x7fff;
@@ -362,7 +358,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
             INT_shadow.ARMPending = 0;
         }
     }
-
+#endif
     if (far == 0xdeadbeef && size == 1) {
         kprintf("%c", value);
         return 1;
@@ -603,7 +599,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
             *value2 = v.lo;
         }
     }
-
+#if 0
     if ((far & ~1) == INTENAR) {
         if (size == 2)
             INT_shadow.INTENA = *value;
@@ -635,7 +631,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
             }
         }
     }
-
+#endif
     if (far == CIAAPRA) {
         if (swap_df0_with_dfx && spoof_df0_id) {
             // DF0 doesn't emit a drive type ID on RDY pin
