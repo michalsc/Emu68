@@ -2,6 +2,7 @@ find_program(DTC dtc REQUIRED)
 
 function(build_devicetree FILES)
     set(OVERLAY_BIN_LIST "")
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/overlays)
 
     foreach(F IN LISTS ${FILES})
         cmake_path(GET F FILENAME F_NAME)
