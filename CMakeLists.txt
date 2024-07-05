@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 1.0.2)
-set(PROJECT_VERSION 1.0.2)
+project(Emu68 VERSION 1.1.0)
+set(PROJECT_VERSION 1.1.0)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
+include(cmake/devicetree.cmake)
+
 get_verstring(VERSTRING)
 get_git_sha(GIT_SHA)
 
@@ -88,6 +90,13 @@ set(EMU68_FILES
     src/math/remquo.c
     src/math/96bit.c
 )
+
+set(OVERLAY_FILES
+    src/overlays/emu68.dts
+    src/overlays/diagnostic.dts
+)
+
+build_devicetree(OVERLAY_FILES)
 
 set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
     "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
