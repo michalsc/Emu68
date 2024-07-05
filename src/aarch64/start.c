@@ -815,12 +815,17 @@ void boot(void *dtree)
         }
     }
 
-    e = dt_make_node("emu68");
+    /* If /emu68 node is not existing yet, create it now, otherwise it was there loaded from overlay */
+    if ((e = dt_find_node("/emu68")) == NULL)
+    {
+        e = dt_make_node("emu68");
+        dt_add_node(NULL, e);
+    }
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
     dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
     dt_add_property(e, "support", supporters, supporters_size);
-    dt_add_node(NULL, e);
+    
 
     /*
         At this place we have local memory manager but no MMU set up yet. 
