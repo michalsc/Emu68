@@ -523,6 +523,277 @@ uint32_t firmware_size = 0;
 uint32_t cs_dist = 1;
 int fast_page0 = 0;
 
+#ifdef PISTORM
+int rom_copy = 0;
+int recalc_checksum = 0;
+int buptest = 0;
+int bupiter = 5;
+#endif
+
+void parse_cmdline(const char *cmdline)
+{
+#ifdef PISTORM
+    const char *tok;
+#endif
+
+    if (find_token(cmdline, "enable_cache"))
+        enable_cache = 1;
+    if (find_token(cmdline, "limit_2g"))
+        limit_2g = 1;
+#ifdef PISTORM
+#ifdef PISTORM32LITE
+    if (find_token(cmdline, "two_slot"))
+    {
+        extern uint32_t use_2slot;
+        use_2slot = 1;
+    }
+    else if (find_token(cmdline, "one_slot"))
+    {
+        extern uint32_t use_2slot;
+        use_2slot = 0;
+    }
+#endif
+    fast_page0 = !!find_token(cmdline, "fast_page_zero");
+
+    if (find_token(cmdline, "chip_slowdown") || find_token(cmdline, "SC"))
+    {
+        chip_slowdown = 1;
+    }
+    else
+    {
+        chip_slowdown = 0;
+    }
+
+    if ((tok = find_token(cmdline, "cs_dist=")))
+    {
+        uint32_t cs = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            cs = cs * 10 + tok[8 + i] - '0';
+        }
+
+        if (cs == 0)
+            cs = 1;
+
+        if (cs > 8)
+        {
+            cs = 8;
+        }
+
+        cs_dist = cs;
+    }
+
+    if ((tok = find_token(cmdline, "SCS=")))
+    {
+        uint32_t cs = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[4 + i] < '0' || tok[4 + i] > '9')
+                break;
+
+            cs = cs * 10 + tok[4 + i] - '0';
+        }
+
+        if (cs == 0)
+            cs = 1;
+
+        if (cs > 8)
+        {
+            cs = 8;
+        }
+
+        cs_dist = cs;
+    }
+
+    if (find_token(cmdline, "dbf_slowdown") || find_token(cmdline, "DBF"))
+    {
+        dbf_slowdown = 1;
+    }
+    else
+    {
+        dbf_slowdown = 0;
+    }
+
+    blitwait = !(!find_token(cmdline, "blitwait") && !find_token(cmdline, "BW"));
+
+    if ((tok = find_token(cmdline, "ICNT=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val == 0)
+            val = 1;
+        if (val > 256)
+            val = 256;
+
+        emu68_icnt = val;
+    }
+
+    if ((tok = find_token(cmdline, "CCRD=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val > 31)
+            val = 31;
+
+        emu68_ccrd = val;
+    }
+
+    if ((tok = find_token(cmdline, "IRNG=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 7; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val > 65535)
+            val = 65535;
+
+        emu68_irng = val;
+    }
+
+    if ((tok = find_token(cmdline, "ICNT=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val == 0)
+            val = 1;
+        if (val > 256)
+            val = 256;
+
+        emu68_icnt = val;
+    }
+
+    if ((tok = find_token(cmdline, "buptest=")))
+    {
+        uint32_t bup = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            bup = bup * 10 + tok[8 + i] - '0';
+        }
+
+        if (bup > 2048)
+        {
+            bup = 2048;
+        }
+
+        buptest = bup;
+    }
+    if ((tok = find_token(cmdline, "bupiter=")))
+    {
+        uint32_t iter = 0;
+
+        for (int i = 0; i < 2; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            iter = iter * 10 + tok[8 + i] - '0';
+        }
+
+        if (iter > 9)
+        {
+            iter = 9;
+        }
+
+        bupiter = iter;
+    }
+    if ((tok = find_token(cmdline, "vc4.mem=")))
+    {
+        uint32_t vmem = 0;
+
+        for (int i = 0; i < 3; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            vmem = vmem * 10 + tok[8 + i] - '0';
+        }
+
+        if (vmem <= 256)
+        {
+            vid_memory = vmem & ~1;
+        }
+    }
+    if ((tok = find_token(cmdline, "checksum_rom")))
+    {
+        recalc_checksum = 1;
+    }
+    if ((tok = find_token(cmdline, "copy_rom=")))
+    {
+        tok += 9;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        switch (c)
+        {
+        case 256:
+            rom_copy = 256;
+            break;
+        case 512:
+            rom_copy = 512;
+            break;
+        case 1024:
+            rom_copy = 1024;
+            break;
+        case 2048:
+            rom_copy = 2048;
+            break;
+        default:
+            break;
+        }
+    }
+#endif
+}
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -536,10 +807,7 @@ void boot(void *dtree)
     boot_lock = 0;
 
 #ifdef PISTORM
-    int rom_copy = 0;
-    int recalc_checksum = 0;
-    int buptest = 0;
-    int bupiter = 5;
+
     vid_memory = 16;
 #endif
 
@@ -559,259 +827,14 @@ void boot(void *dtree)
     /* Parse device tree */
     dt_parse((void*)dtree);
 
+    /* Parse cmdline from /chosen */
     e = dt_find_node("/chosen");
     if (e)
     {
         of_property_t * prop = dt_find_property(e, "bootargs");
         if (prop)
         {
-#ifdef PISTORM
-            const char *tok;
-#endif
-
-            if (find_token(prop->op_value, "enable_cache"))
-                enable_cache = 1;
-            if (find_token(prop->op_value, "limit_2g"))
-                limit_2g = 1;
-#ifdef PISTORM
-#ifdef PISTORM32LITE
-            if (find_token(prop->op_value, "two_slot"))
-            {
-                extern uint32_t use_2slot;
-                use_2slot = 1;
-            }
-            else if (find_token(prop->op_value, "one_slot"))
-            {
-                extern uint32_t use_2slot;
-                use_2slot = 0;
-            }
-#endif
-            fast_page0 = !!find_token(prop->op_value, "fast_page_zero");
-
-            if (find_token(prop->op_value, "chip_slowdown") || find_token(prop->op_value, "SC"))
-            {
-                chip_slowdown = 1;
-            }
-            else
-            {
-                chip_slowdown = 0;
-            }
-
-            if ((tok = find_token(prop->op_value, "cs_dist=")))
-            {
-                uint32_t cs = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    cs = cs * 10 + tok[8 + i] - '0';
-                }
-
-                if (cs == 0) cs = 1;
-
-                if (cs > 8) {
-                    cs = 8;
-                }
-                
-                cs_dist = cs;
-            }
-
-            if ((tok = find_token(prop->op_value, "SCS=")))
-            {
-                uint32_t cs = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[4 + i] < '0' || tok[4 + i] > '9')
-                        break;
-
-                    cs = cs * 10 + tok[4 + i] - '0';
-                }
-
-                if (cs == 0) cs = 1;
-
-                if (cs > 8) {
-                    cs = 8;
-                }
-                
-                cs_dist = cs;
-            }
-
-
-            if (find_token(prop->op_value, "dbf_slowdown") || find_token(prop->op_value, "DBF"))
-            {
-                dbf_slowdown = 1;
-            }
-            else
-            {
-                dbf_slowdown = 0;
-            }
-
-            blitwait = !(!find_token(prop->op_value, "blitwait") && !find_token(prop->op_value, "BW"));
-
-            if ((tok = find_token(prop->op_value, "ICNT=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val == 0) val = 1;
-                if (val > 256) val = 256;
-
-                emu68_icnt = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "CCRD=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val > 31) val = 31;
-
-                emu68_ccrd = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "IRNG=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 7; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val > 65535) val = 65535;
-
-                emu68_irng = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "ICNT=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val == 0) val = 1;
-                if (val > 256) val = 256;
-
-                emu68_icnt = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "buptest=")))
-            {
-                uint32_t bup = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    bup = bup * 10 + tok[8 + i] - '0';
-                }
-
-                if (bup > 2048) {
-                    bup = 2048;
-                }
-                
-                buptest = bup;
-            }
-            if ((tok = find_token(prop->op_value, "bupiter=")))
-            {
-                uint32_t iter = 0;
-
-                for (int i=0; i < 2; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    iter = iter * 10 + tok[8 + i] - '0';
-                }
-
-                if (iter > 9) {
-                    iter = 9;
-                }
-                
-                bupiter = iter;
-            }
-            if ((tok = find_token(prop->op_value, "vc4.mem=")))
-            {
-                uint32_t vmem = 0;
-
-                for (int i=0; i < 3; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    vmem = vmem * 10 + tok[8 + i] - '0';
-                }
-
-                if (vmem <= 256) {
-                    vid_memory = vmem & ~1;
-                }
-            }
-            if ((tok = find_token(prop->op_value, "checksum_rom")))
-            {
-                recalc_checksum = 1;
-            } 
-            if ((tok = find_token(prop->op_value, "copy_rom=")))
-            {
-                tok += 9;
-                int c = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[i] < '0' || tok[i] > '9')
-                        break;
-
-                    c = c * 10 + tok[i] - '0';
-                }
-
-                switch (c) {
-                    case 256:
-                        rom_copy = 256;
-                        break;
-                    case 512:
-                        rom_copy = 512;
-                        break;
-                    case 1024:
-                        rom_copy = 1024;
-                        break;
-                    case 2048:
-                        rom_copy = 2048;
-                        break;
-                    default:
-                        break;
-                }
-            }
-#endif
+            parse_cmdline(prop->op_value);
         }
     }
 
@@ -821,12 +844,20 @@ void boot(void *dtree)
         e = dt_make_node("emu68");
         dt_add_node(NULL, e);
     }
+    else
+    {
+        /* If /emu68 has args property, parse it as if was a cmdline */
+        of_property_t *prop = dt_find_property(e, "args");
+        if (prop)
+        {
+            parse_cmdline(prop->op_value);
+        }
+    }
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
     dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
     dt_add_property(e, "support", supporters, supporters_size);
     
-
     /*
         At this place we have local memory manager but no MMU set up yet. 
         Nevertheless, attempt to copy initrd image to safe location since it is not guarded in RAM
