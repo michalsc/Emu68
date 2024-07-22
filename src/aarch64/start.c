@@ -853,9 +853,9 @@ void boot(void *dtree)
             parse_cmdline(prop->op_value);
         }
     }
-    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
-    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
-    dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
+    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object) + 1);
+    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
+    dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
     
     /*
