@@ -12,6 +12,7 @@
                     insn-count = <0xffffffff>;
                     ccr-scan-depth = <0xffffffff>;
                     branch-inline-distance = <0xffffffff>;
+                    chip-slowdown-distance = <0xffffffff>;
 
                     // THESE BOOLS ARE OFF BY DEFAULT!
                     // fast-page-zero
@@ -29,6 +30,7 @@
         CCRD = <&defs>,"ccr-scan-depth:0";
         IRNG = <&defs>,"branch-inline-distance:0";
         SC = <&defs>,"chip-slowdown?";
+        SCS = <&defs>,"chip-slowdown-distance:0";
         FP0 = <&defs>,"fast-page-zero?";
         BW = <&defs>,"blitter-wait?";
         DBF = <&defs>,"dbf-slowdown?";

@@ -530,6 +530,8 @@ int buptest = 0;
 int bupiter = 5;
 #endif
 
+uint8_t slot_set = 0;
+
 void parse_cmdline(const char *cmdline)
 {
 #ifdef PISTORM
@@ -546,11 +548,13 @@ void parse_cmdline(const char *cmdline)
     {
         extern uint32_t use_2slot;
         use_2slot = 1;
+        slot_set = 1;
     }
     else if (find_token(cmdline, "one_slot"))
     {
         extern uint32_t use_2slot;
         use_2slot = 0;
+        slot_set = 1;
     }
 #endif
     fast_page0 = !!find_token(cmdline, "fast_page_zero");
@@ -678,27 +682,6 @@ void parse_cmdline(const char *cmdline)
             val = 65535;
 
         emu68_irng = val;
-    }
-
-    if ((tok = find_token(cmdline, "ICNT=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val == 0)
-            val = 1;
-        if (val > 256)
-            val = 256;
-
-        emu68_icnt = val;
     }
 
     if ((tok = find_token(cmdline, "buptest=")))
@@ -858,8 +841,130 @@ void boot(void *dtree)
     dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
     
+    /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
+    if ((e = dt_find_node("/emu68/defaults")) == NULL)
+    {
+        e = dt_make_node("defaults");
+        dt_add_node(dt_find_node("/emu68"), e);
+    }
+
+    /* Fill in either compile time defaults or overriden parameters */
+    if ((p = dt_find_property(e, "insn-count")) == NULL)
+    {
+        dt_add_property(e, "insn-count", &emu68_icnt, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_icnt, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = emu68_icnt;
+    }
+
+    if ((p = dt_find_property(e, "ccr-scan-depth")) == NULL)
+    {
+        dt_add_property(e, "ccr-scan-depth", &emu68_ccrd, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = emu68_ccrd;
+    }
+
+    if ((p = dt_find_property(e, "branch-inline-distance")) == NULL)
+    {
+        dt_add_property(e, "branch-inline-distance", &emu68_irng, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = emu68_irng;
+    }
+
+    if ((p = dt_find_property(e, "chip-slowdown-distance")) == NULL)
+    {
+        dt_add_property(e, "chip-slowdown-distance", &cs_dist, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = cs_dist;
+    }
+
+    if (blitwait && dt_find_property(e, "blitter-wait") == NULL)
+    {
+        dt_add_property(e, "blitter-wait", NULL, 0);
+    }
+
+    if (dbf_slowdown && dt_find_property(e, "dbf-slowdown") == NULL)
+    {
+        dt_add_property(e, "dbf-slowdown", NULL, 0);
+    }
+
+    if (fast_page0 && dt_find_property(e, "fast-page-zero") == NULL)
+    {
+        dt_add_property(e, "fast-page-zero", NULL, 0);
+    }
+
+    if (chip_slowdown && dt_find_property(e, "chip-slowdown") == NULL)
+    {
+        dt_add_property(e, "chip-slowdown", NULL, 0);
+    }
+
+#ifdef PISTORM
+    of_node_t *diag = dt_find_node("/emu68/diag");
+    if (diag == NULL)
+    {
+        diag = dt_make_node("diag");
+        dt_add_node(dt_find_node("/emu68"), diag);
+    }
+
+    if (buptest)
+    {
+        of_node_t *bup = dt_find_node("/emu68/diag/buptest");
+        if (bup == NULL)
+        {
+            bup = dt_make_node("buptest");
+            dt_add_node(diag, bup);
+        }
+
+        if ((p = dt_find_property(bup, "status")) == NULL)
+        {
+            dt_add_property(bup, "status", "okay", 5);
+        }
+        else
+        {
+            tlsf_free(tlsf, p->op_value);
+            p->op_value = tlsf_malloc(tlsf, 5);
+            p->op_length = 5;
+            memcpy(p->op_value, "okay", 5);
+        }
+
+        if ((p = dt_find_property(bup, "size")) == NULL)
+        {
+            uint32_t sz = buptest * 1024;
+            dt_add_property(bup, "size", &sz, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = buptest * 1024;
+        }
+
+        if ((p = dt_find_property(bup, "iterations")) == NULL)
+        {
+            dt_add_property(bup, "iterations", &bupiter, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = bupiter;
+        }
+    }
+#endif
+
     /*
-        At this place we have local memory manager but no MMU set up yet. 
+        At this place we have local memory manager but no MMU set up yet.
         Nevertheless, attempt to copy initrd image to safe location since it is not guarded in RAM
     */
     e = dt_find_node("/chosen");
