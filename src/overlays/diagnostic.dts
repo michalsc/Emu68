@@ -3,31 +3,39 @@
 
 / {
     fragment@0 {
-        target-path = "/emu68/diag";
+        target-path = "/";
         __overlay__ {
-            bup: buptest {
-                status = "disabled";
-                iterations = <0>;
+            emu68 {
+                diag {
+                    bup: buptest {
+                        status = "disabled";
+                        iterations = <1>;
+                    };
+                };
             };
         };
     };
 
     fragment@1 {
-        target-path = "/emu68/diag";
+        target-path = "/";
         __overlay__ {
-            mem: membench {
-                status = "disabled";
-                base = <0>;
-                size = <0x40000>;
+            emu68 {
+                diag {
+                    mem: membench {
+                        status = "disabled";
+                        base = <0>;
+                        size = <0x40000>;
+                    };
+                };
             };
         };
     };
 
     __overrides__ {
-        buptest = <&bup>,"status?";
+        buptest = <&bup>,"status";
         bupiter = <&bup>,"iterations:0";
 
-        membench = <&mem>,"status?";
+        membench = <&mem>,"status";
         base = <&mem>,"base:0";
         size = <&mem>,"size:0";
     };
