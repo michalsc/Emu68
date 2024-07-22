@@ -6,7 +6,7 @@
         target-path = "/";
         __overlay__ {
             emu68: emu68 {
-                cmdline = "";
+                args = "";
 
                 defs: defaults {
                     insn-count = <0xffffffff>;
@@ -24,7 +24,7 @@
     };
 
     __overrides__ {
-        args = <&emu68>,"cmdline";
+        args = <&emu68>,"args";
         ICNT = <&defs>,"insn-count:0";
         CCRD = <&defs>,"ccr-scan-depth:0";
         IRNG = <&defs>,"branch-inline-distance:0";
