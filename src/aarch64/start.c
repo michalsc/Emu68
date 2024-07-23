@@ -892,11 +892,12 @@ void boot(void *dtree)
         if (*(uint32_t *)p->op_value == 0xffffffff)
             *(uint32_t *)p->op_value = cs_dist;
     }
-
+#ifdef PISTORM
     if (blitwait && dt_find_property(e, "blitter-wait") == NULL)
     {
         dt_add_property(e, "blitter-wait", NULL, 0);
     }
+#endif
 
     if (dbf_slowdown && dt_find_property(e, "dbf-slowdown") == NULL)
     {
