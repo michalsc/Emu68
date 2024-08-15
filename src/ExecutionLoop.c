@@ -90,6 +90,8 @@ static inline int GetIPLLevel()
     return (value >> 21) & 7;
 }
 #endif
+#else
+static inline int GetIPLLevel() { return 0; }
 #endif
 
 static inline uint16_t *getLastPC()
