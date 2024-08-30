@@ -860,12 +860,12 @@ void boot(void *dtree)
         
         if (decomp != NULL)
         {
-            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            void *out_buffer = tlsf_malloc(tlsf, 3*1024*1024);
             size_t in_size = 0;
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 8*1024*1024, &in_size, &out_size);
+            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 3*1024*1024, &in_size, &out_size);
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
@@ -896,12 +896,12 @@ void boot(void *dtree)
         
         if (decomp != NULL)
         {
-            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            void *out_buffer = tlsf_malloc(tlsf, 3*1024*1024);
             size_t in_size = 0;
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            result = libdeflate_gzip_decompress_ex(decomp, firmware_bin_gz, firmware_bin_gz_len, out_buffer, 8*1024*1024, &in_size, &out_size);
+            result = libdeflate_gzip_decompress_ex(decomp, firmware_bin_gz, firmware_bin_gz_len, out_buffer, 3*1024*1024, &in_size, &out_size);
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {

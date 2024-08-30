@@ -324,7 +324,15 @@ void platform_post_init()
     ps_pulse_reset();
 
     block_c0 = 0;
+/*
+    ps_write_16(0xdff100, 0x200);
+    ps_write_16(0xdff110, 0);
+    ps_write_16(0xdff180, 0x444);
 
+    for (int i=0xf00; i < 4000000; i++) {
+        ps_write_16(0xdff180, i & 0xfff);
+    }
+*/
     ps_write_8(0xde1000, 0);
     if (ps_read_8(0xde1000) & 0x80)
     {
@@ -340,6 +348,14 @@ void platform_post_init()
             }
         }
     }
+
+    if (block_c0 == 0)
+    {
+        kprintf("[BOOT] Gayle not detected\n");
+    }
+
+
+
 #endif
 
     //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);

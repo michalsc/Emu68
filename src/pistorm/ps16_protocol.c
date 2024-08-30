@@ -511,31 +511,161 @@ void wb_task()
 
 }
 
+static inline unsigned int read_ps_reg(unsigned int address)
+{
+    GPIO->GPSET0 = LE32(address << PIN_A(0));
+
+    //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    
+    unsigned int data = LE32(GPIO->GPLEV0);
+    data = LE32(GPIO->GPLEV0);
+
+    GPIO->GPSET0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+
+    data = (data >> PIN_D(0)) & 0xffff;
+
+    return data;
+}
+
+static inline unsigned int read_ps_reg_with_wait(unsigned int address)
+{
+    GPIO->GPSET0 = LE32(address << PIN_A(0));
+
+    //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    
+    unsigned int data;
+    while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    data = LE32(GPIO->GPLEV0);
+
+    GPIO->GPSET0 = LE32(1 << PIN_RD);
+    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+
+    data = (data >> PIN_D(0)) & 0xffff;
+
+    return data;
+}
+
+static inline void write_ps_reg(unsigned int address, unsigned int data)
+{
+    GPIO->GPSET0 = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
+
+    //Delay for Pi4, 2*3.5nS
+    GPIO->GPCLR0 = LE32(1 << PIN_WR); 
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    GPIO->GPCLR0 = LE32(1 << PIN_WR); 
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    
+    GPIO->GPSET0 = LE32(1 << PIN_WR);
+    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+}
+
+void ps_set_control(unsigned int value)
+{
+    set_output();
+    write_ps_reg(REG_CONTROL, 0x8000 | (value & 0x7fff));
+    set_input();
+}
+
+void ps_clr_control(unsigned int value)
+{
+    set_output();
+    write_ps_reg(REG_CONTROL, value & 0x7fff);
+    set_input();
+}
+
+static int write_pending = 0;
+static uint8_t g_fc = 0;
+
+#define SLOW_IO(address) ((address) >= 0xDFF09A && (address) < 0xDFF09E)
+
+static inline void write_access(unsigned int address, unsigned int data, unsigned int size)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    if (size == SIZE_LONG)
+        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    if (address > 0x00200000)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
+}
+
+static inline int read_access(unsigned int address, unsigned int size)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+    unsigned int data;
+
+    data = read_ps_reg_with_wait(REG_DATA_LO);
+    if (size == SIZE_BYTE)
+        data &= 0xff;
+    else if (size == SIZE_LONG)
+        data |= read_ps_reg(REG_DATA_HI) << 16;
+
+    write_pending = 0;
+
+    return data;
+}
+
 void ps_write_8(unsigned int address, unsigned int data) {
-    (void)address; (void)data;
-    while(1) asm volatile("wfe");
-#if 0
     write_access(address, data, SIZE_BYTE);
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
-    cache_invalidate_range(ICACHE, address, 1);
-#endif
+//    cache_invalidate_range(ICACHE, address, 1);
 }
 
 void ps_write_16(unsigned int address, unsigned int data) {
-    (void)address; (void)data;
-    while(1) asm volatile("wfe");
-#if 0
-    check_blit_active(address, 2);
+//    check_blit_active(address, 2);
+    kprintf("write16 %04x to %08x\n", data, address);
     write_access(address, data, SIZE_WORD);
+    usleep(1000);
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
-    cache_invalidate_range(ICACHE, address, 2);
-#endif
+//    cache_invalidate_range(ICACHE, address, 2);
 }
 
 void ps_write_32(unsigned int address, unsigned int data) {
@@ -581,9 +711,7 @@ void ps_write_128(unsigned int address, uint128_t data) {
 }
 
 unsigned int ps_read_8(unsigned int address) {
-    (void)address;
-    while(1) asm volatile("wfe");
-    //return read_access(address, SIZE_BYTE);
+    return read_access(address, SIZE_BYTE);
 }
 
 unsigned int ps_read_16(unsigned int address) {
@@ -621,16 +749,24 @@ extern uint32_t overlay;
 
 void ps_pulse_reset()
 {
-    kprintf("[PS32] Set REQUEST_BM\n");
-    //ps_set_control(CONTROL_REQ_BM);
+    kprintf("[PS16] Set REQUEST_BM\n");
+    ps_set_control(CONTROL_REQ_BM);
     usleep(100000);
 
-    kprintf("[PS32] Set DRIVE_RESET\n");
-    //ps_set_control(CONTROL_DRIVE_RESET);
+    kprintf("[PS16] Set DRIVE_RESET\n");
+    ps_set_control(CONTROL_DRIVE_RESET);
     usleep(150000);
- 
+
     kprintf("[PS32] Clear DRIVE_RESET\n");
-    //ps_clr_control(CONTROL_DRIVE_RESET);
+    ps_clr_control(CONTROL_DRIVE_RESET);
+
+    kprintf("[PS16] RESET done\n");
+/*
+    for (int i=0; i < 8; i++) {
+        kprintf("[PS16] Reg%d: %04x\n", i, (uint32_t)read_ps_reg(i));
+    }
+*/
+//asm volatile("nop");
 
 #if 0
     if (use_2slot)
