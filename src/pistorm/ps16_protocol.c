@@ -521,10 +521,10 @@ static inline unsigned int read_ps_reg(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     
     unsigned int data = LE32(GPIO->GPLEV0);
-    data = LE32(GPIO->GPLEV0);
+    //data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -544,11 +544,11 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     
     unsigned int data;
     while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
-    data = LE32(GPIO->GPLEV0);
+    data = LE32(data); //GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -568,7 +568,7 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(1 << PIN_WR); 
-    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    //GPIO->GPCLR0 = LE32(1 << PIN_WR);
     
     GPIO->GPSET0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -637,9 +637,8 @@ static inline int read_access(unsigned int address, unsigned int size)
     unsigned int data;
 
     data = read_ps_reg_with_wait(REG_DATA_LO);
-    if (size == SIZE_BYTE)
-        data &= 0xff;
-    else if (size == SIZE_LONG)
+    
+    if (size == SIZE_LONG)
         data |= read_ps_reg(REG_DATA_HI) << 16;
 
     write_pending = 0;
@@ -647,98 +646,304 @@ static inline int read_access(unsigned int address, unsigned int size)
     return data;
 }
 
-void ps_write_8(unsigned int address, unsigned int data) {
-    write_access(address, data, SIZE_BYTE);
+static inline void check_blit_active(unsigned int addr, unsigned int size) {
+    if (__m68k_state == NULL || !(__m68k_state->JIT_CONTROL2 & JC2F_BLITWAIT))
+        return;
+
+    const uint32_t bstart = 0xDFF040;   // BLTCON0
+    const uint32_t bend = 0xDFF076;     // BLTADAT+2
+    if (addr >= bend || addr + size <= bstart)
+        return;
+
+    const uint16_t mask = 1<<14 | 1<<9 | 1<<6; // BBUSY | DMAEN | BLTEN
+    while ((read_access(0xdff002, SIZE_WORD) & mask) == mask) {
+        // Dummy reads to not steal too many cycles from the blitter.
+        // But don't use e.g. CIA reads as we expect the operation
+        // to finish soon.
+        read_access(0x00f00000, SIZE_BYTE);
+        read_access(0x00f00000, SIZE_BYTE);
+    }
+}
+
+void ps_write_8_int(unsigned int address, unsigned int data)
+{
+    uint16_t d = data & 0xff;
+    d |= d << 8;
+    write_access(address, d, SIZE_BYTE);
+}
+
+void ps_write_8(unsigned int address, unsigned int data)
+{
+    uint16_t d = data & 0xff;
+    d |= d << 8;
+    write_access(address, d, SIZE_BYTE);
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
-//    cache_invalidate_range(ICACHE, address, 1);
+    cache_invalidate_range(ICACHE, address, 1);
 }
 
-void ps_write_16(unsigned int address, unsigned int data) {
-//    check_blit_active(address, 2);
-    kprintf("write16 %04x to %08x\n", data, address);
+void ps_write_16_int(unsigned int address, unsigned int data)
+{
     write_access(address, data, SIZE_WORD);
-    usleep(1000);
+}
+
+void ps_write_16(unsigned int address, unsigned int data)
+{
+    check_blit_active(address, 2);
+    
+    write_access(address, data, SIZE_WORD);
+
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
-//    cache_invalidate_range(ICACHE, address, 2);
+    cache_invalidate_range(ICACHE, address, 2);
 }
 
-void ps_write_32(unsigned int address, unsigned int data) {
-    (void)address; (void)data;
-    while(1) asm volatile("wfe");
-#if 0
+void ps_write_32_int(unsigned int address, unsigned int data)
+{
+    if (address & 1) {
+        write_access(address, data >> 24, SIZE_BYTE);
+        write_access(address + 1, data >> 8, SIZE_WORD);
+        write_access(address + 3, data, SIZE_BYTE);
+    }
+    else {
+        write_access(address, data >> 16, SIZE_WORD);
+        write_access(address + 2, data, SIZE_WORD);
+    }
+}
+
+void ps_write_32(unsigned int address, unsigned int data)
+{
     check_blit_active(address, 4);
-    write_access(address, data, SIZE_LONG);
+    
+    if (address & 1) {
+        write_access(address, data >> 24, SIZE_BYTE);
+        write_access(address + 1, data >> 8, SIZE_WORD);
+        write_access(address + 3, data, SIZE_BYTE);
+    }
+    else {
+        write_access(address, data >> 16, SIZE_WORD);
+        write_access(address + 2, data, SIZE_WORD);
+    }
+    
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
     cache_invalidate_range(ICACHE, address, 4);
-#endif
 }
 
-void ps_write_64(unsigned int address, uint64_t data) {
-    (void)address; (void)data;
-    while(1) asm volatile("wfe");
-#if 0
+void ps_write_64_int(unsigned int address, uint64_t data)
+{
+    if (address & 1) {
+        write_access(address, data >> 56, SIZE_BYTE);
+        write_access(address + 1, data >> 40, SIZE_WORD);
+        write_access(address + 3, data >> 24, SIZE_WORD);
+        write_access(address + 5, data >> 8, SIZE_WORD);
+        write_access(address + 7, data, SIZE_BYTE);
+    }
+    else {
+        write_access(address, data >> 48, SIZE_WORD);
+        write_access(address + 2, data >> 32, SIZE_WORD);
+        write_access(address + 4, data >> 16, SIZE_WORD);
+        write_access(address + 6, data, SIZE_WORD);
+    }
+}
+
+void ps_write_64(unsigned int address, uint64_t data)
+{
     check_blit_active(address, 8);
-    write_access_64(address, data);
+
+    if (address & 1) {
+        write_access(address, data >> 56, SIZE_BYTE);
+        write_access(address + 1, data >> 40, SIZE_WORD);
+        write_access(address + 3, data >> 24, SIZE_WORD);
+        write_access(address + 5, data >> 8, SIZE_WORD);
+        write_access(address + 7, data, SIZE_BYTE);
+    }
+    else {
+        write_access(address, data >> 48, SIZE_WORD);
+        write_access(address + 2, data >> 32, SIZE_WORD);
+        write_access(address + 4, data >> 16, SIZE_WORD);
+        write_access(address + 6, data, SIZE_WORD);
+    }
+
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
     cache_invalidate_range(ICACHE, address, 8);
-#endif
 }
 
-void ps_write_128(unsigned int address, uint128_t data) {
-    (void)address; (void)data;
-    while(1) asm volatile("wfe");
-#if 0
+void ps_write_128(unsigned int address, uint128_t data)
+{
     check_blit_active(address, 16);
-    write_access_128(address, data);
+
+    if (address & 1) {
+        write_access(address, data.hi >> 56, SIZE_BYTE);
+        write_access(address + 1, data.hi >> 40, SIZE_WORD);
+        write_access(address + 3, data.hi >> 24, SIZE_WORD);
+        write_access(address + 5, data.hi >> 8, SIZE_WORD);
+        write_access(address + 7, data.hi << 8 | (data.lo >> 56), SIZE_WORD);
+        write_access(address + 9, data.lo >> 40, SIZE_WORD);
+        write_access(address + 11, data.lo >> 24, SIZE_WORD);
+        write_access(address + 13, data.lo >> 8, SIZE_WORD);
+        write_access(address + 15, data.lo, SIZE_BYTE);
+    }
+    else {
+        write_access(address, data.hi >> 48, SIZE_WORD);
+        write_access(address + 2, data.hi >> 32, SIZE_WORD);
+        write_access(address + 4, data.hi >> 16, SIZE_WORD);
+        write_access(address + 6, data.hi, SIZE_WORD);
+        write_access(address + 8, data.lo >> 48, SIZE_WORD);
+        write_access(address + 10, data.lo >> 32, SIZE_WORD);
+        write_access(address + 12, data.lo >> 16, SIZE_WORD);
+        write_access(address + 14, data.lo, SIZE_WORD);
+    }
+
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
     }
     cache_invalidate_range(ICACHE, address, 16);
-#endif
 }
 
-unsigned int ps_read_8(unsigned int address) {
-    return read_access(address, SIZE_BYTE);
+unsigned int ps_read_8(unsigned int address)
+{
+    unsigned int data = read_access(address, SIZE_BYTE);
+    return (address & 1) ? data & 0xff : data >> 8;
 }
 
-unsigned int ps_read_16(unsigned int address) {
-    (void)address;
-    while(1) asm volatile("wfe");
-    //return read_access(address, SIZE_WORD);
+unsigned int ps_read_8_int(unsigned int address)
+{
+    unsigned int data = read_access(address, SIZE_BYTE);
+    return (address & 1) ? data & 0xff : data >> 8;
 }
 
-unsigned int ps_read_32(unsigned int address) {
-    (void)address;
-    while(1) asm volatile("wfe");
-    //return read_access(address, SIZE_LONG);
+unsigned int ps_read_16(unsigned int address)
+{
+    if (address & 1)
+        return (ps_read_8(address) << 8) | ps_read_8(address + 1);
+    else 
+        return read_access(address, SIZE_WORD);
 }
 
-uint64_t ps_read_64(unsigned int address) {
-    (void)address;
-    while(1) asm volatile("wfe");
-    //return read_access_64(address);
+unsigned int ps_read_16_int(unsigned int address)
+{
+    if (address & 1)
+        return (ps_read_8_int(address) << 8) | ps_read_8_int(address + 1);
+    else 
+        return read_access(address, SIZE_WORD);
 }
 
-uint128_t ps_read_128(unsigned int address) {
-    (void)address;
-    while(1) asm volatile("wfe");
-    //return read_access_128(address);
+unsigned int ps_read_32(unsigned int address)
+{
+    unsigned int data = 0;
+    if (address & 1) {
+        data = ps_read_8(address) << 24;
+        data |= ps_read_16(address + 1) << 8;
+        data |= ps_read_8(address + 3);
+    }
+    else {
+        data = ps_read_16(address) << 16;
+        data |= ps_read_16(address + 2);
+    }
+    return data;
 }
 
-void ps_reset_state_machine() {
+unsigned int ps_read_32_int(unsigned int address)
+{
+    unsigned int data = 0;
+    if (address & 1) {
+        data = ps_read_8_int(address) << 24;
+        data |= ps_read_16_int(address + 1) << 8;
+        data |= ps_read_8_int(address + 3);
+    }
+    else {
+        data = ps_read_16_int(address) << 16;
+        data |= ps_read_16_int(address + 2);
+    }
+    return data;
+}
+
+uint64_t ps_read_64_int(unsigned int address)
+{
+    uint64_t data = 0;
+    if (address & 1) {
+        data = (uint64_t)ps_read_8(address) << 56;
+        data |= (uint64_t)ps_read_16(address + 1) << 40;
+        data |= (uint64_t)ps_read_16(address + 3) << 24;
+        data |= ps_read_16(address + 5) << 8;
+        data |= ps_read_8(address + 7);
+    }
+    else {
+        data = (uint64_t)ps_read_16(address) << 48;
+        data |= (uint64_t)ps_read_16(address + 2) << 32;
+        data |= ps_read_16(address + 4) << 16;
+        data |= ps_read_16(address + 6);
+    }
+
+    return data;
+}
+
+uint64_t ps_read_64(unsigned int address)
+{
+    uint64_t data = 0;
+    if (address & 1) {
+        data = (uint64_t)ps_read_8(address) << 56;
+        data |= (uint64_t)ps_read_16(address + 1) << 40;
+        data |= (uint64_t)ps_read_16(address + 3) << 24;
+        data |= ps_read_16(address + 5) << 8;
+        data |= ps_read_8(address + 7);
+    }
+    else {
+        data = (uint64_t)ps_read_16(address) << 48;
+        data |= (uint64_t)ps_read_16(address + 2) << 32;
+        data |= ps_read_16(address + 4) << 16;
+        data |= ps_read_16(address + 6);
+    }
+
+    return data;
+}
+
+uint128_t ps_read_128(unsigned int address)
+{
+    uint128_t data;
+
+    if (address & 1) {
+        uint16_t d;
+        data.hi = (uint64_t)ps_read_8(address) << 56;
+        data.hi |= (uint64_t)ps_read_16(address + 1) << 40;
+        data.hi |= (uint64_t)ps_read_16(address + 3) << 24;
+        data.hi |= ps_read_16(address + 5) << 8;
+        d = ps_read_16(address + 7);
+        data.hi |= (d >> 8);
+        data.lo = (uint64_t)d << 56;
+        data.lo |= (uint64_t)ps_read_16(address + 9) << 40;
+        data.lo |= (uint64_t)ps_read_16(address + 11) << 24;
+        data.lo |= ps_read_16(address + 13) << 8;
+        data.lo |= ps_read_8(address + 15);
+    }
+    else {
+        data.hi = (uint64_t)ps_read_16(address) << 48;
+        data.hi |= (uint64_t)ps_read_16(address + 2) << 32;
+        data.hi |= ps_read_16(address + 4) << 16;
+        data.hi |= ps_read_16(address + 6);
+
+        data.lo = (uint64_t)ps_read_16(address + 8) << 48;
+        data.lo |= (uint64_t)ps_read_16(address + 10) << 32;
+        data.lo |= ps_read_16(address + 12) << 16;
+        data.lo |= ps_read_16(address + 14);
+    }
+
+    return data;
+}
+
+void ps_reset_state_machine()
+{
 }
 
 #include <boards.h>
@@ -761,28 +966,101 @@ void ps_pulse_reset()
     ps_clr_control(CONTROL_DRIVE_RESET);
 
     kprintf("[PS16] RESET done\n");
-/*
-    for (int i=0; i < 8; i++) {
-        kprintf("[PS16] Reg%d: %04x\n", i, (uint32_t)read_ps_reg(i));
-    }
-*/
-//asm volatile("nop");
-
-#if 0
-    if (use_2slot)
-        ps_set_control(CONTROL_INC_EXEC_SLOT);
-#endif
 
     overlay = 1;
     board = &__boards_start;
     board_idx = 0;
 }
 
+#define PM_RSTC         ((volatile unsigned int*)(0xf2000000 + 0x0010001c))
+#define PM_RSTS         ((volatile unsigned int*)(0xf2000000 + 0x00100020))
+#define PM_WDOG         ((volatile unsigned int*)(0xf2000000 + 0x00100024))
+#define PM_WDOG_MAGIC   0x5a000000
+#define PM_RSTC_FULLRST 0x00000020
+
 volatile int housekeeper_enabled = 0;
 
 void ps_housekeeper() 
 {
-    while(1) asm volatile("wfe");
+    extern uint64_t arm_cnt;
+    uint64_t t0;
+    uint64_t last_arm_cnt = arm_cnt;
+
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(last_arm_cnt));
+
+    kprintf("[HKEEP] Housekeeper activated\n");
+    kprintf("[HKEEP] Please note we are burning the cpu with busyloops now\n");
+
+    /* Configure timer-based event stream */
+    /* Enable timer regs from EL0, enable event stream on posedge, monitor 2th bit */
+    /* This gives a frequency of 2.4MHz for a 19.2MHz timer */
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
+    if (tmp > 20000000)
+    {
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+    }
+    else
+    {
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+    }
+
+    uint8_t pin_prev = LE32(GPIO->GPLEV0);
+    
+    for(;;) {
+        if (housekeeper_enabled)
+        {
+            //if (!__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE))
+            //{
+            //    gpio_rdval = LE32(*gpread);
+            //    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
+            //}
+
+            uint32_t pin = LE32(GPIO->GPLEV0);
+
+            // Reall 680x0 CPU filters IPL lines in order to avoid false interrupts if
+            // there is a clock skew between three IPL bits. We need to do the same.
+            // Update IPL if and only if two subsequent IPL reads are the same.
+            if ((pin & 7) == (pin_prev & 7))
+            {
+                __m68k_state->INT.IPL = ~pin & 7;
+
+                asm volatile("":::"memory");
+
+                if (__m68k_state->INT.IPL)
+                    asm volatile("sev":::"memory");
+            }
+
+            pin_prev = pin;
+
+            if ((pin & (1 << PIN_KBRESET)) == 0) {
+                kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
+
+                ps_set_control(CONTROL_REQ_BM);
+                usleep(100000);
+
+                ps_set_control(CONTROL_DRIVE_RESET);
+                usleep(150000);
+
+                unsigned int r;
+                // trigger a restart by instructing the GPU to boot from partition 0
+                r = LE32(*PM_RSTS); r &= ~0xfffffaaa;
+                *PM_RSTS = LE32(PM_WDOG_MAGIC | r);   // boot from partition 0
+                *PM_WDOG = LE32(PM_WDOG_MAGIC | 10);
+                *PM_RSTC = LE32(PM_WDOG_MAGIC | PM_RSTC_FULLRST);
+
+                while(1);
+            }
+
+            /*
+              Wait for event. It can happen that the CPU is flooded with them for some reason, but
+              nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
+            */
+            asm volatile("wfe");
+        }
+    }
 }
 
 void put_char(uint8_t c);
@@ -811,31 +1089,34 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
 
     kprintf_pc(__putc, NULL, "BUPTest with size %dK requested through commandline\n", test_size);
 
-    test_size *= 1024;
+//    test_size *= 1024;
     uint32_t frac = test_size / 16;
 
     uint8_t *garbage = tlsf_malloc(tlsf, test_size);
 
-    ps_write_8(0xbfe201, 0x0101);       //CIA OVL
-    ps_write_8(0xbfe001, 0x0000);       //CIA OVL LOW
+    for (int i=0; i < 200; i++) usleep(100000);
+
+    ps_write_8_int(0xbfe201, 0x0101);       //CIA OVL
+    ps_write_8_int(0xbfe001, 0x0000);       //CIA OVL LOW
 
     for (unsigned int iter = 0; iter < maxiter; iter++) {
         kprintf_pc(__putc, NULL, "Iteration %d...\n", iter + 1);
 
         // Fill the garbage buffer and chip ram with random data
         kprintf_pc(__putc, NULL, "  Writing BYTE garbage data to Chip...            ");
+
         for (uint32_t i = 0; i < test_size; i++) {
             uint8_t val = 0;
             val = rnd();
             garbage[i] = val;
-            ps_write_8(i, val);
+            ps_write_8_int(i, val);
 
             if ((i % (frac * 2)) == 0)
                 kprintf_pc(__putc, NULL, "*");
         }
 
         for (uint32_t i = 0; i < test_size; i++) {
-            uint32_t c = ps_read_8(i);
+            uint32_t c = ps_read_8_int(i);
             if (c != garbage[i]) {
                 kprintf_pc(__putc, NULL, "\n    READ8: Garbege data mismatch at $%.6X: %.2X should be %.2X.\n", i, c, garbage[i]);
                 while(1);
@@ -846,7 +1127,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 0; i < (test_size) - 2; i += 2) {
-            uint32_t c = BE16(ps_read_16(i));
+            uint32_t c = BE16(ps_read_16_int(i));
             if (c != *((uint16_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ16_EVEN: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
                 while(1);
@@ -857,7 +1138,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
-            uint32_t c = BE16(ps_read_16(i));
+            uint32_t c = BE16(ps_read_16_int(i));
             if (c != *((uint16_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
                 while(1);
@@ -868,7 +1149,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
         
         for (uint32_t i = 0; i < (test_size) - 4; i += 2) {
-            uint32_t c = BE32(ps_read_32(i));
+            uint32_t c = BE32(ps_read_32_int(i));
             if (c != *((uint32_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ32_EVEN: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
                 while(1);
@@ -879,7 +1160,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 1; i < (test_size) - 4; i += 2) {
-            uint32_t c = BE32(ps_read_32(i));
+            uint32_t c = BE32(ps_read_32_int(i));
             if (c != *((uint32_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
                 while(1);
@@ -890,7 +1171,7 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 0; i < test_size; i++) {
-            ps_write_8(i, (uint32_t)0x0);
+            ps_write_8_int(i, (uint32_t)0x0);
 
             if ((i % (frac * 8)) == 0)
                 kprintf_pc(__putc, NULL, "*");
@@ -899,15 +1180,15 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         kprintf_pc(__putc, NULL, "\n  Writing WORD garbage data to Chip, unaligned... ");
         for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
             uint16_t v = *((uint16_t *)&garbage[i]);
-            ps_write_8(i + 1, (v & 0x00FF));
-            ps_write_8(i, (v >> 8));
+            ps_write_8_int(i + 1, (v & 0x00FF));
+            ps_write_8_int(i, (v >> 8));
 
             if ((i % (frac * 2)) == 1)
                 kprintf_pc(__putc, NULL, "*");
         }
 
         for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
-            uint32_t c = BE16((ps_read_8(i) << 8) | ps_read_8(i + 1));
+            uint32_t c = BE16((ps_read_8_int(i) << 8) | ps_read_8_int(i + 1));
             if (c != *((uint16_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
                 while(1);
@@ -918,24 +1199,24 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         }
 
         for (uint32_t i = 0; i < test_size; i++) {
-            ps_write_8(i, (uint32_t)0x0);
+            ps_write_8_int(i, (uint32_t)0x0);
         }
 
         kprintf_pc(__putc, NULL, "\n  Writing LONG garbage data to Chip, unaligned... ");
         for (uint32_t i = 1; i < (test_size) - 4; i += 4) {
             uint32_t v = *((uint32_t *)&garbage[i]);
-            ps_write_8(i , v & 0x0000FF);
-            ps_write_16(i + 1, BE16(((v & 0x00FFFF00) >> 8)));
-            ps_write_8(i + 3 , (v & 0xFF000000) >> 24);
+            ps_write_8_int(i , v & 0x0000FF);
+            ps_write_16_int(i + 1, BE16(((v & 0x00FFFF00) >> 8)));
+            ps_write_8_int(i + 3 , (v & 0xFF000000) >> 24);
 
             if ((i % (frac * 2)) == 1)
                 kprintf_pc(__putc, NULL, "*");
         }
 
         for (uint32_t i = 1; i < (test_size) - 4; i += 4) {
-            uint32_t c = ps_read_8(i);
-            c |= (BE16(ps_read_16(i + 1)) << 8);
-            c |= (ps_read_8(i + 3) << 24);
+            uint32_t c = ps_read_8_int(i);
+            c |= (BE16(ps_read_16_int(i + 1)) << 8);
+            c |= (ps_read_8_int(i + 3) << 24);
             if (c != *((uint32_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
                 while(1);
@@ -948,14 +1229,14 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
         kprintf_pc(__putc, NULL, "\n  Writing QUAD garbage data to Chip... ");
         for (uint32_t i = 0; i < (test_size) - 8; i += 8) {
             uint64_t v = *((uint64_t *)&garbage[i]);
-            ps_write_64(i , v);
+            ps_write_64_int(i , v);
 
             if ((i % (frac * 2)) == 1)
                 kprintf_pc(__putc, NULL, "*");
         }
 
         for (uint32_t i = 1; i < (test_size) - 16; i += 8) {
-            uint64_t c = ps_read_64(i);
+            uint64_t c = ps_read_64_int(i);
             if (c != *((uint64_t *)&garbage[i])) {
                 kprintf_pc(__putc, NULL, "\n    READ64_ODD: Garbege data mismatch at $%.6X: %.16X should be %.16X.\n", i, c, *((uint64_t *)&garbage[i]));
                 while(1);
