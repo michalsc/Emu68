@@ -190,7 +190,7 @@ list(APPEND ARCH_FILES
 set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
 add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-add_compile_options(-march=armv8-a+crc -mtune=cortex-a72 -fomit-frame-pointer -O3 -ffixed-x12 -ffixed-q31 -ffixed-q30 -ffixed-q29 -ffixed-q28)
+add_compile_options(-falign-functions=32 -march=armv8-a+crc -mtune=cortex-a72 -fomit-frame-pointer -O3 -ffixed-x12 -ffixed-q31 -ffixed-q30 -ffixed-q29 -ffixed-q28)
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
     add_compile_options(-mno-outline-atomics)
