@@ -519,8 +519,8 @@ static inline unsigned int read_ps_reg(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     
     unsigned int data = LE32(GPIO->GPLEV0);
@@ -542,12 +542,12 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
+    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     
     unsigned int data;
-    while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("");
     data = LE32(data); //GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
@@ -567,7 +567,7 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
-    GPIO->GPCLR0 = LE32(1 << PIN_WR); 
+    //GPIO->GPCLR0 = LE32(1 << PIN_WR); 
     //GPIO->GPCLR0 = LE32(1 << PIN_WR);
     
     GPIO->GPSET0 = LE32(1 << PIN_WR);
@@ -634,12 +634,33 @@ static inline int read_access(unsigned int address, unsigned int size)
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
-    unsigned int data;
+    unsigned int data = 0;
 
-    data = read_ps_reg_with_wait(REG_DATA_LO);
-    
     if (size == SIZE_LONG)
-        data |= read_ps_reg(REG_DATA_HI) << 16;
+    {
+        // Set STATUS register when reading for first 16-bit cycle to complete
+        GPIO->GPSET0 = LE32(REG_STATUS << PIN_A(0));
+
+        //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
+        GPIO->GPCLR0 = LE32(1 << PIN_RD);
+        GPIO->GPCLR0 = LE32(1 << PIN_RD);
+        GPIO->GPCLR0 = LE32(1 << PIN_RD);
+
+        while((GPIO->GPLEV0 & LE32(0x100 << PIN_D(0))) == 0);
+
+        GPIO->GPSET0 = LE32(1 << PIN_RD);
+        GPIO->GPCLR0 = LE32(CLEAR_BITS);
+
+        // Upper half is ready, read it without waiting
+        data = read_ps_reg(REG_DATA_HI) << 16;
+
+        // Second half of data will be fetched once whole transfer is completed
+        data |= read_ps_reg_with_wait(REG_DATA_LO);
+    }
+    else
+    {
+        data = read_ps_reg_with_wait(REG_DATA_LO);
+    }
 
     write_pending = 0;
 
@@ -710,8 +731,9 @@ void ps_write_32_int(unsigned int address, unsigned int data)
         write_access(address + 3, data, SIZE_BYTE);
     }
     else {
-        write_access(address, data >> 16, SIZE_WORD);
-        write_access(address + 2, data, SIZE_WORD);
+        write_access(address, data, SIZE_LONG);
+        //write_access(address, data >> 16, SIZE_WORD);
+        //write_access(address + 2, data, SIZE_WORD);
     }
 }
 
@@ -725,8 +747,9 @@ void ps_write_32(unsigned int address, unsigned int data)
         write_access(address + 3, data, SIZE_BYTE);
     }
     else {
-        write_access(address, data >> 16, SIZE_WORD);
-        write_access(address + 2, data, SIZE_WORD);
+        write_access(address, data, SIZE_LONG);
+        //write_access(address, data >> 16, SIZE_WORD);
+        //write_access(address + 2, data, SIZE_WORD);
     }
     
     if (SLOW_IO(address))
@@ -848,8 +871,9 @@ unsigned int ps_read_32(unsigned int address)
         data |= ps_read_8(address + 3);
     }
     else {
-        data = ps_read_16(address) << 16;
-        data |= ps_read_16(address + 2);
+        data = read_access(address, SIZE_LONG);
+        //data = ps_read_16(address) << 16;
+        //data |= ps_read_16(address + 2);
     }
     return data;
 }
@@ -863,8 +887,9 @@ unsigned int ps_read_32_int(unsigned int address)
         data |= ps_read_8_int(address + 3);
     }
     else {
-        data = ps_read_16_int(address) << 16;
-        data |= ps_read_16_int(address + 2);
+        data = read_access(address, SIZE_LONG);
+        //data = ps_read_16_int(address) << 16;
+        //data |= ps_read_16_int(address + 2);
     }
     return data;
 }
