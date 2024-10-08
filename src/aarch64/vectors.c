@@ -1222,7 +1222,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
 
         if (ptr != far)
         {
-            kprintf("address mismatch in STUR %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in STUR %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr));
             far = ptr;
         }
 
@@ -1248,7 +1248,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
         
         if (ptr != far)
         {
-            kprintf("address mismatch in STR %c%d %s-index. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, pre_index ? "pre":"post",far, ptr);
+            DWARN(kprintf("address mismatch in STR %c%d %s-index. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, pre_index ? "pre":"post",far, ptr));
             far = ptr;
         }
 
@@ -1268,7 +1268,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far)
         {
-            kprintf("address mismatch in STR unsigned offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in STR unsigned offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr + offset;
         }
 
@@ -1319,7 +1319,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
 
         if (far != ptr + rm)
         {
-            kprintf("address mismatch in STR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in STR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr));
             far = ptr + rm;
         }  
 
@@ -1337,7 +1337,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
 
         if (ptr != far)
         {
-            kprintf("address mismatch in STR(L)XR FAR = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in STR(L)XR FAR = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
@@ -1358,7 +1358,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far)
         {
-            kprintf("address mismatch in STP offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in STP offset far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             // STP may fail on either register access, hence, update FAR accordingly now
             far = ptr + offset;
         }
@@ -1408,7 +1408,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr != far)
         {
-            kprintf("address mismatch in STP post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in STP post index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr;
         }
         
@@ -1460,7 +1460,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far)
         {
-            kprintf("address mismatch in STP pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in STP pre index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr + offset;
         } 
         
@@ -1545,7 +1545,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr)
         {
-            kprintf("address mismatch in FLDS unsigned offset far = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in FLDS unsigned offset far = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
@@ -1563,7 +1563,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr + offset)
         {
-            kprintf("address mismatch in FLDS pre-index far = %08x, reg = %08x!\n", far, ptr + offset);
+            DWARN(kprintf("address mismatch in FLDS pre-index far = %08x, reg = %08x!\n", far, ptr + offset));
             far = ptr + offset;
         }
 
@@ -1582,7 +1582,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr)
         {
-            kprintf("address mismatch in FLDS post-index far = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in FLDS post-index far = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
@@ -1610,7 +1610,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr)
         {
-            kprintf("address mismatch in FLDD unsigned offset far = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in FLDD unsigned offset far = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
@@ -1637,7 +1637,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr + offset)
         {
-            kprintf("address mismatch in FLDD pre-index far = %08x, reg = %08x!\n", far, ptr + offset);
+            DWARN(kprintf("address mismatch in FLDD pre-index far = %08x, reg = %08x!\n", far, ptr + offset));
             far = ptr + offset;
         }
 
@@ -1656,7 +1656,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr)
         {
-            kprintf("address mismatch in FLDD post-index far = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in FLDD post-index far = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
@@ -1881,7 +1881,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr + rm)
         {
-            kprintf("address mismatch in LDR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in LDR %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr));
             far = ptr + rm;
         }  
 
@@ -1901,7 +1901,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = ctx[(opcode >> 5) & 31];
         if (ptr + offset != far)
         {
-            kprintf("address mismatch in LDR imm far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+            DWARN(kprintf("address mismatch in LDR imm far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
             far = ptr + offset;
         }
 
@@ -1915,7 +1915,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (ptr != far)
         {
-            kprintf("address mismatch in LDUR %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in LDUR %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr));
             far = ptr;
         }
 
@@ -1930,7 +1930,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         {
             if (ptr + offset != far)
             {
-                kprintf("address mismatch in LDR pre-index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                DWARN(kprintf("address mismatch in LDR pre-index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
                 far = ptr + offset;
             }
         }
@@ -1938,7 +1938,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         {
             if (ptr != far)
             {
-                kprintf("address mismatch in LDR post-index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset);
+                DWARN(kprintf("address mismatch in LDR post-index far = %08x, reg = %08x, off = %d!\n", far, ptr, offset));
                 far = ptr;
             }
         }
@@ -1992,7 +1992,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (far != ptr + rm)
         {
-            kprintf("address mismatch in LDRSW/B/H %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in LDRSW/B/H %c%d reg FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr));
             far = ptr + rm;
         }  
 
@@ -2031,7 +2031,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (ptr != far)
         {
-            kprintf("address mismatch in LDRSW/B/H imm. FAR = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in LDRSW/B/H imm. FAR = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
@@ -2070,7 +2070,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         if (ptr != far)
         {
-            kprintf("address mismatch in LDURS %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr);
+            DWARN(kprintf("address mismatch in LDURS %c%d. FAR = %08x, reg = %08x!\n", size == 4 ? 'W' : 'X', opcode & 31, far, ptr));
             far = ptr;
         }
         
@@ -2114,7 +2114,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         
         if (far != ptr)
         {
-            kprintf("address mismatch in LDRSW/B/H post-/pre-index. FAR = %08x, reg = %08x!\n", far, ptr);
+            DWARN(kprintf("address mismatch in LDRSW/B/H post-/pre-index. FAR = %08x, reg = %08x!\n", far, ptr));
             far = ptr;
         }
 
