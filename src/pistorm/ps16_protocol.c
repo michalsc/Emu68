@@ -976,7 +976,7 @@ void ps_pulse_reset()
     // 166MHz firmware: 18..19
 
     kprintf("[PS16] Set DTACK delay\n");
-    ps_set_control(18 << 8);
+    ps_set_control(15 << 8);
 
     kprintf("[PS16] Set REQUEST_BM\n");
     ps_set_control(CONTROL_REQ_BM);
