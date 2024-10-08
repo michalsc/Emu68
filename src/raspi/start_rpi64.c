@@ -294,40 +294,6 @@ void platform_init()
 #endif
 }
 
-
- void usleep(uint64_t delta)
-{
-    volatile struct {
-        uint32_t LO;
-        uint32_t HI;
-    } *CLOCK = (volatile void *)0xf2003004;
-
-    uint64_t hi = CLOCK->HI;
-    uint64_t lo = CLOCK->LO;
-    uint64_t t1, t2;
-
-    if (unlikely(hi != CLOCK->HI))
-    {
-        hi = CLOCK->HI;
-        lo = CLOCK->LO;
-    }
-
-    t1 = LE64(hi) | LE32(lo);
-    t1 += delta;
-    t2 = 0;
-
-    do {
-        hi = CLOCK->HI;
-        lo = CLOCK->LO;
-        if (unlikely(hi != CLOCK->HI))
-        {
-            hi = CLOCK->HI;
-            lo = CLOCK->LO;
-        }
-        t2 = LE64(hi) | LE32(lo);
-    } while (t2 < t1);
-}
-
 void platform_post_init()
 {
     void *base_vcmem;
@@ -358,31 +324,8 @@ void platform_post_init()
     ps_pulse_reset();
 
     block_c0 = 0;
-    //for (int i=0; i < 200; i++) usleep(100000);
-#if 0
-void cache_setup();
-cache_setup();
 
-    //for (int i=0; i < 600; i++) usleep(100000);
 
-    ps_write_16(0xdff100, 0x200);
-    ps_write_16(0xdff110, 0);
-    ps_write_16(0xdff180, 0x444);
-
-    for (int i=0; i < 200; i++) usleep(100000);
-
-    ps_write_8(0xbfe201, 0x0101);       //CIA OVL
-    ps_write_8(0xbfe001, 0x0000);
-
-    for (int i=0; /*i < 262144*/ ; i++) {
-     //   int w = ps_read_8((i * 2) & 0xfffff) << 8;
-     //   w |= ps_read_8((i * 2 + 1) % 0xfffff);
-     //   ps_write_16(0xdff180, w);
-        ps_write_16(0xdff180, i & 0xfff);
-        ps_write_16(0xdff180, 0x000);
-        
-    }
-#endif
     ps_write_8_int(0xde1000, 0);
     if (ps_read_8_int(0xde1000) & 0x80)
     {
