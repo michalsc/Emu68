@@ -971,8 +971,12 @@ extern uint32_t overlay;
 
 void ps_pulse_reset()
 {
+    // Good starting values for DTACK delay:
+    // 145MHz firmware: 15..16
+    // 166MHz firmware: 18..19
+
     kprintf("[PS16] Set DTACK delay\n");
-    ps_set_control(15 << 8);
+    ps_set_control(18 << 8);
 
     kprintf("[PS16] Set REQUEST_BM\n");
     ps_set_control(CONTROL_REQ_BM);
