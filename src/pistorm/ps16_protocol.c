@@ -519,12 +519,8 @@ static inline unsigned int read_ps_reg(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    
+
     unsigned int data = LE32(GPIO->GPLEV0);
-    //data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -542,13 +538,10 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    //GPIO->GPCLR0 = LE32(1 << PIN_RD);
     
     unsigned int data;
     while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("");
-    data = LE32(data); //GPIO->GPLEV0);
+    data = LE32(data);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -566,9 +559,11 @@ static inline void write_ps_reg(unsigned int address, unsigned int data)
     GPIO->GPCLR0 = LE32(1 << PIN_WR); 
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
-    GPIO->GPCLR0 = LE32(1 << PIN_WR);
-    //GPIO->GPCLR0 = LE32(1 << PIN_WR); 
-    //GPIO->GPCLR0 = LE32(1 << PIN_WR);
+
+    // If writing to REG_ADDR_HI then wait until TXN pin
+    // is asserted!
+    if (address == REG_ADDR_HI)
+        while ((GPIO->GPLEV0 & LE32(1 << PIN_TXN)) == 0) asm volatile("");
     
     GPIO->GPSET0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -732,8 +727,6 @@ void ps_write_32_int(unsigned int address, unsigned int data)
     }
     else {
         write_access(address, data, SIZE_LONG);
-        //write_access(address, data >> 16, SIZE_WORD);
-        //write_access(address + 2, data, SIZE_WORD);
     }
 }
 
@@ -748,8 +741,6 @@ void ps_write_32(unsigned int address, unsigned int data)
     }
     else {
         write_access(address, data, SIZE_LONG);
-        //write_access(address, data >> 16, SIZE_WORD);
-        //write_access(address + 2, data, SIZE_WORD);
     }
     
     if (SLOW_IO(address))
@@ -769,6 +760,8 @@ void ps_write_64_int(unsigned int address, uint64_t data)
         write_access(address + 7, data, SIZE_BYTE);
     }
     else {
+        //write_access(address, data >> 32, SIZE_LONG);
+        //write_access(address + 4, data, SIZE_LONG);
         write_access(address, data >> 48, SIZE_WORD);
         write_access(address + 2, data >> 32, SIZE_WORD);
         write_access(address + 4, data >> 16, SIZE_WORD);
@@ -788,6 +781,9 @@ void ps_write_64(unsigned int address, uint64_t data)
         write_access(address + 7, data, SIZE_BYTE);
     }
     else {
+        //write_access(address, data >> 32, SIZE_LONG);
+        //write_access(address + 4, data, SIZE_LONG);
+
         write_access(address, data >> 48, SIZE_WORD);
         write_access(address + 2, data >> 32, SIZE_WORD);
         write_access(address + 4, data >> 16, SIZE_WORD);
@@ -872,8 +868,6 @@ unsigned int ps_read_32(unsigned int address)
     }
     else {
         data = read_access(address, SIZE_LONG);
-        //data = ps_read_16(address) << 16;
-        //data |= ps_read_16(address + 2);
     }
     return data;
 }
@@ -888,8 +882,6 @@ unsigned int ps_read_32_int(unsigned int address)
     }
     else {
         data = read_access(address, SIZE_LONG);
-        //data = ps_read_16_int(address) << 16;
-        //data |= ps_read_16_int(address + 2);
     }
     return data;
 }
@@ -979,6 +971,9 @@ extern uint32_t overlay;
 
 void ps_pulse_reset()
 {
+    kprintf("[PS16] Set DTACK delay\n");
+    ps_set_control(15 << 8);
+
     kprintf("[PS16] Set REQUEST_BM\n");
     ps_set_control(CONTROL_REQ_BM);
     usleep(100000);
@@ -987,7 +982,7 @@ void ps_pulse_reset()
     ps_set_control(CONTROL_DRIVE_RESET);
     usleep(150000);
 
-    kprintf("[PS32] Clear DRIVE_RESET\n");
+    kprintf("[PS16] Clear DRIVE_RESET\n");
     ps_clr_control(CONTROL_DRIVE_RESET);
 
     kprintf("[PS16] RESET done\n");
@@ -1102,6 +1097,158 @@ uint32_t rnd() {
     return _seed;
 }
 
+/* Membench */
+
+void ps_memtest(unsigned int test_size)
+{
+    ps_write_8_int(0xbfe201, 0x0101);       //CIA OVL
+    ps_write_8_int(0xbfe001, 0x0000);       //CIA OVL LOW
+
+    int num_iter = 1;
+    uint64_t clkspeed;
+    uint64_t t0, t1;
+    uint32_t ns;
+    double result;
+
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(clkspeed));
+
+    kprintf_pc(__putc, NULL, "MemBench with size %dK requested through commandline\n", test_size);
+    test_size <<= 10;
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr++)
+            {
+                (void)ps_read_8_int(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 1E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ BYTE:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr+=2)
+            {
+                (void)ps_read_16_int(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 2E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ WORD:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr+=4)
+            {
+                (void)ps_read_32_int(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 4E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ LONG:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr++)
+            {
+                (void)ps_write_8_int(addr, 0x00);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 1E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE BYTE: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr+=2)
+            {
+                (void)ps_write_16_int(addr, 0);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 2E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE WORD: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr+=4)
+            {
+                (void)ps_write_32_int(addr, 0);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 4E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE LONG: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+}
+
 /* BupTest by beeanyew, ported to Emu68 */
 
 void ps_buptest(unsigned int test_size, unsigned int maxiter)
@@ -1114,12 +1261,10 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
 
     kprintf_pc(__putc, NULL, "BUPTest with size %dK requested through commandline\n", test_size);
 
-//    test_size *= 1024;
+    test_size *= 1024;
     uint32_t frac = test_size / 16;
 
     uint8_t *garbage = tlsf_malloc(tlsf, test_size);
-
-    for (int i=0; i < 200; i++) usleep(100000);
 
     ps_write_8_int(0xbfe201, 0x0101);       //CIA OVL
     ps_write_8_int(0xbfe001, 0x0000);       //CIA OVL LOW
