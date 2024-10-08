@@ -540,6 +540,7 @@ void boot(void *dtree)
     int recalc_checksum = 0;
     int buptest = 0;
     int bupiter = 5;
+    unsigned int membench = 0;
     vid_memory = 16;
 #endif
 
@@ -725,6 +726,23 @@ void boot(void *dtree)
                 emu68_icnt = val;
             }
 
+            if ((tok = find_token(prop->op_value, "membench=")))
+            {
+                uint32_t bench = 0;
+                for (int i=0; i < 4; i++)
+                {
+                    if (tok[9 + i] < '0' || tok[9 + i] > '9')
+                        break;
+
+                    bench = bench * 10 + tok[9 + i] - '0';
+                }
+
+                if (bench > 2047) {
+                    bench = 2047;
+                }
+
+                membench = bench;
+            }
             if ((tok = find_token(prop->op_value, "buptest=")))
             {
                 uint32_t bup = 0;
@@ -1492,6 +1510,11 @@ void boot(void *dtree)
     if (buptest)
     {
         ps_buptest(buptest, bupiter);
+    }
+
+    if (membench)
+    {
+        ps_memtest(membench);
     }
 #endif
 
