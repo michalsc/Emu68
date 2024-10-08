@@ -21,6 +21,10 @@ avoid_warnings=1
 #core_freq=500
 #sdram_freq=600
 
+# CM4 users may use dtparam=ant2 to select external antenna. Otherwise
+# internal antenna is selected (equals to: dtparam=ant1)
+# dtparam=ant2
+
 # Force HDMI signal even if nothing is connected
 hdmi_force_hotplug=1
 
