@@ -754,18 +754,13 @@ void ps_write_64_int(unsigned int address, uint64_t data)
 {
     if (address & 1) {
         write_access(address, data >> 56, SIZE_BYTE);
-        write_access(address + 1, data >> 40, SIZE_WORD);
-        write_access(address + 3, data >> 24, SIZE_WORD);
+        write_access(address + 1, data >> 24, SIZE_LONG);
         write_access(address + 5, data >> 8, SIZE_WORD);
         write_access(address + 7, data, SIZE_BYTE);
     }
     else {
-        //write_access(address, data >> 32, SIZE_LONG);
-        //write_access(address + 4, data, SIZE_LONG);
-        write_access(address, data >> 48, SIZE_WORD);
-        write_access(address + 2, data >> 32, SIZE_WORD);
-        write_access(address + 4, data >> 16, SIZE_WORD);
-        write_access(address + 6, data, SIZE_WORD);
+        write_access(address, data >> 32, SIZE_LONG);
+        write_access(address + 4, data, SIZE_LONG);
     }
 }
 
@@ -775,19 +770,13 @@ void ps_write_64(unsigned int address, uint64_t data)
 
     if (address & 1) {
         write_access(address, data >> 56, SIZE_BYTE);
-        write_access(address + 1, data >> 40, SIZE_WORD);
-        write_access(address + 3, data >> 24, SIZE_WORD);
+        write_access(address + 1, data >> 24, SIZE_LONG);
         write_access(address + 5, data >> 8, SIZE_WORD);
         write_access(address + 7, data, SIZE_BYTE);
     }
     else {
-        //write_access(address, data >> 32, SIZE_LONG);
-        //write_access(address + 4, data, SIZE_LONG);
-
-        write_access(address, data >> 48, SIZE_WORD);
-        write_access(address + 2, data >> 32, SIZE_WORD);
-        write_access(address + 4, data >> 16, SIZE_WORD);
-        write_access(address + 6, data, SIZE_WORD);
+        write_access(address, data >> 32, SIZE_LONG);
+        write_access(address + 4, data, SIZE_LONG);
     }
 
     if (SLOW_IO(address))
@@ -813,14 +802,10 @@ void ps_write_128(unsigned int address, uint128_t data)
         write_access(address + 15, data.lo, SIZE_BYTE);
     }
     else {
-        write_access(address, data.hi >> 48, SIZE_WORD);
-        write_access(address + 2, data.hi >> 32, SIZE_WORD);
-        write_access(address + 4, data.hi >> 16, SIZE_WORD);
-        write_access(address + 6, data.hi, SIZE_WORD);
-        write_access(address + 8, data.lo >> 48, SIZE_WORD);
-        write_access(address + 10, data.lo >> 32, SIZE_WORD);
-        write_access(address + 12, data.lo >> 16, SIZE_WORD);
-        write_access(address + 14, data.lo, SIZE_WORD);
+        write_access(address, data.hi >> 32, SIZE_LONG);
+        write_access(address + 4, data.hi, SIZE_LONG);
+        write_access(address + 8, data.lo >> 32, SIZE_LONG);
+        write_access(address + 12, data.lo, SIZE_LONG);
     }
 
     if (SLOW_IO(address))
@@ -863,7 +848,7 @@ unsigned int ps_read_32(unsigned int address)
     unsigned int data = 0;
     if (address & 1) {
         data = ps_read_8(address) << 24;
-        data |= ps_read_16(address + 1) << 8;
+        data |= read_access(address + 1, SIZE_WORD) << 8;
         data |= ps_read_8(address + 3);
     }
     else {
@@ -877,7 +862,7 @@ unsigned int ps_read_32_int(unsigned int address)
     unsigned int data = 0;
     if (address & 1) {
         data = ps_read_8_int(address) << 24;
-        data |= ps_read_16_int(address + 1) << 8;
+        data |= read_access(address + 1, SIZE_WORD) << 8;
         data |= ps_read_8_int(address + 3);
     }
     else {
@@ -891,16 +876,13 @@ uint64_t ps_read_64_int(unsigned int address)
     uint64_t data = 0;
     if (address & 1) {
         data = (uint64_t)ps_read_8(address) << 56;
-        data |= (uint64_t)ps_read_16(address + 1) << 40;
-        data |= (uint64_t)ps_read_16(address + 3) << 24;
-        data |= ps_read_16(address + 5) << 8;
+        data |= (uint64_t)read_access(address + 1, SIZE_LONG) << 24;
+        data |= read_access(address + 5, SIZE_WORD) << 8;
         data |= ps_read_8(address + 7);
     }
     else {
-        data = (uint64_t)ps_read_16(address) << 48;
-        data |= (uint64_t)ps_read_16(address + 2) << 32;
-        data |= ps_read_16(address + 4) << 16;
-        data |= ps_read_16(address + 6);
+        data = (uint64_t)read_access(address, SIZE_LONG) << 32;
+        data |= read_access(address + 4, SIZE_LONG);
     }
 
     return data;
@@ -911,16 +893,13 @@ uint64_t ps_read_64(unsigned int address)
     uint64_t data = 0;
     if (address & 1) {
         data = (uint64_t)ps_read_8(address) << 56;
-        data |= (uint64_t)ps_read_16(address + 1) << 40;
-        data |= (uint64_t)ps_read_16(address + 3) << 24;
-        data |= ps_read_16(address + 5) << 8;
+        data |= (uint64_t)read_access(address + 1, SIZE_LONG) << 24;
+        data |= read_access(address + 5, SIZE_WORD) << 8;
         data |= ps_read_8(address + 7);
     }
     else {
-        data = (uint64_t)ps_read_16(address) << 48;
-        data |= (uint64_t)ps_read_16(address + 2) << 32;
-        data |= ps_read_16(address + 4) << 16;
-        data |= ps_read_16(address + 6);
+        data = (uint64_t)read_access(address, SIZE_LONG) << 32;
+        data |= read_access(address + 4, SIZE_LONG);
     }
 
     return data;
@@ -945,15 +924,8 @@ uint128_t ps_read_128(unsigned int address)
         data.lo |= ps_read_8(address + 15);
     }
     else {
-        data.hi = (uint64_t)ps_read_16(address) << 48;
-        data.hi |= (uint64_t)ps_read_16(address + 2) << 32;
-        data.hi |= ps_read_16(address + 4) << 16;
-        data.hi |= ps_read_16(address + 6);
-
-        data.lo = (uint64_t)ps_read_16(address + 8) << 48;
-        data.lo |= (uint64_t)ps_read_16(address + 10) << 32;
-        data.lo |= ps_read_16(address + 12) << 16;
-        data.lo |= ps_read_16(address + 14);
+        data.hi = ps_read_64_int(address);
+        data.lo = ps_read_64_int(address+8);
     }
 
     return data;
