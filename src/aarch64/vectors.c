@@ -321,6 +321,7 @@ enum
 };
 
 int block_c0;
+extern int zorro_disable;
 
 int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
@@ -412,7 +413,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
     }
 
-    if (far >= 0xe80000 && far <= 0xe8ffff && board[board_idx])
+    if (!zorro_disable && far >= 0xe80000 && far <= 0xe8ffff && board[board_idx])
     {
         if (board[board_idx]->is_z3)
         {
@@ -530,7 +531,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         return 1;
     }
 
-    if (far >= 0xe80000 && far <= 0xe8ffff && size == 1)
+    if (!zorro_disable && far >= 0xe80000 && far <= 0xe8ffff && size == 1)
     {
         while(board[board_idx] && !board[board_idx]->enabled) {
             board_idx++;

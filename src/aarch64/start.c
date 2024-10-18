@@ -302,6 +302,7 @@ void __vectors_start(void);
 extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
+int zorro_disable = 0;
 int chip_slowdown;
 int dbf_slowdown;
 int emu68_icnt = EMU68_M68K_INSN_DEPTH;
@@ -588,6 +589,8 @@ void boot(void *dtree)
             }
 #endif
             fast_page0 = !!find_token(prop->op_value, "fast_page_zero");
+
+            zorro_disable = !!find_token(prop->op_value, "z3_disable");
 
             if (find_token(prop->op_value, "chip_slowdown") || find_token(prop->op_value, "SC"))
             {
