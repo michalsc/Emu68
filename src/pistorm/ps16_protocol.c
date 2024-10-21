@@ -121,10 +121,6 @@ typedef unsigned int uint;
 #define PIN_CCK         22
 #define PIN_CDI0        10
 
-
-#define SPLIT_DATA(x)   (x)
-#define MERGE_DATA(x)   (x)
-
 #define GPFSEL0_INPUT (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
 #define GPFSEL1_INPUT (0)
 #define GPFSEL2_INPUT (GO(29) | GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK))
@@ -538,7 +534,7 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
-    
+
     unsigned int data;
     while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("");
     data = LE32(data);
@@ -553,12 +549,10 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
 
 static inline void write_ps_reg(unsigned int address, unsigned int data)
 {
-    GPIO->GPSET0 = LE32((SPLIT_DATA(data) << PIN_D(0)) | (address << PIN_A(0)));
+    GPIO->GPSET0 = LE32((data << PIN_D(0)) | (address << PIN_A(0)));
 
     //Delay for Pi4, 2*3.5nS
     GPIO->GPCLR0 = LE32(1 << PIN_WR); 
-    GPIO->GPCLR0 = LE32(1 << PIN_WR);
-    GPIO->GPCLR0 = LE32(1 << PIN_WR);
 
     // If writing to REG_ADDR_HI then wait until TXN pin
     // is asserted!
@@ -633,22 +627,9 @@ static inline int read_access(unsigned int address, unsigned int size)
 
     if (size == SIZE_LONG)
     {
-        // Set STATUS register when reading for first 16-bit cycle to complete
-        GPIO->GPSET0 = LE32(REG_STATUS << PIN_A(0));
-
-        //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
-        GPIO->GPCLR0 = LE32(1 << PIN_RD);
-        GPIO->GPCLR0 = LE32(1 << PIN_RD);
-        GPIO->GPCLR0 = LE32(1 << PIN_RD);
-
-        while((GPIO->GPLEV0 & LE32(0x100 << PIN_D(0))) == 0);
-
-        GPIO->GPSET0 = LE32(1 << PIN_RD);
-        GPIO->GPCLR0 = LE32(CLEAR_BITS);
-
-        // Upper half is ready, read it without waiting
-        data = read_ps_reg(REG_DATA_HI) << 16;
-
+        // First half of data is HI word. When reading this register TXN will show status of this word,
+        // not the entire transfer
+        data = read_ps_reg_with_wait(REG_DATA_HI) << 16;
         // Second half of data will be fetched once whole transfer is completed
         data |= read_ps_reg_with_wait(REG_DATA_LO);
     }
@@ -690,9 +671,8 @@ void ps_write_8_int(unsigned int address, unsigned int data)
 
 void ps_write_8(unsigned int address, unsigned int data)
 {
-    uint16_t d = data & 0xff;
-    d |= d << 8;
-    write_access(address, d, SIZE_BYTE);
+    ps_write_8_int(address, data);
+
     if (SLOW_IO(address))
     {
         read_access(0x00f00000, SIZE_BYTE);
@@ -709,7 +689,7 @@ void ps_write_16(unsigned int address, unsigned int data)
 {
     check_blit_active(address, 2);
     
-    write_access(address, data, SIZE_WORD);
+    ps_write_16_int(address, data);
 
     if (SLOW_IO(address))
     {
@@ -734,14 +714,7 @@ void ps_write_32(unsigned int address, unsigned int data)
 {
     check_blit_active(address, 4);
     
-    if (address & 1) {
-        write_access(address, data >> 24, SIZE_BYTE);
-        write_access(address + 1, data >> 8, SIZE_WORD);
-        write_access(address + 3, data, SIZE_BYTE);
-    }
-    else {
-        write_access(address, data, SIZE_LONG);
-    }
+    ps_write_32_int(address, data);
     
     if (SLOW_IO(address))
     {
@@ -759,8 +732,8 @@ void ps_write_64_int(unsigned int address, uint64_t data)
         write_access(address + 7, data, SIZE_BYTE);
     }
     else {
-        write_access(address, data >> 32, SIZE_LONG);
-        write_access(address + 4, data, SIZE_LONG);
+        ps_write_32_int(address, data >> 32);
+        ps_write_32_int(address + 4, data);
     }
 }
 
@@ -768,16 +741,7 @@ void ps_write_64(unsigned int address, uint64_t data)
 {
     check_blit_active(address, 8);
 
-    if (address & 1) {
-        write_access(address, data >> 56, SIZE_BYTE);
-        write_access(address + 1, data >> 24, SIZE_LONG);
-        write_access(address + 5, data >> 8, SIZE_WORD);
-        write_access(address + 7, data, SIZE_BYTE);
-    }
-    else {
-        write_access(address, data >> 32, SIZE_LONG);
-        write_access(address + 4, data, SIZE_LONG);
-    }
+    ps_write_64_int(address, data);
 
     if (SLOW_IO(address))
     {
@@ -786,10 +750,8 @@ void ps_write_64(unsigned int address, uint64_t data)
     cache_invalidate_range(ICACHE, address, 8);
 }
 
-void ps_write_128(unsigned int address, uint128_t data)
+void ps_write_128_int(unsigned int address, uint128_t data)
 {
-    check_blit_active(address, 16);
-
     if (address & 1) {
         write_access(address, data.hi >> 56, SIZE_BYTE);
         write_access(address + 1, data.hi >> 40, SIZE_WORD);
@@ -802,11 +764,16 @@ void ps_write_128(unsigned int address, uint128_t data)
         write_access(address + 15, data.lo, SIZE_BYTE);
     }
     else {
-        write_access(address, data.hi >> 32, SIZE_LONG);
-        write_access(address + 4, data.hi, SIZE_LONG);
-        write_access(address + 8, data.lo >> 32, SIZE_LONG);
-        write_access(address + 12, data.lo, SIZE_LONG);
+        ps_write_64_int(address, data.hi);
+        ps_write_64_int(address + 8, data.lo);
     }
+}
+
+void ps_write_128(unsigned int address, uint128_t data)
+{
+    check_blit_active(address, 16);
+
+    ps_write_128_int(address, data);
 
     if (SLOW_IO(address))
     {
@@ -815,24 +782,15 @@ void ps_write_128(unsigned int address, uint128_t data)
     cache_invalidate_range(ICACHE, address, 16);
 }
 
-unsigned int ps_read_8(unsigned int address)
-{
-    unsigned int data = read_access(address, SIZE_BYTE);
-    return (address & 1) ? data & 0xff : data >> 8;
-}
-
 unsigned int ps_read_8_int(unsigned int address)
 {
     unsigned int data = read_access(address, SIZE_BYTE);
     return (address & 1) ? data & 0xff : data >> 8;
 }
 
-unsigned int ps_read_16(unsigned int address)
+unsigned int ps_read_8(unsigned int address)
 {
-    if (address & 1)
-        return (ps_read_8(address) << 8) | ps_read_8(address + 1);
-    else 
-        return read_access(address, SIZE_WORD);
+    return ps_read_8_int(address);
 }
 
 unsigned int ps_read_16_int(unsigned int address)
@@ -843,18 +801,9 @@ unsigned int ps_read_16_int(unsigned int address)
         return read_access(address, SIZE_WORD);
 }
 
-unsigned int ps_read_32(unsigned int address)
+unsigned int ps_read_16(unsigned int address)
 {
-    unsigned int data = 0;
-    if (address & 1) {
-        data = ps_read_8(address) << 24;
-        data |= read_access(address + 1, SIZE_WORD) << 8;
-        data |= ps_read_8(address + 3);
-    }
-    else {
-        data = read_access(address, SIZE_LONG);
-    }
-    return data;
+    return ps_read_16_int(address);
 }
 
 unsigned int ps_read_32_int(unsigned int address)
@@ -871,6 +820,11 @@ unsigned int ps_read_32_int(unsigned int address)
     return data;
 }
 
+unsigned int ps_read_32(unsigned int address)
+{
+    return ps_read_32_int(address);
+}
+
 uint64_t ps_read_64_int(unsigned int address)
 {
     uint64_t data = 0;
@@ -881,8 +835,8 @@ uint64_t ps_read_64_int(unsigned int address)
         data |= ps_read_8(address + 7);
     }
     else {
-        data = (uint64_t)read_access(address, SIZE_LONG) << 32;
-        data |= read_access(address + 4, SIZE_LONG);
+        data |= (uint64_t)ps_read_32_int(address) << 32;
+        data |= ps_read_32_int(address + 4);
     }
 
     return data;
@@ -890,22 +844,10 @@ uint64_t ps_read_64_int(unsigned int address)
 
 uint64_t ps_read_64(unsigned int address)
 {
-    uint64_t data = 0;
-    if (address & 1) {
-        data = (uint64_t)ps_read_8(address) << 56;
-        data |= (uint64_t)read_access(address + 1, SIZE_LONG) << 24;
-        data |= read_access(address + 5, SIZE_WORD) << 8;
-        data |= ps_read_8(address + 7);
-    }
-    else {
-        data = (uint64_t)read_access(address, SIZE_LONG) << 32;
-        data |= read_access(address + 4, SIZE_LONG);
-    }
-
-    return data;
+    return ps_read_64_int(address);
 }
 
-uint128_t ps_read_128(unsigned int address)
+uint128_t ps_read_128_int(unsigned int address)
 {
     uint128_t data;
 
@@ -925,10 +867,15 @@ uint128_t ps_read_128(unsigned int address)
     }
     else {
         data.hi = ps_read_64_int(address);
-        data.lo = ps_read_64_int(address+8);
+        data.lo = ps_read_64_int(address + 8);
     }
 
     return data;
+}
+
+uint128_t ps_read_128(unsigned int address)
+{
+    return ps_read_128_int(address);
 }
 
 void ps_reset_state_machine()
@@ -946,9 +893,10 @@ void ps_pulse_reset()
     // Good starting values for DTACK delay:
     // 145MHz firmware: 15..16
     // 166MHz firmware: 18..19
+    // 180MHz firmware: 19
 
     kprintf("[PS16] Set DTACK delay\n");
-    ps_set_control(15 << 8);
+    ps_set_control(19 << 8);
 
     kprintf("[PS16] Set REQUEST_BM\n");
     ps_set_control(CONTROL_REQ_BM);
