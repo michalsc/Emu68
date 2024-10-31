@@ -161,6 +161,9 @@ typedef unsigned int uint;
 #define DIRECTION_INPUT 0
 #define DIRECTION_OUTPUT 1
 
+volatile uint8_t gpio_busy;
+volatile uint32_t gpio_lev0;
+
 volatile struct {
     uint32_t GPFSEL0;
     uint32_t GPFSEL1;
@@ -509,6 +512,8 @@ void wb_task()
 
 static inline unsigned int read_ps_reg(unsigned int address)
 {
+    gpio_busy = 1;
+
     GPIO->GPSET0 = LE32(address << PIN_A(0));
 
     //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
@@ -516,18 +521,22 @@ static inline unsigned int read_ps_reg(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
 
-    unsigned int data = LE32(GPIO->GPLEV0);
+    unsigned int data = LE32((gpio_lev0 = GPIO->GPLEV0));
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
 
     data = (data >> PIN_D(0)) & 0xffff;
 
+    gpio_busy = 0;
+
     return data;
 }
 
 static inline unsigned int read_ps_reg_with_wait(unsigned int address)
 {
+    gpio_busy = 1;
+
     GPIO->GPSET0 = LE32(address << PIN_A(0));
 
     //Delay for Pi3, 3*7.5nS , or 3*3.5nS for
@@ -535,12 +544,14 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
 
-    unsigned int data;
-    while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("");
-    data = LE32(data);
+    while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("");
+
+    uint32_t data = LE32(gpio_lev0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
+
+    gpio_busy = 0;
 
     data = (data >> PIN_D(0)) & 0xffff;
 
@@ -549,18 +560,23 @@ static inline unsigned int read_ps_reg_with_wait(unsigned int address)
 
 static inline void write_ps_reg(unsigned int address, unsigned int data)
 {
+    gpio_busy = 1;
+
     GPIO->GPSET0 = LE32((data << PIN_D(0)) | (address << PIN_A(0)));
 
     //Delay for Pi4, 2*3.5nS
     GPIO->GPCLR0 = LE32(1 << PIN_WR); 
 
-    // If writing to REG_ADDR_HI then wait until TXN pin
-    // is asserted!
-    if (address == REG_ADDR_HI)
-        while ((GPIO->GPLEV0 & LE32(1 << PIN_TXN)) == 0) asm volatile("");
-    
     GPIO->GPSET0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
+
+    // If writing to REG_ADDR_HI then issue one extra read from GPIO to
+    // give firmware time to start rolling!
+    if (address == REG_ADDR_HI) {
+        (void)GPIO->GPLEV0;
+    }
+
+    gpio_busy = 0;
 }
 
 void ps_set_control(unsigned int value)
@@ -584,8 +600,6 @@ static uint8_t g_fc = 0;
 
 static inline void write_access(unsigned int address, unsigned int data, unsigned int size)
 {
-    uint32_t rdval = 0;
-
     set_output();
 
     write_ps_reg(REG_DATA_LO, data & 0xffff);
@@ -594,7 +608,11 @@ static inline void write_access(unsigned int address, unsigned int data, unsigne
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) {
+        gpio_busy = 1;
+        while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+        gpio_busy = 0;
+    }
 
     write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -602,7 +620,9 @@ static inline void write_access(unsigned int address, unsigned int data, unsigne
 
     if (address > 0x00200000)
     {
-        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+        gpio_busy = 1;
+        while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+        gpio_busy = 0;
 
         write_pending = 0;
     }
@@ -612,13 +632,15 @@ static inline void write_access(unsigned int address, unsigned int data, unsigne
 
 static inline int read_access(unsigned int address, unsigned int size)
 {
-    uint32_t rdval = 0;
-
     set_output();
 
     write_ps_reg(REG_ADDR_LO, address & 0xffff);
 
-    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+    if (write_pending) {
+        gpio_busy = 1;
+        while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+        gpio_busy = 0;
+    }
 
     write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
@@ -707,6 +729,8 @@ void ps_write_32_int(unsigned int address, unsigned int data)
     }
     else {
         write_access(address, data, SIZE_LONG);
+        //write_access(address, data >> 16, SIZE_WORD);
+        //write_access(address + 2, data, SIZE_WORD);
     }
 }
 
@@ -816,6 +840,8 @@ unsigned int ps_read_32_int(unsigned int address)
     }
     else {
         data = read_access(address, SIZE_LONG);
+        //data = read_access(address , SIZE_WORD) << 16;
+        //data |= read_access(address + 2, SIZE_WORD);
     }
     return data;
 }
@@ -896,7 +922,7 @@ void ps_pulse_reset()
     // 180MHz firmware: 19
 
     kprintf("[PS16] Set DTACK delay\n");
-    ps_set_control(19 << 8);
+    ps_set_control(21 << 8);
 
     kprintf("[PS16] Set REQUEST_BM\n");
     ps_set_control(CONTROL_REQ_BM);
@@ -939,12 +965,12 @@ void ps_housekeeper()
     /* Configure timer-based event stream */
     /* Enable timer regs from EL0, enable event stream on posedge, monitor 2th bit */
     /* This gives a frequency of 2.4MHz for a 19.2MHz timer */
-    uint64_t tmp;
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+    uint64_t freq;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(freq));
 
-    if (tmp > 20000000)
+    if (freq > 20000000)
     {
-        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+        asm volatile("msr CNTKCTL_EL1, %0"::"r"(3 | (1 << 2) | (3 << 8) | (4 << 4)));
     }
     else
     {
@@ -956,13 +982,14 @@ void ps_housekeeper()
     for(;;) {
         if (housekeeper_enabled)
         {
-            //if (!__atomic_test_and_set(&gpio_lock, __ATOMIC_ACQUIRE))
-            //{
-            //    gpio_rdval = LE32(*gpread);
-            //    __atomic_clear(&gpio_lock, __ATOMIC_RELEASE);
-            //}
+            uint32_t pin = LE32(gpio_lev0);
 
-            uint32_t pin = LE32(GPIO->GPLEV0);
+            if (gpio_busy == 0)
+            {
+                pin = LE32(GPIO->GPLEV0);
+            }
+
+            //uint32_t pin = LE32(GPIO->GPLEV0);
 
             // Reall 680x0 CPU filters IPL lines in order to avoid false interrupts if
             // there is a clock skew between three IPL bits. We need to do the same.

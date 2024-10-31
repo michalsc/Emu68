@@ -1199,6 +1199,10 @@ void boot(void *dtree)
         asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
     }
+#ifdef PISTORM
+    extern volatile int housekeeper_enabled;
+    housekeeper_enabled = 1;
+#endif
 
     platform_post_init();
 

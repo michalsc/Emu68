@@ -15,15 +15,15 @@ avoid_warnings=1
 
 # Enable the options below to increase speed of ARM cpu to 1.5GHz
 # Keep in mind this may render your RasPi3 unstable and eventually void the warranty!
-#force_turbo=1
-#over_voltage=4
-#arm_freq=1800
+force_turbo=1
+over_voltage=4
+arm_freq=1800
 #core_freq=500
 #sdram_freq=600
 
 # CM4 users may use dtparam=ant2 to select external antenna. Otherwise
 # internal antenna is selected (equals to: dtparam=ant1)
-# dtparam=ant2
+dtparam=ant2
 
 # Force HDMI signal even if nothing is connected
 hdmi_force_hotplug=1
@@ -50,5 +50,5 @@ hdmi_mode=82
 # gzip-compressed and passed **before** the ROM name, separated from the rom with a comma.
 # NOTE: The default firmware for PS32Lite is already embedded in Emu68!!! Above instruction is
 # for test/development purposes **ONLY**
-#initramfs firmware.bin.gz,kick.rom
-initramfs kick.rom
+initramfs firmware.bin.gz,DiagROM
+#initramfs kick.rom
