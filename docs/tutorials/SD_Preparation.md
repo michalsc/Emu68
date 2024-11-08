@@ -6,6 +6,11 @@ parent: Tutorials
 
 # Prepare your SD card for use as HardDrive on Emu68
 
+## Quick Start
+SD Card preparation can be a daunting task for a beginner or even an experienced Amiga user. For this reason a tool named Emu68 Imager was developed which will help you quickly prepare your SD Card to include a pre-installed Workbench 3.1, 3.2 or 3.2.2.1 installation with Emu68 features like Wifi, P96 and also some other essential tools already installed. You can read all about it and download it on the following link:
+
+[https://mja65.github.io/Emu68-Imager/](https://mja65.github.io/Emu68-Imager/)
+
 ## Foreword
 
 Emu68 is a bare metal JIT translator of m68k binaries which attempts to emulate as little as possible. Therefore, you will not find a way to attach a HDF image file to the system and let Emu68 pretend that this is a hard drive. No. Instead, Emu68 in PiStorm (and native AROS) variant has added a Zorro III card with a ROM containing device driver for microSD interface of Raspberry Pi.
