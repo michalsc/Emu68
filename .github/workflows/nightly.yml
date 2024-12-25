@@ -96,9 +96,9 @@ jobs:
       run: zip -r ./Emu68-${{matrix.targ}}.zip .
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: emu68-archive
+        name: emu68-archive-${{matrix.targ}}
         path: ${{runner.workspace}}/install/Emu68-${{matrix.targ}}.zip
         retention-days: 5
 
@@ -112,9 +112,9 @@ jobs:
 
     steps:  
     - name: Download Artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
-        name: emu68-archive
+        name: emu68-archive-${{matrix.targ}}
         path: ${{runner.workspace}}/uploads
 
     - name: Deploy Raspi release
