@@ -49,12 +49,20 @@ void dt_add_property(of_node_t *node, const char *propname, const void *propvalu
 
         of_property_t *prop = tlsf_malloc(tlsf, sizeof(of_property_t));
         prop->op_length = proplen;
-        prop->op_value = tlsf_malloc(tlsf, proplen);
         prop->op_name = tlsf_malloc(tlsf, strlen(propname) + 1);
         prop->op_next = node->on_properties;
 
         memcpy(prop->op_name, propname, strlen(propname) + 1);
-        memcpy(prop->op_value, propvalue, proplen);
+        if (propvalue != NULL && proplen > 0)
+        {
+            prop->op_value = tlsf_malloc(tlsf, proplen);
+            memcpy(prop->op_value, propvalue, proplen);
+        }
+        else
+        {
+            prop->op_length = 0;
+            prop->op_value = NULL;
+        }
 
         node->on_properties = prop;
     }
