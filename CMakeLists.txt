@@ -206,7 +206,7 @@ add_custom_command(
 
 add_subdirectory(external)
 
-target_link_libraries(Emu68.elf tinystl capstone-static libdeflate_static)
+target_link_libraries(Emu68.elf capstone-static libdeflate_static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_BINARY_DIR}/include)
 target_compile_definitions(Emu68.elf PRIVATE)
