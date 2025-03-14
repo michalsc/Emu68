@@ -276,13 +276,14 @@ of_node_t * dt_find_node(char *key)
 
         while(*key)
         {
+            int found = 0;
+
             key++;
             for (i=0; i < 63; i++)
             {
                 if (*key == '/' || *key == 0)
                     break;
-                ptrbuf[i] = *key;
-                key++;
+                ptrbuf[i] = *key++;
             }
 
             ptrbuf[i] = 0;
@@ -291,13 +292,18 @@ of_node_t * dt_find_node(char *key)
             {
                 if (!_dt_strcmp(ptrbuf, node->on_name))
                 {
-                    return node;
+                    ret = node;
+                    found = 1;
+                    break;
                 }
             }
+
+            if (!found)
+                return NULL;
         }
     }
 
-    return NULL;
+    return ret;
 }
 
 of_property_t *dt_find_property(void *key, char *propname)
