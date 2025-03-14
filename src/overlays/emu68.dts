@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68: emu68 {
+                args = "";
+
+                defs: defaults {
+                    insn-count = <0xffffffff>;
+                    ccr-scan-depth = <0xffffffff>;
+                    branch-inline-distance = <0xffffffff>;
+                    chip-slowdown-distance = <0xffffffff>;
+
+                    // THESE BOOLS ARE OFF BY DEFAULT!
+                    // fast-page-zero
+                    // blitter-wait
+                    // dbf-slowdown
+                    // chip-slowdown
+                };
+            };
+        };
+    };
+
+    __overrides__ {
+        args = <&emu68>,"args";
+        ICNT = <&defs>,"insn-count:0";
+        CCRD = <&defs>,"ccr-scan-depth:0";
+        IRNG = <&defs>,"branch-inline-distance:0";
+        SC = <&defs>,"chip-slowdown?";
+        SCS = <&defs>,"chip-slowdown-distance:0";
+        FP0 = <&defs>,"fast-page-zero?";
+        BW = <&defs>,"blitter-wait?";
+        DBF = <&defs>,"dbf-slowdown?";
+    };
+};
