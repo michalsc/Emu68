@@ -50,5 +50,5 @@ hdmi_mode=82
 # gzip-compressed and passed **before** the ROM name, separated from the rom with a comma.
 # NOTE: The default firmware for PS32Lite is already embedded in Emu68!!! Above instruction is
 # for test/development purposes **ONLY**
-initramfs firmware.bin.gz,DiagROM
-#initramfs kick.rom
+#initramfs firmware.bin.gz,DiagROM
+initramfs kick.rom
