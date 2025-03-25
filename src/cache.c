@@ -60,6 +60,15 @@ int cache_get_way(struct Cache *cache, int set)
 
 void cache_setup()
 {
+    if (IC != NULL && DC != NULL) {
+        kprintf("[CACHE] Cache was alraedy set up, invalidating only\n");
+        
+        cache_invalidate_all(ICACHE);
+        cache_invalidate_all(DCACHE);
+        
+        return;
+    }
+    
     (kprintf("[CACHE] Cache setup. Cache sizeof=%lu\n", sizeof(struct Cache)));
     (kprintf("[CACHE] Way count: %d, Set count: %d\n", CACHE_WAY_COUNT, CACHE_SET_COUNT));
 

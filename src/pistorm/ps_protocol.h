@@ -81,6 +81,15 @@ void ps_write_32(unsigned int address, unsigned int data);
 void ps_write_64(unsigned int address, uint64_t data);
 void ps_write_128(unsigned int address, uint128_t data);
 
+unsigned int ps_read_8_int(unsigned int address);
+unsigned int ps_read_16_int(unsigned int address);
+unsigned int ps_read_32_int(unsigned int address);
+
+void ps_write_8_int(unsigned int address, unsigned int data);
+void ps_write_16_int(unsigned int address, unsigned int data);
+void ps_write_32_int(unsigned int address, unsigned int data);
+
+void ps_memtest(unsigned int test_size);
 void ps_buptest(unsigned int size_kb, unsigned int maxiter);
 
 unsigned int ps_read_status_reg();

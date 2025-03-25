@@ -311,6 +311,7 @@ int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
 
 #ifdef PISTORM
 static int blitwait;
+static int membench = 0;
 #endif
 extern const char _verstring_object[];
 
@@ -643,6 +644,24 @@ void parse_cmdline(const char *cmdline)
 
     blitwait = find_token(cmdline, "blitwait") || find_token(cmdline, "BW");
 
+    if ((tok = find_token(cmdline, "membench=")))
+    {
+        uint32_t bench = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[9 + i] < '0' || tok[9 + i] > '9')
+                break;
+
+            bench = bench * 10 + tok[9 + i] - '0';
+        }
+
+        if (bench > 2047)
+        {
+            bench = 2047;
+        }
+
+        membench = bench;
+    }
     if ((tok = find_token(cmdline, "buptest=")))
     {
         uint32_t bup = 0;
@@ -915,6 +934,48 @@ void boot(void *dtree)
             *(uint32_t *)p->op_value = bupiter;
         }
     }
+
+    if (membench)
+    {
+        of_node_t *mem = dt_find_node("/emu68/diag/membench");
+        if (mem == NULL)
+        {
+            mem = dt_make_node("membench");
+            dt_add_node(diag, mem);
+        }
+
+        if ((p = dt_find_property(mem, "status")) == NULL)
+        {
+            dt_add_property(mem, "status", "okay", 5);
+        }
+        else
+        {
+            tlsf_free(tlsf, p->op_value);
+            p->op_value = tlsf_malloc(tlsf, 5);
+            p->op_length = 5;
+            memcpy(p->op_value, "okay", 5);
+        }
+
+        if ((p = dt_find_property(mem, "size")) == NULL)
+        {
+            uint32_t sz = membench * 1024;
+            dt_add_property(mem, "size", &sz, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = membench * 1024;
+        }
+
+        if ((p = dt_find_property(mem, "base")) == NULL)
+        {
+            uint32_t sz = 0;
+            dt_add_property(mem, "base", &sz, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = 0;
+        }
+    }
 #endif
 
     /*
@@ -955,12 +1016,12 @@ void boot(void *dtree)
         
         if (decomp != NULL)
         {
-            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            void *out_buffer = tlsf_malloc(tlsf, 3*1024*1024);
             size_t in_size = 0;
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 8*1024*1024, &in_size, &out_size);
+            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 3*1024*1024, &in_size, &out_size);
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
@@ -981,19 +1042,31 @@ void boot(void *dtree)
     }
     else
     {
-#ifdef PISTORM32LITE
-        #include "../pistorm/efinix_firmware.h"
-        
+#if defined(PISTORM32LITE) || defined(PISTORM16)
+        #include "../pistorm/efinix_firmware_ps32.h"
+        #include "../pistorm/efinix_firmware_ps16.h"
+
         struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
         
         if (decomp != NULL)
         {
-            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            void *out_buffer = tlsf_malloc(tlsf, 3*1024*1024);
             size_t in_size = 0;
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            result = libdeflate_gzip_decompress_ex(decomp, firmware_bin_gz, firmware_bin_gz_len, out_buffer, 8*1024*1024, &in_size, &out_size);
+            switch (pistorm_get_model())
+            {
+                case PISTORM_MODEL_16:
+                    result = libdeflate_gzip_decompress_ex(decomp, firmware_ps16_bin_gz, firmware_ps16_bin_gz_len, out_buffer, 3 * 1024 * 1024, &in_size, &out_size);
+                    break;
+                case PISTORM_MODEL_32:
+                    result = libdeflate_gzip_decompress_ex(decomp, firmware_ps32_bin_gz, firmware_ps32_bin_gz_len, out_buffer, 3 * 1024 * 1024, &in_size, &out_size);
+                    break;
+                default:
+                    result = LIBDEFLATE_BAD_DATA;
+                    break;
+            }
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
@@ -1011,7 +1084,7 @@ void boot(void *dtree)
 #endif
     }
 
-#ifdef PISTORM32LITE
+#if defined(PISTORM32LITE) || defined(PISTORM16)
     ps_efinix_setup();
     ps_efinix_load(firmware_file, firmware_size);
 #endif
@@ -1270,6 +1343,10 @@ void boot(void *dtree)
         asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
     }
+#ifdef PISTORM
+    extern volatile int housekeeper_enabled;
+    housekeeper_enabled = 1;
+#endif
 
     platform_post_init();
 
@@ -1584,6 +1661,11 @@ void boot(void *dtree)
     if (buptest)
     {
         ps_buptest(buptest, bupiter);
+    }
+
+    if (membench)
+    {
+        ps_memtest(membench);
     }
 #endif
 
@@ -1993,7 +2075,7 @@ void  __attribute__((used)) stub_ExecutionLoop()
 "992:                                       \n"
 
 // No need to do anything on PiStorm32 - the w1 contains the IPL value already (see few lines above)
-#ifndef PISTORM32
+#if !defined(PISTORM32) && !defined(PISTORM16)
 
 #if PISTORM_WRITE_BUFFER
 "       adrp    x5, bus_lock                \n"

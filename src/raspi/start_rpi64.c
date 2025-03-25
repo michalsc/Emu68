@@ -325,14 +325,15 @@ void platform_post_init()
 
     block_c0 = 0;
 
-    ps_write_8(0xde1000, 0);
-    if (ps_read_8(0xde1000) & 0x80)
+
+    ps_write_8_int(0xde1000, 0);
+    if (ps_read_8_int(0xde1000) & 0x80)
     {
-        if (ps_read_8(0xde1000) & 0x80)
+        if (ps_read_8_int(0xde1000) & 0x80)
         {
-            if (!(ps_read_8(0xde1000) & 0x80))
+            if (!(ps_read_8_int(0xde1000) & 0x80))
             {
-                if (ps_read_8(0xde1000) & 0x80)
+                if (ps_read_8_int(0xde1000) & 0x80)
                 {
                     kprintf("[BOOT] Gayle appears to be present\n");
                     block_c0 = 1;
@@ -340,6 +341,12 @@ void platform_post_init()
             }
         }
     }
+
+    if (block_c0 == 0)
+    {
+        kprintf("[BOOT] Gayle not detected\n");
+    }
+
 #endif
 
     //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);
