@@ -46,7 +46,7 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         switch (size)
         {
             case 4:
-                *ptr++ = ands_reg(dest, dest, src, LSL, 0);
+                *ptr++ = update_mask ? ands_reg(dest, dest, src, LSL, 0) : and_reg(dest, dest, src, LSL, 0);
                 break;
             case 2:
                 *ptr++ = and_reg(src, src, dest, LSL, 0);
@@ -87,7 +87,7 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-            *ptr++ = ands_reg(tmp, tmp, src, LSL, 0);
+            *ptr++ = update_mask ? ands_reg(tmp, tmp, src, LSL, 0) : and_reg(tmp, tmp, src, LSL, 0);
 
             /* Store back */
             if (mode == 3)

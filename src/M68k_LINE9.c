@@ -53,7 +53,10 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         switch(size)
         {
             case 4:
-                *ptr++ = subs_reg(dest, dest, src, LSL, 0);
+                if (update_mask == 0)
+                    *ptr++ = sub_reg(dest, dest, src, LSL, 0);
+                else
+                    *ptr++ = subs_reg(dest, dest, src, LSL, 0);
                 break;
             case 2:
                 if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
@@ -150,7 +153,10 @@ uint32_t *EMIT_SUB_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-            *ptr++ = subs_reg(tmp, tmp, src, LSL, 0);
+            if (update_mask == 0)
+                *ptr++ = sub_reg(tmp, tmp, src, LSL, 0);
+            else
+                *ptr++ = subs_reg(tmp, tmp, src, LSL, 0);
 
             /* Store back */
             if (mode == 3)

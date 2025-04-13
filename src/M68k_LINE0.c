@@ -195,9 +195,9 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             case 4:
                 if (immediate)
-                    *ptr++ = subs_immed(dest, dest, u32 & 0xffff);
+                    *ptr++ = update_mask == 0 ? sub_immed(dest, dest, u32 & 0xffff) : subs_immed(dest, dest, u32 & 0xffff);
                 else
-                    *ptr++ = subs_reg(dest, dest, immed, LSL, 0);
+                    *ptr++ = update_mask == 0 ? sub_reg(dest, dest, immed, LSL, 0) : subs_reg(dest, dest, immed, LSL, 0);
                 break;
             case 2:
                 if (update_mask == 0) {
@@ -270,9 +270,9 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             /* Perform calcualtion */
             if (immediate)
-                *ptr++ = subs_immed(immed, tmp, u32);
+                *ptr++ = update_mask == 0 ? sub_immed(immed, tmp, u32) : subs_immed(immed, tmp, u32);
             else
-                *ptr++ = subs_reg(immed, tmp, immed, LSL, 0);
+                *ptr++ = update_mask == 0 ? sub_reg(immed, tmp, immed, LSL, 0) : subs_reg(immed, tmp, immed, LSL, 0);
 
             /* Store back */
             if (mode == 3)
@@ -459,9 +459,9 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             case 4:
                 if (add_immediate)
-                    *ptr++ = adds_immed(dest, dest, u32);
+                    *ptr++ = update_mask == 0 ? add_immed(dest, dest, u32) : adds_immed(dest, dest, u32);
                 else
-                    *ptr++ = adds_reg(dest, immed, dest, LSL, 0);
+                    *ptr++ = update_mask == 0 ? add_reg(dest, immed, dest, LSL, 0)  : adds_reg(dest, immed, dest, LSL, 0);
                 break;
             case 2:
                 if (update_mask == 0) {
@@ -529,9 +529,9 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
                 /* Perform calcualtion */
                 if (add_immediate)
-                    *ptr++ = adds_immed(immed, tmp, u32);
+                    *ptr++ = update_mask == 0 ? add_immed(immed, tmp, u32) : adds_immed(immed, tmp, u32);
                 else
-                    *ptr++ = adds_reg(immed, immed, tmp, LSL, 0);
+                    *ptr++ = update_mask == 0 ? add_reg(immed, immed, tmp, LSL, 0)  : adds_reg(immed, immed, tmp, LSL, 0);
 
                 /* Store back */
                 if (mode == 3)
@@ -1226,10 +1226,18 @@ uint32_t *EMIT_ANDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         switch(size)
         {
             case 4:
-                if (mask32 == 0)
-                    *ptr++ = ands_reg(dest, immed, dest, LSL, 0);
-                else
-                    *ptr++ = ands_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                if (mask32 == 0) {
+                    if (update_mask == 0)
+                        *ptr++ = and_reg(dest, immed, dest, LSL, 0);
+                    else
+                        *ptr++ = ands_reg(dest, immed, dest, LSL, 0);
+                }
+                else {
+                    if (update_mask == 0)
+                        *ptr++ = and_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                    else
+                        *ptr++ = ands_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31);
+                }
                 break;
             case 2:
                 if (update_mask == 0) {

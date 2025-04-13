@@ -85,7 +85,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
 
             case 2:
-                *ptr++ = adds_immed(dest, dest, data);
+                *ptr++ = update_mask ? adds_immed(dest, dest, data) : add_immed(dest, dest, data);
                 break;
             }
         }
@@ -202,7 +202,7 @@ uint32_t *EMIT_ADDQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                     *ptr++ = ldr_offset(dest, tmp, 0);
 
                 /* Perform calcualtion */
-                *ptr++ = adds_immed(tmp, tmp, data);
+                *ptr++ = update_mask ? adds_immed(tmp, tmp, data) : add_immed(tmp, tmp, data);
 
                 /* Store back */
                 if (mode == 3)
@@ -346,7 +346,7 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
 
             case 2:
-                *ptr++ = subs_immed(dest, dest, data);
+                *ptr++ = update_mask ? subs_immed(dest, dest, data) : sub_immed(dest, dest, data);
                 break;
             }
 
@@ -360,7 +360,7 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             update_cc = 0;
 
-            *ptr++ = subs_immed(dest, dest, data);
+            *ptr++ = sub_immed(dest, dest, data);
         }
     }
     else
@@ -467,7 +467,7 @@ uint32_t *EMIT_SUBQ(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-            *ptr++ = subs_immed(tmp, tmp, data);
+            *ptr++ = update_mask ? subs_immed(tmp, tmp, data) : sub_immed(tmp, tmp, data);
 
             /* Store back */
             if (mode == 3)

@@ -42,7 +42,10 @@ static uint32_t *EMIT_ADD_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         switch (size)
         {
         case 4:
-            *ptr++ = adds_reg(dest, dest, src, LSL, 0);
+            if (update_mask == 0)
+                *ptr++ = add_reg(dest, dest, src, LSL, 0);
+            else
+                *ptr++ = adds_reg(dest, dest, src, LSL, 0);
             break;
         case 2:
             if (update_mask == 0 || update_mask == SR_Z || update_mask == SR_N) {
@@ -139,7 +142,10 @@ static uint32_t *EMIT_ADD_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = ldr_offset(dest, tmp, 0);
 
             /* Perform calcualtion */
-            *ptr++ = adds_reg(tmp, tmp, src, LSL, 0);
+            if (update_mask == 0)
+                *ptr++ = add_reg(tmp, tmp, src, LSL, 0);
+            else
+                *ptr++ = adds_reg(tmp, tmp, src, LSL, 0);
 
             /* Store back */
             if (mode == 3)
