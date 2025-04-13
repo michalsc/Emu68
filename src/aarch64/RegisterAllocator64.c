@@ -351,6 +351,7 @@ int RA_IsCCModified()
 }
 
 /* Allocate register x0-x11 for JIT */
+#if 0
 static uint8_t __int_arm_alloc_reg()
 {
     int reg = __builtin_ctz(~(register_pool | 15));
@@ -363,6 +364,26 @@ static uint8_t __int_arm_alloc_reg()
 
     return 0xff;
 }
+#else
+static uint8_t __int_arm_alloc_reg()
+{
+    static int last_allocated = 0;
+    for (int i=1; i <= 12; i++)
+    {
+        int reg = (last_allocated + i) % 12;
+
+        if (((register_pool | 15) & (1 << reg)) == 0)
+        {
+            register_pool |= 1 << reg;
+            changed_mask |= 1 << reg;
+            last_allocated = reg;
+            return reg;
+        }
+    }
+
+    return 0xff;
+}
+#endif
 
 uint8_t RA_AllocARMRegister(uint32_t **arm_stream)
 {
