@@ -413,6 +413,14 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     loaded_in_dest = 1;
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
                 }
+                else if (size == 2 && (opcode & 0x3f) == 0x3c)
+                {
+                    /* Special case - 16-bit immediate load into register */
+                    uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                    *ptr++ = movk_immed_u16(dn, cache_read_16(ICACHE, (uintptr_t)&(**m68k_ptr)), 0);
+                    ext_count++;
+                    loaded_in_dest = 1;
+                }
                 else
                 {
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
@@ -470,8 +478,19 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             }
         }
 
-        if (!loaded_in_dest)
-            ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count, 0);
+        if (!loaded_in_dest) {
+            /* Handle loading 8- and 16-bit data into target register*/
+            if ((tmp & 0x38) == 0 && tmp_reg < 12) {
+                uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                if (size == 1)
+                    *ptr++ = bic_immed(dn, dn, 8, 0);
+                else if (size == 2)
+                    *ptr++ = bic_immed(dn, dn, 16, 0);
+                *ptr++ = orr_reg(dn, dn, tmp_reg, LSL, 0);
+            } else {
+                ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count, 0);
+            }
+        }
 
         ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1 + fused_opcodes));
 
