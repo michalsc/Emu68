@@ -38,7 +38,7 @@
         bupsize = <&bup>,"size:0";
 
         membench = <&mem>,"status";
-        base = <&mem>,"base:0";
-        size = <&mem>,"size:0";
+        membase = <&mem>,"base:0";
+        memsize = <&mem>,"size:0";
     };
 };
