@@ -631,6 +631,14 @@ char * strcpy(char * dst, const char * src)
     return dst;
 }
 
+char *__strcpy_chk(char *dst, const char *src, int destlen)
+{
+    int len = strlen(src) + 1;
+    if (len > destlen) len = destlen;
+    memcpy(dst, src, len);
+    return dst;
+}
+
 int strcmp(const char *s1, const char *s2)
 {
 	while (*s1 == *s2++)
@@ -950,4 +958,18 @@ char *strcat(char *s1, const char *s2)
 {
     strcpy(s1 + strlen(s1), s2);
     return s1;
+}
+
+char *__strcat_chk(char *s1, const char *s2, int destlen)
+{
+    (void)destlen;
+    strcpy(s1 + strlen(s1), s2);
+    return s1;
+}
+
+void __attribute__((noreturn)) __assert_fail()
+{
+    kprintf("[ERR] Assertion failed!\n");
+    while (1)
+        asm volatile("wfi");
 }
