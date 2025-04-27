@@ -20,48 +20,100 @@ static inline void CallARMCode()
     ptr();
 }
 
-static inline struct M68KTranslationUnit *FindUnit()
+#define LRU_DEPTH 8
+
+static struct {
+    uint16_t * m68k_pc;
+    uint32_t * arm_pc;
+} LRU[LRU_DEPTH];
+
+static uint32_t LRU_usage;
+
+uint32_t *LRU_FindBlock(uint16_t *address)
+{
+    uint32_t mask = 1;
+    for (int i=0; i < LRU_DEPTH; mask<<=1, i++) {
+        if (LRU_usage & mask) {
+            if (LRU[i].m68k_pc == address) {
+                return LRU[i].arm_pc;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+void LRU_InsertBlock(struct M68KTranslationUnit *unit)
+{
+    int loc = __builtin_ffs(~LRU_usage) - 1;
+
+    // Insert new entry
+    LRU[loc].m68k_pc = unit->mt_M68kAddress;
+    LRU[loc].arm_pc = unit->mt_ARMEntryPoint;
+
+    LRU_usage |= (1 << loc);
+    if (LRU_usage == (1 << LRU_DEPTH) - 1) {
+        LRU_usage = (1 << loc);
+    }
+}
+
+static inline uint32_t * FindUnitQuick()
 {
     register uint16_t *PC asm("x18");
-    
+
+#if EMU68_USE_LRU
+    uint32_t *code = LRU_FindBlock(PC);
+
+    if (likely(code != NULL))
+        return code;
+#endif
+    struct M68KTranslationUnit *node;
+
     /* Perform search */
     uint32_t hash = (uint32_t)(uintptr_t)PC;
     struct List *bucket = &ICache[(hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK];
-    struct M68KTranslationUnit *node;
-    
+
     /* Go through the list of translated units */
     ForeachNode(bucket, node)
     {
         /* Force reload of PC*/
-        asm volatile("":"=r"(PC));
+        asm volatile("" : "=r"(PC));
 
         /* Check if unit is found */
         if (node->mt_M68kAddress == PC)
         {
-#if 0
-            /* Move node to front of the list */
-            REMOVE(&node->mt_HashNode);
-            ADDHEAD(bucket, &node->mt_HashNode);
-#elif 0
-            struct Node *prev = node->mt_HashNode.ln_Pred;
-            struct Node *succ = node->mt_HashNode.ln_Succ;
-            struct Node *prevprev = prev->ln_Pred;
-            
-            /* If node is not head, then move it one level up */
-            if (prevprev != NULL)
-            {
-                node->mt_HashNode.ln_Pred = prevprev;
-                node->mt_HashNode.ln_Succ = prev;
+#if EMU68_USE_LRU
+            LRU_InsertBlock(node);
+#endif
+            return node->mt_ARMEntryPoint;
+        }
+    }
 
-                prevprev->ln_Succ = &node->mt_HashNode;
+    return NULL;
+}
 
-                prev->ln_Succ = succ;
-                prev->ln_Pred = &node->mt_HashNode;
+static inline struct M68KTranslationUnit *FindUnit()
+{
+    struct M68KTranslationUnit *node;
+    register uint16_t *PC asm("x18");
 
-                succ->ln_Pred = prev;
-            }
-#endif                   
-            return node;    
+    /* Perform search */
+    uint32_t hash = (uint32_t)(uintptr_t)PC;
+    struct List *bucket = &ICache[(hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK];
+
+    /* Go through the list of translated units */
+    ForeachNode(bucket, node)
+    {
+        /* Force reload of PC*/
+        asm volatile("" : "=r"(PC));
+
+        /* Check if unit is found */
+        if (node->mt_M68kAddress == PC)
+        {
+#if EMU68_USE_LRU
+            LRU_InsertBlock(node);
+#endif
+            return node;
         }
     }
 
@@ -131,7 +183,9 @@ void MainLoop()
     register void *ARM asm("x12");
     uint16_t *LastPC;
     struct M68KState *ctx = getCTX();
-    
+
+    LRU_usage = 0;
+
     M68K_LoadContext(ctx);
 
     asm volatile("mov v28.d[0], xzr");
@@ -274,16 +328,16 @@ void MainLoop()
             else
             {
                 /* Find unit in the hashtable based on the PC value */
-                struct M68KTranslationUnit *node = FindUnit();
+                uint32_t *code = FindUnitQuick();
 
                 /* Unit exists ? */
-                if (node != NULL)
+                if (code != NULL)
                 {
                     /* Store m68k PC of corresponding ARM code in TPIDR_EL1 */
                     asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
 
                     /* This is the case, load entry point into x12 */
-                    ARM = node->mt_ARMEntryPoint;
+                    ARM = code;
                     asm volatile("":"=r"(ARM):"0"(ARM));
                     
                     CallARMCode();
@@ -297,7 +351,10 @@ void MainLoop()
                 uint16_t *copyPC = PC;
                 M68K_SaveContext(ctx);
                 /* Get the code. This never fails */
-                node = M68K_GetTranslationUnit(copyPC);
+                struct M68KTranslationUnit *node = M68K_GetTranslationUnit(copyPC);
+#if EMU68_USE_LRU
+                LRU_InsertBlock(node);
+#endif
                 /* Load CPU context */
                 M68K_LoadContext(getCTX());
                 asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
