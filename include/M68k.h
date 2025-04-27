@@ -492,4 +492,11 @@ uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
 
+void LRU_InsertBlock(struct M68KTranslationUnit *unit);
+void LRU_InvalidateAll();
+void LRU_InvalidateByM68kAddress(uint16_t *addr);
+void LRU_InvalidateByARMAddress(uint32_t *addr);
+uint32_t *LRU_FindBlock(uint16_t *address);
+void LRU_MarkForVerify(uint32_t *addr);
+
 #endif /* _M68K_H */
