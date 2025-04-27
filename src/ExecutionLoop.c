@@ -1,11 +1,9 @@
 #include <M68k.h>
 #include <support.h>
 #include <config.h>
-#ifdef PISTORM
-#if !defined(PISTORM32) && !defined(PISTORM16)
+#ifdef PISTORM_CLASSIC
 #define PS_PROTOCOL_IMPL
 #include "pistorm/ps_protocol.h"
-#endif
 #endif
 
 extern struct List ICache[EMU68_HASHSIZE];
@@ -41,6 +39,59 @@ uint32_t *LRU_FindBlock(uint16_t *address)
     }
 
     return NULL;
+}
+
+void LRU_MarkForVerify(uint32_t *addr)
+{
+    uint32_t mask = 1;
+    for (int i = 0; i < LRU_DEPTH; mask <<= 1, i++)
+    {
+        if (LRU_usage & mask)
+        {
+            if (LRU[i].arm_pc == addr)
+            {
+                uintptr_t e = (uintptr_t)addr;
+                e &= 0x00ffffffffffffffULL;
+                e |= 0xaa00000000000000ULL;
+                LRU[i].arm_pc = (uint32_t *)e;
+            }
+        }
+    }
+}
+
+void LRU_InvalidateByARMAddress(uint32_t *addr)
+{
+    uint32_t mask = 1;
+    for (int i = 0; i < LRU_DEPTH; mask <<= 1, i++)
+    {
+        if (LRU_usage & mask)
+        {
+            if (LRU[i].arm_pc == addr)
+            {
+                LRU_usage &= ~mask;
+            }
+        }
+    }
+}
+
+void LRU_InvalidateByM68kAddress(uint16_t *addr)
+{
+    uint32_t mask = 1;
+    for (int i = 0; i < LRU_DEPTH; mask <<= 1, i++)
+    {
+        if (LRU_usage & mask)
+        {
+            if (LRU[i].m68k_pc == addr)
+            {
+                LRU_usage &= ~mask;
+            }
+        }
+    }
+}
+
+void LRU_InvalidateAll()
+{
+    LRU_usage = 0;
 }
 
 void LRU_InsertBlock(struct M68KTranslationUnit *unit)
@@ -120,8 +171,7 @@ static inline struct M68KTranslationUnit *FindUnit()
     return NULL;
 }
 
-#ifdef PISTORM
-#if !defined(PISTORM32) && !defined(PISTORM16)
+#ifdef PISTORM_CLASSIC
 
 extern volatile unsigned char bus_lock;
 
@@ -141,7 +191,7 @@ static inline int GetIPLLevel()
 
     return (value >> 21) & 7;
 }
-#endif
+
 #else
 static inline int GetIPLLevel() { return 0; }
 #endif
@@ -218,12 +268,12 @@ void MainLoop()
                     level = 6;
                     ctx->INT.ARM = 0;
                 }
-#if defined(PISTORM32) || defined(PISTORM16)
+#if defined(PISTORM)
                 /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
                 if (ctx->INT.IPL > level)
                 {
                     level = ctx->INT.IPL;
-                }    
+                }
 #else
                 /* On classic pistorm we need to obtain IPL from PiStorm status register */
                 if (ctx->INT.IPL)

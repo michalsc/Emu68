@@ -17,7 +17,7 @@ set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
-set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm32lite" "pistorm16")
+set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm-classic")
 set(VARIANT "none" CACHE STRING "Compilation variant: ${SUPPORTED_VARIANTS}")
 set_property(CACHE VARIANT PROPERTY STRINGS ${SUPPORTED_VARIANTS})
 
@@ -102,6 +102,9 @@ set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS
     "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
     -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
     -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
+set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
+    "-Wno-error=maybe-uninitialized"
+)
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
@@ -124,7 +127,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         list(APPEND TARGET_FILES src/raspi/support_rpi.c)
         list(APPEND TARGET_FILES src/raspi/topaz.c)
         download_raspi_firmware()
-        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite" OR ${VARIANT} STREQUAL "pistorm16")
+        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm-classic")
             configure_file(scripts/config_pistorm.txt scripts/config.txt @ONLY)
             install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION . RENAME Emu68-${VARIANT})
             install(FILES ${CMAKE_BINARY_DIR}/scripts/config.txt DESTINATION .)
@@ -156,29 +159,24 @@ endif()
 
 if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
     message("-- Selected variant: ${VARIANT}")
-    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite" OR ${VARIANT} STREQUAL "pistorm16")
+    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm-classic")
         if(${TARGET} STREQUAL "raspi64")
-            add_compile_definitions(PISTORM)
-            if(${VARIANT} STREQUAL "pistorm32lite")
-                add_compile_definitions(PISTORM32LITE)
-                add_compile_definitions(PISTORM32)
-                list(APPEND BASE_FILES
-                    src/pistorm/ps32_protocol.c
-                )
-            elseif(${VARIANT} STREQUAL "pistorm16")
-                add_compile_definitions(PISTORM16)
-                list(APPEND BASE_FILES
-                    src/pistorm/ps16_protocol.c
-                )
-            else()
+            add_compile_definitions(PISTORM_ANY_MODEL)
+            if(${VARIANT} STREQUAL "pistorm")
+                add_compile_definitions(PISTORM)
                 list(APPEND BASE_FILES
                     src/pistorm/ps_protocol.c
+                )
+            else()
+                add_compile_definitions(PISTORM_CLASSIC)
+                list(APPEND BASE_FILES
+                    src/pistorm/ps_classic_protocol.c
                 )
             endif()
             include_directories(src/pistorm)
             list(APPEND BASE_FILES
                 src/boards/devicetree.c
-                src/boards/z2ram.c                
+                src/boards/z2ram.c
                 src/boards/sdcard.c
                 src/boards/68040.c
                 src/boards/emmc.c
@@ -188,7 +186,6 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
             message(FATAL_ERROR "PiStorm variants are supported on raspi targets, only.")
         endif()
     endif()
-    
 else()
     message(FATAL_ERROR "Wrong variant selected: ${VARIANT}")
 endif()
@@ -226,7 +223,7 @@ add_custom_command(
 
 add_subdirectory(external)
 
-target_link_libraries(Emu68.elf capstone-static libdeflate_static)
+target_link_libraries(Emu68.elf capstone_static libdeflate_static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_BINARY_DIR}/include)
 target_compile_definitions(Emu68.elf PRIVATE)

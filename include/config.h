@@ -53,26 +53,26 @@
 #define EMU68_HASHMASK          (EMU68_HASHSIZE - 1)
 #define EMU68_HASHSHIFT         5
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 
 /* Speed for bitbang RS232... */
-#define PISTORM_BITBANG_SPEED       921600
+#define PISTORM_BITBANG_SPEED   921600
 
-#if defined (PISTORM32) || defined (PISTORM16)
+#ifdef PISTORM_CLASSIC
 
-#define PISTORM_BITBANG_DELAY       59
-#define PISTORM_CHIPSET_DELAY       12
-#define PISTORM_CIA_DELAY           0
-#define PISTORM_WRITE_BUFFER        0
-#define PISTORM_WRITE_BUFFER_SIZE   32  
+#define PISTORM_BITBANG_DELAY   21
+#define PISTORM_CHIPSET_DELAY   12
+#define PISTORM_CIA_DELAY       0
+#define PISTORM_WRITE_BUFFER    1
+#define PISTORM_WRITE_BUFFER_SIZE 32
 
-#else
+#elif defined(PISTORM)
 
-#define PISTORM_BITBANG_DELAY       21
-#define PISTORM_CHIPSET_DELAY       12
-#define PISTORM_CIA_DELAY           0
-#define PISTORM_WRITE_BUFFER        1
-#define PISTORM_WRITE_BUFFER_SIZE   32  
+#define PISTORM_BITBANG_DELAY   59
+#define PISTORM_CHIPSET_DELAY   12
+#define PISTORM_CIA_DELAY       0
+#define PISTORM_WRITE_BUFFER    0
+#define PISTORM_WRITE_BUFFER_SIZE 32
 
 #endif
 

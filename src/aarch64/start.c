@@ -309,15 +309,13 @@ int emu68_icnt = EMU68_M68K_INSN_DEPTH;
 int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
 int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
+#include "ps_protocol.h"
 static int blitwait;
 static int membench = 0;
 #endif
-extern const char _verstring_object[];
 
-#ifdef PISTORM
-#include "ps_protocol.h"
-#endif
+extern const char _verstring_object[];
 
 void _secondary_start();
 asm(
@@ -445,7 +443,7 @@ void secondary_boot(void)
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     if (cpu_id == 1)
     {
         if (async_log)
@@ -522,7 +520,7 @@ void *firmware_file = NULL;
 uint32_t firmware_size = 0;
 uint32_t cs_dist = 1;
 uint32_t vid_memory = 16;
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 int rom_copy = 0;
 int recalc_checksum = 0;
 int buptest = 0;
@@ -619,8 +617,9 @@ void parse_cmdline(const char *cmdline)
         cs_dist = cs;
     }
 
-#ifdef PISTORM
-#ifdef PISTORM32LITE
+#ifdef PISTORM_ANY_MODEL
+
+#if !defined(PISTORM_CLASSIC)
     if (find_token(cmdline, "two_slot"))
     {
         extern uint32_t use_2slot;
@@ -634,6 +633,7 @@ void parse_cmdline(const char *cmdline)
         slot_set = 1;
     }
 #endif
+
     fast_page0 = !!find_token(cmdline, "fast_page_zero");
 
     zorro_disable = !!find_token(cmdline, "z3_disable");
@@ -813,7 +813,6 @@ void boot(void *dtree)
     }
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
-    dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
     dt_add_property(e, "support", supporters, supporters_size);
 
     /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
@@ -866,7 +865,7 @@ void boot(void *dtree)
         if (*(uint32_t *)p->op_value == 0xffffffff)
             *(uint32_t *)p->op_value = cs_dist;
     }
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     if (blitwait && dt_find_property(e, "blitter-wait") == NULL)
     {
         dt_add_property(e, "blitter-wait", NULL, 0);
@@ -996,7 +995,7 @@ void boot(void *dtree)
             image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
 
             initramfs_size = (uintptr_t)image_end - (uintptr_t)image_start;
-            initramfs_loc = tlsf_malloc(tlsf, initramfs_size);
+            initramfs_loc = tlsf_malloc(tlsf, (initramfs_size + 3) & ~3);
 
             /* Align the length of image up to nearest 4 byte boundary */
             DuffCopy(initramfs_loc, (void*)(0xffffff9000000000 + (uintptr_t)image_start), (initramfs_size + 3)/ 4);
@@ -1009,6 +1008,25 @@ void boot(void *dtree)
     /* Setup platform (peripherals etc) */
     platform_init();
 
+#if defined(PISTORM)
+    const uint8_t pistorm_model = pistorm_get_model();
+    switch(pistorm_model)
+    {
+        case PISTORM_MODEL_16:
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16"));
+            break;
+        case PISTORM_MODEL_32:
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32", sizeof("pistorm32"));
+            break;
+        default:
+            dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown"));
+            break;
+    }
+#elif defined(PISTORM_CLASSIC)
+    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm-classic", sizeof("pistorm-classic"));
+#endif
+
+#if defined(PISTORM)
     /* Test if the image begins with gzip header. If yes, then this is the firmware blob */
     if (initramfs_size != 0 && ((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
     {
@@ -1042,7 +1060,6 @@ void boot(void *dtree)
     }
     else
     {
-#if defined(PISTORM32LITE) || defined(PISTORM16)
         #include "../pistorm/efinix_firmware_ps32.h"
         #include "../pistorm/efinix_firmware_ps16.h"
 
@@ -1055,7 +1072,7 @@ void boot(void *dtree)
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            switch (pistorm_get_model())
+            switch (pistorm_model)
             {
                 case PISTORM_MODEL_16:
                     result = libdeflate_gzip_decompress_ex(decomp, firmware_ps16_bin_gz, firmware_ps16_bin_gz_len, out_buffer, 3 * 1024 * 1024, &in_size, &out_size);
@@ -1081,11 +1098,9 @@ void boot(void *dtree)
 
             libdeflate_free_decompressor(decomp);
         }
-#endif
     }
 
-#if defined(PISTORM32LITE) || defined(PISTORM16)
-    ps_efinix_setup();
+    ps_efinix_setup(pistorm_model);
     ps_efinix_load(firmware_file, firmware_size);
 #endif
 
@@ -1309,7 +1324,6 @@ void boot(void *dtree)
     kprintf("[BOOT] PMCR=%08x\n", tmp);
     tmp = 0x80000000; // Enable cycle counter
     asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
-   
 
     if (debug_cnt)
     {
@@ -1343,7 +1357,7 @@ void boot(void *dtree)
         asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
     }
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     extern volatile int housekeeper_enabled;
     housekeeper_enabled = 1;
 #endif
@@ -1358,7 +1372,7 @@ void boot(void *dtree)
         InitFunctions++;
     }
 
-#ifndef PISTORM
+#ifndef PISTORM_ANY_MODEL
     if (initramfs_loc != NULL && initramfs_size != 0)
     {
         void *image_start, *image_end;
@@ -1597,6 +1611,7 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
+#endif
 
     if (0)
     {
@@ -1651,32 +1666,33 @@ void boot(void *dtree)
     wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
-    //dt_dump_tree();
+    dt_dump_tree();
 
-#ifdef PISTORM
-    //amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
-    if (recalc_checksum)
+#ifdef PISTORM_ANY_MODEL
+    if (recalc_checksum) {
         amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
-
-    if (buptest)
-    {
-        ps_buptest(buptest, bupiter);
     }
 
-    if (membench)
+    of_property_t * prop = dt_find_property(dt_find_node("/emu68/diag/buptest"), "status");
+    if (prop && strcmp(prop->op_value, "okay") == 0)
     {
-        ps_memtest(membench);
+        ps_buptest();
     }
-#endif
+
+    prop = dt_find_property(dt_find_node("/emu68/diag/membench"), "status");
+    if (prop && strcmp(prop->op_value, "okay") == 0)
+    {
+        ps_memtest();
+    }
 
     /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
-    if (fast_page0) {
+    if (dt_find_property(dt_find_node("/emu68/defaults"), "fast-page-zero"))
+    {
         mmu_map(0xf80000, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
     }
-    
-    M68K_StartEmu(0, NULL);
-
 #endif
+
+    M68K_StartEmu(0, NULL);
 
     while(1) asm volatile("wfe");
 }
@@ -1892,338 +1908,9 @@ void  __attribute__((used)) stub_FindUnit()
 ::[reg_pc]"i"(REG_PC));
 }
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 extern volatile unsigned char bus_lock;
 #endif
-
-void  __attribute__((used)) stub_ExecutionLoop()
-{
-    asm volatile(
-"       .globl ExecutionLoop                \n"
-"       .align 8                            \n"
-"ExecutionLoop:                             \n"
-"       stp     x29, x30, [sp, #-128]!      \n"
-"       stp     x27, x28, [sp, #1*16]       \n"
-"       stp     x25, x26, [sp, #2*16]       \n"
-"       stp     x23, x24, [sp, #3*16]       \n"
-"       stp     x21, x22, [sp, #4*16]       \n"
-"       stp     x19, x20, [sp, #5*16]       \n"
-"       mov     v28.d[0], xzr               \n"
-"       bl      M68K_LoadContext            \n"
-"       b       1f                          \n"
-"       .align 8                            \n"
-"1:                                         \n"
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       sub     v28.2d, v28.2d, v0.2d       \n"
-*/
-#ifndef PISTORM
-"       cbz     w%[reg_pc], 4f              \n"
-#endif
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       mrs     x2, TPIDR_EL1               \n"
-
-"       ldr     w10, [x0, #%[intreq]]       \n"     // Interrupt request (either from ARM, ARM_err or IPL) is pending
-"       cbnz    w10, 9f                     \n"
-
-"99:    mov     w3, v31.s[0]                \n"
-"       tbz     w3, #%[cacr_ie_bit], 2f     \n"
-"       cmp     w2, w%[reg_pc]              \n"
-"       b.ne    13f                         \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-"       .align  6                           \n"
-"13:                                        \n"
-"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
-"       adrp    x4, ICache                  \n"
-"       add     x4, x4, :lo12:ICache        \n"
-"       ldr     x0, [x4, x0]                \n"
-"       b       51f                         \n"
-"53:                                        \n" // 2 -> 5
-"       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    52f                         \n"
-"       mov     x0, x4                      \n"
-"51:    ldr     x4, [x0]                    \n"
-"       ldr     x5, [x0, #32]               \n" // Fetch PC address now, we assume that the search was successful
-"       cbnz    x4, 53b                     \n"
-"       b 5f                                \n"
-"52:    ldp     x6, x4, [x0, #16]           \n"
-"       ldr     x5, [x4, #8]                \n"
-"       cbz     x5, 55f                     \n"
-"       stp     x4, x5, [x0, #16]           \n"
-"       add     x7, x0, #0x10               \n" // 4 -> 7
-"       str     x7, [x5]                    \n"
-"       stp     x6, x7, [x4]                \n"
-"       str     x4, [x6, #8]                \n"
-
-"55:                                        \n"
-"       ldr     x12, [x0, #%[offset]]       \n"
-#if EMU68_LOG_FETCHES
-"       ldr     x1, [x0, #%[fcount]]        \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #%[fcount]]        \n"
-#endif
-"       msr     TPIDR_EL1, x%[reg_pc]       \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-
-"       .align  6                           \n"
-"5:     mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_SaveContext            \n"
-"       mov     w0, w%[reg_pc]              \n"
-"       msr     TPIDR_EL1, x%[reg_pc]       \n"
-"       bl      M68K_GetTranslationUnit     \n"
-"       ldr     x12, [x0, #%[offset]]       \n"
-#if EMU68_LOG_FETCHES
-"       ldr     x1, [x0, #%[fcount]]        \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #%[fcount]]        \n"
-#endif
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_LoadContext            \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-
-"       .align  6                           \n"
-"2:                                         \n"
-"23:    bl      M68K_SaveContext            \n"
-"       mvn     w0, wzr                     \n"
-"       msr     TPIDR_EL1, x0               \n"
-"       mov     w20, w%[reg_pc]             \n"
-"       bl      FindUnit                    \n"
-"       bl      M68K_VerifyUnit             \n"
-"       cbnz    x0, 223f                    \n"
-"       mov     w0, w20                     \n"
-"       bl      M68K_GetTranslationUnit     \n"
-"223:   ldr     x12, [x0, #%[offset]]       \n"
-#if EMU68_LOG_FETCHES
-"       ldr     x1, [x0, #%[fcount]]        \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #%[fcount]]        \n"
-#endif
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_LoadContext            \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-
-"4:     mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_SaveContext            \n"
-"       ldp     x27, x28, [sp, #1*16]       \n"
-"       ldp     x25, x26, [sp, #2*16]       \n"
-"       ldp     x23, x24, [sp, #3*16]       \n"
-"       ldp     x21, x22, [sp, #4*16]       \n"
-"       ldp     x19, x20, [sp, #5*16]       \n"
-"       ldp     x29, x30, [sp], #128        \n"
-"       ret                                 \n"
-
-#ifdef PISTORM
-"9:                                         \n"
-"       ldrb    w10, [x0, #%[err]]          \n" // If INT.ARM_err is set then it is serror, map it to NMI
-"       cbz     w10, 991f                   \n"
-"       strb    wzr, [x0, #%[err]]          \n"
-"       mov     w1, w10                     \n" // Set IRQ level 7, go further skipping higher selection
-"       b       999f                        \n"
-"991:   ldrb    w10, [x0, #%[arm]]          \n" // If bit 1 of INT.ARM is set then it is IRQ/FIQ. Map to IPL6
-"       strb    wzr, [x0, #%[arm]]          \n"
-"       ldrb    w1, [x0, #%[ipl]]           \n" // If IPL was 0 then there is no m68k interrupt pending, skip reading
-"       cbz     w1, 998f                    \n" // IPL in that case
-"992:                                       \n"
-
-// No need to do anything on PiStorm32 - the w1 contains the IPL value already (see few lines above)
-#if !defined(PISTORM32) && !defined(PISTORM16)
-
-#if PISTORM_WRITE_BUFFER
-"       adrp    x5, bus_lock                \n"
-"       add     x5, x5, :lo12:bus_lock      \n"
-"       mov     w1, 1                       \n"
-".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
-"       stxrb	w3, w1, [x5]                \n"
-"       cbnz	w3, .lock                   \n"
-"       cbz     w2, .lock_acquired          \n"
-"       yield                               \n"
-"       b       .lock                       \n"
-".lock_acquired:                            \n"
-#endif
-"       mov     x2, #0xf2200000             \n" // GPIO base address
-"       mov     w1, #0x0c000000             \n"
-"       mov     w3, #0x40000000             \n"
-
-"       str     w1, [x2, #28]               \n" // Read status register
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-
-"       ldr     w3, [x2, 4*13]              \n" // Get status register into w3 - note! value read was little endian
-
-"       mov     w1, #0xff00                 \n"
-"       movk    w1, #0xecff, lsl #16        \n"
-"       str     w1, [x2, 4*10]              \n"
-#if PISTORM_WRITE_BUFFER
-"       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
-#endif
-"       rev     w3, w3                      \n"
-"       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
-#endif
-
-// We have w10 with ARM IPL here and w1 with m68k IPL, select higher, in case of ARM clear pending bit
-"998:   cmp     w1, w10                     \n" 
-"       csel    w1, w1, w10, hi             \n" // if W1 was higher, select it 
-"       csel    w10, wzr, w10, hi           \n" // In that case clear w10
-"999:                                       \n"
-"       mrs     x2, TPIDR_EL0               \n" // Get SR
-"       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
-"       cmp     w1, #7                      \n" // Was it level 7 interrpt?
-
-"       b.eq    91f                         \n" // Yes - process immediately
-"       cmp     w1, w3                      \n" // Check highest masked level
-"       b.gt    91f                         \n" // IPL higher than IPM? Make an interrupt
-
-"92:    mrs     x2, TPIDR_EL1               \n" // Only masked interrupts. Restore old contents of x2 and
-"       b       99b                         \n" // branch back
-
-// Process the interrupt here
-"91: \n"
-"911:   tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
-"       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
-"       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
-"       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
-"       b       93f                         \n"
-"94:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
-
-"93:    mov     w5, w2                      \n" // Make a copy of SR
-"       rbit    w3, w2                      \n" // Reverse C and V!
-"       bfxil   w2, w3, 30, 2               \n" // Put reversed C and V into old SR (to be pushed on stack)
-"       bfi     w5, w1, %[srb_ipm], 3       \n" // Insert IPL level to SR register IPM field
-"       lsl     w3, w1, #2                  \n" // Calculate vector offset
-"       add     w3, w3, #0x60               \n" 
-"       strh    w2, [x%[reg_sp], #-8]!      \n" // Push old SR
-"       str     w%[reg_pc], [x%[reg_sp], #2]\n" // Push address of next instruction
-"       strh    w3, [x%[reg_sp], #6]        \n" // Push frame format 0
-"       bic     w5, w5, #%[sr_t01]          \n" // Clear T0 and T1
-"       orr     w5, w5, #%[sr_s]            \n" // Set S bit
-"       msr     TPIDR_EL0, x5               \n" // Update SR
-"       ldr     w1, [x0, #%[vbr]]           \n"
-"       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
-
-"       mrs     x2, TPIDR_EL1               \n" // Restore old contents of x2 and
-"       b       99b                         \n" // branch back
-#else
-"9:     ldrb    w1, [x0, #%[arm]]           \n"
-"       mrs     x2, TPIDR_EL0               \n" // Get SR
-"       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
-"       mov     w4, #2                      \n"
-"       lsl     w4, w4, w3                  \n"
-"       sub     w4, w4, #1                  \n" // Build mask to clear PINT fields
-"       bic     w4, w4, #0x80               \n" // Always allow INT7 (NMI) !
-"       bic     w3, w1, w4                  \n" // Clear PINT bits in a copy!
-"       cbz     w3, 93f                     \n" // Leave interrupt calling of no unmasked IRQs left
-"       tbnz    w2, #%[srb_s], 91f          \n" // Check if m68k was in supervisor mode already
-"       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
-"       tbnz    w2, #%[srb_m], 92f          \n" // Check if MSP is active
-"       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
-"       b       91f                         \n"
-"92:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
-"91:    clz     w3, w3                      \n" // Count number of zeros before first set bit is there
-"       neg     w3, w3                      \n" // 24 for level 7, 25 for level 6 and so on
-"       add     w3, w3, #31                 \n" // level = 31 - clz(w1)
-"       mov     w4, #1                      \n" // Make a mask for bit clear in PINT
-"       lsl     w4, w4, w3                  \n"
-"94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
-"       strb     w1, [x0, #%[arm]]          \n" // Store PINT
-"       mov     w5, w2                      \n" // Make a copy of SR
-"       rbit    w3, w2                      \n" // Reverse C and V!
-"       bfxil   w2, w3, 30, 2               \n" // Put reversed C and V into old SR (to be pushed on stack)
-"       bfi     w5, w3, %[srb_ipm], 3       \n" // Insert level to SR register
-"       lsl     w3, w3, #2                  \n"
-"       add     w3, w3, #0x60               \n" // Calculate vector offset
-"       strh    w2, [x%[reg_sp], #-8]!      \n" // Push old SR
-"       str     w%[reg_pc], [x%[reg_sp], #2] \n" // Push address of next instruction
-"       strh    w3, [x%[reg_sp], #6]        \n" // Push frame format 0
-"       bic     w5, w5, #0xc000             \n" // Clear T0 and T1
-"       orr     w5, w5, #0x2000             \n" // Set S bit
-"       msr     TPIDR_EL0, x5               \n" // Update SR
-"       ldr     w1, [x0, #%[vbr]]           \n"
-"       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
-"93:                                        \n"
-//"       mrs     x0, TPIDRRO_EL0             \n" // Reload old values of x0 and x2
-"       mrs     x2, TPIDR_EL1               \n" // And branch back
-"       b       99b                         \n"
-#endif
-:
-:[reg_pc]"i"(REG_PC),
- [reg_sp]"i"(REG_A7),
- [cacr_ie]"i"(CACR_IE),
- [cacr_ie_bit]"i"(CACRB_IE),
- [sr_ipm]"i"(SR_IPL),
- [srb_ipm]"i"(SRB_IPL),
- [srb_m]"i"(SRB_M),
- [srb_s]"i"(SRB_S),
- [sr_s]"i"(SR_S),
- [sr_t01]"i"(SR_T0 | SR_T1),
- [fcount]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_FetchCount)),
- [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
- [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
- [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
-        __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
- [intreq]"i"(__builtin_offsetof(struct M68KState, INT)),
- [arm]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
- [err]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
- [ipl]"i"(__builtin_offsetof(struct M68KState, INT.IPL)),
- [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
- [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
- [isp]"i"(__builtin_offsetof(struct M68KState, ISP)),
- [msp]"i"(__builtin_offsetof(struct M68KState, MSP)),
- [vbr]"i"(__builtin_offsetof(struct M68KState, VBR))
-    );
-
-
-}
 
 struct M68KState *__m68k_state;
 void MainLoop();
@@ -2252,7 +1939,7 @@ void M68K_StartEmu(void *addr, void *fdt)
         __m68k.FP[fp].u64 = 0x7fffffffffffffffULL;
     }
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     (void)fdt;
     
     asm volatile("mov %0, #0":"=r"(addr));
@@ -2274,7 +1961,6 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL2 |= (emu68_ccrd  << JC2B_CCR_SCAN_DEPTH); 
     __m68k.JIT_CONTROL2 |= ((cs_dist - 1) << JC2B_CHIP_SLOWDOWN_RATIO);
     __m68k.JIT_CONTROL2 |= blitwait ? JC2F_BLITWAIT : 0;
-
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
@@ -2292,10 +1978,11 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_UNIT_COUNT = 0;
     __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
     __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
-    __m68k.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
-    __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
+    __m68k.JIT_CONTROL |= (emu68_icnt & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
+    __m68k.JIT_CONTROL |= (emu68_irng & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
-    *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
+    __m68k.JIT_CONTROL2 = (emu68_ccrd << JC2B_CCR_SCAN_DEPTH);
+    *(uint32_t *)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 #endif
     of_node_t *node = dt_find_node("/chosen");
     if (node)
@@ -2305,12 +1992,6 @@ void M68K_StartEmu(void *addr, void *fdt)
         {
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
-            if (strstr(prop->op_value, "enable_c0_slow"))
-                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-            if (strstr(prop->op_value, "enable_c8_slow"))
-                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-            if (strstr(prop->op_value, "enable_d0_slow"))
-                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
 
             extern int disasm;
             extern int debug;
@@ -2325,7 +2006,14 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "disassemble"))
                 disasm = 1;
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
+            if (strstr(prop->op_value, "enable_c0_slow"))
+                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+            if (strstr(prop->op_value, "enable_c8_slow"))
+                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+            if (strstr(prop->op_value, "enable_d0_slow"))
+                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+
             extern uint32_t swap_df0_with_dfx;
             extern uint32_t move_slow_to_chip;
 
@@ -2356,7 +2044,7 @@ asm volatile(
 "       dsb     sy                  \n"
 "       isb                         \n");
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     extern volatile int housekeeper_enabled;
     housekeeper_enabled = 1;
 #endif
@@ -2407,4 +2095,3 @@ asm volatile(
     }
         //kprintf("[BOOT] reg 0xf3000034 = %08x\n", LE32(*(volatile uint32_t *)0xf3000034));
 }
-

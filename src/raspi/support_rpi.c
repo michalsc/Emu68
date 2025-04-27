@@ -15,7 +15,7 @@
 #include "mmu.h"
 #include "tlsf.h"
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
 #endif
 
@@ -23,7 +23,7 @@ static int serial_up = 0;
 
 #define ARM_PERIIOBASE ((intptr_t)io_base)
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 
 uint8_t *q_buffer;
 volatile uint64_t q_head;
@@ -127,6 +127,21 @@ static inline void putByte(void *io_base, char chr)
 #define ARM_PERIIOBASE 0xf2000000
 
 volatile unsigned char print_lock = 0;
+
+void __printf_chk(int, const char *restrict format, ...)
+{
+    va_list v;
+    va_start(v, format);
+
+    while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE))
+        asm volatile("yield");
+
+    vkprintf_pc(putByte, (void *)ARM_PERIIOBASE, format, v);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
+    va_end(v);
+}
 
 void kprintf(const char * restrict format, ...)
 {
@@ -414,7 +429,7 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 #define GPPUD                                           (GPIO_BASE + 0x94)
 #define GPPUDCLK0                                       (GPIO_BASE + 0x98)
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 
 void setup_serial()
 {

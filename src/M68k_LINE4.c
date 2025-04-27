@@ -1423,7 +1423,7 @@ static uint32_t *EMIT_RESET(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr,
 
     *tmp = b_cc(A64_CC_AL, ptr - tmp);
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 
     void do_reset();
 
@@ -1546,7 +1546,7 @@ static uint32_t *EMIT_STOP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, 
     *ptr++ = b(2);
     *ptr++ = msr_imm(3, 6, 7); // Mask interrupts
 
-#ifndef PISTORM
+#ifndef PISTORM_ANY_MODEL
     /* Non pistorm machines wait for interrupt only */
     *ptr++ = wfi();
 #else
@@ -3040,7 +3040,7 @@ int M68K_GetLine4Length(uint16_t *insn_stream)
 }
 
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 void do_reset()
 {
     void ps_pulse_reset();

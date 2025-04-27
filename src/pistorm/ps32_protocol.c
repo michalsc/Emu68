@@ -188,6 +188,30 @@ volatile uint32_t *gpset;
 volatile uint32_t *gpreset;
 volatile uint32_t *gpread;
 
+volatile struct
+{
+    uint32_t GPFSEL0;
+    uint32_t GPFSEL1;
+    uint32_t GPFSEL2;
+    uint32_t GPFSEL3;
+    uint32_t GPFSEL4;
+    uint32_t GPFSEL5;
+    uint32_t _pad_0;
+    uint32_t GPSET0;
+    uint32_t GPSET1;
+    uint32_t _pad_1;
+    uint32_t GPCLR0;
+    uint32_t GPCLR1;
+    uint32_t _pad_2;
+    uint32_t GPLEV0;
+    uint32_t GPLEV1;
+    uint32_t _pad_3[42];
+    uint32_t GPIO_PUP_PDN_CNTRL_REG0;
+    uint32_t GPIO_PUP_PDN_CNTRL_REG1;
+    uint32_t GPIO_PUP_PDN_CNTRL_REG2;
+    uint32_t GPIO_PUP_PDN_CNTRL_REG3;
+} *const GPIO = (volatile void *)(BCM2708_PERI_BASE + GPIO_ADDR);
+
 uint32_t use_2slot = 1;
 
 static inline void set_input() {
@@ -215,6 +239,38 @@ void pistorm_setup_serial()
     fsel &= LE32(~MASK(SER_OUT_CLK));
     fsel |= LE32(FUNC(SER_OUT_CLK, OUT));
     *(gpio + REG(SER_OUT_CLK)) = fsel;
+}
+
+// Guessing PiStorm model. Activate Pull-Up on GPIO17 and GPIO24. Then read
+// The value of this IO pins. Following values are expected
+//
+//              GPIO17   GPIO24
+// PiStorm32:     Hi       Low
+// PiStorm16:     Hi       Hi
+
+uint8_t pistorm_get_model()
+{
+    uint8_t model = 0;
+    uint32_t io;
+
+    set_input();
+
+    // Set GPIO17 and GPIO24 pull-ups
+    GPIO->GPIO_PUP_PDN_CNTRL_REG1 &= ~LE32((3 << 2) | (3 << 16));
+    GPIO->GPIO_PUP_PDN_CNTRL_REG1 |= LE32((1 << 2) | (1 << 16));
+
+    // Read level on GPIO
+    io = LE32(GPIO->GPLEV0);
+
+    if (io & (1 << 17)) {
+        model |= 1;
+    }
+    if (io & (1 << 24))
+    {
+        model |= 2;
+    }
+
+    return model;
 }
 
 static void pistorm_setup_io()

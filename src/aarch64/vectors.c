@@ -296,7 +296,7 @@ static int getOPsize(uint32_t opcode)
 #undef D
 #define D(x) /* x */
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 
 #include "ps_protocol.h"
 
@@ -1906,7 +1906,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         ptr += rm;
         
-        uint64_t tmp;
+        uint64_t tmp = 0;
 
         handled = SYSReadValFromAddr(&tmp, NULL, size, ptr);
         if (handled) {
@@ -1916,7 +1916,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
     /* LDXR register - no exclusive in this case!!! But m68k bus does not support it anyway */
     else if ((opcode & 0x3ffffc00) == 0x085f7c00)
     {
-        uint64_t tmp;
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, far);
         if (handled) {
             SYSPutValueToReg(tmp, opcode & 31, ctx);
@@ -1931,7 +1931,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = SYSGetValueFromReg((opcode >> 5) & 31, ctx);
         ptr += offset;
 
-        uint64_t tmp;
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, ptr);
         if (handled) {
             SYSPutValueToReg(tmp, opcode & 31, ctx);
@@ -1943,7 +1943,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = SYSGetValueFromReg((opcode >> 5) & 31, ctx);
         ptr += ((int16_t)(opcode >> 5)) >> 7;
 
-        uint64_t tmp;
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, ptr);
         if (handled) {
             SYSPutValueToReg(tmp, opcode & 31, ctx);
@@ -1963,7 +1963,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
             far = ptr;
         }
         
-        uint64_t tmp;
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, far);
         
         if (handled) {
@@ -2015,7 +2015,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
         ptr += rm;
 
-        uint64_t tmp;
+        uint64_t tmp = 0;
 
         handled = SYSReadValFromAddr(&tmp, NULL, size, ptr);
         if (handled) {
@@ -2052,8 +2052,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = SYSGetValueFromReg((opcode >> 5) & 31, ctx);
         ptr += ((opcode >> 10) & 0xfff) * size;
 
-        uint64_t tmp;
-
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, ptr);
         if (handled) {
             int sext = 0;
@@ -2089,7 +2088,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         uint64_t ptr = SYSGetValueFromReg((opcode >> 5) & 31, ctx);
         ptr += ((int16_t)(opcode >> 5)) >> 7;
 
-        uint64_t tmp;
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, ptr);
         if (handled) {
             int sext = 0;
@@ -2131,7 +2130,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         }
         else far = ptr;
         
-        uint64_t tmp;
+        uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, far);
         if (handled) {
             int sext = 0;

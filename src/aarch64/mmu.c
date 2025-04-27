@@ -258,7 +258,7 @@ void mmu_init()
                 }
             }
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
             // Adjust base and size of the memory block
             if (addr < 0x01000000) {
                 size -= 0x01000000 - addr;

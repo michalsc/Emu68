@@ -69,28 +69,58 @@
 
 #endif
 
-unsigned int ps_read_8(unsigned int address);
-unsigned int ps_read_16(unsigned int address);
-unsigned int ps_read_32(unsigned int address);
-uint64_t ps_read_64(unsigned int address);
-uint128_t ps_read_128(unsigned int address);
+uint8_t pistorm_get_model();
+#define PISTORM_MODEL_16    3
+#define PISTORM_MODEL_32    1
 
-void ps_write_8(unsigned int address, unsigned int data);
-void ps_write_16(unsigned int address, unsigned int data);
-void ps_write_32(unsigned int address, unsigned int data);
-void ps_write_64(unsigned int address, uint64_t data);
-void ps_write_128(unsigned int address, uint128_t data);
+#ifdef PISTORM_CLASSIC
 
-unsigned int ps_read_8_int(unsigned int address);
-unsigned int ps_read_16_int(unsigned int address);
-unsigned int ps_read_32_int(unsigned int address);
+extern unsigned int ps_read_8(unsigned int address);
+extern unsigned int ps_read_16(unsigned int address);
+extern unsigned int ps_read_32(unsigned int address);
+extern uint64_t ps_read_64(unsigned int address);
+extern uint128_t ps_read_128(unsigned int address);
 
-void ps_write_8_int(unsigned int address, unsigned int data);
-void ps_write_16_int(unsigned int address, unsigned int data);
-void ps_write_32_int(unsigned int address, unsigned int data);
+extern void ps_write_8(unsigned int address, unsigned int data);
+extern void ps_write_16(unsigned int address, unsigned int data);
+extern void ps_write_32(unsigned int address, unsigned int data);
+extern void ps_write_64(unsigned int address, uint64_t data);
+extern void ps_write_128(unsigned int address, uint128_t data);
 
-void ps_memtest(unsigned int test_size);
-void ps_buptest(unsigned int size_kb, unsigned int maxiter);
+extern unsigned int ps_read_8_int(unsigned int address);
+extern unsigned int ps_read_16_int(unsigned int address);
+extern unsigned int ps_read_32_int(unsigned int address);
+
+extern void ps_write_8_int(unsigned int address, unsigned int data);
+extern void ps_write_16_int(unsigned int address, unsigned int data);
+extern void ps_write_32_int(unsigned int address, unsigned int data);
+
+#else
+
+extern unsigned int (*ps_read_8)(unsigned int address);
+extern unsigned int (*ps_read_16)(unsigned int address);
+extern unsigned int (*ps_read_32)(unsigned int address);
+extern uint64_t     (*ps_read_64)(unsigned int address);
+extern uint128_t    (*ps_read_128)(unsigned int address);
+
+extern void (*ps_write_8)(unsigned int address, unsigned int data);
+extern void (*ps_write_16)(unsigned int address, unsigned int data);
+extern void (*ps_write_32)(unsigned int address, unsigned int data);
+extern void (*ps_write_64)(unsigned int address, uint64_t data);
+extern void (*ps_write_128)(unsigned int address, uint128_t data);
+
+extern unsigned int (*ps_read_8_int)(unsigned int address);
+extern unsigned int (*ps_read_16_int)(unsigned int address);
+extern unsigned int (*ps_read_32_int)(unsigned int address);
+
+extern void (*ps_write_8_int)(unsigned int address, unsigned int data);
+extern void (*ps_write_16_int)(unsigned int address, unsigned int data);
+extern void (*ps_write_32_int)(unsigned int address, unsigned int data);
+
+#endif
+
+void ps_memtest();
+void ps_buptest();
 
 unsigned int ps_read_status_reg();
 void ps_write_status_reg(unsigned int value);
@@ -110,6 +140,6 @@ void wb_init();
 void wb_waitfree();
 void wb_push(uint32_t address, uint32_t value, uint8_t size);
 void ps_efinix_load(char* buffer, long length);
-void ps_efinix_setup();
+void ps_efinix_setup(uint8_t);
 
 #endif /* _PS_PROTOCOL_H */
