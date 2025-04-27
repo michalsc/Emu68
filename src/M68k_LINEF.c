@@ -1825,6 +1825,8 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 
     asm volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
 
+    LRU_InvalidateAll();
+
     /* Get the scope */
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
