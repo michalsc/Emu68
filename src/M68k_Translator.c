@@ -256,12 +256,7 @@ uint32_t val_FPIAR;
 uint32_t * EMIT_LocalExit(uint32_t *ptr, uint32_t insn_fixup)
 {
 #if EMU68_INSN_COUNTER
-    uint32_t insn_count_local = insn_count + insn_fixup;
-    *ptr++ = mov_immed_u16(0, insn_count_local & 0xffff, 0);
-    if (insn_count & 0xffff0000)
-    {
-        *ptr++ = movk_immed_u16(0, insn_count_local >> 16, 1);
-    }
+    *ptr++ = mov_simd_to_reg(0, 30, TS_D, 0);
 #endif
     RA_StoreDirtyFPURegs(&ptr);
     RA_StoreDirtyM68kRegs(&ptr);
@@ -271,19 +266,18 @@ uint32_t * EMIT_LocalExit(uint32_t *ptr, uint32_t insn_fixup)
     RA_StoreCC(&ptr);
     RA_StoreFPCR(&ptr);
     RA_StoreFPSR(&ptr);
-
 #if EMU68_INSN_COUNTER
-    *ptr++ = fmov_from_reg(0, 0);
-    *ptr++ = vadd_2d(30, 30, 0);
-    
-    if (val_FPIAR != 0xffffffff) {
+    *ptr++ = add64_immed(0, 0, (insn_count + insn_fixup) & 0xfff);
+    *ptr++ = mov_reg_to_simd(30, TS_D, 0, 0);
+#else
+    (void)insn_fixup;
+#endif
+    if (val_FPIAR != 0xffffffff)
+    {
         *ptr++ = mov_immed_u16(0, val_FPIAR & 0xffff, 0);
         *ptr++ = movk_immed_u16(0, val_FPIAR >> 16, 1);
         *ptr++ = mov_reg_to_simd(29, TS_S, 1, 0);
     }
-#else
-    (void)insn_fixup;
-#endif
 
     *ptr++ = bx_lr();
 
@@ -495,11 +489,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint32_t *out_code = end;
     tmpptr = end;
 #if EMU68_INSN_COUNTER
-    *end++ = mov_immed_u16(0, insn_count & 0xffff, 0);
-    if (insn_count & 0xffff0000)
-    {
-        *end++ = movk_immed_u16(0, insn_count >> 16, 1);
-    }
+    *end++ = mov_simd_to_reg(0, 30, TS_D, 0);
 #endif
     RA_FlushFPURegs(&end);
     RA_FlushM68kRegs(&end);
@@ -509,6 +499,10 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     RA_FlushFPCR(&end);
     RA_FlushFPSR(&end);
 
+#if EMU68_INSN_COUNTER
+    *end++ = add64_immed(0, 0, insn_count & 0xfff);
+#endif
+
     uint8_t tmp2 = RA_AllocARMRegister(&end);
     if (inner_loop)
     {
@@ -516,17 +510,15 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         *end++ = ldr_offset(ctx, tmp2, __builtin_offsetof(struct M68KState, INT));
     }
 #if EMU68_INSN_COUNTER
-    {
-        *end++ = fmov_from_reg(0, 0);
-        *end++ = vadd_2d(30, 30, 0);
-        
-        if (val_FPIAR != 0xffffffff) {
-            *end++ = mov_immed_u16(0, val_FPIAR & 0xffff, 0);
-            *end++ = movk_immed_u16(0, val_FPIAR >> 16, 1);
-            *end++ = mov_reg_to_simd(29, TS_S, 1, 0);
-        }
-    }
+    *end++ = mov_reg_to_simd(30, TS_D, 0, 0);
 #endif
+    if (val_FPIAR != 0xffffffff)
+    {
+        *end++ = mov_immed_u16(0, val_FPIAR & 0xffff, 0);
+        *end++ = movk_immed_u16(0, val_FPIAR >> 16, 1);
+        *end++ = mov_reg_to_simd(29, TS_S, 1, 0);
+    }
+
     if (inner_loop)
     {
         uint32_t *tmpptr = end;
