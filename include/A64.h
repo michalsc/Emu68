@@ -788,11 +788,19 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else
     {
+#if 0
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = bfxil(cc, tmp_reg, 28, 4);
         // Clear C+V only if needed
         if (*not_done & 3)
             *ptr++ = bic_immed(cc, cc, 2, 0);
+#else
+        *ptr++ = bic_immed(cc, cc, 4, 0);
+        *ptr++ = orr_immed(tmp_reg, cc, 1, 29);
+        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_MI);
+        *ptr++ = orr_immed(tmp_reg, cc, 1, 30);
+        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_EQ);
+#endif
         (*not_done) &= 0x10;
     }
 
@@ -829,9 +837,17 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else
     {
+#if 0
         *ptr++ = get_nzcv(tmp_reg);
         *ptr++ = ror(tmp_reg, tmp_reg, 30);
         *ptr++ = bfi(cc, tmp_reg, 2, 2);
+#else
+        *ptr++ = bic_immed(cc, cc, 2, 30);
+        *ptr++ = orr_immed(tmp_reg, cc, 1, 29);
+        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_MI);
+        *ptr++ = orr_immed(tmp_reg, cc, 1, 30);
+        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_EQ);
+#endif
         (*not_done) &= 0x13;
     }
     RA_FreeARMRegister(&ptr, tmp_reg);
