@@ -22,23 +22,42 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint16_t lo16;
     uint32_t u32 = 0;
     int immediate = 0;
+    uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
     /* Load immediate into the register */
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
             lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
-            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
             size = 1;
             break;
         case 0x0040:    /* Short operation */
             lo16 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
-            *ptr++ = mov_immed_u16(immed, lo16, 1);
             size = 2;
             break;
         case 0x0080:    /* Long operation */
             u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
             u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
+            
+            size = 4;
+            break;
+    }
+
+    if ((opcode & 0x0038) != 0)
+    {
+        /* Load effective address */
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+    }
+
+    switch (size)
+    {
+        case 1:
+            *ptr++ = mov_immed_u16(immed, (lo16 & 0xff) << 8, 1);
+            break;
+        case 2:
+            *ptr++ = mov_immed_u16(immed, lo16, 1);
+            break;
+        case 4:
             if (u32 < 4096)
             {
                 immediate = 1;
@@ -49,7 +68,6 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 if (((u32 >> 16) & 0xffff) != 0)
                     *ptr++ = movt_immed_u16(immed, u32 >> 16);
             }
-            size = 4;
             break;
     }
 
@@ -58,59 +76,28 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         /* Fetch m68k register */
         dest = RA_MapM68kRegister(&ptr, opcode & 7);
-        uint8_t tmpreg = RA_AllocARMRegister(&ptr);
-
-        /* Perform add operation */
-        switch (size)
-        {
-            case 4:
-                if (immediate)
-                    *ptr++ = cmp_immed(dest, u32);
-                else
-                    *ptr++ = cmp_reg(dest, immed, LSL, 0);
-                break;
-            case 2:
-                *ptr++ = lsl(tmpreg, dest, 16);
-                *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
-                break;
-            case 1:
-                *ptr++ = lsl(tmpreg, dest, 24);
-                *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
-                break;
-        }
-        RA_FreeARMRegister(&ptr, tmpreg);
     }
-    else
+
+    /* Perform add operation */
+    switch (size)
     {
-        /* Load effective address */
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dest, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
-        uint8_t tmpreg = RA_AllocARMRegister(&ptr);
-
-        /* Fetch data into temporary register, perform add, store it back */
-        switch (size)
-        {
-            case 4:
-                /* Perform calcualtion */
-                if (immediate)
-                    *ptr++ = cmp_immed(dest, u32);
-                else
-                    *ptr++ = cmp_reg(dest, immed, LSL, 0);
-                break;
-            case 2:
-                /* Perform calcualtion */
-                *ptr++ = lsl(tmpreg, dest, 16);
-                *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
-                break;
-            case 1:
-                /* Perform calcualtion */
-                *ptr++ = lsl(tmpreg, dest, 24);
-                *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
-                break;
-        }
-
-        RA_FreeARMRegister(&ptr, tmpreg);
+        case 4:
+            if (immediate)
+                *ptr++ = cmp_immed(dest, u32);
+            else
+                *ptr++ = cmp_reg(dest, immed, LSL, 0);
+            break;
+        case 2:
+            *ptr++ = lsl(tmpreg, dest, 16);
+            *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
+            break;
+        case 1:
+            *ptr++ = lsl(tmpreg, dest, 24);
+            *ptr++ = cmp_reg(tmpreg, immed, LSL, 0);
+            break;
     }
 
+    RA_FreeARMRegister(&ptr, tmpreg);
     RA_FreeARMRegister(&ptr, immed);
     RA_FreeARMRegister(&ptr, dest);
 
