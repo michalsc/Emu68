@@ -247,6 +247,15 @@ void MainLoop()
         LastPC = getLastPC();
         ctx = getCTX();
 
+#ifndef PISTORM_ANY_MODEL
+        /* Force reload of PC*/
+        asm volatile("" : "=r"(PC));
+        if (PC == NULL) {
+            M68K_SaveContext(ctx);
+            return;
+        }
+#endif
+
         /* If (unlikely) there was interrupt pending, check if it needs to be processed */
         if (unlikely(ctx->INT32 != 0))
         {
