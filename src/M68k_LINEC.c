@@ -33,15 +33,13 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
     {
         uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
         uint8_t src = 0xff;
+        uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
 
         test_register = dest;
 
         RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
         
-        if (size == 4)
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
-        else
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
 
         switch (size)
         {
@@ -49,16 +47,17 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
                 *ptr++ = update_mask ? ands_reg(dest, dest, src, LSL, 0) : and_reg(dest, dest, src, LSL, 0);
                 break;
             case 2:
-                *ptr++ = and_reg(src, src, dest, LSL, 0);
-                *ptr++ = bfi(dest, src, 0, 16);
+                *ptr++ = and_reg(tmp_reg, src, dest, LSL, 0);
+                *ptr++ = bfi(dest, tmp_reg, 0, 16);
                 break;
             case 1:
-                *ptr++ = and_reg(src, src, dest, LSL, 0);
-                *ptr++ = bfi(dest, src, 0, 8);
+                *ptr++ = and_reg(tmp_reg, src, dest, LSL, 0);
+                *ptr++ = bfi(dest, tmp_reg, 0, 8);
                 break;
         }
 
         RA_FreeARMRegister(&ptr, src);
+        RA_FreeARMRegister(&ptr, tmp_reg);
     }
     else
     {
