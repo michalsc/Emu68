@@ -243,7 +243,7 @@ static uint32_t *EMIT_ROXL_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_p
         else if (update_mask & SR_V) {
             *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Valt);
         }
-kprintf("[ERROR] ROXL mem not yet fixed!\n");
+
         if (update_mask_copy & SR_XC) {
             if (direction) {
                 *ptr++ = bfxil(tmp, tmp, 16, 1);
@@ -1120,13 +1120,13 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
             case 2:
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = bfi(tmp, tmp, 16, 16);
+                *ptr++ = bfi(tmp, reg, 16, 16);
                 *ptr++ = rorv(tmp, tmp, shift);
                 *ptr++ = bfi(reg, tmp, 0, 16);
                 break;
             case 1:
                 *ptr++ = mov_reg(tmp, reg);
-                *ptr++ = bfi(tmp, tmp, 8, 8);
+                *ptr++ = bfi(tmp, reg, 8, 8);
                 *ptr++ = bfi(tmp, tmp, 16, 16);
                 *ptr++ = rorv(tmp, tmp, shift);
                 *ptr++ = bfi(reg, tmp, 0, 8);
@@ -1152,13 +1152,13 @@ static uint32_t *EMIT_ROL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             break;
         case 2:
             *ptr++ = mov_reg(tmp, reg);
-            *ptr++ = bfi(tmp, tmp, 16, 16);
+            *ptr++ = bfi(tmp, reg, 16, 16);
             *ptr++ = ror(tmp, tmp, shift);
             *ptr++ = bfi(reg, tmp, 0, 16);
             break;
         case 1:
             *ptr++ = mov_reg(tmp, reg);
-            *ptr++ = bfi(tmp, tmp, 8, 8);
+            *ptr++ = bfi(tmp, reg, 8, 8);
             *ptr++ = bfi(tmp, tmp, 16, 16);
             *ptr++ = ror(tmp, tmp, shift);
             *ptr++ = bfi(reg, tmp, 0, 8);
@@ -1303,7 +1303,6 @@ static uint32_t *EMIT_ROXL(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 break;
         }
         
-kprintf("[ERROR] ROXL not yet fixed!\n");
         // Fill the temporary register with repetitions of X and dest
         *ptr++ = tst_immed(cc, 1, 32 - SRB_X);
         if (dir)
