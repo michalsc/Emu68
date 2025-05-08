@@ -67,8 +67,6 @@ uint32_t GetSR_Line7(uint16_t opcode)
     }
 }
 
-
-
 uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 {
     uint8_t update_mask = M68K_GetSRMask(*m68k_ptr);
@@ -423,7 +421,17 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 }
                 else
                 {
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                    /* TODO! Handle byte/word moves between registers if update mask is not needed */
+                    if (update_mask == 0 && (opcode & 0x3f) == 0 && (tmp & 0x38) == 0 && size < 4) {
+                        tmp_reg = RA_MapM68kRegister(&ptr, opcode & 7);
+                    }
+                    else {
+                        /* Not loaded in dest. Get data into temporary register with sign extending */
+                        if (update_mask)
+                            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                        else
+                            ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                    }
                 }
             }
         }
@@ -457,6 +465,9 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         if (update_mask && !is_load_immediate)
         {
+            /* preload CC into a register */
+            (void)RA_GetCC(&ptr);
+
             switch (size)
             {
                 case 4:
@@ -470,10 +481,10 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                         *ptr++ = cmn_reg(31, tmp_reg, LSL, 0);
                     break;
                 case 2:
-                    *ptr++ = cmn_reg(31, tmp_reg, LSL, 16);
+                    *ptr++ = cmn_reg(31, tmp_reg, LSL, loaded_in_dest ? 16 : 0);
                     break;
                 case 1:
-                    *ptr++ = cmn_reg(31, tmp_reg, LSL, 24);
+                    *ptr++ = cmn_reg(31, tmp_reg, LSL, loaded_in_dest ? 24 : 0);
                     break;
             }
         }
@@ -481,12 +492,21 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         if (!loaded_in_dest) {
             /* Handle loading 8- and 16-bit data into target register*/
             if ((tmp & 0x38) == 0 && tmp_reg < 12) {
-                uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
-                if (size == 1)
-                    *ptr++ = bic_immed(dn, dn, 8, 0);
-                else if (size == 2)
-                    *ptr++ = bic_immed(dn, dn, 16, 0);
-                *ptr++ = orr_reg(dn, dn, tmp_reg, LSL, 0);
+                if (update_mask) {
+                    uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                    if (size == 1)
+                        *ptr++ = bfi(dn, tmp_reg, 0, 8);
+                    else if (size == 2)
+                        *ptr++ = bfi(dn, tmp_reg, 0, 16);
+                }
+                else {
+                    uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
+                    if (size == 1)
+                        *ptr++ = bic_immed(dn, dn, 8, 0);
+                    else if (size == 2)
+                        *ptr++ = bic_immed(dn, dn, 16, 0);
+                    *ptr++ = orr_reg(dn, dn, tmp_reg, LSL, 0);
+                }
             } else {
                 ptr = EMIT_StoreToEffectiveAddress(ptr, size, &tmp_reg, tmp, *m68k_ptr, &ext_count, 0);
             }
