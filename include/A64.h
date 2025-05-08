@@ -755,6 +755,16 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
 static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
+    extern int host_z_set;
+    extern int host_n_set;
+    extern int host_c_set;
+    extern int host_v_set;
+
+    host_z_set = 1;
+    host_n_set = 1;
+    host_c_set = 0;
+    host_v_set = 0;
+
     if (*not_done == 0)
         return ptr;
 
@@ -812,6 +822,16 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
+    extern int host_z_set;
+    extern int host_n_set;
+    extern int host_c_set;
+    extern int host_v_set;
+
+    host_z_set = 1;
+    host_n_set = 1;
+    host_c_set = 0;
+    host_v_set = 0;
+
     if (*not_done == 0)
         return ptr;
 
@@ -858,6 +878,16 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
+    extern int host_z_set;
+    extern int host_n_set;
+    extern int host_c_set;
+    extern int host_v_set;
+
+    host_z_set = 1;
+    host_n_set = 1;
+    host_c_set = 1;
+    host_v_set = 1;
+
     if (*not_done == 0)
         return ptr;
 
@@ -913,6 +943,16 @@ uint32_t * EMIT_GetNZCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
+    extern int host_z_set;
+    extern int host_n_set;
+    extern int host_c_set;
+    extern int host_v_set;
+
+    host_z_set = 1;
+    host_n_set = 1;
+    host_c_set = 1;
+    host_v_set = 1;
+
     if (*not_done == 0)
         return ptr;
 
@@ -984,6 +1024,16 @@ uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
+    extern int host_z_set;
+    extern int host_n_set;
+    extern int host_c_set;
+    extern int host_v_set;
+
+    host_z_set = 1;
+    host_n_set = 1;
+    host_c_set = 0;
+    host_v_set = 1;
+
     if (*not_done == 0)
         return ptr;
 
@@ -1045,6 +1095,16 @@ uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 uint32_t * EMIT_GetNZnCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
 {
+    extern int host_z_set;
+    extern int host_n_set;
+    extern int host_c_set;
+    extern int host_v_set;
+
+    host_z_set = 1;
+    host_n_set = 1;
+    host_c_set = 0;
+    host_v_set = 1;
+
     if (*not_done == 0)
         return ptr;
 
