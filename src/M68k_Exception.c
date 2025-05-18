@@ -128,66 +128,61 @@ uint32_t *EMIT_Exception_old(uint32_t *ptr, uint16_t exception, uint8_t format, 
 uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
 {
     va_list args;
-    
+    uint8_t sr = RA_ModifyCC(&ptr);
     uint32_t ea = 0;
     uint32_t fault = 0;
 
     va_start(args, format);
 
+#if 0
     /* Most of preparations will be performed by the M68K_Exception, we prepare known state here */
     ptr = EMIT_FlushPC(ptr);
+
     RA_StoreDirtyFPURegs(&ptr);
     RA_StoreDirtyM68kRegs(&ptr);
 
     RA_StoreCC(&ptr);
     RA_StoreFPCR(&ptr);
     RA_StoreFPSR(&ptr);
+#endif
 
-    *ptr++ = mov_immed_u16(0, (format << 12) | (exception & 0x0fff), 0);
+    *ptr++ = mov_immed_u16(1, (format << 12) | (exception & 0x0fff), 0);
 
     if (format == 2 || format == 3)
     {
-        *ptr++ = str64_offset_preindex(31, 0, -16);
         ea = va_arg(args, uint32_t);
         *ptr++ = mov_immed_u16(0, (ea & 0xffff), 0);
         *ptr++ = movk_immed_u16(0, (ea >> 16) & 0xffff, 1);
-        *ptr++ = str_offset(31, 0, 12);
+        *ptr++ = str64_offset_preindex(31, 0, -8);
     }
     else if (format == 4)
     {
-        *ptr++ = str64_offset_preindex(31, 0, -24);
         ea = va_arg(args, uint32_t);
         *ptr++ = mov_immed_u16(0, (ea & 0xffff), 0);
         *ptr++ = movk_immed_u16(0, (ea >> 16) & 0xffff, 1);
-        *ptr++ = str_offset(31, 0, 12);
+        *ptr++ = str64_offset_preindex(31, 0, -16);
         fault = va_arg(args, uint32_t);
         *ptr++ = mov_immed_u16(0, fault & 0xffff, 0);
         *ptr++ = movk_immed_u16(0, (fault >> 16) & 0xffff, 1);
-        *ptr++ = str_offset(31, 0, 20);
-    }
-    else
-    {
-        *ptr++ = str64_offset_preindex(31, 0, -8);
+        *ptr++ = str_offset(31, 0, 12);
     }
 
     extern void M68K_Exception();
     uint32_t val = (uintptr_t)M68K_Exception;
 
-    *ptr++ = mov_immed_u16(0, val & 0xffff, 0);
-    *ptr++ = movk_immed_u16(0, val >> 16, 1);
-    *ptr++ = orr64_immed(0, 0, 25, 25, 1);
-    *ptr++ = blr(0);
+    *ptr++ = mov_reg(0, sr);
+    *ptr++ = mov_immed_u16(2, val & 0xffff, 0);
+    *ptr++ = movk_immed_u16(2, val >> 16, 1);
+    *ptr++ = orr64_immed(2, 2, 25, 25, 1);
+    *ptr++ = blr(2);
+    *ptr++ = mov_reg(sr, 0);
 
     if (format == 2 || format == 3) {
-        *ptr++ = add64_immed(31, 31, 16);
+        *ptr++ = add64_immed(31, 31, 8);
     }
     else if (format == 4)
     {
-        *ptr++ = add64_immed(31, 31, 24);
-    }
-    else
-    {
-        *ptr++ = add64_immed(31, 31, 8);
+        *ptr++ = add64_immed(31, 31, 16);
     }
 
     va_end(args);

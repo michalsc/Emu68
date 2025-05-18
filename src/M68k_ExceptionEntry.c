@@ -10,26 +10,13 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-static inline uint32_t getSR()
-{
-    uint32_t sr;
-    asm volatile("mrs %0, TPIDR_EL0":"=r"(sr));
-    return sr;
-}
-
-static inline void setSR(uint32_t sr)
-{
-    asm volatile("msr TPIDR_EL0, %0"::"r"(sr));
-}
-
 /*
     type_and_format: 16 bit value. Bits 0..11 - exception type, bits 15..12 - exception format
 */
-void M68K_Exception(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t type_and_format, uint32_t ea, uint32_t fault)
+uint32_t M68K_Exception(uint32_t M68k_SR, uint32_t type_and_format, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t ea, uint32_t fault)
 {
     register uint32_t M68k_PC asm("w18");
     register void *M68k_A7 asm("x29");
-    uint32_t M68k_SR = getSR();
 
     /* If we are not in supervisor mode, swap stacks */
     if ((M68k_SR & SR_S) == 0) {
@@ -74,11 +61,11 @@ void M68K_Exception(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, 
     /* Clear trace flags, set supervisor */
     M68k_SR |= SR_S;
     M68k_SR &= ~(SR_T0 | SR_T1);
-    
-    setSR(M68k_SR);
 
     uint32_t vbr = getCTX()->VBR + (type_and_format & 0x0fff);
     M68k_PC = *(uint32_t *)(uintptr_t)vbr;
 
     asm volatile(""::"r"(M68k_PC));
+
+    return M68k_SR;
 }
