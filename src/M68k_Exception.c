@@ -145,26 +145,30 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
     RA_StoreFPCR(&ptr);
     RA_StoreFPSR(&ptr);
 #endif
-
     *ptr++ = mov_immed_u16(1, (format << 12) | (exception & 0x0fff), 0);
 
+    if (format == 0)
+    {
+        *ptr++ = str64_offset_preindex(31, 30, -8);
+    }
     if (format == 2 || format == 3)
     {
         ea = va_arg(args, uint32_t);
         *ptr++ = mov_immed_u16(0, (ea & 0xffff), 0);
         *ptr++ = movk_immed_u16(0, (ea >> 16) & 0xffff, 1);
-        *ptr++ = str64_offset_preindex(31, 0, -8);
+        *ptr++ = stp64_preindex(31, 0, 30, -16);
     }
     else if (format == 4)
     {
-        ea = va_arg(args, uint32_t);
-        *ptr++ = mov_immed_u16(0, (ea & 0xffff), 0);
-        *ptr++ = movk_immed_u16(0, (ea >> 16) & 0xffff, 1);
-        *ptr++ = str64_offset_preindex(31, 0, -16);
         fault = va_arg(args, uint32_t);
         *ptr++ = mov_immed_u16(0, fault & 0xffff, 0);
         *ptr++ = movk_immed_u16(0, (fault >> 16) & 0xffff, 1);
-        *ptr++ = str_offset(31, 0, 12);
+        *ptr++ = stp64_preindex(31, 0, 30, -16);
+
+        ea = va_arg(args, uint32_t);
+        *ptr++ = mov_immed_u16(2, (ea & 0xffff), 0);
+        *ptr++ = movk_immed_u16(2, (ea >> 16) & 0xffff, 1);
+        *ptr++ = str64_offset_preindex(31, 2, -8);
     }
 
     extern void M68K_Exception();
@@ -177,13 +181,21 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
     *ptr++ = blr(2);
     *ptr++ = mov_reg(sr, 0);
 
-    if (format == 2 || format == 3) {
-        *ptr++ = add64_immed(31, 31, 8);
+    if (format == 2 || format == 3)
+    {
+        *ptr++ = ldr64_offset(31, 30, 8);
+        *ptr++ = add64_immed(31, 31, 16);
     }
     else if (format == 4)
     {
-        *ptr++ = add64_immed(31, 31, 16);
+        *ptr++ = ldr64_offset(31, 30, 16);
+        *ptr++ = add64_immed(31, 31, 24);
     }
+    else
+    {
+        *ptr++ = ldr64_offset_postindex(31, 30, 8);
+    }
+    
 
     va_end(args);
     return ptr;
