@@ -13,7 +13,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
+uint32_t *EMIT_Exception_old(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
 {
     va_list args;
     uint8_t ctx = RA_TryCTX(&ptr); //RA_GetCTX(&ptr);
@@ -122,5 +122,74 @@ uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
 
     va_end(args);
 
+    return ptr;
+}
+
+uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...)
+{
+    va_list args;
+    
+    uint32_t ea = 0;
+    uint32_t fault = 0;
+
+    va_start(args, format);
+
+    /* Most of preparations will be performed by the M68K_Exception, we prepare known state here */
+    ptr = EMIT_FlushPC(ptr);
+    RA_StoreDirtyFPURegs(&ptr);
+    RA_StoreDirtyM68kRegs(&ptr);
+
+    RA_StoreCC(&ptr);
+    RA_StoreFPCR(&ptr);
+    RA_StoreFPSR(&ptr);
+
+    *ptr++ = mov_immed_u16(0, (format << 12) | (exception & 0x0fff), 0);
+
+    if (format == 2 || format == 3)
+    {
+        *ptr++ = str64_offset_preindex(31, 0, -16);
+        ea = va_arg(args, uint32_t);
+        *ptr++ = mov_immed_u16(0, (ea & 0xffff), 0);
+        *ptr++ = movk_immed_u16(0, (ea >> 16) & 0xffff, 1);
+        *ptr++ = str_offset(31, 0, 12);
+    }
+    else if (format == 4)
+    {
+        *ptr++ = str64_offset_preindex(31, 0, -24);
+        ea = va_arg(args, uint32_t);
+        *ptr++ = mov_immed_u16(0, (ea & 0xffff), 0);
+        *ptr++ = movk_immed_u16(0, (ea >> 16) & 0xffff, 1);
+        *ptr++ = str_offset(31, 0, 12);
+        fault = va_arg(args, uint32_t);
+        *ptr++ = mov_immed_u16(0, fault & 0xffff, 0);
+        *ptr++ = movk_immed_u16(0, (fault >> 16) & 0xffff, 1);
+        *ptr++ = str_offset(31, 0, 20);
+    }
+    else
+    {
+        *ptr++ = str64_offset_preindex(31, 0, -8);
+    }
+
+    extern void M68K_Exception();
+    uint32_t val = (uintptr_t)M68K_Exception;
+
+    *ptr++ = mov_immed_u16(0, val & 0xffff, 0);
+    *ptr++ = movk_immed_u16(0, val >> 16, 1);
+    *ptr++ = orr64_immed(0, 0, 25, 25, 1);
+    *ptr++ = blr(0);
+
+    if (format == 2 || format == 3) {
+        *ptr++ = add64_immed(31, 31, 16);
+    }
+    else if (format == 4)
+    {
+        *ptr++ = add64_immed(31, 31, 24);
+    }
+    else
+    {
+        *ptr++ = add64_immed(31, 31, 8);
+    }
+
+    va_end(args);
     return ptr;
 }
