@@ -45,15 +45,15 @@ void M68K_Exception(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, 
     }
 
     /* Depending on exception format prepare place on stack frame and eventually push extra parameters */
-    if ((type_and_format & 0xf000) == 0x2000 || (type_and_format & 0xf000) == 0x3000)
+    if (unlikely((type_and_format & 0xf000) == 0x2000 || (type_and_format & 0xf000) == 0x3000))
     {
         // format 2 and format 3 - store EA
-        asm volatile("str %w1, [%0], #-4":"=r"(M68k_A7):"r"(ea),"0"(M68k_A7));
+        asm volatile("str %w1, [%0, #-4]!":"=r"(M68k_A7):"r"(ea),"0"(M68k_A7));
     }
-    else if ((type_and_format & 0xf000) == 0x4000)
+    else if (unlikely((type_and_format & 0xf000) == 0x4000))
     {
         // format 4 - store fault address and EA
-        asm volatile("str %w1, [%0], #-8\t\nstr %w2, [%0, #4]":"=r"(M68k_A7):"r"(fault),"r"(ea),"0"(M68k_A7));
+        asm volatile("str %w1, [%0, #-8]!\t\nstr %w2, [%0, #4]":"=r"(M68k_A7):"r"(fault),"r"(ea),"0"(M68k_A7));
     }
 
     uint32_t tmp = M68k_SR;
@@ -61,15 +61,14 @@ void M68K_Exception(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, 
     tmp ^= 3;
 
     asm volatile(
-        "strh %w1, [%0], #-8    \n\t"
+        "strh %w1, [%0, #-8]!   \n\t"
         "str  %w2, [%0, #2]     \n\t"
         "strh %w3, [%0, #6]"
-        :"=r"(M68k_A7)
-        :
-            "r"(tmp),
-            "r"(M68k_PC),
-            "r"(type_and_format),
-            "0"(M68k_A7)
+    :"=r"(M68k_A7)
+    :"r"(tmp),
+     "r"(M68k_PC),
+     "r"(type_and_format),
+     "0"(M68k_A7)
     );
 
     /* Clear trace flags, set supervisor */
@@ -78,9 +77,8 @@ void M68K_Exception(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, 
     
     setSR(M68k_SR);
 
-    tmp = getCTX()->VBR;
-    tmp += (type_and_format & 0x0fff);
+    uint32_t vbr = getCTX()->VBR + (type_and_format & 0x0fff);
+    M68k_PC = *(uint32_t *)(uintptr_t)vbr;
 
-    M68k_PC = *(uint32_t *)(uintptr_t)tmp;
     asm volatile(""::"r"(M68k_PC));
 }
