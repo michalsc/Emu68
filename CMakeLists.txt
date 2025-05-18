@@ -55,6 +55,7 @@ set(EMU68_FILES
     src/M68k_LINEE.c
     src/M68k_LINEF.c
     src/M68k_Exception.c
+    src/M68k_ExceptionEntry.c
     src/M68k_CC.c
     src/ExecutionLoop.c
     
@@ -111,6 +112,16 @@ set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
 set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
+     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+     -ffixed-x27 -ffixed-x28 -ffixed-x29")
+
+# Exception entry may be called from translated code directly so it breaks the C ABI for aarch64. 
+# All m68k registers are fixed (x13-x29)
+# The temporary arm code and PC are fixed too (x12, x18)
+set_source_files_properties(src/M68k_ExceptionEntry.c PROPERTIES COMPILE_FLAGS 
+    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
+     -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -ffixed-x12 -ffixed-x13 \
+     -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
      -ffixed-x27 -ffixed-x28 -ffixed-x29")
 
