@@ -663,9 +663,11 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     extern struct M68KState *__m68k_state;
     uint8_t counter_reg = RA_MapM68kRegister(&ptr, opcode & 7);
     uint8_t m68k_condition = (opcode >> 8) & 0x0f;
-    uint8_t arm_condition = 0;
+    //uint8_t arm_condition = 0;
     uint32_t *branch_1 = NULL;
     uint32_t *branch_2 = NULL;
+    uint32_t branch_1_type = 0;
+    uint32_t branch_2_type = 0;
     int32_t branch_offset = 2 + (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
     uint16_t *bra_rel_ptr = *m68k_ptr - 2;
 
@@ -701,10 +703,14 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         off += off8;
         ptr = EMIT_ResetOffsetPC(ptr);
 
-        *ptr++ = add_immed(c_true, REG_PC, off);
+        int32_t true_pc_addend = off;
+
+        //*ptr++ = add_immed(c_true, REG_PC, off);
 
         off = branch_offset + off8;
 
+        int32_t false_pc_addend = off;
+#if 0
         if (off > -4096 && off < 0)
         {
             *ptr++ = sub_immed(c_false, REG_PC, -off);
@@ -722,20 +728,21 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             RA_FreeARMRegister(&ptr, reg);
         } else /* branch_offset == 0 */
         {
-            *ptr++ = mov_reg(c_false, REG_PC);
+            RA_FreeARMRegister(&ptr, c_false);
+            c_false = REG_PC;
         }
-
+#endif
         /* If condition was not false check the condition and eventually break the loop */
         if (m68k_condition != M_CC_F)
         {
-            arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
+            //arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
 
-            /* Adjust PC, negated CC is loop condition, CC is loop break condition */
-            *ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
+            ///* Adjust PC, negated CC is loop condition, CC is loop break condition */
+            //*ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
 
             /* conditionally exit loop */
-            branch_1 = ptr;
-            *ptr++ = b_cc(arm_condition, 0);
+            ptr = EMIT_JumpOnCondition(ptr, m68k_condition, 0, &branch_1_type);
+            branch_1 = ptr - 1;
         }
 
         /* Copy register to temporary, shift 16 bits left */
@@ -745,30 +752,71 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
         /* Substract 0x10000 from temporary, compare with 0xffff0000 */
         *ptr++ = subs_immed(reg, reg, 1);
-        *ptr++ = bfi(counter_reg, reg, 0, 16);
 
         RA_SetDirtyM68kRegister(&ptr, opcode & 7);
 
         /* If counter was 0xffff (temprary reg 0xffff0000) break the loop */
-        *ptr++ = csel(REG_PC, c_true, c_false, A64_CC_MI);
-        branch_2 = ptr;
-        *ptr++ = b_cc(A64_CC_PL, 3);
-        
-        if (branch_1) {
-            *branch_1 = b_cc(arm_condition, ptr - branch_1);
-        }
+        //*ptr++ = csel(REG_PC, c_true, c_false, A64_CC_MI);
 
+        /* Insert register back */
+        *ptr++ = bfi(counter_reg, reg, 0, 16);
+
+        branch_2 = ptr;
+        branch_2_type = FIXUP_BCC;
+        *ptr++ = b_cc(A64_CC_MI, 0);
+        
         RA_FreeARMRegister(&ptr, reg);
 
-        *branch_2 = b_cc(A64_CC_PL, ptr - branch_2);
-        
+        off = false_pc_addend;
+        if (off > -4096 && off < 0)
+        {
+            *ptr++ = sub_immed(REG_PC, REG_PC, -off);
+        }
+        else if (off > 0 && off < 4096)
+        {
+            *ptr++ = add_immed(REG_PC, REG_PC, off);
+        }
+        else if (off != 0)
+        {
+            uint8_t reg = RA_AllocARMRegister(&ptr);
+            *ptr++ = movw_immed_u16(reg, off & 0xffff);
+            *ptr++ = movt_immed_u16(reg, (off >> 16) & 0xffff);
+            *ptr++ = add_reg(REG_PC, REG_PC, reg, LSL, 0);
+            RA_FreeARMRegister(&ptr, reg);
+        }
+
         *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
 
-        *ptr++ = (uint32_t)(uintptr_t)branch_2;
-        *ptr++ = 1;
-        *ptr++ = 0;
-        *ptr++ = INSN_TO_LE(0xfffffffe);
-        *ptr++ = INSN_TO_LE(0xfffffff1);
+        /* Generate exit points */
+        if (branch_1) {
+            uint32_t *exit_code_start = ptr;
+
+            *ptr++ = add_immed(REG_PC, REG_PC, true_pc_addend);
+
+            /* Insert local exit */
+            ptr = EMIT_LocalExit(ptr, 1);
+            uint32_t *exit_code_end = ptr;
+
+            /* Insert fixup location */
+            *ptr++ = exit_code_end - branch_1;
+            *ptr++ = branch_1_type;
+            *ptr++ = exit_code_end - exit_code_start;
+            *ptr++ = INSN_TO_LE(MARKER_EXIT_BLOCK);
+        }
+
+        uint32_t *exit_code_start = ptr;
+
+        *ptr++ = add_immed(REG_PC, REG_PC, true_pc_addend);
+
+        /* Insert local exit */
+        ptr = EMIT_LocalExit(ptr, 1);
+        uint32_t *exit_code_end = ptr;
+
+        /* Insert fixup location */
+        *ptr++ = exit_code_end - branch_2;
+        *ptr++ = branch_2_type;
+        *ptr++ = exit_code_end - exit_code_start;
+        *ptr++ = INSN_TO_LE(MARKER_EXIT_BLOCK);
 
         RA_FreeARMRegister(&ptr, c_true);
         RA_FreeARMRegister(&ptr, c_false);
