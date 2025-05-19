@@ -48,6 +48,22 @@ struct M68KTranslationUnit {
 #endif
 };
 
+struct ExitBlock
+{
+    struct Node eb_Node;
+    uint32_t    eb_InstructionCount;
+    uint32_t    eb_FixupType;
+    uint32_t *  eb_FixupLocation;
+    uint32_t    eb_ARMCode[];
+};
+
+#define FIXUP_BCC           0x00000bcc
+#define FIXUP_TBZ           0x00000036
+
+#define MARKER_EXIT_BLOCK   0xffffaa55
+#define MARKER_STOP         0xffffffff
+
+
 struct M68KState
 {
     /* Integer part */
@@ -392,7 +408,7 @@ uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *ar
 uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, int sign_extend);
 uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...);
 uint32_t *EMIT_LocalExit(uint32_t *ptr, uint32_t insn_count_fixup);
-uint32_t *EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance);
+uint32_t *EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance, uint32_t *type);
 
 uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
 uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);

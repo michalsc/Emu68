@@ -118,7 +118,6 @@ uint32_t *EMIT_BSR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr) __attrib
 uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 {
     uint32_t *tmpptr;
-    uint32_t *distance_ptr;
     uint8_t m68k_condition = (opcode >> 8) & 15;
     intptr_t branch_target = (intptr_t)(*m68k_ptr);
     intptr_t branch_offset = 0;
@@ -167,7 +166,7 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 #endif
 #endif
 
-    if (!take_branch)
+    if (take_branch)
     {
         m68k_condition ^= 1;
     }
@@ -176,63 +175,12 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     RA_GetCC(&ptr);
 
     /* Prepare fake jump on condition, assume def branch is taken */
-    tmpptr = ptr;
-    ptr = EMIT_JumpOnCondition(ptr, m68k_condition, 0);
-    distance_ptr = ptr;
-
-    /* Insert the first case here */
-    if (take_branch)
-    {
-        intptr_t local_pc_off_16 = local_pc_off - 2;
-
-        /* Adjust PC accordingly */
-        if ((opcode & 0x00ff) == 0x00)
-        {
-            local_pc_off_16 += 4;
-        }
-        /* use 32-bit offset */
-        else if ((opcode & 0x00ff) == 0xff)
-        {
-            local_pc_off_16 += 6;
-        }
-        else
-        /* otherwise use 8-bit offset */
-        {
-            local_pc_off_16 += 2;
-        }
-
-        if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
-            *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
-        else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
-            *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
-        else if (local_pc_off_16 != 0) {
-            *ptr++ = movw_immed_u16(0, local_pc_off_16);
-            if ((local_pc_off_16 >> 16) & 0xffff)
-                *ptr++ = movt_immed_u16(0, local_pc_off_16 >> 16);
-            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
-        }
-    }
-    else
-    {
-        if (branch_offset > 0 && branch_offset < 4096)
-            *ptr++ = add_immed(REG_PC, REG_PC, branch_offset);
-        else if (branch_offset > -4096 && branch_offset < 0)
-            *ptr++ = sub_immed(REG_PC, REG_PC, -branch_offset);
-        else if (branch_offset != 0) {
-            *ptr++ = movw_immed_u16(0, branch_offset);
-            if ((branch_offset >> 16) & 0xffff)
-                *ptr++ = movt_immed_u16(0, (branch_offset >> 16) & 0xffff);
-            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
-        }
-    }
-
-    /* Insert local exit */
-    ptr = EMIT_LocalExit(ptr, 1);
-
-    /* Fixup jump on condition */
-    EMIT_JumpOnCondition(tmpptr, m68k_condition, 1 + ptr - distance_ptr);
-
-    /* Insert the second case here */
+    uint32_t fixup_type = 0;
+    
+    ptr = EMIT_JumpOnCondition(ptr, m68k_condition, 0, &fixup_type);
+    tmpptr = ptr - 1;
+    
+    /* Insert the branch non-taken case here */
     if (!take_branch)
     {
         intptr_t local_pc_off_16 = local_pc_off - 2;
@@ -280,7 +228,66 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         *m68k_ptr = (uint16_t *)branch_target;
     }
 
-#endif
+    /* Now insert the branch taken case - this will be treated as exit code */
+    uint32_t *exit_code_start = ptr;
+
+    /* Insert the first case here */
+    if (take_branch)
+    {
+        intptr_t local_pc_off_16 = local_pc_off - 2;
+
+        /* Adjust PC accordingly */
+        if ((opcode & 0x00ff) == 0x00)
+        {
+            local_pc_off_16 += 4;
+        }
+        /* use 32-bit offset */
+        else if ((opcode & 0x00ff) == 0xff)
+        {
+            local_pc_off_16 += 6;
+        }
+        else
+        /* otherwise use 8-bit offset */
+        {
+            local_pc_off_16 += 2;
+        }
+
+        if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
+            *ptr++ = add_immed(REG_PC, REG_PC, local_pc_off_16);
+        else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -local_pc_off_16);
+        else if (local_pc_off_16 != 0)
+        {
+            *ptr++ = movw_immed_u16(0, local_pc_off_16);
+            if ((local_pc_off_16 >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(0, local_pc_off_16 >> 16);
+            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
+        }
+    }
+    else
+    {
+        if (branch_offset > 0 && branch_offset < 4096)
+            *ptr++ = add_immed(REG_PC, REG_PC, branch_offset);
+        else if (branch_offset > -4096 && branch_offset < 0)
+            *ptr++ = sub_immed(REG_PC, REG_PC, -branch_offset);
+        else if (branch_offset != 0)
+        {
+            *ptr++ = movw_immed_u16(0, branch_offset);
+            if ((branch_offset >> 16) & 0xffff)
+                *ptr++ = movt_immed_u16(0, (branch_offset >> 16) & 0xffff);
+            *ptr++ = add_reg(REG_PC, REG_PC, 0, LSL, 0);
+        }
+    }
+
+    /* Insert local exit */
+    ptr = EMIT_LocalExit(ptr, 1);
+    uint32_t *exit_code_end = ptr;
+
+    /* Insert fixup location */
+    *ptr++ = exit_code_end - tmpptr;
+    *ptr++ = fixup_type;
+    *ptr++ = exit_code_end - exit_code_start;
+    *ptr++ = INSN_TO_LE(MARKER_EXIT_BLOCK);
 
     return ptr;
 }

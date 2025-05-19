@@ -291,8 +291,14 @@ uint32_t * EMIT_LocalExit(uint32_t *ptr, uint32_t insn_fixup)
 
 uint16_t * m68k_entry_point;
 
+int host_c_set;
+int host_z_set;
+int host_v_set;
+int host_n_set;
+
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
+    struct List exitList;
     m68k_entry_point = m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
@@ -305,6 +311,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
 
+    NEWLIST(&exitList);
+
+    host_z_set = 0;
+    host_n_set = 0;
+    host_c_set = 0;
+    host_v_set = 0;
     reg_Load96 = 0xff;
     reg_Save96 = 0xff;
     val_FPIAR = 0xffffffff;
@@ -418,7 +430,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             lr_is_saved = 1;
             end--;
         }
-        if (end[-1] == INSN_TO_LE(0xffffffff))
+        if (end[-1] == INSN_TO_LE(MARKER_STOP))
         {
             end--;
             break_loop = TRUE;
@@ -427,6 +439,30 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
         {
             end--;
             soft_break = TRUE;
+        }
+        if (end[-1] == INSN_TO_LE(MARKER_EXIT_BLOCK))
+        {
+            struct ExitBlock *eb;
+            
+            end -= 4;
+            
+            uint32_t insn_count = end[2];
+            uint32_t fixup_type = end[1];
+            uint32_t fixup_target = end[0];
+
+            eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
+
+            eb->eb_InstructionCount = insn_count;
+            eb->eb_FixupType = fixup_type;
+            eb->eb_FixupLocation = end - fixup_target;
+
+            end -= insn_count;
+
+            for (unsigned i=0; i < insn_count; i++) {
+                eb->eb_ARMCode[i] = end[i];
+            }
+
+            ADDTAIL(&exitList, eb);
         }
         if (end[-1] == INSN_TO_LE(0xfffffffe))
         {
@@ -552,6 +588,49 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
     if (disasm) {
         disasm_print((uint16_t *)0, 0, out_code, 4*(end - out_code), temporary_arm_code);
+    }
+
+    /* Get all exit entries and append them here */
+    struct ExitBlock *eb = NULL;
+    int exit_num = 0;
+    while ((eb = (struct ExitBlock *)REMHEAD(&exitList)))
+    {
+        uint32_t *old_end = end;
+        uint32_t op;
+
+        for (unsigned i=0; i < eb->eb_InstructionCount; i++) {
+            *end++ = eb->eb_ARMCode[i];
+        }
+
+        switch (eb->eb_FixupType)
+        {
+            case FIXUP_BCC:
+                op = I32(*eb->eb_FixupLocation);
+                op &= ~(0x7ffff << 5);
+                op |= ((old_end - eb->eb_FixupLocation) & 0x7ffff) << 5;
+                *eb->eb_FixupLocation = I32(op);
+                break;
+
+            case FIXUP_TBZ:
+                op = I32(*eb->eb_FixupLocation);
+                op &= ~(0x3fff << 5);
+                op |= ((old_end - eb->eb_FixupLocation) & 0x3fff) << 5;
+                *eb->eb_FixupLocation = I32(op);
+                break;
+
+            default:
+                kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb->eb_FixupType);
+        }
+
+        if (disasm) {
+            kprintf("[JIT] EXIT BLOCK %d\n", ++exit_num);
+            disasm_print((uint16_t *)0, 0, old_end, 4 * (end - old_end), temporary_arm_code);
+        }
+
+        tlsf_free(tlsf, eb);
+    }
+
+    if (disasm) {
         disasm_close();
     }
 
