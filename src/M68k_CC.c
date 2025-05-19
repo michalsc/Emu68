@@ -12,7 +12,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 
-uint32_t * EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance)
+uint32_t * EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance, uint32_t *jump_type)
 {
 	uint8_t cond_tmp = 0xff;
 	uint8_t cc = RA_GetCC(&ptr);
@@ -21,39 +21,48 @@ uint32_t * EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t 
     {
         case M_CC_EQ:
             *ptr++ = host_z_set ? b_cc(A64_CC_EQ, distance) : tbnz(cc, SRB_Z, distance);
+            if (jump_type) *jump_type = host_z_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_NE:
             *ptr++ = host_z_set ? b_cc(A64_CC_NE, distance) : tbz(cc, SRB_Z, distance);
+            if (jump_type) *jump_type = host_z_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_CS:
             *ptr++ = host_c_set ? b_cc(A64_CC_CS, distance) : tbnz(cc, SRB_Calt, distance);
+            if (jump_type) *jump_type = host_c_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_CC:
             *ptr++ = host_c_set ? b_cc(A64_CC_CC, distance) : tbz(cc, SRB_Calt, distance);
+            if (jump_type) *jump_type = host_c_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_PL:
             *ptr++ = host_n_set ? b_cc(A64_CC_PL, distance) : tbz(cc, SRB_N, distance);
+            if (jump_type) *jump_type = host_n_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_MI:
             *ptr++ = host_n_set ? b_cc(A64_CC_MI, distance) : tbnz(cc, SRB_N, distance);
+            if (jump_type) *jump_type = host_n_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_VS:
             *ptr++ = host_v_set ? b_cc(A64_CC_VS, distance) : tbnz(cc, SRB_Valt, distance);
+            if (jump_type) *jump_type = host_v_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_VC:
             *ptr++ = host_v_set ? b_cc(A64_CC_VC, distance) : tbz(cc, SRB_Valt, distance);
+            if (jump_type) *jump_type = host_v_set ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_LS:   /* C == 1 || Z == 1 */
             *ptr++ = tst_immed(cc, 2, 31); // xnZCv
 			*ptr++ = b_cc(A64_CC_NE, distance);
+            if (jump_type) *jump_type = FIXUP_BCC;
             break;
 
         case M_CC_HI:   /* C == 0 && Z == 0 */
@@ -62,34 +71,59 @@ uint32_t * EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t 
             //*ptr++ = tst_reg(cc, cond_tmp, LSL, 0);
             *ptr++ = tst_immed(cc, 2, 31); // xnZCv
 			*ptr++ = b_cc(A64_CC_EQ, distance);
+            if (jump_type) *jump_type = FIXUP_BCC;
             break;
 
         case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
-			*ptr++ = b_cc(A64_CC_GE, distance);
+            if (host_n_set && host_v_set) {
+                *ptr++ = b_cc(A64_CC_GE, distance);
+            }
+            else {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+                *ptr++ = b_cc(A64_CC_GE, distance);
+            }
+            if (jump_type) *jump_type = FIXUP_BCC;
             break;
 
         case M_CC_LT:
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
-            *ptr++ = b_cc(A64_CC_LT, distance);
+            if (host_n_set && host_v_set) {
+                *ptr++ = b_cc(A64_CC_LT, distance);
+            }
+            else {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+                *ptr++ = b_cc(A64_CC_LT, distance);
+            }
+            if (jump_type) *jump_type = FIXUP_BCC;
             break;
 
         case M_CC_GT:
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
-            *ptr++ = b_cc(A64_CC_GT, distance);
+            if (host_n_set && host_v_set && host_z_set) {
+                *ptr++ = b_cc(A64_CC_GT, distance);
+            }
+            else {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+                *ptr++ = b_cc(A64_CC_GT, distance);
+            }
+            if (jump_type) *jump_type = FIXUP_BCC;
             break;
 
         case M_CC_LE:
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
-            *ptr++ = b_cc(A64_CC_LE, distance);
+            if (host_n_set && host_v_set && host_z_set) {
+                *ptr++ = b_cc(A64_CC_LE, distance);
+            }
+            else {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+                *ptr++ = b_cc(A64_CC_LE, distance);
+            }
+            if (jump_type) *jump_type = FIXUP_BCC;
             break;
 
         default:
@@ -202,30 +236,42 @@ uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition)
             break;
 
         case M_CC_GE: /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
+            if (!(host_n_set && host_v_set))
+            {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+            }
             success_condition = A64_CC_GE;
             break;
 
         case M_CC_LT:
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
+            if (!(host_n_set && host_v_set))
+            {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+            }
             success_condition = A64_CC_LT;
             break;
 
         case M_CC_GT:
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
+            if (!(host_n_set && host_v_set && host_z_set))
+            {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+            }
             success_condition = A64_CC_GT;
             break;
 
         case M_CC_LE:
-            cond_tmp = RA_AllocARMRegister(&ptr);
-            *ptr++ = ror(cond_tmp, cc, 4);
-            *ptr++ = set_nzcv(cond_tmp);
+            if (!(host_n_set && host_v_set && host_z_set))
+            {
+                cond_tmp = RA_AllocARMRegister(&ptr);
+                *ptr++ = ror(cond_tmp, cc, 4);
+                *ptr++ = set_nzcv(cond_tmp);
+            }
             success_condition = A64_CC_LE;
             break;
 
