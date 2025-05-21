@@ -671,7 +671,7 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     int32_t branch_offset = 2 + (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
     uint16_t *bra_rel_ptr = *m68k_ptr - 2;
 
-    /* Selcom case of DBT which does nothing */
+    /* Seldom case of DBT which does nothing */
     if (m68k_condition == M_CC_T)
     {
         /* Emu68 needs to emit at least one aarch64 opcode, push nop */
@@ -680,8 +680,6 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     }
     else
     {
-        uint8_t c_true = RA_AllocARMRegister(&ptr);
-        uint8_t c_false = RA_AllocARMRegister(&ptr);
         int8_t off8 = 0;
         int32_t off = 4;
 
@@ -692,10 +690,14 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             if (m68k_condition == M_CC_F && branch_offset == 0 && (uintptr_t)*m68k_ptr < 0x200000)
             {
+                uint8_t c_true = RA_AllocARMRegister(&ptr);
+                uint8_t c_false = RA_AllocARMRegister(&ptr);
                 *ptr++ = mov_immed_u16(c_true, 0, 0);
                 *ptr++ = ldrb_offset(c_true, c_false, 0);
                 *ptr++ = ldrb_offset(c_true, c_false, 0);
                 *ptr++ = ldrb_offset(c_true, c_false, 0);
+                RA_FreeARMRegister(&ptr, c_true);
+                RA_FreeARMRegister(&ptr, c_false);
             }
         }
 
@@ -786,7 +788,7 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         }
 
         *m68k_ptr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
-
+#if 0
         /* Generate exit points */
         if (branch_1) {
             uint32_t *exit_code_start = ptr;
@@ -803,7 +805,7 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             *ptr++ = exit_code_end - exit_code_start;
             *ptr++ = INSN_TO_LE(MARKER_EXIT_BLOCK);
         }
-
+#endif
         uint32_t *exit_code_start = ptr;
 
         *ptr++ = add_immed(REG_PC, REG_PC, true_pc_addend);
@@ -812,14 +814,23 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         ptr = EMIT_LocalExit(ptr, 1);
         uint32_t *exit_code_end = ptr;
 
-        /* Insert fixup location */
-        *ptr++ = exit_code_end - branch_2;
-        *ptr++ = branch_2_type;
-        *ptr++ = exit_code_end - exit_code_start;
-        *ptr++ = INSN_TO_LE(MARKER_EXIT_BLOCK);
+        /* Insert fixup location - if branch_1 is not NULL, insert double exit, otherwise single one */
+        if (branch_1) {
+            /* Insert fixup location */
+            *ptr++ = exit_code_end - branch_1;
+            *ptr++ = branch_1_type;
+            *ptr++ = exit_code_end - branch_2;
+            *ptr++ = branch_2_type;
+            *ptr++ = exit_code_end - exit_code_start;
+            *ptr++ = INSN_TO_LE(MARKER_DOUBLE_EXIT);
+        }
+        else {
+            *ptr++ = exit_code_end - branch_2;
+            *ptr++ = branch_2_type;
+            *ptr++ = exit_code_end - exit_code_start;
+            *ptr++ = INSN_TO_LE(MARKER_EXIT_BLOCK);
+        }
 
-        RA_FreeARMRegister(&ptr, c_true);
-        RA_FreeARMRegister(&ptr, c_false);
         RA_FreeARMRegister(&ptr, counter_reg);
     }
 

@@ -51,9 +51,22 @@ struct M68KTranslationUnit {
 struct ExitBlock
 {
     struct Node eb_Node;
+    uint32_t    eb_Type;
     uint32_t    eb_InstructionCount;
     uint32_t    eb_FixupType;
     uint32_t *  eb_FixupLocation;
+    uint32_t    eb_ARMCode[];
+};
+
+struct DoubleExitBlock
+{
+    struct Node eb_Node;
+    uint32_t    eb_Type;
+    uint32_t    eb_InstructionCount;
+    uint32_t    eb_Fixup1Type;
+    uint32_t *  eb_Fixup1Location;
+    uint32_t    eb_Fixup2Type;
+    uint32_t *  eb_Fixup2Location;
     uint32_t    eb_ARMCode[];
 };
 
@@ -61,6 +74,7 @@ struct ExitBlock
 #define FIXUP_TBZ           0x00000036
 
 #define MARKER_EXIT_BLOCK   0xffffaa55
+#define MARKER_DOUBLE_EXIT  0xffffaa56
 #define MARKER_STOP         0xffffffff
 
 
