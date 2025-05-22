@@ -296,6 +296,13 @@ int host_z_set;
 int host_v_set;
 int host_n_set;
 
+struct DisasmOut {
+    uint16_t *do_M68kAddr;
+    uint32_t *do_ArmAddr;
+    uint32_t do_M68kCount;
+    uint32_t do_ArmCount;
+} disasm_items[512], *disasm_ptr;
+
 static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 {
     struct List exitList;
@@ -312,6 +319,8 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     uint16_t *last_rev_jump = (uint16_t *)0xffffffff;
 
     NEWLIST(&exitList);
+
+    disasm_ptr = disasm_items;
 
     host_z_set = 0;
     host_n_set = 0;
@@ -452,6 +461,7 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
             eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
 
+            eb->eb_Type = MARKER_EXIT_BLOCK;
             eb->eb_InstructionCount = insn_count;
             eb->eb_FixupType = fixup_type;
             eb->eb_FixupLocation = end - fixup_target;
@@ -459,6 +469,36 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             end -= insn_count;
 
             for (unsigned i=0; i < insn_count; i++) {
+                eb->eb_ARMCode[i] = end[i];
+            }
+
+            ADDTAIL(&exitList, eb);
+        }
+        if (end[-1] == INSN_TO_LE(MARKER_DOUBLE_EXIT))
+        {
+            struct DoubleExitBlock *eb;
+
+            end -= 6;
+
+            uint32_t insn_count = end[4];
+            uint32_t fixup2_type = end[3];
+            uint32_t fixup2_target = end[2];
+            uint32_t fixup1_type = end[1];
+            uint32_t fixup1_target = end[0];
+
+            eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
+
+            eb->eb_Type = MARKER_DOUBLE_EXIT;
+            eb->eb_InstructionCount = insn_count;
+            eb->eb_Fixup2Type = fixup1_type;
+            eb->eb_Fixup2Location = end - fixup1_target;
+            eb->eb_Fixup2Type = fixup2_type;
+            eb->eb_Fixup2Location = end - fixup2_target;
+
+            end -= insn_count;
+
+            for (unsigned i = 0; i < insn_count; i++)
+            {
                 eb->eb_ARMCode[i] = end[i];
             }
 
@@ -498,17 +538,19 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             epilogue_size += distance;
         }
 
-        if (disasm)
-            disasm_print(in_code, insn_consumed, out_code, 4*(end - out_code), temporary_arm_code);
+        if (disasm) {
+            disasm_ptr->do_M68kAddr = in_code;
+            disasm_ptr->do_ArmAddr = out_code;
+            disasm_ptr->do_M68kCount = insn_consumed;
+            disasm_ptr->do_ArmCount = end - out_code;
+            disasm_ptr++;
+        }
+            //disasm_print(in_code, insn_consumed, out_code, 4*(end - out_code), temporary_arm_code);
 
         if (in_code > m68kcodeptr)
         {
-            if (debug)
-                kprintf("[ICache]   Going backwards to location %08x\n", m68kcodeptr);
             if (last_rev_jump == m68kcodeptr) {
                 if (--max_rev_jumps == 0) {
-                    if (debug)
-                        kprintf("[ICache] Going backwards to the same location oft enough. Loop candidate. Breaking here\n");
                     break;
                 }
             }
@@ -520,9 +562,6 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
 
         if (!break_loop && (orig_m68kcodeptr == m68kcodeptr))
         {
-            if (debug)
-                kprintf("[ICache]   Creating loop within translation unit\n");
-            
             inner_loop = TRUE;
             break;
         }
@@ -587,50 +626,132 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
     epilogue_size += end - tmpptr;
 
     if (disasm) {
-        disasm_print((uint16_t *)0, 0, out_code, 4*(end - out_code), temporary_arm_code);
+        disasm_ptr->do_M68kAddr = NULL;
+        disasm_ptr->do_M68kCount = 0;
+        disasm_ptr->do_ArmAddr = out_code;
+        disasm_ptr->do_ArmCount = end - out_code;
+        disasm_ptr++;
+        //disasm_print((uint16_t *)0, 0, out_code, 4*(end - out_code), temporary_arm_code);
     }
 
     /* Get all exit entries and append them here */
-    struct ExitBlock *eb = NULL;
-    int exit_num = 0;
-    while ((eb = (struct ExitBlock *)REMHEAD(&exitList)))
+    struct ExitBlock *n = NULL;
+    //int exit_num = 0;
+    while ((n = (struct ExitBlock *)REMHEAD(&exitList)))
     {
         uint32_t *old_end = end;
         uint32_t op;
 
-        for (unsigned i=0; i < eb->eb_InstructionCount; i++) {
-            *end++ = eb->eb_ARMCode[i];
-        }
-
-        switch (eb->eb_FixupType)
+        if (n->eb_Type == MARKER_DOUBLE_EXIT)
         {
-            case FIXUP_BCC:
-                op = I32(*eb->eb_FixupLocation);
-                op &= ~(0x7ffff << 5);
-                op |= ((old_end - eb->eb_FixupLocation) & 0x7ffff) << 5;
-                *eb->eb_FixupLocation = I32(op);
-                break;
+            struct DoubleExitBlock *eb2 = (struct DoubleExitBlock *)n;
 
-            case FIXUP_TBZ:
-                op = I32(*eb->eb_FixupLocation);
-                op &= ~(0x3fff << 5);
-                op |= ((old_end - eb->eb_FixupLocation) & 0x3fff) << 5;
-                *eb->eb_FixupLocation = I32(op);
-                break;
+            for (unsigned i = 0; i < eb2->eb_InstructionCount; i++)
+            {
+                *end++ = eb2->eb_ARMCode[i];
+            }
 
-            default:
-                kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb->eb_FixupType);
+            switch (eb2->eb_Fixup1Type)
+            {
+                case FIXUP_BCC:
+                    op = I32(*eb2->eb_Fixup1Location);
+                    op &= ~(0x7ffff << 5);
+                    op |= ((old_end - eb2->eb_Fixup1Location) & 0x7ffff) << 5;
+                    *eb2->eb_Fixup1Location = I32(op);
+                    break;
+
+                case FIXUP_TBZ:
+                    op = I32(*eb2->eb_Fixup1Location);
+                    op &= ~(0x3fff << 5);
+                    op |= ((old_end - eb2->eb_Fixup1Location) & 0x3fff) << 5;
+                    *eb2->eb_Fixup1Location = I32(op);
+                    break;
+
+                default:
+                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup1Type);
+            }
+
+            switch (eb2->eb_Fixup2Type)
+            {
+                case FIXUP_BCC:
+                    op = I32(*eb2->eb_Fixup2Location);
+                    op &= ~(0x7ffff << 5);
+                    op |= ((old_end - eb2->eb_Fixup2Location) & 0x7ffff) << 5;
+                    *eb2->eb_Fixup2Location = I32(op);
+                    break;
+
+                case FIXUP_TBZ:
+                    op = I32(*eb2->eb_Fixup2Location);
+                    op &= ~(0x3fff << 5);
+                    op |= ((old_end - eb2->eb_Fixup2Location) & 0x3fff) << 5;
+                    *eb2->eb_Fixup2Location = I32(op);
+                    break;
+
+                default:
+                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup2Type);
+            }
+        }
+        else
+        {
+            struct ExitBlock *eb = n;
+            
+            for (unsigned i = 0; i < eb->eb_InstructionCount; i++)
+            {
+                *end++ = eb->eb_ARMCode[i];
+            }
+
+            switch (eb->eb_FixupType)
+            {
+                case FIXUP_BCC:
+                    op = I32(*eb->eb_FixupLocation);
+                    op &= ~(0x7ffff << 5);
+                    op |= ((old_end - eb->eb_FixupLocation) & 0x7ffff) << 5;
+                    *eb->eb_FixupLocation = I32(op);
+                    break;
+
+                case FIXUP_TBZ:
+                    op = I32(*eb->eb_FixupLocation);
+                    op &= ~(0x3fff << 5);
+                    op |= ((old_end - eb->eb_FixupLocation) & 0x3fff) << 5;
+                    *eb->eb_FixupLocation = I32(op);
+                    break;
+
+                default:
+                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb->eb_FixupType);
+            }
         }
 
         if (disasm) {
-            kprintf("[JIT] EXIT BLOCK %d\n", ++exit_num);
-            disasm_print((uint16_t *)0, 0, old_end, 4 * (end - old_end), temporary_arm_code);
+            //kprintf("[JIT] EXIT BLOCK %d\n", ++exit_num);
+            disasm_ptr->do_M68kAddr = NULL;
+            disasm_ptr->do_M68kCount = 0;
+            disasm_ptr->do_ArmAddr = old_end;
+            disasm_ptr->do_ArmCount = end - old_end;
+            disasm_ptr++;
+            //disasm_print((uint16_t *)0, 0, old_end, 4 * (end - old_end), temporary_arm_code);
         }
 
-        tlsf_free(tlsf, eb);
+        tlsf_free(tlsf, n);
     }
 
+    disasm_ptr->do_ArmAddr = NULL;
+
     if (disasm) {
+        int exit_num = 0;
+        for (disasm_ptr = disasm_items; disasm_ptr->do_ArmAddr; disasm_ptr++)
+        {
+            if (disasm_ptr->do_M68kAddr == NULL) {
+                if (exit_num == 0) {
+                    kprintf("[JIT] EXIT_DEF:\n");
+                } else {
+                    kprintf("[JIT] EXIT_%03d:\n", exit_num);
+                }
+                exit_num++;
+            }
+            disasm_print(
+                disasm_ptr->do_M68kAddr, disasm_ptr->do_M68kCount,
+                disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, temporary_arm_code);
+        }
         disasm_close();
     }
 
