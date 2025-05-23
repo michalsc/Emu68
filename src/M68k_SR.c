@@ -1027,9 +1027,95 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
                 return mask1 | needed1 | mask2 | needed2;
             }
+            else if ((opcode & 0xf0f8) == 0x50c8)
+            {
+                int32_t branch_offset = 2 + (int16_t)(insn_stream[1]);
+                uint16_t *insn_stream_2 = insn_stream + 2;
+
+                // Mark the flags which conditional jump needs by itself
+                needed |= mask & (SRCheck[opcode >> 12](opcode) >> 16);
+
+                insn_stream = insn_stream + 1 + (branch_offset >> 1);
+
+                uint8_t mask1 = mask;
+                uint8_t mask2 = mask;
+                uint8_t needed1 = needed;
+                uint8_t needed2 = needed;
+                int scan_depth_tmp = scan_depth;
+
+                while (mask1 && scan_depth < max_scan_depth)
+                {
+                    scan_depth++;
+
+                    /* If instruction is a branch break the scan */
+                    if (M68K_IsBranch(insn_stream))
+                        break;
+
+                    /* Get opcode */
+                    opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream);
+
+                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    tmp_sets = flags & 0x1f;
+                    tmp_needs = (flags >> 16) & 0x1f;
+
+                    /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                    if (mask1 & tmp_needs)
+                    {
+                        needed1 |= (mask1 & tmp_needs);
+                    }
+
+                    /* Clear flags which this instruction sets */
+                    mask1 = mask1 & ~tmp_sets;
+
+                    if ((mask1 & tmp_needs) == mask1)
+                    {
+                        break;
+                    }
+
+                    /* Advance to subsequent instruction */
+                    insn_stream += M68K_GetINSNLength(insn_stream);
+                }
+
+                scan_depth = scan_depth_tmp;
+
+                while (mask2 && scan_depth < max_scan_depth)
+                {
+                    scan_depth++;
+
+                    /* If instruction is a branch break the scan */
+                    if (M68K_IsBranch(insn_stream_2))
+                        break;
+
+                    /* Get opcode */
+                    opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream_2);
+
+                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    tmp_sets = flags & 0x1f;
+                    tmp_needs = (flags >> 16) & 0x1f;
+
+                    /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                    if (mask2 & tmp_needs)
+                    {
+                        needed2 |= (mask2 & tmp_needs);
+                    }
+
+                    /* Clear flags which this instruction sets */
+                    mask2 = mask2 & ~tmp_sets;
+
+                    if ((mask2 & tmp_needs) == mask2)
+                    {
+                        break;
+                    }
+
+                    /* Advance to subsequent instruction */
+                    insn_stream_2 += M68K_GetINSNLength(insn_stream_2);
+                }
+
+                return mask1 | needed1 | mask2 | needed2;
+            }
             else 
             {
-                D(kprintf("[JIT]   %02d: check breaks on branch\n", scan_depth));
+                D(kprintf("[JIT]   %02d: check breaks on branch for opcode %04x\n", scan_depth, opcode));
                 break;
             }
         }
