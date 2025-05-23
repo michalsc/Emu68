@@ -838,43 +838,43 @@ uint32_t *EMIT_DBcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 }
 
 static struct OpcodeDef InsnTable[512] = {
-	[0000 ... 0007] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 1 },
-	[0020 ... 0047] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 1 },
-	[0050 ... 0071] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 1 }, 
-	[0100 ... 0107] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [0000 ... 0007] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [0020 ... 0047] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [0050 ... 0071] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 1 }, 
+    [0100 ... 0107] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 2 },
     [0110 ... 0117] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, 0, 1, 0, 2 },
     [0120 ... 0147] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 2 },
-	[0150 ... 0171] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 2 },
-	[0200 ... 0207] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 4 },
+    [0150 ... 0171] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 2 },
+    [0200 ... 0207] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 4 },
     [0210 ... 0217] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, 0, 1, 0, 4 },
     [0220 ... 0247] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 0, 4 },
-	[0250 ... 0271] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 4 },
+    [0250 ... 0271] = { { .od_Emit = EMIT_ADDQ }, NULL, 0, SR_CCR, 1, 1, 4 },
 
-	[0300 ... 0307] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1 },
-	[0710 ... 0717] = { { .od_Emit = EMIT_DBcc }, NULL, SR_NZVC, 0, 2, 0, 0 },
-	[0320 ... 0347] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1 },
-	[0350 ... 0371] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 1, 1 },
-	[0372]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 2, 0, 0 },
+    [0300 ... 0307] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1 },
+    [0710 ... 0717] = { { .od_Emit = EMIT_DBcc }, NULL, SR_NZVC, 0, 2, 0, 0 },
+    [0320 ... 0347] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1 },
+    [0350 ... 0371] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 1, 1 },
+    [0372]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 2, 0, 0 },
     [0373]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 3, 0, 0 },
     [0374]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 1, 0, 0 },
 
-	[0400 ... 0407] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 1 },
-	[0420 ... 0447] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 1 },
-	[0450 ... 0471] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 1 },
-	[0500 ... 0507] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 2 },
+    [0400 ... 0407] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [0420 ... 0447] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 1 },
+    [0450 ... 0471] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 1 },
+    [0500 ... 0507] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 2 },
     [0510 ... 0517] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, 0, 1, 0, 2 },
     [0520 ... 0547] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 2 },
-	[0550 ... 0571] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 2 },
-	[0600 ... 0607] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 4 },
+    [0550 ... 0571] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 2 },
+    [0600 ... 0607] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 4 },
     [0610 ... 0617] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, 0, 1, 0, 4 },
     [0620 ... 0647] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 0, 4 },
-	[0650 ... 0671] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 4 },
+    [0650 ... 0671] = { { .od_Emit = EMIT_SUBQ }, NULL, 0, SR_CCR, 1, 1, 4 },
 
-	[0700 ... 0707] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1  },
-	[0310 ... 0317] = { { .od_Emit = EMIT_DBcc }, NULL, SR_NZVC, 0, 2, 0, 0 },
-	[0720 ... 0747] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1  },
-	[0750 ... 0771] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 1, 1  },
-	[0772]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 2, 0, 0},
+    [0700 ... 0707] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1  },
+    [0310 ... 0317] = { { .od_Emit = EMIT_DBcc }, NULL, SR_NZVC, 0, 2, 0, 0 },
+    [0720 ... 0747] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 0, 1  },
+    [0750 ... 0771] = { { .od_Emit = EMIT_Scc }, NULL, SR_NZVC, 0, 1, 1, 1  },
+    [0772]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 2, 0, 0},
     [0773]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 3, 0, 0},
     [0774]          = { { .od_Emit = EMIT_TRAPcc }, NULL, SR_CCR, 0, 1, 0, 0},
 };
@@ -904,11 +904,38 @@ uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
     return ptr;
 }
 
+static const uint32_t CC[16] = {
+    [M_CC_T] = 0,
+    [M_CC_F] = 0,
+    [M_CC_EQ] = SR_Z,
+    [M_CC_NE] = SR_Z,
+    [M_CC_MI] = SR_N,
+    [M_CC_PL] = SR_N,
+    [M_CC_VC] = SR_V,
+    [M_CC_VS] = SR_V,
+    [M_CC_CC] = SR_C,
+    [M_CC_CS] = SR_C,
+    [M_CC_LS] = SR_ZC,
+    [M_CC_HI] = SR_ZC,
+    [M_CC_GE] = SR_NV,
+    [M_CC_LT] = SR_NV,
+    [M_CC_GT] = SR_NZV,
+    [M_CC_LE] = SR_NZV
+};
 
 uint32_t GetSR_Line5(uint16_t opcode)
 {
     /* If instruction is in the table, return what flags it needs (shifted 16 bits left) and flags it sets */
-    if (InsnTable[opcode & 0777].od_Emit) {
+    if (InsnTable[opcode & 0777].od_Emit)
+    {
+        // DBcc do not need all flags. Return only what is really needed
+        if (InsnTable[opcode & 0777].od_Emit == EMIT_DBcc)
+            return CC[(opcode & 0x0f00) >> 8] << 16;
+
+        // Scc does not need all flags. Update
+        if (InsnTable[opcode & 0777].od_Emit == EMIT_Scc)
+            return CC[(opcode & 0x0f00) >> 8] << 16;
+
         return (InsnTable[opcode & 0777].od_SRNeeds << 16) | InsnTable[opcode & 0777].od_SRSets;
     }
     /* Instruction not found, i.e. it needs all flags and sets none (ILLEGAL INSTRUCTION exception) */
