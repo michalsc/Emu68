@@ -480,12 +480,12 @@ static inline uintptr_t M68K_Translate(uint16_t *m68kcodeptr)
             uint32_t fixup1_type = end[1];
             uint32_t fixup1_target = end[0];
 
-            eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
+            eb = tlsf_malloc(tlsf, sizeof(struct DoubleExitBlock) + 4 * insn_count);
 
             eb->eb_Type = MARKER_DOUBLE_EXIT;
             eb->eb_InstructionCount = insn_count;
-            eb->eb_Fixup2Type = fixup1_type;
-            eb->eb_Fixup2Location = end - fixup1_target;
+            eb->eb_Fixup1Type = fixup1_type;
+            eb->eb_Fixup1Location = end - fixup1_target;
             eb->eb_Fixup2Type = fixup2_type;
             eb->eb_Fixup2Location = end - fixup2_target;
 
