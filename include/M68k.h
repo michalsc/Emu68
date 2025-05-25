@@ -521,5 +521,9 @@ void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
+extern int host_c_set;
+extern int host_z_set;
+extern int host_v_set;
+extern int host_n_set;
 
 #endif /* _M68K_H */
