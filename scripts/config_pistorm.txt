@@ -28,10 +28,9 @@ dtparam=ant2
 # Force HDMI signal even if nothing is connected
 hdmi_force_hotplug=1
 
-# Limit GPU memory a little, force 1080p video mode. Comment out the hdmi_mode line if your monitor
+# Force 1080p video mode. Comment out the hdmi_mode line if your monitor
 # does not like it. For list of all modes please refer to RasPi documentation
 # https://www.raspberrypi.com/documentation/computers/config_txt.html#hdmi-mode
-gpu_mem=32
 hdmi_group=2
 hdmi_mode=82
 
