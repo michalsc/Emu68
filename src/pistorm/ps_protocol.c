@@ -458,6 +458,11 @@ uint8_t pistorm_get_model()
 
     set_input();
 
+    // All GPIO to input
+    GPIO->GPFSEL0 = 0;
+    GPIO->GPFSEL1 = 0;
+    GPIO->GPFSEL2 = 0;
+
     // Set GPIO17 and GPIO24 pull-ups
     GPIO->GPIO_PUP_PDN_CNTRL_REG1 &= ~LE32((3 << 2) | (3 << 16));
     GPIO->GPIO_PUP_PDN_CNTRL_REG1 |= LE32((1 << 2) | (1 << 16));
