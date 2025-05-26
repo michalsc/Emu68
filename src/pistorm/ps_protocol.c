@@ -421,8 +421,6 @@ void ps_efinix_write(uint8_t data_out)
         GPIO->GPSET0 = LE32(1 << PIN_CCK);
         GPIO->GPSET0 = LE32(1 << PIN_CCK);
         GPIO->GPSET0 = LE32(1 << PIN_CCK); // to get closer to 50/50 duty cycle
-
-        mask >>= 1;
     }
     GPIO->GPCLR0 = LE32(1 << PIN_CCK);
     GPIO->GPCLR0 = LE32(1 << PIN_CCK);
@@ -456,12 +454,13 @@ uint8_t pistorm_get_model()
     uint8_t model = 0;
     uint32_t io;
 
-    set_input();
-
     // All GPIO to input
     GPIO->GPFSEL0 = 0;
     GPIO->GPFSEL1 = 0;
     GPIO->GPFSEL2 = 0;
+
+    // Wait a while to let all signals stabilize
+    usleep(10000);
 
     // Set GPIO17 and GPIO24 pull-ups
     GPIO->GPIO_PUP_PDN_CNTRL_REG1 &= ~LE32((3 << 2) | (3 << 16));
@@ -478,6 +477,8 @@ uint8_t pistorm_get_model()
     {
         model |= 2;
     }
+
+    set_input();
 
     return model;
 }
