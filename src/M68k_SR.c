@@ -1029,7 +1029,7 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
             }
             else if ((opcode & 0xf0f8) == 0x50c8)
             {
-                int32_t branch_offset = 2 + (int16_t)(insn_stream[1]);
+                int32_t branch_offset = (int16_t)(insn_stream[1]);
                 uint16_t *insn_stream_2 = insn_stream + 2;
 
                 // Mark the flags which conditional jump needs by itself
