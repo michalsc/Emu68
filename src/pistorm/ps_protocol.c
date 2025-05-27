@@ -774,6 +774,38 @@ static inline int ps16_read_access(unsigned int address, unsigned int size)
     return data;
 }
 
+static inline void ps16_write_access(unsigned int address, unsigned int data, unsigned int size)
+{
+    set_output();
+
+    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    if (size == SIZE_LONG)
+        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) {
+        gpio_busy = 1;
+        while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+        gpio_busy = 0;
+    }
+
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    if (address > 0x00200000)
+    {
+        gpio_busy = 1;
+        while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+        gpio_busy = 0;
+
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
+}
+
 unsigned int ps16_read_8_int(unsigned int address)
 {
     unsigned int data = ps16_read_access(address, SIZE_BYTE);
@@ -876,6 +908,149 @@ uint128_t ps16_read_128(unsigned int address)
     return ps16_read_128_int(address);
 }
 
+static inline void check_blit_active(unsigned int addr, unsigned int size) {
+    if (__m68k_state == NULL || !(__m68k_state->JIT_CONTROL2 & JC2F_BLITWAIT))
+        return;
+
+    const uint32_t bstart = 0xDFF040;   // BLTCON0
+    const uint32_t bend = 0xDFF076;     // BLTADAT+2
+    if (addr >= bend || addr + size <= bstart)
+        return;
+
+    const uint16_t mask = 1<<14 | 1<<9 | 1<<6; // BBUSY | DMAEN | BLTEN
+    while ((ps_read_16_int(0xdff002) & mask) == mask) {
+        // Dummy reads to not steal too many cycles from the blitter.
+        // But don't use e.g. CIA reads as we expect the operation
+        // to finish soon.
+        ps_read_8_int(0x00f00000);
+        ps_read_8_int(0x00f00000);
+    }
+}
+
+void ps16_write_8_int(unsigned int address, unsigned int data)
+{
+    uint16_t d = data & 0xff;
+    d |= d << 8;
+    ps16_write_access(address, d, SIZE_BYTE);
+}
+
+void ps16_write_8(unsigned int address, unsigned int data)
+{
+    ps16_write_8_int(address, data);
+
+    if (SLOW_IO(address))
+    {
+        ps16_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 1);
+}
+
+void ps16_write_16_int(unsigned int address, unsigned int data)
+{
+    ps16_write_access(address, data, SIZE_WORD);
+}
+
+void ps16_write_16(unsigned int address, unsigned int data)
+{
+    check_blit_active(address, 2);
+    
+    ps16_write_16_int(address, data);
+
+    if (SLOW_IO(address))
+    {
+        ps16_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 2);
+}
+
+
+void ps16_write_32_int(unsigned int address, unsigned int data)
+{
+    if (address & 1) {
+        ps16_write_access(address, data >> 24, SIZE_BYTE);
+        ps16_write_access(address + 1, data >> 8, SIZE_WORD);
+        ps16_write_access(address + 3, data, SIZE_BYTE);
+    }
+    else {
+        ps16_write_access(address, data, SIZE_LONG);
+        //write_access(address, data >> 16, SIZE_WORD);
+        //write_access(address + 2, data, SIZE_WORD);
+    }
+}
+
+void ps16_write_32(unsigned int address, unsigned int data)
+{
+    check_blit_active(address, 4);
+    
+    ps16_write_32_int(address, data);
+    
+    if (SLOW_IO(address))
+    {
+        ps16_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 4);
+}
+
+
+void ps16_write_64_int(unsigned int address, uint64_t data)
+{
+    if (address & 1) {
+        ps16_write_access(address, data >> 56, SIZE_BYTE);
+        ps16_write_access(address + 1, data >> 24, SIZE_LONG);
+        ps16_write_access(address + 5, data >> 8, SIZE_WORD);
+        ps16_write_access(address + 7, data, SIZE_BYTE);
+    }
+    else {
+        ps16_write_32_int(address, data >> 32);
+        ps16_write_32_int(address + 4, data);
+    }
+}
+
+void ps16_write_64(unsigned int address, uint64_t data)
+{
+    check_blit_active(address, 8);
+
+    ps16_write_64_int(address, data);
+
+    if (SLOW_IO(address))
+    {
+        ps16_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 8);
+}
+
+void ps16_write_128_int(unsigned int address, uint128_t data)
+{
+    if (address & 1) {
+        ps16_write_access(address, data.hi >> 56, SIZE_BYTE);
+        ps16_write_access(address + 1, data.hi >> 40, SIZE_WORD);
+        ps16_write_access(address + 3, data.hi >> 24, SIZE_WORD);
+        ps16_write_access(address + 5, data.hi >> 8, SIZE_WORD);
+        ps16_write_access(address + 7, data.hi << 8 | (data.lo >> 56), SIZE_WORD);
+        ps16_write_access(address + 9, data.lo >> 40, SIZE_WORD);
+        ps16_write_access(address + 11, data.lo >> 24, SIZE_WORD);
+        ps16_write_access(address + 13, data.lo >> 8, SIZE_WORD);
+        ps16_write_access(address + 15, data.lo, SIZE_BYTE);
+    }
+    else {
+        ps16_write_64_int(address, data.hi);
+        ps16_write_64_int(address + 8, data.lo);
+    }
+}
+
+void ps16_write_128(unsigned int address, uint128_t data)
+{
+    check_blit_active(address, 16);
+
+    ps16_write_128_int(address, data);
+
+    if (SLOW_IO(address))
+    {
+        ps16_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 16);
+}
+
 static uint8_t pistorm_model;
 
 unsigned int (*ps_read_8)(unsigned int address);
@@ -929,11 +1104,22 @@ void ps_setup_protocol()
             ps_read_16_int = ps16_read_16_int;
             ps_read_32_int = ps16_read_32_int;
 
+            ps_write_8_int = ps16_write_8_int;
+            ps_write_16_int = ps16_write_16_int;
+            ps_write_32_int = ps16_write_32_int;
+
             ps_read_8 = ps16_read_8;
             ps_read_16 = ps16_read_16;
             ps_read_32 = ps16_read_32;
             ps_read_64 = ps16_read_64;
             ps_read_128 = ps16_read_128;
+
+            ps_write_8 = ps16_write_8;
+            ps_write_16 = ps16_write_16;
+            ps_write_32 = ps16_write_32;
+            ps_write_64 = ps16_write_64;
+            ps_write_128 = ps16_write_128;
+
             break;
     }
 }
@@ -960,7 +1146,7 @@ void ps_pulse_reset()
 {
     if (pistorm_model == PISTORM_MODEL_16) {
         kprintf("[PS] Set DTACK delay\n");
-        ps_set_control(21 << 8);
+        ps_set_control(23 << 8);
     }
 
     kprintf("[PS] Set REQUEST_BM\n");
