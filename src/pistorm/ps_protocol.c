@@ -400,9 +400,7 @@ void ps_efinix_setup(uint8_t pistorm_model)
     }
     
     // reset fpga, latching cbus and mode pins
-    GPIO->GPCLR0 = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
-    usleep(50000); // wait a bit for ps32-lite glitch filter RC to discharge
-    GPIO->GPSET0 = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
+    ps_efinix_reset();
 }
 
 void ps_efinix_write(uint8_t data_out)
@@ -429,6 +427,26 @@ void ps_efinix_write(uint8_t data_out)
     GPIO->GPCLR0 = LE32(1 << PIN_CCK);
 }
 
+void ps_efinix_reset()
+{
+    uint32_t old_GPFSEL0 = LE32(GPIO->GPFSEL0);
+    uint32_t new_GPFSEL0 = old_GPFSEL0 & ~(PF(7, PIN_CRESET1) | PF(7, PIN_CRESET2));
+    
+    // New GPFSEL shall have CRESET1 and CRESET2 as outputs
+    new_GPFSEL0 |= GO(PIN_CRESET1) | GO(PIN_CRESET2);
+    
+    // Set new GPFSEL0 with enabled CRESET pins
+    GPIO->GPFSEL0 = LE32(new_GPFSEL0);
+
+    // reset fpga, latching cbus and mode pins
+    GPIO->GPCLR0 = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
+    usleep(50000); // wait a bit for ps32-lite glitch filter RC to discharge
+    GPIO->GPSET0 = LE32((1 << PIN_CRESET1) | (1 << PIN_CRESET2));
+
+    // Restore old GPFSEL0 value
+    GPIO->GPFSEL0 = LE32(old_GPFSEL0);
+}
+
 void ps_efinix_load(char *buffer, long length)
 {
     long i;
@@ -444,6 +462,9 @@ void ps_efinix_load(char *buffer, long length)
     }
 }
 
+static uint8_t pistorm_model;
+static uint8_t pistorm_model_set = 0;
+
 // Guessing PiStorm model. Activate Pull-Up on GPIO17 and GPIO24. Then read
 // The value of this IO pins. Following values are expected
 //
@@ -453,17 +474,26 @@ void ps_efinix_load(char *buffer, long length)
 
 uint8_t pistorm_get_model()
 {
-    uint8_t model = 0;
+    if (pistorm_model_set)
+        return pistorm_model;
+
     uint32_t io;
+
+    pistorm_model = 0;
 
     set_input();
 
-    /* GPIO24 must be set to input too */
-    GPIO->GPFSEL2 &= ~LE32(PF(7, PIN_A(0)));
+    ps_efinix_reset();
+
+    /* GPIO24 and GPIO17 must be set to input */
+    GPIO->GPFSEL1 &= ~LE32(PF(7, 17));
+    GPIO->GPFSEL2 &= ~LE32(PF(7, 24));
 
     // Set GPIO17 and GPIO24 pull-ups
     GPIO->GPIO_PUP_PDN_CNTRL_REG1 &= ~LE32((3 << 2) | (3 << 16));
     GPIO->GPIO_PUP_PDN_CNTRL_REG1 |= LE32((1 << 2) | (1 << 16));
+
+    usleep(10000);
 
     // Read level on GPIO
     io = GPIO->GPLEV0;
@@ -473,14 +503,16 @@ uint8_t pistorm_get_model()
 
     if (io & LE32(1 << 17))
     {
-        model |= 1;
+        pistorm_model |= 1;
     }
     if (io & LE32(1 << 24))
     {
-        model |= 2;
+        pistorm_model |= 2;
     }
 
-    return model;
+    pistorm_model_set = 1;
+
+    return pistorm_model;
 }
 
 #define BITBANG_DELAY PISTORM_BITBANG_DELAY
@@ -869,8 +901,6 @@ uint128_t ps16_read_128(unsigned int address)
 {
     return ps16_read_128_int(address);
 }
-
-static uint8_t pistorm_model;
 
 unsigned int (*ps_read_8)(unsigned int address);
 unsigned int (*ps_read_16)(unsigned int address);
