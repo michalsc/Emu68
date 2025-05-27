@@ -411,9 +411,9 @@ uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                     loaded_in_dest = 1;
                     ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &tmp_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
                 }
-                else if (size == 2 && (opcode & 0x3f) == 0x3c)
+                else if (size == 2 && (opcode & 0x3f) == 0x3c && (tmp & 0x38) == 0)
                 {
-                    /* Special case - 16-bit immediate load into register */
+                    /* Special case - 16-bit immediate load into Dn register */
                     uint8_t dn = RA_MapM68kRegisterForWrite(&ptr, tmp & 7);
                     *ptr++ = movk_immed_u16(dn, cache_read_16(ICACHE, (uintptr_t)&(**m68k_ptr)), 0);
                     ext_count++;
