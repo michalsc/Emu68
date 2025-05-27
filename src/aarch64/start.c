@@ -1104,6 +1104,12 @@ void boot(void *dtree)
     ps_efinix_load(firmware_file, firmware_size);
 #endif
 
+#ifdef PISTORM_ANY_MODEL
+    ps_setup_protocol();
+    ps_reset_state_machine();
+    ps_pulse_reset();
+#endif
+
     /* Setup debug console on serial port */
     setup_serial();
 
@@ -1678,13 +1684,13 @@ void boot(void *dtree)
     of_property_t * prop = dt_find_property(dt_find_node("/emu68/diag/buptest"), "status");
     if (prop && strcmp(prop->op_value, "okay") == 0)
     {
-        ps_buptest();
+       // ps_buptest();
     }
 
     prop = dt_find_property(dt_find_node("/emu68/diag/membench"), "status");
     if (prop && strcmp(prop->op_value, "okay") == 0)
     {
-        ps_memtest();
+       // ps_memtest();
     }
 
     /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
