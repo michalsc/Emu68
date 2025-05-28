@@ -100,7 +100,7 @@ uint32_t *EMIT_BRA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     int32_t var_EMU68_BRANCH_INLINE_DISTANCE = (__m68k_state->JIT_CONTROL >> JCCB_INLINE_RANGE) & JCCB_INLINE_RANGE_MASK;
 
     /* If branch is done within +- 4KB, try to inline it instead of breaking up the translation unit */
-    if ((uintptr_t)*m68k_ptr >= 0x01000000 && (bra_off >= -var_EMU68_BRANCH_INLINE_DISTANCE && bra_off <= var_EMU68_BRANCH_INLINE_DISTANCE)) {
+    if ((uintptr_t)*m68k_ptr >= 0x00f00000 && (bra_off >= -var_EMU68_BRANCH_INLINE_DISTANCE && bra_off <= var_EMU68_BRANCH_INLINE_DISTANCE)) {
         if (bsr) {
             M68K_PushReturnAddress(*m68k_ptr);
         }
@@ -179,7 +179,7 @@ uint32_t *EMIT_Bcc(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     
     ptr = EMIT_JumpOnCondition(ptr, m68k_condition, 0, &fixup_type);
     tmpptr = ptr - 1;
-    
+
     /* Insert the branch non-taken case here */
     if (!take_branch)
     {
