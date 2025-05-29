@@ -23,6 +23,7 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint16_t u16 = 0;
     uint32_t u32 = 0;
     int immediate = 0;
+    int lsl12 = 0;
     uint8_t tmpreg = RA_AllocARMRegister(&ptr);
 
     /* Simple tests are much faster to perform */
@@ -86,9 +87,13 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
                 *ptr++ = mov_immed_u16(immed, u16, 1);
             break;
         case 4:
-            if (u32 < 4096)
+            if ((u32 & 0xfffff000) == 0)
             {
                 immediate = 1;
+            }
+            else if ((u32 & 0xff000fff) == 0) {
+                immediate = 1;
+                lsl12 = 1;
             }
             else
             {
@@ -130,7 +135,10 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     {
         case 4:
             if (immediate)
-                *ptr++ = cmp_immed(dest, u32);
+                if (lsl12)
+                    *ptr++ = cmp_immed_lsl12(dest, (u32 >> 12) & 0xfff);
+                else
+                    *ptr++ = cmp_immed(dest, u32);
             else
                 *ptr++ = cmp_reg(dest, immed, LSL, 0);
             break;
@@ -177,6 +185,7 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint16_t lo16 = 0;
     uint32_t u32 = 0;
     int immediate = 0;
+    int lsl12 = 0;
 
     // Preload CC if flags need to be updated
     if (update_mask) RA_GetCC(&ptr);
@@ -201,9 +210,13 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0080:    /* Long operation */
             u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
             u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
-            if (u32 < 4096)
+            if ((u32 & 0xfffff000) == 0)
             {
                 immediate = 1;
+            }
+            else if ((u32 & 0xff000fff) == 0) {
+                immediate = 1;
+                lsl12 = 1;
             }
             else {
                 *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
@@ -231,7 +244,10 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             case 4:
                 if (immediate)
-                    *ptr++ = update_mask == 0 ? sub_immed(dest, dest, u32 & 0xffff) : subs_immed(dest, dest, u32 & 0xffff);
+                    if (lsl12)
+                        *ptr++ = update_mask == 0 ? sub_immed_lsl12(dest, dest, (u32 >> 12) & 0xfff) : subs_immed_lsl12(dest, dest, (u32 >> 12) & 0xfff);
+                    else
+                        *ptr++ = update_mask == 0 ? sub_immed(dest, dest, u32 & 0xfff) : subs_immed(dest, dest, u32 & 0xfff);
                 else
                     *ptr++ = update_mask == 0 ? sub_reg(dest, dest, immed, LSL, 0) : subs_reg(dest, dest, immed, LSL, 0);
                 break;
@@ -306,7 +322,10 @@ uint32_t *EMIT_SUBI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
             /* Perform calcualtion */
             if (immediate)
-                *ptr++ = update_mask == 0 ? sub_immed(immed, tmp, u32) : subs_immed(immed, tmp, u32);
+                if (lsl12)
+                    *ptr++ = update_mask == 0 ? sub_immed_lsl12(immed, tmp, u32 >> 12) : subs_immed_lsl12(immed, tmp, u32 >> 12);
+                else
+                    *ptr++ = update_mask == 0 ? sub_immed(immed, tmp, u32) : subs_immed(immed, tmp, u32);
             else
                 *ptr++ = update_mask == 0 ? sub_reg(immed, tmp, immed, LSL, 0) : subs_reg(immed, tmp, immed, LSL, 0);
 
@@ -441,6 +460,7 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
     uint16_t lo16 = 0;
     uint32_t u32 = 0;
     int add_immediate = 0;
+    int lsl12 = 0;
 
     // Preload CC if flags need to be updated
     if (update_mask)
@@ -466,9 +486,13 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         case 0x0080:    /* Long operation */
             u32 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]) << 16;
             u32 |= cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[ext_count++]);
-            if (u32 < 4096)
+            if ((u32 & 0xfffff000) == 0)
             {
                 add_immediate = 1;
+            }
+            else if ((u32 & 0xff000fff) == 0) {
+                add_immediate = 1;
+                lsl12 = 1;
             }
             else
             {
@@ -504,7 +528,10 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
         {
             case 4:
                 if (add_immediate)
-                    *ptr++ = update_mask == 0 ? add_immed(dest, dest, u32) : adds_immed(dest, dest, u32);
+                    if (lsl12)
+                        *ptr++ = update_mask == 0 ? add_immed_lsl12(dest, dest, u32 >> 12) : adds_immed_lsl12(dest, dest, u32 >> 12);
+                    else
+                        *ptr++ = update_mask == 0 ? add_immed(dest, dest, u32) : adds_immed(dest, dest, u32);
                 else
                     *ptr++ = update_mask == 0 ? add_reg(dest, immed, dest, LSL, 0)  : adds_reg(dest, immed, dest, LSL, 0);
                 break;
@@ -574,7 +601,10 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
 
                 /* Perform calcualtion */
                 if (add_immediate)
-                    *ptr++ = update_mask == 0 ? add_immed(immed, tmp, u32) : adds_immed(immed, tmp, u32);
+                    if (lsl12)
+                        *ptr++ = update_mask == 0 ? add_immed_lsl12(immed, tmp, u32 >> 12) : adds_immed_lsl12(immed, tmp, u32 >> 12);
+                    else
+                        *ptr++ = update_mask == 0 ? add_immed(immed, tmp, u32) : adds_immed(immed, tmp, u32);
                 else
                     *ptr++ = update_mask == 0 ? add_reg(immed, immed, tmp, LSL, 0)  : adds_reg(immed, immed, tmp, LSL, 0);
 
