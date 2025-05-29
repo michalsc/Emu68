@@ -121,6 +121,10 @@ static inline void ticksleep_wfe(uint64_t ticks)
 #define PIN_A(x) (24 + x)
 #define SER_OUT_CLK 27 // debug EMU68
 
+// Pins for MDIO
+#define PIN_RGMII_MDIO 28
+#define PIN_RGMII_MDC 29
+
 #define CLEAR_BITS (0x0fffffff & ~((1 << PIN_RD) | (1 << PIN_WR) | (1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)))
 
 // Pins for FPGA programming
@@ -137,11 +141,11 @@ static inline void ticksleep_wfe(uint64_t ticks)
 
 #define GPFSEL0_INPUT (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
 #define GPFSEL1_INPUT (0)
-#define GPFSEL2_INPUT (GO(29) | GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK))
+#define GPFSEL2_INPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK) | PF(AF5, PIN_RGMII_MDC) | PF(AF5, PIN_RGMII_MDIO))
 
 #define GPFSEL0_OUTPUT (GO(PIN_D(1)) | GO(PIN_D(0)) | GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
 #define GPFSEL1_OUTPUT (GO(PIN_D(11)) | GO(PIN_D(10)) | GO(PIN_D(9)) | GO(PIN_D(8)) | GO(PIN_D(7)) | GO(PIN_D(6)) | GO(PIN_D(5)) | GO(PIN_D(4)) | GO(PIN_D(3)) | GO(PIN_D(2)))
-#define GPFSEL2_OUTPUT (GO(29) | GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(SER_OUT_CLK))
+#define GPFSEL2_OUTPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(SER_OUT_CLK) | PF(AF5, PIN_RGMII_MDC) | PF(AF5, PIN_RGMII_MDIO))
 
 #define REG_DATA_LO 0
 #define REG_DATA_HI 1
