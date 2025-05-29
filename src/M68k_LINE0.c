@@ -92,9 +92,15 @@ uint32_t *EMIT_CMPI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
             else
             {
-                *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
-                if (((u32 >> 16) & 0xffff) != 0)
-                    *ptr++ = movt_immed_u16(immed, u32 >> 16);
+                /* Short path to load 0xffffffff */
+                if (u32 == 0xffffffff) {
+                    *ptr++ = mvn_reg(immed, 31, LSL, 0);
+                }
+                else {
+                    *ptr++ = movw_immed_u16(immed, u32 & 0xffff);
+                    if (((u32 >> 16) & 0xffff) != 0)
+                        *ptr++ = movt_immed_u16(immed, u32 >> 16);
+                }
             }
             break;
     }
@@ -466,13 +472,18 @@ uint32_t *EMIT_ADDI(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
             }
             else
             {
-                if (u32 & 0xffff) {
-                    *ptr++ = mov_immed_u16(immed, u32 & 0xffff, 0);
-                    if ((u32 >> 16) & 0xffff) {
-                        *ptr++ = movk_immed_u16(immed, u32 >> 16, 1);
+                if (u32 == 0xffffffff) {
+                    *ptr++ = mvn_reg(immed, 31, LSL, 0);
+                }
+                else {
+                    if (u32 & 0xffff) {
+                        *ptr++ = mov_immed_u16(immed, u32 & 0xffff, 0);
+                        if ((u32 >> 16) & 0xffff) {
+                            *ptr++ = movk_immed_u16(immed, u32 >> 16, 1);
+                        }
+                    } else if (u32 & 0xffff0000) {
+                        *ptr++ = mov_immed_u16(immed, u32 >> 16, 1);
                     }
-                } else if (u32 & 0xffff0000) {
-                    *ptr++ = mov_immed_u16(immed, u32 >> 16, 1);
                 }
             }
             size = 4;
