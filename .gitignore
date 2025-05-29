@@ -12,6 +12,9 @@ build*/
 Build*/
 !build-scripts/
 
+# Install directory
+install/
+
 # Prerequisites
 *.d
 
