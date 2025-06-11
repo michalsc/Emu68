@@ -865,13 +865,25 @@ void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
     {
         uint8_t tmp_reg_2 = RA_AllocARMRegister(ctx);
 
-        EMIT(ctx,
-            bic_immed(cc, cc, 4, 0),
-            orr_immed(tmp_reg, cc, 1, 29),
-            orr_immed(tmp_reg_2, cc, 1, 30),
-            csel(cc, tmp_reg, cc, A64_CC_MI),
-            csel(cc, tmp_reg_2, cc, A64_CC_EQ)
-        );
+        EMIT(ctx, bic_immed(cc, cc, 4, 0));
+
+        if ((*not_done & SR_NZ) == SR_NZ)
+            EMIT(ctx, 
+                orr_immed(tmp_reg, cc, 1, 29),
+                orr_immed(tmp_reg_2, cc, 1, 30),
+                csel(cc, tmp_reg, cc, A64_CC_MI),
+                csel(cc, tmp_reg_2, cc, A64_CC_EQ)
+            );
+        else if ((*not_done & SR_NZ) == SR_Z)
+            EMIT(ctx, 
+                orr_immed(tmp_reg, cc, 1, 30),
+                csel(cc, tmp_reg, cc, A64_CC_EQ)
+            );
+        else if ((*not_done & SR_NZ) == SR_N)
+            EMIT(ctx, 
+                orr_immed(tmp_reg, cc, 1, 29),
+                csel(cc, tmp_reg, cc, A64_CC_MI)
+            );
 
         RA_FreeARMRegister(ctx, tmp_reg_2);
         (*not_done) &= 0x10;
