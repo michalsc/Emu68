@@ -127,14 +127,12 @@ uint32_t EMIT_NOT(struct TranslatorContext *ctx, uint16_t opcode)
             {
                 case 2:
                     EMIT(ctx, 
-                        mvn_reg(tmp, dest, LSL, 0),
-                        bfi(dest, tmp, 0, 16)
+                        eor_immed(dest, dest, 16, 0)
                     );
                     break;
                 case 1:
                     EMIT(ctx, 
-                        mvn_reg(tmp, dest, LSL, 0),
-                        bfi(dest, tmp, 0, 8)
+                        eor_immed(dest, dest, 8, 0)
                     );
                     break;
             }
