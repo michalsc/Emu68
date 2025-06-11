@@ -39,7 +39,12 @@ uint32_t EMIT_moveq(struct TranslatorContext *ctx)
 
     ctx->tc_M68kCodePtr++;
 
-    EMIT(ctx, mov_immed_s8(tmp_reg, value));
+    /* Special case which can be 0-cycle on A76 and above - load zero to register */
+    if (value == 0)
+        EMIT(ctx, mov_reg(tmp_reg, 31));
+    else
+        EMIT(ctx, mov_immed_s8(tmp_reg, value));
+
     EMIT_AdvancePC(ctx, 2);
 
     if (update_mask)
