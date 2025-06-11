@@ -1181,7 +1181,7 @@ static uint32_t EMIT_MOVEtoSR(struct TranslatorContext *ctx, uint16_t opcode)
         b_cc(A64_CC_GT, 3),
         msr_imm(3, 7, 7), // Enable interrupts
         b(2),
-        msr_imm(3, 6, 7), // Mask interrupts
+        msr_imm(3, 6, 7)  // Mask interrupts
     );
 
     *tmpptr = b(ctx->tc_CodePtr - tmpptr);
@@ -2513,7 +2513,7 @@ static uint32_t EMIT_NBCD(struct TranslatorContext *ctx, uint16_t opcode)
         and_immed(tmp, result, 5, 28),
         cmp_immed(tmp, 0xa0),
         b_cc(A64_CC_CC, 2),
-        sub_immed(result, result, 0x60),
+        sub_immed(result, result, 0x60)
     );
 
     if (update_mask & SR_XC) {

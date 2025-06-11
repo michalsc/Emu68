@@ -893,7 +893,7 @@ uint32_t EMIT_ORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         msr_imm(3, 7, 7), 
         b(2),
         // Mask interrupts
-        msr_imm(3, 6, 7), 
+        msr_imm(3, 6, 7)
     );
 
     *tmp = b(ctx->tc_CodePtr - tmp);
@@ -1278,7 +1278,7 @@ uint32_t EMIT_ANDI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         b_cc(A64_CC_GT, 3),
         msr_imm(3, 7, 7), // Enable interrupts
         b(2),
-        msr_imm(3, 6, 7), // Mask interrupts
+        msr_imm(3, 6, 7)  // Mask interrupts
     );
 
     *tmp = b(ctx->tc_CodePtr - tmp);
