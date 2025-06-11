@@ -2322,14 +2322,14 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
         /* use 16-bit offset */
         if ((opcode & 0x0040) == 0x0000)
         {
-            branch_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)*ctx->tc_M68kCodePtr++);
+            branch_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
         }
         /* use 32-bit offset */
         else
         {
             uint16_t lo16, hi16;
-            hi16 = cache_read_16(ICACHE, (uintptr_t)*ctx->tc_M68kCodePtr++);
-            lo16 = cache_read_16(ICACHE, (uintptr_t)*ctx->tc_M68kCodePtr++);
+            hi16 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
             branch_offset = lo16 | (hi16 << 16);
         }
 
@@ -4852,7 +4852,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     else if ((opcode & 0xffe0) == 0xf500 || (opcode & 0xffd8) == 0xf548)
     {
         EMIT(ctx, nop());
-        ctx->tc_M68kCodePtr+=1;
+        ctx->tc_M68kCodePtr += 1;
         EMIT_AdvancePC(ctx, 2);
     }
     /* MOVE16 (Ax)+, (Ay)+ */
@@ -4930,7 +4930,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
         RA_FreeARMRegister(ctx, buf1);
         RA_FreeARMRegister(ctx, buf2);
 
-        ctx->tc_M68kCodePtr+=3;
+        ctx->tc_M68kCodePtr += 3;
         insn_consumed = 1;
         EMIT_AdvancePC(ctx, 6);
     }
