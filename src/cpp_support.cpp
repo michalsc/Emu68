@@ -1,5 +1,7 @@
 extern "C" {
 
+/* Don't include A64.h */
+#define _A64_H
 #include "support.h"
 #include "tlsf.h"
 

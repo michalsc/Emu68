@@ -12,230 +12,233 @@
 #include "RegisterAllocator.h"
 #include "cache.h"
 
-static uint32_t *EMIT_CMPA(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_CMPA_reg")));
-static uint32_t *EMIT_CMPA_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_CMPA_mem")));
-static uint32_t *EMIT_CMPA_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_CMPA_ext")));
-static uint32_t *EMIT_CMPA_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+static uint32_t EMIT_CMPA(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMPA_reg")));
+static uint32_t EMIT_CMPA_reg(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMPA_mem")));
+static uint32_t EMIT_CMPA_mem(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMPA_ext")));
+static uint32_t EMIT_CMPA_ext(struct TranslatorContext *ctx, uint16_t opcode)
  {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
     uint8_t size = ((opcode >> 8) & 1) ? 4 : 2;
     uint8_t src = 0xff;
-    uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+    uint8_t dst = RA_MapM68kRegister(ctx, 8 + ((opcode >> 9) & 7));
     uint8_t ext_words = 0;
 
     if (size == 4)
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+        EMIT_LoadFromEffectiveAddress(ctx, size, &src, opcode & 0x3f, &ext_words, 1, NULL);
     else
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+        EMIT_LoadFromEffectiveAddress(ctx, 0x80 | size, &src, opcode & 0x3f, &ext_words, 0, NULL);
 
-    *ptr++ = cmp_reg(dst, src, LSL, 0);
+    EMIT(ctx, cmp_reg(dst, src, LSL, 0));
 
-    RA_FreeARMRegister(&ptr, src);
+    RA_FreeARMRegister(ctx, src);
 
-    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
-    (*m68k_ptr) += ext_words;
+    EMIT_AdvancePC(ctx, 2 * (ext_words + 1));
+    ctx->tc_M68kCodePtr += ext_words;
 
     if (update_mask)
     {
-        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t cc = RA_ModifyCC(ctx);
         
         if (__builtin_popcount(update_mask) != 0)
         {
-            ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
+            EMIT_GetNZnCV(ctx, cc, &update_mask);
             
             if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                EMIT_SetFlagsConditional(ctx, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Valt, ARM_CC_VS);
             if (update_mask & SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Calt, ARM_CC_CC);
         }
     }
 
-    return ptr;
+    return 1;
 }
 
 
-static uint32_t *EMIT_CMPM(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+static uint32_t EMIT_CMPM(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
     uint8_t src = 0xff;
     uint8_t dst = 0xff;
     uint8_t ext_words = 0;
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = RA_AllocARMRegister(ctx);
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, 0x18 | (opcode & 7), *m68k_ptr, &ext_words, 1, NULL);
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &dst, 0x18 | ((opcode >> 9) & 7), *m68k_ptr, &ext_words, 1, NULL);
+    EMIT_LoadFromEffectiveAddress(ctx, size, &src, 0x18 | (opcode & 7), &ext_words, 1, NULL);
+    EMIT_LoadFromEffectiveAddress(ctx, size, &dst, 0x18 | ((opcode >> 9) & 7), &ext_words, 1, NULL);
 
     switch (size)
     {
         case 4:
-            *ptr++ = subs_reg(tmp, dst, src, LSL, 0);
+            EMIT(ctx, subs_reg(tmp, dst, src, LSL, 0));
             break;
         case 2:
-            *ptr++ = lsl(tmp, dst, 16);
-            *ptr++ = subs_reg(tmp, tmp, src, LSL, 16);
+            EMIT(ctx, 
+                lsl(tmp, dst, 16),
+                subs_reg(tmp, tmp, src, LSL, 16)
+            );
             break;
         case 1:
-            *ptr++ = lsl(tmp, dst, 24);
-            *ptr++ = subs_reg(tmp, tmp, src, LSL, 24);
+            EMIT(ctx, 
+                lsl(tmp, dst, 24),
+                subs_reg(tmp, tmp, src, LSL, 24)
+            );
             break;
     }
 
-    RA_FreeARMRegister(&ptr, tmp);
-    RA_FreeARMRegister(&ptr, src);
-    RA_FreeARMRegister(&ptr, dst);
+    RA_FreeARMRegister(ctx, tmp);
+    RA_FreeARMRegister(ctx, src);
+    RA_FreeARMRegister(ctx, dst);
 
-    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
-    (*m68k_ptr) += ext_words;
+    EMIT_AdvancePC(ctx, 2 * (ext_words + 1));
+    ctx->tc_M68kCodePtr += ext_words;
 
     if (update_mask)
     {
-        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t cc = RA_ModifyCC(ctx);
         
         if (__builtin_popcount(update_mask) != 0)
         {
-            ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
+            EMIT_GetNZnCV(ctx, cc, &update_mask);
             
             if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                EMIT_SetFlagsConditional(ctx, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Valt, ARM_CC_VS);
             if (update_mask & SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Calt, ARM_CC_CC);
         }
     }
 
-    return ptr;
+    return 1;
 }
 
 
-static uint32_t *EMIT_CMP(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_CMP_reg")));
-static uint32_t *EMIT_CMP_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_CMP_mem")));
-static uint32_t *EMIT_CMP_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_CMP_ext")));
-static uint32_t *EMIT_CMP_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+static uint32_t EMIT_CMP(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMP_reg")));
+static uint32_t EMIT_CMP_reg(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMP_mem")));
+static uint32_t EMIT_CMP_mem(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMP_ext")));
+static uint32_t EMIT_CMP_ext(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
     uint8_t src = 0xff;
-    uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+    uint8_t dst = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
     uint8_t ext_words = 0;
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = RA_AllocARMRegister(ctx);
 
-    ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+    EMIT_LoadFromEffectiveAddress(ctx, size, &src, opcode & 0x3f, &ext_words, 1, NULL);
 
     switch(size)
     {
         case 4:
-            *ptr++ = subs_reg(31, dst, src, LSL, 0);
+            EMIT(ctx, subs_reg(31, dst, src, LSL, 0));
             break;
         case 2:
-            *ptr++ = lsl(tmp, dst, 16);
-            *ptr++ = subs_reg(31, tmp, src, LSL, 16);
+            EMIT(ctx, 
+                lsl(tmp, dst, 16),
+                subs_reg(31, tmp, src, LSL, 16)
+            );
             break;
         case 1:
-            *ptr++ = lsl(tmp, dst, 24);
-            *ptr++ = subs_reg(31, tmp, src, LSL, 24);
+            EMIT(ctx, 
+                lsl(tmp, dst, 24),
+                subs_reg(31, tmp, src, LSL, 24)
+            );
             break;
     }
 
-    RA_FreeARMRegister(&ptr, tmp);
-    RA_FreeARMRegister(&ptr, src);
+    RA_FreeARMRegister(ctx, tmp);
+    RA_FreeARMRegister(ctx, src);
 
-    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
-    (*m68k_ptr) += ext_words;
+    EMIT_AdvancePC(ctx, 2 * (ext_words + 1));
+    ctx->tc_M68kCodePtr += ext_words;
 
     if (update_mask)
     {
-        uint8_t cc = RA_ModifyCC(&ptr);
+        uint8_t cc = RA_ModifyCC(ctx);
 
         if (__builtin_popcount(update_mask) != 0)
         {
-            ptr = EMIT_GetNZnCV(ptr, cc, &update_mask);
+            EMIT_GetNZnCV(ctx, cc, &update_mask);
 
             if (update_mask & SR_Z)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
             if (update_mask & SR_N)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+                EMIT_SetFlagsConditional(ctx, cc, SR_N, ARM_CC_MI);
             if (update_mask & SR_V)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Valt, ARM_CC_VS);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Valt, ARM_CC_VS);
             if (update_mask & SR_C)
-                ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Calt, ARM_CC_CC);
+                EMIT_SetFlagsConditional(ctx, cc, SR_Calt, ARM_CC_CC);
         }
     }
 
-    return ptr;
+    return 1;
 }
 
 
-static uint32_t *EMIT_EOR(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_EOR_reg")));
-static uint32_t *EMIT_EOR_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_EOR_mem")));
-static uint32_t *EMIT_EOR_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_EOR_ext")));
-static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+static uint32_t EMIT_EOR(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_EOR_reg")));
+static uint32_t EMIT_EOR_reg(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_EOR_mem")));
+static uint32_t EMIT_EOR_mem(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_EOR_ext")));
+static uint32_t EMIT_EOR_ext(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
     uint8_t ext_words = 0;
     uint8_t test_register;
 
     if ((opcode & 0x38) == 0)
     {
-        uint8_t src = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-        uint8_t dest = RA_MapM68kRegister(&ptr, (opcode) & 7);
+        uint8_t src = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
+        uint8_t dest = RA_MapM68kRegister(ctx, (opcode) & 7);
         uint8_t tmp = 0xff;
 
         test_register = dest;
 
-        RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+        RA_SetDirtyM68kRegister(ctx, opcode & 7);
 
         switch (size)
         {
             case 4:
-                *ptr++ = eor_reg(dest, dest, src, LSL, 0);
+                EMIT(ctx, eor_reg(dest, dest, src, LSL, 0));
                 break;
             case 2:
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_reg(tmp, src, dest, LSL, 0);
-                *ptr++ = bfi(dest, tmp, 0, 16);
-                RA_FreeARMRegister(&ptr, tmp);
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    eor_reg(tmp, src, dest, LSL, 0),
+                    bfi(dest, tmp, 0, 16)
+                );
+                RA_FreeARMRegister(ctx, tmp);
                 break;
             case 1:
-                tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_reg(tmp, src, dest, LSL, 0);
-                *ptr++ = bfi(dest, tmp, 0, 8);
-                RA_FreeARMRegister(&ptr, tmp);
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    eor_reg(tmp, src, dest, LSL, 0),
+                    bfi(dest, tmp, 0, 8)
+                );
+                RA_FreeARMRegister(ctx, tmp);
                 break;
         }
 
-        RA_FreeARMRegister(&ptr, src);
+        RA_FreeARMRegister(ctx, src);
     }
     else
     {
         uint8_t dest = 0xff;
-        uint8_t src = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t src = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
         test_register = tmp;
 
         if (mode == 4 || mode == 3)
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 0, &dest, opcode & 0x3f, &ext_words, 0, NULL);
         else
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 0, &dest, opcode & 0x3f, &ext_words, 1, NULL);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
@@ -243,161 +246,161 @@ static uint32_t *EMIT_EOR_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
         case 4:
             if (mode == 4)
             {
-                *ptr++ = ldr_offset_preindex(dest, tmp, -4);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, ldr_offset_preindex(dest, tmp, -4));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldr_offset(dest, tmp, 0);
+                EMIT(ctx, ldr_offset(dest, tmp, 0));
 
             /* Perform calcualtion */
-            *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
+            EMIT(ctx, eor_reg(tmp, tmp, src, LSL, 0));
 
             /* Store back */
             if (mode == 3)
             {
-                *ptr++ = str_offset_postindex(dest, tmp, 4);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, str_offset_postindex(dest, tmp, 4));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                *ptr++ = str_offset(dest, tmp, 0);
+                EMIT(ctx, str_offset(dest, tmp, 0));
             break;
         
         case 2:
             if (mode == 4)
             {
-                *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, ldrh_offset_preindex(dest, tmp, -2));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldrh_offset(dest, tmp, 0);
+                EMIT(ctx, ldrh_offset(dest, tmp, 0));
             
             /* Perform calcualtion */
-            *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
+            EMIT(ctx, eor_reg(tmp, tmp, src, LSL, 0));
 
             /* Store back */
             if (mode == 3)
             {
-                *ptr++ = strh_offset_postindex(dest, tmp, 2);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, strh_offset_postindex(dest, tmp, 2));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                *ptr++ = strh_offset(dest, tmp, 0);
+                EMIT(ctx, strh_offset(dest, tmp, 0));
             break;
         case 1:
             if (mode == 4)
             {
-                *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                *ptr++ = ldrb_offset(dest, tmp, 0);
+                EMIT(ctx, ldrb_offset(dest, tmp, 0));
 
             /* Perform calcualtion */
-            *ptr++ = eor_reg(tmp, tmp, src, LSL, 0);
+            EMIT(ctx, eor_reg(tmp, tmp, src, LSL, 0));
 
             /* Store back */
             if (mode == 3)
             {
-                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                *ptr++ = strb_offset(dest, tmp, 0);
+                EMIT(ctx, strb_offset(dest, tmp, 0));
             break;
         }
 
-        RA_FreeARMRegister(&ptr, dest);
+        RA_FreeARMRegister(ctx, dest);
     }
 
-    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
-    (*m68k_ptr) += ext_words;
+    EMIT_AdvancePC(ctx, 2 * (ext_words + 1));
+    ctx->tc_M68kCodePtr += ext_words;
 
     if (update_mask)
     {
         switch(size)
         {
             case 4:
-                *ptr++ = cmn_reg(31, test_register, LSL, 0);
+                EMIT(ctx, cmn_reg(31, test_register, LSL, 0));
                 break;
             case 2:
-                *ptr++ = cmn_reg(31, test_register, LSL, 16);
+                EMIT(ctx, cmn_reg(31, test_register, LSL, 16));
                 break;
             case 1:
-                *ptr++ = cmn_reg(31, test_register, LSL, 24);
+                EMIT(ctx, cmn_reg(31, test_register, LSL, 24));
                 break;
         }
         
-        uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+        uint8_t cc = RA_ModifyCC(ctx);
+        EMIT_GetNZ00(ctx, cc, &update_mask);
 
         if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            EMIT_SetFlagsConditional(ctx, cc, SR_N, ARM_CC_MI);
     }
-    RA_FreeARMRegister(&ptr, test_register);
+    RA_FreeARMRegister(ctx, test_register);
 
-    return ptr;
+    return 1;
 }
 
 static struct OpcodeDef InsnTable[512] = {
-    [0000 ... 0007] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC, 1, 0, 1 }, //D0 destination, Byte
-    [0020 ... 0047] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC, 1, 0, 1 }, //(An)
-    [0050 ... 0074] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC, 1, 1, 1 }, //memory indirect
-    [0100 ... 0117] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //register, Word
-    [0120 ... 0147] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, //(An)
-    [0150 ... 0174] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC, 1, 1, 2 }, //memory indirect
-    [0200 ... 0217] = { { EMIT_CMP_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //register Long
-    [0220 ... 0247] = { { EMIT_CMP_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, //(An)
-    [0250 ... 0274] = { { EMIT_CMP_ext }, NULL, 0, SR_NZVC, 1, 1, 4 }, //memory indirect
+    [0000 ... 0007] = { EMIT_CMP_reg, NULL, 0, SR_NZVC, 1, 0, 1 }, //D0 destination, Byte
+    [0020 ... 0047] = { EMIT_CMP_mem, NULL, 0, SR_NZVC, 1, 0, 1 }, //(An)
+    [0050 ... 0074] = { EMIT_CMP_ext, NULL, 0, SR_NZVC, 1, 1, 1 }, //memory indirect
+    [0100 ... 0117] = { EMIT_CMP_reg, NULL, 0, SR_NZVC, 1, 0, 2 }, //register, Word
+    [0120 ... 0147] = { EMIT_CMP_mem, NULL, 0, SR_NZVC, 1, 0, 2 }, //(An)
+    [0150 ... 0174] = { EMIT_CMP_ext, NULL, 0, SR_NZVC, 1, 1, 2 }, //memory indirect
+    [0200 ... 0217] = { EMIT_CMP_reg, NULL, 0, SR_NZVC, 1, 0, 4 }, //register Long
+    [0220 ... 0247] = { EMIT_CMP_mem, NULL, 0, SR_NZVC, 1, 0, 4 }, //(An)
+    [0250 ... 0274] = { EMIT_CMP_ext, NULL, 0, SR_NZVC, 1, 1, 4 }, //memory indirect
 
-    [0300 ... 0317] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //A0, Word
-    [0320 ... 0347] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, //(An)
-    [0350 ... 0374] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC, 1, 1, 2 }, //memory indirect
+    [0300 ... 0317] = { EMIT_CMPA_reg, NULL, 0, SR_NZVC, 1, 0, 2 }, //A0, Word
+    [0320 ... 0347] = { EMIT_CMPA_mem, NULL, 0, SR_NZVC, 1, 0, 2 }, //(An)
+    [0350 ... 0374] = { EMIT_CMPA_ext, NULL, 0, SR_NZVC, 1, 1, 2 }, //memory indirect
  
-    [0400 ... 0407] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC, 1, 0, 1 }, //D0, Byte
-    [0410 ... 0417] = { { EMIT_CMPM }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0420 ... 0447] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0450 ... 0471] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [0500 ... 0507] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //D0, Word
-    [0510 ... 0517] = { { EMIT_CMPM }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0520 ... 0547] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0550 ... 0571] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [0600 ... 0607] = { { EMIT_EOR_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //D0, Long
-    [0610 ... 0617] = { { EMIT_CMPM }, NULL, 0, SR_NZVC, 1, 0, 4 },
-    [0620 ... 0647] = { { EMIT_EOR_mem }, NULL, 0, SR_NZVC, 1, 0, 4 },
-    [0650 ... 0671] = { { EMIT_EOR_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [0400 ... 0407] = { EMIT_EOR_reg, NULL, 0, SR_NZVC, 1, 0, 1 }, //D0, Byte
+    [0410 ... 0417] = { EMIT_CMPM, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0420 ... 0447] = { EMIT_EOR_mem, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0450 ... 0471] = { EMIT_EOR_ext, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0500 ... 0507] = { EMIT_EOR_reg, NULL, 0, SR_NZVC, 1, 0, 2 }, //D0, Word
+    [0510 ... 0517] = { EMIT_CMPM, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0520 ... 0547] = { EMIT_EOR_mem, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0550 ... 0571] = { EMIT_EOR_ext, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0600 ... 0607] = { EMIT_EOR_reg, NULL, 0, SR_NZVC, 1, 0, 4 }, //D0, Long
+    [0610 ... 0617] = { EMIT_CMPM, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0620 ... 0647] = { EMIT_EOR_mem, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0650 ... 0671] = { EMIT_EOR_ext, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0700 ... 0717] = { { EMIT_CMPA_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //A0, Long
-    [0720 ... 0747] = { { EMIT_CMPA_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, //(An)
-    [0750 ... 0774] = { { EMIT_CMPA_ext }, NULL, 0, SR_NZVC, 1, 1, 4 }, //memory indirect
+    [0700 ... 0717] = { EMIT_CMPA_reg, NULL, 0, SR_NZVC, 1, 0, 4 }, //A0, Long
+    [0720 ... 0747] = { EMIT_CMPA_mem, NULL, 0, SR_NZVC, 1, 0, 4 }, //(An)
+    [0750 ... 0774] = { EMIT_CMPA_ext, NULL, 0, SR_NZVC, 1, 1, 4 }, //memory indirect
 };
 
-uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+uint32_t EMIT_lineB(struct TranslatorContext *ctx)
 {
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
-    (*m68k_ptr)++;
-    *insn_consumed = 1;
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
 
     /* 1011xxxx11xxxxxx - CMPA */
     if (InsnTable[opcode & 00777].od_Emit)
     {
-        ptr = InsnTable[opcode & 00777].od_Emit(ptr, opcode, m68k_ptr);
+        return InsnTable[opcode & 00777].od_Emit(ctx, opcode);
     }
     else
     {
-        ptr = EMIT_FlushPC(ptr);
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        *ptr++ = svc(0x100);
-        *ptr++ = svc(0x101);
-        *ptr++ = svc(0x103);
-        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
-        *ptr++ = 48;
-        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+        EMIT_FlushPC(ctx);
+        EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
+        EMIT(ctx, 
+            svc(0x100),
+            svc(0x101),
+            svc(0x103),
+            (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
+            48
+        );
+        EMIT_Exception(ctx, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        EMIT(ctx, INSN_TO_LE(0xffffffff));
     }
 
-    return ptr;
+    return 1;
 }
 
 uint32_t GetSR_LineB(uint16_t opcode)

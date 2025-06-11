@@ -28,10 +28,10 @@ static inline void prefetch(void *from, void *to)
 {
     uint64_t t1, t2;
 
-    asm volatile("ldp %0, %1, [%2, #0]; stp %0, %1, [%3, #0]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
-    asm volatile("ldp %0, %1, [%2, #16]; stp %0, %1, [%3, #16]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
-    asm volatile("ldp %0, %1, [%2, #32]; stp %0, %1, [%3, #32]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
-    asm volatile("ldp %0, %1, [%2, #48]; stp %0, %1, [%3, #48]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
+    __asm__ volatile("ldp %0, %1, [%2, #0]; stp %0, %1, [%3, #0]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
+    __asm__ volatile("ldp %0, %1, [%2, #16]; stp %0, %1, [%3, #16]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
+    __asm__ volatile("ldp %0, %1, [%2, #32]; stp %0, %1, [%3, #32]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
+    __asm__ volatile("ldp %0, %1, [%2, #48]; stp %0, %1, [%3, #48]":"=r"(t1), "=r"(t2):"r"(from), "r"(to));
 }
 
 struct MD5 CalcMD5(void *_start, void *_end)
@@ -120,15 +120,15 @@ uint32_t CalcCRC32(void *_start, void *_end)
         uint64_t val1; uint64_t val2;
         if (s > 0x01000000)
         {
-            asm volatile("ldp %0, %1, [%2]":"=r"(val1), "=r"(val2):"r"(s));
+            __asm__ volatile("ldp %0, %1, [%2]":"=r"(val1), "=r"(val2):"r"(s));
         }
         else
         {
             val1 = cache_read_64(ICACHE, s);
             val2 = cache_read_64(ICACHE, s + 8);
         }
-        asm volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val1));
-        asm volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val2));
+        __asm__ volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val1));
+        __asm__ volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val2));
         s += 16;
     }
     if ((e - s) >= 8) {
@@ -137,7 +137,7 @@ uint32_t CalcCRC32(void *_start, void *_end)
             val = *(uint64_t *)s;
         else
             val = cache_read_64(ICACHE, s);
-        asm volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val));
+        __asm__ volatile("crc32x %w0, %w0, %2":"=r"(crc):"0"(crc),"r"(val));
         s += 8;
     }
     if ((e - s) >= 4) {
@@ -146,7 +146,7 @@ uint32_t CalcCRC32(void *_start, void *_end)
             val = *(uint32_t *)s;
         else
             val = cache_read_32(ICACHE, s);
-        asm volatile("crc32w %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
+        __asm__ volatile("crc32w %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
         s += 4;
     }
     if ((e - s) >= 2) {
@@ -155,7 +155,7 @@ uint32_t CalcCRC32(void *_start, void *_end)
             val = *(uint16_t *)s;
         else
             val = cache_read_16(ICACHE, s);
-        asm volatile("crc32h %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
+        __asm__ volatile("crc32h %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
         s += 2;
     }
     if (e != s) {
@@ -164,7 +164,7 @@ uint32_t CalcCRC32(void *_start, void *_end)
             val = *(uint16_t *)s;
         else
             val = cache_read_8(ICACHE, s);
-        asm volatile("crc32b %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
+        __asm__ volatile("crc32b %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
     }
 
     return crc;

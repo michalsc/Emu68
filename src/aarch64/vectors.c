@@ -101,7 +101,7 @@ struct INT_shadow {
 } INT_shadow;
 
 void  __attribute__((used)) __stub_vectors()
-{ asm volatile(
+{ __asm__ volatile(
 "       .section .vectors               \n"
 "       .balign 0x800                   \n"
 "curr_el_sp0_sync:                      \n" // The exception handler for a synchronous 
@@ -351,7 +351,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
         if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
             struct M68KState *ctx;
-            asm volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
+            __asm__ volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
             ctx->INT.ARM = 0x01;
         }
     }
@@ -365,7 +365,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
         if ((value & 0xa000) == 0x2000) {
             struct M68KState *ctx;
-            asm volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
+            __asm__ volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
             ctx->INT.ARM = 0;
             INT_shadow.ARMPending = 0;
         }
@@ -756,7 +756,7 @@ int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr,
     {
         unit->mt_ARMEntryPoint = (void*)corrected_far;
         elr = corrected_far;
-        asm volatile("msr ELR_EL1, %0"::"r"(elr));
+        __asm__ volatile("msr ELR_EL1, %0"::"r"(elr));
         return 1;
     }
     else
@@ -766,10 +766,10 @@ int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr,
         if (unit)
         {
             // Put simple return function to elr
-            asm volatile("msr ELR_EL1, %0"::"r"(unit->mt_ARMEntryPoint));
+            __asm__ volatile("msr ELR_EL1, %0"::"r"(unit->mt_ARMEntryPoint));
 
             // Avoid short loop path by invalidating the "last m68k PC" counter. That should trigger full search and translation
-            asm volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
+            __asm__ volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
             return 1;
         }
     }
@@ -782,67 +782,67 @@ uint32_t get_fpn_as_single(int fpn) {
 
     switch (fpn) {
         case 0:
-            asm volatile("mov %w0, v0.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v0.s[0]":"=r"(ret));
             break;
 
         case 1:
-            asm volatile("mov %w0, v1.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v1.s[0]":"=r"(ret));
             break;
 
         case 2:
-            asm volatile("mov %w0, v2.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v2.s[0]":"=r"(ret));
             break;
 
         case 3:
-            asm volatile("mov %w0, v3.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v3.s[0]":"=r"(ret));
             break;
 
         case 4:
-            asm volatile("mov %w0, v4.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v4.s[0]":"=r"(ret));
             break;
 
         case 5:
-            asm volatile("mov %w0, v5.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v5.s[0]":"=r"(ret));
             break;
 
         case 6:
-            asm volatile("mov %w0, v6.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v6.s[0]":"=r"(ret));
             break;
 
         case 7:
-            asm volatile("mov %w0, v7.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v7.s[0]":"=r"(ret));
             break;
 
         case 8:
-            asm volatile("mov %w0, v8.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v8.s[0]":"=r"(ret));
             break;
 
         case 9:
-            asm volatile("mov %w0, v9.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v9.s[0]":"=r"(ret));
             break;
 
         case 10:
-            asm volatile("mov %w0, v10.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v10.s[0]":"=r"(ret));
             break;
 
         case 11:
-            asm volatile("mov %w0, v11.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v11.s[0]":"=r"(ret));
             break;
 
         case 12:
-            asm volatile("mov %w0, v12.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v12.s[0]":"=r"(ret));
             break;
 
         case 13:
-            asm volatile("mov %w0, v13.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v13.s[0]":"=r"(ret));
             break;
 
         case 14:
-            asm volatile("mov %w0, v14.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v14.s[0]":"=r"(ret));
             break;
 
         case 15:
-            asm volatile("mov %w0, v15.s[0]":"=r"(ret));
+            __asm__ volatile("mov %w0, v15.s[0]":"=r"(ret));
             break;
 
         default:
@@ -857,67 +857,67 @@ uint64_t get_fpn_as_double(int fpn) {
 
     switch (fpn) {
         case 0:
-            asm volatile("mov %0, v0.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v0.d[0]":"=r"(ret));
             break;
 
         case 1:
-            asm volatile("mov %0, v1.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v1.d[0]":"=r"(ret));
             break;
 
         case 2:
-            asm volatile("mov %0, v2.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v2.d[0]":"=r"(ret));
             break;
 
         case 3:
-            asm volatile("mov %0, v3.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v3.d[0]":"=r"(ret));
             break;
 
         case 4:
-            asm volatile("mov %0, v4.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v4.d[0]":"=r"(ret));
             break;
 
         case 5:
-            asm volatile("mov %0, v5.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v5.d[0]":"=r"(ret));
             break;
 
         case 6:
-            asm volatile("mov %0, v6.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v6.d[0]":"=r"(ret));
             break;
 
         case 7:
-            asm volatile("mov %0, v7.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v7.d[0]":"=r"(ret));
             break;
 
         case 8:
-            asm volatile("mov %0, v8.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v8.d[0]":"=r"(ret));
             break;
 
         case 9:
-            asm volatile("mov %0, v9.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v9.d[0]":"=r"(ret));
             break;
 
         case 10:
-            asm volatile("mov %0, v10.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v10.d[0]":"=r"(ret));
             break;
 
         case 11:
-            asm volatile("mov %0, v11.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v11.d[0]":"=r"(ret));
             break;
 
         case 12:
-            asm volatile("mov %0, v12.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v12.d[0]":"=r"(ret));
             break;
 
         case 13:
-            asm volatile("mov %0, v13.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v13.d[0]":"=r"(ret));
             break;
 
         case 14:
-            asm volatile("mov %0, v14.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v14.d[0]":"=r"(ret));
             break;
 
         case 15:
-            asm volatile("mov %0, v15.d[0]":"=r"(ret));
+            __asm__ volatile("mov %0, v15.d[0]":"=r"(ret));
             break;
 
         default:
@@ -931,67 +931,67 @@ void set_fpn_as_single(int fpn, uint32_t value) {
 
     switch (fpn) {
         case 0:
-            asm volatile("mov v0.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v0.s[0], %w0"::"r"(value));
             break;
 
         case 1:
-            asm volatile("mov v1.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v1.s[0], %w0"::"r"(value));
             break;
 
         case 2:
-            asm volatile("mov v2.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v2.s[0], %w0"::"r"(value));
             break;
 
         case 3:
-            asm volatile("mov v3.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v3.s[0], %w0"::"r"(value));
             break;
 
         case 4:
-            asm volatile("mov v4.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v4.s[0], %w0"::"r"(value));
             break;
 
         case 5:
-            asm volatile("mov v5.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v5.s[0], %w0"::"r"(value));
             break;
 
         case 6:
-            asm volatile("mov v6.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v6.s[0], %w0"::"r"(value));
             break;
 
         case 7:
-            asm volatile("mov v7.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v7.s[0], %w0"::"r"(value));
             break;
 
         case 8:
-            asm volatile("mov v8.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v8.s[0], %w0"::"r"(value));
             break;
 
         case 9:
-            asm volatile("mov v9.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v9.s[0], %w0"::"r"(value));
             break;
 
         case 10:
-            asm volatile("mov v10.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v10.s[0], %w0"::"r"(value));
             break;
 
         case 11:
-            asm volatile("mov v11.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v11.s[0], %w0"::"r"(value));
             break;
 
         case 12:
-            asm volatile("mov v12.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v12.s[0], %w0"::"r"(value));
             break;
 
         case 13:
-            asm volatile("mov v13.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v13.s[0], %w0"::"r"(value));
             break;
 
         case 14:
-            asm volatile("mov v14.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v14.s[0], %w0"::"r"(value));
             break;
 
         case 15:
-            asm volatile("mov v15.s[0], %w0"::"r"(value));
+            __asm__ volatile("mov v15.s[0], %w0"::"r"(value));
             break;
 
         default:
@@ -1003,67 +1003,67 @@ void set_fpn_as_double(int fpn, uint64_t value) {
 
     switch (fpn) {
         case 0:
-            asm volatile("mov v0.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v0.d[0], %0"::"r"(value));
             break;
 
         case 1:
-            asm volatile("mov v1.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v1.d[0], %0"::"r"(value));
             break;
 
         case 2:
-            asm volatile("mov v2.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v2.d[0], %0"::"r"(value));
             break;
 
         case 3:
-            asm volatile("mov v3.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v3.d[0], %0"::"r"(value));
             break;
 
         case 4:
-            asm volatile("mov v4.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v4.d[0], %0"::"r"(value));
             break;
 
         case 5:
-            asm volatile("mov v5.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v5.d[0], %0"::"r"(value));
             break;
 
         case 6:
-            asm volatile("mov v6.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v6.d[0], %0"::"r"(value));
             break;
 
         case 7:
-            asm volatile("mov v7.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v7.d[0], %0"::"r"(value));
             break;
 
         case 8:
-            asm volatile("mov v8.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v8.d[0], %0"::"r"(value));
             break;
 
         case 9:
-            asm volatile("mov v9.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v9.d[0], %0"::"r"(value));
             break;
 
         case 10:
-            asm volatile("mov v10.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v10.d[0], %0"::"r"(value));
             break;
 
         case 11:
-            asm volatile("mov v11.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v11.d[0], %0"::"r"(value));
             break;
 
         case 12:
-            asm volatile("mov v12.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v12.d[0], %0"::"r"(value));
             break;
 
         case 13:
-            asm volatile("mov v13.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v13.d[0], %0"::"r"(value));
             break;
 
         case 14:
-            asm volatile("mov v14.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v14.d[0], %0"::"r"(value));
             break;
 
         case 15:
-            asm volatile("mov v15.d[0], %0"::"r"(value));
+            __asm__ volatile("mov v15.d[0], %0"::"r"(value));
             break;
 
         default:
@@ -1080,37 +1080,37 @@ static inline void SYSPutValueToReg(uint64_t value, uint8_t regNr, uint64_t *ctx
     switch(regNr)
     {
         case 19:
-            asm volatile("mov x19, %0"::"r"(value));
+            __asm__ volatile("mov x19, %0"::"r"(value));
             break;
         case 20:
-            asm volatile("mov x20, %0"::"r"(value));
+            __asm__ volatile("mov x20, %0"::"r"(value));
             break;
         case 21:
-            asm volatile("mov x21, %0"::"r"(value));
+            __asm__ volatile("mov x21, %0"::"r"(value));
             break;
         case 22:
-            asm volatile("mov x22, %0"::"r"(value));
+            __asm__ volatile("mov x22, %0"::"r"(value));
             break;
         case 23:
-            asm volatile("mov x23, %0"::"r"(value));
+            __asm__ volatile("mov x23, %0"::"r"(value));
             break;
         case 24:
-            asm volatile("mov x24, %0"::"r"(value));
+            __asm__ volatile("mov x24, %0"::"r"(value));
             break;
         case 25:
-            asm volatile("mov x25, %0"::"r"(value));
+            __asm__ volatile("mov x25, %0"::"r"(value));
             break;
         case 26:
-            asm volatile("mov x26, %0"::"r"(value));
+            __asm__ volatile("mov x26, %0"::"r"(value));
             break;
         case 27:
-            asm volatile("mov x27, %0"::"r"(value));
+            __asm__ volatile("mov x27, %0"::"r"(value));
             break;
         case 28:
-            asm volatile("mov x28, %0"::"r"(value));
+            __asm__ volatile("mov x28, %0"::"r"(value));
             break;
         case 29:
-            asm volatile("mov x29, %0"::"r"(value));
+            __asm__ volatile("mov x29, %0"::"r"(value));
             break;
         default:
             ctx[REGMAP[regNr]] = value;
@@ -1128,37 +1128,37 @@ static inline uint64_t SYSGetValueFromReg(uint8_t regNr, uint64_t *ctx)
     switch(regNr)
     {
         case 19:
-            asm volatile("mov %0, x19":"=r"(value));
+            __asm__ volatile("mov %0, x19":"=r"(value));
             break;
         case 20:
-            asm volatile("mov %0, x20":"=r"(value));
+            __asm__ volatile("mov %0, x20":"=r"(value));
             break;
         case 21:
-            asm volatile("mov %0, x21":"=r"(value));
+            __asm__ volatile("mov %0, x21":"=r"(value));
             break;
         case 22:
-            asm volatile("mov %0, x22":"=r"(value));
+            __asm__ volatile("mov %0, x22":"=r"(value));
             break;
         case 23:
-            asm volatile("mov %0, x23":"=r"(value));
+            __asm__ volatile("mov %0, x23":"=r"(value));
             break;
         case 24:
-            asm volatile("mov %0, x24":"=r"(value));
+            __asm__ volatile("mov %0, x24":"=r"(value));
             break;
         case 25:
-            asm volatile("mov %0, x25":"=r"(value));
+            __asm__ volatile("mov %0, x25":"=r"(value));
             break;
         case 26:
-            asm volatile("mov %0, x26":"=r"(value));
+            __asm__ volatile("mov %0, x26":"=r"(value));
             break;
         case 27:
-            asm volatile("mov %0, x27":"=r"(value));
+            __asm__ volatile("mov %0, x27":"=r"(value));
             break;
         case 28:
-            asm volatile("mov %0, x28":"=r"(value));
+            __asm__ volatile("mov %0, x28":"=r"(value));
             break;
         case 29:
-            asm volatile("mov %0, x29":"=r"(value));
+            __asm__ volatile("mov %0, x29":"=r"(value));
             break;
         default:
             value = ctx[REGMAP[regNr]];
@@ -1548,7 +1548,7 @@ int SYSPageFaultWriteHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint6
     }
 
     elr += 4;
-    asm volatile("msr ELR_EL1, %0"::"r"(elr));
+    __asm__ volatile("msr ELR_EL1, %0"::"r"(elr));
 
     return handled;
 }
@@ -2164,7 +2164,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
     }
 
     elr += 4;
-    asm volatile("msr ELR_EL1, %0"::"r"(elr));
+    __asm__ volatile("msr ELR_EL1, %0"::"r"(elr));
 
     return handled;
 }
@@ -2176,9 +2176,9 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     int handled = 0;
     uint64_t elr, spsr, esr, far;
-    asm volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
-    asm volatile("mrs %0, ESR_EL1":"=r"(esr));
-    asm volatile("mrs %0, FAR_EL1":"=r"(far));
+    __asm__ volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
+    __asm__ volatile("mrs %0, ESR_EL1":"=r"(esr));
+    __asm__ volatile("mrs %0, FAR_EL1":"=r"(far));
 
     if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x90000000)
     {
@@ -2210,7 +2210,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             }
             uint64_t spsr;
 
-            asm volatile("mrs %0, SPSR_EL1":"=r"(spsr));
+            __asm__ volatile("mrs %0, SPSR_EL1":"=r"(spsr));
             kprintf("[JIT:SYS]   SPSR=%08x\n", spsr);
         }
 
@@ -2218,7 +2218,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
         {
             uint64_t sr;
 
-            asm volatile("mrs %0, tpidr_el0":"=r"(sr));
+            __asm__ volatile("mrs %0, tpidr_el0":"=r"(sr));
 
             kprintf("[JIT:SYS] M68k RegDump:\n[JIT] ");
             int reg_dn[] = {REG_D0, REG_D1, REG_D2, REG_D3, REG_D4, REG_D5, REG_D6, REG_D7};
@@ -2299,7 +2299,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             kprintf("\n");
 
             elr += 8;
-            asm volatile("msr ELR_EL1, %0"::"r"(elr));
+            __asm__ volatile("msr ELR_EL1, %0"::"r"(elr));
         }
 
         if ((esr & 0xffff) == 0x103)
@@ -2319,7 +2319,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             kprintf("\n");
 
             elr += 8;
-            asm volatile("msr ELR_EL1, %0"::"r"(elr));
+            __asm__ volatile("msr ELR_EL1, %0"::"r"(elr));
         }
     }
 
@@ -2334,6 +2334,6 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
                                                         2*i+1, SYSGetValueFromReg(2*i+1, ctx));
         }
         
-        while(1) { asm volatile("wfe"); };
+        while(1) { __asm__ volatile("wfe"); };
     }
 }

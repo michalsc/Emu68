@@ -522,7 +522,7 @@ void arm_flush_cache(uintptr_t addr, uint32_t length)
     int line_size = 0;
     uintptr_t top_addr = addr + length;
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(line_size));
 
     line_size = (line_size >> 16) & 15;
     line_size = 4 << line_size;
@@ -542,7 +542,7 @@ void arm_icache_invalidate(uintptr_t addr, uint32_t length)
     int line_size = 0;
     uintptr_t top_addr = addr + length;
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(line_size));
 
     line_size = line_size & 15;
     line_size = 4 << line_size;
@@ -563,7 +563,7 @@ void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
     int line_size = 0;
     uintptr_t top_addr = addr + length;
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(line_size));
 
     line_size = (line_size >> 16) & 15;
     line_size = 4 << line_size;
@@ -971,5 +971,5 @@ void __attribute__((noreturn)) __assert_fail()
 {
     kprintf("[ERR] Assertion failed!\n");
     while (1)
-        asm volatile("wfi");
+        __asm__ volatile("wfi");
 }

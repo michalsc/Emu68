@@ -77,6 +77,12 @@ struct DoubleExitBlock
 #define MARKER_DOUBLE_EXIT  0xffffaa56
 #define MARKER_STOP         0xffffffff
 
+struct TranslatorContext {
+    uint32_t *      tc_CodeStart;
+    uint32_t *      tc_CodePtr;
+    uint16_t *      tc_M68kCodeStart;
+    uint16_t *      tc_M68kCodePtr;
+};
 
 struct M68KState
 {
@@ -414,33 +420,34 @@ struct M68KState
 #define VECTOR_OVERFLOW             0xD4
 #define VECTOR_SIGNALING_NAN        0xD8
 
-uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
-uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
-uint32_t *EMIT_FlushPC(uint32_t *ptr);
-uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr);
-uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset);
-uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, int sign_extend);
-uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...);
-uint32_t *EMIT_LocalExit(uint32_t *ptr, uint32_t insn_count_fixup);
-uint32_t *EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance, uint32_t *type);
+void EMIT_GetOffsetPC(struct TranslatorContext *ctx, int8_t *offset);
+void EMIT_AdvancePC(struct TranslatorContext *ctx, uint8_t offset);
+void EMIT_FlushPC(struct TranslatorContext *ctx);
+void EMIT_ResetOffsetPC(struct TranslatorContext *ctx);
+void EMIT_LoadFromEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset);
+void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint8_t *ext_words, int sign_extend);
+void EMIT_Exception(struct TranslatorContext *ctx, uint16_t exception, uint8_t format, ...);
+void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_count_fixup);
+void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition, uint32_t distance, uint32_t *type);
 
-uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line7(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line1(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line2(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line3(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+uint32_t EMIT_line0(struct TranslatorContext *ctx);
+uint32_t EMIT_line4(struct TranslatorContext *ctx);
+uint32_t EMIT_line5(struct TranslatorContext *ctx);
+uint32_t EMIT_line6(struct TranslatorContext *ctx);
+uint32_t EMIT_moveq(struct TranslatorContext *ctx);
+uint32_t EMIT_line8(struct TranslatorContext *ctx);
+uint32_t EMIT_line9(struct TranslatorContext *ctx);
+uint32_t EMIT_lineB(struct TranslatorContext *ctx);
+uint32_t EMIT_lineC(struct TranslatorContext *ctx);
+uint32_t EMIT_lineD(struct TranslatorContext *ctx);
+uint32_t EMIT_lineE(struct TranslatorContext *ctx);
+uint32_t EMIT_lineF(struct TranslatorContext *ctx);
+uint32_t EMIT_move (struct TranslatorContext *ctx);
+uint32_t EMIT_line7(struct TranslatorContext *ctx);
+uint32_t EMIT_line1(struct TranslatorContext *ctx);
+uint32_t EMIT_line2(struct TranslatorContext *ctx);
+uint32_t EMIT_line3(struct TranslatorContext *ctx);
+uint32_t EMIT_MUL_DIV(struct TranslatorContext *ctx, uint16_t opcode);
 
 uint32_t GetSR_Line0(uint16_t opcode);
 uint32_t GetSR_Line1(uint16_t opcode);
@@ -474,14 +481,10 @@ int M68K_GetLineELength(uint16_t *insn_stream);
 int M68K_GetLineFLength(uint16_t *insn_stream);
 uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
 
-typedef uint32_t * (*EMIT_Function)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
-typedef uint32_t * (*EMIT_MultiFunction)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+typedef uint32_t (*EMIT_Function)(struct TranslatorContext *ctx, uint16_t opcode);
 
 struct OpcodeDef {
-    union {
-        EMIT_Function       od_Emit;
-        EMIT_MultiFunction  od_EmitMulti;
-    };
+    EMIT_Function   od_Emit;
     void *          od_Interpret;   // Not used yet.
     uint16_t        od_SRNeeds;
     uint16_t        od_SRSets;
@@ -500,9 +503,9 @@ struct FPUOpcodeDef {
     uint8_t         od_OpSize;
 };
 
-uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
-uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args);
-uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ...);
+void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
+void EMIT_InjectDebugStringV(struct TranslatorContext *ctx, const char * restrict format, va_list args);
+void EMIT_InjectDebugString(struct TranslatorContext *ctx, const char * restrict format, ...);
 
 void M68K_PushReturnAddress(uint16_t *ret_addr);
 uint16_t *M68K_PopReturnAddress(uint8_t *success);
@@ -510,8 +513,8 @@ void M68K_ResetReturnStack();
 int M68K_GetINSNLength(uint16_t *insn_stream);
 int M68K_IsBranch(uint16_t *insn_stream);
 
-uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
-uint8_t EMIT_TestFPUCondition(uint32_t **pptr, uint8_t m68k_condition);
+uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition);
+uint8_t EMIT_TestFPUCondition(struct TranslatorContext *ctx, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);

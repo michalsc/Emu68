@@ -33,17 +33,17 @@ volatile uint64_t q_tail;
 void q_push(uint8_t data)
 {
     while(q_tail + Q_SIZE <= q_head)
-        asm volatile("yield");
+        __asm__ volatile("yield");
     
     q_buffer[q_head & (Q_SIZE - 1)] = data;
     __sync_add_and_fetch(&q_head, 1);
-    asm volatile("sev");
+    __asm__ volatile("sev");
 }
 
 uint8_t q_pop()
 {
     while (q_tail == q_head) {
-        asm volatile("wfe");
+        __asm__ volatile("wfe");
     }
 
     uint8_t data = q_buffer[q_tail & (Q_SIZE - 1)];
@@ -134,7 +134,7 @@ void __printf_chk(int, const char *restrict format, ...)
     va_start(v, format);
 
     while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE))
-        asm volatile("yield");
+        __asm__ volatile("yield");
 
     vkprintf_pc(putByte, (void *)ARM_PERIIOBASE, format, v);
 
@@ -148,7 +148,7 @@ void kprintf(const char * restrict format, ...)
     va_list v;
     va_start(v, format);
 
-    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
 
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, v);
 
@@ -159,7 +159,7 @@ void kprintf(const char * restrict format, ...)
 
 void vkprintf(const char * restrict format, va_list args)
 {
-    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+    while(__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
 
     vkprintf_pc(putByte, (void*)ARM_PERIIOBASE, format, args);
 
@@ -481,11 +481,11 @@ void setup_serial()
     /* Disable pull-ups and pull-downs on rs232 lines */
     wr32le(GPPUD, 0);
 
-    for (uartvar = 0; uartvar < 150; uartvar++) asm volatile ("nop");
+    for (uartvar = 0; uartvar < 150; uartvar++) __asm__ volatile ("nop");
 
     wr32le(GPPUDCLK0, (1 << 14)|(1 << 15));
 
-    for (uartvar = 0; uartvar < 150; uartvar++) asm volatile ("nop");
+    for (uartvar = 0; uartvar < 150; uartvar++) __asm__ volatile ("nop");
 
     wr32le(GPPUDCLK0, 0);
 
@@ -497,7 +497,7 @@ void setup_serial()
     wr32le(PL011_0_BASE + PL011_LCRH, PL011_LCRH_WLEN8|PL011_LCRH_FEN);           // 8N1, Fifo enabled
     wr32le(PL011_0_BASE + PL011_CR, PL011_CR_UARTEN|PL011_CR_TXE|PL011_CR_RXE);   // enable the uart, tx and rx
 
-    for (uartvar = 0; uartvar < 150; uartvar++) asm volatile ("nop");
+    for (uartvar = 0; uartvar < 150; uartvar++) __asm__ volatile ("nop");
 
     serial_up = 1;
 }

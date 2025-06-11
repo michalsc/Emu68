@@ -105,11 +105,11 @@ static inline void wr8(uintptr_t iobase, uint8_t value) {
 }
 
 static inline void dsb() {
-    asm volatile ("dsb sy");
+    __asm__ volatile ("dsb sy");
 }
 
 static inline void dmb() {
-    asm volatile ("dmb sy");
+    __asm__ volatile ("dmb sy");
 }
 
 typedef void (*putc_func)(void *data, char c);

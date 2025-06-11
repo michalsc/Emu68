@@ -12,8 +12,8 @@ void M68K_SaveContext(struct M68KState *ctx);
 
 static inline void CallARMCode()
 {
-    register void *ARM asm("x12");
-    asm volatile("":"=r"(ARM));
+    register void *ARM __asm__("x12");
+    __asm__ volatile("":"=r"(ARM));
     void (*ptr)() = (void*)ARM;
     ptr();
 }
@@ -110,7 +110,7 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 
 static inline uint32_t * FindUnitQuick()
 {
-    register uint16_t *PC asm("x18");
+    register uint16_t *PC __asm__("x18");
 
 #if EMU68_USE_LRU
     uint32_t *code = LRU_FindBlock(PC);
@@ -128,7 +128,7 @@ static inline uint32_t * FindUnitQuick()
     ForeachNode(bucket, node)
     {
         /* Force reload of PC*/
-        asm volatile("" : "=r"(PC));
+        __asm__ volatile("" : "=r"(PC));
 
         /* Check if unit is found */
         if (node->mt_M68kAddress == PC)
@@ -146,7 +146,7 @@ static inline uint32_t * FindUnitQuick()
 static inline struct M68KTranslationUnit *FindUnit()
 {
     struct M68KTranslationUnit *node;
-    register uint16_t *PC asm("x18");
+    register uint16_t *PC __asm__("x18");
 
     /* Perform search */
     uint32_t hash = (uint32_t)(uintptr_t)PC;
@@ -156,7 +156,7 @@ static inline struct M68KTranslationUnit *FindUnit()
     ForeachNode(bucket, node)
     {
         /* Force reload of PC*/
-        asm volatile("" : "=r"(PC));
+        __asm__ volatile("" : "=r"(PC));
 
         /* Check if unit is found */
         if (node->mt_M68kAddress == PC)
@@ -199,38 +199,38 @@ static inline int GetIPLLevel() { return 0; }
 static inline uint16_t *getLastPC()
 {
     uint16_t *lastPC;
-    asm volatile("mrs %0, TPIDR_EL1":"=r"(lastPC));
+    __asm__ volatile("mrs %0, TPIDR_EL1":"=r"(lastPC));
     return lastPC;
 }
 
 static inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
-    asm volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
+    __asm__ volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
     return ctx;
 }
 
 static inline uint32_t getSR()
 {
     uint32_t sr;
-    asm volatile("mrs %0, TPIDR_EL0":"=r"(sr));
+    __asm__ volatile("mrs %0, TPIDR_EL0":"=r"(sr));
     return sr;
 }
 
 static inline void setLastPC(uint16_t *pc)
 {
-    asm volatile("msr TPIDR_EL1, %0"::"r"(pc));
+    __asm__ volatile("msr TPIDR_EL1, %0": :"r"(pc));
 }
 
 static inline void setSR(uint32_t sr)
 {
-    asm volatile("msr TPIDR_EL0, %0"::"r"(sr));
+    __asm__ volatile("msr TPIDR_EL0, %0": :"r"(sr));
 }
 
 void MainLoop()
 {
-    register uint16_t *PC asm("x18");
-    register void *ARM asm("x12");
+    register uint16_t *PC __asm__("x18");
+    register void *ARM __asm__("x12");
     uint16_t *LastPC;
     struct M68KState *ctx = getCTX();
 
@@ -238,7 +238,7 @@ void MainLoop()
 
     M68K_LoadContext(ctx);
 
-    asm volatile("mov v28.d[0], xzr");
+    __asm__ volatile("mov v28.d[0], xzr");
 
     /* The JIT loop is running forever */
     while(1)
@@ -249,7 +249,7 @@ void MainLoop()
 
 #ifndef PISTORM_ANY_MODEL
         /* Force reload of PC*/
-        asm volatile("" : "=r"(PC));
+        __asm__ volatile("" : "=r"(PC));
         if (PC == NULL) {
             M68K_SaveContext(ctx);
             return;
@@ -290,7 +290,7 @@ void MainLoop()
                     int ipl_level;
 
 #if PISTORM_WRITE_BUFFER
-                    while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+                    while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 #endif
 
                     ipl_level = GetIPLLevel();
@@ -315,21 +315,21 @@ void MainLoop()
             /* Any unmasked interrupts? Proceess them */
             if (level == 7 || level > IPL_mask)
             {
-                register uint64_t sp asm("r29");
+                register uint64_t sp __asm__("r29");
 
                 if (likely((SR & SR_S) == 0))
                 {
                     /* If we are not yet in supervisor mode, the USP needs to be updated */
-                    asm volatile("mov v31.S[1], %w0"::"r"(sp));
+                    __asm__ volatile("mov v31.S[1], %w0": :"r"(sp));
 
                     /* Load eiter ISP or MSP */
                     if (unlikely((SR & SR_M) != 0))
                     {
-                        asm volatile("mov %w0, v31.S[3]":"=r"(sp));
+                        __asm__ volatile("mov %w0, v31.S[3]":"=r"(sp));
                     }
                     else
                     {
-                        asm volatile("mov %w0, v31.S[2]":"=r"(sp));
+                        __asm__ volatile("mov %w0, v31.S[2]":"=r"(sp));
                     }
                 }
                 
@@ -350,9 +350,9 @@ void MainLoop()
                 SR |= ((level & 7) << SRB_IPL);
 
                 /* Push exception frame */
-                asm volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
-                asm volatile("str %w1, [%0, #2]"::"r"(sp),"r"(PC));
-                asm volatile("strh %w1, [%0, #6]"::"r"(sp),"r"(vector));
+                __asm__ volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
+                __asm__ volatile("str %w1, [%0, #2]": :"r"(sp),"r"(PC));
+                __asm__ volatile("strh %w1, [%0, #6]": :"r"(sp),"r"(vector));
 
                 /* Set SR */
                 setSR(SR);
@@ -361,7 +361,7 @@ void MainLoop()
                 vbr = ctx->VBR;
 
                 /* Load PC */
-                asm volatile("ldr %w0, [%1, %2]":"=r"(PC):"r"(vbr),"r"(vector)); 
+                __asm__ volatile("ldr %w0, [%1, %2]":"=r"(PC):"r"(vbr),"r"(vector)); 
             }
 
             /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
@@ -369,17 +369,17 @@ void MainLoop()
 
         /* Check if JIT cache is enabled */
         uint32_t cacr;
-        asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
+        __asm__ volatile("mov %w0, v31.s[0]":"=r"(cacr));
 
         if (likely(cacr & CACR_IE))
         {   
             /* Force reload of PC*/
-            asm volatile("":"=r"(PC));
+            __asm__ volatile("":"=r"(PC));
 
             /* The last PC is the same as currently set PC? */
             if (LastPC == PC)
             {
-                asm volatile("":"=r"(ARM));
+                __asm__ volatile("":"=r"(ARM));
                 /* Jump to the code now */
                 CallARMCode();
                 continue;
@@ -393,11 +393,11 @@ void MainLoop()
                 if (code != NULL)
                 {
                     /* Store m68k PC of corresponding ARM code in TPIDR_EL1 */
-                    asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
+                    __asm__ volatile("msr TPIDR_EL1, %0": :"r"(PC));
 
                     /* This is the case, load entry point into x12 */
                     ARM = code;
-                    asm volatile("":"=r"(ARM):"0"(ARM));
+                    __asm__ volatile("":"=r"(ARM):"0"(ARM));
                     
                     CallARMCode();
 
@@ -406,7 +406,7 @@ void MainLoop()
                 }
 
                 /* If we are that far there was no JIT unit found */
-                asm volatile("":"=r"(PC));
+                __asm__ volatile("":"=r"(PC));
                 uint16_t *copyPC = PC;
                 M68K_SaveContext(ctx);
                 /* Get the code. This never fails */
@@ -416,10 +416,10 @@ void MainLoop()
 #endif
                 /* Load CPU context */
                 M68K_LoadContext(getCTX());
-                asm volatile("msr TPIDR_EL1, %0"::"r"(PC));
+                __asm__ volatile("msr TPIDR_EL1, %0": :"r"(PC));
                 /* Prepare ARM pointer in x12 and call it */
                 ARM = node->mt_ARMEntryPoint;
-                asm volatile("":"=r"(ARM):"0"(ARM));
+                __asm__ volatile("":"=r"(ARM):"0"(ARM));
                 CallARMCode();
             }
         }
@@ -449,7 +449,7 @@ void MainLoop()
 
             M68K_LoadContext(getCTX());
             ARM = node->mt_ARMEntryPoint;
-            asm volatile("":"=r"(ARM):"0"(ARM));
+            __asm__ volatile("":"=r"(ARM):"0"(ARM));
             CallARMCode();
         }
     }

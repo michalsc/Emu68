@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.14.0)
 project(Emu68 VERSION 1.0.999)
 set(PROJECT_VERSION 1.0.999)
 
+#set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
 include(cmake/devicetree.cmake)
@@ -10,8 +12,8 @@ get_verstring(VERSTRING)
 get_git_sha(GIT_SHA)
 
 set(CMAKE_C_EXTENSIONS ON)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_C_STANDARD 23)
 
 set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")

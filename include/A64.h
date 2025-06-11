@@ -11,6 +11,59 @@
 #define _A64_H
 
 #include <stdint.h>
+#include <stddef.h>
+
+#define _(ctx, ...) EMIT(ctx, __VA_ARGS__)
+
+#if 1
+#define EMIT(ctx, ...)                                                                \
+    do                                                                                \
+    {                                                                                 \
+        const uint32_t __emit_args__[] = {__VA_ARGS__};                               \
+        for (size_t i = 0; i < sizeof(__emit_args__) / sizeof(__emit_args__[0]); i++) \
+        {                                                                             \
+            *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                  \
+        }                                                                             \
+    } while (0)
+#else
+
+// Apply macro to each argument (supports up to 63 args)
+#define EMIT(ptr, ...) __VA_OPT__(FOR_EACH(EMIT_ONE, ptr, __VA_ARGS__))
+
+#define EMIT_ONE(ptr, x) *ptr++ = (x);
+
+// Internal: dispatch macro based on number of arguments
+#define FOR_EACH(macro, ptr, ...) \
+  _FOR_EACH_N(__VA_ARGS__, \
+    _FE63,_FE62,_FE61,_FE60,_FE59,_FE58,_FE57,_FE56,_FE55,_FE54,_FE53,_FE52,_FE51,_FE50, \
+    _FE49,_FE48,_FE47,_FE46,_FE45,_FE44,_FE43,_FE42,_FE41,_FE40, \
+    _FE39,_FE38,_FE37,_FE36,_FE35,_FE34,_FE33,_FE32,_FE31,_FE30, \
+    _FE29,_FE28,_FE27,_FE26,_FE25,_FE24,_FE23,_FE22,_FE21,_FE20, \
+    _FE19,_FE18,_FE17,_FE16,_FE15,_FE14,_FE13,_FE12,_FE11,_FE10, \
+    _FE9,_FE8,_FE7,_FE6,_FE5,_FE4,_FE3,_FE2,_FE1,_FE0)(macro, ptr, __VA_ARGS__)
+
+#define _FOR_EACH_N( \
+  _1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16, \
+  _17,_18,_19,_20,_21,_22,_23,_24,_25,_26,_27,_28,_29,_30,_31,_32, \
+  _33,_34,_35,_36,_37,_38,_39,_40,_41,_42,_43,_44,_45,_46,_47,_48, \
+  _49,_50,_51,_52,_53,_54,_55,_56,_57,_58,_59,_60,_61,_62,_63, NAME, ...) NAME
+
+// Macro unrolling definitions
+#define _FE0(m,p)
+#define _FE1(m,p,x1) m(p,x1);
+#define _FE2(m,p,x1,x2) m(p,x1); m(p,x2);
+#define _FE3(m,p,x1,x2,x3) m(p,x1); m(p,x2); m(p,x3);
+#define _FE4(m,p,x1,x2,x3,x4) m(p,x1); m(p,x2); m(p,x3); m(p,x4);
+#define _FE5(m,p,x1,x2,x3,x4,x5) _FE4(m,p,x1,x2,x3,x4) m(p,x5);
+#define _FE6(m,p,x1,x2,x3,x4,x5,x6) _FE5(m,p,x1,x2,x3,x4,x5) m(p,x6);
+#define _FE7(m,p,x1,x2,x3,x4,x5,x6,x7) _FE6(m,p,x1,x2,x3,x4,x5,x6) m(p,x7);
+#define _FE8(m,p,x1,x2,x3,x4,x5,x6,x7,x8) _FE7(m,p,x1,x2,x3,x4,x5,x6,x7) m(p,x8);
+#define _FE9(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9) _FE8(m,p,x1,x2,x3,x4,x5,x6,x7,x8) m(p,x9);
+#define _FE10(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10) _FE9(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9) m(p,x10);
+
+// For brevity, I'll show a generator below if you want all 64
+
+#endif
 
 /* Context pointer is stored in TPIDRRO_EL0 */
 /* SR is stored in TPIDR_EL0 */
@@ -653,27 +706,22 @@ static inline uint32_t ftosidrz(uint8_t s_dst, uint8_t d_src) { return ftosidrz_
 #include <RegisterAllocator.h>
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetFPUFlags(uint32_t * ptr, uint8_t fpsr)
+void EMIT_GetFPUFlags(struct TranslatorContext *ctx, uint8_t fpsr)
 {
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-#if 1
-    *ptr++ = bic_immed(fpsr, fpsr, 4, 8);
-    *ptr++ = get_nzcv(tmp_reg);
-    *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
-    *ptr++ = orr_reg(fpsr, fpsr, tmp_reg, LSR, 4);
-#else
-    *ptr++ = get_nzcv(tmp_reg);
-    *ptr++ = bic_immed(tmp_reg, tmp_reg, 1, 3);
-    *ptr++ = ror(tmp_reg, tmp_reg, 28);
-    *ptr++ = bfi(fpsr, tmp_reg, 24, 4);
-#endif
-    RA_FreeARMRegister(&ptr, tmp_reg);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
-    return ptr;
+    EMIT(ctx,
+        bic_immed(fpsr, fpsr, 4, 8),
+        get_nzcv(tmp_reg),
+        bic_immed(tmp_reg, tmp_reg, 1, 3),
+        orr_reg(fpsr, fpsr, tmp_reg, LSR, 4)
+    );
+
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
+void EMIT_ClearFlags(struct TranslatorContext *ctx, uint8_t cc, uint8_t flags)
 {
     uint8_t tmp_reg;
 
@@ -683,77 +731,77 @@ uint32_t * EMIT_ClearFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
             break;
 
         case 1:
-            *ptr++ = bic_immed(cc, cc, 1, 0);
+            EMIT(ctx, bic_immed(cc, cc, 1, 0));
             break;
 
         case 3:
-            *ptr++ = bic_immed(cc, cc, 2, 0);
+            EMIT(ctx, bic_immed(cc, cc, 2, 0));
             break;
 
         case 7:
-            *ptr++ = bic_immed(cc, cc, 3, 0);
+            EMIT(ctx, bic_immed(cc, cc, 3, 0));
             break;
 
         case 15:
-            *ptr++ = bic_immed(cc, cc, 4, 0);
+            EMIT(ctx, bic_immed(cc, cc, 4, 0));
             break;
 
         case 31:
-            *ptr++ = bic_immed(cc, cc, 5, 0);
+            EMIT(ctx, bic_immed(cc, cc, 5, 0));
             break;
 
         case 2:
-            *ptr++ = bic_immed(cc, cc, 1, 31);
+            EMIT(ctx, bic_immed(cc, cc, 1, 31));
             break;
 
         case 6:
-            *ptr++ = bic_immed(cc, cc, 2, 31);
+            EMIT(ctx, bic_immed(cc, cc, 2, 31));
             break;
 
         case 14:
-            *ptr++ = bic_immed(cc, cc, 3, 31);
+            EMIT(ctx, bic_immed(cc, cc, 3, 31));
             break;
 
         case 30:
-            *ptr++ = bic_immed(cc, cc, 4, 31);
+            EMIT(ctx, bic_immed(cc, cc, 4, 31));
             break;
 
         case 4:
-            *ptr++ = bic_immed(cc, cc, 1, 30);
+            EMIT(ctx, bic_immed(cc, cc, 1, 30));
             break;
 
         case 12:
-            *ptr++ = bic_immed(cc, cc, 2, 30);
+            EMIT(ctx, bic_immed(cc, cc, 2, 30));
             break;
 
         case 28:
-            *ptr++ = bic_immed(cc, cc, 3, 30);
+            EMIT(ctx, bic_immed(cc, cc, 3, 30));
             break;
 
         case 8:
-            *ptr++ = bic_immed(cc, cc, 1, 29);
+            EMIT(ctx, bic_immed(cc, cc, 1, 29));
             break;
 
         case 24:
-            *ptr++ = bic_immed(cc, cc, 2, 29);
+            EMIT(ctx, bic_immed(cc, cc, 2, 29));
             break;
 
         case 16:
-            *ptr++ = bic_immed(cc, cc, 1, 28);
+            EMIT(ctx, bic_immed(cc, cc, 1, 28));
             break;
 
         default:
-            tmp_reg = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
-            *ptr++ = bic_reg(cc, cc, tmp_reg, LSL, 0);
-            RA_FreeARMRegister(&ptr, tmp_reg);
+            tmp_reg = RA_AllocARMRegister(ctx);
+            EMIT(ctx,
+                mov_immed_u16(tmp_reg, flags, 0),
+                bic_reg(cc, cc, tmp_reg, LSL, 0)
+            );
+            RA_FreeARMRegister(ctx, tmp_reg);
     }
-
-    return ptr;
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern int host_z_set;
     extern int host_n_set;
@@ -766,30 +814,34 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     host_v_set = 0;
 
     if (*not_done == 0)
-        return ptr;
+        return;
 
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     if (__builtin_popcount(*not_done) == 1)
     {
         switch(*not_done)
         {
             case 1: // M68K C
-                *ptr++ = bic_immed(cc, cc, 1, 31);
+                EMIT(ctx, bic_immed(cc, cc, 1, 31));
                 (*not_done) &= ~0x01;
                 break;
             case 2: // M68K V
-                *ptr++ = bic_immed(cc, cc, 1, 0);
+                EMIT(ctx, bic_immed(cc, cc, 1, 0));
                 (*not_done) &= ~0x02;
                 break;
             case 4: // M68K Z
-                *ptr++ = cset(tmp_reg, A64_CC_EQ);
-                *ptr++ = bfi(cc, tmp_reg, 2, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_EQ),
+                    bfi(cc, tmp_reg, 2, 1)
+                );
                 (*not_done) &= ~0x04;
                 break;
             case 8: // M68K N
-                *ptr++ = cset(tmp_reg, A64_CC_MI);
-                *ptr++ = bfi(cc, tmp_reg, 3, 1);
+                EMIT(ctx, 
+                    cset(tmp_reg, A64_CC_MI),
+                    bfi(cc, tmp_reg, 3, 1)
+                );
                 (*not_done) &= ~0x08;
                 break;
             default:
@@ -798,29 +850,22 @@ uint32_t * EMIT_GetNZ00(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else
     {
-#if 0
-        *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
-        // Clear C+V only if needed
-        if (*not_done & 3)
-            *ptr++ = bic_immed(cc, cc, 2, 0);
-#else
-        *ptr++ = bic_immed(cc, cc, 4, 0);
-        *ptr++ = orr_immed(tmp_reg, cc, 1, 29);
-        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_MI);
-        *ptr++ = orr_immed(tmp_reg, cc, 1, 30);
-        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_EQ);
-#endif
+        EMIT(ctx,
+            bic_immed(cc, cc, 4, 0),
+            orr_immed(tmp_reg, cc, 1, 29),
+            csel(cc, tmp_reg, cc, A64_CC_MI),
+            orr_immed(tmp_reg, cc, 1, 30),
+            csel(cc, tmp_reg, cc, A64_CC_EQ)
+        );
+
         (*not_done) &= 0x10;
     }
 
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+void EMIT_GetNZxx(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern int host_z_set;
     extern int host_n_set;
@@ -833,22 +878,26 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     host_v_set = 0;
 
     if (*not_done == 0)
-        return ptr;
+        return;
 
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     if (__builtin_popcount(*not_done) == 1)
     {
         switch(*not_done)
         {
             case 4: // M68K Z
-                *ptr++ = cset(tmp_reg, A64_CC_EQ);
-                *ptr++ = bfi(cc, tmp_reg, 2, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_EQ),
+                    bfi(cc, tmp_reg, 2, 1)
+                );
                 (*not_done) &= ~0x04;
                 break;
             case 8: // M68K N
-                *ptr++ = cset(tmp_reg, A64_CC_MI);
-                *ptr++ = bfi(cc, tmp_reg, 3, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_MI),
+                    bfi(cc, tmp_reg, 3, 1)
+                );
                 (*not_done) &= ~0x08;
                 break;
             default:
@@ -857,26 +906,21 @@ uint32_t * EMIT_GetNZxx(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else
     {
-#if 0
-        *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = ror(tmp_reg, tmp_reg, 30);
-        *ptr++ = bfi(cc, tmp_reg, 2, 2);
-#else
-        *ptr++ = bic_immed(cc, cc, 2, 30);
-        *ptr++ = orr_immed(tmp_reg, cc, 1, 29);
-        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_MI);
-        *ptr++ = orr_immed(tmp_reg, cc, 1, 30);
-        *ptr++ = csel(cc, tmp_reg, cc, A64_CC_EQ);
-#endif
+        EMIT(ctx,
+            bic_immed(cc, cc, 2, 30),
+            orr_immed(tmp_reg, cc, 1, 29),
+            csel(cc, tmp_reg, cc, A64_CC_MI),
+            orr_immed(tmp_reg, cc, 1, 30),
+            csel(cc, tmp_reg, cc, A64_CC_EQ)
+        );
+
         (*not_done) &= 0x13;
     }
-    RA_FreeARMRegister(&ptr, tmp_reg);
-    
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+void EMIT_GetNZCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern int host_z_set;
     extern int host_n_set;
@@ -889,32 +933,40 @@ uint32_t * EMIT_GetNZCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     host_v_set = 1;
 
     if (*not_done == 0)
-        return ptr;
+        return;
 
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     if (__builtin_popcount(*not_done) == 1)
     {
         switch(*not_done)
         {
             case 1: // M68K C
-                *ptr++ = cset(tmp_reg, A64_CC_CS);
-                *ptr++ = bfi(cc, tmp_reg, 1, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_CS),
+                    bfi(cc, tmp_reg, 1, 1)
+                );
                 (*not_done) &= ~0x01;
                 break;
             case 2: // M68K V
-                *ptr++ = cset(tmp_reg, A64_CC_VS);
-                *ptr++ = bfi(cc, tmp_reg, 0, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_VS),
+                    bfi(cc, tmp_reg, 0, 1)
+                );
                 (*not_done) &= ~0x02;
                 break;
             case 4: // M68K Z
-                *ptr++ = cset(tmp_reg, A64_CC_EQ);
-                *ptr++ = bfi(cc, tmp_reg, 2, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_EQ),
+                    bfi(cc, tmp_reg, 2, 1)
+                );
                 (*not_done) &= ~0x04;
                 break;
             case 8: // M68K N
-                *ptr++ = cset(tmp_reg, A64_CC_MI);
-                *ptr++ = bfi(cc, tmp_reg, 3, 1);
+                EMIT(ctx, 
+                    cset(tmp_reg, A64_CC_MI),
+                    bfi(cc, tmp_reg, 3, 1)
+                );
                 (*not_done) &= ~0x08;
                 break;
             default:
@@ -923,8 +975,11 @@ uint32_t * EMIT_GetNZCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else
     {
-        *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        EMIT(ctx,
+            get_nzcv(tmp_reg),
+            bfxil(cc, tmp_reg, 28, 4)
+        );
+        
         (*not_done) &= 0x10;
     }
 
@@ -932,16 +987,14 @@ uint32_t * EMIT_GetNZCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
         uint8_t clr_flags = *not_done;
         if ((clr_flags & 3) != 0 && (clr_flags & 3) < 3)
             clr_flags ^= 3;
-        ptr = EMIT_ClearFlags(ptr, cc, clr_flags);
+        EMIT_ClearFlags(ctx, cc, clr_flags);
     }
 
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+void EMIT_GetNZCVX(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern int host_z_set;
     extern int host_n_set;
@@ -954,37 +1007,47 @@ uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     host_v_set = 1;
 
     if (*not_done == 0)
-        return ptr;
+        return;
 
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     if (__builtin_popcount(*not_done) == 1)
     {
         switch(*not_done)
         {
             case 1: // M68K C
-                *ptr++ = cset(tmp_reg, A64_CC_CS);
-                *ptr++ = bfi(cc, tmp_reg, 1, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_CS),
+                    bfi(cc, tmp_reg, 1, 1)
+                );
                 (*not_done) &= ~0x01;
                 break;
             case 2: // M68K V
-                *ptr++ = cset(tmp_reg, A64_CC_VS);
-                *ptr++ = bfi(cc, tmp_reg, 0, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_VS),
+                    bfi(cc, tmp_reg, 0, 1)
+                );
                 (*not_done) &= ~0x02;
                 break;
             case 4: // M68K Z
-                *ptr++ = cset(tmp_reg, A64_CC_EQ);
-                *ptr++ = bfi(cc, tmp_reg, 2, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_EQ),
+                    bfi(cc, tmp_reg, 2, 1)
+                );
                 (*not_done) &= ~0x04;
                 break;
             case 8: // M68K N
-                *ptr++ = cset(tmp_reg, A64_CC_MI);
-                *ptr++ = bfi(cc, tmp_reg, 3, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_MI),
+                    bfi(cc, tmp_reg, 3, 1)
+                );
                 (*not_done) &= ~0x08;
                 break;
             case 16: // M68K X
-                *ptr++ = cset(tmp_reg, A64_CC_CS);
-                *ptr++ = bfi(cc, tmp_reg, 4, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_CS),
+                    bfi(cc, tmp_reg, 4, 1)
+                );
                 (*not_done) &= ~0x10;
                 break;
             default:
@@ -993,18 +1056,16 @@ uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else if (__builtin_popcount(*not_done) > 2)
     {
-        *ptr++ = get_nzcv(tmp_reg);
-        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        EMIT(ctx,
+            get_nzcv(tmp_reg),
+            bfxil(cc, tmp_reg, 28, 4)
+        );
         if (*not_done & 0x10)
         {
-#if 1
-            *ptr++ = cset(tmp_reg, A64_CC_CS);
-            *ptr++ = bfi(cc, tmp_reg, 4, 1);
-#else
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
-            *ptr++ = bic_immed(cc, cc, 1, 28);
-            *ptr++ = csel(cc, tmp_reg, cc, A64_CC_CS);
-#endif
+            EMIT(ctx,
+                cset(tmp_reg, A64_CC_CS),
+                bfi(cc, tmp_reg, 4, 1)
+            );
         }
         (*not_done) = 0;
     }
@@ -1013,16 +1074,14 @@ uint32_t * EMIT_GetNZCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
         uint8_t clr_flags = *not_done;
         if ((clr_flags & 3) != 0 && (clr_flags & 3) < 3)
             clr_flags ^= 3;
-        ptr = EMIT_ClearFlags(ptr, cc, clr_flags);
+        EMIT_ClearFlags(ctx, cc, clr_flags);
     }
 
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+void EMIT_GetNZnCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern int host_z_set;
     extern int host_n_set;
@@ -1035,32 +1094,40 @@ uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     host_v_set = 1;
 
     if (*not_done == 0)
-        return ptr;
+        return;
 
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     if (__builtin_popcount(*not_done) == 1)
     {
         switch(*not_done)
         {
             case 1: // M68K C
-                *ptr++ = cset(tmp_reg, A64_CC_CC);
-                *ptr++ = bfi(cc, tmp_reg, 1, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_CC),
+                    bfi(cc, tmp_reg, 1, 1)
+                );
                 (*not_done) &= ~0x01;
                 break;
             case 2: // M68K V
-                *ptr++ = cset(tmp_reg, A64_CC_VS);
-                *ptr++ = bfi(cc, tmp_reg, 0, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_VS),
+                    bfi(cc, tmp_reg, 0, 1)
+                );
                 (*not_done) &= ~0x02;
                 break;
             case 4: // M68K Z
-                *ptr++ = cset(tmp_reg, A64_CC_EQ);
-                *ptr++ = bfi(cc, tmp_reg, 2, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_EQ),
+                    bfi(cc, tmp_reg, 2, 1)
+                );
                 (*not_done) &= ~0x04;
                 break;
             case 8: // M68K N
-                *ptr++ = cset(tmp_reg, A64_CC_MI);
-                *ptr++ = bfi(cc, tmp_reg, 3, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_MI),
+                    bfi(cc, tmp_reg, 3, 1)
+                );
                 (*not_done) &= ~0x08;
                 break;
             default:
@@ -1069,13 +1136,13 @@ uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else 
     {
-        *ptr++ = get_nzcv(tmp_reg);
+        EMIT(ctx, get_nzcv(tmp_reg));
         
         /* If C is needed, inverse it */
         if (*not_done & 0x01)
-            *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
+            EMIT(ctx, eor_immed(tmp_reg, tmp_reg, 1, 3));
 
-        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+        EMIT(ctx, bfxil(cc, tmp_reg, 28, 4));
         
         (*not_done) &= 0x10;
     }
@@ -1084,16 +1151,14 @@ uint32_t * EMIT_GetNZnCV(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
         uint8_t clr_flags = *not_done;
         if ((clr_flags & 3) != 0 && (clr_flags & 3) < 3)
             clr_flags ^= 3;
-        ptr = EMIT_ClearFlags(ptr, cc, clr_flags);
+        EMIT_ClearFlags(ctx, cc, clr_flags);
     }
 
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_GetNZnCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
+void EMIT_GetNZnCVX(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern int host_z_set;
     extern int host_n_set;
@@ -1106,37 +1171,47 @@ uint32_t * EMIT_GetNZnCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     host_v_set = 1;
 
     if (*not_done == 0)
-        return ptr;
+        return;
 
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     if (__builtin_popcount(*not_done) == 1)
     {
         switch(*not_done)
         {
             case 1: // M68K C
-                *ptr++ = cset(tmp_reg, A64_CC_CC);
-                *ptr++ = bfi(cc, tmp_reg, 1, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_CC),
+                    bfi(cc, tmp_reg, 1, 1)
+                );
                 (*not_done) &= ~0x01;
                 break;
             case 2: // M68K V
-                *ptr++ = cset(tmp_reg, A64_CC_VS);
-                *ptr++ = bfi(cc, tmp_reg, 0, 1);
+                EMIT(ctx, 
+                    cset(tmp_reg, A64_CC_VS),
+                    bfi(cc, tmp_reg, 0, 1)
+                );
                 (*not_done) &= ~0x02;
                 break;
             case 4: // M68K Z
-                *ptr++ = cset(tmp_reg, A64_CC_EQ);
-                *ptr++ = bfi(cc, tmp_reg, 2, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_EQ),
+                    bfi(cc, tmp_reg, 2, 1)
+                );
                 (*not_done) &= ~0x04;
                 break;
             case 8: // M68K N
-                *ptr++ = cset(tmp_reg, A64_CC_MI);
-                *ptr++ = bfi(cc, tmp_reg, 3, 1);
+                EMIT(ctx,
+                    cset(tmp_reg, A64_CC_MI),
+                    bfi(cc, tmp_reg, 3, 1)
+                );
                 (*not_done) &= ~0x08;
                 break;
             case 16: // M68K X
-                *ptr++ = cset(tmp_reg, A64_CC_CC);
-                *ptr++ = bfi(cc, tmp_reg, 4, 1);
+                EMIT(ctx, 
+                    cset(tmp_reg, A64_CC_CC),
+                    bfi(cc, tmp_reg, 4, 1)
+                );
                 (*not_done) &= ~0x10;
                 break;
             default:
@@ -1145,22 +1220,18 @@ uint32_t * EMIT_GetNZnCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
     }
     else if (__builtin_popcount(*not_done) > 2)
     {
-        *ptr++ = get_nzcv(tmp_reg);
+        EMIT(ctx, get_nzcv(tmp_reg));
         /* If C or X requested, invert the flag */
         if (*not_done & 0x11)
-            *ptr++ = eor_immed(tmp_reg, tmp_reg, 1, 3);
-        *ptr++ = bfxil(cc, tmp_reg, 28, 4);
+            EMIT(ctx, eor_immed(tmp_reg, tmp_reg, 1, 3));
+        EMIT(ctx, bfxil(cc, tmp_reg, 28, 4));
         /* If X requested, add it now */
         if (*not_done & 0x10)
         {
-#if 1
-            *ptr++ = cset(tmp_reg, A64_CC_CC);
-            *ptr++ = bfi(cc, tmp_reg, 4, 1);
-#else
-            *ptr++ = bic_immed(cc, cc, 1, 28);
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
-            *ptr++ = csel(cc, tmp_reg, cc, A64_CC_CC);
-#endif
+            EMIT(ctx,
+                cset(tmp_reg, A64_CC_CC),
+                bfi(cc, tmp_reg, 4, 1)
+            );
         }
         *not_done = 0;
     }
@@ -1169,17 +1240,15 @@ uint32_t * EMIT_GetNZnCVX(uint32_t * ptr, uint8_t cc, uint8_t *not_done)
         uint8_t clr_flags = *not_done;
         if ((clr_flags & 3) != 0 && (clr_flags & 3) < 3)
             clr_flags ^= 3;
-        ptr = EMIT_ClearFlags(ptr, cc, clr_flags);
+        EMIT_ClearFlags(ctx, cc, clr_flags);
     }   
 
-    RA_FreeARMRegister(&ptr, tmp_reg);
-
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
 
 
 static inline __attribute__((always_inline))
-uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
+void EMIT_SetFlags(struct TranslatorContext *ctx, uint8_t cc, uint8_t flags)
 {
     uint8_t tmp_reg;
 
@@ -1189,80 +1258,79 @@ uint32_t * EMIT_SetFlags(uint32_t * ptr, uint8_t cc, uint8_t flags)
             break;
 
         case 1:
-            *ptr++ = orr_immed(cc, cc, 1, 0);
+            EMIT(ctx, orr_immed(cc, cc, 1, 0));
             break;
 
         case 3:
-            *ptr++ = orr_immed(cc, cc, 2, 0);
+            EMIT(ctx, orr_immed(cc, cc, 2, 0));
             break;
 
         case 7:
-            *ptr++ = orr_immed(cc, cc, 3, 0);
+            EMIT(ctx, orr_immed(cc, cc, 3, 0));
             break;
 
         case 15:
-            *ptr++ = orr_immed(cc, cc, 4, 0);
+            EMIT(ctx, orr_immed(cc, cc, 4, 0));
             break;
 
         case 31:
-            *ptr++ = orr_immed(cc, cc, 5, 0);
+            EMIT(ctx, orr_immed(cc, cc, 5, 0));
             break;
 
         case 2:
-            *ptr++ = orr_immed(cc, cc, 1, 31);
+            EMIT(ctx, orr_immed(cc, cc, 1, 31));
             break;
 
         case 6:
-            *ptr++ = orr_immed(cc, cc, 2, 31);
+            EMIT(ctx, orr_immed(cc, cc, 2, 31));
             break;
 
         case 14:
-            *ptr++ = orr_immed(cc, cc, 3, 31);
+            EMIT(ctx, orr_immed(cc, cc, 3, 31));
             break;
 
         case 30:
-            *ptr++ = orr_immed(cc, cc, 4, 31);
+            EMIT(ctx, orr_immed(cc, cc, 4, 31));
             break;
 
         case 4:
-            *ptr++ = orr_immed(cc, cc, 1, 30);
+            EMIT(ctx, orr_immed(cc, cc, 1, 30));
             break;
 
         case 12:
-            *ptr++ = orr_immed(cc, cc, 2, 30);
+            EMIT(ctx, orr_immed(cc, cc, 2, 30));
             break;
 
         case 28:
-            *ptr++ = orr_immed(cc, cc, 3, 30);
+            EMIT(ctx, orr_immed(cc, cc, 3, 30));
             break;
 
         case 8:
-            *ptr++ = orr_immed(cc, cc, 1, 29);
+            EMIT(ctx, orr_immed(cc, cc, 1, 29));
             break;
 
         case 24:
-            *ptr++ = orr_immed(cc, cc, 2, 29);
+            EMIT(ctx, orr_immed(cc, cc, 2, 29));
             break;
 
         case 16:
-            *ptr++ = orr_immed(cc, cc, 1, 28);
+            EMIT(ctx, orr_immed(cc, cc, 1, 28));
             break;
 
         default:
-            tmp_reg = RA_AllocARMRegister(&ptr);
-            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
-            RA_FreeARMRegister(&ptr, tmp_reg);
+            tmp_reg = RA_AllocARMRegister(ctx);
+            EMIT(ctx,
+                mov_immed_u16(tmp_reg, flags, 0),
+                orr_reg(cc, cc, tmp_reg, LSL, 0)
+            );
+            RA_FreeARMRegister(ctx, tmp_reg);
     }
-
-    return ptr;
 }
 
-#if 1
 static inline __attribute__((always_inline))
-uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
+void EMIT_SetFlagsConditional(struct TranslatorContext *ctx, uint8_t cc, uint8_t flags, uint8_t cond)
 {
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
     switch (flags)
     {
@@ -1270,180 +1338,120 @@ uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, u
             break;
 
         case 1:
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 0);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 1, 0),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
         
         case 3:
-            *ptr++ = orr_immed(tmp_reg, cc, 2, 0);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 2, 0),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 7:
-            *ptr++ = orr_immed(tmp_reg, cc, 3, 0);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 3, 0),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 15:
-            *ptr++ = orr_immed(tmp_reg, cc, 4, 0);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 4, 0),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 31:
-            *ptr++ = orr_immed(tmp_reg, cc, 4, 0);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx, 
+                orr_immed(tmp_reg, cc, 4, 0),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 2:
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 31);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 1, 31),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 6:
-            *ptr++ = orr_immed(tmp_reg, cc, 2, 31);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 2, 31),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 14:
-            *ptr++ = orr_immed(tmp_reg, cc, 3, 31);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 3, 31),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 30:
-            *ptr++ = orr_immed(tmp_reg, cc, 4, 31);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 4, 31),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 4:
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 30);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 1, 30),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 12:
-            *ptr++ = orr_immed(tmp_reg, cc, 2, 30);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 2, 30),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 28:
-            *ptr++ = orr_immed(tmp_reg, cc, 3, 30);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 3, 30),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 8:
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 29);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 1, 29),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 24:
-            *ptr++ = orr_immed(tmp_reg, cc, 2, 29);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 2, 29),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         case 16:
-            *ptr++ = orr_immed(tmp_reg, cc, 1, 28);
-            *ptr++ = csel(cc, tmp_reg, cc, cond);
+            EMIT(ctx,
+                orr_immed(tmp_reg, cc, 1, 28),
+                csel(cc, tmp_reg, cc, cond)
+            );
             break;
 
         default:
-            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
-            *ptr++ = csel(tmp_reg, tmp_reg, 31, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
+            EMIT(ctx,
+                mov_immed_u16(tmp_reg, flags, 0),
+                csel(tmp_reg, tmp_reg, 31, cond),
+                orr_reg(cc, cc, tmp_reg, LSL, 0)
+            );
     }
 
-    RA_FreeARMRegister(&ptr, tmp_reg);
-    return ptr;
+    RA_FreeARMRegister(ctx, tmp_reg);
 }
-#elif 0
-static inline __attribute__((always_inline))
-uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
-{
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-
-    switch (flags)
-    {
-        case 0:
-            break;
-
-        case 1:
-            *ptr++ = cset(tmp_reg, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
-            break;
-
-        case 2:
-            *ptr++ = cset(tmp_reg, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 1);
-            break;
-
-        case 4:
-            *ptr++ = cset(tmp_reg, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 2);
-            break;
-
-        case 8:
-            *ptr++ = cset(tmp_reg, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 3);
-            break;
-
-        case 16:
-            *ptr++ = cset(tmp_reg, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 4);
-            break;
-
-        default:
-            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
-            *ptr++ = csel(tmp_reg, tmp_reg, 31, cond);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
-    }
-
-    RA_FreeARMRegister(&ptr, tmp_reg);
-    return ptr;
-}
-#else
-static inline __attribute__((always_inline))
-uint32_t * EMIT_SetFlagsConditional(uint32_t * ptr, uint8_t cc, uint8_t flags, uint8_t cond)
-{
-    uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
-
-    switch (flags)
-    {
-        case 0:
-            break;
-
-        case 1:
-            *ptr++ = b_cc(cond ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 0);
-            break;
-
-        case 2:
-            *ptr++ = b_cc(cond ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 31);
-            break;
-
-        case 4:
-            *ptr++ = b_cc(cond ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 30);
-            break;
-
-        case 8:
-            *ptr++ = b_cc(cond ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 29);
-            break;
-
-        case 16:
-            *ptr++ = b_cc(cond ^ 1, 2);
-            *ptr++ = orr_immed(cc, cc, 1, 28);
-            break;
-
-        default:
-            *ptr++ = b_cc(cond ^ 1, 3);
-            *ptr++ = mov_immed_u16(tmp_reg, flags, 0);
-            *ptr++ = orr_reg(cc, cc, tmp_reg, LSL, 0);
-    }
-
-    RA_FreeARMRegister(&ptr, tmp_reg);
-    return ptr;
-}
-#endif
 
 static inline __attribute__((always_inline))
 uint32_t number_to_mask(uint32_t number)

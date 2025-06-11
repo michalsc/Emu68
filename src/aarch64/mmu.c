@@ -11,6 +11,7 @@
 #include "mmu.h"
 #include "support.h"
 #include "tlsf.h"
+#include "A64.h"
 #include "devicetree.h"
 
 #define DV2P(x) /* x */
@@ -138,11 +139,11 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
 
     if (addr & 0xffff000000000000) {
         DV2P(kprintf("selecting kernel tables\n"));
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
         tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
         DV2P(kprintf("selecting user tables\n"));
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
         tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
@@ -307,7 +308,7 @@ void mmu_init()
     arm_flush_cache((intptr_t)&mmu_kernel_L1, sizeof(mmu_kernel_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L2, sizeof(mmu_kernel_L2));
 
-    asm volatile(
+    __asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
@@ -326,12 +327,12 @@ void mirror_page(uintptr_t virt)
             struct mmu_page *tbl;
 
             /* Update user space area */
-            asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+            __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
             tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
             tbl->mp_entries[idx_l1 + 4] = tbl->mp_entries[idx_l1];
             
             /* Now fetch kernel table and update the topmost region, too */
-            asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl_kernel));
+            __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl_kernel));
             tbl_kernel = (struct mmu_page *)((uintptr_t)tbl_kernel + PHYS_VIRT_OFFSET);
             tbl_kernel->mp_entries[508 + idx_l1] = tbl->mp_entries[idx_l1];
         }
@@ -344,10 +345,10 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     int idx_l2, idx_l1;
 
     if (virt & 0xffff000000000000) {
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
@@ -414,10 +415,10 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     int idx_l3, idx_l2, idx_l1;
 
     if (virt & 0xffff000000000000) {
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
@@ -541,7 +542,7 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
         length -= 4096;
     }
 
-        asm volatile(
+        __asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"

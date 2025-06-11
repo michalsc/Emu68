@@ -32,7 +32,7 @@
 void _start();
 void _boot();
 
-asm("   .section .startup           \n"
+__asm__("   .section .startup           \n"
 "       .globl _start               \n"
 "       .globl _boot                \n"
 "       .type _start,%function      \n" /* Our kernel image starts with a standard header */
@@ -199,7 +199,7 @@ asm("   .section .startup           \n"
 );
 
 void move_kernel(intptr_t from, intptr_t to);
-asm(
+__asm__(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
 "move_kernel:                       \n" /* x0: from, x1: to */
@@ -318,7 +318,7 @@ static int membench = 0;
 extern const char _verstring_object[];
 
 void _secondary_start();
-asm(
+__asm__(
 "       .balign  32                 \n"
 "       .globl  _secondary_start    \n"
 "_secondary_start:                  \n"
@@ -404,26 +404,26 @@ void secondary_boot(void)
     of_node_t *e = NULL;
     int async_log = 0;
 
-    asm volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
+    __asm__ volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
    
     cpu_id &= 3;
     
     /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    __asm__ volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
 
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
 
-    asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
     tmp |= 5; // Enable event counting and reset cycle counter
-    asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
     tmp = 0x80000000; // Enable cycle counter
-    asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
     kprintf("[BOOT] Started CPU%d\n", cpu_id);
     
@@ -462,7 +462,7 @@ void secondary_boot(void)
     (void)async_log;
 #endif
 
-    while(1) { asm volatile("wfe"); }
+    while(1) { __asm__ volatile("wfe"); }
 }
 uintptr_t vid_base;
 
@@ -768,11 +768,11 @@ void boot(void *dtree)
     boot_lock = 0;
 
     /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
     /* Set default VID memory size */
     vid_memory = 16;
@@ -1254,7 +1254,7 @@ void boot(void *dtree)
 
         uint64_t TTBR0, TTBR1;
 
-        asm volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
+        __asm__ volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
 
         kprintf("[BOOT] MMU tables at %p and %p\n", TTBR0, TTBR1);
 
@@ -1282,7 +1282,7 @@ void boot(void *dtree)
         kprintf("[BOOT] TLB invalidated\n");
     }
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
     *(uint64_t *)0xffffff90000000e0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
@@ -1290,9 +1290,9 @@ void boot(void *dtree)
         
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
 
-    asm volatile("sev");
+    __asm__ volatile("sev");
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
     kprintf("[BOOT] Waking up CPU 2\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -1301,9 +1301,9 @@ void boot(void *dtree)
         
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e8), temp_stack);
 
-    asm volatile("sev");
+    __asm__ volatile("sev");
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
     kprintf("[BOOT] Waking up CPU 3\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -1312,55 +1312,55 @@ void boot(void *dtree)
         
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000f0), temp_stack);
 
-    asm volatile("sev");
+    __asm__ volatile("sev");
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    __asm__ volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
     kprintf("[BOOT] Timer frequency: %d kHz\n", (tmp + 500) / 1000);
 
-    asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
     tmp |= 5; // Enable event counting and reset cycle counter
-    asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
     kprintf("[BOOT] PMCR=%08x\n", tmp);
     tmp = 0x80000000; // Enable cycle counter
-    asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
     if (debug_cnt)
     {
         uint64_t tmp;
         kprintf("[BOOT] Performance counting requested\n");
         
-        asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
         kprintf("[BOOT] Number of counters implemented: %d\n", (tmp >> 11) & 31);
 
         kprintf("[BOOT] Enabling performance counters\n");
         tmp |= 3;
-        asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
 
-        asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCR=%08x\n", tmp);
 
-        asm volatile("mrs %0, PMCEID0_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCEID0_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCEID0=%08x\n", tmp);
 
         tmp = 0x00000000;
-        asm volatile("msr PMEVTYPER0_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMEVTYPER2_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMEVTYPER1_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
+        __asm__ volatile("msr PMEVTYPER0_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMEVTYPER2_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMEVTYPER1_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
 
-        asm volatile("mrs %0, PMCNTENSET_EL0; isb":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCNTENSET_EL0; isb":"=r"(tmp));
         tmp |= 15;
-        asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
-        asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
     }
 #ifdef PISTORM_ANY_MODEL
@@ -1485,7 +1485,7 @@ void boot(void *dtree)
             if (ptr)
                 M68K_StartEmu(ptr, fdt);
             
-            while(1) asm volatile("wfi");
+            while(1) __asm__ volatile("wfi");
         }
         else
         {
@@ -1627,30 +1627,30 @@ void boot(void *dtree)
         const uint64_t iter_count = 1000000;
         uint64_t calib = 0;
         uint64_t tmp=0, res;
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
-        for (uint64_t i=0; i < iter_count; i++) asm volatile("");
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        for (uint64_t i=0; i < iter_count; i++) __asm__ volatile("");
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
         calib = cnt2 - cnt1;
         kprintf("Calibration loop took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1), (double)(cnt2-cnt1) / (double)iter_count);
 
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
         for (uint64_t i=0; i < iter_count; i++)
-            asm volatile("mrs %1, nzcv; bfxil %0, %1, 28, 4; bic %0, %0, #3":"=r"(res):"r"(tmp));
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+            __asm__ volatile("mrs %1, nzcv; bfxil %0, %1, 28, 4; bic %0, %0, #3":"=r"(res):"r"(tmp));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
         for (uint64_t i=0; i < iter_count; i++)
-            asm volatile("mrs %1, nzcv; ror %1, %1, #30; bfi %0, %1, #2, #2":"=r"(res):"r"(tmp));
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+            __asm__ volatile("mrs %1, nzcv; ror %1, %1, #30; bfi %0, %1, #2, #2":"=r"(res):"r"(tmp));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
         for (uint64_t i=0; i < iter_count; i++)
-            asm volatile("mrs %1, nzcv; bic %0, %0, #3; lsr %1, %1, 28; and %1, %1, #0xc; orr %0, %0, %1":"=r"(res):"r"(tmp));
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+            __asm__ volatile("mrs %1, nzcv; bic %0, %0, #3; lsr %1, %1, 28; and %1, %1, #0xc; orr %0, %0, %1":"=r"(res):"r"(tmp));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
@@ -1702,100 +1702,100 @@ void boot(void *dtree)
 
     M68K_StartEmu(0, NULL);
 
-    while(1) asm volatile("wfe");
+    while(1) __asm__ volatile("wfe");
 }
 
 
 void M68K_LoadContext(struct M68KState *ctx)
 {
-    asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
+    __asm__ volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
 
-    asm volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
-    asm volatile("mov v31.s[1], %w0"::"r"(ctx->USP));
-    asm volatile("mov v31.s[2], %w0"::"r"(ctx->ISP));
-    asm volatile("mov v31.s[3], %w0"::"r"(ctx->MSP));
-    asm volatile("mov v30.d[0], %0"::"r"(ctx->INSN_COUNT));
-    asm volatile("mov v29.s[0], %w0"::"r"(ctx->FPSR));
-    asm volatile("mov v29.s[1], %w0"::"r"(ctx->FPIAR));
-    asm volatile("mov v29.h[4], %w0"::"r"(ctx->FPCR));
+    __asm__ volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
+    __asm__ volatile("mov v31.s[1], %w0"::"r"(ctx->USP));
+    __asm__ volatile("mov v31.s[2], %w0"::"r"(ctx->ISP));
+    __asm__ volatile("mov v31.s[3], %w0"::"r"(ctx->MSP));
+    __asm__ volatile("mov v30.d[0], %0"::"r"(ctx->INSN_COUNT));
+    __asm__ volatile("mov v29.s[0], %w0"::"r"(ctx->FPSR));
+    __asm__ volatile("mov v29.s[1], %w0"::"r"(ctx->FPIAR));
+    __asm__ volatile("mov v29.h[4], %w0"::"r"(ctx->FPCR));
 
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
 
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
 
-    asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+    __asm__ volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
-    asm volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("ldrh w1, %0; rbit w2, w1; bfxil w1, w2, 30, 2; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1","x2");
+    __asm__ volatile("ldrh w1, %0; rbit w2, w1; bfxil w1, w2, 30, 2; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1","x2");
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
-            asm volatile("mov w%0, v31.S[3]"::"i"(REG_A7));
+            __asm__ volatile("mov w%0, v31.S[3]"::"i"(REG_A7));
         else
-            asm volatile("mov w%0, v31.S[2]"::"i"(REG_A7));
+            __asm__ volatile("mov w%0, v31.S[2]"::"i"(REG_A7));
     }
     else
-        asm volatile("mov w%0, V31.S[1]"::"i"(REG_A7));
+        __asm__ volatile("mov w%0, V31.S[1]"::"i"(REG_A7));
 }
 
 void M68K_SaveContext(struct M68KState *ctx)
 {
-    asm volatile("mov w1, v31.s[0]; str w1, %0"::"m"(ctx->CACR):"x1");
-    asm volatile("mov x1, v30.d[0]; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
+    __asm__ volatile("mov w1, v31.s[0]; str w1, %0"::"m"(ctx->CACR):"x1");
+    __asm__ volatile("mov x1, v30.d[0]; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
     
-    asm volatile("mov w1, v29.s[0]; str w1, %0"::"m"(ctx->FPSR):"x1");
-    asm volatile("mov w1, v29.s[1]; str w1, %0"::"m"(ctx->FPIAR):"x1");
-    asm volatile("umov w1, v29.h[4]; strh w1, %0"::"m"(ctx->FPCR):"x1");
+    __asm__ volatile("mov w1, v29.s[0]; str w1, %0"::"m"(ctx->FPSR):"x1");
+    __asm__ volatile("mov w1, v29.s[1]; str w1, %0"::"m"(ctx->FPIAR):"x1");
+    __asm__ volatile("umov w1, v29.h[4]; strh w1, %0"::"m"(ctx->FPCR):"x1");
     
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
 
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
 
-    asm volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+    __asm__ volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
-    asm volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
-    asm volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
-    asm volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
-    asm volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
-    asm volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
-    asm volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
-    asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
-    asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("mrs x1, tpidr_EL0; rbit w2, w1; bfxil w1, w2, 30, 2; strh w1, %0"::"m"(ctx->SR):"x1","x2");
+    __asm__ volatile("mrs x1, tpidr_EL0; rbit w2, w1; bfxil w1, w2, 30, 2; strh w1, %0"::"m"(ctx->SR):"x1","x2");
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
-            asm volatile("mov v31.S[3], w%0"::"i"(REG_A7));
+            __asm__ volatile("mov v31.S[3], w%0"::"i"(REG_A7));
         else
-            asm volatile("mov v31.S[2], w%0"::"i"(REG_A7));
+            __asm__ volatile("mov v31.S[2], w%0"::"i"(REG_A7));
     }
     else
-        asm volatile("mov v31.S[1], w%0"::"i"(REG_A7));
+        __asm__ volatile("mov v31.S[1], w%0"::"i"(REG_A7));
     
-    asm volatile("mov w1, v31.s[1]; str w1, %0"::"m"(ctx->USP):"x1");
-    asm volatile("mov w1, v31.s[2]; str w1, %0"::"m"(ctx->ISP):"x1");
-    asm volatile("mov w1, v31.s[3]; str w1, %0"::"m"(ctx->MSP):"x1");
+    __asm__ volatile("mov w1, v31.s[1]; str w1, %0"::"m"(ctx->USP):"x1");
+    __asm__ volatile("mov w1, v31.s[2]; str w1, %0"::"m"(ctx->ISP):"x1");
+    __asm__ volatile("mov w1, v31.s[3]; str w1, %0"::"m"(ctx->MSP):"x1");
 }
 
 void M68K_PrintContext(struct M68KState *m68k)
@@ -1886,7 +1886,7 @@ void ExecutionLoop(struct M68KState *ctx);
 
 void  __attribute__((used)) stub_FindUnit()
 {
-    asm volatile(
+    __asm__ volatile(
 "       .align  8                           \n"
 "FindUnit:                                  \n"
 "       adrp    x4, ICache                  \n"
@@ -1950,7 +1950,7 @@ void M68K_StartEmu(void *addr, void *fdt)
 #ifdef PISTORM_ANY_MODEL
     (void)fdt;
     
-    asm volatile("mov %0, #0":"=r"(addr));
+    __asm__ volatile("mov %0, #0":"=r"(addr));
 
     __m68k.ISP.u32 = BE32(*((uint32_t*)addr));
     __m68k.PC = BE32(*((uint32_t*)addr+1));
@@ -2046,7 +2046,7 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     clear_entire_dcache();
 
-asm volatile(
+__asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
@@ -2057,21 +2057,21 @@ asm volatile(
     housekeeper_enabled = 1;
 #endif
 
-    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
-    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
-    asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
-    asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+    __asm__ volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+    __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+    __asm__ volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
+    __asm__ volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
 
     *(void**)(&arm_code) = NULL;
 
     (void)unit;
 
     /* Save the context to TPIDRRO_EL0, it will be fetched in main loop */
-    asm volatile("msr TPIDRRO_EL0, %0"::"r"(&__m68k));
+    __asm__ volatile("msr TPIDRRO_EL0, %0"::"r"(&__m68k));
 
     /* Start M68k now */
 #ifndef PISTORM_ANY_MODEL
-    asm volatile("bl MainLoop" ::: "x0", "x1", "x2", "x3",
+    __asm__ volatile("bl MainLoop" ::: "x0", "x1", "x2", "x3",
                                    "x4", "x5", "x6", "x7",
                                    "x8", "x9", "x10", "x11",
                                    "x12", "x13", "x14", "x15",
@@ -2083,10 +2083,10 @@ asm volatile(
     MainLoop();
 #endif
 
-    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
+    __asm__ volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
     uint64_t frq;
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
-    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
+    __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
     frq = frq & 0xffffffff;
     kprintf("[JIT] Time spent in m68k mode: %lld us\n", 1000000 * (t2-t1) / frq);
 
@@ -2103,13 +2103,13 @@ asm volatile(
     if (debug_cnt & 1)
     {
         uint64_t tmp;
-        asm volatile("mrs %0, PMEVCNTR0_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMEVCNTR0_EL0":"=r"(tmp));
         kprintf("[JIT] Number of m68k instructions executed: %lld\n", tmp);
     }
     if (debug_cnt & 2)
     {
         uint64_t tmp;
-        asm volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
         kprintf("[JIT] Number of m68k JIT blocks executed: %lld\n", tmp);
     }
         //kprintf("[BOOT] reg 0xf3000034 = %08x\n", LE32(*(volatile uint32_t *)0xf3000034));

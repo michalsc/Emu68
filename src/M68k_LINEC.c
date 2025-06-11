@@ -12,18 +12,15 @@
 #include "RegisterAllocator.h"
 #include "cache.h"
 
-uint32_t *EMIT_MULU(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
-uint32_t *EMIT_MULS(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
+uint32_t EMIT_MULU(struct TranslatorContext *ctx, uint16_t opcode);
+uint32_t EMIT_MULS(struct TranslatorContext *ctx, uint16_t opcode);
 
-uint32_t *EMIT_AND(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_AND_reg")));
-static uint32_t *EMIT_AND_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_AND_mem")));
-static uint32_t *EMIT_AND_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
-__attribute__((alias("EMIT_AND_ext")));
-static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+uint32_t EMIT_AND(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_AND_reg")));
+static uint32_t EMIT_AND_reg(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_AND_mem")));
+static uint32_t EMIT_AND_mem(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_AND_ext")));
+static uint32_t EMIT_AND_ext(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
     uint8_t size = 1 << ((opcode >> 6) & 3);
     uint8_t direction = (opcode >> 8) & 1;
     uint8_t ext_words = 0;
@@ -31,431 +28,465 @@ static uint32_t *EMIT_AND_ext(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_pt
 
     if (direction == 0)
     {
-        uint8_t dest = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
+        uint8_t dest = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
         uint8_t src = 0xff;
-        uint8_t tmp_reg = RA_AllocARMRegister(&ptr);
+        uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
         test_register = dest;
 
-        RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+        RA_SetDirtyM68kRegister(ctx, (opcode >> 9) & 7);
         
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, size, &src, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+        EMIT_LoadFromEffectiveAddress(ctx, size, &src, opcode & 0x3f, &ext_words, 1, NULL);
 
         switch (size)
         {
             case 4:
-                *ptr++ = update_mask ? ands_reg(dest, dest, src, LSL, 0) : and_reg(dest, dest, src, LSL, 0);
+                EMIT(ctx,
+                    update_mask ? 
+                        ands_reg(dest, dest, src, LSL, 0) : 
+                        and_reg(dest, dest, src, LSL, 0)
+                );
                 break;
             case 2:
-                *ptr++ = and_reg(tmp_reg, src, dest, LSL, 0);
-                *ptr++ = bfi(dest, tmp_reg, 0, 16);
+                EMIT(ctx, 
+                    and_reg(tmp_reg, src, dest, LSL, 0),
+                    bfi(dest, tmp_reg, 0, 16)
+                );
                 break;
             case 1:
-                *ptr++ = and_reg(tmp_reg, src, dest, LSL, 0);
-                *ptr++ = bfi(dest, tmp_reg, 0, 8);
+                EMIT(ctx, 
+                    and_reg(tmp_reg, src, dest, LSL, 0),
+                    bfi(dest, tmp_reg, 0, 8)
+                );
                 break;
         }
 
-        RA_FreeARMRegister(&ptr, src);
-        RA_FreeARMRegister(&ptr, tmp_reg);
+        RA_FreeARMRegister(ctx, src);
+        RA_FreeARMRegister(ctx, tmp_reg);
     }
     else
     {
         uint8_t dest = 0xff;
-        uint8_t src = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t src = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
         uint8_t mode = (opcode & 0x0038) >> 3;
 
         test_register = tmp;
 
         if (mode == 4 || mode == 3)
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 0, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 0, &dest, opcode & 0x3f, &ext_words, 0, NULL);
         else
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dest, opcode & 0x3f, *m68k_ptr, &ext_words, 1, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 0, &dest, opcode & 0x3f, &ext_words, 1, NULL);
 
         /* Fetch data into temporary register, perform add, store it back */
         switch (size)
         {
-        case 4:
-            if (mode == 4)
-            {
-                *ptr++ = ldr_offset_preindex(dest, tmp, -4);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = ldr_offset(dest, tmp, 0);
+            case 4:
+                if (mode == 4)
+                {
+                    EMIT(ctx, ldr_offset_preindex(dest, tmp, -4));
+                    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+                }
+                else
+                    EMIT(ctx, ldr_offset(dest, tmp, 0));
 
-            /* Perform calcualtion */
-            *ptr++ = update_mask ? ands_reg(tmp, tmp, src, LSL, 0) : and_reg(tmp, tmp, src, LSL, 0);
+                /* Perform calcualtion */
+                EMIT(ctx, 
+                    update_mask ? 
+                        ands_reg(tmp, tmp, src, LSL, 0) : 
+                        and_reg(tmp, tmp, src, LSL, 0)
+                );
 
-            /* Store back */
-            if (mode == 3)
-            {
-                *ptr++ = str_offset_postindex(dest, tmp, 4);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = str_offset(dest, tmp, 0);
-            break;
-        case 2:
-            if (mode == 4)
-            {
-                *ptr++ = ldrh_offset_preindex(dest, tmp, -2);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = ldrh_offset(dest, tmp, 0);
+                /* Store back */
+                if (mode == 3)
+                {
+                    EMIT(ctx, str_offset_postindex(dest, tmp, 4));
+                    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+                }
+                else
+                    EMIT(ctx, str_offset(dest, tmp, 0));
+                break;
+            case 2:
+                if (mode == 4)
+                {
+                    EMIT(ctx, ldrh_offset_preindex(dest, tmp, -2));
+                    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+                }
+                else
+                    EMIT(ctx, ldrh_offset(dest, tmp, 0));
 
-            /* Perform calcualtion */
-            *ptr++ = and_reg(tmp, tmp, src, LSL, 0);
+                /* Perform calcualtion */
+                EMIT(ctx, and_reg(tmp, tmp, src, LSL, 0));
 
-            /* Store back */
-            if (mode == 3)
-            {
-                *ptr++ = strh_offset_postindex(dest, tmp, 2);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = strh_offset(dest, tmp, 0);
-            break;
-        case 1:
-            if (mode == 4)
-            {
-                *ptr++ = ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = ldrb_offset(dest, tmp, 0);
+                /* Store back */
+                if (mode == 3)
+                {
+                    EMIT(ctx, strh_offset_postindex(dest, tmp, 2));
+                    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+                }
+                else
+                    EMIT(ctx, strh_offset(dest, tmp, 0));
+                break;
+            case 1:
+                if (mode == 4)
+                {
+                    EMIT(ctx, ldrb_offset_preindex(dest, tmp, (opcode & 7) == 7 ? -2 : -1));
+                    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+                }
+                else
+                    EMIT(ctx, ldrb_offset(dest, tmp, 0));
 
-            /* Perform calcualtion */
-            *ptr++ = and_reg(tmp, tmp, src, LSL, 0);
+                /* Perform calcualtion */
+                EMIT(ctx, and_reg(tmp, tmp, src, LSL, 0));
 
-            /* Store back */
-            if (mode == 3)
-            {
-                *ptr++ = strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-            }
-            else
-                *ptr++ = strb_offset(dest, tmp, 0);
-            break;
+                /* Store back */
+                if (mode == 3)
+                {
+                    EMIT(ctx, strb_offset_postindex(dest, tmp, (opcode & 7) == 7 ? 2 : 1));
+                    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+                }
+                else
+                    EMIT(ctx, strb_offset(dest, tmp, 0));
+                break;
         }
 
-        RA_FreeARMRegister(&ptr, dest);
+        RA_FreeARMRegister(ctx, dest);
     }
 
-    ptr = EMIT_AdvancePC(ptr, 2 * (ext_words + 1));
-    (*m68k_ptr) += ext_words;
+    EMIT_AdvancePC(ctx, 2 * (ext_words + 1));
+    ctx->tc_M68kCodePtr += ext_words;
 
     if (update_mask)
     {
         switch(size)
         {
             case 2:
-                *ptr++ = cmn_reg(31, test_register, LSL, 16);
+                EMIT(ctx, cmn_reg(31, test_register, LSL, 16));
                 break;
             case 1:
-                *ptr++ = cmn_reg(31, test_register, LSL, 24);
+                EMIT(ctx, cmn_reg(31, test_register, LSL, 24));
                 break;
         }
 
-        uint8_t cc = RA_ModifyCC(&ptr);
-        ptr = EMIT_GetNZ00(ptr, cc, &update_mask);
+        uint8_t cc = RA_ModifyCC(ctx);
+        EMIT_GetNZ00(ctx, cc, &update_mask);
 
         if (update_mask & SR_Z)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_Z, ARM_CC_EQ);
+            EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
-            ptr = EMIT_SetFlagsConditional(ptr, cc, SR_N, ARM_CC_MI);
+            EMIT_SetFlagsConditional(ctx, cc, SR_N, ARM_CC_MI);
     }
-    RA_FreeARMRegister(&ptr, test_register);
+    RA_FreeARMRegister(ctx, test_register);
 
-    return ptr;
+    return 1;
 }
 
-uint32_t *EMIT_EXG(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+uint32_t EMIT_EXG(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    (void)m68k_ptr;
-
     uint8_t reg1 = 0xff;
     uint8_t reg2 = 0xff;
-    uint8_t tmp = RA_AllocARMRegister(&ptr);
+    uint8_t tmp = RA_AllocARMRegister(ctx);
 
     switch ((opcode >> 3) & 0x1f)
     {
         case 0x08: /* Data registers */
-            reg1 = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-            reg2 = RA_MapM68kRegister(&ptr, opcode & 7);
-            *ptr++ = mov_reg(tmp, reg1);
-            *ptr++ = mov_reg(reg1, reg2);
-            *ptr++ = mov_reg(reg2, tmp);
-            RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
-            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            reg1 = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
+            reg2 = RA_MapM68kRegister(ctx, opcode & 7);
+            EMIT(ctx, 
+                mov_reg(tmp, reg1),
+                mov_reg(reg1, reg2),
+                mov_reg(reg2, tmp)
+            );
+            RA_SetDirtyM68kRegister(ctx, (opcode >> 9) & 7);
+            RA_SetDirtyM68kRegister(ctx, opcode & 7);
             break;
 
         case 0x09:
-            reg1 = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-            reg2 = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-            *ptr++ = mov_reg(tmp, reg1);
-            *ptr++ = mov_reg(reg1, reg2);
-            *ptr++ = mov_reg(reg2, tmp);
-            RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            reg1 = RA_MapM68kRegister(ctx, 8 + ((opcode >> 9) & 7));
+            reg2 = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+            EMIT(ctx, 
+                mov_reg(tmp, reg1),
+                mov_reg(reg1, reg2),
+                mov_reg(reg2, tmp)
+            );
+            RA_SetDirtyM68kRegister(ctx, 8 + ((opcode >> 9) & 7));
+            RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             break;
 
         case 0x11:
-            reg1 = RA_MapM68kRegister(&ptr, ((opcode >> 9) & 7));
-            reg2 = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-            *ptr++ = mov_reg(tmp, reg1);
-            *ptr++ = mov_reg(reg1, reg2);
-            *ptr++ = mov_reg(reg2, tmp);
-            RA_SetDirtyM68kRegister(&ptr, ((opcode >> 9) & 7));
-            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            reg1 = RA_MapM68kRegister(ctx, ((opcode >> 9) & 7));
+            reg2 = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+            EMIT(ctx, 
+                mov_reg(tmp, reg1),
+                mov_reg(reg1, reg2),
+                mov_reg(reg2, tmp)
+            );
+            RA_SetDirtyM68kRegister(ctx, ((opcode >> 9) & 7));
+            RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             break;
     }
 
-    ptr = EMIT_AdvancePC(ptr, 2);
+    EMIT_AdvancePC(ctx, 2);
 
-    RA_FreeARMRegister(&ptr, tmp);
+    RA_FreeARMRegister(ctx, tmp);
 
-    return ptr;
+    return 1;
 }
 
-static uint32_t *EMIT_ABCD_reg(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+static uint32_t EMIT_ABCD_reg(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
-    uint8_t src = RA_MapM68kRegister(&ptr, opcode & 7);
-    uint8_t dst = RA_MapM68kRegister(&ptr, (opcode >> 9) & 7);
-    uint8_t cc = RA_ModifyCC(&ptr);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t src = RA_MapM68kRegister(ctx, opcode & 7);
+    uint8_t dst = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
+    uint8_t cc = RA_ModifyCC(ctx);
 
-    uint8_t tmp_a = RA_AllocARMRegister(&ptr);
-    uint8_t tmp_b = RA_AllocARMRegister(&ptr);
-    uint8_t tmp_c = RA_AllocARMRegister(&ptr);
-    uint8_t tmp_d = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_a = RA_AllocARMRegister(ctx);
+    uint8_t tmp_b = RA_AllocARMRegister(ctx);
+    uint8_t tmp_c = RA_AllocARMRegister(ctx);
+    uint8_t tmp_d = RA_AllocARMRegister(ctx);
 
-    RA_SetDirtyM68kRegister(&ptr, (opcode >> 9) & 7);
+    RA_SetDirtyM68kRegister(ctx, (opcode >> 9) & 7);
 
-    // Mask higher and lower nibbles, perform calculation. 
-    *ptr++ = and_immed(tmp_a, src, 4, 0);
-    *ptr++ = and_immed(tmp_b, dst, 4, 0);
+    EMIT(ctx, 
+        // Mask higher and lower nibbles, perform calculation. 
+        and_immed(tmp_a, src, 4, 0),
+        and_immed(tmp_b, dst, 4, 0),
 
-    *ptr++ = and_immed(tmp_c, src, 4, 28);
-    *ptr++ = and_immed(tmp_d, dst, 4, 28);
+        and_immed(tmp_c, src, 4, 28),
+        and_immed(tmp_d, dst, 4, 28),
 
-    // Perform calculations, separate for high and low nibbles
-    *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
-    *ptr++ = add_reg(tmp_c, tmp_c, tmp_d, LSL, 0);
+        // Perform calculations, separate for high and low nibbles
+        add_reg(tmp_a, tmp_a, tmp_b, LSL, 0),
+        add_reg(tmp_c, tmp_c, tmp_d, LSL, 0),
 
-    // Add X
-    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-    *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+        // Add X
+        tst_immed(cc, 1, 31 & (32 - SRB_X)),
+        csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ),
 
-    // Compute sum of high and low nibbles into tmp_b
-    *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
+        // Compute sum of high and low nibbles into tmp_b
+        add_reg(tmp_b, tmp_a, tmp_c, LSL, 0),
 
-    // if lower nibble higher than 9 make radix adjustment to result
-    *ptr++ = cmp_immed(tmp_a, 9);
-    *ptr++ = b_cc(A64_CC_LS, 2);
-    *ptr++ = add_immed(tmp_b, tmp_b, 6);
+        // if lower nibble higher than 9 make radix adjustment to result
+        cmp_immed(tmp_a, 9),
+        b_cc(A64_CC_LS, 2),
+        add_immed(tmp_b, tmp_b, 6),
 
-    // Mask higher nibble of result and detect carry
-    *ptr++ = and_immed(tmp_d, tmp_b, 6, 28);
-    *ptr++ = cmp_immed(tmp_d, 0x90);
+        // Mask higher nibble of result and detect carry
+        and_immed(tmp_d, tmp_b, 6, 28),
+        cmp_immed(tmp_d, 0x90)
+    );
+
     if (update_mask & SR_XC)
     {
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
-        *ptr++ = b_cc(A64_CC_LS, 3);
-        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_Calt);
+        EMIT(ctx, 
+            bic_immed(cc, cc, 1, 32 - SRB_Calt),
+            b_cc(A64_CC_LS, 3),
+            orr_immed(cc, cc, 1, 32 - SRB_Calt)
+        );
     }
     else
     {
-        *ptr++ = b_cc(A64_CC_LS, 2);
+        EMIT(ctx, b_cc(A64_CC_LS, 2));
     }
     // Make radix adjustment of upper nibble
-    *ptr++ = add_immed(tmp_b, tmp_b, 0x60);
+    EMIT(ctx, add_immed(tmp_b, tmp_b, 0x60));
     if (update_mask & SR_X)
     {
         // Copy C flag to X
-        *ptr++ = ror(0, cc, 1);
-        *ptr++ = bfi(cc, 0, 4, 1);
+        EMIT(ctx, 
+            ror(0, cc, 1),
+            bfi(cc, 0, 4, 1)
+        );
     }
     
     // Insert into result
-    *ptr++ = bfi(dst, tmp_b, 0, 8);
+    EMIT(ctx, bfi(dst, tmp_b, 0, 8));
 
     if (update_mask & SR_Z)
     {
         // Z flag updating. AND the result and clear Z if non-zero, leave unchanged otherwise
-        *ptr++ = ands_immed(31, tmp_b, 8, 0);
-        *ptr++ = b_cc(A64_CC_EQ, 2);
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Z);
+        EMIT(ctx, 
+            ands_immed(31, tmp_b, 8, 0),
+            b_cc(A64_CC_EQ, 2),
+            bic_immed(cc, cc, 1, 32 - SRB_Z)
+        );
     }
 
-    RA_FreeARMRegister(&ptr, tmp_a);
-    RA_FreeARMRegister(&ptr, tmp_b);
-    RA_FreeARMRegister(&ptr, tmp_c);
-    RA_FreeARMRegister(&ptr, tmp_d);
-    RA_FreeARMRegister(&ptr, src);
-    RA_FreeARMRegister(&ptr, dst);
-    ptr = EMIT_AdvancePC(ptr, 2);
+    RA_FreeARMRegister(ctx, tmp_a);
+    RA_FreeARMRegister(ctx, tmp_b);
+    RA_FreeARMRegister(ctx, tmp_c);
+    RA_FreeARMRegister(ctx, tmp_d);
+    RA_FreeARMRegister(ctx, src);
+    RA_FreeARMRegister(ctx, dst);
+    EMIT_AdvancePC(ctx, 2);
 
-    return ptr;
+    return 1;
 }
 
-static uint32_t *EMIT_ABCD_mem(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr)
+static uint32_t EMIT_ABCD_mem(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(*m68k_ptr - 1);
-    uint8_t cc = RA_ModifyCC(&ptr);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t cc = RA_ModifyCC(ctx);
 
-    uint8_t tmp_a = RA_AllocARMRegister(&ptr);
-    uint8_t tmp_b = RA_AllocARMRegister(&ptr);
-    uint8_t tmp_c = RA_AllocARMRegister(&ptr);
-    uint8_t tmp_d = RA_AllocARMRegister(&ptr);
+    uint8_t tmp_a = RA_AllocARMRegister(ctx);
+    uint8_t tmp_b = RA_AllocARMRegister(ctx);
+    uint8_t tmp_c = RA_AllocARMRegister(ctx);
+    uint8_t tmp_d = RA_AllocARMRegister(ctx);
 
-    uint8_t an_src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-    uint8_t an_dst = RA_MapM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
+    uint8_t an_src = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+    uint8_t an_dst = RA_MapM68kRegister(ctx, 8 + ((opcode >> 9) & 7));
 
     // Fetch initial data into regs tmp_a and tmp_b
     if ((opcode & 7) == 7) {
-        *ptr++ = ldrb_offset_preindex(an_src, tmp_a, -2);
+        EMIT(ctx, ldrb_offset_preindex(an_src, tmp_a, -2));
     }
     else {
-        *ptr++ = ldrb_offset_preindex(an_src, tmp_a, -1);
+        EMIT(ctx, ldrb_offset_preindex(an_src, tmp_a, -1));
     }
 
     if (((opcode >> 9) & 7) == 7) {
-        *ptr++ = ldrb_offset_preindex(an_dst, tmp_b, -2);
+        EMIT(ctx, ldrb_offset_preindex(an_dst, tmp_b, -2));
     }
     else {
-        *ptr++ = ldrb_offset_preindex(an_dst, tmp_b, -1);
+        EMIT(ctx, ldrb_offset_preindex(an_dst, tmp_b, -1));
     }
 
-    RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode >> 9) & 7));
-    RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+    RA_SetDirtyM68kRegister(ctx, 8 + ((opcode >> 9) & 7));
+    RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
 
-    // Mask higher and lower nibbles, perform calculation. 
-    *ptr++ = and_immed(tmp_c, tmp_a, 4, 28);
-    *ptr++ = and_immed(tmp_d, tmp_b, 4, 28);
-    *ptr++ = and_immed(tmp_a, tmp_a, 4, 0);
-    *ptr++ = and_immed(tmp_b, tmp_b, 4, 0);
+    EMIT(ctx, 
+        // Mask higher and lower nibbles, perform calculation. 
+        and_immed(tmp_c, tmp_a, 4, 28),
+        and_immed(tmp_d, tmp_b, 4, 28),
+        and_immed(tmp_a, tmp_a, 4, 0),
+        and_immed(tmp_b, tmp_b, 4, 0),
 
-    // Perform calculations, separate for high and low nibbles
-    *ptr++ = add_reg(tmp_a, tmp_a, tmp_b, LSL, 0);
-    *ptr++ = add_reg(tmp_c, tmp_c, tmp_d, LSL, 0);
+        // Perform calculations, separate for high and low nibbles
+        add_reg(tmp_a, tmp_a, tmp_b, LSL, 0),
+        add_reg(tmp_c, tmp_c, tmp_d, LSL, 0),
 
-    // Add X
-    *ptr++ = tst_immed(cc, 1, 31 & (32 - SRB_X));
-    *ptr++ = csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ);
+        // Add X
+        tst_immed(cc, 1, 31 & (32 - SRB_X)),
+        csinc(tmp_a, tmp_a, tmp_a, A64_CC_EQ),
 
-    // Compute sum of high and low nibbles into tmp_b
-    *ptr++ = add_reg(tmp_b, tmp_a, tmp_c, LSL, 0);
+        // Compute sum of high and low nibbles into tmp_b
+        add_reg(tmp_b, tmp_a, tmp_c, LSL, 0),
 
-    // if lower nibble higher than 9 make radix adjustment to result
-    *ptr++ = cmp_immed(tmp_a, 9);
-    *ptr++ = b_cc(A64_CC_LS, 2);
-    *ptr++ = add_immed(tmp_b, tmp_b, 6);
+        // if lower nibble higher than 9 make radix adjustment to result
+        cmp_immed(tmp_a, 9),
+        b_cc(A64_CC_LS, 2),
+        add_immed(tmp_b, tmp_b, 6),
 
-    // Mask higher nibble of result and detect carry
-    *ptr++ = and_immed(tmp_d, tmp_b, 6, 28);
-    *ptr++ = cmp_immed(tmp_d, 0x90);
+        // Mask higher nibble of result and detect carry
+        and_immed(tmp_d, tmp_b, 6, 28),
+        cmp_immed(tmp_d, 0x90)
+    );
+
     if (update_mask & SR_XC)
     {
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Calt);
-        *ptr++ = b_cc(A64_CC_LS, 3);
-        *ptr++ = orr_immed(cc, cc, 1, 32 - SRB_Calt);
+        EMIT(ctx, 
+            bic_immed(cc, cc, 1, 32 - SRB_Calt),
+            b_cc(A64_CC_LS, 3),
+            orr_immed(cc, cc, 1, 32 - SRB_Calt)
+        );
     }
     else
     {
-        *ptr++ = b_cc(A64_CC_LS, 2);
+        EMIT(ctx, b_cc(A64_CC_LS, 2));
     }
     // Make radix adjustment of upper nibble
-    *ptr++ = add_immed(tmp_b, tmp_b, 0x60);
+    EMIT(ctx, add_immed(tmp_b, tmp_b, 0x60));
     if (update_mask & SR_X)
     {
         // Copy C flag to X
-        *ptr++ = ror(0, cc, 1);
-        *ptr++ = bfi(cc, 0, 4, 1);
+        EMIT(ctx, 
+            ror(0, cc, 1),
+            bfi(cc, 0, 4, 1)
+        );
     }
     
     // Insert into result
-    *ptr++ = strb_offset(an_dst, tmp_b, 0);
+    EMIT(ctx, strb_offset(an_dst, tmp_b, 0));
 
     if (update_mask & SR_Z)
     {
         // Z flag updating. AND the result and clear Z if non-zero, leave unchanged otherwise
-        *ptr++ = ands_immed(31, tmp_b, 8, 0);
-        *ptr++ = b_cc(A64_CC_EQ, 2);
-        *ptr++ = bic_immed(cc, cc, 1, 32 - SRB_Z);
+        EMIT(ctx, 
+            ands_immed(31, tmp_b, 8, 0),
+            b_cc(A64_CC_EQ, 2),
+            bic_immed(cc, cc, 1, 32 - SRB_Z)
+        );
     }
 
-    RA_FreeARMRegister(&ptr, tmp_a);
-    RA_FreeARMRegister(&ptr, tmp_b);
-    RA_FreeARMRegister(&ptr, tmp_c);
-    RA_FreeARMRegister(&ptr, tmp_d);
+    RA_FreeARMRegister(ctx, tmp_a);
+    RA_FreeARMRegister(ctx, tmp_b);
+    RA_FreeARMRegister(ctx, tmp_c);
+    RA_FreeARMRegister(ctx, tmp_d);
     
-    ptr = EMIT_AdvancePC(ptr, 2);
+    EMIT_AdvancePC(ctx, 2);
 
-    return ptr;
+    return 1;
 }
 
 static struct OpcodeDef InsnTable[512] = {
-    [0000 ... 0007] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC, 1, 0, 1 },  //D0 Destination, Byte
-    [0020 ... 0047] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [0050 ... 0074] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [0100 ... 0107] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC, 1, 0, 2 }, //Word
-    [0120 ... 0147] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [0150 ... 0174] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [0200 ... 0207] = { { EMIT_AND_reg }, NULL, 0, SR_NZVC, 1, 0, 4 }, //Long
-    [0220 ... 0247] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 4 },
-    [0250 ... 0274] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [0000 ... 0007] = { EMIT_AND_reg, NULL, 0, SR_NZVC, 1, 0, 1 },  //D0 Destination, Byte
+    [0020 ... 0047] = { EMIT_AND_mem, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [0050 ... 0074] = { EMIT_AND_ext, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [0100 ... 0107] = { EMIT_AND_reg, NULL, 0, SR_NZVC, 1, 0, 2 }, //Word
+    [0120 ... 0147] = { EMIT_AND_mem, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [0150 ... 0174] = { EMIT_AND_ext, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [0200 ... 0207] = { EMIT_AND_reg, NULL, 0, SR_NZVC, 1, 0, 4 }, //Long
+    [0220 ... 0247] = { EMIT_AND_mem, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [0250 ... 0274] = { EMIT_AND_ext, NULL, 0, SR_NZVC, 1, 1, 4 },
  
-    [0300 ... 0307] = { { EMIT_MULU }, NULL, 0, SR_NZVC, 1, 0, 2}, //_reg, //D0 Destination
-    [0320 ... 0347] = { { EMIT_MULU }, NULL, 0, SR_NZVC, 1, 0, 2 }, //_mem,
-    [0350 ... 0374] = { { EMIT_MULU }, NULL, 0, SR_NZVC, 1, 1, 2 }, //_ext,
+    [0300 ... 0307] = { EMIT_MULU, NULL, 0, SR_NZVC, 1, 0, 2}, //_reg, //D0 Destination
+    [0320 ... 0347] = { EMIT_MULU, NULL, 0, SR_NZVC, 1, 0, 2 }, //_mem,
+    [0350 ... 0374] = { EMIT_MULU, NULL, 0, SR_NZVC, 1, 1, 2 }, //_ext,
  
-    [0400 ... 0407] = { { EMIT_ABCD_reg }, NULL, SR_XZ, SR_XZC, 1, 0, 1 }, //D0 Destination
-    [0410 ... 0417] = { { EMIT_ABCD_mem }, NULL, SR_XZ, SR_XZC, 1, 0, 1 }, //-Ax),-(Ay)
-    [0420 ... 0447] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 1 }, //Byte
-    [0450 ... 0471] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 1 }, //D0 Source
+    [0400 ... 0407] = { EMIT_ABCD_reg, NULL, SR_XZ, SR_XZC, 1, 0, 1 }, //D0 Destination
+    [0410 ... 0417] = { EMIT_ABCD_mem, NULL, SR_XZ, SR_XZC, 1, 0, 1 }, //-Ax),-(Ay)
+    [0420 ... 0447] = { EMIT_AND_mem, NULL, 0, SR_NZVC, 1, 0, 1 }, //Byte
+    [0450 ... 0471] = { EMIT_AND_ext, NULL, 0, SR_NZVC, 1, 1, 1 }, //D0 Source
  
-    [0500 ... 0517] = { { EMIT_EXG }, NULL, 0, 0, 1, 0, 4 }, //R0 Source, unsized always the full register
-    [0520 ... 0547] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 2 }, //Word
-    [0550 ... 0571] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 2 }, 
+    [0500 ... 0517] = { EMIT_EXG, NULL, 0, 0, 1, 0, 4 }, //R0 Source, unsized always the full register
+    [0520 ... 0547] = { EMIT_AND_mem, NULL, 0, SR_NZVC, 1, 0, 2 }, //Word
+    [0550 ... 0571] = { EMIT_AND_ext, NULL, 0, SR_NZVC, 1, 1, 2 }, 
 
-    [0610 ... 0617] = { { EMIT_EXG }, NULL, 0, 0, 1, 0, 4 },  //D0 Source
-    [0620 ... 0647] = { { EMIT_AND_mem }, NULL, 0, SR_NZVC, 1, 0, 4 }, //Long
-    [0650 ... 0671] = { { EMIT_AND_ext }, NULL, 0, SR_NZVC, 1, 1, 4 },
+    [0610 ... 0617] = { EMIT_EXG, NULL, 0, 0, 1, 0, 4 },  //D0 Source
+    [0620 ... 0647] = { EMIT_AND_mem, NULL, 0, SR_NZVC, 1, 0, 4 }, //Long
+    [0650 ... 0671] = { EMIT_AND_ext, NULL, 0, SR_NZVC, 1, 1, 4 },
 
-    [0700 ... 0707] = { { EMIT_MULS }, NULL, 0, SR_NZVC, 1, 0, 2 }, //_reg, //D0 Destination
-    [0720 ... 0747] = { { EMIT_MULS }, NULL, 0, SR_NZVC, 1, 0, 2 }, //_mem,
-    [0750 ... 0774] = { { EMIT_MULS }, NULL, 0, SR_NZVC, 1, 1, 2 }, //_ext,
+    [0700 ... 0707] = { EMIT_MULS, NULL, 0, SR_NZVC, 1, 0, 2 }, //_reg, //D0 Destination
+    [0720 ... 0747] = { EMIT_MULS, NULL, 0, SR_NZVC, 1, 0, 2 }, //_mem,
+    [0750 ... 0774] = { EMIT_MULS, NULL, 0, SR_NZVC, 1, 1, 2 }, //_ext,
 };
 
 
-uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+uint32_t EMIT_lineC(struct TranslatorContext *ctx)
 {
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
-    (*m68k_ptr)++;
-    *insn_consumed = 1;
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
 
     /* 1100xxx011xxxxxx - MULU */
     if (InsnTable[opcode & 00777].od_Emit)
     {
-        ptr = InsnTable[opcode & 00777].od_Emit(ptr, opcode, m68k_ptr);
+        return InsnTable[opcode & 00777].od_Emit(ctx, opcode);
     }
     else
     {
-        ptr = EMIT_FlushPC(ptr);
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        *ptr++ = svc(0x100);
-        *ptr++ = svc(0x101);
-        *ptr++ = svc(0x103);
-        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
-        *ptr++ = 48;
-        ptr = EMIT_Exception(ptr, VECTOR_ILLEGAL_INSTRUCTION, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+        EMIT_FlushPC(ctx);
+        EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
+        EMIT(ctx,
+            svc(0x100),
+            svc(0x101),
+            svc(0x103),
+            (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
+            48
+        );
+        EMIT_Exception(ctx, VECTOR_ILLEGAL_INSTRUCTION, 0);
+        EMIT(ctx, INSN_TO_LE(0xffffffff));
     }
 
-    return ptr;
+    return 1;
 }
 
 uint32_t GetSR_LineC(uint16_t opcode)
