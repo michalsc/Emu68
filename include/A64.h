@@ -28,9 +28,9 @@
 #else
 
 // Apply macro to each argument (supports up to 63 args)
-#define EMIT(ptr, ...) __VA_OPT__(FOR_EACH(EMIT_ONE, ptr, __VA_ARGS__))
+#define EMIT(ptr, ...) do { __VA_OPT__(FOR_EACH(EMIT_ONE, ptr, __VA_ARGS__)) } while(0)
 
-#define EMIT_ONE(ptr, x) *ptr++ = (x);
+#define EMIT_ONE(ptr, x) *((ptr)->tc_CodePtr)++ = (x);
 
 // Internal: dispatch macro based on number of arguments
 #define FOR_EACH(macro, ptr, ...) \
@@ -60,8 +60,21 @@
 #define _FE8(m,p,x1,x2,x3,x4,x5,x6,x7,x8) _FE7(m,p,x1,x2,x3,x4,x5,x6,x7) m(p,x8);
 #define _FE9(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9) _FE8(m,p,x1,x2,x3,x4,x5,x6,x7,x8) m(p,x9);
 #define _FE10(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10) _FE9(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9) m(p,x10);
-
-// For brevity, I'll show a generator below if you want all 64
+#define _FE11(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11) _FE10(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10) m(p,x11);
+#define _FE12(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12) _FE11(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11) m(p,x12);
+#define _FE13(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13) _FE12(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12) m(p,x13);
+#define _FE14(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14) _FE13(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13) m(p,x14);
+#define _FE15(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15) _FE14(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14) m(p,x15);
+#define _FE16(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16) _FE15(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15) m(p,x16);
+#define _FE17(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17) _FE16(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16) m(p,x17);
+#define _FE18(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18) _FE17(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17) m(p,x18);
+#define _FE19(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19) _FE18(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18) m(p,x19);
+#define _FE20(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20) _FE19(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19) m(p,x20);
+#define _FE21(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21) _FE20(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20) m(p,x21);
+#define _FE22(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22) _FE21(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21) m(p,x22);
+#define _FE23(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23) _FE22(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22) m(p,x23);
+#define _FE24(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24) _FE23(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23) m(p,x24);
+#define _FE25(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24,x25) _FE24(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24) m(p,x25);
 
 #endif
 
@@ -850,14 +863,17 @@ void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
     }
     else
     {
+        uint8_t tmp_reg_2 = RA_AllocARMRegister(ctx);
+
         EMIT(ctx,
             bic_immed(cc, cc, 4, 0),
             orr_immed(tmp_reg, cc, 1, 29),
+            orr_immed(tmp_reg_2, cc, 1, 30),
             csel(cc, tmp_reg, cc, A64_CC_MI),
-            orr_immed(tmp_reg, cc, 1, 30),
-            csel(cc, tmp_reg, cc, A64_CC_EQ)
+            csel(cc, tmp_reg_2, cc, A64_CC_EQ)
         );
 
+        RA_FreeARMRegister(ctx, tmp_reg_2);
         (*not_done) &= 0x10;
     }
 

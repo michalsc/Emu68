@@ -585,7 +585,7 @@ uint32_t EMIT_line8(struct TranslatorContext *ctx)
             svc(0x100),
             svc(0x101),
             svc(0x103),
-            (uint32_t)(uintptr_t)(*ctx->tc_M68kCodePtr - 8),
+            (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
             48
         );
         EMIT_Exception(ctx, VECTOR_ILLEGAL_INSTRUCTION, 0);
