@@ -662,10 +662,9 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                         uint32_t i;
                         float f;
                     } u;
-                    u.i = (uint32_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[2]);
-                    u.i |= (uint32_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]) << 16;
+                    u.i = (uint32_t)cache_read_32(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
                     /* Check if immediate constant is possible */
-                    if ((u.i & 0x7ffff) == 0 && ((u.i & 0x7e000000) == 0x4000000 || (u.i & 0x7e000000) == 0x3e000000)) {
+                    if ((u.i & 0x7ffff) == 0 && ((u.i & 0x7e000000) == 0x40000000 || (u.i & 0x7e000000) == 0x3e000000)) {
                         uint8_t imm = (u.i >> 19) & 0x7f;
                         if (u.i & 0x80000000) imm |= 0x80;
                         EMIT(ctx, fmov(*reg, imm));
@@ -681,8 +680,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                     break;
 
                 case SIZE_L:
-                    int32_t imm32 = (uint16_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[2]);
-                    imm32 |= (uint16_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]) << 16;
+                    int32_t imm32 = (uint16_t)cache_read_32(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
                     switch (imm32) {
                         case 0:
                             EMIT(ctx, fmov_0(*reg));
@@ -1979,7 +1977,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
-    __asm__ volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
+    __asm__ volatile("msr tpidr_el1,%0": :"r"(0xffffffff));
 
     LRU_InvalidateAll();
 
