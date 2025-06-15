@@ -483,7 +483,7 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
 
     while((cache_read_16(ICACHE, (uintptr_t)ptr) & 0xfe00) != 0xf200)
     {
-        if (cnt++ > 15)
+        if (cnt++ > 200)
             return 1;
         if (M68K_IsBranch(ptr))
             return 1;
@@ -494,8 +494,8 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
         ptr += len;
     }
 
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)ptr[0]);
-    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)ptr[1]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&ptr[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&ptr[1]);
 
     /* In case of FNOP check subsequent instruction */
     if (opcode == 0xf280 && opcode2 == 0x0000)
@@ -505,6 +505,15 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
         else {
             return FPSR_Update_Needed(ptr + 2, level + 1);
         }
+    }
+
+    /*
+        If FMOVE to MEM skip this instruction and repeat check.
+    */
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
+    {
+        ptr += 2 + SR_GetEALength(ptr + 2, opcode & 0x3f, 0);
+        return FPSR_Update_Needed(ptr, level + 1);
     }
 
     /*
@@ -523,8 +532,6 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
     if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0) /* FScc */
         return 1;
     if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
-        return 1;
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
         return 1;
     if ((opcode & 0xffc0) == 0xf340) /* FRESTORE */
         return 1;
