@@ -541,6 +541,40 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
     return 0;
 }
 
+static const uint8_t IntTable[32] = {
+    [1] = 0b1110000,
+    [2] = 0b0000000,
+    [3] = 0b0001000,
+    [4] = 0b0010000,
+    [5] = 0b0010100,
+    [6] = 0b0011000,
+    [7] = 0b0011100,
+    [8] = 0b0100000,
+    [9] = 0b0100010,
+    [10]= 0b0100100,
+    [11]= 0b0100110,
+    [12]= 0b0101000,
+    [13]= 0b0101010,
+    [14]= 0b0101100,
+    [15]= 0b0101110,
+    [16]= 0b0110000,
+    [17]= 0b0110001,
+    [18]= 0b0110010,
+    [19]= 0b0110011,
+    [20]= 0b0110100,
+    [21]= 0b0110101,
+    [22]= 0b0110110,
+    [23]= 0b0110111,
+    [24]= 0b0111000,
+    [25]= 0b0111001,
+    [26]= 0b0111010,
+    [27]= 0b0111011,
+    [28]= 0b0111100,
+    [29]= 0b0111101,
+    [30]= 0b0111110,
+    [31]= 0b0111111,
+};
+
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
 void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count, uint8_t single)
@@ -624,54 +658,130 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
             switch (size)
             {
                 case SIZE_S:
-                {
-                    int8_t off = 4;
-                    EMIT_GetOffsetPC(ctx, &off);
-                    EMIT(ctx, 
-                        flds(*reg, REG_PC, off),
-                        fcvtds(*reg, *reg)
-                    );
+                    union {
+                        uint32_t i;
+                        float f;
+                    } u;
+                    u.i = (uint32_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[2]);
+                    u.i |= (uint32_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]) << 16;
+                    /* Check if immediate constant is possible */
+                    if ((u.i & 0x7ffff) == 0 && ((u.i & 0x7e000000) == 0x4000000 || (u.i & 0x7e000000) == 0x3e000000)) {
+                        uint8_t imm = (u.i >> 19) & 0x7f;
+                        if (u.i & 0x80000000) imm |= 0x80;
+                        EMIT(ctx, fmov(*reg, imm));
+                    } else {
+                        int8_t off = 4;
+                        EMIT_GetOffsetPC(ctx, &off);
+                        EMIT(ctx, 
+                            flds(*reg, REG_PC, off),
+                            fcvtds(*reg, *reg)
+                        );
+                    }
                     *ext_count += 2;
                     break;
-                }
 
                 case SIZE_L:
-                    EMIT_LoadFromEffectiveAddress(ctx, 4, &int_reg, ea, ext_count, 0, NULL);
-                    EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                    int32_t imm32 = (uint16_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[2]);
+                    imm32 |= (uint16_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]) << 16;
+                    switch (imm32) {
+                        case 0:
+                            EMIT(ctx, fmov_0(*reg));
+                            break;
+                        case 1:
+                            EMIT(ctx, fmov_1(*reg));
+                            break;
+                        default:
+                            if (_abs(imm32) < 32) {
+                                uint8_t sign = imm32 < 0 ? 1 : 0;
+                                if (sign) imm32 = -imm32;
+                                uint8_t constval = IntTable[imm32] | sign << 7;
+                                EMIT(ctx, fmov(*reg, constval));
+                            }
+                            else {
+                                int_reg = RA_AllocARMRegister(ctx);
+                                EMIT(ctx, movw_immed_u16(int_reg, imm32 & 0xffff));
+                                if ((imm32 >> 16) & 0xffff)
+                                    EMIT(ctx, movt_immed_u16(int_reg, (imm32 >> 16) & 0xffff));
+                                EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                            }
+                    }
+                    *ext_count += 2;
                     break;
                 
                 case SIZE_W:
-                {
-                    int_reg = RA_AllocARMRegister(ctx);
                     int16_t imm = (int16_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
-                    EMIT(ctx, movw_immed_u16(int_reg, imm & 0xffff));
-                    if (imm < 0)
-                        EMIT(ctx, movt_immed_u16(int_reg, 0xffff));
-                    EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                    switch (imm) {
+                        case 0:
+                            EMIT(ctx, fmov_0(*reg));
+                            break;
+                        case 1:
+                            EMIT(ctx, fmov_1(*reg));
+                            break;
+                        default:
+                            if (_abs(imm) < 32) {
+                                uint8_t sign = imm < 0 ? 1 : 0;
+                                if (sign) imm = -imm;
+                                uint8_t constval = IntTable[imm] | sign << 7;
+                                EMIT(ctx, fmov(*reg, constval));
+                            }
+                            else {
+                                int_reg = RA_AllocARMRegister(ctx);
+                                EMIT(ctx, movw_immed_u16(int_reg, imm & 0xffff));
+                                if (imm < 0)
+                                    EMIT(ctx, movt_immed_u16(int_reg, 0xffff));
+                                EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                            }
+                    }
                     *ext_count += 1;
                     break;
-                }
 
                 case SIZE_B:
-                {
-                    int_reg = RA_AllocARMRegister(ctx);
-                    int8_t imm = (int8_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
-                    EMIT(ctx, 
-                        mov_immed_s8(int_reg, imm),
-                        scvtf_32toD(*reg, int_reg)
-                    );
+                    int8_t imm8 = (int8_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    switch (imm8) {
+                        case 0:
+                            EMIT(ctx, fmov_0(*reg));
+                            break;
+                        case 1:
+                            EMIT(ctx, fmov_1(*reg));
+                            break;
+                        default:
+                            if (_abs(imm8) < 32) {
+                                uint8_t sign = imm8 < 0 ? 1 : 0;
+                                if (sign) imm8 = -imm8;
+                                uint8_t constval = IntTable[imm8] | sign << 7;
+                                EMIT(ctx, fmov(*reg, constval));
+                            }
+                            else {
+                                int_reg = RA_AllocARMRegister(ctx);
+                                EMIT(ctx, 
+                                    mov_immed_s8(int_reg, imm8),
+                                    scvtf_32toD(*reg, int_reg)
+                                );
+                            }
+                    }
                     *ext_count += 1;
                     break;
-                }
 
                 case SIZE_D:
-                {
-                    int8_t off = 4;
-                    EMIT_GetOffsetPC(ctx, &off);
-                    EMIT(ctx, fldd(*reg, REG_PC, off));
+                    union {
+                        uint64_t i;
+                        double f;
+                    } ud;
+                    ud.i = (uint64_t)cache_read_64(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    /* Check if immediate constant is possible */
+                    if ((ud.i & 0xffffffffffULL) == 0 && 
+                            ((ud.i & 0x7fc0000000000000ULL) == 0x4000000000000000ULL || 
+                             (ud.i & 0x7fc0000000000000ULL) == 0x3fc0000000000000ULL)) {
+                        uint8_t imm = (ud.i >> 48) & 0x7f;
+                        if (ud.i & 0x8000000000000000ULL) imm |= 0x80;
+                        EMIT(ctx, fmov(*reg, imm));
+                    } else {
+                        int8_t off = 4;
+                        EMIT_GetOffsetPC(ctx, &off);
+                        EMIT(ctx, fldd(*reg, REG_PC, off));
+                    }
                     *ext_count += 4;
                     break;
-                }
 
                 default:
                     EMIT_LoadFromEffectiveAddress(ctx, 0, &int_reg, ea, ext_count, 0, NULL);
