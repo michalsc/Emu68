@@ -1615,12 +1615,12 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
     EMIT(ctx, wfi());
 #else
     uint8_t tmpreg = RA_AllocARMRegister(ctx);
-    uint8_t ctx = RA_GetCTX(ctx);
+    uint8_t ctxReg = RA_GetCTX(ctx);
     uint32_t *start, *end;
 
     // Don't wait for event if IRQ is already pending
     EMIT(ctx, 
-        ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, INT)),
+        ldr_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, INT)),
         cbnz(tmpreg, 4)
     );
 
@@ -1629,7 +1629,7 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
     /* PiStorm waits for event and checks INT - aggregate of ~IPL0 and ARM */
     EMIT(ctx, 
         wfe(),
-        ldr_offset(ctx, tmpreg, __builtin_offsetof(struct M68KState, INT))
+        ldr_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, INT))
     );
     end = ctx->tc_CodePtr;
     EMIT(ctx, cbz(tmpreg, start - end));
