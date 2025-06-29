@@ -20,7 +20,7 @@ void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition,
     switch (m68k_condition)
     {
         case M_CC_EQ:
-            if (host_z_set) {
+            if (host_flags & SR_Z) {
                 EMIT(ctx, b_cc(A64_CC_EQ, distance));
                 if (jump_type) *jump_type = FIXUP_BCC;
             } else {
@@ -31,65 +31,65 @@ void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition,
 
         case M_CC_NE:
             EMIT(ctx, 
-                host_z_set ? 
+                host_flags & SR_Z ? 
                     b_cc(A64_CC_NE, distance) : 
                     tbz(cc, SRB_Z, distance)
             );
-            if (jump_type) *jump_type = host_z_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_Z ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_CS:
             EMIT(ctx, 
-                host_c_set ? 
+                host_flags & SR_C ? 
                     b_cc(A64_CC_CS, distance) : 
                     tbnz(cc, SRB_Calt, distance)
             );
-            if (jump_type) *jump_type = host_c_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_C ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_CC:
             EMIT(ctx, 
-                host_c_set ? 
+                host_flags & SR_C ? 
                     b_cc(A64_CC_CC, distance) : 
                     tbz(cc, SRB_Calt, distance)
             );
-            if (jump_type) *jump_type = host_c_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_C ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_PL:
             EMIT(ctx, 
-                host_n_set ? 
+                host_flags & SR_N ? 
                     b_cc(A64_CC_PL, distance) : 
                     tbz(cc, SRB_N, distance)
             );
-            if (jump_type) *jump_type = host_n_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_N ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_MI:
             EMIT(ctx, 
-                host_n_set ? 
+                host_flags & SR_N ? 
                     b_cc(A64_CC_MI, distance) : 
                     tbnz(cc, SRB_N, distance)
             );
-            if (jump_type) *jump_type = host_n_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_N ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_VS:
             EMIT(ctx, 
-                host_v_set ? 
+                host_flags & SR_V ? 
                     b_cc(A64_CC_VS, distance) : 
                     tbnz(cc, SRB_Valt, distance)
             );
-            if (jump_type) *jump_type = host_v_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_V ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_VC:
             EMIT(ctx, 
-                host_v_set ? 
+                host_flags & SR_V ? 
                     b_cc(A64_CC_VC, distance) : 
                     tbz(cc, SRB_Valt, distance)
             );
-            if (jump_type) *jump_type = host_v_set ? FIXUP_BCC : FIXUP_TBZ;
+            if (jump_type) *jump_type = host_flags & SR_V ? FIXUP_BCC : FIXUP_TBZ;
             break;
 
         case M_CC_LS:   /* C == 1 || Z == 1 */
@@ -109,7 +109,7 @@ void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition,
             break;
 
         case M_CC_GE:   /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
-            if (host_n_set && host_v_set) {
+            if ((host_flags & SR_NV) == SR_NV) {
                 EMIT(ctx, b_cc(A64_CC_GE, distance));
             }
             else {
@@ -124,7 +124,7 @@ void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition,
             break;
 
         case M_CC_LT:
-            if (host_n_set && host_v_set) {
+            if ((host_flags & SR_NV) == SR_NV) {
                 EMIT(ctx, b_cc(A64_CC_LT, distance));
             }
             else {
@@ -139,7 +139,7 @@ void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition,
             break;
 
         case M_CC_GT:
-            if (host_n_set && host_v_set && host_z_set) {
+            if ((host_flags & SR_NZV) == SR_NZV) {
                 EMIT(ctx, b_cc(A64_CC_GT, distance));
             }
             else {
@@ -154,7 +154,7 @@ void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition,
             break;
 
         case M_CC_LE:
-            if (host_n_set && host_v_set && host_z_set) {
+            if ((host_flags & SR_NZV) == SR_NZV) {
                 EMIT(ctx, b_cc(A64_CC_LE, distance));
             }
             else {
@@ -187,7 +187,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
     switch (m68k_condition)
     {
         case M_CC_EQ:
-            if (host_z_set) {
+            if (host_flags & SR_Z) {
                 success_condition = A64_CC_EQ;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_Z)));
@@ -196,7 +196,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_NE:
-            if (host_z_set) {
+            if (host_flags & SR_Z) {
                 success_condition = A64_CC_NE;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_Z)));
@@ -205,7 +205,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_CS:
-            if (host_c_set) {
+            if (host_flags & SR_C) {
                 success_condition = A64_CC_CS;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_Calt)));
@@ -214,7 +214,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_CC:
-            if (host_c_set) {
+            if (host_flags & SR_C) {
                 success_condition = A64_CC_CC;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_Calt)));
@@ -223,7 +223,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_PL:
-            if (host_n_set) {
+            if (host_flags & SR_N) {
                 success_condition = A64_CC_PL;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_N)));
@@ -232,7 +232,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_MI:
-        if (host_n_set) {
+        if (host_flags & SR_N) {
                 success_condition = A64_CC_MI;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_N)));
@@ -241,7 +241,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_VS:
-            if (host_v_set) {
+            if (host_flags & SR_V) {
                 success_condition = A64_CC_VS;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_Valt)));
@@ -250,7 +250,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_VC:
-            if (host_v_set) {
+            if (host_flags & SR_V) {
                 success_condition = A64_CC_VC;
             } else {
                 EMIT(ctx, tst_immed(cc, 1, 31 & (32 - SRB_Valt)));
@@ -269,7 +269,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_GE: /* N ==V -> (N==0 && V==0) || (N==1 && V==1) */
-            if (!(host_n_set && host_v_set))
+            if ((host_flags & SR_NV) != SR_NV)
             {
                 cond_tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
@@ -281,7 +281,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_LT:
-            if (!(host_n_set && host_v_set))
+            if ((host_flags & SR_NV) != SR_NV)
             {
                 cond_tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
@@ -293,7 +293,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_GT:
-            if (!(host_n_set && host_v_set && host_z_set))
+            if ((host_flags & SR_NZV) != SR_NZV)
             {
                 cond_tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
@@ -305,7 +305,7 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
             break;
 
         case M_CC_LE:
-            if (!(host_n_set && host_v_set && host_z_set))
+            if ((host_flags & SR_NZV) != SR_NZV)
             {
                 cond_tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 

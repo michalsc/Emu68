@@ -808,6 +808,12 @@ uint32_t EMIT_ORI_TO_CCR(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t immed = RA_AllocARMRegister(ctx);
     uint16_t val8 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
 
+    /* 
+        Before swapping flags - invalidate host flags: all flags modified by this instruction
+        are out of sync now
+    */
+    host_flags &= ~val8;
+
     /* Swap C and V flags in immediate */
     if ((val8 & 3) != 0 && (val8 & 3) < 3)
         val8 ^= 3;
@@ -1191,6 +1197,12 @@ uint32_t EMIT_ANDI_TO_CCR(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t immed = RA_AllocARMRegister(ctx);
     uint16_t val = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
    
+    /* 
+        Before swapping flags - invalidate host flags: all flags modified by this instruction
+        are out of sync now
+    */
+    host_flags &= ~val;
+
     /* Swap C and V flags in immediate */
     if ((val & 3) != 0 && (val & 3) < 3)
         val ^= 3;
@@ -1564,6 +1576,12 @@ uint32_t EMIT_EORI_TO_CCR(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t immed = RA_AllocARMRegister(ctx);
     int16_t val = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
 
+    /* 
+        Before swapping flags - invalidate host flags: all flags modified by this instruction
+        are out of sync now
+    */
+    host_flags &= ~val;
+
     /* Swap C and V flags in immediate */
     if ((val & 3) != 0 && (val & 3) < 3)
         val ^= 3;
@@ -1913,10 +1931,7 @@ uint32_t EMIT_BTST(struct TranslatorContext *ctx, uint16_t opcode)
         }
     }
 
-    host_z_set = 1;
-    host_c_set = 0;
-    host_n_set = 0;
-    host_v_set = 0;
+    host_flags = SR_Z;
 
     RA_FreeARMRegister(ctx, bit_number);
     RA_FreeARMRegister(ctx, bit_mask);
@@ -2049,10 +2064,7 @@ uint32_t EMIT_BCHG(struct TranslatorContext *ctx, uint16_t opcode)
     {
         uint8_t cc = RA_ModifyCC(ctx);
 
-        host_z_set = 1;
-        host_c_set = 0;
-        host_n_set = 0;
-        host_v_set = 0;
+        host_flags = SR_Z;
 
         if (update_mask & SR_Z)
         {
@@ -2175,10 +2187,7 @@ uint32_t EMIT_BCLR(struct TranslatorContext *ctx, uint16_t opcode)
     {
         uint8_t cc = RA_ModifyCC(ctx);
 
-        host_z_set = 1;
-        host_c_set = 0;
-        host_n_set = 0;
-        host_v_set = 0;
+        host_flags = SR_Z;
 
         if (update_mask & SR_Z)
         {
@@ -2433,10 +2442,7 @@ uint32_t EMIT_BSET(struct TranslatorContext *ctx, uint16_t opcode)
     {
         uint8_t cc = RA_ModifyCC(ctx);
 
-        host_z_set = 1;
-        host_c_set = 0;
-        host_n_set = 0;
-        host_v_set = 0;
+        host_flags = SR_Z;
 
         if (update_mask & SR_Z)
         {

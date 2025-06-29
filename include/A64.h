@@ -177,13 +177,8 @@
 
 static inline void RESET_FLAGS()
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_v_set;
-    extern int host_c_set;
-
-    /* Reset host flags! */
-    host_z_set = host_n_set = host_v_set = host_c_set = 0;
+    extern uint8_t host_flags;
+    host_flags = 0;
 }
 
 /* Converts generated ARM instruction to little-endian */
@@ -827,15 +822,9 @@ void EMIT_ClearFlags(struct TranslatorContext *ctx, uint8_t cc, uint8_t flags)
 static inline __attribute__((always_inline))
 void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_c_set;
-    extern int host_v_set;
+    extern uint8_t host_flags;
 
-    host_z_set = (*not_done & SR_Z) != 0;
-    host_n_set = (*not_done & SR_N) != 0;
-    host_c_set = 0;
-    host_v_set = 0;
+    host_flags = *not_done & (SR_NZ);
 
     if (*not_done == 0)
         return;
@@ -906,15 +895,9 @@ void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 void EMIT_GetNZxx(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_c_set;
-    extern int host_v_set;
+    extern uint8_t host_flags;
 
-    host_z_set = (*not_done & SR_Z) != 0;
-    host_n_set = (*not_done & SR_N) != 0;
-    host_c_set = 0;
-    host_v_set = 0;
+    host_flags = *not_done & (SR_NZ);
 
     if (*not_done == 0)
         return;
@@ -961,15 +944,9 @@ void EMIT_GetNZxx(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 void EMIT_GetNZCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_c_set;
-    extern int host_v_set;
+    extern uint8_t host_flags;
 
-    host_z_set = (*not_done & SR_Z) != 0;
-    host_n_set = (*not_done & SR_N) != 0;
-    host_c_set = (*not_done & SR_C) != 0;
-    host_v_set = (*not_done & SR_V) != 0;
+    host_flags = *not_done & (SR_NZVC);
 
     if (*not_done == 0)
         return;
@@ -1035,15 +1012,9 @@ void EMIT_GetNZCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 void EMIT_GetNZCVX(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_c_set;
-    extern int host_v_set;
+    extern uint8_t host_flags;
 
-    host_z_set = (*not_done & SR_Z) != 0;
-    host_n_set = (*not_done & SR_N) != 0;
-    host_c_set = (*not_done & SR_C) != 0;
-    host_v_set = (*not_done & SR_V) != 0;
+    host_flags = *not_done & (SR_NZVC);
 
     if (*not_done == 0)
         return;
@@ -1122,15 +1093,9 @@ void EMIT_GetNZCVX(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 void EMIT_GetNZnCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_c_set;
-    extern int host_v_set;
+    extern uint8_t host_flags;
 
-    host_z_set = (*not_done & SR_Z) != 0;
-    host_n_set = (*not_done & SR_N) != 0;
-    host_c_set = 0;
-    host_v_set = (*not_done & SR_V) != 0;
+    host_flags = *not_done & (SR_NZV);
 
     if (*not_done == 0)
         return;
@@ -1199,15 +1164,9 @@ void EMIT_GetNZnCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 static inline __attribute__((always_inline))
 void EMIT_GetNZnCVX(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
-    extern int host_z_set;
-    extern int host_n_set;
-    extern int host_c_set;
-    extern int host_v_set;
+    extern uint8_t host_flags;
 
-    host_z_set = (*not_done & SR_Z) != 0;
-    host_n_set = (*not_done & SR_N) != 0;
-    host_c_set = 0;
-    host_v_set = (*not_done & SR_V) != 0;
+    host_flags = *not_done & (SR_NZV);
 
     if (*not_done == 0)
         return;

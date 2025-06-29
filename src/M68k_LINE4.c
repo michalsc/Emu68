@@ -930,11 +930,6 @@ uint32_t EMIT_TST(struct TranslatorContext *ctx, uint16_t opcode)
         uint8_t cc = RA_ModifyCC(ctx);
         EMIT_GetNZ00(ctx, cc, &update_mask);
 
-        host_z_set = 1;
-        host_n_set = 1;
-        host_c_set = 0;
-        host_v_set = 0;
-
         if (update_mask & SR_Z)
             EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
         if (update_mask & SR_N)
@@ -1200,6 +1195,9 @@ static uint32_t EMIT_MOVEtoCCR(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t ext_words = 0;
     uint8_t src = 0xff;
     uint8_t cc = RA_ModifyCC(ctx);
+
+    /* Invalidate host flags */
+    host_flags = 0;
 
     EMIT_LoadFromEffectiveAddress(ctx, 2, &src, opcode & 0x3f, &ext_words, 1, NULL);
     
@@ -1900,6 +1898,8 @@ static uint32_t EMIT_RTR(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t cc = RA_ModifyCC(ctx);
     EMIT(ctx, bfi(cc, tmp, 0, 5));
 
+    host_flags = 0;
+    
     /* Fetch return address from stack */
     EMIT(ctx, ldr_offset_postindex(sp, REG_PC, 4));
     EMIT_ResetOffsetPC(ctx);

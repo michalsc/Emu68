@@ -532,9 +532,6 @@ void LRU_InvalidateByARMAddress(uint32_t *addr);
 uint32_t *LRU_FindBlock(uint16_t *address);
 void LRU_MarkForVerify(uint32_t *addr);
 
-extern int host_z_set;
-extern int host_n_set;
-extern int host_c_set;
-extern int host_v_set;
+extern uint8_t host_flags;
 
 #endif /* _M68K_H */
