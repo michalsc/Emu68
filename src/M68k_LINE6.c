@@ -155,6 +155,8 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
         ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
     )
         take_branch = 1;
+    else if (branch_offset - local_pc_off < 32)
+        take_branch = 1;
     else
         take_branch = 0;
 #else
