@@ -1210,11 +1210,17 @@ static uint32_t EMIT_ROL(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, and_immed(shift_orig, shift, 6, 0));
             }
 
+#if 1
+            EMIT(ctx, 
+                mov_immed_u16(shift_mod, 32, 0),
+                sub_reg(shift_mod, shift_mod, shift, LSL, 0)
+            );
+#else
             EMIT(ctx, 
                 neg_reg(shift_mod, shift, LSL, 0),
                 add_immed(shift_mod, shift_mod, 32)
             );
-
+#endif
             shift = shift_mod;
         }
         else
