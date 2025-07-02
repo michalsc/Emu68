@@ -433,7 +433,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
             ctx.tc_CodePtr--;
             break_loop = TRUE;
         }
-        if (ctx.tc_CodePtr[-1] == INSN_TO_LE(0xfffffff1))
+        if (ctx.tc_CodePtr[-1] == INSN_TO_LE(MARKER_BREAK))
         {
             ctx.tc_CodePtr--;
             soft_break = TRUE;
