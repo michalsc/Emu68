@@ -151,7 +151,6 @@ uint32_t EMIT_OR_reg(struct TranslatorContext *ctx, uint16_t opcode)
     {
         uint8_t dest = RA_MapM68kRegister(ctx, (opcode >> 9) & 7);
         uint8_t src = 0xff;
-        uint8_t temp_reg = RA_AllocARMRegister(ctx);
 
         test_register = dest;
 
@@ -164,20 +163,39 @@ uint32_t EMIT_OR_reg(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, orr_reg(dest, dest, src, LSL, 0));
                 break;
             case 2:
+                /* If EA is Dn, zero-extend it to temporary */
+                if ((opcode & 0x38) == 0) {
+                    uint8_t tmp = RA_AllocARMRegister(ctx);
+                    
+                    EMIT(ctx, 
+                        uxth(tmp, src)
+                    );
+                    
+                    RA_FreeARMRegister(ctx, src);
+                    src = tmp;
+                }
                 EMIT(ctx, 
-                    orr_reg(temp_reg, src, dest, LSL, 0),
-                    bfi(dest, temp_reg, 0, 16)
+                    orr_reg(dest, src, dest, LSL, 0),
                 );
                 break;
             case 1:
+                /* If EA is Dn, zero-extend it to temporary */
+                if ((opcode & 0x38) == 0) {
+                    uint8_t tmp = RA_AllocARMRegister(ctx);
+                    
+                    EMIT(ctx, 
+                        uxtb(tmp, src)
+                    );
+                    
+                    RA_FreeARMRegister(ctx, src);
+                    src = tmp;
+                }
                 EMIT(ctx, 
-                    orr_reg(temp_reg, src, dest, LSL, 0),
-                    bfi(dest, temp_reg, 0, 8)
+                    orr_reg(dest, src, dest, LSL, 0),
                 );
                 break;
         }
 
-        RA_FreeARMRegister(ctx, temp_reg);
         RA_FreeARMRegister(ctx, src);
     }
     else
