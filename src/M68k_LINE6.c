@@ -151,12 +151,16 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
 #if EMU68_DEF_BRANCH_AUTO
     /* Branch backward with distance up to EMU68_DEF_BRANCH_AUTO_RANGE bytes considered as taken */
     if(
-        branch_target < (intptr_t)ctx->tc_M68kCodePtr &&
-        ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+#if 0
+        branch_target < (intptr_t)ctx->tc_M68kCodePtr /* &&
+        ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE */
+#else
+        branch_offset - local_pc_off < 0
+#endif
     )
         take_branch = 1;
-    else if (branch_offset - local_pc_off < 32)
-        take_branch = 1;
+//    else if (branch_offset - local_pc_off < 16)
+//        take_branch = 1;
     else
         take_branch = 0;
 #else
