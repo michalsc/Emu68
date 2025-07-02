@@ -66,7 +66,7 @@ extern "C" void __cxa_pure_virtual()
 
 void * __dso_handle __attribute__((weak));
 
-#define __MAX_GLOBAL_OBJECTS 256
+#define __MAX_GLOBAL_OBJECTS 1024
 
 namespace {
 
@@ -122,3 +122,9 @@ extern "C" void __cxa_finalize(void (*f)(void*))
         }
     }
 }
+
+[[maybe_unused]] static bool table_initialized = []() {
+    //while(1);
+    kprintf("lambda\n");
+    return true;
+}();
