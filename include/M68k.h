@@ -76,6 +76,7 @@ struct DoubleExitBlock
 #define MARKER_EXIT_BLOCK   0xffffaa55
 #define MARKER_DOUBLE_EXIT  0xffffaa56
 #define MARKER_STOP         0xffffffff
+#define MARKER_BREAK        0xfffffff1
 
 struct TranslatorContext {
     uint32_t *      tc_CodeStart;
