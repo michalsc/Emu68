@@ -28,6 +28,8 @@ SECTIONS
 
         . = ALIGN(32);
         __init_start = .;
+        *(.init_array)
+        *(.init_array.*)
         *(.init)
         QUAD(0)
 
