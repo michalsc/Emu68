@@ -1225,7 +1225,8 @@ static uint32_t EMIT_ROL(struct TranslatorContext *ctx, uint16_t opcode)
         }
         else
         {
-            shift = RA_CopyFromM68kRegister(ctx, shift);
+            shift = RA_MapM68kRegister(ctx, shift);
+            
             if (update_mask & SR_C) {
                 shift_orig = RA_AllocARMRegister(ctx);
                 EMIT(ctx, and_immed(shift_orig, shift, 6, 0));
