@@ -228,6 +228,14 @@ void display_logo()
     /* Reset test coordinates for further text printing (e.g. buptest) */
     text_x = 0;
     text_y = 0;
+    #if 0
+extern unsigned char pistorm_get_model();
+    kprintf_pc(__putc, NULL, "PiStorm model: %d\n", pistorm_get_model());
+extern void *firmware_file;
+extern uint32_t firmware_size;
+    kprintf_pc(__putc, NULL, "Firmware file: %p\n", firmware_file);
+    kprintf_pc(__putc, NULL, "Firmware size: %d\n", firmware_size);
+    #endif
 }
 
 uintptr_t top_of_ram;
@@ -287,11 +295,6 @@ void platform_init()
             ranges += addr_bus_len + addr_cpu_len + size_bus_len;
         }
     }
-#ifdef PISTORM_ANY_MODEL
-    ps_setup_protocol();
-    ps_reset_state_machine();
-    ps_pulse_reset();
-#endif
 }
 
 void platform_post_init()
@@ -349,4 +352,21 @@ void platform_post_init()
 #endif
 
     //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);
+}
+
+void platform_report_stealth()
+{
+    struct Size sz = get_display_size();
+    uint32_t last_x = text_x;
+    uint32_t last_y = text_y;
+
+    uint32_t start_y = (sz.height + EmuLogo.el_Height) / 2;
+    
+    text_y = start_y / 16;
+    text_x = (sz.width - 20 * 8) / 16;
+
+    kprintf_pc(__putc, NULL, "!!! STEALTH MODE !!!");
+
+    text_x = last_x;
+    text_y = last_y;
 }

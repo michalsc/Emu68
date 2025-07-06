@@ -19,6 +19,29 @@
 
 extern struct M68KState *__m68k_state;
 
+static inline uint64_t get_microseconds()
+{
+    volatile struct
+    {
+        uint32_t LO;
+        uint32_t HI;
+    } *CLOCK = (volatile void *)0xf2003004;
+
+    uint64_t hi = CLOCK->HI;
+    uint64_t lo = CLOCK->LO;
+    uint64_t t;
+
+    if (unlikely(hi != CLOCK->HI))
+    {
+        hi = CLOCK->HI;
+        lo = CLOCK->LO;
+    }
+
+    t = LE64(hi) | LE32(lo);
+    
+    return t;
+}
+
 static void usleep(uint64_t delta)
 {
     volatile struct
@@ -1170,12 +1193,111 @@ extern struct ExpansionBoard *__boards_start;
 extern int board_idx;
 extern uint32_t overlay;
 
+#define PM_RSTC ((volatile unsigned int *)(0xf2000000 + 0x0010001c))
+#define PM_RSTS ((volatile unsigned int *)(0xf2000000 + 0x00100020))
+#define PM_WDOG ((volatile unsigned int *)(0xf2000000 + 0x00100024))
+#define PM_WDOG_MAGIC 0x5a000000
+#define PM_RSTC_FULLRST 0x00000020
+
 void ps_pulse_reset()
 {
     if (pistorm_model == PISTORM_MODEL_16) {
         kprintf("[PS] Set DTACK delay\n");
         ps_set_control(23 << 8);
     }
+
+    const uint64_t t0 = get_microseconds();
+    uint64_t t = 0;
+    while ((GPIO->GPLEV0 & LE32(1 << PIN_KBRESET)) == 0)
+    {
+        t = get_microseconds() - t0;
+        
+        /* 
+            If reset was active longer that 3 seconds, enter stealth mode - just wait here until
+            RESET is pressed for more than 3 seconds again - is this the case, then reset everything
+            and get back to Emu68
+        */
+        if (t > 3000000)
+        {
+            /* Configure timer-based event stream */
+            /* Enable timer regs from EL0, enable event stream on posedge, monitor 2th bit */
+            /* This gives a frequency of 2.4MHz for a 19.2MHz timer */
+            uint64_t freq;
+            asm volatile("mrs %0, CNTFRQ_EL0" : "=r"(freq));
+
+            if (freq > 20000000)
+            {
+                asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (4 << 4)));
+            }
+            else
+            {
+                asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+            }
+            
+            platform_report_stealth();
+
+            kprintf("[PS] Entering STEALTH mode\n");
+            
+            /* Wait first until RESET is released*/
+            while ((GPIO->GPLEV0 & LE32(1 << PIN_KBRESET)) == 0) asm volatile("wfe");
+
+            kprintf("[PS] RESET released\n");
+
+            int do_reset = 0;
+
+            do {
+                /* Wait first until RESET is pressed */
+                while ((GPIO->GPLEV0 & LE32(1 << PIN_KBRESET)) != 0) asm volatile("wfe");
+                
+                kprintf("[PS] RESET pressed\n");
+
+                const uint64_t t0 = get_microseconds();
+                uint64_t t = 0;
+
+                while ((GPIO->GPLEV0 & LE32(1 << PIN_KBRESET)) == 0)
+                {
+                    t = get_microseconds() - t0;
+        
+                    /* 
+                        If reset was active longer that 3 seconds, enter stealth mode - just wait here until
+                        RESET is pressed for more than 3 seconds again - is this the case, then reset everything
+                        and get back to Emu68
+                    */
+                    if (t > 3000000)
+                    {
+                        do_reset = 1;
+                        break;
+                    }
+
+                    asm volatile("wfe");
+                }
+                kprintf("[PS] RESET was active for %lld microseconds\n", t);
+            } while(do_reset == 0);
+
+            kprintf("[PS] leaving stealth mode now\n");
+
+            kprintf("[PS] Resetting RasPi now...\n");
+
+            ps_set_control(CONTROL_REQ_BM);
+            usleep(100000);
+
+            ps_set_control(CONTROL_DRIVE_RESET);
+            usleep(150000);
+
+            unsigned int r;
+            // trigger a restart by instructing the GPU to boot from partition 0
+            r = LE32(*PM_RSTS);
+            r &= ~0xfffffaaa;
+            *PM_RSTS = LE32(PM_WDOG_MAGIC | r); // boot from partition 0
+            *PM_WDOG = LE32(PM_WDOG_MAGIC | 10);
+            *PM_RSTC = LE32(PM_WDOG_MAGIC | PM_RSTC_FULLRST);
+
+            while (1)
+                ;
+        }
+    }
+
+    kprintf("[PS] RESET was active for %lld microseconds\n", t);
 
     kprintf("[PS] Set REQUEST_BM\n");
     ps_set_control(CONTROL_REQ_BM);
@@ -1201,12 +1323,6 @@ void ps_pulse_reset()
     board = &__boards_start;
     board_idx = 0;
 }
-
-#define PM_RSTC ((volatile unsigned int *)(0xf2000000 + 0x0010001c))
-#define PM_RSTS ((volatile unsigned int *)(0xf2000000 + 0x00100020))
-#define PM_WDOG ((volatile unsigned int *)(0xf2000000 + 0x00100024))
-#define PM_WDOG_MAGIC 0x5a000000
-#define PM_RSTC_FULLRST 0x00000020
 
 volatile int housekeeper_enabled = 0;
 

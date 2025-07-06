@@ -1107,7 +1107,6 @@ void boot(void *dtree)
 #ifdef PISTORM_ANY_MODEL
     ps_setup_protocol();
     ps_reset_state_machine();
-    ps_pulse_reset();
 #endif
 
     /* Setup debug console on serial port */
@@ -1363,10 +1362,6 @@ void boot(void *dtree)
         __asm__ volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
     }
-#ifdef PISTORM_ANY_MODEL
-    extern volatile int housekeeper_enabled;
-    housekeeper_enabled = 1;
-#endif
 
     platform_post_init();
 
@@ -1674,7 +1669,7 @@ void boot(void *dtree)
     wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
     wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
 
-    dt_dump_tree();
+    //dt_dump_tree();
 
 #ifdef PISTORM_ANY_MODEL
     if (recalc_checksum) {

@@ -132,6 +132,7 @@ char *strstr(const char *str, const char *find);
 void bzero(void *ptr, size_t sz);
 void platform_init();
 void platform_post_init();
+void platform_report_stealth();
 void setup_serial();
 const char * find_token(const char * string, const char * token);
 
