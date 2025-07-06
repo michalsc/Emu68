@@ -379,6 +379,8 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
     int inner_loop = FALSE;
     int soft_break = FALSE;
     int max_rev_jumps = 0;
+    int inner_loop_insn = -1;
+    int inner_loop_count = 0;
 
     m68k_low = ctx.tc_M68kCodePtr;
     m68k_high = ctx.tc_M68kCodePtr + 16;
@@ -551,7 +553,28 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
         if (!break_loop && (orig_m68kcodeptr == ctx.tc_M68kCodePtr))
         {
             inner_loop = TRUE;
-            break;
+            soft_break = TRUE;
+        }
+
+        if (inner_loop)
+        {
+            /* Set inner loop instruction count */
+            if (inner_loop_insn == -1) {
+                inner_loop_insn = insn_count;
+                inner_loop_count = var_EMU68_MAX_LOOP_COUNT;
+            }
+
+            /* If inner loop count is not 0 and there is still place for one loop, put it here */
+            if (--inner_loop_count) {
+                if ((var_EMU68_M68K_INSN_DEPTH - insn_count) > (uint32_t)inner_loop_insn)
+                {
+                    soft_break = 0;
+                }
+                else
+                {
+                    soft_break = 1;
+                }
+            }
         }
     }
 
