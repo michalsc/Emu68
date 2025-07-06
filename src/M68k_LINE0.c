@@ -1699,16 +1699,26 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
     {
         case 0x0000:    /* Byte operation */
             lo16 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]);
-            EMIT(ctx, mov_immed_u16(immed, (lo16 & 0xff) << 8, 1));
+            mask32 = number_to_mask(lo16);
+            if (mask32 == 0 || mask32 == 0xffffffff)
+            {
+                mask32 = 0;
+                EMIT(ctx, mov_immed_u16(immed, (lo16 & 0xff), 0));
+            }
             size = 1;
             break;
         case 0x0040:    /* Short operation */
             lo16 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]);
-            EMIT(ctx, mov_immed_u16(immed, lo16, 1));
+            mask32 = number_to_mask(lo16);
+            if (mask32 == 0 || mask32 == 0xffffffff)
+            {
+                mask32 = 0;
+                EMIT(ctx, mov_immed_u16(immed, lo16, 0));
+            }
             size = 2;
             break;
         case 0x0080:    /* Long operation */
-            u32 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]) << 16;
+            u32 = cache_read_16(ICACHE, (uintptr_t)&ctx->   tc_M68kCodePtr[ext_count++]) << 16;
             u32 |= cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]);
             mask32 = number_to_mask(u32);
             if (mask32 == 0 || mask32 == 0xffffffff)
@@ -1743,16 +1753,34 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
                     EMIT(ctx, cmn_reg(31, dest, LSL, 0));
                 break;
             case 2:
-                EMIT(ctx, eor_reg(immed, immed, dest, LSL, 16));
-                if (update_mask)
-                    EMIT(ctx, cmn_reg(31, immed, LSL, 0));
-                EMIT(ctx, bfxil(dest, immed, 16, 16));
+                if (mask32 == 0)
+                {
+                    EMIT(ctx, eor_reg(immed, immed, dest, LSL, 0));
+                    if (update_mask)
+                        EMIT(ctx, cmn_reg(31, immed, LSL, 16));
+                    EMIT(ctx, bfxil(dest, immed, 0, 16));
+                }
+                else
+                {
+                    EMIT(ctx, eor_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31));
+                    if (update_mask)
+                        EMIT(ctx, cmn_reg(31, dest, LSL, 16));
+                }
                 break;
             case 1:
-                EMIT(ctx, eor_reg(immed, immed, dest, LSL, 24));
-                if (update_mask)
-                    EMIT(ctx, cmn_reg(31, immed, LSL, 0));
-                EMIT(ctx, bfxil(dest, immed, 24, 8));
+                if (mask32 == 0)
+                {
+                    EMIT(ctx, eor_reg(immed, immed, dest, LSL, 0));
+                    if (update_mask)
+                        EMIT(ctx, cmn_reg(31, immed, LSL, 24));
+                    EMIT(ctx, bfxil(dest, immed, 0, 8));
+                }
+                else
+                {
+                    EMIT(ctx, eor_immed(dest, dest, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31));
+                    if (update_mask)
+                        EMIT(ctx, cmn_reg(31, dest, LSL, 24));
+                }
                 break;
         }
     }
@@ -1806,10 +1834,12 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
                     EMIT(ctx, ldrh_offset(dest, tmp, 0));
                 
                 /* Perform calcualtion */
-                EMIT(ctx, eor_reg(immed, immed, tmp, LSL, 16));
+                if (mask32 == 0)
+                    EMIT(ctx, eor_reg(immed, immed, tmp, LSL, 0));
+                else
+                    EMIT(ctx, eor_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31));
                 if (update_mask)
-                    EMIT(ctx, cmn_reg(31, immed, LSL, 0));
-                EMIT(ctx, lsr(immed, immed, 16));
+                    EMIT(ctx, cmn_reg(31, immed, LSL, 16));
 
                 /* Store back */
                 if (mode == 3)
@@ -1831,10 +1861,12 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
                     EMIT(ctx, ldrb_offset(dest, tmp, 0));
                 
                 /* Perform calcualtion */
-                EMIT(ctx, eor_reg(immed, immed, tmp, LSL, 24));
+                if (mask32 == 0)
+                    EMIT(ctx, eor_reg(immed, immed, tmp, LSL, 0));
+                else
+                    EMIT(ctx, eor_immed(immed, tmp, (mask32 >> 16) & 0x3f, (32 - (mask32 & 0x3f)) & 31));
                 if (update_mask)
-                    EMIT(ctx, cmn_reg(31, immed, LSL, 0));
-                EMIT(ctx, lsr(immed, immed, 24));
+                    EMIT(ctx, cmn_reg(31, immed, LSL, 24));
 
                 /* Store back */
                 if (mode == 3)
