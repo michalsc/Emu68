@@ -350,6 +350,24 @@ struct Size get_display_size()
     return sz;
 }
 
+uint32_t enable_unicam_domain()
+{
+    FBReq[0] = LE32(4 * 8);      // Length
+    FBReq[1] = 0;                // Request
+    FBReq[2] = LE32(0x00038030); // SetClockRate
+    FBReq[3] = LE32(8);
+    FBReq[4] = 0;
+    FBReq[5] = LE32(14); // unicam1
+    FBReq[6] = LE32(1);
+    FBReq[7] = 0;
+
+    arm_flush_cache((intptr_t)FBReq, 32);
+    mbox_send(8, mmu_virt2phys((intptr_t)FBReq));
+    mbox_recv(8);
+
+    return LE32(FBReq[6]);
+}
+
 void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 {
     int c = 1;
