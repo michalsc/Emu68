@@ -2305,20 +2305,41 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
         switch (predicate & 0x0f)
         {
             case F_CC_EQ: /* Z == 0 */
-                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_EQ;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_NE: /* Z == 1 */
-                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
-                success_condition = A64_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_NE;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
+                    success_condition = A64_CC_EQ;
+                }
                 break;
             case F_CC_OGT: /* NAN == 0 && Z == 0 && N == 0 */
-                tmp_cc = RA_AllocARMRegister(ctx);
-                EMIT(ctx, 
-                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
-                    tst_reg(fpsr, tmp_cc, LSL, 0)
-                );
-                success_condition = ARM_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = ARM_CC_GT;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                        tst_reg(fpsr, tmp_cc, LSL, 0)
+                    );
+                    success_condition = ARM_CC_EQ;
+                }
                 break;
             case F_CC_ULE: /* NAN == 1 || Z == 1 || N == 1 */
                 tmp_cc = RA_AllocARMRegister(ctx);
@@ -2329,15 +2350,22 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 success_condition = ARM_CC_NE;
                 break;
             case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
-                tmp_cc = RA_AllocARMRegister(ctx);
-                EMIT(ctx, 
-                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
-                    b_cc(A64_CC_NE, 4),
-                    orr_reg(tmp_cc, fpsr, fpsr, LSL, 3), // N | NAN -> N (== 0 only if N=0 && NAN=0)
-                    eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // !N -> N
-                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
-                );
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_GE;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                        b_cc(A64_CC_NE, 4),
+                        orr_reg(tmp_cc, fpsr, fpsr, LSL, 3), // N | NAN -> N (== 0 only if N=0 && NAN=0)
+                        eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // !N -> N
+                        tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                    );
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
                 tmp_cc = RA_AllocARMRegister(ctx);
@@ -2351,14 +2379,21 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(ctx);
-                EMIT(ctx, 
-                    bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I)),
-                    orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2), // NAN | Z -> Z
-                    eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // Invert N
-                    tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)) // Test N==0 && Z == 0
-                );
-                success_condition = A64_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_LT;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I)),
+                        orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2), // NAN | Z -> Z
+                        eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // Invert N
+                        tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)) // Test N==0 && Z == 0
+                    );
+                    success_condition = A64_CC_EQ;
+                }
                 break;
             case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
                 tmp_cc = RA_AllocARMRegister(ctx);
@@ -2370,15 +2405,22 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
-                tmp_cc = RA_AllocARMRegister(ctx);
-                EMIT(ctx, 
-                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
-                    b_cc(A64_CC_NE, 4),
-                    eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)), // Invert NAN
-                    and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3),   // !NAN & N -> N
-                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
-                );
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_LE;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                        b_cc(A64_CC_NE, 4),
+                        eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)), // Invert NAN
+                        and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3),   // !NAN & N -> N
+                        tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                    );
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
                 tmp_cc = RA_AllocARMRegister(ctx);
@@ -2408,12 +2450,26 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OR:
-                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
-                success_condition = A64_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_VC;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
+                    success_condition = A64_CC_EQ;
+                }
                 break;
             case F_CC_UN:
-                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_VS;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_F:    // This is NOP - handled one "if" before
                 success_condition = A64_CC_NV;
@@ -2496,8 +2552,8 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
         tmpptr = ctx->tc_CodePtr;
 #if EMU68_DEF_BRANCH_AUTO
         if(
-            branch_target < (intptr_t)ctx->tc_M68kCodePtr &&
-            ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+            branch_target < (intptr_t)ctx->tc_M68kCodePtr /*&&
+            ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE  */
         )
             EMIT(ctx, b_cc(success_condition, 1));
         else
@@ -2512,8 +2568,8 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
 
 #if EMU68_DEF_BRANCH_AUTO
         if(
-            branch_target < (intptr_t)ctx->tc_M68kCodePtr &&
-            ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+            branch_target < (intptr_t)ctx->tc_M68kCodePtr /*&&
+            ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE*/
         )
             ctx->tc_M68kCodePtr = (uint16_t *)branch_target;
 #else

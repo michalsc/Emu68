@@ -336,6 +336,9 @@ struct M68KState
 #define FPSRB_I     25
 #define FPSRB_NAN   24
 
+// Set in host flags when NZCV aarch64 are synced with FPU flags
+#define FP_FLAGS    0x80
+
 //Condition Codes
 #define M_CC_T  0x00
 #define M_CC_F  0x01
