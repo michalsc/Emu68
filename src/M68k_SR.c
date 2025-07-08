@@ -93,8 +93,7 @@ uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
     return word_count;
 }
 
-
-/* Check if opcode is of branch kind or may result in a */
+/* Check if opcode is of branch kind or may result in a branch */
 int M68K_IsBranch(uint16_t *insn_stream)
 {
     uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)&insn_stream[0]);
@@ -124,6 +123,36 @@ int M68K_IsBranch(uint16_t *insn_stream)
         return 1;
     else
         return 0;
+}
+
+/* Try to follow a branch given by insn_stream pointer. If not possible, return NULL */
+uint16_t *M68K_TryFollowBranch(uint16_t *insn_stream)
+{
+    uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream++);
+    
+    /* Branch is BRA */
+    if ((opcode & 0xff00) == 0x6000) {
+        int32_t bra_off;
+        /* use 16-bit offset */
+        if ((opcode & 0x00ff) == 0x00)
+        {
+            bra_off = (int16_t)(cache_read_16(ICACHE, (uintptr_t)insn_stream));
+        }
+        /* use 32-bit offset */
+        else if ((opcode & 0x00ff) == 0xff)
+        {
+            bra_off = (int32_t)(cache_read_32(ICACHE, (uintptr_t)insn_stream));
+        }
+        else
+        /* otherwise use 8-bit offset */
+        {
+            bra_off = (int8_t)(opcode & 0xff);
+        }
+
+        return insn_stream + bra_off;
+    }
+
+    return NULL;
 }
 
 int M68K_GetMoveLength(uint16_t *insn_stream)

@@ -516,6 +516,7 @@ uint16_t *M68K_PopReturnAddress(uint8_t *success);
 void M68K_ResetReturnStack();
 int M68K_GetINSNLength(uint16_t *insn_stream);
 int M68K_IsBranch(uint16_t *insn_stream);
+uint16_t *M68K_TryFollowBranch(uint16_t *insn_stream);
 
 uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition);
 uint8_t EMIT_TestFPUCondition(struct TranslatorContext *ctx, uint8_t m68k_condition);
