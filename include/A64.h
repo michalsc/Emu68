@@ -868,22 +868,24 @@ void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
     {
         uint8_t tmp_reg_2 = RA_AllocARMRegister(ctx);
 
-        EMIT(ctx, bic_immed(cc, cc, 4, 0));
-
-        if ((*not_done & SR_NZ) == SR_NZ)
+        if ((*not_done & SR_NZ) == SR_NZ) {
+            if (*not_done & SR_VC)
+                EMIT(ctx, bic_immed(cc, cc, 4, 0));
             EMIT(ctx, 
-                orr_immed(tmp_reg, cc, 1, 29),
-                orr_immed(tmp_reg_2, cc, 1, 30),
-                csel(cc, tmp_reg, cc, A64_CC_MI),
-                csel(cc, tmp_reg_2, cc, A64_CC_EQ)
+                cinc(tmp_reg, 31, A64_CC_LE),
+                cinc(tmp_reg, tmp_reg, A64_CC_MI),
+                bfi(cc, tmp_reg, 2, 2)
             );
+        }
         else if ((*not_done & SR_NZ) == SR_Z)
             EMIT(ctx, 
+                bic_immed(cc, cc, 4, 0),
                 orr_immed(tmp_reg, cc, 1, 30),
                 csel(cc, tmp_reg, cc, A64_CC_EQ)
             );
         else if ((*not_done & SR_NZ) == SR_N)
             EMIT(ctx, 
+                bic_immed(cc, cc, 4, 0),
                 orr_immed(tmp_reg, cc, 1, 29),
                 csel(cc, tmp_reg, cc, A64_CC_MI)
             );
@@ -932,11 +934,9 @@ void EMIT_GetNZxx(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
     else
     {
         EMIT(ctx,
-            bic_immed(cc, cc, 2, 30),
-            orr_immed(tmp_reg, cc, 1, 29),
-            csel(cc, tmp_reg, cc, A64_CC_MI),
-            orr_immed(tmp_reg, cc, 1, 30),
-            csel(cc, tmp_reg, cc, A64_CC_EQ)
+            cinc(tmp_reg, 31, A64_CC_LE),
+            cinc(tmp_reg, tmp_reg, A64_CC_MI),
+            bfi(cc, tmp_reg, 2, 2)
         );
 
         (*not_done) &= 0x13;
