@@ -545,6 +545,7 @@ static inline uint32_t csetm(uint8_t rd, uint8_t cond) { return csinv(rd, 31, 31
 static inline uint32_t csetm64(uint8_t rd, uint8_t cond) { return csinv64(rd, 31, 31, cond ^ 1); }
 static inline uint32_t cset(uint8_t rd, uint8_t cond) { return csinc(rd, 31, 31, cond ^ 1); }
 static inline uint32_t cset64(uint8_t rd, uint8_t cond) { return csinc64(rd, 31, 31, cond ^ 1); }
+static inline uint32_t cinc(uint8_t rd, uint8_t rn, uint8_t cond) { return csinc(rd, rn, rn, cond ^ 1); }
 
 /* Data processing: logic */
 static inline uint32_t and_reg(uint8_t rd, uint8_t rn, uint8_t rm, shift_t shift, uint8_t amount) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x0a000000 | (shift << 22) | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((amount & 63) << 10)); }
