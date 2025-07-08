@@ -443,7 +443,7 @@ uint32_t EMIT_move(struct TranslatorContext *ctx)
                     }
                     else {
                         /* Not loaded in dest. Get data into temporary register with sign extending */
-                        if (update_mask)
+                        if (update_mask && update_mask != SR_Z)
                             EMIT_LoadFromEffectiveAddress(ctx, 0x80 | size, &tmp_reg, opcode & 0x3f, &ext_count, 1, NULL);
                         else
                             EMIT_LoadFromEffectiveAddress(ctx, size, &tmp_reg, opcode & 0x3f, &ext_count, 1, NULL);
@@ -497,10 +497,16 @@ uint32_t EMIT_move(struct TranslatorContext *ctx)
                         EMIT(ctx, cmn_reg(31, tmp_reg, LSL, 0));
                     break;
                 case 2:
-                    EMIT(ctx, cmn_reg(31, tmp_reg, LSL, loaded_in_dest ? 16 : 0));
+                    if (update_mask == SR_Z)
+                        EMIT(ctx, tst_immed(tmp_reg, 16, 0));
+                    else
+                        EMIT(ctx, cmn_reg(31, tmp_reg, LSL, loaded_in_dest ? 16 : 0));
                     break;
                 case 1:
-                    EMIT(ctx, cmn_reg(31, tmp_reg, LSL, loaded_in_dest ? 24 : 0));
+                    if (update_mask == SR_Z)
+                        EMIT(ctx, tst_immed(tmp_reg, 8, 0));
+                    else
+                        EMIT(ctx, cmn_reg(31, tmp_reg, LSL, loaded_in_dest ? 24 : 0));
                     break;
             }
         }
