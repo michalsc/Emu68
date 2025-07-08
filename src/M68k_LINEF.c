@@ -486,7 +486,12 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
         if (cnt++ > 200)
             return 1;
         if (M68K_IsBranch(ptr))
-            return 1;
+        {
+            if ((ptr = M68K_TryFollowBranch(ptr)))
+                continue;
+            else
+                return 1;
+        }
         
         int len = M68K_GetINSNLength(ptr);
         if (len <= 0)
@@ -2533,7 +2538,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
         tmpptr = ctx->tc_CodePtr - 1;
 
         branch_target += branch_offset - local_pc_off;
-        
+
         /* Insert the branch non-taken case here */
         if (!take_branch)
         {
