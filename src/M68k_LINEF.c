@@ -1982,7 +1982,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
-    __asm__ volatile("msr tpidr_el1,%0": :"r"(0xffffffff));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM",%w0": :"r"(0xffffffff));
 
     LRU_InvalidateAll();
 
@@ -4177,7 +4177,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                         );
                     }
                     else {
-                        EMIT(ctx, mov_simd_to_reg(dst, 29, TS_S, 1));
+                        EMIT(ctx, mov_simd_to_reg(dst, REG_FPIAR));
                     }
                     break;
             }
@@ -4230,7 +4230,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                     );
                 }
                 else {
-                    EMIT(ctx, mov_simd_to_reg(reg, 29, TS_S, 1));
+                    EMIT(ctx, mov_simd_to_reg(reg, REG_FPIAR));
                 }
                 EMIT(ctx, str_offset(dst, reg, offset));
                 RA_FreeARMRegister(ctx, reg);
@@ -4300,7 +4300,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             {
                 case 0x0400:    /* FPIAR */
                     val_FPIAR = 0xffffffff;
-                    EMIT(ctx, mov_reg_to_simd(29, TS_S, 1, src));
+                    EMIT(ctx, mov_reg_to_simd(REG_FPIAR, src));
                     break;
             }
         }
@@ -4371,7 +4371,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 val_FPIAR = 0xffffffff;
                 EMIT(ctx, 
                     ldr_offset(src, tmp, offset),
-                    mov_reg_to_simd(29, TS_S, 1, tmp)
+                    mov_reg_to_simd(REG_FPIAR, tmp)
                 );
             }
 
@@ -5097,7 +5097,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             get_fpcr(tmp),
             bic_immed(tmp, tmp, 2, 32 - 22),
             set_fpcr(tmp),
-            mov_reg_to_simd(29, TS_S, 1, 31)
+            mov_reg_to_simd(REG_FPIAR, 31)
         );
 
         *tmp_ptr = b_cc(A64_CC_NE, ctx->tc_CodePtr - tmp_ptr);

@@ -20,11 +20,8 @@ static inline void CallARMCode()
 
 #define LRU_DEPTH 8
 
-static struct {
-    uint16_t * m68k_pc;
-    uint32_t * arm_pc;
-} LRU[LRU_DEPTH];
-
+uint16_t *      LRU_m68k[LRU_DEPTH];
+uint32_t *      LRU_arm[LRU_DEPTH];
 static uint32_t LRU_usage;
 
 uint32_t *LRU_FindBlock(uint16_t *address)
@@ -32,8 +29,8 @@ uint32_t *LRU_FindBlock(uint16_t *address)
     uint32_t mask = 1;
     for (int i=0; i < LRU_DEPTH; mask<<=1, i++) {
         if (LRU_usage & mask) {
-            if (LRU[i].m68k_pc == address) {
-                return LRU[i].arm_pc;
+            if (LRU_m68k[i] == address) {
+                return LRU_arm[i];
             }
         }
     }
@@ -48,12 +45,12 @@ void LRU_MarkForVerify(uint32_t *addr)
     {
         if (LRU_usage & mask)
         {
-            if (LRU[i].arm_pc == addr)
+            if (LRU_arm[i] == addr)
             {
                 uintptr_t e = (uintptr_t)addr;
                 e &= 0x00ffffffffffffffULL;
                 e |= 0xaa00000000000000ULL;
-                LRU[i].arm_pc = (uint32_t *)e;
+                LRU_arm[i] = (uint32_t *)e;
             }
         }
     }
@@ -66,7 +63,7 @@ void LRU_InvalidateByARMAddress(uint32_t *addr)
     {
         if (LRU_usage & mask)
         {
-            if (LRU[i].arm_pc == addr)
+            if (LRU_arm[i] == addr)
             {
                 LRU_usage &= ~mask;
             }
@@ -81,7 +78,7 @@ void LRU_InvalidateByM68kAddress(uint16_t *addr)
     {
         if (LRU_usage & mask)
         {
-            if (LRU[i].m68k_pc == addr)
+            if (LRU_m68k[i] == addr)
             {
                 LRU_usage &= ~mask;
             }
@@ -99,8 +96,8 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
     int loc = __builtin_ffs(~LRU_usage) - 1;
 
     // Insert new entry
-    LRU[loc].m68k_pc = unit->mt_M68kAddress;
-    LRU[loc].arm_pc = unit->mt_ARMEntryPoint;
+    LRU_m68k[loc] = unit->mt_M68kAddress;
+    LRU_arm[loc] = unit->mt_ARMEntryPoint;
 
     LRU_usage |= (1 << loc);
     if (LRU_usage == (1 << LRU_DEPTH) - 1) {
@@ -199,32 +196,32 @@ static inline int GetIPLLevel() { return 0; }
 static inline uint16_t *getLastPC()
 {
     uint16_t *lastPC;
-    __asm__ volatile("mrs %0, TPIDR_EL1":"=r"(lastPC));
+    __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
     return lastPC;
 }
 
 static inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
-    __asm__ volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
+    __asm__ volatile("mov %0, "CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
 }
 
 static inline uint32_t getSR()
 {
     uint32_t sr;
-    __asm__ volatile("mrs %0, TPIDR_EL0":"=r"(sr));
+    __asm__ volatile("umov %w0, "REG_SR_ASM:"=r"(sr));
     return sr;
 }
 
 static inline void setLastPC(uint16_t *pc)
 {
-    __asm__ volatile("msr TPIDR_EL1, %0": :"r"(pc));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
 }
 
 static inline void setSR(uint32_t sr)
 {
-    __asm__ volatile("msr TPIDR_EL0, %0": :"r"(sr));
+    __asm__ volatile("mov "REG_SR_ASM", w0": :"r"(sr));
 }
 
 void MainLoop()
@@ -250,7 +247,7 @@ void MainLoop()
 #ifndef PISTORM_ANY_MODEL
         /* Force reload of PC*/
         __asm__ volatile("" : "=r"(PC));
-        if (PC == NULL) {
+        if (unlikely(PC == NULL)) {
             M68K_SaveContext(ctx);
             return;
         }
@@ -320,16 +317,16 @@ void MainLoop()
                 if (likely((SR & SR_S) == 0))
                 {
                     /* If we are not yet in supervisor mode, the USP needs to be updated */
-                    __asm__ volatile("mov v31.S[1], %w0": :"r"(sp));
+                    __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(sp));
 
                     /* Load eiter ISP or MSP */
                     if (unlikely((SR & SR_M) != 0))
                     {
-                        __asm__ volatile("mov %w0, v31.S[3]":"=r"(sp));
+                        __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(sp));
                     }
                     else
                     {
-                        __asm__ volatile("mov %w0, v31.S[2]":"=r"(sp));
+                        __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(sp));
                     }
                 }
                 
@@ -369,7 +366,7 @@ void MainLoop()
 
         /* Check if JIT cache is enabled */
         uint32_t cacr;
-        __asm__ volatile("mov %w0, v31.s[0]":"=r"(cacr));
+        __asm__ volatile("mov %w0, "REG_CACR_ASM:"=r"(cacr));
 
         if (likely(cacr & CACR_IE))
         {   
@@ -392,8 +389,8 @@ void MainLoop()
                 /* Unit exists ? */
                 if (code != NULL)
                 {
-                    /* Store m68k PC of corresponding ARM code in TPIDR_EL1 */
-                    __asm__ volatile("msr TPIDR_EL1, %0": :"r"(PC));
+                    /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
+                    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
 
                     /* This is the case, load entry point into x12 */
                     ARM = code;
@@ -416,7 +413,7 @@ void MainLoop()
 #endif
                 /* Load CPU context */
                 M68K_LoadContext(getCTX());
-                __asm__ volatile("msr TPIDR_EL1, %0": :"r"(PC));
+                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
                 /* Prepare ARM pointer in x12 and call it */
                 ARM = node->mt_ARMEntryPoint;
                 __asm__ volatile("":"=r"(ARM):"0"(ARM));

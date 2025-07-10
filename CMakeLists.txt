@@ -15,6 +15,14 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 23)
 
+set(CONTEXT_RESERVE_FLAGS "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21")
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
+    
+    # Optional: Add to all subdirectories
+#add_compile_options(${CONTEXT_RESERVE_FLAGS})
+
 set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
@@ -104,10 +112,17 @@ build_devicetree(OVERLAY_FILES)
 set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
     "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
     -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
-    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
+    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18 ${CONTEXT_RESERVE_FLAGS}")
 set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
-    "-Wno-error=maybe-uninitialized"
-)
+    "-Wno-error=maybe-uninitialized \
+    -fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
+    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
+    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18 ${CONTEXT_RESERVE_FLAGS}")
+set_source_files_properties(src/math/__rem_pio2.c PROPERTIES COMPILE_FLAGS
+    "-Wno-error=maybe-uninitialized \
+    -fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
+    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
+    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18 ${CONTEXT_RESERVE_FLAGS}")
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
@@ -115,7 +130,7 @@ set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29")
+     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
 
 # Exception entry may be called from translated code directly so it breaks the C ABI for aarch64. 
 # All m68k registers are fixed (x13-x29)
@@ -125,13 +140,13 @@ set_source_files_properties(src/M68k_ExceptionEntry.c PROPERTIES COMPILE_FLAGS
      -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -ffixed-x12 -ffixed-x13 \
      -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29")
+     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/aarch64/vectors.c PROPERTIES COMPILE_FLAGS 
      "-ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-      -ffixed-x27 -ffixed-x28 -ffixed-x29")
+      -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
@@ -215,7 +230,7 @@ list(APPEND ARCH_FILES
 set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
 add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-add_compile_options(-falign-functions=32 -march=armv8-a+crc -mtune=cortex-a72 -fomit-frame-pointer -O3 -ffixed-x12 -ffixed-q31 -ffixed-q30 -ffixed-q29 -ffixed-q28)
+add_compile_options(-falign-functions=32 -march=armv8-a+crc -mtune=cortex-a76 -fomit-frame-pointer -O3 -ffixed-x12)
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
     add_compile_options(-mno-outline-atomics)

@@ -2194,7 +2194,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             case 0x0e3: /* INSNCNTLO - lower 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
-                    mov_simd_to_reg(tmp, 30, TS_D, 0),
+                    mov_simd_to_reg(tmp, CTX_INSN_COUNT),
                     add64_immed(tmp, tmp, insn_count & 0xfff)
                 );
                 if (insn_count & 0xfff000)
@@ -2205,7 +2205,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             case 0x0e4: /* INSNCNTHI - higher 32 bits of m68k instruction counter */
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
-                    mov_simd_to_reg(tmp, 30, TS_D, 0),
+                    mov_simd_to_reg(tmp, CTX_INSN_COUNT),
                     add64_immed(tmp, tmp, insn_count & 0xfff)
                 );
                 if (insn_count & 0xfff000)

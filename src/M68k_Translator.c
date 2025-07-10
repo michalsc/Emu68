@@ -250,7 +250,7 @@ uint32_t val_FPIAR;
 void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_fixup)
 {
 #if EMU68_INSN_COUNTER
-    EMIT(ctx, mov_simd_to_reg(0, 30, TS_D, 0));
+    EMIT(ctx, mov_simd_to_reg(0, CTX_INSN_COUNT));
 #endif
 
     RA_StoreDirtyFPURegs(ctx);
@@ -265,7 +265,7 @@ void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_fixup)
 #if EMU68_INSN_COUNTER
     EMIT(ctx,
         add64_immed(0, 0, (insn_count + insn_fixup) & 0xfff),
-        mov_reg_to_simd(30, TS_D, 0, 0)
+        mov_reg_to_simd(CTX_INSN_COUNT, 0)
     );
 #else
     (void)insn_fixup;
@@ -275,7 +275,7 @@ void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_fixup)
         EMIT(ctx, 
             mov_immed_u16(0, val_FPIAR & 0xffff, 0),
             movk_immed_u16(0, val_FPIAR >> 16, 1),
-            mov_reg_to_simd(29, TS_S, 1, 0)
+            mov_reg_to_simd(REG_FPIAR, 0)
         );
     }
 
@@ -584,7 +584,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
     uint32_t *tmpptr = ctx.tc_CodePtr;
 
 #if EMU68_INSN_COUNTER
-    EMIT(&ctx, mov_simd_to_reg(0, 30, TS_D, 0));
+    EMIT(&ctx, mov_simd_to_reg(0, CTX_INSN_COUNT));
 #endif
     RA_FlushFPURegs(&ctx);
     RA_FlushM68kRegs(&ctx);
@@ -605,14 +605,14 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
         EMIT(&ctx, ldr_offset(cpuctx, tmp2, __builtin_offsetof(struct M68KState, INT)));
     }
 #if EMU68_INSN_COUNTER
-    EMIT(&ctx, mov_reg_to_simd(30, TS_D, 0, 0));
+    EMIT(&ctx, mov_reg_to_simd(CTX_INSN_COUNT, 0));
 #endif
     if (val_FPIAR != 0xffffffff)
     {
         EMIT(&ctx,
             mov_immed_u16(0, val_FPIAR & 0xffff, 0),
             movk_immed_u16(0, val_FPIAR >> 16, 1),
-            mov_reg_to_simd(29, TS_S, 1, 0)
+            mov_reg_to_simd(REG_FPIAR, 0)
         );
     }
 
@@ -890,7 +890,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 }
                 __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
                 
-                __asm__ volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
             }
         } while(unit == NULL);
 
@@ -1039,7 +1039,7 @@ void EMIT_InjectPrintContext(struct TranslatorContext *ctx)
         stp64(31, 6, 7, 48),
         str64_offset(31, 30, 64),
 
-        mrs(0, 3, 3, 13, 0, 3),
+        mov_simd_to_reg(0, CTX_POINTER),
 
         mov64_immed_u16(1, u.u16[3], 0),
         movk64_immed_u16(1, u.u16[2], 1),

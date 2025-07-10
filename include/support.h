@@ -10,6 +10,8 @@
 #ifndef _SUPPORT_H
 #define _SUPPORT_H
 
+#include "RegLock.h"
+
 #include <stdint.h>
 #include <stdarg.h>
 
