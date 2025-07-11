@@ -1152,18 +1152,18 @@ static uint32_t EMIT_MOVEtoSR(struct TranslatorContext *ctx, uint16_t opcode)
 
         /* S or M changed. First of all, store stack pointer to either ISP or MSP */
         tbz(orig, SRB_M, 3),
-        mov_reg_to_simd(31, TS_S, 3, sp),  // Save to MSP
+        mov_reg_to_simd(REG_MSP, sp),  // Save to MSP
         b(2),
-        mov_reg_to_simd(31, TS_S, 2, sp),  // Save to ISP
+        mov_reg_to_simd(REG_ISP, sp),  // Save to ISP
 
         /* Check if changing mode to user */
         tbz(changed, SRB_S, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 1),
+        mov_simd_to_reg(sp, REG_USP),
         b(5),
         tbz(cc, SRB_M, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 3),  // Load MSP
+        mov_simd_to_reg(sp, REG_MSP),  // Load MSP
         b(2),
-        mov_simd_to_reg(sp, 31, TS_S, 2),  // Load ISP
+        mov_simd_to_reg(sp, REG_ISP),  // Load ISP
 
         /* Advance PC */
         add_immed(REG_PC, REG_PC, 2 * (ext_words + 1)),
@@ -1583,18 +1583,18 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
 
         /* S or M changed. First of all, store stack pointer to either ISP or MSP */
         tbz(orig, SRB_M, 3),
-        mov_reg_to_simd(31, TS_S, 3, sp),  // Save to MSP
+        mov_reg_to_simd(REG_MSP, sp),  // Save to MSP
         b(2),
-        mov_reg_to_simd(31, TS_S, 2, sp),  // Save to ISP
+        mov_reg_to_simd(REG_ISP, sp),  // Save to ISP
 
         /* Check if changing mode to user */
         tbz(changed, SRB_S, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 1),
+        mov_simd_to_reg(sp, REG_USP),
         b(5),
         tbz(cc, SRB_M, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 3),  // Load MSP
+        mov_simd_to_reg(sp, REG_MSP),  // Load MSP
         b(2),
-        mov_simd_to_reg(sp, 31, TS_S, 2),  // Load ISP
+        mov_simd_to_reg(sp, REG_ISP),  // Load ISP
 
         /* Now do what stop does - wait for interrupt */
         add_immed(REG_PC, REG_PC, 4),
@@ -1726,18 +1726,18 @@ static uint32_t EMIT_RTE(struct TranslatorContext *ctx, uint16_t opcode)
 
         /* S or M changed. First of all, store stack pointer to either ISP or MSP */
         tbz(orig, SRB_M, 3),
-        mov_reg_to_simd(31, TS_S, 3, sp),  // Save to MSP
+        mov_reg_to_simd(REG_MSP, sp),  // Save to MSP
         b(2),
-        mov_reg_to_simd(31, TS_S, 2, sp),  // Save to ISP
+        mov_reg_to_simd(REG_ISP, sp),  // Save to ISP
 
         /* Check if changing mode to user */
         tbz(changed, SRB_S, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 1),
+        mov_simd_to_reg(sp, REG_USP),
         b(5),
         tbz(cc, SRB_M, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 3),  // Load MSP
+        mov_simd_to_reg(sp, REG_MSP),  // Load MSP
         b(2),
-        mov_simd_to_reg(sp, 31, TS_S, 2),  // Load ISP
+        mov_simd_to_reg(sp, REG_ISP),  // Load ISP
 
         // Check if IPL is less than 6. If yes, enable ARM interrupts
         and_immed(changed, cc, 3, 32 - SRB_IPL),
@@ -1961,7 +1961,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x800: // USP
-                EMIT(ctx, mov_reg_to_simd(31, TS_S, 1, reg));
+                EMIT(ctx, mov_reg_to_simd(REG_USP, reg));
                 break;
             case 0x801: // VBR
                 EMIT(ctx, str_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, VBR)));
@@ -1971,7 +1971,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, 
                     bic_immed(tmp, reg, 15, 0),
                     bic_immed(tmp, tmp, 15, 16),
-                    mov_reg_to_simd(31, TS_S, 0, tmp)
+                    mov_reg_to_simd(REG_CACR, tmp)
                 );
                 RA_FreeARMRegister(ctx, tmp);
                 break;
@@ -1981,7 +1981,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, 
                     tbz(cc, SRB_M, 2),
                     mov_reg(sp, reg),
-                    mov_reg_to_simd(31, TS_S, 3, reg)
+                    mov_reg_to_simd(REG_MSP, reg)
                 );
                 break;
             case 0x804: // ISP
@@ -1990,7 +1990,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, 
                     tbnz(cc, SRB_M, 2),
                     mov_reg(sp, reg),
-                    mov_reg_to_simd(31, TS_S, 2, reg)
+                    mov_reg_to_simd(REG_ISP, reg)
                 );
                 break;
             case 0x0ea: /* JITSCFTHRESH - Maximal number of JIT units for "soft" cache flush */
@@ -2144,20 +2144,20 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, ldrb_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, DFC)));
                 break;
             case 0x800: // USP
-                EMIT(ctx, mov_simd_to_reg(reg, 31, TS_S, 1));
+                EMIT(ctx, mov_simd_to_reg(reg, REG_USP));
                 break;
             case 0x801: // VBR
                 EMIT(ctx, ldr_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, VBR)));
                 break;
             case 0x002: // CACR
-                EMIT(ctx, mov_simd_to_reg(reg, 31, TS_S, 0));
+                EMIT(ctx, mov_simd_to_reg(reg, REG_CACR));
                 break;
             case 0x803: // MSP
                 sp = RA_MapM68kRegister(ctx, 15);
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
                     tst_immed(cc, 1, 32 - SRB_M),
-                    mov_simd_to_reg(tmp, 31, TS_S, 3),
+                    mov_simd_to_reg(tmp, REG_MSP),
                     csel(reg, sp, tmp, A64_CC_NE)
                 );
                 RA_FreeARMRegister(ctx, tmp);
@@ -2167,7 +2167,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
                     tst_immed(cc, 1, 32 - SRB_M),
-                    mov_simd_to_reg(tmp, 31, TS_S, 2),
+                    mov_simd_to_reg(tmp, REG_USP),
                     csel(reg, sp, tmp, A64_CC_EQ)
                 );
                 RA_FreeARMRegister(ctx, tmp);
@@ -2385,12 +2385,12 @@ static uint32_t EMIT_MOVEUSP(struct TranslatorContext *ctx, uint16_t opcode)
 
     if (opcode & 8)
     {
-        EMIT(ctx, mov_simd_to_reg(an, 31, TS_S, 1));
+        EMIT(ctx, mov_simd_to_reg(an, REG_USP));
         RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
     }
     else
     {
-        EMIT(ctx, mov_reg_to_simd(31, TS_S, 1, an));
+        EMIT(ctx, mov_reg_to_simd(REG_USP, an));
     }
 
     EMIT(ctx, add_immed(REG_PC, REG_PC, 2));
