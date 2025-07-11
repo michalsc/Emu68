@@ -537,6 +537,10 @@ uint8_t pistorm_get_model()
 
     pistorm_model_set = 1;
 
+pistorm_model = PISTORM_MODEL_16;
+
+    //return PISTORM_MODEL_16;
+
     return pistorm_model;
 }
 

@@ -2167,7 +2167,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
                     tst_immed(cc, 1, 32 - SRB_M),
-                    mov_simd_to_reg(tmp, REG_USP),
+                    mov_simd_to_reg(tmp, REG_ISP),
                     csel(reg, sp, tmp, A64_CC_EQ)
                 );
                 RA_FreeARMRegister(ctx, tmp);
