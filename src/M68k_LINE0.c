@@ -880,13 +880,13 @@ uint32_t EMIT_ORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         tbz(cc, SRB_M, 4),
         
         // M is not set now, Store MSP, load ISP
-        mov_reg_to_simd(31, TS_S, 3, sp),
-        mov_simd_to_reg(sp, 31, TS_S, 2),
+        mov_reg_to_simd(REG_MSP, sp),
+        mov_simd_to_reg(sp, REG_ISP),
         b(3),
 
         // M is set now, store ISP, load MSP
-        mov_reg_to_simd(31, TS_S, 2, sp),
-        mov_simd_to_reg(sp, 31, TS_S, 3),
+        mov_reg_to_simd(REG_ISP, sp),
+        mov_simd_to_reg(sp, REG_MSP),
 
         // Advance PC
         add_immed(REG_PC, REG_PC, 4),
@@ -1268,18 +1268,18 @@ uint32_t EMIT_ANDI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
 
         /* S or M changed. First of all, store stack pointer to either ISP or MSP */
         tbz(orig, SRB_M, 3),
-        mov_reg_to_simd(31, TS_S, 3, sp),  // Save to MSP
+        mov_reg_to_simd(REG_MSP, sp),  // Save to MSP
         b(2),
-        mov_reg_to_simd(31, TS_S, 2, sp),  // Save to ISP
+        mov_reg_to_simd(REG_ISP, sp),  // Save to ISP
 
         /* Check if changing mode to user */
         tbz(changed, SRB_S, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 1),
+        mov_simd_to_reg(sp, REG_USP),
         b(5),
         tbz(cc, SRB_M, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 3),  // Load MSP
+        mov_simd_to_reg(sp, REG_MSP),  // Load MSP
         b(2),
-        mov_simd_to_reg(sp, 31, TS_S, 2),  // Load ISP
+        mov_simd_to_reg(sp, REG_ISP),  // Load ISP
 
         // Advance PC
         add_immed(REG_PC, REG_PC, 4),
@@ -1645,18 +1645,18 @@ uint32_t EMIT_EORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
 
         /* S or M changed. First of all, store stack pointer to either ISP or MSP */
         tbz(orig, SRB_M, 3),
-        mov_reg_to_simd(31, TS_S, 3, sp),  // Save to MSP
+        mov_reg_to_simd(REG_MSP, sp),  // Save to MSP
         b(2),
-        mov_reg_to_simd(31, TS_S, 2, sp),  // Save to ISP
+        mov_reg_to_simd(REG_ISP, sp),  // Save to ISP
 
         /* Check if changing mode to user */
         tbz(immed, SRB_S, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 1),
+        mov_simd_to_reg(sp, REG_USP),
         b(5),
         tbz(cc, SRB_M, 3),
-        mov_simd_to_reg(sp, 31, TS_S, 3),  // Load MSP
+        mov_simd_to_reg(sp, REG_MSP),  // Load MSP
         b(2),
-        mov_simd_to_reg(sp, 31, TS_S, 2),  // Load ISP
+        mov_simd_to_reg(sp, REG_ISP),  // Load ISP
 
         // Advance PC
         add_immed(REG_PC, REG_PC, 4),

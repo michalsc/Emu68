@@ -182,7 +182,7 @@ uint8_t RA_GetFPCR(struct TranslatorContext *ctx)
     {
         reg_FPCR = RA_AllocARMRegister(ctx);
 
-        EMIT(ctx, mov_simd_to_reg(reg_FPCR, 29, TS_H, 4));
+        EMIT(ctx, mov_simd_to_reg(reg_FPCR, REG_FPCR));
 
         mod_FPCR = 0;
     }
@@ -201,7 +201,7 @@ void RA_StoreFPCR(struct TranslatorContext *ctx)
 {
     if (reg_FPCR != 0xff && mod_FPCR)
     {
-        EMIT(ctx, mov_reg_to_simd(29, TS_H, 4, reg_FPCR));
+        EMIT(ctx, mov_reg_to_simd(REG_FPCR, reg_FPCR));
     }
 }
 
@@ -211,7 +211,7 @@ void RA_FlushFPCR(struct TranslatorContext *ctx)
     {
         if (mod_FPCR)
         {
-            EMIT(ctx, mov_reg_to_simd(29, TS_H, 4, reg_FPCR));
+            EMIT(ctx, mov_reg_to_simd(REG_FPCR, reg_FPCR));
         }
         RA_FreeARMRegister(ctx, reg_FPCR);
     }
@@ -225,7 +225,7 @@ uint8_t RA_GetFPSR(struct TranslatorContext *ctx)
     {
         reg_FPSR = RA_AllocARMRegister(ctx);
 
-        EMIT(ctx, mov_simd_to_reg(reg_FPSR, 29, TS_S, 0));
+        EMIT(ctx, mov_simd_to_reg(reg_FPSR, REG_FPSR));
 
         mod_FPSR = 0;
     }
@@ -244,7 +244,7 @@ void RA_StoreFPSR(struct TranslatorContext *ctx)
 {
     if (reg_FPSR != 0xff && mod_FPSR)
     {
-        EMIT(ctx, mov_reg_to_simd(29, TS_S, 0, reg_FPSR));
+        EMIT(ctx, mov_reg_to_simd(REG_FPSR, reg_FPSR));
     }
 }
 
@@ -254,7 +254,7 @@ void RA_FlushFPSR(struct TranslatorContext *ctx)
     {
         if (mod_FPSR)
         {
-            EMIT(ctx, mov_reg_to_simd(29, TS_S, 0, reg_FPSR));
+            EMIT(ctx, mov_reg_to_simd(REG_FPSR, reg_FPSR));
         }
         RA_FreeARMRegister(ctx, reg_FPSR);
     }

@@ -21,13 +21,13 @@ uint32_t M68K_Exception(uint32_t M68k_SR, uint32_t type_and_format, uint32_t, ui
     /* If we are not in supervisor mode, swap stacks */
     if ((M68k_SR & SR_S) == 0) {
         /* Store current A7 to USP */
-        __asm__ volatile("mov v31.s[1], %w0": :"r"(M68k_A7));
+        __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(M68k_A7));
         /* If SR_M is set, load MSP into A7, otherwise load ISP */
         if (unlikely(M68k_SR & SR_M)) {
-            __asm__ volatile("mov %w0, v31.s[3]":"=r"(M68k_A7));
+            __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(M68k_A7));
         }
         else {
-            __asm__ volatile("mov %w0, v31.s[2]":"=r"(M68k_A7));
+            __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(M68k_A7));
         }
     }
 

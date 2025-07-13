@@ -318,16 +318,16 @@ void MainLoop()
                 if (likely((SR & SR_S) == 0))
                 {
                     /* If we are not yet in supervisor mode, the USP needs to be updated */
-                    __asm__ volatile("mov v31.S[1], %w0": :"r"(sp));
+                    __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(sp));
 
                     /* Load eiter ISP or MSP */
                     if (unlikely((SR & SR_M) != 0))
                     {
-                        __asm__ volatile("mov %w0, v31.S[3]":"=r"(sp));
+                        __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(sp));
                     }
                     else
                     {
-                        __asm__ volatile("mov %w0, v31.S[2]":"=r"(sp));
+                        __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(sp));
                     }
                 }
                 
@@ -367,7 +367,7 @@ void MainLoop()
 
         /* Check if JIT cache is enabled */
         uint32_t cacr;
-        __asm__ volatile("mov %w0, v31.s[0]":"=r"(cacr));
+        __asm__ volatile("mov %w0, "REG_CACR_ASM:"=r"(cacr));
 
         if (likely(cacr & CACR_IE))
         {   
