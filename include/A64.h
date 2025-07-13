@@ -15,68 +15,15 @@
 
 #define _(ctx, ...) EMIT(ctx, __VA_ARGS__)
 
-#if 1
 #define EMIT(ctx, ...)                                                                \
     do                                                                                \
     {                                                                                 \
         const uint32_t __emit_args__[] = {__VA_ARGS__};                               \
         for (size_t i = 0; i < sizeof(__emit_args__) / sizeof(__emit_args__[0]); i++) \
         {                                                                             \
-            *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                  \
+            *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                \
         }                                                                             \
     } while (0)
-#else
-
-// Apply macro to each argument (supports up to 63 args)
-#define EMIT(ptr, ...) do { __VA_OPT__(FOR_EACH(EMIT_ONE, ptr, __VA_ARGS__)) } while(0)
-
-#define EMIT_ONE(ptr, x) *((ptr)->tc_CodePtr)++ = (x);
-
-// Internal: dispatch macro based on number of arguments
-#define FOR_EACH(macro, ptr, ...) \
-  _FOR_EACH_N(__VA_ARGS__, \
-    _FE63,_FE62,_FE61,_FE60,_FE59,_FE58,_FE57,_FE56,_FE55,_FE54,_FE53,_FE52,_FE51,_FE50, \
-    _FE49,_FE48,_FE47,_FE46,_FE45,_FE44,_FE43,_FE42,_FE41,_FE40, \
-    _FE39,_FE38,_FE37,_FE36,_FE35,_FE34,_FE33,_FE32,_FE31,_FE30, \
-    _FE29,_FE28,_FE27,_FE26,_FE25,_FE24,_FE23,_FE22,_FE21,_FE20, \
-    _FE19,_FE18,_FE17,_FE16,_FE15,_FE14,_FE13,_FE12,_FE11,_FE10, \
-    _FE9,_FE8,_FE7,_FE6,_FE5,_FE4,_FE3,_FE2,_FE1,_FE0)(macro, ptr, __VA_ARGS__)
-
-#define _FOR_EACH_N( \
-  _1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16, \
-  _17,_18,_19,_20,_21,_22,_23,_24,_25,_26,_27,_28,_29,_30,_31,_32, \
-  _33,_34,_35,_36,_37,_38,_39,_40,_41,_42,_43,_44,_45,_46,_47,_48, \
-  _49,_50,_51,_52,_53,_54,_55,_56,_57,_58,_59,_60,_61,_62,_63, NAME, ...) NAME
-
-// Macro unrolling definitions
-#define _FE0(m,p)
-#define _FE1(m,p,x1) m(p,x1);
-#define _FE2(m,p,x1,x2) m(p,x1); m(p,x2);
-#define _FE3(m,p,x1,x2,x3) m(p,x1); m(p,x2); m(p,x3);
-#define _FE4(m,p,x1,x2,x3,x4) m(p,x1); m(p,x2); m(p,x3); m(p,x4);
-#define _FE5(m,p,x1,x2,x3,x4,x5) _FE4(m,p,x1,x2,x3,x4) m(p,x5);
-#define _FE6(m,p,x1,x2,x3,x4,x5,x6) _FE5(m,p,x1,x2,x3,x4,x5) m(p,x6);
-#define _FE7(m,p,x1,x2,x3,x4,x5,x6,x7) _FE6(m,p,x1,x2,x3,x4,x5,x6) m(p,x7);
-#define _FE8(m,p,x1,x2,x3,x4,x5,x6,x7,x8) _FE7(m,p,x1,x2,x3,x4,x5,x6,x7) m(p,x8);
-#define _FE9(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9) _FE8(m,p,x1,x2,x3,x4,x5,x6,x7,x8) m(p,x9);
-#define _FE10(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10) _FE9(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9) m(p,x10);
-#define _FE11(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11) _FE10(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10) m(p,x11);
-#define _FE12(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12) _FE11(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11) m(p,x12);
-#define _FE13(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13) _FE12(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12) m(p,x13);
-#define _FE14(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14) _FE13(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13) m(p,x14);
-#define _FE15(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15) _FE14(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14) m(p,x15);
-#define _FE16(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16) _FE15(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15) m(p,x16);
-#define _FE17(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17) _FE16(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16) m(p,x17);
-#define _FE18(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18) _FE17(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17) m(p,x18);
-#define _FE19(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19) _FE18(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18) m(p,x19);
-#define _FE20(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20) _FE19(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19) m(p,x20);
-#define _FE21(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21) _FE20(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20) m(p,x21);
-#define _FE22(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22) _FE21(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21) m(p,x22);
-#define _FE23(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23) _FE22(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22) m(p,x23);
-#define _FE24(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24) _FE23(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23) m(p,x24);
-#define _FE25(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24,x25) _FE24(m,p,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24) m(p,x25);
-
-#endif
 
 /* Context pointer is stored in TPIDRRO_EL0 */
 /* SR is stored in TPIDR_EL0 */
