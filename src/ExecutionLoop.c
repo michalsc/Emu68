@@ -204,7 +204,7 @@ static inline uint16_t *getLastPC()
 static inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
-    __asm__ volatile("mrs %0, TPIDRRO_EL0":"=r"(ctx));
+    __asm__ volatile("mov %0, "CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
 }
 

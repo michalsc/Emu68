@@ -160,7 +160,7 @@ uint8_t RA_GetCTX(struct TranslatorContext *ctx)
     if (reg_CTX == 0xff)
     {
         reg_CTX = RA_AllocARMRegister(ctx);
-        EMIT(ctx, mrs(reg_CTX, 3, 3, 13, 0, 3));
+        EMIT(ctx, mov_simd_to_reg(reg_CTX, CTX_POINTER));
     }
 
     return reg_CTX;

@@ -1039,7 +1039,7 @@ void EMIT_InjectPrintContext(struct TranslatorContext *ctx)
         stp64(31, 6, 7, 48),
         str64_offset(31, 30, 64),
 
-        mrs(0, 3, 3, 13, 0, 3),
+        mov_simd_to_reg(0, CTX_POINTER),
 
         mov64_immed_u16(1, u.u16[3], 0),
         movk64_immed_u16(1, u.u16[2], 1),

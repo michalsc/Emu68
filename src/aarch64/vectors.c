@@ -157,7 +157,7 @@ void  __attribute__((used)) __stub_vectors()
 "       mov w0, #1                      \n" // Set ARM int pending so that we can fake INTREQ
 "       strb w0, [x1, #%[armpend]]      \n"
 "       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
-"       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
+"       mov x1, "CTX_POINTER_ASM"       \n" // Load CPU context
 "       mov w0, #6                      \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
@@ -177,7 +177,7 @@ void  __attribute__((used)) __stub_vectors()
 "       mov w0, #1                      \n" // Set ARM int pending so that we can fake INTREQ
 "       strb w0, [x1, #%[armpend]]      \n"
 "       b.ne 1f                         \n" // Skip setting pint register if interrupt was not enabled
-"       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
+"       mov x1, "CTX_POINTER_ASM"       \n" // Load CPU context
 "       mov w0, #6                      \n" // Set level 6 IRQ
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
@@ -189,7 +189,7 @@ void  __attribute__((used)) __stub_vectors()
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x1c0              \n" // Disable SError, IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
-"       mrs x1, TPIDRRO_EL0             \n" // Load CPU context
+"       mov x1, "CTX_POINTER_ASM"       \n" // Load CPU context
 "       mov w0, #7                      \n" // Set level 7 IRQ
 "       strb w0, [x1, #%[perr]]         \n"
 "       ldp x0, x1, [sp], #16           \n" // Restore scratch registers
@@ -351,7 +351,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
         if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
             struct M68KState *ctx;
-            __asm__ volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
+            __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
             ctx->INT.ARM = 0x01;
         }
     }
@@ -365,7 +365,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
         if ((value & 0xa000) == 0x2000) {
             struct M68KState *ctx;
-            __asm__ volatile("mrs %0, TPIDRRO_EL0\n":"=r"(ctx));
+            __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
             ctx->INT.ARM = 0;
             INT_shadow.ARMPending = 0;
         }

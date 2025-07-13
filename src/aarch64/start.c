@@ -1703,7 +1703,7 @@ void boot(void *dtree)
 
 void M68K_LoadContext(struct M68KState *ctx)
 {
-    __asm__ volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
+    __asm__ volatile("mov "CTX_POINTER_ASM", %0\n"::"r"(ctx));
 
     __asm__ volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
     __asm__ volatile("mov v31.s[1], %w0"::"r"(ctx->USP));
@@ -2061,8 +2061,8 @@ __asm__ volatile(
 
     (void)unit;
 
-    /* Save the context to TPIDRRO_EL0, it will be fetched in main loop */
-    __asm__ volatile("msr TPIDRRO_EL0, %0"::"r"(&__m68k));
+    /* Save the context to CTX_POINTER_ASM, it will be fetched in main loop */
+    __asm__ volatile("mov "CTX_POINTER_ASM", %0"::"r"(&__m68k));
 
     /* Start M68k now */
 #ifndef PISTORM_ANY_MODEL
