@@ -269,7 +269,7 @@ uint8_t RA_GetCC(struct TranslatorContext *ctx)
     {
         reg_CC = RA_AllocARMRegister(ctx);
 
-        EMIT(ctx, mrs(reg_CC, 3, 3, 13, 0, 2));
+        EMIT(ctx, mov_simd_to_reg(reg_CC, REG_SR));
 
         mod_CC = 0;
     }
@@ -288,7 +288,7 @@ void RA_StoreCC(struct TranslatorContext *ctx)
 {
     if (reg_CC != 0xff && mod_CC)
     {
-        EMIT(ctx, msr(reg_CC, 3, 3, 13, 0, 2));
+        EMIT(ctx, mov_reg_to_simd(REG_SR, reg_CC));
     }
 }
 
@@ -298,7 +298,7 @@ void RA_FlushCC(struct TranslatorContext *ctx)
     {
         if (mod_CC)
         {
-            EMIT(ctx, msr(reg_CC, 3, 3, 13, 0, 2));
+            EMIT(ctx, mov_reg_to_simd(REG_SR, reg_CC));
         }
         RA_FreeARMRegister(ctx, reg_CC);
     }

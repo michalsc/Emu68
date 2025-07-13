@@ -2218,7 +2218,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
         {
             uint64_t sr;
 
-            __asm__ volatile("mrs %0, tpidr_el0":"=r"(sr));
+            __asm__ volatile("umov %w0, "REG_SR_ASM:"=r"(sr));
 
             kprintf("[JIT:SYS] M68k RegDump:\n[JIT] ");
             int reg_dn[] = {REG_D0, REG_D1, REG_D2, REG_D3, REG_D4, REG_D5, REG_D6, REG_D7};

@@ -211,7 +211,7 @@ static inline struct M68KState *getCTX()
 static inline uint32_t getSR()
 {
     uint32_t sr;
-    __asm__ volatile("mrs %0, TPIDR_EL0":"=r"(sr));
+    __asm__ volatile("umov %w0, "REG_SR_ASM:"=r"(sr));
     return sr;
 }
 
@@ -222,7 +222,7 @@ static inline void setLastPC(uint16_t *pc)
 
 static inline void setSR(uint32_t sr)
 {
-    __asm__ volatile("msr TPIDR_EL0, %0": :"r"(sr));
+    __asm__ volatile("mov "REG_SR_ASM", %w0": :"r"(sr));
 }
 
 void MainLoop()
