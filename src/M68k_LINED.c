@@ -381,13 +381,8 @@ static uint32_t EMIT_ADDX_mem(struct TranslatorContext *ctx, uint16_t opcode)
         uint8_t tmp = RA_AllocARMRegister(ctx);
 
         EMIT(ctx, 
-#if 1
             and_immed(tmp, cc, 1, 31 & (32 - 4)),
             subs_immed(31, tmp, 0x10)
-#else
-            ror(tmp, cc, 7),
-            set_nzcv(tmp)
-#endif
         );
 
         RA_FreeARMRegister(ctx, tmp);
