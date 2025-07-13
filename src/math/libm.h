@@ -2,6 +2,7 @@
 #define __LIBM_H
 
 #include <stdint.h>
+#include "RegLock.h"
 
 /* Get the more significant 32 bit int from a double.  */
 

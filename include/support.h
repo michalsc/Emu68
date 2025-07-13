@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#include "RegLock.h"
 #include "A64.h"
 
 #ifdef NULL
