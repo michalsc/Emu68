@@ -890,7 +890,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 }
                 __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
                 
-                __asm__ volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
             }
         } while(unit == NULL);
 

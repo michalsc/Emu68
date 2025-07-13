@@ -197,7 +197,7 @@ static inline int GetIPLLevel() { return 0; }
 static inline uint16_t *getLastPC()
 {
     uint16_t *lastPC;
-    __asm__ volatile("mrs %0, TPIDR_EL1":"=r"(lastPC));
+    __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
     return lastPC;
 }
 
@@ -217,7 +217,7 @@ static inline uint32_t getSR()
 
 static inline void setLastPC(uint16_t *pc)
 {
-    __asm__ volatile("msr TPIDR_EL1, %0": :"r"(pc));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
 }
 
 static inline void setSR(uint32_t sr)
@@ -390,8 +390,8 @@ void MainLoop()
                 /* Unit exists ? */
                 if (code != NULL)
                 {
-                    /* Store m68k PC of corresponding ARM code in TPIDR_EL1 */
-                    __asm__ volatile("msr TPIDR_EL1, %0": :"r"(PC));
+                    /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
+                    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
 
                     /* This is the case, load entry point into x12 */
                     ARM = code;
@@ -414,7 +414,7 @@ void MainLoop()
 #endif
                 /* Load CPU context */
                 M68K_LoadContext(getCTX());
-                __asm__ volatile("msr TPIDR_EL1, %0": :"r"(PC));
+                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
                 /* Prepare ARM pointer in x12 and call it */
                 ARM = node->mt_ARMEntryPoint;
                 __asm__ volatile("":"=r"(ARM):"0"(ARM));

@@ -2055,7 +2055,7 @@ __asm__ volatile(
     __asm__ volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
     __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
     __asm__ volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
-    __asm__ volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
 
     *(void**)(&arm_code) = NULL;
 

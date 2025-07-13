@@ -1982,7 +1982,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
-    __asm__ volatile("msr tpidr_el1,%0": :"r"(0xffffffff));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM",%w0": :"r"(0xffffffff));
 
     LRU_InvalidateAll();
 
