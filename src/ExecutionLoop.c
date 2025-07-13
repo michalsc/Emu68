@@ -20,10 +20,8 @@ static inline void CallARMCode()
 
 #define LRU_DEPTH 8
 
-static struct {
-    uint16_t * m68k_pc;
-    uint32_t * arm_pc;
-} LRU[LRU_DEPTH];
+uint16_t *      LRU_m68k[LRU_DEPTH];
+uint32_t *      LRU_arm[LRU_DEPTH];
 
 static uint32_t LRU_usage;
 
@@ -32,8 +30,8 @@ uint32_t *LRU_FindBlock(uint16_t *address)
     uint32_t mask = 1;
     for (int i=0; i < LRU_DEPTH; mask<<=1, i++) {
         if (LRU_usage & mask) {
-            if (LRU[i].m68k_pc == address) {
-                return LRU[i].arm_pc;
+            if (LRU_m68k[i] == address) {
+                return LRU_arm[i];
             }
         }
     }
@@ -48,12 +46,12 @@ void LRU_MarkForVerify(uint32_t *addr)
     {
         if (LRU_usage & mask)
         {
-            if (LRU[i].arm_pc == addr)
+            if (LRU_arm[i] == addr)
             {
                 uintptr_t e = (uintptr_t)addr;
                 e &= 0x00ffffffffffffffULL;
                 e |= 0xaa00000000000000ULL;
-                LRU[i].arm_pc = (uint32_t *)e;
+                LRU_arm[i] = (uint32_t *)e;
             }
         }
     }
@@ -66,7 +64,7 @@ void LRU_InvalidateByARMAddress(uint32_t *addr)
     {
         if (LRU_usage & mask)
         {
-            if (LRU[i].arm_pc == addr)
+            if (LRU_arm[i] == addr)
             {
                 LRU_usage &= ~mask;
             }
@@ -81,7 +79,7 @@ void LRU_InvalidateByM68kAddress(uint16_t *addr)
     {
         if (LRU_usage & mask)
         {
-            if (LRU[i].m68k_pc == addr)
+            if (LRU_m68k[i] == addr)
             {
                 LRU_usage &= ~mask;
             }
@@ -99,8 +97,8 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
     int loc = __builtin_ffs(~LRU_usage) - 1;
 
     // Insert new entry
-    LRU[loc].m68k_pc = unit->mt_M68kAddress;
-    LRU[loc].arm_pc = unit->mt_ARMEntryPoint;
+    LRU_m68k[loc] = unit->mt_M68kAddress;
+    LRU_arm[loc] = unit->mt_ARMEntryPoint;
 
     LRU_usage |= (1 << loc);
     if (LRU_usage == (1 << LRU_DEPTH) - 1) {
