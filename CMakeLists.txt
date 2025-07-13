@@ -8,6 +8,8 @@ include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
 include(cmake/devicetree.cmake)
 
+find_program(GZIP gzip REQUIRED)
+
 get_verstring(VERSTRING)
 get_git_sha(GIT_SHA)
 
@@ -157,7 +159,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         download_raspi_firmware()
         if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm-classic")
             configure_file(scripts/config_pistorm.txt scripts/config.txt @ONLY)
-            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION . RENAME Emu68-${VARIANT})
+            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION . RENAME Emu68-${VARIANT}.gz)
             install(FILES ${CMAKE_BINARY_DIR}/scripts/config.txt DESTINATION .)
         else()
             install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
@@ -246,6 +248,7 @@ add_executable(Emu68.elf
 add_custom_command(
     TARGET Emu68.elf POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -v -O binary "${CMAKE_BINARY_DIR}/Emu68.elf" "${CMAKE_BINARY_DIR}/Emu68.img"
+    COMMAND ${GZIP} -f "${CMAKE_BINARY_DIR}/Emu68.img"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
