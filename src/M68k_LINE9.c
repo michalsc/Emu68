@@ -426,8 +426,8 @@ uint32_t EMIT_SUBX_reg(struct TranslatorContext *ctx, uint16_t opcode)
         uint8_t tmp = RA_AllocARMRegister(ctx);
 
         EMIT(ctx, 
-            mvn_reg(tmp, cc, ROR, 7),
-            set_nzcv(tmp)
+            and_immed(tmp, cc, 1, 31 & (32 - 4)),
+            negs_reg(31, tmp, LSL, 0)
         );
 
         RA_FreeARMRegister(ctx, tmp);
