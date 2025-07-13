@@ -21,7 +21,7 @@
         const uint32_t __emit_args__[] = {__VA_ARGS__};                               \
         for (size_t i = 0; i < sizeof(__emit_args__) / sizeof(__emit_args__[0]); i++) \
         {                                                                             \
-            *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                  \
+            *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                \
         }                                                                             \
     } while (0)
 

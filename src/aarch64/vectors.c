@@ -769,7 +769,7 @@ int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr,
             __asm__ volatile("msr ELR_EL1, %0"::"r"(unit->mt_ARMEntryPoint));
 
             // Avoid short loop path by invalidating the "last m68k PC" counter. That should trigger full search and translation
-            __asm__ volatile("mov "CTX_LAST_PC_ASM",%w0"::"r"(0xffffffff));
+            __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
             return 1;
         }
     }
