@@ -221,7 +221,7 @@ static inline void setLastPC(uint16_t *pc)
 
 static inline void setSR(uint32_t sr)
 {
-    __asm__ volatile("mov "REG_SR_ASM", w0": :"r"(sr));
+    __asm__ volatile("mov "REG_SR_ASM", %w0": :"r"(sr));
 }
 
 void MainLoop()
