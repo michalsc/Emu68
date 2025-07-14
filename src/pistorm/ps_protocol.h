@@ -59,13 +59,28 @@
 #define GPIO_PULL *(gpio + 37)      // Pull up/pull down
 #define GPIO_PULLCLK0 *(gpio + 38)  // Pull up/pull down clock
 
-#define GPFSEL0_INPUT 0x00244240
-#define GPFSEL1_INPUT 0x00000000
-#define GPFSEL2_INPUT (0x00000000 | (1 << 18) | (1 << 21) | (1 << 27))
+// Pins for MDIO
+#define PIN_RGMII_MDIO  28
+#define PIN_RGMII_MDC   29
 
-#define GPFSEL0_OUTPUT 0x09244240
-#define GPFSEL1_OUTPUT 0x09249249
-#define GPFSEL2_OUTPUT (0x00000249 | (1 << 18) | (1 << 21) | (1 << 27))
+#define CLEAR_BITS_PI3 0xffffec
+#define CLEAR_BITS_PI4 (0xffffec & ~((1 << PIN_RGMII_MDIO) | (1 << PIN_RGMII_MDC)))
+
+#define GPFSEL0_INPUT_PI3 0x00244240
+#define GPFSEL1_INPUT_PI3 0x00000000
+#define GPFSEL2_INPUT_PI3 (0x00000000 | (1 << 18) | (1 << 21) | (1 << 27))
+
+#define GPFSEL0_OUTPUT_PI3 0x09244240
+#define GPFSEL1_OUTPUT_PI3 0x09249249
+#define GPFSEL2_OUTPUT_PI3 (0x00000249 | (1 << 18) | (1 << 21) | (1 << 27))
+
+#define GPFSEL0_INPUT_PI4 0x00244240
+#define GPFSEL1_INPUT_PI4 0x00000000
+#define GPFSEL2_INPUT_PI4 (0x00000000 | (1 << 18) | (1 << 21) | (5 << 27) | (5 << 24))
+
+#define GPFSEL0_OUTPUT_PI4 0x09244240
+#define GPFSEL1_OUTPUT_PI4 0x09249249
+#define GPFSEL2_OUTPUT_PI4 (0x00000249 | (1 << 18) | (1 << 21) | (5 << 27) | (5 << 24))
 
 #endif
 
