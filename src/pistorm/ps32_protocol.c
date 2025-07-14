@@ -121,7 +121,8 @@ typedef unsigned int uint;
 #define PIN_RGMII_MDIO  28
 #define PIN_RGMII_MDC   29
 
-#define CLEAR_BITS      (0x0fffffff & ~((1 << PIN_RD) | (1 << PIN_WR) | (1 << SER_OUT_BIT) | (1 << SER_OUT_CLK) | (1 << PIN_RGMII_MDIO) | (1 << PIN_RGMII_MDC)))
+#define CLEAR_BITS_PI4  (0x0fffffff & ~((1 << PIN_RD) | (1 << PIN_WR) | (1 << SER_OUT_BIT) | (1 << SER_OUT_CLK) | (1 << PIN_RGMII_MDIO) | (1 << PIN_RGMII_MDC)))
+#define CLEAR_BITS_PI3  (0x0fffffff & ~((1 << PIN_RD) | (1 << PIN_WR) | (1 << SER_OUT_BIT) | (1 << SER_OUT_CLK)))
 
 // Pins for FPGA programming
 #define PIN_CRESET1     6
@@ -144,13 +145,21 @@ typedef unsigned int uint;
 #define SPLIT_DATA(x)   (x)
 #define MERGE_DATA(x)   (x)
 
-#define GPFSEL0_INPUT (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
-#define GPFSEL1_INPUT (0)
-#define GPFSEL2_INPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK) | PF(AF5, PIN_RGMII_MDC) | PF(AF5, PIN_RGMII_MDIO))
+#define GPFSEL0_INPUT_PI4 (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
+#define GPFSEL1_INPUT_PI4 (0)
+#define GPFSEL2_INPUT_PI4 (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK) | PF(AF5, PIN_RGMII_MDC) | PF(AF5, PIN_RGMII_MDIO))
 
-#define GPFSEL0_OUTPUT (GO(PIN_D(1)) | GO(PIN_D(0)) | GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
-#define GPFSEL1_OUTPUT (GO(PIN_D(11)) | GO(PIN_D(10)) | GO(PIN_D(9)) | GO(PIN_D(8)) | GO(PIN_D(7)) | GO(PIN_D(6)) | GO(PIN_D(5)) | GO(PIN_D(4)) | GO(PIN_D(3)) | GO(PIN_D(2)))
-#define GPFSEL2_OUTPUT (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(SER_OUT_CLK) | PF(AF5, PIN_RGMII_MDC) | PF(AF5, PIN_RGMII_MDIO))
+#define GPFSEL0_OUTPUT_PI4 (GO(PIN_D(1)) | GO(PIN_D(0)) | GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
+#define GPFSEL1_OUTPUT_PI4 (GO(PIN_D(11)) | GO(PIN_D(10)) | GO(PIN_D(9)) | GO(PIN_D(8)) | GO(PIN_D(7)) | GO(PIN_D(6)) | GO(PIN_D(5)) | GO(PIN_D(4)) | GO(PIN_D(3)) | GO(PIN_D(2)))
+#define GPFSEL2_OUTPUT_PI4 (GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(SER_OUT_CLK) | PF(AF5, PIN_RGMII_MDC) | PF(AF5, PIN_RGMII_MDIO))
+
+#define GPFSEL0_INPUT_PI3 (GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
+#define GPFSEL1_INPUT_PI3 (0)
+#define GPFSEL2_INPUT_PI3 (GO(29) | GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(SER_OUT_CLK))
+
+#define GPFSEL0_OUTPUT_PI3 (GO(PIN_D(1)) | GO(PIN_D(0)) | GO(PIN_WR) | GO(PIN_RD) | GO(SER_OUT_BIT))
+#define GPFSEL1_OUTPUT_PI3 (GO(PIN_D(11)) | GO(PIN_D(10)) | GO(PIN_D(9)) | GO(PIN_D(8)) | GO(PIN_D(7)) | GO(PIN_D(6)) | GO(PIN_D(5)) | GO(PIN_D(4)) | GO(PIN_D(3)) | GO(PIN_D(2)))
+#define GPFSEL2_OUTPUT_PI3 (GO(29) | GO(PIN_A(2)) | GO(PIN_A(1)) | GO(PIN_A(0)) | GO(PIN_D(15)) | GO(PIN_D(14)) | GO(PIN_D(13)) | GO(PIN_D(12)) | GO(SER_OUT_CLK))
 
 #define REG_DATA_LO     0
 #define REG_DATA_HI     1
@@ -187,6 +196,16 @@ typedef unsigned int uint;
 #define DIRECTION_INPUT 0
 #define DIRECTION_OUTPUT 1
 
+uint32_t INPUT[3] = {
+    0, 0, 0
+};
+
+uint32_t OUTPUT[3] = {
+    0, 0, 0
+};
+
+uint32_t CLEAR_BITS = 0;
+
 volatile uint32_t *gpio;
 volatile uint32_t *gpset;
 volatile uint32_t *gpreset;
@@ -195,15 +214,15 @@ volatile uint32_t *gpread;
 uint32_t use_2slot = 1;
 
 static inline void set_input() {
-    *(gpio + 0) = LE32(GPFSEL0_INPUT);
-    *(gpio + 1) = LE32(GPFSEL1_INPUT);
-    *(gpio + 2) = LE32(GPFSEL2_INPUT);
+    *(gpio + 0) = LE32(INPUT[0]);
+    *(gpio + 1) = LE32(INPUT[1]);
+    *(gpio + 2) = LE32(INPUT[2]);
 }
 
 static inline void set_output() {
-    *(gpio + 0) = LE32(GPFSEL0_OUTPUT);
-    *(gpio + 1) = LE32(GPFSEL1_OUTPUT);
-    *(gpio + 2) = LE32(GPFSEL2_OUTPUT);
+    *(gpio + 0) = LE32(OUTPUT[0]);
+    *(gpio + 1) = LE32(OUTPUT[1]);
+    *(gpio + 2) = LE32(OUTPUT[2]);
 }
 
 void pistorm_setup_serial()
@@ -227,6 +246,35 @@ static void pistorm_setup_io()
     gpset =   ((volatile uint32_t *)gpio) + 7;// *(gpio + 7);
     gpreset = ((volatile uint32_t *)gpio) + 10;// *(gpio + 10);
     gpread =  ((volatile uint32_t *)gpio) + 13;// *(gpio + 13);
+
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+
+    /* Pi4, CM4 */
+    if (tmp > 20000000)
+    {
+        CLEAR_BITS = CLEAR_BITS_PI4;
+        
+        OUTPUT[0] = GPFSEL0_OUTPUT_PI4;
+        OUTPUT[1] = GPFSEL1_OUTPUT_PI4;
+        OUTPUT[2] = GPFSEL2_OUTPUT_PI4;
+        
+        INPUT[0] = GPFSEL0_INPUT_PI4;
+        INPUT[1] = GPFSEL1_INPUT_PI4;
+        INPUT[2] = GPFSEL2_INPUT_PI4;
+    }
+    else
+    {
+        CLEAR_BITS = CLEAR_BITS_PI3;
+        
+        OUTPUT[0] = GPFSEL0_OUTPUT_PI3;
+        OUTPUT[1] = GPFSEL1_OUTPUT_PI3;
+        OUTPUT[2] = GPFSEL2_OUTPUT_PI3;
+        
+        INPUT[0] = GPFSEL0_INPUT_PI3;
+        INPUT[1] = GPFSEL1_INPUT_PI3;
+        INPUT[2] = GPFSEL2_INPUT_PI3;
+    }
 }
 
 static inline void write_ps_reg(unsigned int address, unsigned int data)
