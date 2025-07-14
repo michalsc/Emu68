@@ -1060,8 +1060,6 @@ uint32_t number_to_mask(uint32_t value)
 /* Load 32-bit immediate into destination register. If possible, construct it from mask, otherwise use movk combinations */
 void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed)
 {
-    kprintf("Load Immediate %08x into r%d\n", immed, rd);
-    
     /* Handle special cases */
     if (immed == 0) {
         EMIT(ctx, mov_reg(rd, WZR));
