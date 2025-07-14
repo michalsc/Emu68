@@ -62,9 +62,7 @@ uint32_t EMIT_BRA(struct TranslatorContext *ctx, uint16_t opcode)
             EMIT(ctx, sub_immed(tmp, REG_PC, -(addend + abs_off)));
         else if ((addend + abs_off) != 0) {
             int32_t v = addend + abs_off;
-            EMIT(ctx, movw_immed_u16(tmp, v & 0xffff));
-            if ((v >> 16) & 0xffff)
-                EMIT(ctx, movt_immed_u16(tmp, v >> 16));
+            EMIT_LoadImmediate(ctx, tmp, v);
             EMIT(ctx, add_reg(tmp, REG_PC, tmp, LSL, 0));
         }
 
@@ -89,9 +87,7 @@ uint32_t EMIT_BRA(struct TranslatorContext *ctx, uint16_t opcode)
     }
     else
     {
-        EMIT(ctx, movw_immed_u16(reg, abs_off & 0xffff));
-        if ((abs_off >> 16) & 0xffff)
-            EMIT(ctx, movt_immed_u16(reg, abs_off >> 16));
+        EMIT_LoadImmediate(ctx, reg, abs_off);
         EMIT(ctx, add_reg(REG_PC, REG_PC, reg, LSL, 0));
     }
     RA_FreeARMRegister(ctx, reg);
@@ -211,9 +207,7 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
         else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
             EMIT(ctx, sub_immed(REG_PC, REG_PC, -local_pc_off_16));
         else if (local_pc_off_16 != 0) {
-            EMIT(ctx, movw_immed_u16(0, local_pc_off_16));
-            if ((local_pc_off_16 >> 16) & 0xffff)
-                EMIT(ctx, movt_immed_u16(0, local_pc_off_16 >> 16));
+            EMIT_LoadImmediate(ctx, 0, local_pc_off_16);
             EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
         }
     }
@@ -224,9 +218,7 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
         else if (branch_offset > -4096 && branch_offset < 0)
             EMIT(ctx, sub_immed(REG_PC, REG_PC, -branch_offset));
         else if (branch_offset != 0) {
-            EMIT(ctx, movw_immed_u16(0, branch_offset));
-            if ((branch_offset >> 16) & 0xffff)
-                EMIT(ctx, movt_immed_u16(0, (branch_offset >> 16) & 0xffff));
+            EMIT_LoadImmediate(ctx, 0, branch_offset);
             EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
         }
 
@@ -263,9 +255,7 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
             EMIT(ctx, sub_immed(REG_PC, REG_PC, -local_pc_off_16));
         else if (local_pc_off_16 != 0)
         {
-            EMIT(ctx, movw_immed_u16(0, local_pc_off_16));
-            if ((local_pc_off_16 >> 16) & 0xffff)
-                EMIT(ctx, movt_immed_u16(0, local_pc_off_16 >> 16));
+            EMIT_LoadImmediate(ctx, 0, local_pc_off_16);
             EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
         }
     }
@@ -277,9 +267,7 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
             EMIT(ctx, sub_immed(REG_PC, REG_PC, -branch_offset));
         else if (branch_offset != 0)
         {
-            EMIT(ctx, movw_immed_u16(0, branch_offset));
-            if ((branch_offset >> 16) & 0xffff)
-                EMIT(ctx, movt_immed_u16(0, (branch_offset >> 16) & 0xffff));
+            EMIT_LoadImmediate(ctx, 0, branch_offset);
             EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
         }
     }

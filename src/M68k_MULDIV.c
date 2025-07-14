@@ -235,10 +235,7 @@ uint32_t EMIT_DIVS_W(struct TranslatorContext *ctx, uint16_t opcode)
 #if EMU68_INSN_COUNTER        
         extern uint32_t insn_count;
         uint8_t tmp = RA_AllocARMRegister(ctx);
-        EMIT(ctx, mov_immed_u16(tmp, insn_count & 0xffff, 0));
-        if (insn_count & 0xffff0000) {
-            EMIT(ctx, movk_immed_u16(tmp, insn_count >> 16, 1));
-        }
+        EMIT_LoadImmediate(ctx, tmp, insn_count);
         EMIT(ctx, 
             fmov_from_reg(0, tmp),
             vadd_2d(30, 30, 0)
@@ -350,10 +347,7 @@ uint32_t EMIT_DIVU_W(struct TranslatorContext *ctx, uint16_t opcode)
 #if EMU68_INSN_COUNTER        
         extern uint32_t insn_count;
         uint8_t tmp = RA_AllocARMRegister(ctx);
-        EMIT(ctx, mov_immed_u16(tmp, insn_count & 0xffff, 0));
-        if (insn_count & 0xffff0000) {
-            EMIT(ctx, movk_immed_u16(tmp, insn_count >> 16, 1));
-        }
+        EMIT_LoadImmediate(ctx, tmp, insn_count);
         EMIT(ctx, 
             fmov_from_reg(0, tmp),
             vadd_2d(30, 30, 0)
@@ -478,10 +472,7 @@ uint32_t EMIT_DIVUS_L(struct TranslatorContext *ctx, uint16_t opcode)
 #if EMU68_INSN_COUNTER        
         extern uint32_t insn_count;
         uint8_t tmp = RA_AllocARMRegister(ctx);
-        EMIT(ctx, mov_immed_u16(tmp, insn_count & 0xffff, 0));
-        if (insn_count & 0xffff0000) {
-            EMIT(ctx, movk_immed_u16(tmp, insn_count >> 16, 1));
-        }
+        EMIT_LoadImmediate(ctx, tmp, insn_count);
         EMIT(ctx, 
             fmov_from_reg(0, tmp),
             vadd_2d(30, 30, 0)

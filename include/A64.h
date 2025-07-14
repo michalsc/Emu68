@@ -25,6 +25,9 @@
         }                                                                             \
     } while (0)
 
+#define WZR 31
+#define XZR 31
+
 /* Context pointer is stored in TPIDRRO_EL0 */
 /* SR is stored in TPIDR_EL0 */
 /* last_PC is stored in TPIDR_EL1 */
@@ -489,8 +492,6 @@ static inline uint32_t movk_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16
 static inline uint32_t movk64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { ASSERT_REG(reg); return I32(0xf2800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
 static inline uint32_t movn_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { ASSERT_REG(reg); return I32(0x12800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
 static inline uint32_t movn64_immed_u16(uint8_t reg, uint16_t val, uint8_t shift16) { ASSERT_REG(reg); return I32(0x92800000 | ((shift16 & 3) << 21) | (val << 5) | (reg & 31)); }
-static inline uint32_t movw_immed_u16(uint8_t reg, uint16_t val) { ASSERT_REG(reg); return mov_immed_u16(reg, val, 0); }
-static inline uint32_t movt_immed_u16(uint8_t reg, uint16_t val) { ASSERT_REG(reg); return movk_immed_u16(reg, val, 1); }
 static inline uint32_t mov_immed_s8(uint8_t reg, int8_t val) { ASSERT_REG(reg); if (val < 0) return movn_immed_u16(reg, -val - 1, 0); else return mov_immed_u16(reg, val, 0); }
 static inline uint32_t mov_immed_u8(uint8_t reg, uint8_t val) { ASSERT_REG(reg); return mov_immed_u16(reg, val, 0); }
 
@@ -1470,8 +1471,8 @@ void EMIT_SetFlagsConditional(struct TranslatorContext *ctx, uint8_t cc, uint8_t
     RA_FreeARMRegister(ctx, tmp_reg);
 }
 
-static inline __attribute__((always_inline))
-uint32_t number_to_mask(uint32_t number)
+uint32_t number_to_mask(uint32_t number);
+#if 0
 {
     unsigned shift = 0;
     unsigned width = 0;
@@ -1508,5 +1509,6 @@ uint32_t number_to_mask(uint32_t number)
             return 0xffffffff;
     }
 }
+#endif
 
 #endif /* _A64_H */

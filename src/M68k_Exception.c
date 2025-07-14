@@ -31,9 +31,8 @@ void EMIT_Exception(struct TranslatorContext *ctx, uint16_t exception, uint8_t f
     if (format == 2 || format == 3)
     {
         ea = va_arg(args, uint32_t);
+        EMIT_LoadImmediate(ctx, 0, ea);
         EMIT(ctx,
-            mov_immed_u16(0, (ea & 0xffff), 0),
-            movk_immed_u16(0, (ea >> 16) & 0xffff, 1),
             stp64_preindex(31, 0, 30, -16)
         );
     }
@@ -42,15 +41,15 @@ void EMIT_Exception(struct TranslatorContext *ctx, uint16_t exception, uint8_t f
         fault = va_arg(args, uint32_t);
         ea = va_arg(args, uint32_t);
 
+        EMIT_LoadImmediate(ctx, 0, fault);
         EMIT(ctx,
             // Push Fault
-            mov_immed_u16(0, fault & 0xffff, 0),
-            movk_immed_u16(0, (fault >> 16) & 0xffff, 1),
             stp64_preindex(31, 0, 30, -16),
-            
+        );
+
+        EMIT_LoadImmediate(ctx, 2, ea);
+        EMIT(ctx,
             // Push EA
-            mov_immed_u16(2, (ea & 0xffff), 0),
-            movk_immed_u16(2, (ea >> 16) & 0xffff, 1),
             str64_offset_preindex(31, 2, -8)
         );
     }

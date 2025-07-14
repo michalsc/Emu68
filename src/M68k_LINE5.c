@@ -809,9 +809,8 @@ uint32_t EMIT_DBcc(struct TranslatorContext *ctx, uint16_t opcode)
         else if (off != 0)
         {
             uint8_t reg = RA_AllocARMRegister(ctx);
+            EMIT_LoadImmediate(ctx, reg, off);
             EMIT(ctx, 
-                movw_immed_u16(reg, off & 0xffff),
-                movt_immed_u16(reg, (off >> 16) & 0xffff),
                 add_reg(REG_PC, REG_PC, reg, LSL, 0)
             );
             RA_FreeARMRegister(ctx, reg);

@@ -507,6 +507,7 @@ struct FPUOpcodeDef {
     uint8_t         od_OpSize;
 };
 
+void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
 void EMIT_InjectDebugStringV(struct TranslatorContext *ctx, const char * restrict format, va_list args);
 void EMIT_InjectDebugString(struct TranslatorContext *ctx, const char * restrict format, ...);

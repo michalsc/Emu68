@@ -148,7 +148,7 @@ static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
     {
         EMIT(ctx,
             hint(0),
-            movw_immed_u16(31, opcode),
+            mov_immed_u16(31, opcode, 0),
             movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr) >> 16, 1),
             movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr), 0)
         );
@@ -272,9 +272,8 @@ void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_fixup)
 #endif
     if (val_FPIAR != 0xffffffff)
     {
+        EMIT_LoadImmediate(ctx, 0, val_FPIAR);
         EMIT(ctx, 
-            mov_immed_u16(0, val_FPIAR & 0xffff, 0),
-            movk_immed_u16(0, val_FPIAR >> 16, 1),
             mov_reg_to_simd(REG_FPIAR, 0)
         );
     }
@@ -609,9 +608,8 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
 #endif
     if (val_FPIAR != 0xffffffff)
     {
+        EMIT_LoadImmediate(&ctx, 0, val_FPIAR);
         EMIT(&ctx,
-            mov_immed_u16(0, val_FPIAR & 0xffff, 0),
-            movk_immed_u16(0, val_FPIAR >> 16, 1),
             mov_reg_to_simd(REG_FPIAR, 0)
         );
     }

@@ -1292,10 +1292,9 @@ static uint32_t EMIT_LINK32(struct TranslatorContext *ctx, uint16_t opcode)
     int32_t offset = (cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[0]) << 16) | cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
 
     displ = RA_AllocARMRegister(ctx);
-    EMIT(ctx, 
-        movw_immed_u16(displ, offset & 0xffff),
-        movt_immed_u16(displ, (offset >> 16) & 0xffff)
-    );
+
+    EMIT_LoadImmediate(ctx, displ, offset);
+
     sp = RA_MapM68kRegister(ctx, 15);
     if (8 + (opcode & 7) == 15) {
         reg = RA_CopyFromM68kRegister(ctx, 8 + (opcode & 7));
@@ -1356,9 +1355,7 @@ static uint32_t EMIT_LINK16(struct TranslatorContext *ctx, uint16_t opcode)
     }
     else if (offset != 0)
     {
-        EMIT(ctx, mov_immed_u16(displ, offset, 0));
-        if (offset < 0)
-            EMIT(ctx, movk_immed_u16(displ, 0xffff, 1));
+        EMIT_LoadImmediate(ctx, displ, offset);
         EMIT(ctx, add_reg(sp, sp, displ, LSL, 0));
     }
     
@@ -1832,9 +1829,8 @@ static uint32_t EMIT_RTS(struct TranslatorContext *ctx, uint16_t opcode)
         uint8_t reg = RA_AllocARMRegister(ctx);
         uint32_t *tmp;
         uint32_t ret = (uint32_t)(uintptr_t)ret_addr;
+        EMIT_LoadImmediate(ctx, reg, ret);
         EMIT(ctx, 
-            mov_immed_u16(reg, ret & 0xffff, 0),
-            movk_immed_u16(reg, ret >> 16, 1),
             cmp_reg(reg, REG_PC, LSL, 0)
         );
         tmp = ctx->tc_CodePtr++;
@@ -1968,9 +1964,9 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 break;
             case 0x002: // CACR
                 tmp = RA_AllocARMRegister(ctx);
+                uint32_t mask = number_to_mask(0x80008000);
                 EMIT(ctx, 
-                    bic_immed(tmp, reg, 15, 0),
-                    bic_immed(tmp, tmp, 15, 16),
+                    and_immed(tmp, reg, (mask >> 16) & 0x3f, mask & 0x3f),
                     mov_reg_to_simd(REG_CACR, tmp)
                 );
                 RA_FreeARMRegister(ctx, tmp);

@@ -28,10 +28,8 @@ void get_Load96(struct TranslatorContext *ctx)
     if (reg_Load96 == 0xff) {
         reg_Load96 = RA_AllocARMRegister(ctx);
         uint32_t val = (uintptr_t)Load96bit;
-
+        EMIT_LoadImmediate(ctx, reg_Load96, val);
         EMIT(ctx, 
-            mov_immed_u16(reg_Load96, val & 0xffff, 0),
-            movk_immed_u16(reg_Load96, val >> 16, 1),
             orr64_immed(reg_Load96, reg_Load96, 25, 25, 1)
         );
     }
@@ -42,10 +40,8 @@ void get_Save96(struct TranslatorContext *ctx)
     if (reg_Save96 == 0xff) {
         reg_Save96 = RA_AllocARMRegister(ctx);
         uint32_t val = (uintptr_t)Store96bit;
-
+        EMIT_LoadImmediate(ctx, reg_Save96, val);
         EMIT(ctx, 
-            mov_immed_u16(reg_Save96, val & 0xffff, 0),
-            movk_immed_u16(reg_Save96, val >> 16, 1),
             orr64_immed(reg_Save96, reg_Save96, 25, 25, 1)
         );
     }
@@ -702,9 +698,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                             }
                             else {
                                 int_reg = RA_AllocARMRegister(ctx);
-                                EMIT(ctx, movw_immed_u16(int_reg, imm32 & 0xffff));
-                                if ((imm32 >> 16) & 0xffff)
-                                    EMIT(ctx, movt_immed_u16(int_reg, (imm32 >> 16) & 0xffff));
+                                EMIT_LoadImmediate(ctx, int_reg, imm32);
                                 EMIT(ctx, scvtf_32toD(*reg, int_reg));
                             }
                     }
@@ -729,9 +723,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                             }
                             else {
                                 int_reg = RA_AllocARMRegister(ctx);
-                                EMIT(ctx, movw_immed_u16(int_reg, imm & 0xffff));
-                                if (imm < 0)
-                                    EMIT(ctx, movt_immed_u16(int_reg, 0xffff));
+                                EMIT_LoadImmediate(ctx, int_reg, imm);
                                 EMIT(ctx, scvtf_32toD(*reg, int_reg));
                             }
                     }
@@ -896,10 +888,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                             }
                             else
                             {
-                                EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                                EMIT_LoadImmediate(ctx, off, imm_offset);
                                 EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                             }
                             RA_FreeARMRegister(ctx, int_reg);
@@ -953,10 +942,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                             }
                             else
                             {
-                                EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                                EMIT_LoadImmediate(ctx, off, imm_offset);
                                 EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                             }
                             RA_FreeARMRegister(ctx, int_reg);
@@ -1015,10 +1001,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                             }
                             else
                             {
-                                EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                                EMIT_LoadImmediate(ctx, off, imm_offset);
                                 EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                             }
                             EMIT(ctx, fldd(*reg, off, 0));
@@ -1056,10 +1039,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                         }
                         else
                         {
-                            EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
                             EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
                         EMIT(ctx, flds(*reg, off, 0));
@@ -1099,10 +1079,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                         }
                         else
                         {
-                            EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
                             EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
                         EMIT(ctx, ldr_offset(off, val_reg, 0));
@@ -1142,10 +1119,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                         }
                         else
                         {
-                            EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
                             EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
                         EMIT(ctx, ldrsh_offset(off, val_reg, 0));
@@ -1185,10 +1159,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                         }
                         else
                         {
-                            EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
                             EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
                         EMIT(ctx, ldrsb_offset(off, val_reg, 0));
@@ -1397,10 +1368,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                     }
                     else
                     {
-                        EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
                         EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
 
@@ -1481,10 +1449,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                     }
                     else
                     {
-                        EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
                         EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
 
@@ -1545,10 +1510,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                         }
                         else
                         {
-                            EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
                             EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
 
@@ -1601,10 +1563,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                         }
                         else
                         {
-                            EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
                             EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
                         EMIT(ctx, fstd(reg, off, 0));
@@ -1643,10 +1602,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                     }
                     else
                     {
-                        EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
                         EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
                     EMIT(ctx, fsts(vfp_reg, off, 0));
@@ -1689,10 +1645,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                     }
                     else
                     {
-                        EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
                         EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
                     EMIT(ctx, str_offset(off, val_reg, 0));
@@ -1743,10 +1696,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                     }
                     else
                     {
-                        EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
                         EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
                     EMIT(ctx, strh_offset(off, val_reg, 0));
@@ -1797,10 +1747,7 @@ void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
                     }
                     else
                     {
-                        EMIT(ctx, movw_immed_u16(off, (imm_offset) & 0xffff));
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            EMIT(ctx, movt_immed_u16(off, (imm_offset) & 0xffff));
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
                         EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
                     EMIT(ctx, strb_offset(off, val_reg, 0));
@@ -2560,9 +2507,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
                 EMIT(ctx, sub_immed(REG_PC, REG_PC, -local_pc_off_16));
             else if (local_pc_off_16 != 0) {
-                EMIT(ctx, movw_immed_u16(0, local_pc_off_16));
-                if ((local_pc_off_16 >> 16) & 0xffff)
-                    EMIT(ctx, movt_immed_u16(0, local_pc_off_16 >> 16));
+                EMIT_LoadImmediate(ctx, 0, local_pc_off_16);
                 EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
             }
         }
@@ -2573,9 +2518,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             else if (branch_offset > -4096 && branch_offset < 0)
                 EMIT(ctx, sub_immed(REG_PC, REG_PC, -branch_offset));
             else if (branch_offset != 0) {
-                EMIT(ctx, movw_immed_u16(0, branch_offset));
-                if ((branch_offset >> 16) & 0xffff)
-                    EMIT(ctx, movt_immed_u16(0, (branch_offset >> 16) & 0xffff));
+                EMIT_LoadImmediate(ctx, 0, branch_offset);
                 EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
             }
 
@@ -2607,9 +2550,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 EMIT(ctx, sub_immed(REG_PC, REG_PC, -local_pc_off_16));
             else if (local_pc_off_16 != 0)
             {
-                EMIT(ctx, movw_immed_u16(0, local_pc_off_16));
-                if ((local_pc_off_16 >> 16) & 0xffff)
-                    EMIT(ctx, movt_immed_u16(0, local_pc_off_16 >> 16));
+                EMIT_LoadImmediate(ctx, 0, local_pc_off_16);
                 EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
             }
         }
@@ -2621,9 +2562,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
                 EMIT(ctx, sub_immed(REG_PC, REG_PC, -branch_offset));
             else if (branch_offset != 0)
             {
-                EMIT(ctx, movw_immed_u16(0, branch_offset));
-                if ((branch_offset >> 16) & 0xffff)
-                    EMIT(ctx, movt_immed_u16(0, (branch_offset >> 16) & 0xffff));
+                EMIT_LoadImmediate(ctx, 0, branch_offset);
                 EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
             }
         }
@@ -4171,10 +4110,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             {
                 case 0x0400:    /* FPIAR */
                     if (val_FPIAR != 0xffffffff) {
-                        EMIT(ctx, 
-                            mov_immed_u16(dst, val_FPIAR & 0xffff, 0),
-                            movk_immed_u16(dst, val_FPIAR >> 16, 1)
-                        );
+                        EMIT_LoadImmediate(ctx, dst, val_FPIAR);
                     }
                     else {
                         EMIT(ctx, mov_simd_to_reg(dst, REG_FPIAR));
@@ -4224,10 +4160,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             {
                 reg = RA_AllocARMRegister(ctx);
                 if (val_FPIAR != 0xffffffff) {
-                    EMIT(ctx, 
-                        mov_immed_u16(reg, val_FPIAR & 0xffff, 0),
-                        movk_immed_u16(reg, val_FPIAR >> 16, 1)
-                    );
+                    EMIT_LoadImmediate(ctx, reg, val_FPIAR);
                 }
                 else {
                     EMIT(ctx, mov_simd_to_reg(reg, REG_FPIAR));
@@ -5211,9 +5144,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
 
         /* Align memory pointer */
         mem &= 0xfffffff0;
-        EMIT(ctx, movw_immed_u16(aligned_mem, mem & 0xffff));
-        if (mem & 0xffff0000)
-            EMIT(ctx, movt_immed_u16(aligned_mem, mem >> 16));
+        EMIT_LoadImmediate(ctx, aligned_mem, mem);
 
         EMIT(ctx, bic_immed(aligned_reg, reg, 4, 0));
 

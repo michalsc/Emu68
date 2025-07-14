@@ -18,7 +18,7 @@ static inline __attribute__((always_inline)) void load_s16_ext32(struct Translat
     if (s16 & 0x8000)
         EMIT(ctx, movn_immed_u16(reg, ~s16, 0));
     else
-        EMIT(ctx, movw_immed_u16(reg, s16));
+        EMIT(ctx, mov_immed_u16(reg, s16, 0));
 }
 
 static inline __attribute__((always_inline)) void load_reg_from_addr_offset(struct TranslatorContext *ctx, uint8_t size, uint8_t base, uint8_t reg, int32_t offset, uint8_t offset_32bit, int sign_ext)
@@ -45,21 +45,7 @@ static inline __attribute__((always_inline)) void load_reg_from_addr_offset(stru
                 EMIT(ctx, ldr_offset(base, reg, offset));
             else {
                 if (offset_32bit) {
-                    if ((offset & 0xffff) != 0) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff)
-                        {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        }
-                        else
-                        {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 }
                 else {
                     if (offset > 0)
@@ -86,18 +72,7 @@ static inline __attribute__((always_inline)) void load_reg_from_addr_offset(stru
                     EMIT(ctx, ldrh_offset(base, reg, offset));
             else {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 } else {
                     if (offset > 0)
                         EMIT(ctx, mov_immed_u16(reg_d16, offset, 0));
@@ -124,18 +99,7 @@ static inline __attribute__((always_inline)) void load_reg_from_addr_offset(stru
                     EMIT(ctx, ldrb_offset(base, reg, offset));
             else {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 } else {
                     if (offset > 0)
                         EMIT(ctx, mov_immed_u16(reg_d16, offset, 0));
@@ -160,18 +124,7 @@ static inline __attribute__((always_inline)) void load_reg_from_addr_offset(stru
             else
             {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 } else {
                     if (offset > 0)
                         EMIT(ctx, mov_immed_u16(reg_d16, offset, 0));
@@ -292,18 +245,7 @@ static inline __attribute__((always_inline)) void store_reg_to_addr_offset(struc
                 EMIT(ctx, str_offset(base, reg, offset));
             else {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 }
                 else {
                     if (offset > 0)
@@ -324,18 +266,7 @@ static inline __attribute__((always_inline)) void store_reg_to_addr_offset(struc
                 EMIT(ctx, strh_offset(base, reg, offset));
             else {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 } else {
                     if (offset > 0)
                         EMIT(ctx, mov_immed_u16(reg_d16, offset, 0));
@@ -355,18 +286,7 @@ static inline __attribute__((always_inline)) void store_reg_to_addr_offset(struc
                 EMIT(ctx, strb_offset(base, reg, offset));
             else {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                    }
-                }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 } else {
                     if (offset > 0)
                         EMIT(ctx, mov_immed_u16(reg_d16, offset, 0));
@@ -390,18 +310,7 @@ static inline __attribute__((always_inline)) void store_reg_to_addr_offset(struc
             else
             {
                 if (offset_32bit) {
-                    if (offset & 0xffff) {
-                        EMIT(ctx, movw_immed_u16(reg_d16, offset));
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, movt_immed_u16(reg_d16, (offset >> 16) & 0xffff));
-                        }
-                    } else {
-                        if ((offset >> 16) & 0xffff) {
-                            EMIT(ctx, mov_immed_u16(reg_d16, (offset >> 16) & 0xffff, 1));
-                        } else {
-                            EMIT(ctx, mov_reg(reg_d16, 31));
-                        }
-                    }
+                    EMIT_LoadImmediate(ctx, reg_d16, offset);
                 } else {
                     if (offset > 0)
                         EMIT(ctx, mov_immed_u16(reg_d16, offset, 0));
@@ -881,9 +790,7 @@ void EMIT_LoadFromEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, 
                         bd_reg = RA_AllocARMRegister(ctx);
                         hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                        EMIT(ctx, movw_immed_u16(bd_reg, lo16));
-                        if (hi16 != 0)
-                            EMIT(ctx, movt_immed_u16(bd_reg, hi16));
+                        EMIT_LoadImmediate(ctx, bd_reg, (hi16 << 16) | lo16);
                         break;
                 }
 
@@ -899,9 +806,7 @@ void EMIT_LoadFromEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, 
                         outer_reg = RA_AllocARMRegister(ctx);
                         hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                        EMIT(ctx, movw_immed_u16(outer_reg, lo16));
-                        if (hi16 != 0)
-                            EMIT(ctx, movt_immed_u16(outer_reg, hi16));
+                        EMIT_LoadImmediate(ctx, outer_reg, (hi16 << 16) | lo16);
                         break;
                 }
 
@@ -1264,39 +1169,13 @@ void EMIT_LoadFromEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, 
                 lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
-                    if (lo16 == 0 && hi16 == 0)
-                    {
-                        EMIT(ctx, mov_reg(*arm_reg, 31));
-                    }
-                    else if (lo16 != 0)
-                    {
-                        EMIT(ctx, movw_immed_u16(*arm_reg, lo16));
-                        if (hi16 != 0 || lo16 & 0x8000)
-                            EMIT(ctx, movt_immed_u16(*arm_reg, hi16));
-                    }
-                    else
-                    {
-                        EMIT(ctx, mov_immed_u16(*arm_reg, hi16, 1));
-                    }
+                    EMIT_LoadImmediate(ctx, *arm_reg, (hi16 << 16) | lo16);
                 }
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(ctx);
-
-                    if (lo16 == 0 && hi16 == 0)
-                    {
-                        EMIT(ctx, mov_reg(tmp_reg, 31));
-                    }
-                    else if (lo16 != 0)
-                    {
-                        EMIT(ctx, movw_immed_u16(tmp_reg, lo16));
-                        if (hi16 != 0 || lo16 & 0x8000)
-                            EMIT(ctx, movt_immed_u16(tmp_reg, hi16));
-                    }
-                    else
-                    {
-                        EMIT(ctx, mov_immed_u16(tmp_reg, hi16, 1));
-                    }
+                    
+                    EMIT_LoadImmediate(ctx, tmp_reg, (hi16 << 16) | lo16);
 
                     switch (size)
                     {
@@ -1328,21 +1207,7 @@ void EMIT_LoadFromEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, 
                     case 4:
                         hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-
-                        if (lo16 == 0 && hi16 == 0)
-                        {
-                            EMIT(ctx, mov_reg(*arm_reg, 31));
-                        }
-                        else if (lo16 != 0)
-                        {
-                            EMIT(ctx, movw_immed_u16(*arm_reg, lo16));
-                            if (hi16 != 0 || lo16 & 0x8000)
-                                EMIT(ctx, movt_immed_u16(*arm_reg, hi16));
-                        }
-                        else
-                        {
-                            EMIT(ctx, mov_immed_u16(*arm_reg, hi16, 1));
-                        }
+                        EMIT_LoadImmediate(ctx, *arm_reg, (hi16 << 16) | lo16);
                         break;
                     case 2:
                         off = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
@@ -1660,9 +1525,7 @@ void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, u
                         bd_reg = RA_AllocARMRegister(ctx);
                         hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                        EMIT(ctx, movw_immed_u16(bd_reg, lo16));
-                        if (hi16)
-                            EMIT(ctx, movt_immed_u16(bd_reg, hi16));
+                        EMIT_LoadImmediate(ctx, bd_reg, (hi16 << 16) | lo16);
                         break;
                 }
 
@@ -1678,9 +1541,7 @@ void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, u
                         outer_reg = RA_AllocARMRegister(ctx);
                         hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                         lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                        EMIT(ctx, movw_immed_u16(outer_reg, lo16));
-                        if (hi16)
-                            EMIT(ctx, movt_immed_u16(outer_reg, hi16));
+                        EMIT_LoadImmediate(ctx, outer_reg, (hi16 << 16) | lo16);
                         break;
                 }
 
@@ -1903,9 +1764,7 @@ void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, u
                             bd_reg = RA_AllocARMRegister(ctx);
                             hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                             lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                            EMIT(ctx, movw_immed_u16(bd_reg, lo16));
-                            if (hi16)
-                                EMIT(ctx, movt_immed_u16(bd_reg, hi16));
+                            EMIT_LoadImmediate(ctx, bd_reg, (hi16 << 16) | lo16);
                             break;
                     }
 
@@ -1921,9 +1780,7 @@ void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, u
                             outer_reg = RA_AllocARMRegister(ctx);
                             hi16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
                             lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
-                            EMIT(ctx, movw_immed_u16(outer_reg, lo16));
-                            if (hi16)
-                                EMIT(ctx, movt_immed_u16(outer_reg, hi16));
+                            EMIT_LoadImmediate(ctx, outer_reg, (hi16 << 16) | lo16);
                             break;
                     }
 
@@ -2027,39 +1884,13 @@ void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, u
                 lo16 = cache_read_16(ICACHE, (uintptr_t)&m68k_ptr[(*ext_words)++]);
 
                 if (size == 0) {
-                    if (lo16 == 0 && hi16 == 0)
-                    {
-                        EMIT(ctx, mov_reg(*arm_reg, 31));
-                    }
-                    else if (lo16 != 0)
-                    {
-                        EMIT(ctx, movw_immed_u16(*arm_reg, lo16));
-                        if (hi16 != 0 || lo16 & 0x8000)
-                            EMIT(ctx, movt_immed_u16(*arm_reg, hi16));
-                    }
-                    else
-                    {
-                        EMIT(ctx, mov_immed_u16(*arm_reg, hi16, 1));
-                    }
+                    EMIT_LoadImmediate(ctx, *arm_reg, (hi16 << 16) | lo16);
                 }
                 else
                 {
                     uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
-                    if (lo16 == 0 && hi16 == 0)
-                    {
-                        EMIT(ctx, mov_reg(tmp_reg, 31));
-                    }
-                    else if (lo16 != 0)
-                    {
-                        EMIT(ctx, movw_immed_u16(tmp_reg, lo16));
-                        if (hi16 != 0 || lo16 & 0x8000)
-                            EMIT(ctx, movt_immed_u16(tmp_reg, hi16));
-                    }
-                    else
-                    {
-                        EMIT(ctx, mov_immed_u16(tmp_reg, hi16, 1));
-                    }
+                    EMIT_LoadImmediate(ctx, tmp_reg, (hi16 << 16) | lo16);
 
                     store_reg_to_addr(ctx, size, tmp_reg, *arm_reg, 0xff, 0);
 
