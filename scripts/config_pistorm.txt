@@ -1,5 +1,5 @@
 # Sample config.txt file for booting Emu68 with Pistorm
-kernel=Emu68-@VARIANT@
+kernel=Emu68-@VARIANT@.gz
 disable_splash=1
 arm_64bit=1
 
