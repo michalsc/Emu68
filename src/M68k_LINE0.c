@@ -912,7 +912,7 @@ uint32_t EMIT_ORI(struct TranslatorContext *ctx, uint16_t opcode)
     {
         case 0x0000:    /* Byte operation */
             lo16 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]) & 0xff;
-            if (update_mask == 0) {
+            if (update_mask == 0 || update_mask == SR_Z) {
                 mask32 = number_to_mask(lo16);
                 if (mask32 == 0) {
                     EMIT(ctx, mov_immed_u16(immed, lo16 & 0xff, 0));
@@ -925,7 +925,7 @@ uint32_t EMIT_ORI(struct TranslatorContext *ctx, uint16_t opcode)
             break;
         case 0x0040:    /* Short operation */
             lo16 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]);
-            if (update_mask == 0) {
+            if (update_mask == 0 || update_mask == SR_Z) {
                 mask32 = number_to_mask(lo16 & 0xffff);
                 if (mask32 == 0) {
                     EMIT(ctx, mov_immed_u16(immed, lo16, 0));
@@ -984,13 +984,27 @@ uint32_t EMIT_ORI(struct TranslatorContext *ctx, uint16_t opcode)
                         kprintf("ORI.W with update_mask == SR_N\n");
                     }
                     if (update_mask == SR_Z) {
-                        kprintf("ORI.W with update_mask == SR_Z\n");
+                        if (mask32 == 0) {
+                            EMIT(ctx, 
+                                orr_reg(dest, dest, immed, LSL, 0),
+                                ands_immed(WZR, dest, 16, 0)
+                            );
+                        }
+                        else
+                        {
+                            EMIT(ctx, 
+                                orr_immed(dest, dest, (mask32 >> 16) & 0x3f, mask32 & 0x3f),
+                                ands_immed(WZR, dest, 16, 0)
+                            );
+                        }
                     }
-                    EMIT(ctx, 
-                        orr_reg(immed, immed, dest, LSL, 16),
-                        cmn_reg(31, immed, LSL, 0),
-                        bfxil(dest, immed, 16, 16)
-                    );
+                    else {
+                        EMIT(ctx, 
+                            orr_reg(immed, immed, dest, LSL, 16),
+                            cmn_reg(31, immed, LSL, 0),
+                            bfxil(dest, immed, 16, 16)
+                        );
+                    }
                 }
                 break;
             case 1:
@@ -1008,13 +1022,27 @@ uint32_t EMIT_ORI(struct TranslatorContext *ctx, uint16_t opcode)
                         kprintf("ORI.B with update_mask == SR_N\n");
                     }
                     if (update_mask == SR_Z) {
-                        kprintf("ORI.B with update_mask == SR_Z\n");
+                        if (mask32 == 0) {
+                            EMIT(ctx, 
+                                orr_reg(dest, dest, immed, LSL, 0),
+                                ands_immed(WZR, dest, 8, 0)
+                            );
+                        }
+                        else
+                        {
+                            EMIT(ctx, 
+                                orr_immed(dest, dest, (mask32 >> 16) & 0x3f, mask32 & 0x3f),
+                                ands_immed(WZR, dest, 8, 0)
+                            );
+                        }
                     }
-                    EMIT(ctx,
-                        orr_reg(immed, immed, dest, LSL, 24),
-                        cmn_reg(31, immed, LSL, 0),
-                        bfxil(dest, immed, 24, 8)
-                    );
+                    else {
+                        EMIT(ctx,
+                            orr_reg(immed, immed, dest, LSL, 24),
+                            cmn_reg(31, immed, LSL, 0),
+                            bfxil(dest, immed, 24, 8)
+                        );
+                    }
                 }
                 break;
         }
@@ -1081,13 +1109,27 @@ uint32_t EMIT_ORI(struct TranslatorContext *ctx, uint16_t opcode)
                         kprintf("ORI.W (EA) with update_mask == SR_N\n");
                     }
                     if (update_mask == SR_Z) {
-                        kprintf("ORI.W (EA) with update_mask == SR_Z\n");
+                        if (mask32 == 0) {
+                            EMIT(ctx, 
+                                orr_reg(immed, immed, tmp, LSL, 0),
+                                ands_immed(WZR, immed, 16, 0)
+                            );
+                        }
+                        else
+                        {
+                            EMIT(ctx, 
+                                orr_immed(immed, tmp, (mask32 >> 16) & 0x3f, mask32 & 0x3f),
+                                ands_immed(WZR, immed, 16, 0)
+                            );
+                        }
                     }
-                    EMIT(ctx,
-                        orr_reg(immed, immed, tmp, LSL, 16),
-                        cmn_reg(31, immed, LSL, 0),
-                        lsr(immed, immed, 16)
-                    );
+                    else {
+                        EMIT(ctx,
+                            orr_reg(immed, immed, tmp, LSL, 16),
+                            cmn_reg(31, immed, LSL, 0),
+                            lsr(immed, immed, 16)
+                        );
+                    }
                 }
 
                 /* Store back */
@@ -1120,13 +1162,27 @@ uint32_t EMIT_ORI(struct TranslatorContext *ctx, uint16_t opcode)
                         kprintf("ORI.B (EA) with update_mask == SR_N\n");
                     }
                     if (update_mask == SR_Z) {
-                        kprintf("ORI.B (EA) with update_mask == SR_Z\n");
+                        if (mask32 == 0) {
+                            EMIT(ctx, 
+                                orr_reg(immed, immed, tmp, LSL, 0),
+                                ands_immed(WZR, immed, 8, 0)
+                            );
+                        }
+                        else
+                        {
+                            EMIT(ctx, 
+                                orr_immed(immed, tmp, (mask32 >> 16) & 0x3f, mask32 & 0x3f),
+                                ands_immed(WZR, immed, 8, 0)
+                            );
+                        }
                     }
-                    EMIT(ctx, 
-                        orr_reg(immed, immed, tmp, LSL, 24),
-                        cmn_reg(31, immed, LSL, 0),
-                        lsr(immed, immed, 24)
-                    );
+                    else {
+                        EMIT(ctx, 
+                            orr_reg(immed, immed, tmp, LSL, 24),
+                            cmn_reg(31, immed, LSL, 0),
+                            lsr(immed, immed, 24)
+                        );
+                    }
                 }
 
                 /* Store back */
