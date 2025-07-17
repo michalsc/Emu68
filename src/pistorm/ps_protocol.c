@@ -1002,7 +1002,13 @@ void ps16_write_8(unsigned int address, unsigned int data)
 
 void ps16_write_16_int(unsigned int address, unsigned int data)
 {
-    ps16_write_access(address, data, SIZE_WORD);
+    if (address & 1) {
+        ps_write_8_int(address, data >> 8);
+        ps_write_8_int(address + 1, data);
+    }
+    else {
+        ps16_write_access(address, data, SIZE_WORD);
+    }
 }
 
 void ps16_write_16(unsigned int address, unsigned int data)
@@ -1022,14 +1028,12 @@ void ps16_write_16(unsigned int address, unsigned int data)
 void ps16_write_32_int(unsigned int address, unsigned int data)
 {
     if (address & 1) {
-        ps16_write_access(address, data >> 24, SIZE_BYTE);
-        ps16_write_access(address + 1, data >> 8, SIZE_WORD);
-        ps16_write_access(address + 3, data, SIZE_BYTE);
+        ps16_write_8_int(address, data >> 24);
+        ps16_write_16_int(address + 1, data >> 8);
+        ps16_write_8_int(address + 3, data);
     }
     else {
         ps16_write_access(address, data, SIZE_LONG);
-        //write_access(address, data >> 16, SIZE_WORD);
-        //write_access(address + 2, data, SIZE_WORD);
     }
 }
 
@@ -1050,10 +1054,10 @@ void ps16_write_32(unsigned int address, unsigned int data)
 void ps16_write_64_int(unsigned int address, uint64_t data)
 {
     if (address & 1) {
-        ps16_write_access(address, data >> 56, SIZE_BYTE);
-        ps16_write_access(address + 1, data >> 24, SIZE_LONG);
-        ps16_write_access(address + 5, data >> 8, SIZE_WORD);
-        ps16_write_access(address + 7, data, SIZE_BYTE);
+        ps16_write_8_int(address, data >> 56);
+        ps16_write_32_int(address + 1, data >> 24);
+        ps16_write_16_int(address + 5, data >> 8);
+        ps16_write_8_int(address + 7, data);
     }
     else {
         ps16_write_32_int(address, data >> 32);
@@ -1077,15 +1081,15 @@ void ps16_write_64(unsigned int address, uint64_t data)
 void ps16_write_128_int(unsigned int address, uint128_t data)
 {
     if (address & 1) {
-        ps16_write_access(address, data.hi >> 56, SIZE_BYTE);
-        ps16_write_access(address + 1, data.hi >> 40, SIZE_WORD);
-        ps16_write_access(address + 3, data.hi >> 24, SIZE_WORD);
-        ps16_write_access(address + 5, data.hi >> 8, SIZE_WORD);
-        ps16_write_access(address + 7, data.hi << 8 | (data.lo >> 56), SIZE_WORD);
-        ps16_write_access(address + 9, data.lo >> 40, SIZE_WORD);
-        ps16_write_access(address + 11, data.lo >> 24, SIZE_WORD);
-        ps16_write_access(address + 13, data.lo >> 8, SIZE_WORD);
-        ps16_write_access(address + 15, data.lo, SIZE_BYTE);
+        ps16_write_8_int(address, data.hi >> 56);
+        ps16_write_16_int(address + 1, data.hi >> 40);
+        ps16_write_16_int(address + 3, data.hi >> 24);
+        ps16_write_16_int(address + 5, data.hi >> 8);
+        ps16_write_16_int(address + 7, data.hi << 8 | (data.lo >> 56));
+        ps16_write_16_int(address + 9, data.lo >> 40);
+        ps16_write_16_int(address + 11, data.lo >> 24);
+        ps16_write_16_int(address + 13, data.lo >> 8);
+        ps16_write_8_int(address + 15, data.lo);
     }
     else {
         ps16_write_64_int(address, data.hi);
