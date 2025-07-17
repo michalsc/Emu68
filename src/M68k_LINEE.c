@@ -4048,7 +4048,7 @@ static uint32_t EMIT_BFFFO(struct TranslatorContext *ctx, uint16_t opcode)
 
 static uint32_t EMIT_BFCHG_reg(struct TranslatorContext *ctx, uint16_t opcode)
 {
-    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr + 1);
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
     uint8_t ext_words = 1;
     uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
     uint8_t src = RA_MapM68kRegister(ctx, opcode & 7);
