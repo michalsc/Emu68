@@ -1720,7 +1720,7 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
     switch (opcode & 0x00c0)
     {
         case 0x0000:    /* Byte operation */
-            lo16 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[ext_count++]) & 0xff;
             mask32 = number_to_mask(lo16);
             if (mask32 == 0)
             {
