@@ -1724,7 +1724,7 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
             mask32 = number_to_mask(lo16);
             if (mask32 == 0)
             {
-                EMIT(ctx, mov_immed_u16(immed, (lo16 & 0xff), 0));
+                EMIT(ctx, mov_immed_u16(immed, lo16, 0));
             }
             size = 1;
             break;
