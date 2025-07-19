@@ -16,14 +16,14 @@
 #define _(ctx, ...) EMIT(ctx, __VA_ARGS__)
 
 #define EMIT(ctx, ...)                                                                \
-    do                                                                                \
+    ({ do                                                                             \
     {                                                                                 \
         const uint32_t __emit_args__[] = {__VA_ARGS__};                               \
         for (size_t i = 0; i < sizeof(__emit_args__) / sizeof(__emit_args__[0]); i++) \
         {                                                                             \
             *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                \
         }                                                                             \
-    } while (0)
+    } while (0); (ctx)->tc_CodePtr; })
 
 #define WZR 31
 #define XZR 31
