@@ -1414,7 +1414,7 @@ static uint32_t EMIT_ROXL(struct TranslatorContext *ctx, uint16_t opcode)
             );
         }
 
-        *tmp_ptr = b_cc(A64_CC_NE, ctx->tc_CodePtr - tmp_ptr);
+        *tmp_ptr = b_cc(A64_CC_NE, ctx->tc_CodePtr + 1 - tmp_ptr);
         tmp_ptr = ctx->tc_CodePtr++;
 
         // Continue calculating modulo
