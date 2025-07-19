@@ -2210,32 +2210,20 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x0e5: /* ARMCNTLO - lower 32 bits of ARM instruction counter */
-                {
-                    uint8_t hosttmp = RA_AllocARMRegister(ctx);
-                    tmp = RA_AllocARMRegister(ctx);
-                    EMIT(ctx, 
-                        mov_simd_to_reg(hosttmp, 28, TS_D, 0),
-                        mrs(tmp, 3, 3, 9, 13, 0),
-                        sub64_reg(tmp, tmp, hosttmp, LSL, 0),
-                        mov_reg(reg, tmp)
-                    );
-                    RA_FreeARMRegister(ctx, tmp);
-                    RA_FreeARMRegister(ctx, hosttmp);
-                }
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mrs(tmp, 3, 3, 9, 13, 0),
+                    mov_reg(reg, tmp)
+                );
+                RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x0e6: /* ARMCNTHI - higher 32 bits of ARM instruction counter */
-                {
-                    uint8_t hosttmp = RA_AllocARMRegister(ctx);
-                    tmp = RA_AllocARMRegister(ctx);
-                    EMIT(ctx, 
-                        mov_simd_to_reg(hosttmp, 28, TS_D, 0),
-                        mrs(tmp, 3, 3, 9, 13, 0),
-                        sub64_reg(tmp, tmp, hosttmp, LSL, 0),
-                        lsr64(reg, tmp, 32)
-                    );
-                    RA_FreeARMRegister(ctx, tmp);
-                    RA_FreeARMRegister(ctx, hosttmp);
-                }
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mrs(tmp, 3, 3, 9, 13, 0),
+                    lsr64(reg, tmp, 32)
+                );
+                RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x0e7: /* JITSIZE - size of JIT cache, in bytes */
                 EMIT(ctx, ldr_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_CACHE_TOTAL)));
