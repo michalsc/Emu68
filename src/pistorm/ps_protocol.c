@@ -537,10 +537,6 @@ uint8_t pistorm_get_model()
 
     pistorm_model_set = 1;
 
-pistorm_model = PISTORM_MODEL_16;
-
-    //return PISTORM_MODEL_16;
-
     return pistorm_model;
 }
 
@@ -791,6 +787,649 @@ static uint8_t g_fc = 0;
 
 #define SLOW_IO(address) ((address) >= 0xDFF09A && (address) < 0xDFF09E)
 
+/* PiStorm32 */
+
+static void ps32_do_write_access_2s(unsigned int address, unsigned int data, unsigned int size)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    if (size == SIZE_LONG)
+        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+   
+    /* For chip memory advance to next slot, for chipset access wait for completion of the transaction */
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+        slot_active[next_slot] = 0;
+    }
+    else
+    {
+        slot_active[next_slot] = 1;
+    }
+
+    next_slot = (next_slot + 1) & 1;
+
+    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
+}
+
+static inline void ps32_do_write_access_64_2s(unsigned int address, uint64_t data)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    /* Set first long word to write */
+    write_ps_reg(REG_DATA_LO, (data >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data >> 48) & 0xffff);
+
+    /* Set address and start transaction */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    slot_active[next_slot] = 1;
+    next_slot = (next_slot + 1) & 1;
+
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    /* Advance the address, set second long word to write */
+    address += 4;
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Start second transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+   
+    /* For chip memory advance to next slot, for chipset access wait for completion of the transaction */
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+        slot_active[next_slot] = 0;
+    }
+    else
+    {
+        slot_active[next_slot] = 1;
+    }
+
+    next_slot = (next_slot + 1) & 1;
+
+    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
+}
+
+static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t data)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    /* Set first long word to write */
+    write_ps_reg(REG_DATA_LO, (data.hi >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.hi >> 48) & 0xffff);
+
+    /* Set address and start transaction */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    slot_active[next_slot] = 1;
+    next_slot = (next_slot + 1) & 1;
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    /* Advance the address, set second long word to write */
+    address += 4;
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.hi >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Start second transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    slot_active[next_slot] = 1;
+    next_slot = (next_slot + 1) & 1;
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    address += 4;
+
+    /* Set third long word to write */
+    write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.lo >> 48) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Start third transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    address += 4;
+
+    slot_active[next_slot] = 1;
+    next_slot = (next_slot + 1) & 1;
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.lo >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    /* Start fourth transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    /* For chip memory advance to next slot, for chipset access wait for completion of the transaction */
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+        slot_active[next_slot] = 0;
+    }
+    else
+    {
+        slot_active[next_slot] = 1;
+    }
+
+    next_slot = (next_slot + 1) & 1;
+
+    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
+}
+
+static int ps32_do_read_access_2s(unsigned int address, unsigned int size)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+    unsigned int data;
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    data = read_ps_reg(REG_DATA_LO);
+    if (size == SIZE_BYTE)
+        data &= 0xff;
+    else if (size == SIZE_LONG)
+        data |= read_ps_reg(REG_DATA_HI) << 16;
+
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    return data;
+}
+
+static inline uint64_t ps32_do_read_access_64_2s(unsigned int address)
+{
+    uint64_t data;
+    uint32_t rdval = 0;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    address += 4;
+
+    data = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    return data;
+}
+
+static inline uint128_t ps32_do_read_access_128_2s(unsigned int address)
+{
+    uint128_t data;
+    uint32_t rdval = 0;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+    if (slot_active[next_slot])
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+    }
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    address += 4;
+    data.hi = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    address += 4;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    address += 4;
+    data.lo = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    set_output();
+    write_ps_reg(REG_SLOT, next_slot);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) asm volatile("yield");
+
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    slot_active[next_slot] = 0;
+    next_slot = (next_slot + 1) & 1;
+
+    return data;
+}
+
+static inline void ps32_do_write_access(unsigned int address, unsigned int data, unsigned int size)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    if (size == SIZE_LONG)
+        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    if (address > 0x00200000)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
+}
+
+static inline void ps32_do_write_access_64(unsigned int address, uint64_t data)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    /* Set first long word to write */
+    write_ps_reg(REG_DATA_LO, (data >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data >> 48) & 0xffff);
+
+    /* Set address and start transaction */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    /* Advance the address, set second long word to write */
+    address += 4;
+
+    /* Wait for completion of first transfer */
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+   
+    /* Start second transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    if (address > 0x00200000)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
+}
+
+static inline void ps32_do_write_access_128(unsigned int address, uint128_t data)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    /* Set first long word to write */
+    write_ps_reg(REG_DATA_LO, (data.hi >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.hi >> 48) & 0xffff);
+
+    /* Set address and start transaction */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    /* Advance the address, set second long word to write */
+    address += 4;
+
+    /* Wait for completion of first transfer */
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.hi >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    
+    /* Start second transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    address += 4;
+
+    /* Wait for completion of second transfer */
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    /* Set third long word to write */
+    write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.lo >> 48) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    
+    /* Start third transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    address += 4;
+
+    /* Wait for completion of third transfer */
+    while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    /* Set second long word to write */
+    write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
+    write_ps_reg(REG_DATA_HI, (data.lo >> 16) & 0xffff);
+
+    /* Set address */
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    
+    /* Start fourth transaction */
+    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    if (address > 0x00200000)
+    {
+        while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+        write_pending = 0;
+    }
+    else
+        write_pending = 1;
+}
+
+static inline int ps32_do_read_access(unsigned int address, unsigned int size)
+{
+    uint32_t rdval = 0;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+    unsigned int data;
+
+    data = read_ps_reg_with_wait(REG_DATA_LO);
+    if (size == SIZE_BYTE)
+        data &= 0xff;
+    else if (size == SIZE_LONG)
+        data |= read_ps_reg(REG_DATA_HI) << 16;
+
+    write_pending = 0;
+
+    return data;
+}
+
+static inline uint64_t ps32_do_read_access_64(unsigned int address)
+{
+    uint32_t rdval = 0;
+    uint64_t data;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    address += 4;
+    data = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
+    data |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    data |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
+    data |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    write_pending = 0;
+
+    return data;
+}
+
+static inline uint128_t ps32_do_read_access_128(unsigned int address)
+{
+    uint32_t rdval = 0;
+    uint128_t data;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    
+    if (write_pending) while ((rdval = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    address += 4;
+    data.hi = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    address += 4;
+    data.hi |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
+    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    address += 4;
+    data.lo = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+
+    set_output();
+
+    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+
+    set_input();
+
+    data.lo |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
+    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
+
+    write_pending = 0;
+
+    return data;
+}
+
+int (*ps32_read_access)(unsigned int address, unsigned int size);
+uint64_t (*ps32_read_access_64)(unsigned int address);
+uint128_t (*ps32_read_access_128)(unsigned int address);
+void (*ps32_write_access)(unsigned int address, unsigned int data, unsigned int size);
+void (*ps32_write_access_64)(unsigned int address, uint64_t data);
+void (*ps32_write_access_128)(unsigned int address, uint128_t data);
+
+unsigned int ps32_read_8(unsigned int address) {
+    return ps32_read_access(address, SIZE_BYTE);
+}
+
+unsigned int ps32_read_16(unsigned int address) {
+    return ps32_read_access(address, SIZE_WORD);
+}
+
+unsigned int ps32_read_32(unsigned int address) {
+    return ps32_read_access(address, SIZE_LONG);
+}
+
+uint64_t ps32_read_64(unsigned int address) {
+    return ps32_read_access_64(address);
+}
+
+uint128_t ps32_read_128(unsigned int address) {
+    return ps32_read_access_128(address);
+}
+
+
+/* PiStorm16 */
+
 static inline int ps16_read_access(unsigned int address, unsigned int size)
 {
     set_output();
@@ -859,6 +1498,8 @@ static inline void ps16_write_access(unsigned int address, unsigned int data, un
     }
     else
         write_pending = 1;
+    
+    //if (address >= 0x00bf0000 && address <= 0x00dfffff) ps16_read_access(0x00f80000, SIZE_WORD);
 }
 
 unsigned int ps16_read_8_int(unsigned int address)
@@ -1148,7 +1789,34 @@ void ps_setup_protocol()
             read_ps_reg = read_ps_reg_ps32;
             read_ps_reg_with_wait = read_ps_reg_with_wait_ps32;
 
+            if (use_2slot) {
+                ps32_read_access = ps32_do_read_access_2s;
+                ps32_read_access_64 = ps32_do_read_access_64_2s;
+                ps32_read_access_128 = ps32_do_read_access_128_2s;
+
+                ps32_write_access = ps32_do_write_access_2s;
+                ps32_write_access_64 = ps32_do_write_access_64_2s;
+                ps32_write_access_128 = ps32_do_write_access_128_2s;
+            }
+            else {
+                ps32_read_access = ps32_do_read_access;
+                ps32_read_access_64 = ps32_do_read_access_64;
+                ps32_read_access_128 = ps32_do_read_access_128;
+
+                ps32_write_access = ps32_do_write_access;
+                ps32_write_access_64 = ps32_do_write_access_64;
+                ps32_write_access_128 = ps32_do_write_access_128;
+            }
             
+            ps_read_8_int = ps32_read_8;
+            ps_read_16_int = ps32_read_16;
+            ps_read_32_int = ps32_read_32;
+
+            ps_read_8 = ps32_read_8;
+            ps_read_16 = ps32_read_16;
+            ps_read_32 = ps32_read_32;
+            ps_read_64 = ps32_read_64;
+            ps_read_128 = ps32_read_128;
 
             break;
 
