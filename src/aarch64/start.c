@@ -1396,7 +1396,7 @@ void boot(void *dtree)
                 top_of_ram &= ~0x1fffff;
                 top_of_ram -= 8;
 
-                void *hunks = LoadHunkFile(image_start, (void*)top_of_ram);
+                void *hunks = LoadHunkFile(image_start, (void*)top_of_ram, NULL);
                 (void)hunks;
                 ptr = (void *)((intptr_t)hunks + 4);
             }
