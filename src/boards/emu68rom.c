@@ -207,9 +207,6 @@ static void map(struct ExpansionBoard *board)
     for (int i=0; roms[i].rom_base; i++)
     {
         roms[i].load_size = GetHunkFileSize(roms[i].rom_base);
-        //if (i == 0) {
-        //    roms[i].load_size = (roms[i].load_size + 4095) & ~4095;
-        //}
 
         if (roms[i].load_size > 0) total_length += roms[i].load_size;
     }
@@ -219,9 +216,6 @@ static void map(struct ExpansionBoard *board)
     total_length = (total_length + 4095) & ~4095;
 
     rom_modules = tlsf_malloc_aligned(tlsf, total_length, 4096);
-
-    //kprintf("[BOARD] Emu68 ROM needs %ld extra bytes, \n", total_length);
-    //kprintf("[BOARD]   buffer at %p\n", rom_modules);
 
     mmu_map(mmu_virt2phys((uintptr_t)rom_modules), board->map_base + 0x1000, total_length, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
