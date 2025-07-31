@@ -76,11 +76,11 @@
 
 #define GPFSEL0_INPUT_PI4 0x00244240
 #define GPFSEL1_INPUT_PI4 0x00000000
-#define GPFSEL2_INPUT_PI4 (0x00000000 | (1 << 18) | (1 << 21) | (5 << 27) | (5 << 24))
+#define GPFSEL2_INPUT_PI4 (0x00000000 | (1 << 18) | (1 << 21) | (2 << 27) | (2 << 24))
 
 #define GPFSEL0_OUTPUT_PI4 0x09244240
 #define GPFSEL1_OUTPUT_PI4 0x09249249
-#define GPFSEL2_OUTPUT_PI4 (0x00000249 | (1 << 18) | (1 << 21) | (5 << 27) | (5 << 24))
+#define GPFSEL2_OUTPUT_PI4 (0x00000249 | (1 << 18) | (1 << 21) | (2 << 27) | (2 << 24))
 
 #endif
 
