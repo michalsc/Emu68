@@ -1,0 +1,50 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68 {
+                unicam: unicam {
+                    status = "disabled";
+                    full-size = /bits/ 16 <720 576>;
+                    bpp = <16>;
+                    mode = <0x22>;
+                    size = /bits/ 16 <720 576>;
+                    offset = /bits/ 16 <0 0>;
+                    lanes = <1>;
+                    aspect-ratio = <1000>;
+                    scaler = /bits/ 16 <3 64>;
+                    kernel = /bits/ 16 <250 750>;
+                    type = <0>;
+
+                    // THESE BOOLS ARE OFF BY DEFAULT!
+                    // smoothing
+                    // integer-scaling
+                };
+            };
+        };
+    };
+
+    __overrides__ {
+        full_width = <&unicam>,"full-size;0";
+        full_height = <&unicam>,"full-size;2";
+        width = <&unicam>,"size;0";
+        height = <&unicam>,"size;2";
+        boot = <&unicam>,"status";
+        bpp = <&unicam>,"bpp:0";
+        mode = <&unicam>,"mode:0";
+        x = <&unicam>,"offset;0";
+        y = <&unicam>,"offset;2";
+        b = <&unicam>,"kernel;0";
+        c = <&unicam>,"kernel;2";
+        scaler = <&unicam>,"scaler;0";
+        phase = <&unicam>,"scaler;2";
+        lanes = <&unicam>,"lanes:0";
+        aspect = <&unicam>,"aspect-ratio:0";
+        smooth = <&unicam>,"smoothing?";
+        integer = <&unicam>,"integer-scaling?";
+        type = <&unicam>,"type:0{framethrower=0,c790=1,=0}";
+    };
+};
