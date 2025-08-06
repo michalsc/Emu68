@@ -12,11 +12,11 @@ jobs:
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
     # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.10
 
     strategy:
       matrix:
-        targ: [raspi, pistorm, pistorm32lite]
+        targ: [raspi, pistorm, pistorm-classic]
 
     steps:
     - uses: actions/checkout@v4
@@ -29,8 +29,8 @@ jobs:
       run: |
         sudo apt update
         sudo apt upgrade -y
-        sudo apt install -y build-essential device-tree-compiler
-        sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        sudo apt install -y build-essential ninja-build device-tree-compiler
+        sudo apt install -y gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu
         sudo cp /usr/aarch64-linux-gnu/include/gnu/stubs-lp64.h /usr/aarch64-linux-gnu/include/gnu/stubs-lp64_be.h
         cmake -E make_directory ${{runner.workspace}}/build
         cmake -E make_directory ${{runner.workspace}}/install
@@ -57,8 +57,8 @@ jobs:
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DVARIANT=pistorm -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
 
-    - name: Configure CMake - PiStorm32-Lite
-      if: ${{ matrix.targ == 'pistorm32lite' }}
+    - name: Configure CMake - PiStorm Classic
+      if: ${{ matrix.targ == 'pistorm-classic' }}
       # Use a bash shell so we can use the same syntax for environment variable
       # access regardless of the host operating system
       shell: bash
@@ -66,7 +66,7 @@ jobs:
       # Note the current convention is to use the -S and -B options here to specify source 
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DVARIANT=pistorm32lite -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install -DTARGET=raspi64 -DVARIANT=pistorm-classic -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/toolchains/aarch64-linux-gnu.cmake
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
@@ -100,12 +100,12 @@ jobs:
         retention-days: 5
 
   deploy:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.10
     needs: build
 
     strategy:
       matrix:
-        targ: [raspi, pistorm, pistorm32lite]
+        targ: [raspi, pistorm, pistorm-classic]
 
     steps:  
     - name: Download Artifact
