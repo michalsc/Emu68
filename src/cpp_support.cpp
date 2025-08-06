@@ -122,9 +122,10 @@ extern "C" void __cxa_finalize(void (*f)(void*))
         }
     }
 }
-
+#if 0
 [[maybe_unused]] static bool table_initialized = []() {
     //while(1);
     kprintf("lambda\n");
     return true;
 }();
+#endif
