@@ -811,9 +811,22 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 {
     if (unit)
     {
-        uint32_t crc = CalcCRC32(unit->mt_M68kLow, unit->mt_M68kHigh);
+        uint32_t crc = 0;
 
-        if (crc != unit->mt_CRC32)
+        /* 
+            First check fingerprint - if this one changed then there is no need to calculate CRC32
+            of the whole block
+        */
+        uint32_t fp = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
+
+        /* If FP matches, calculate CRC32 */
+        if (fp == unit->mt_Fingerprint)
+        {
+            crc = CalcCRC32((void *)(uintptr_t)unit->mt_M68kLow, (void*)(uintptr_t)unit->mt_M68kHigh);
+        }
+
+        /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
+        if (fp != unit->mt_Fingerprint || crc != unit->mt_CRC32)
         {
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
@@ -892,20 +905,35 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             }
         } while(unit == NULL);
 
+        /* Set-up entry point */
         unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
         unit->mt_ARMEntryPoint = (void *)((uintptr_t)unit->mt_ARMEntryPoint | 0x0000001000000000ULL);
+
+        /* Copy the code to the new location */
+        DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
+
+        /* The code is ready, so flush the caches*/
+        arm_flush_cache((uintptr_t)&unit->mt_ARMCode, line_length);
+        arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, line_length);
+
+        /* Tell CPU we are going to execute the code soon, give it time to prefetch while CRC is still calculated */
+        asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
+        /* If more than 16 ARM instructions were generated, prefetch another line of cache */
+        if (arm_insn_count > 16)
+            asm volatile ("prfm plil1keep, [%0, #64]"::"r"(unit->mt_ARMEntryPoint));
+
         unit->mt_M68kInsnCnt = insn_count;
         unit->mt_ARMInsnCnt = arm_insn_count;
         unit->mt_UseCount = 0;
         unit->mt_FetchCount = 0;
-        unit->mt_M68kAddress = orig_m68kcodeptr;
-        unit->mt_M68kLow = m68k_low;
-        unit->mt_M68kHigh = m68k_high;
+        unit->mt_M68kAddress = (uint32_t)(uintptr_t)orig_m68kcodeptr;
+        unit->mt_M68kLow = (uint32_t)(uintptr_t)m68k_low;
+        unit->mt_M68kHigh = (uint32_t)(uintptr_t)m68k_high;
+        unit->mt_Fingerprint = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
         unit->mt_CRC32 = CalcCRC32(m68k_low, m68k_high);
         unit->mt_PrologueSize = prologue_size;
         unit->mt_EpilogueSize = epilogue_size;
         unit->mt_Conditionals = conditionals_count;
-        DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
 
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);
@@ -914,12 +942,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         __m68k_state->JIT_CACHE_MISS++;
 
         if (debug) {
-            kprintf("[ICache]   Block checksum: %08x\n", unit->mt_CRC32);
+            kprintf("[ICache]   Block checksum: %08x, Fingerprint: %08x\n", unit->mt_CRC32, unit->mt_Fingerprint);
             kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
         }
-
-        arm_flush_cache((uintptr_t)&unit->mt_ARMCode, line_length);
-        arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, line_length);
 
         if (debug)
         {
@@ -952,8 +977,6 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
             }
         }
     }
-
-    //asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
 
     return unit;
 }
@@ -996,7 +1019,7 @@ void M68K_DumpStats()
         if (debug)
             kprintf("[ICache]   Unit %p, mt_UseCount=%lld, mt_FetchCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", 
                 (void*)unit, unit->mt_UseCount, unit->mt_FetchCount,
-                (void*)unit->mt_M68kAddress, (void*)unit->mt_M68kLow, (void*)unit->mt_M68kHigh, 
+                unit->mt_M68kAddress, unit->mt_M68kLow, unit->mt_M68kHigh, 
                 unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
 
         size = size + (uintptr_t)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (uintptr_t)unit;

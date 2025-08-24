@@ -747,7 +747,7 @@ int SYSValidateUnit(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64_t spsr,
 
     unit = (void*)unit_far;
 
-    m68k_pc = unit->mt_M68kAddress;
+    m68k_pc = (void*)(uintptr_t)unit->mt_M68kAddress;
 
     /* Check the unit. The function will free entry if unit was wrong */
     unit = M68K_VerifyUnit(unit);

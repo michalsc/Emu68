@@ -17,19 +17,35 @@
 #include "md5.h"
 #include "lists.h"
 
-struct M68KLocalState {
+struct M68KLocalState
+{
     void *          mls_M68kPtr;
     uint32_t        mls_ARMOffset;
     uint8_t         mls_RegMap[16];
     int32_t         mls_PCRel;
 };
 
-struct M68KTranslationUnit {
-    struct Node     mt_HashNode;
-    struct Node     mt_LRUNode;
-    uint16_t *      mt_M68kAddress;
-    uint16_t *      mt_M68kLow;
-    uint16_t *      mt_M68kHigh;
+struct M68KTranslationUnit
+{
+    /* Hot part of the structure shall preferably reside in one or at most two cache lines */
+    struct Node         mt_HashNode;        /* 00: 2 x 8 bytes - prev and next pointer in the has table bucket */
+    union {
+        struct {
+            uint32_t    mt_Epoch;           /* 16: 2 x 4 bytes - first 32-bit epoch incremented after every cache flush */
+            uint32_t    mt_M68kAddress;     /*                   followed by 32-bit m68k entry address */
+        };
+        uint64_t        mt_Key;             /*     1 x 8 bytes - match key, the two above combined */
+    };
+    void *              mt_ARMEntryPoint;   /* 24: 1 x 8 bytes - entry point for AArch64 code */
+
+    /* Less hot part - in case cache line is 32 bytes long, only */
+    uint32_t            mt_CRC32;           /* 32: 1 x 4 bytes - CRC32 of the whole block*/
+    uint32_t            mt_Fingerprint;     /* 36: 1 x 4 bytes - *mt_M68kAddress ^ *(mt_M68kAddress + 4) */
+    uint32_t            mt_M68kLow;         /* 40: 1 x 4 bytes - lowest m68k address in this block */
+    uint32_t            mt_M68kHigh;        /* 44: 1 x 4 bytes - highest m68k address in this block */
+    struct Node         mt_LRUNode;         /* 48: 2 x 8 bytes - LRU node */
+
+    /* Cold part of the structure */
     uint32_t        mt_PrologueSize;
     uint32_t        mt_EpilogueSize;
     uint32_t        mt_Conditionals;
@@ -37,9 +53,8 @@ struct M68KTranslationUnit {
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;
     uint64_t        mt_FetchCount;
-    void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
-    uint32_t        mt_CRC32;
+    
     uint32_t        mt_ARMCode[]
 #ifdef __aarch64__
     __attribute__((aligned(64)));
@@ -533,9 +548,9 @@ void M68K_FlushCC(uint32_t **ptr);
 
 void LRU_InsertBlock(struct M68KTranslationUnit *unit);
 void LRU_InvalidateAll();
-void LRU_InvalidateByM68kAddress(uint16_t *addr);
+void LRU_InvalidateByM68kAddress(uint32_t addr);
 void LRU_InvalidateByARMAddress(uint32_t *addr);
-uint32_t *LRU_FindBlock(uint16_t *address);
+uint32_t *LRU_FindBlock(uint32_t address);
 void LRU_MarkForVerify(uint32_t *addr);
 
 extern uint8_t host_flags;

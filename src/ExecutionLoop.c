@@ -18,96 +18,106 @@ static inline void CallARMCode()
     ptr();
 }
 
-#define LRU_DEPTH 8
+#define WAY_COUNT 8
+#define SET_COUNT 32
 
-uint16_t *      LRU_m68k[LRU_DEPTH];
-uint32_t *      LRU_arm[LRU_DEPTH];
-static uint32_t LRU_usage;
+uint32_t        LRU_m68k[WAY_COUNT * SET_COUNT];
+uint32_t *      LRU_arm[WAY_COUNT * SET_COUNT];
+uint32_t        LRU_alloc[SET_COUNT];
 
-uint32_t *LRU_FindBlock(uint16_t *address)
+#define ADDR_2_SET(addr) (((addr) >> 2) % SET_COUNT)
+
+uint32_t *LRU_FindBlock(uint32_t address)
 {
-    uint32_t mask = 1;
-    for (int i=0; i < LRU_DEPTH; mask<<=1, i++) {
-        if (LRU_usage & mask) {
-            if (LRU_m68k[i] == address) {
-                return LRU_arm[i];
+    const int set = ADDR_2_SET(address) * WAY_COUNT;
+    
+    for (int i=0; i < WAY_COUNT; i++)
+    {
+        if (LRU_m68k[set + i] == address)
+        {
+            
+            LRU_alloc[set / WAY_COUNT] |= (1 << i);
+            
+            if (LRU_alloc[set / WAY_COUNT] == (1 << WAY_COUNT) - 1) {
+                LRU_alloc[set / WAY_COUNT] = (1 << i);
             }
+            
+            return LRU_arm[set + i];
         }
     }
-
     return NULL;
 }
 
 void LRU_MarkForVerify(uint32_t *addr)
 {
-    uint32_t mask = 1;
-    for (int i = 0; i < LRU_DEPTH; mask <<= 1, i++)
+    for (int i = 0; i < SET_COUNT * WAY_COUNT; i++)
     {
-        if (LRU_usage & mask)
+        if (LRU_arm[i] == addr)
         {
-            if (LRU_arm[i] == addr)
-            {
-                uintptr_t e = (uintptr_t)addr;
-                e &= 0x00ffffffffffffffULL;
-                e |= 0xaa00000000000000ULL;
-                LRU_arm[i] = (uint32_t *)e;
-            }
+            uintptr_t e = (uintptr_t)addr;
+            e &= 0x00ffffffffffffffULL;
+            e |= 0xaa00000000000000ULL;
+            LRU_arm[i] = (uint32_t *)e;
+            break;
         }
     }
 }
 
 void LRU_InvalidateByARMAddress(uint32_t *addr)
 {
-    uint32_t mask = 1;
-    for (int i = 0; i < LRU_DEPTH; mask <<= 1, i++)
+    for (int i = 0; i < SET_COUNT * WAY_COUNT; i++)
     {
-        if (LRU_usage & mask)
+        if (LRU_arm[i] == addr)
         {
-            if (LRU_arm[i] == addr)
-            {
-                LRU_usage &= ~mask;
-            }
+            LRU_arm[i] = (void*)0;
+            LRU_m68k[i] = 0xffffffff;
+            break;
         }
     }
 }
 
-void LRU_InvalidateByM68kAddress(uint16_t *addr)
+void LRU_InvalidateByM68kAddress(uint32_t addr)
 {
-    uint32_t mask = 1;
-    for (int i = 0; i < LRU_DEPTH; mask <<= 1, i++)
+    const int set = ADDR_2_SET(addr);
+
+    for (int i = 0; i < WAY_COUNT; i++)
     {
-        if (LRU_usage & mask)
+        if (LRU_m68k[set + i] == addr)
         {
-            if (LRU_m68k[i] == addr)
-            {
-                LRU_usage &= ~mask;
-            }
+            LRU_arm[i] = (void*)0;
+            LRU_m68k[set + i] = 0xffffffff;
+            break;
         }
     }
 }
 
 void LRU_InvalidateAll()
 {
-    LRU_usage = 0;
+    for (int i = 0; i < SET_COUNT * WAY_COUNT; i++)
+    {
+        LRU_m68k[i] = 0xffffffff;
+        LRU_arm[i] = (void*)0;
+    }
 }
 
 void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 {
-    int loc = __builtin_ffs(~LRU_usage) - 1;
+    const int set = ADDR_2_SET(unit->mt_M68kAddress);
+    int loc = __builtin_ffs(~LRU_alloc[set]) - 1;
 
     // Insert new entry
-    LRU_m68k[loc] = unit->mt_M68kAddress;
-    LRU_arm[loc] = unit->mt_ARMEntryPoint;
+    LRU_m68k[set * WAY_COUNT + loc] = unit->mt_M68kAddress;
+    LRU_arm[set * WAY_COUNT + loc] = unit->mt_ARMEntryPoint;
 
-    LRU_usage |= (1 << loc);
-    if (LRU_usage == (1 << LRU_DEPTH) - 1) {
-        LRU_usage = (1 << loc);
+    LRU_alloc[set] |= (1 << loc);
+    if (LRU_alloc[set] == (1 << WAY_COUNT) - 1) {
+        LRU_alloc[set] = (1 << loc);
     }
 }
 
 static inline uint32_t * FindUnitQuick()
 {
-    register uint16_t *PC __asm__("x18");
+    register uint32_t PC __asm__("w18");
 
 #if EMU68_USE_LRU
     uint32_t *code = LRU_FindBlock(PC);
@@ -143,7 +153,7 @@ static inline uint32_t * FindUnitQuick()
 static inline struct M68KTranslationUnit *FindUnit()
 {
     struct M68KTranslationUnit *node;
-    register uint16_t *PC __asm__("x18");
+    register uint32_t PC __asm__("w18");
 
     /* Perform search */
     uint32_t hash = (uint32_t)(uintptr_t)PC;
@@ -231,7 +241,12 @@ void MainLoop()
     uint16_t *LastPC;
     struct M68KState *ctx = getCTX();
 
-    LRU_usage = 0;
+    for (int set = 0; set < SET_COUNT; set++)
+    {
+        LRU_alloc[set] = 0;
+    }
+
+    LRU_InvalidateAll();
 
     M68K_LoadContext(ctx);
 
