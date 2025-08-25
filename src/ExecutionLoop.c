@@ -18,7 +18,7 @@ static inline void CallARMCode()
     ptr();
 }
 
-#define WAY_COUNT 8
+#define WAY_COUNT 4
 #define SET_COUNT 32
 
 uint32_t        LRU_m68k[WAY_COUNT * SET_COUNT];
@@ -29,22 +29,24 @@ uint32_t        LRU_alloc[SET_COUNT];
 
 uint32_t *LRU_FindBlock(uint32_t address)
 {
-    const int set = ADDR_2_SET(address) * WAY_COUNT;
-    
+    const int set = ADDR_2_SET(address);
+    uint32_t *m68k = &LRU_m68k[set * WAY_COUNT];
+    uint32_t **arm = &LRU_arm[set * WAY_COUNT];
+
     for (int i=0; i < WAY_COUNT; i++)
     {
-        if (LRU_m68k[set + i] == address)
+        if (m68k[i] == address)
         {
+            LRU_alloc[set] |= 1 << i;
             
-            LRU_alloc[set / WAY_COUNT] |= (1 << i);
-            
-            if (LRU_alloc[set / WAY_COUNT] == (1 << WAY_COUNT) - 1) {
-                LRU_alloc[set / WAY_COUNT] = (1 << i);
+            if (LRU_alloc[set] == (1 << WAY_COUNT) - 1) {
+                LRU_alloc[set] = 1 << i;
             }
-            
-            return LRU_arm[set + i];
+
+            return arm[i];
         }
     }
+
     return NULL;
 }
 
@@ -79,13 +81,15 @@ void LRU_InvalidateByARMAddress(uint32_t *addr)
 void LRU_InvalidateByM68kAddress(uint32_t addr)
 {
     const int set = ADDR_2_SET(addr);
+    uint32_t *m68k = &LRU_m68k[set * WAY_COUNT];
+    uint32_t **arm = &LRU_arm[set * WAY_COUNT];
 
     for (int i = 0; i < WAY_COUNT; i++)
     {
-        if (LRU_m68k[set + i] == addr)
+        if (m68k[i] == addr)
         {
-            LRU_arm[i] = (void*)0;
-            LRU_m68k[set + i] = 0xffffffff;
+            arm[i] = (void*)0;
+            m68k[i] = 0xffffffff;
             break;
         }
     }
