@@ -6,6 +6,9 @@
 #include "pistorm/ps_protocol.h"
 #endif
 
+register uint16_t *PC __asm__("x18");
+register void *ARM __asm__("x12");
+
 extern struct List ICache[EMU68_HASHSIZE];
 void M68K_LoadContext(struct M68KState *ctx);
 void M68K_SaveContext(struct M68KState *ctx);
@@ -18,31 +21,32 @@ static inline void CallARMCode()
     ptr();
 }
 
-#define WAY_COUNT 8
-#define SET_COUNT 32
+struct Entry {
+    uintptr_t m68k;
+    uint32_t *arm;
+};
 
-uint32_t        LRU_m68k[WAY_COUNT * SET_COUNT];
-uint32_t *      LRU_arm[WAY_COUNT * SET_COUNT];
-uint32_t        LRU_alloc[SET_COUNT];
+struct Entry    LRU_cache[EMU68_LRU_WAY_COUNT * EMU68_LRU_SET_COUNT] __attribute__((aligned(64)));
+uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT];
 
-#define ADDR_2_SET(addr) (((addr) >> 2) % SET_COUNT)
+#define ADDR_2_SET(addr) (((addr) >> 2) % EMU68_LRU_SET_COUNT)
+#define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
 
 uint32_t *LRU_FindBlock(uint32_t address)
 {
-    const int set = ADDR_2_SET(address) * WAY_COUNT;
+    const uint32_t set = ADDR_2_SET(address);
+    struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
+    uint32_t mask = 0x80000000;
     
-    for (int i=0; i < WAY_COUNT; i++)
+    for (int i=0; i < EMU68_LRU_WAY_COUNT; i++, mask >>= 1)
     {
-        if (LRU_m68k[set + i] == address)
+        if (e[i].m68k == address)
         {
+            uint32_t current = LRU_alloc[set] | mask; 
+            if (current == BIT_MASK) current = mask;
+            LRU_alloc[set] = current;
             
-            LRU_alloc[set / WAY_COUNT] |= (1 << i);
-            
-            if (LRU_alloc[set / WAY_COUNT] == (1 << WAY_COUNT) - 1) {
-                LRU_alloc[set / WAY_COUNT] = (1 << i);
-            }
-            
-            return LRU_arm[set + i];
+            return e[i].arm;
         }
     }
     return NULL;
@@ -50,14 +54,14 @@ uint32_t *LRU_FindBlock(uint32_t address)
 
 void LRU_MarkForVerify(uint32_t *addr)
 {
-    for (int i = 0; i < SET_COUNT * WAY_COUNT; i++)
+    for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
     {
-        if (LRU_arm[i] == addr)
+        if (LRU_cache[i].arm == addr)
         {
             uintptr_t e = (uintptr_t)addr;
             e &= 0x00ffffffffffffffULL;
             e |= 0xaa00000000000000ULL;
-            LRU_arm[i] = (uint32_t *)e;
+            LRU_cache[i].arm = (uint32_t *)e;
             break;
         }
     }
@@ -65,12 +69,12 @@ void LRU_MarkForVerify(uint32_t *addr)
 
 void LRU_InvalidateByARMAddress(uint32_t *addr)
 {
-    for (int i = 0; i < SET_COUNT * WAY_COUNT; i++)
+    for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
     {
-        if (LRU_arm[i] == addr)
+        if (LRU_cache[i].arm == addr)
         {
-            LRU_arm[i] = (void*)0;
-            LRU_m68k[i] = 0xffffffff;
+            LRU_cache[i].arm = (void*)0;
+            LRU_cache[i].m68k = 0xffffffff;
             break;
         }
     }
@@ -78,14 +82,16 @@ void LRU_InvalidateByARMAddress(uint32_t *addr)
 
 void LRU_InvalidateByM68kAddress(uint32_t addr)
 {
-    const int set = ADDR_2_SET(addr);
+    const uint32_t set = ADDR_2_SET(addr);
+    struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
 
-    for (int i = 0; i < WAY_COUNT; i++)
+    for (int i = 0; i < EMU68_LRU_WAY_COUNT; i++)
     {
-        if (LRU_m68k[set + i] == addr)
+        if (e[i].m68k == addr)
         {
-            LRU_arm[i] = (void*)0;
-            LRU_m68k[set + i] = 0xffffffff;
+            e[i].arm= (void*)0;
+            e[i].m68k = 0xffffffff;
+            LRU_alloc[set] &= ~(0x80000000 >> i);
             break;
         }
     }
@@ -93,26 +99,33 @@ void LRU_InvalidateByM68kAddress(uint32_t addr)
 
 void LRU_InvalidateAll()
 {
-    for (int i = 0; i < SET_COUNT * WAY_COUNT; i++)
+    for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
     {
-        LRU_m68k[i] = 0xffffffff;
-        LRU_arm[i] = (void*)0;
+        LRU_cache[i].m68k = 0xffffffff;
+        LRU_cache[i].arm = (void*)0;
+    }
+
+    for (int i = 0; i < EMU68_LRU_SET_COUNT; i++)
+    {
+        LRU_alloc[i] = 0;
     }
 }
 
 void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 {
-    const int set = ADDR_2_SET(unit->mt_M68kAddress);
-    int loc = __builtin_ffs(~LRU_alloc[set]) - 1;
+    const uint32_t set = ADDR_2_SET(unit->mt_M68kAddress);
+    struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
+    int loc = __builtin_clz(~LRU_alloc[set]);
+    uint32_t mask = 0x80000000 >> loc;
 
     // Insert new entry
-    LRU_m68k[set * WAY_COUNT + loc] = unit->mt_M68kAddress;
-    LRU_arm[set * WAY_COUNT + loc] = unit->mt_ARMEntryPoint;
+    e[loc].m68k = unit->mt_M68kAddress;
+    e[loc].arm = unit->mt_ARMEntryPoint;
 
-    LRU_alloc[set] |= (1 << loc);
-    if (LRU_alloc[set] == (1 << WAY_COUNT) - 1) {
-        LRU_alloc[set] = (1 << loc);
-    }
+    // Touch the last used
+    uint32_t current = LRU_alloc[set] | mask; 
+    if (current == BIT_MASK) current = mask;
+    LRU_alloc[set] = current;
 }
 
 static inline uint32_t * FindUnitQuick()
@@ -236,15 +249,8 @@ static inline void setSR(uint32_t sr)
 
 void MainLoop()
 {
-    register uint16_t *PC __asm__("x18");
-    register void *ARM __asm__("x12");
     uint16_t *LastPC;
     struct M68KState *ctx = getCTX();
-
-    for (int set = 0; set < SET_COUNT; set++)
-    {
-        LRU_alloc[set] = 0;
-    }
 
     LRU_InvalidateAll();
 
