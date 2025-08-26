@@ -21,7 +21,7 @@ struct Entry {
 struct Entry    LRU_cache[EMU68_LRU_WAY_COUNT * EMU68_LRU_SET_COUNT] __attribute__((aligned(64)));
 uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT];
 
-#define ADDR_2_SET(addr) (((addr) >> 2) % EMU68_LRU_SET_COUNT)
+#define ADDR_2_SET(addr) (((addr) >> 4) % EMU68_LRU_SET_COUNT)
 #define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
 
 uint32_t *LRU_FindBlock(uint32_t address)
