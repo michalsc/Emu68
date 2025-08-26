@@ -49,6 +49,7 @@ uint32_t *LRU_FindBlock(uint32_t address)
             return e[i].arm;
         }
     }
+
     return NULL;
 }
 
