@@ -6,20 +6,12 @@
 #include "pistorm/ps_protocol.h"
 #endif
 
-register uint16_t *PC __asm__("x18");
-register void *ARM __asm__("x12");
+register uint32_t PC __asm__("w18");
+register void (*ARMCode)() __asm__("x12");
 
 extern struct List ICache[EMU68_HASHSIZE];
 void M68K_LoadContext(struct M68KState *ctx);
 void M68K_SaveContext(struct M68KState *ctx);
-
-static inline void CallARMCode()
-{
-    register void *ARM __asm__("x12");
-    __asm__ volatile("":"=r"(ARM));
-    void (*ptr)() = (void*)ARM;
-    ptr();
-}
 
 struct Entry {
     uintptr_t m68k;
@@ -40,7 +32,7 @@ uint32_t *LRU_FindBlock(uint32_t address)
     
     for (int i=0; i < EMU68_LRU_WAY_COUNT; i++, mask >>= 1)
     {
-        if (e[i].m68k == address)
+        if (likely(e[i].m68k == address))
         {
             uint32_t current = LRU_alloc[set] | mask; 
             if (current == BIT_MASK) current = mask;
@@ -131,8 +123,6 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 
 static inline uint32_t * FindUnitQuick()
 {
-    register uint32_t PC __asm__("w18");
-
 #if EMU68_USE_LRU
     uint32_t *code = LRU_FindBlock(PC);
 
@@ -142,15 +132,12 @@ static inline uint32_t * FindUnitQuick()
     struct M68KTranslationUnit *node;
 
     /* Perform search */
-    uint32_t hash = (uint32_t)(uintptr_t)PC;
-    struct List *bucket = &ICache[(hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK];
+    uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+    struct List *bucket = &ICache[hash];
 
     /* Go through the list of translated units */
     ForeachNode(bucket, node)
     {
-        /* Force reload of PC*/
-        __asm__ volatile("" : "=r"(PC));
-
         /* Check if unit is found */
         if (node->mt_M68kAddress == PC)
         {
@@ -167,18 +154,14 @@ static inline uint32_t * FindUnitQuick()
 static inline struct M68KTranslationUnit *FindUnit()
 {
     struct M68KTranslationUnit *node;
-    register uint32_t PC __asm__("w18");
 
     /* Perform search */
-    uint32_t hash = (uint32_t)(uintptr_t)PC;
-    struct List *bucket = &ICache[(hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK];
+    uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+    struct List *bucket = &ICache[hash];
 
     /* Go through the list of translated units */
     ForeachNode(bucket, node)
     {
-        /* Force reload of PC*/
-        __asm__ volatile("" : "=r"(PC));
-
         /* Check if unit is found */
         if (node->mt_M68kAddress == PC)
         {
@@ -217,9 +200,9 @@ static inline int GetIPLLevel()
 static inline int GetIPLLevel() { return 0; }
 #endif
 
-static inline uint16_t *getLastPC()
+static inline uint32_t getLastPC()
 {
-    uint16_t *lastPC;
+    uint32_t lastPC;
     __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
     return lastPC;
 }
@@ -238,7 +221,7 @@ static inline uint32_t getSR()
     return sr;
 }
 
-static inline void setLastPC(uint16_t *pc)
+static inline void setLastPC(uint32_t pc)
 {
     __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
 }
@@ -250,7 +233,7 @@ static inline void setSR(uint32_t sr)
 
 void MainLoop()
 {
-    uint16_t *LastPC;
+    uint32_t LastPC;
     struct M68KState *ctx = getCTX();
 
     LRU_InvalidateAll();
@@ -267,9 +250,7 @@ void MainLoop()
         ctx = getCTX();
 
 #ifndef PISTORM_ANY_MODEL
-        /* Force reload of PC*/
-        __asm__ volatile("" : "=r"(PC));
-        if (unlikely(PC == NULL)) {
+        if (unlikely(PC == 0)) {
             M68K_SaveContext(ctx);
             return;
         }
@@ -391,16 +372,12 @@ void MainLoop()
         __asm__ volatile("mov %w0, "REG_CACR_ASM:"=r"(cacr));
 
         if (likely(cacr & CACR_IE))
-        {   
-            /* Force reload of PC*/
-            __asm__ volatile("":"=r"(PC));
-
+        {
             /* The last PC is the same as currently set PC? */
             if (LastPC == PC)
             {
-                __asm__ volatile("":"=r"(ARM));
                 /* Jump to the code now */
-                CallARMCode();
+                ARMCode();
                 continue;
             }
             else
@@ -415,21 +392,19 @@ void MainLoop()
                     __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
 
                     /* This is the case, load entry point into x12 */
-                    ARM = code;
-                    __asm__ volatile("":"=r"(ARM):"0"(ARM));
+                    ARMCode = (void*)code;
                     
-                    CallARMCode();
+                    ARMCode();
 
                     /* Go back to beginning of the loop */
                     continue;
                 }
 
                 /* If we are that far there was no JIT unit found */
-                __asm__ volatile("":"=r"(PC));
-                uint16_t *copyPC = PC;
+                uint32_t copyPC = PC;
                 M68K_SaveContext(ctx);
                 /* Get the code. This never fails */
-                struct M68KTranslationUnit *node = M68K_GetTranslationUnit(copyPC);
+                struct M68KTranslationUnit *node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
 #if EMU68_USE_LRU
                 LRU_InsertBlock(node);
 #endif
@@ -437,9 +412,8 @@ void MainLoop()
                 M68K_LoadContext(getCTX());
                 __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
                 /* Prepare ARM pointer in x12 and call it */
-                ARM = node->mt_ARMEntryPoint;
-                __asm__ volatile("":"=r"(ARM):"0"(ARM));
-                CallARMCode();
+                ARMCode = node->mt_ARMEntryPoint;
+                ARMCode();
             }
         }
         else
@@ -447,7 +421,7 @@ void MainLoop()
             struct M68KTranslationUnit *node = NULL;
 
             /* Uncached mode - reset LastPC */
-            setLastPC((void*)~(0));
+            setLastPC(~0);
 
             /* Save context since C code will be called */
             M68K_SaveContext(ctx);
@@ -467,9 +441,8 @@ void MainLoop()
             }
 
             M68K_LoadContext(getCTX());
-            ARM = node->mt_ARMEntryPoint;
-            __asm__ volatile("":"=r"(ARM):"0"(ARM));
-            CallARMCode();
+            ARMCode = node->mt_ARMEntryPoint;
+            ARMCode();
         }
     }
 }
