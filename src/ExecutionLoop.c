@@ -38,6 +38,9 @@ uint32_t *LRU_FindBlock(uint32_t address)
             if (current == BIT_MASK) current = mask;
             LRU_alloc[set] = current;
             
+            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
+
             return e[i].arm;
         }
     }
@@ -141,6 +144,9 @@ static inline uint32_t * FindUnitQuick()
         /* Check if unit is found */
         if (node->mt_M68kAddress == PC)
         {
+            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(node->mt_ARMEntryPoint));
+
 #if EMU68_USE_LRU
             LRU_InsertBlock(node);
 #endif
