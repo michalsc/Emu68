@@ -2095,15 +2095,6 @@ __asm__ volatile(
     kprintf("[JIT] Number of m68k instructions executed (rough): %lld\n", __m68k.INSN_COUNT);
     kprintf("[JIT] Number of ARM cpu cycles consumed: %lld\n", cnt2 - cnt1);
 
-    extern uint32_t LRU_alloc[16];
-
-    kprintf("[JIT] LRU alloc:");
-    for (int i=0; i < 16; i++)
-    {
-        kprintf(" %1x", LRU_alloc[i]);
-    }
-    kprintf("\n");
-
     if (debug_cnt & 1)
     {
         uint64_t tmp;
