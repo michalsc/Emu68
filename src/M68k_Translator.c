@@ -813,6 +813,18 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
     {
         uint32_t crc = 0;
 
+        /* Quick path - ROM is always valid as long as we don't use any fancy remapping, at least on Amiga */
+        if (unit->mt_M68kAddress >= 0xf80000 && unit->mt_M68kAddress < 0x1000000) {
+            /* Update EPOCH of the unit */
+            extern uint32_t EPOCH;
+            unit->mt_Epoch = EPOCH;
+
+            /* Move the unit to the beginning of LRU list */
+            REMOVE(&unit->mt_LRUNode);
+            ADDHEAD(&LRU, &unit->mt_LRUNode);
+            return unit;
+        }
+
         /* 
             First check fingerprint - if this one changed then there is no need to calculate CRC32
             of the whole block
@@ -836,6 +848,16 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
             __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
 
             unit = NULL;
+        }
+        else
+        {
+            /* Update EPOCH of the unit */
+            extern uint32_t EPOCH;
+            unit->mt_Epoch = EPOCH;
+
+            /* Move the unit to the beginning of LRU list */
+            REMOVE(&unit->mt_LRUNode);
+            ADDHEAD(&LRU, &unit->mt_LRUNode);
         }
     }
 
@@ -921,7 +943,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         /* If more than 16 ARM instructions were generated, prefetch another line of cache */
         if (arm_insn_count > 16)
             asm volatile ("prfm plil1keep, [%0, #64]"::"r"(unit->mt_ARMEntryPoint));
-
+        
+        extern uint32_t EPOCH;
+        unit->mt_Epoch = EPOCH;
         unit->mt_M68kInsnCnt = insn_count;
         unit->mt_ARMInsnCnt = arm_insn_count;
         unit->mt_UseCount = 0;

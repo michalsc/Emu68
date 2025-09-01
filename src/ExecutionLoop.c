@@ -8,6 +8,38 @@
 
 register uint32_t PC __asm__("w18");
 register void (*ARMCode)() __asm__("x12");
+extern uint32_t EPOCH;
+
+static inline uint32_t getLastPC()
+{
+    uint32_t lastPC;
+    __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
+    return lastPC;
+}
+
+static inline struct M68KState *getCTX()
+{
+    struct M68KState *ctx;
+    __asm__ volatile("mov %0, "CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
+
+static inline uint32_t getSR()
+{
+    uint32_t sr;
+    __asm__ volatile("umov %w0, "REG_SR_ASM:"=r"(sr));
+    return sr;
+}
+
+static inline void setLastPC(uint32_t pc)
+{
+    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
+}
+
+static inline void setSR(uint32_t sr)
+{
+    __asm__ volatile("mov "REG_SR_ASM", %w0": :"r"(sr));
+}
 
 extern struct List ICache[EMU68_HASHSIZE];
 void M68K_LoadContext(struct M68KState *ctx);
@@ -134,6 +166,19 @@ static inline uint32_t * FindUnitQuick()
 #endif
     struct M68KTranslationUnit *node;
 
+    union {
+        struct {
+            uint32_t    mt_Epoch;           /* 16: 2 x 4 bytes - first 32-bit epoch incremented after every cache flush */
+            uint32_t    mt_M68kAddress;     /*                   followed by 32-bit m68k entry address */
+        };
+        uint64_t        mt_Key;             /*     1 x 8 bytes - match key, the two above combined */
+    } u;
+
+    u.mt_Epoch = EPOCH;
+    u.mt_M68kAddress = PC;
+
+    uint64_t key = u.mt_Key;
+
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
     struct List *bucket = &ICache[hash];
@@ -142,7 +187,7 @@ static inline uint32_t * FindUnitQuick()
     ForeachNode(bucket, node)
     {
         /* Check if unit is found */
-        if (node->mt_M68kAddress == PC)
+        if (node->mt_Key == key)
         {
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(node->mt_ARMEntryPoint));
@@ -205,37 +250,6 @@ static inline int GetIPLLevel()
 #else
 static inline int GetIPLLevel() { return 0; }
 #endif
-
-static inline uint32_t getLastPC()
-{
-    uint32_t lastPC;
-    __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
-    return lastPC;
-}
-
-static inline struct M68KState *getCTX()
-{
-    struct M68KState *ctx;
-    __asm__ volatile("mov %0, "CTX_POINTER_ASM:"=r"(ctx));
-    return ctx;
-}
-
-static inline uint32_t getSR()
-{
-    uint32_t sr;
-    __asm__ volatile("umov %w0, "REG_SR_ASM:"=r"(sr));
-    return sr;
-}
-
-static inline void setLastPC(uint32_t pc)
-{
-    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
-}
-
-static inline void setSR(uint32_t sr)
-{
-    __asm__ volatile("mov "REG_SR_ASM", %w0": :"r"(sr));
-}
 
 void MainLoop()
 {
@@ -407,10 +421,32 @@ void MainLoop()
                 }
 
                 /* If we are that far there was no JIT unit found */
-                uint32_t copyPC = PC;
                 M68K_SaveContext(ctx);
-                /* Get the code. This never fails */
-                struct M68KTranslationUnit *node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
+
+                uint32_t copyPC = getCTX()->PC;
+
+                /* Perform search without testing Epoch */
+                struct M68KTranslationUnit *node = NULL, *n;
+                uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+                struct List *bucket = &ICache[hash];
+
+                /* Go through the list of translated units */
+                ForeachNode(bucket, n)
+                {
+                    /* Check if unit is found */
+                    if (n->mt_M68kAddress == copyPC)
+                    {
+                        /* Node found, most likely Epoch broken */
+                        node = M68K_VerifyUnit(n);
+                        break;
+                    }
+                }
+
+                if (node == NULL) {
+                    /* Get the code. This never fails */
+                    node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
+                }
+
 #if EMU68_USE_LRU
                 LRU_InsertBlock(node);
 #endif

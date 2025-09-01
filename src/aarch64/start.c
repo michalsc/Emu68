@@ -1934,6 +1934,10 @@ void M68K_StartEmu(void *addr, void *fdt)
     bzero(&__m68k, sizeof(__m68k));
     //bzero((void *)4, 1020);
 
+    extern uint32_t EPOCH;
+
+    EPOCH = 0;
+    
     __m68k_state = &__m68k;
 
     //*(uint32_t*)4 = 0;
