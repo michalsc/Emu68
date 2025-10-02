@@ -55,12 +55,7 @@ struct M68KTranslationUnit
     uint64_t        mt_FetchCount;
     struct M68KLocalState *  mt_LocalState;
     
-    uint32_t        mt_ARMCode[]
-#ifdef __aarch64__
-    __attribute__((aligned(64)));
-#else
-     __attribute__((aligned(32)));
-#endif
+    uint32_t        mt_ARMCode[] __attribute__((aligned(64)));
 };
 
 struct ExitBlock
@@ -96,8 +91,14 @@ struct DoubleExitBlock
 struct TranslatorContext {
     uint32_t *      tc_CodeStart;
     uint32_t *      tc_CodePtr;
-    uint16_t *      tc_M68kCodeStart;
-    uint16_t *      tc_M68kCodePtr;
+    union {
+        uint16_t *  tc_M68kCodeStart;
+        uint32_t *  tc_PPCCodeStart;
+    };
+    union {
+        uint16_t *  tc_M68kCodePtr;
+        uint32_t *  tc_PPCCodePtr;
+    };
 };
 
 struct M68KState
@@ -438,6 +439,107 @@ struct M68KState
 #define VECTOR_OPERAND_ERROR        0xD0
 #define VECTOR_OVERFLOW             0xD4
 #define VECTOR_SIGNALING_NAN        0xD8
+
+
+#define REG_PC    18
+
+#define REG_D0    19
+#define REG_D1    20
+#define REG_D2    21
+#define REG_D3    22
+#define REG_D4    23
+#define REG_D5    24
+#define REG_D6    25
+#define REG_D7    26
+
+#define REG_A0    13
+#define REG_A1    14
+#define REG_A2    15
+#define REG_A3    16
+#define REG_A4    17
+#define REG_A5    27
+#define REG_A6    28
+#define REG_A7    29
+
+#define REG_PROTECT ((1 << 30) | (1 << (REG_A0)) | (1 << (REG_A1)) | (1 << (REG_A2)) | (1 << (REG_A3)) | (1 << (REG_A4)) | (1 << (REG_PC)))
+
+#define REG_FP0   8
+#define REG_FP1   9
+#define REG_FP2   10
+#define REG_FP3   11
+#define REG_FP4   12
+#define REG_FP5   13
+#define REG_FP6   14
+#define REG_FP7   15
+
+#define REG_FPSR_VN 19
+#define REG_FPSR_SIZE TS_S
+#define REG_FPSR_POS 0
+#define REG_FPSR_ASM "v19.s[0]"
+
+#define REG_FPIAR_VN 19
+#define REG_FPIAR_SIZE TS_S
+#define REG_FPIAR_POS 1
+#define REG_FPIAR_ASM "v19.s[1]"
+
+#define REG_FPCR_VN 19
+#define REG_FPCR_SIZE TS_H
+#define REG_FPCR_POS 4
+#define REG_FPCR_ASM "v19.h[4]"
+
+#define REG_FPSR    REG_FPSR_VN,REG_FPSR_SIZE,REG_FPSR_POS
+#define REG_FPIAR   REG_FPIAR_VN,REG_FPIAR_SIZE,REG_FPIAR_POS
+#define REG_FPCR    REG_FPCR_VN,REG_FPCR_SIZE,REG_FPCR_POS
+
+#define REG_CACR_VN 21
+#define REG_CACR_SIZE TS_S
+#define REG_CACR_POS 0
+#define REG_CACR_ASM "v21.s[0]"
+
+#define REG_USP_VN 21
+#define REG_USP_SIZE TS_S
+#define REG_USP_POS 1
+#define REG_USP_ASM "v21.s[1]"
+
+#define REG_ISP_VN 21
+#define REG_ISP_SIZE TS_S
+#define REG_ISP_POS 2
+#define REG_ISP_ASM "v21.s[2]"
+
+#define REG_MSP_VN 21
+#define REG_MSP_SIZE TS_S
+#define REG_MSP_POS 3
+#define REG_MSP_ASM "v21.s[3]"
+
+#define CTX_POINTER_VN 20
+#define CTX_POINTER_SIZE TS_D
+#define CTX_POINTER_POS 1
+#define CTX_POINTER_ASM "v20.d[1]"
+
+#define CTX_INSN_COUNT_VN 20
+#define CTX_INSN_COUNT_SIZE TS_D
+#define CTX_INSN_COUNT_POS 0
+#define CTX_INSN_COUNT_ASM "v20.d[0]"
+
+#define REG_SR_VN 19
+#define REG_SR_SIZE TS_H
+#define REG_SR_POS 5
+#define REG_SR_ASM "v19.h[5]"
+
+#define CTX_LAST_PC_VN 19
+#define CTX_LAST_PC_SIZE TS_S
+#define CTX_LAST_PC_POS 3
+#define CTX_LAST_PC_ASM "v19.s[3]"
+
+#define REG_CACR        REG_CACR_VN,REG_CACR_SIZE,REG_CACR_POS
+#define REG_USP         REG_USP_VN,REG_USP_SIZE,REG_USP_POS
+#define REG_ISP         REG_ISP_VN,REG_ISP_SIZE,REG_ISP_POS
+#define REG_MSP         REG_MSP_VN,REG_MSP_SIZE,REG_MSP_POS
+#define REG_SR          REG_SR_VN,REG_SR_SIZE,REG_SR_POS
+
+#define CTX_POINTER     CTX_POINTER_VN,CTX_POINTER_SIZE,CTX_POINTER_POS
+#define CTX_INSN_COUNT  CTX_INSN_COUNT_VN,CTX_INSN_COUNT_SIZE,CTX_INSN_COUNT_POS
+#define CTX_LAST_PC     CTX_LAST_PC_VN,CTX_LAST_PC_SIZE,CTX_LAST_PC_POS
 
 void EMIT_GetOffsetPC(struct TranslatorContext *ctx, int8_t *offset);
 void EMIT_AdvancePC(struct TranslatorContext *ctx, uint8_t offset);

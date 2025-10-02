@@ -28,6 +28,7 @@
 #include "version.h"
 #include "cache.h"
 #include "sponsoring.h"
+#include "spinlock.h"
 
 void _start();
 void _boot();
@@ -441,7 +442,17 @@ void secondary_boot(void)
         }
     }
 
+    if (cpu_id == 3) {
+        extern void InitPPC();
+        InitPPC();
+    }
+
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
+
+    if (cpu_id == 3) {
+        extern void StartupPPC();
+        StartupPPC();
+    }
 
 #ifdef PISTORM_ANY_MODEL
     if (cpu_id == 1)
@@ -452,11 +463,6 @@ void secondary_boot(void)
     else if (cpu_id == 2)
     {
         ps_housekeeper();
-    }
-    else if (cpu_id == 3)
-    {
-        wb_init();
-        wb_task();
     }
 #else
     (void)async_log;
@@ -1226,7 +1232,7 @@ void boot(void *dtree)
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
-        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
+        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, (KERNEL_JIT_PAGES / 2) << 21);
 
         kprintf("[BOOT] Local memory pools:\n");
         kprintf("[BOOT]    SYS: %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
@@ -1695,6 +1701,9 @@ void boot(void *dtree)
     }
 #endif
 
+    extern spinlock_t PPCStart;
+    spinlock_release(&PPCStart);
+
     M68K_StartEmu(0, NULL);
 
     while(1) __asm__ volatile("wfe");
@@ -2037,7 +2046,6 @@ void M68K_StartEmu(void *addr, void *fdt)
     M68K_PrintContext(&__m68k);
 
     kprintf("[JIT] Let it go...\n");
-
 
     clear_entire_dcache();
 

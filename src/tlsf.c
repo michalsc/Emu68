@@ -7,6 +7,7 @@
 
 #include "support.h"
 #include "tlsf.h"
+#include "spinlock.h"
 
 #undef USE_MACROS
 
@@ -91,6 +92,8 @@ typedef struct tlsf_area_s {
 } tlsf_area_t;
 
 typedef struct {
+    spinlock_t         lock;
+
     tlsf_area_t *       memory_area;
 
     uintptr_t           total_size;
@@ -335,6 +338,8 @@ void * tlsf_malloc(void *t, uintptr_t size)
 
     if (unlikely(!size)) return NULL;
 
+    spinlock_acquire(&tlsf->lock);
+
     /* Find the indices fl and sl for given size */
     MAPPING_SEARCH(&size, &fl, &sl);
 
@@ -344,6 +349,7 @@ void * tlsf_malloc(void *t, uintptr_t size)
     /* No block found? Either failure or tlsf will get more memory. */
     if (unlikely(!b))
     {
+        spinlock_release(&tlsf->lock);
         return NULL;
     }
 
@@ -390,6 +396,8 @@ void * tlsf_malloc(void *t, uintptr_t size)
 
     /* Update counters */
     tlsf->free_size -= GET_SIZE(b);
+
+    spinlock_release(&tlsf->lock);
 
     /* And return memory */
     return &b->mem[0];
@@ -464,6 +472,8 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
         return NULL;
     }
 
+    spinlock_acquire(&tlsf->lock);
+
     b = MEM_TO_BHDR(ptr);
 
     if (align > SIZE_ALIGN)
@@ -517,6 +527,8 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
         }
     }
 
+    spinlock_release(&tlsf->lock);
+
     return ptr;
 }
 
@@ -528,6 +540,8 @@ void tlsf_free(void *t, void *ptr)
 
     if (unlikely(!ptr))
         return;
+
+    spinlock_acquire(&tlsf->lock);
 
     fb = MEM_TO_BHDR(ptr);
 
@@ -548,6 +562,8 @@ void tlsf_free(void *t, void *ptr)
 
     /* Insert free block into the proper list */
     INSERT_FREE_BLOCK(tlsf, fb);
+
+    spinlock_release(&tlsf->lock);
 }
 
 uintptr_t tlsf_get_free_size(void *t)
@@ -590,6 +606,8 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
     if (unlikely(new_size == GET_SIZE(b)))
         return ptr;
 
+    spinlock_acquire(&tlsf->lock);
+
     bnext = GET_NEXT_BHDR(b, GET_SIZE(b));
 
     /* Is new size smaller than the previous one? Try to split the block if this is the case */
@@ -617,6 +635,8 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
 
         /* Insert free block into the proper list */
         INSERT_FREE_BLOCK(tlsf, b1);
+
+        spinlock_release(&tlsf->lock);
     }
     else
     {
@@ -658,9 +678,13 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
                 bnext->header.prev = b;
                 SET_BUSY_PREV_BLOCK(bnext);
             }
+
+            spinlock_release(&tlsf->lock);
         }
         else
         {
+            spinlock_release(&tlsf->lock);
+
             /* Next block was not free. Create new buffer and copy old contents there */
             void * p = tlsf_malloc(tlsf, new_size);
             if (p)
@@ -744,6 +768,8 @@ void * tlsf_init()
     if (tlsf)
     {
         bzero(tlsf, sizeof(tlsf_t));
+
+        spinlock_init(&tlsf->lock);
     }
 
     return tlsf;
@@ -758,6 +784,9 @@ void * tlsf_init_with_memory(void *memory, uintptr_t size)
     size -= tlsf_size;
 
     bzero(tlsf, tlsf_size);
+
+    spinlock_init(&tlsf->lock);
+
     tlsf_add_memory(tlsf, memory, size);
 
     return tlsf;
