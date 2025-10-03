@@ -81,6 +81,8 @@ static uint32_t debug_range_min = 0x00000000;
 static uint32_t debug_range_max = 0xffffffff;
 static struct PPCLocalState *local_state;
 
+static __used__ void LocalExit(struct TranslatorContext *tc, uint32_t insn_fixup);
+
 static inline struct PPCState *getHostCTX()
 {
     struct PPCState *ctx;
@@ -148,8 +150,7 @@ static __used__ void FlushCTX(struct TranslatorContext *ctx)
 
 static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int load, int set_dirty)
 {
-    struct RegisterNode *rn;
-    int found = 0;
+    struct RegisterNode *rn, *next;
 
     /* If register is a fixed-assigned one, return ASAP */
     if (_int_reg_mapping[reg] != 0xff) {
@@ -157,21 +158,19 @@ static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int
     }
 
     /* Check if register is already in LRU */
-    ForeachNode(&GPR_LRU, rn)
+    ForeachNodeSafe(&GPR_LRU, rn, next)
     {
-        if (rn->rn_RegNum == reg) {
-            found = 1;
-            break;
+        if (rn->rn_RegNum == reg)
+        {
+            /* Found it, move it to the top of LRU, return ARM reg number */
+            if (GetHead(&GPR_LRU) != &rn->rn_Node) {
+                REMOVE(&rn->rn_Node);
+                ADDHEAD(&GPR_LRU, rn);
+            }
+            /* Update dirty flag but does not allow to reset it */
+            rn->rn_Dirty |= set_dirty;
+            return rn->rn_ARM;
         }
-    }
-
-    /* Found it, move it to the top of LRU, return ARM reg number */
-    if (found)
-    {
-        REMOVE(&rn->rn_Node);
-        ADDHEAD(&GPR_LRU, rn);
-        rn->rn_Dirty = set_dirty;
-        return rn->rn_ARM;
     }
 
     /* Not found. Check if we have free ARM register */
@@ -317,6 +316,7 @@ static __used__ uint8_t IsGPRMapped(struct TranslatorContext *, uint8_t reg)
     /* Not fixed mapped, check GPR_LRU now */
     ForeachNode(&GPR_LRU, rn)
     {
+//        kprintf("testing node %p, reg %d, arm reg %d, dirty %d\n", rn, rn->rn_RegNum, rn->rn_ARM, rn->rn_Dirty);
         if (rn->rn_RegNum == reg) {
             return rn->rn_ARM;
         }
@@ -380,6 +380,9 @@ static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
             }
         }
 
+        /* Mark ARM register as free */
+        FreeARMRegister(tc, rn->rn_ARM);
+
         /* Add the node itself to free pool */
         ADDTAIL(&FreePool, rn);
     }
@@ -391,6 +394,7 @@ static __used__ void StoreDirtyGPRs(struct TranslatorContext *tc)
 
     ForeachNode(&GPR_LRU, rn)
     {
+//        kprintf("checking reg %d, arm %d, dirty %d\n", rn->rn_RegNum, rn->rn_ARM, rn->rn_Dirty);
         /* If dirty, store it back to PPC context */
         if (rn->rn_Dirty) {
             /* Store value from ARM register back into PPC context */
@@ -516,6 +520,126 @@ static __used__ void ResetReturnStack()
     ReturnStackDepth = 0;
 }
 
+void EMIT_set_crn_logic(struct TranslatorContext *tc, uint8_t cr)
+{
+    uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer;
+
+    /* Shift right XER by 31 so that SO is bit 0 */
+    if ((reg_xer = IsGPRMapped(tc, XERn)) != 0xff)
+    {
+        /* XER was already in one of GPRs, rotate with tmp as target */
+        EMIT(tc, lsr(tmp, reg_xer, 31));
+    }
+    else
+    {
+        /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
+        EMIT(tc,
+            mov_simd_to_reg(tmp, REG_XER),
+            lsr(tmp, tmp, 31)
+        );
+    }
+
+    uint8_t reg_zero_case = AllocARMRegister(tc);
+    uint8_t reg_minus_case = AllocARMRegister(tc);
+
+    EMIT(tc, 
+        orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
+        orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
+        orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+        csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
+        csel(tmp, reg_minus_case, tmp, A64_CC_MI),
+
+        /* Insert into CRn */
+        bfi(reg_cr, tmp, 4 * (7 - cr), 4)
+    );
+
+    FreeARMRegister(tc, reg_zero_case);
+    FreeARMRegister(tc, reg_minus_case);
+    FreeARMRegister(tc, tmp);
+}
+
+void EMIT_set_crn_unsigned(struct TranslatorContext *tc, uint8_t cr)
+{
+    uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer;
+
+    /* Shift right XER by 31 so that SO is bit 0 */
+    if ((reg_xer = IsGPRMapped(tc, XERn)) != 0xff)
+    {
+        /* XER was already in one of GPRs, rotate with tmp as target */
+        EMIT(tc, lsr(tmp, reg_xer, 31));
+    }
+    else
+    {
+        /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
+        EMIT(tc,
+            mov_simd_to_reg(tmp, REG_XER),
+            lsr(tmp, tmp, 31)
+        );
+    }
+
+    uint8_t reg_zero_case = AllocARMRegister(tc);
+    uint8_t reg_minus_case = AllocARMRegister(tc);
+
+    EMIT(tc, 
+        orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
+        orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
+        orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+        csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
+        csel(tmp, reg_minus_case, tmp, A64_CC_CC),
+
+        /* Insert into CRn */
+        bfi(reg_cr, tmp, 4 * (7 - cr), 4)
+    );
+
+    FreeARMRegister(tc, reg_zero_case);
+    FreeARMRegister(tc, reg_minus_case);
+    FreeARMRegister(tc, tmp);
+}
+
+void EMIT_set_crn_signed(struct TranslatorContext *tc, uint8_t cr)
+{
+    uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer = IsGPRMapped(tc, XERn);
+
+    /* Shift right XER by 31 so that SO is bit 0 */
+    if (reg_xer != 0xff)
+    {
+        /* XER was already in one of GPRs, rotate with tmp as target */
+        EMIT(tc, lsr(tmp, reg_xer, 31));
+    }
+    else
+    {
+        /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
+        EMIT(tc,
+            mov_simd_to_reg(tmp, REG_XER),
+            lsr(tmp, tmp, 31)
+        );
+    }
+
+    uint8_t reg_zero_case = AllocARMRegister(tc);
+    uint8_t reg_minus_case = AllocARMRegister(tc);
+
+    EMIT(tc, 
+        orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
+        orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
+        orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+        csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
+        csel(tmp, reg_minus_case, tmp, A64_CC_LT),
+
+        /* Insert into CRn */
+        bfi(reg_cr, tmp, 4 * (7 - cr), 4)
+    );
+
+    FreeARMRegister(tc, reg_zero_case);
+    FreeARMRegister(tc, reg_minus_case);
+    FreeARMRegister(tc, tmp);
+}
+
 static __used__ int EMIT_addi(struct TranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
@@ -604,6 +728,75 @@ static __used__ int EMIT_addis(struct TranslatorContext *tc, uint32_t opcode)
             EMIT(tc, add_immed_lsl12(arm_rd, arm_ra, (imm & 0xff) << 4));
         }
     }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_cmpi(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x00600000) return -1;
+
+    uint8_t cr = (opcode >> 23) & 7;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint16_t imm = opcode & 0xffff;
+    int32_t simm = (int16_t)imm;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+
+    /* Is the immediate in range for CMP? */
+    if ((simm & 0xfffff000) == 0) {
+        EMIT(tc, cmp_immed(reg_ra, simm));
+    }
+    else if ((simm & 0xff000fff) == 0) {
+        EMIT(tc, cmp_immed_lsl12(reg_ra, simm >> 12));
+    }
+    else {
+        uint8_t tmp = AllocARMRegister(tc);
+
+        EMIT_LoadImmediate(tc, tmp, simm);
+        EMIT(tc, cmp_reg(reg_ra, tmp, LSL, 0));
+
+        FreeARMRegister(tc, tmp);
+    }
+
+    EMIT_set_crn_signed(tc, cr);
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_cmpli(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x00600000) return -1;
+
+    uint8_t cr = (opcode >> 23) & 7;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint32_t imm = opcode & 0xffff;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+
+    /* Is the immediate in range for CMP? */
+    if ((imm & 0xfffff000) == 0) {
+        EMIT(tc, cmp_immed(reg_ra, imm));
+    }
+    else if ((imm & 0xff000fff) == 0) {
+        EMIT(tc, cmp_immed_lsl12(reg_ra, imm >> 12));
+    }
+    else {
+        uint8_t tmp = AllocARMRegister(tc);
+
+        EMIT_LoadImmediate(tc, tmp, imm);
+        EMIT(tc, cmp_reg(reg_ra, tmp, LSL, 0));
+
+        FreeARMRegister(tc, tmp);
+    }
+
+    EMIT_set_crn_unsigned(tc, cr);
 
     tc->tc_PPCCodePtr++;
     AdvancePC(tc, 4);
@@ -877,7 +1070,7 @@ static __used__ int EMIT_lbz(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForRead(tc, rd);
+    uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
@@ -917,6 +1110,48 @@ static __used__ int EMIT_lbz(struct TranslatorContext *tc, uint32_t opcode)
 
             FreeARMRegister(tc, ea);
         }
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_lbzu(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    int16_t d = opcode & 0xffff;
+
+    uint8_t reg = MapGPRForWrite(tc, rd);
+    uint8_t base = MapGPRForReadAndWrite(tc, ra);
+
+    /* Ra is a register, check if displacement can be used for load directly */
+    if (d >= -256 && d <= 255) {
+        EMIT(tc, ldrb_offset_preindex(base, reg, d));
+    }
+    else if (d >= 0 && d <= 0xfff) {
+        EMIT(tc, 
+            ldrb_offset(base, reg, d),
+            add_immed(base, base, d)
+        );
+    }
+    else {
+        uint8_t ea = AllocARMRegister(tc);
+
+        if (d < 0) {
+            EMIT(tc, movn_immed_u16(ea, ~d & 0xffff, 0));
+        }
+        else {
+            EMIT(tc, mov_immed_u16(ea, d, 0));
+        }
+        
+        EMIT(tc, 
+            ldrb_regoffset(base, reg, ea, SXTX),
+            add_reg(base, base, ea, LSL, 0)
+        );
+
+        FreeARMRegister(tc, ea);
     }
 
     tc->tc_PPCCodePtr++;
@@ -1030,7 +1265,10 @@ static __used__ int EMIT_bx(struct TranslatorContext *tc, uint32_t opcode)
     int update_lr = !!(opcode & 1);
     int is_absolute = !!(opcode & 2);
     int8_t pc_offset = 4;
-    
+    struct PPCState *ctx = getHostCTX();
+    uint32_t *old_pc = tc->tc_PPCCodePtr;
+    int32_t var_EMU68_BRANCH_INLINE_DISTANCE = (ctx->JIT_CONTROL >> JCCB_INLINE_RANGE) & JCCB_INLINE_RANGE_MASK;
+
     GetOffsetPC(tc, &pc_offset);
 
     if (offset & 0x02000000) offset |= 0xfc000000;
@@ -1058,7 +1296,7 @@ static __used__ int EMIT_bx(struct TranslatorContext *tc, uint32_t opcode)
             if ((pc_adj & 0xfffff000) == 0) {
                 EMIT(tc, sub_immed(REG_PC, REG_PC, pc_adj));
             } else if ((pc_adj & 0xff000fff) == 0) {
-                EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj));
+                EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
             } else {
                 uint8_t tmp = AllocARMRegister(tc);
                 EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
@@ -1069,7 +1307,7 @@ static __used__ int EMIT_bx(struct TranslatorContext *tc, uint32_t opcode)
             if ((pc_adj & 0xfffff000) == 0) {
                 EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
             } else if ((pc_adj & 0xff000fff) == 0) {
-                EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj));
+                EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
             } else {
                 uint8_t tmp = AllocARMRegister(tc);
                 EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
@@ -1079,6 +1317,272 @@ static __used__ int EMIT_bx(struct TranslatorContext *tc, uint32_t opcode)
         } 
     }
 
+    /* If jump distance is larger than allowed, break translation */
+    ptrdiff_t distance = 4 * (tc->tc_PPCCodePtr - old_pc);
+    if (distance > var_EMU68_BRANCH_INLINE_DISTANCE || distance < -var_EMU68_BRANCH_INLINE_DISTANCE) {
+        EMIT(tc, INSN_TO_LE(MARKER_STOP));
+    }
+
+    return 1;
+}
+
+static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    int32_t offset = opcode & 0x0000fffc;
+    uint32_t branch_target;
+    int is_absolute = !!(opcode & 2);
+    int8_t pc_offset = 4;
+    struct PPCState *ctx = getHostCTX();
+    uint32_t *old_pc = tc->tc_PPCCodePtr;
+    int32_t var_EMU68_BRANCH_INLINE_DISTANCE = (ctx->JIT_CONTROL >> JCCB_INLINE_RANGE) & JCCB_INLINE_RANGE_MASK;
+    uint8_t tmp = AllocARMRegister(tc);
+
+    uint8_t bo = (opcode >> 21) & 31;
+    uint8_t bi = (opcode >> 16) & 31;
+    uint8_t update_lr = opcode & 1;
+
+    /* Calculate if the branch shall be considered taken */
+    uint8_t bo0 = (bo >> 4) & 1;
+    uint8_t bo1 = (bo >> 3) & 1;
+    uint8_t bo2 = (bo >> 2) & 1;
+    uint8_t bo3 = (bo >> 1) & 1;
+    uint8_t dec_ctr = bo2 == 0;
+    uint8_t condition_true = bo1 == 1;
+    uint8_t bo4 = bo & 1;
+    uint8_t sign = (opcode >> 15) & 1;
+    uint8_t take_branch = ((bo0 & bo2) | sign) == bo4;
+
+    /* Sign-extend the offset */
+    if (offset & 0x00008000) offset |= 0xffff0000;
+
+    if (is_absolute) {
+        branch_target = offset;
+    } else {
+        branch_target = (uint32_t)(uintptr_t)old_pc + offset;
+    }
+
+//    kprintf("bcx: bo = %d, bi = %d, take_branch = %d\n", bo, bi, take_branch);
+//    kprintf("bcx: branch_target = %08x, old_pc = %08x, offset = %08x\n", branch_target, (uint32_t)(uintptr_t)old_pc, offset);
+
+    GetOffsetPC(tc, &pc_offset);
+
+//    kprintf("pc_offset = %d\n", pc_offset);
+
+    if (update_lr) {
+        PushReturnAddress(tc->tc_PPCCodePtr + 1);
+
+        if (pc_offset >= 0) {
+            EMIT(tc, add_immed(REG_LR, REG_PC, pc_offset));
+        } else {
+            EMIT(tc, sub_immed(REG_LR, REG_PC, -pc_offset));
+        }
+    }
+
+    ResetOffsetPC(tc);
+
+    /* Branch always! */
+    if (bo0 && bo2) {
+        if (is_absolute) {
+            tc->tc_PPCCodePtr = (uint32_t*)(uintptr_t)(uint32_t)offset;
+            EMIT_LoadImmediate(tc, REG_PC, (uint32_t)offset);
+        } else {
+            tc->tc_PPCCodePtr += (offset >> 2);
+            int32_t pc_adj = pc_offset + offset - 4;
+            if (pc_adj < 0) {
+                pc_adj = -pc_adj;
+                if ((pc_adj & 0xfffff000) == 0) {
+                    EMIT(tc, sub_immed(REG_PC, REG_PC, pc_adj));
+                } else if ((pc_adj & 0xff000fff) == 0) {
+                    EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                } else {
+                    EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                    EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                }
+            } else {
+                if ((pc_adj & 0xfffff000) == 0) {
+                    EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
+                } else if ((pc_adj & 0xff000fff) == 0) {
+                    EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                } else {
+                    EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                    EMIT(tc, add_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                }
+            }
+        }
+    } else {
+        uint8_t success_condition;
+        uint8_t reg_cr = MapGPRForRead(tc, CRn);
+
+        /* BO[2] == 0 - decrement CTR and set condition */
+        if (dec_ctr) {
+            EMIT(tc, subs_immed(REG_CTR, REG_CTR, 1));
+            /* bo3 == 1 <- take branch if CTR == 0; bo3 == 0 <- take branch if CTR != 0 */
+            if (bo3) {
+                EMIT(tc, cset(tmp, A64_CC_EQ));
+            } else {
+                EMIT(tc, cset(tmp, A64_CC_NE));
+            }
+            EMIT(tc, 
+                /* Test condition */
+                tst_immed(reg_cr, 1, (1 + bi) & 31),
+                /* Increase tmp if condition is met */
+                cinc(tmp, tmp, condition_true ? A64_CC_NE : A64_CC_EQ),
+                /* If both CTR condition and CR conditions are met, tmp == 2. Test it. */
+                tst_immed(tmp, 1, 31)
+            );
+            success_condition = A64_CC_NE;
+        } else {
+            /* Check the condition */
+            EMIT(tc, tst_immed(reg_cr, 1, (1 + bi) & 31));
+            success_condition = condition_true ? A64_CC_NE : A64_CC_EQ;
+        }
+
+        /* If branch is taken by default, invert success condition, since it will jump to local exit point */
+        if (take_branch)
+        {
+            success_condition ^= 1;
+            tc->tc_PPCCodePtr = (uint32_t *)(uintptr_t)branch_target;
+        }
+        else
+        {
+            tc->tc_PPCCodePtr++;
+        }
+
+        /* Emit jump, remember its location and fixup type */
+        uint32_t fixup_type = FIXUP_BCC;
+        uint32_t *jump_location = tc->tc_CodePtr;
+        EMIT(tc, b_cc(success_condition, 0));
+
+        /* Here the expected code path follows */
+        if (take_branch)
+        {
+            if (is_absolute) {
+                EMIT_LoadImmediate(tc, REG_PC, (uint32_t)offset);
+            } else {
+                int32_t pc_adj = pc_offset + offset - 4;
+                if (pc_adj < 0) {
+                    pc_adj = -pc_adj;
+                    if ((pc_adj & 0xfffff000) == 0) {
+                        EMIT(tc, sub_immed(REG_PC, REG_PC, pc_adj));
+                    } else if ((pc_adj & 0xff000fff) == 0) {
+                        EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                    } else {
+                        EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                        EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                    }
+                } else {
+                    if ((pc_adj & 0xfffff000) == 0) {
+                        EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
+                    } else if ((pc_adj & 0xff000fff) == 0) {
+                        EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                    } else {
+                        EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                        EMIT(tc, add_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                    }
+                }
+            }
+        }
+        else
+        {
+            int32_t pc_adj = pc_offset;
+            if (pc_adj < 0) {
+                pc_adj = -pc_adj;
+                if ((pc_adj & 0xfffff000) == 0) {
+                    EMIT(tc, sub_immed(REG_PC, REG_PC, pc_adj));
+                } else if ((pc_adj & 0xff000fff) == 0) {
+                    EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                } else {
+                    EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                    EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                }
+            } else {
+                if ((pc_adj & 0xfffff000) == 0) {
+                    EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
+                } else if ((pc_adj & 0xff000fff) == 0) {
+                    EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                } else {
+                    EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                    EMIT(tc, add_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                }
+            }
+        }
+
+        /* Now insert the other code path - this will be treated as exit code */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+
+        if (!take_branch)
+        {
+            if (is_absolute) {
+                EMIT_LoadImmediate(tc, REG_PC, (uint32_t)offset);
+            } else {
+                int32_t pc_adj = pc_offset + offset - 4;
+                if (pc_adj < 0) {
+                    pc_adj = -pc_adj;
+                    if ((pc_adj & 0xfffff000) == 0) {
+                        EMIT(tc, sub_immed(REG_PC, REG_PC, pc_adj));
+                    } else if ((pc_adj & 0xff000fff) == 0) {
+                        EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                    } else {
+                        EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                        EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                    }
+                } else {
+                    if ((pc_adj & 0xfffff000) == 0) {
+                        EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
+                    } else if ((pc_adj & 0xff000fff) == 0) {
+                        EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                    } else {
+                        EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                        EMIT(tc, add_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                    }
+                }
+            }
+        }
+        else
+        {
+            int32_t pc_adj = pc_offset;
+            if (pc_adj < 0) {
+                pc_adj = -pc_adj;
+                if ((pc_adj & 0xfffff000) == 0) {
+                    EMIT(tc, sub_immed(REG_PC, REG_PC, pc_adj));
+                } else if ((pc_adj & 0xff000fff) == 0) {
+                    EMIT(tc, sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                } else {
+                    EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                    EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                }
+            } else {
+                if ((pc_adj & 0xfffff000) == 0) {
+                    EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
+                } else if ((pc_adj & 0xff000fff) == 0) {
+                    EMIT(tc, add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                } else {
+                    EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
+                    EMIT(tc, add_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                }
+            }
+        }
+
+        /* Insert local exit */
+        LocalExit(tc, 1);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        /* Insert fixup location */
+        EMIT(tc, 
+            exit_code_end - jump_location,
+            fixup_type,
+            exit_code_end - exit_code_start,
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        );
+    }
+
+    /* If jump distance is larger than allowed, break translation */
+    ptrdiff_t distance = 4 * (tc->tc_PPCCodePtr - old_pc);
+    if (distance > var_EMU68_BRANCH_INLINE_DISTANCE || distance < -var_EMU68_BRANCH_INLINE_DISTANCE) {
+        EMIT(tc, INSN_TO_LE(MARKER_STOP));
+    }
+    
+    FreeARMRegister(tc, tmp);
     return 1;
 }
 
@@ -1486,7 +1990,7 @@ static __used__ int EMIT_bclrx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t sign = (opcode >> 15) & 1;
     uint8_t take_branch = ((bo0 & bo2) | sign) == bo4;
 
-    kprintf("bo = %d, bi = %d, take_branch = %d\n", bo, bi, take_branch);
+//    kprintf("bo = %d, bi = %d, take_branch = %d\n", bo, bi, take_branch);
 
     /* Branch always */
     if (bo & 0b10100) {
@@ -1743,6 +2247,7 @@ static __used__ int EMIT_mtspr(struct TranslatorContext *tc, uint32_t opcode)
             }
             case 8:
                 EMIT(tc, mov_reg(MapGPRForWrite(tc, LRn), reg_rs));
+                ResetReturnStack();
                 break;
             case 9:
                 EMIT(tc, mov_reg(MapGPRForWrite(tc, CTRn), reg_rs));
@@ -1750,6 +2255,90 @@ static __used__ int EMIT_mtspr(struct TranslatorContext *tc, uint32_t opcode)
             default:
                 return -1;
         }
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_rlwinmx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t update_cr = opcode & 1;
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t sh = (opcode >> 11) & 31;
+    uint8_t mb = (opcode >> 6) & 31;
+    uint8_t me = (opcode >> 1) & 31;
+
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
+    uint8_t and_src = reg_rs;
+
+    /* TODO: add obvious shortcuts! */
+
+    /* If sh is set, rotate left */
+    if (sh) {
+        EMIT(tc, ror(reg_ra, reg_rs, (32 - sh) & 31));
+        and_src = reg_ra;
+    }
+
+    /* Mask result if me - mb is not 31 */
+    if (((me - mb) & 31) != 31)
+    {
+        if (mb <= me)
+        {
+            /* mb < me - mask of type 0x0f...f0 */
+            EMIT(tc, update_cr ?
+                ands_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1)) :
+                and_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1))
+            );
+        }
+        else if (me < mb)
+        {
+            /* mb < me - mask of type 0xf..0..f */
+            EMIT(tc, update_cr ?
+                ands_immed(reg_ra, and_src, mb - me - 1, me + 1) :
+                and_immed(reg_ra, and_src, mb - me - 1, me + 1)
+            );
+        }
+    } else if (update_cr) {
+        if (!sh)
+            EMIT(tc, adds_immed(reg_ra, reg_rs, 0));
+        else
+            EMIT(tc, tst_immed(reg_ra, 32, 0));
+    }
+
+    if (update_cr) 
+    {
+        EMIT_set_crn_logic(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_orx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t update_cr = opcode & 1;
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_rb = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
+
+    if (rb == rs) {
+        EMIT(tc, mov_reg(reg_ra, reg_rs));
+    } else {
+        EMIT(tc, orr_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+    }
+
+    if (update_cr) {
+        EMIT(tc, tst_immed(reg_ra, 32, 0));
+        EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
@@ -1771,7 +2360,7 @@ static inline int EMIT_Group_19(struct TranslatorContext *tc, uint32_t opcode)
 {
     uint32_t secondary = (opcode >> 1) & 0x3ff;
 
-    kprintf("Group 19, secondary=%d\n");
+//    kprintf("Group 19, secondary=%d\n");
 
     switch (secondary) {
         case 0b0000000000: return EMIT_mcrf(tc, opcode);
@@ -1795,7 +2384,7 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
 {
     uint32_t secondary = (opcode >> 1) & 0x3ff;
 
-    kprintf("Group 31, secondary=%d\n");
+//    kprintf("Group 31, secondary=%d\n");
 
     switch (secondary) {
         //case 0b0000000000: return EMIT_cmp(tc, opcode);
@@ -1855,7 +2444,7 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         //case 0b0110011100: return EMIT_orcx(tc, opcode);
         //case 0b0110110110: return EMIT_ecowx(tc, opcode);
         //case 0b0110110111: return EMIT_sthux(tc, opcode);
-        //case 0b0110111100: return EMIT_orx(tc, opcode);
+        case 0b0110111100: return EMIT_orx(tc, opcode);
         //case 0b0111001011: return EMIT_divwux(tc, opcode);
         case 0b0111010011: return EMIT_mtspr(tc, opcode);
         //case 0b0111010110: return EMIT_dcbi(tc, opcode);
@@ -1902,22 +2491,24 @@ static inline int EmitINSN(struct TranslatorContext *tc)
     uint8_t group = opcode >> 26;
     int count = -1;
 
+//    kprintf("[PPC] EmitINSN @ %08x, opcode %08x, group %d\n", (uint32_t)(uintptr_t)tc->tc_PPCCodePtr, opcode, group);
+
     switch (group) {
         // case 0b000011: count = EMIT_twi(tc, opcode); break;
         // case 0b000111: count = EMIT_mulli(tc, opcode); break;
         // case 0b001000: count = EMIT_subfic(tc, opcode); break;
-        // case 0b001010: count = EMIT_cmpli(tc, opcode); break;
-        // case 0b001011: count = EMIT_cmpi(tc, opcode); break;
+        case 0b001010: count = EMIT_cmpli(tc, opcode); break;
+        case 0b001011: count = EMIT_cmpi(tc, opcode); break;
         // case 0b001100: count = EMIT_addic(tc, opcode); break;
         // case 0b001101: count = EMIT_addic_dot(tc, opcode); break;
         case 0b001110: count = EMIT_addi(tc, opcode); break;
         case 0b001111: count = EMIT_addis(tc, opcode); break;
-        // case 0b010000: count = EMIT_bcx(tc, opcode); break;
+        case 0b010000: count = EMIT_bcx(tc, opcode); break;
         // case 0b010001: count = EMIT_sc(tc, opcode); break;
         case 0b010010: count = EMIT_bx(tc, opcode); break;
         case 0b010011: count = EMIT_Group_19(tc, opcode); break;
         // case 0b010100: count = EMIT_rlwimix(tc, opcode); break;
-        // case 0b010101: count = EMIT_rlwinmx(tc, opcode); break;
+        case 0b010101: count = EMIT_rlwinmx(tc, opcode); break;
         // case 0b010111: count = EMIT_rlwnmx(tc, opcode); break;
         case 0b011000: count = EMIT_ori(tc, opcode); break;
         case 0b011001: count = EMIT_oris(tc, opcode); break;
@@ -1929,7 +2520,7 @@ static inline int EmitINSN(struct TranslatorContext *tc)
         case 0b100000: count = EMIT_lwz(tc, opcode); break;
         // case 0b100001: count = EMIT_lwzu(tc, opcode); break;
         case 0b100010: count = EMIT_lbz(tc, opcode); break;
-        // case 0b100011: count = EMIT_lbzu(tc, opcode); break;
+        case 0b100011: count = EMIT_lbzu(tc, opcode); break;
         case 0b100100: count = EMIT_stw(tc, opcode); break;
         case 0b100101: count = EMIT_stwu(tc, opcode); break;
         case 0b100110: count = EMIT_stb(tc, opcode); break;
@@ -2112,99 +2703,109 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
             ppc_high = tc.tc_PPCCodePtr + 16;
 
         insn_count+=insn_consumed;
-        if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_STOP))
+        
+        int process_markers = 1;
+
+        while(process_markers)
         {
-            tc.tc_CodePtr--;
-            break_loop = TRUE;
-        }
-        if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_BREAK))
-        {
-            tc.tc_CodePtr--;
-            soft_break = TRUE;
-        }
-        if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_EXIT_BLOCK))
-        {
-            struct ExitBlock *eb;
-            
-            tc.tc_CodePtr -= 4;
-            
-            uint32_t insn_count = tc.tc_CodePtr[2];
-            uint32_t fixup_type = tc.tc_CodePtr[1];
-            uint32_t fixup_target = tc.tc_CodePtr[0];
-
-            eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
-
-            eb->eb_Type = MARKER_EXIT_BLOCK;
-            eb->eb_InstructionCount = insn_count;
-            eb->eb_FixupType = fixup_type;
-            eb->eb_FixupLocation = tc.tc_CodePtr - fixup_target;
-
-            tc.tc_CodePtr -= insn_count;
-
-            for (unsigned i=0; i < insn_count; i++) {
-                eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
-            }
-
-            ADDTAIL(&exitList, eb);
-        }
-        if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_DOUBLE_EXIT))
-        {
-            struct DoubleExitBlock *eb;
-
-            tc.tc_CodePtr -= 6;
-
-            uint32_t insn_count = tc.tc_CodePtr[4];
-            uint32_t fixup2_type = tc.tc_CodePtr[3];
-            uint32_t fixup2_target = tc.tc_CodePtr[2];
-            uint32_t fixup1_type = tc.tc_CodePtr[1];
-            uint32_t fixup1_target = tc.tc_CodePtr[0];
-
-            eb = tlsf_malloc(tlsf, sizeof(struct DoubleExitBlock) + 4 * insn_count);
-
-            eb->eb_Type = MARKER_DOUBLE_EXIT;
-            eb->eb_InstructionCount = insn_count;
-            eb->eb_Fixup1Type = fixup1_type;
-            eb->eb_Fixup1Location = tc.tc_CodePtr - fixup1_target;
-            eb->eb_Fixup2Type = fixup2_type;
-            eb->eb_Fixup2Location = tc.tc_CodePtr - fixup2_target;
-
-            tc.tc_CodePtr -= insn_count;
-
-            for (unsigned i = 0; i < insn_count; i++)
+            if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_STOP))
             {
-                eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
+                tc.tc_CodePtr--;
+                break_loop = TRUE;
             }
-
-            ADDTAIL(&exitList, eb);
-        }
-        if (tc.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
-        {
-            uint32_t *tmpptr;
-            uint32_t *branch_mod[10];
-            uint32_t branch_cnt;
-            int local_branch_done = 0;
-            tc.tc_CodePtr--;
-            tc.tc_CodePtr--;  /* Remove branch target (unused!) */
-            branch_cnt = *--tc.tc_CodePtr;
-
-            for (unsigned i=0; i < branch_cnt; i++)
+            else if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_BREAK))
             {
-                uintptr_t ptr = *(uint32_t *)--tc.tc_CodePtr;
-                ptr |= (uintptr_t)tc.tc_CodePtr & 0xffffffff00000000;
-                branch_mod[i] = (uint32_t *)ptr;
+                tc.tc_CodePtr--;
+                soft_break = TRUE;
             }
-
-            tmpptr = tc.tc_CodePtr;
-
-            if (!local_branch_done)
+            else if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_EXIT_BLOCK))
             {
-                LocalExit(&tc, 0);
-            }
-            int distance = tc.tc_CodePtr - tmpptr;
+                struct ExitBlock *eb;
+                
+                tc.tc_CodePtr -= 4;
+                
+                uint32_t insn_count = tc.tc_CodePtr[2];
+                uint32_t fixup_type = tc.tc_CodePtr[1];
+                uint32_t fixup_target = tc.tc_CodePtr[0];
 
-            for (unsigned i=0; i < branch_cnt; i++) {
-                //kprintf("[PPC] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
-                *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
+                eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
+
+                eb->eb_Type = MARKER_EXIT_BLOCK;
+                eb->eb_InstructionCount = insn_count;
+                eb->eb_FixupType = fixup_type;
+                eb->eb_FixupLocation = tc.tc_CodePtr - fixup_target;
+
+                tc.tc_CodePtr -= insn_count;
+
+                for (unsigned i=0; i < insn_count; i++) {
+                    eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
+                }
+
+                ADDTAIL(&exitList, eb);
+            }
+            else if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_DOUBLE_EXIT))
+            {
+                struct DoubleExitBlock *eb;
+
+                tc.tc_CodePtr -= 6;
+
+                uint32_t insn_count = tc.tc_CodePtr[4];
+                uint32_t fixup2_type = tc.tc_CodePtr[3];
+                uint32_t fixup2_target = tc.tc_CodePtr[2];
+                uint32_t fixup1_type = tc.tc_CodePtr[1];
+                uint32_t fixup1_target = tc.tc_CodePtr[0];
+
+                eb = tlsf_malloc(tlsf, sizeof(struct DoubleExitBlock) + 4 * insn_count);
+
+                eb->eb_Type = MARKER_DOUBLE_EXIT;
+                eb->eb_InstructionCount = insn_count;
+                eb->eb_Fixup1Type = fixup1_type;
+                eb->eb_Fixup1Location = tc.tc_CodePtr - fixup1_target;
+                eb->eb_Fixup2Type = fixup2_type;
+                eb->eb_Fixup2Location = tc.tc_CodePtr - fixup2_target;
+
+                tc.tc_CodePtr -= insn_count;
+
+                for (unsigned i = 0; i < insn_count; i++)
+                {
+                    eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
+                }
+
+                ADDTAIL(&exitList, eb);
+            }
+            else if (tc.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
+            {
+                uint32_t *tmpptr;
+                uint32_t *branch_mod[10];
+                uint32_t branch_cnt;
+                int local_branch_done = 0;
+                tc.tc_CodePtr--;
+                tc.tc_CodePtr--;  /* Remove branch target (unused!) */
+                branch_cnt = *--tc.tc_CodePtr;
+
+                for (unsigned i=0; i < branch_cnt; i++)
+                {
+                    uintptr_t ptr = *(uint32_t *)--tc.tc_CodePtr;
+                    ptr |= (uintptr_t)tc.tc_CodePtr & 0xffffffff00000000;
+                    branch_mod[i] = (uint32_t *)ptr;
+                }
+
+                tmpptr = tc.tc_CodePtr;
+
+                if (!local_branch_done)
+                {
+                    LocalExit(&tc, 0);
+                }
+                int distance = tc.tc_CodePtr - tmpptr;
+
+                for (unsigned i=0; i < branch_cnt; i++) {
+                    //kprintf("[PPC] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
+                    *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
+                }
+            }
+            else
+            {
+                process_markers = 0;
             }
         }
 
@@ -3024,10 +3625,10 @@ void StartupPPC()
     ppc.JIT_UNIT_COUNT = 0;
     ppc.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
     ppc.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
-    ppc.JIT_CONTROL |= (256 & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
-    ppc.JIT_CONTROL |= (512 & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
+    ppc.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
+    ppc.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     ppc.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
-    ppc.JIT_CONTROL2 = (10 << JC2B_CCR_SCAN_DEPTH);
+    ppc.JIT_CONTROL2 = (EMU68_CCR_SCAN_DEPTH << JC2B_CCR_SCAN_DEPTH);
     
     /* Start at reset vector */
     ppc.PC = 0xfff00100;
@@ -3042,9 +3643,4 @@ void StartupPPC()
     kprintf("[PPC] Starting up!\n");
 
     PPCMainLoop();
-/*
-    PPC_LoadContext(&ppc);
-    
-    PPC_GetTranslationUnit((uint32_t *)0xfff00100);
-*/
 }
