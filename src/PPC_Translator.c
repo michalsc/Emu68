@@ -2463,6 +2463,100 @@ static __used__ int EMIT_addx(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_subfx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t oe = (opcode >> 10) & 1;
+    uint8_t rc = opcode & 1;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+
+    if (oe || rc) {
+        EMIT(tc, subs_reg(reg_rd, reg_rb, reg_ra, LSL, 0));
+    } else {
+        EMIT(tc, sub_reg(reg_rd, reg_rb, reg_ra, LSL, 0));
+    }
+
+    if (oe) {
+        uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+        uint8_t tmp = AllocARMRegister(tc);
+
+        EMIT(tc,
+            orr_immed(reg_xer, reg_xer, 2, 2),
+            bic_immed(tmp, reg_xer, 1, 2),
+            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
+        );
+
+        FreeARMRegister(tc, tmp);
+    }
+
+    if (rc) {
+        EMIT_set_crn_signed(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_subfic(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint16_t imm = (opcode & 0xffff);
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+
+    if (imm & 0x8000) {
+        EMIT(tc, movn_immed_u16(tmp, ~imm & 0xffff, 0));
+    } else {
+        EMIT(tc, mov_immed_u16(tmp, imm, 0));
+    }
+
+    // TODO: Verify if flag set correctly
+
+    EMIT(tc, 
+        bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
+        subs_reg(reg_rd, tmp, reg_ra, LSL, 0),
+        orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
+        csel(reg_xer, tmp, reg_xer, A64_CC_CC)  // Select CA set or clear in XER depending on A64 C flag
+    );
+
+    FreeARMRegister(tc, tmp);
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_cmp(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* sanity check */
+    if (opcode & 0x00600001) return -1;
+
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t cr = (opcode >> 23) & 7;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+
+    EMIT(tc, cmp_reg(reg_ra, reg_rb, LSL, 0));
+
+    EMIT_set_crn_signed(tc, cr);
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static inline int globalDebug() {
     //extern int debug;
     return 1; //debug;
@@ -2504,7 +2598,7 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
 //    kprintf("Group 31, secondary=%d\n");
 
     switch (secondary) {
-        //case 0b0000000000: return EMIT_cmp(tc, opcode);
+        case 0b0000000000: return EMIT_cmp(tc, opcode);
         //case 0b0000000100: return EMIT_tw(tc, opcode);
         //case 0b0000001000: return EMIT_subfcx(tc, opcode);
         //case 0b0000001010: return EMIT_addcx(tc, opcode);
@@ -2516,7 +2610,7 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         //case 0b0000011010: return EMIT_cntlzwx(tc, opcode);
         //case 0b0000011100: return EMIT_andx(tc, opcode);
         //case 0b0000100000: return EMIT_cmpl(tc, opcode);
-        //case 0b0000101000: return EMIT_subfx(tc, opcode);
+        case 0b0000101000: return EMIT_subfx(tc, opcode);
         //case 0b0000110110: return EMIT_dcbst(tc, opcode);
         case 0b0000110111: return EMIT_lwzux(tc, opcode);
         //case 0b0000111100: return EMIT_andcx(tc, opcode);
@@ -2613,7 +2707,7 @@ static inline int EmitINSN(struct TranslatorContext *tc)
     switch (group) {
         // case 0b000011: count = EMIT_twi(tc, opcode); break;
         case 0b000111: count = EMIT_mulli(tc, opcode); break;
-        // case 0b001000: count = EMIT_subfic(tc, opcode); break;
+        case 0b001000: count = EMIT_subfic(tc, opcode); break;
         case 0b001010: count = EMIT_cmpli(tc, opcode); break;
         case 0b001011: count = EMIT_cmpi(tc, opcode); break;
         // case 0b001100: count = EMIT_addic(tc, opcode); break;
