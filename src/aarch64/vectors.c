@@ -674,6 +674,11 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
     
+    if (far == 0xdeadbeef && size == 1) {
+        kprintf("%c", value);
+        return 1;
+    }
+
     switch(size)
     {
         case 1:
