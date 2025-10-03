@@ -1011,6 +1011,58 @@ static __used__ int EMIT_lwz(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_lwzx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    
+    /* If Ra is 0, then address is the displacement, only */
+    if (ra == 0) {
+        EMIT(tc, ldr_offset(reg_rb, reg_rd, 0));
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        EMIT(tc, ldr_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_lwzux(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    if (ra == 0 || ra == rd) return -1;
+
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+
+    /* If Ra is 0, then address is the displacement, only */
+    
+    EMIT(tc, 
+        ldr_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
+        add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
+    );
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static __used__ int EMIT_lhz(struct TranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
@@ -2081,7 +2133,7 @@ static __used__ int EMIT_bcctrx(struct TranslatorContext *tc, uint32_t opcode)
         else
         {
             /* Move LR to PC */
-            EMIT(tc, bic_immed(REG_PC, REG_LR, 2, 0));
+            EMIT(tc, bic_immed(REG_PC, REG_CTR, 2, 0));
         }
 
         if (success) {
@@ -2346,6 +2398,71 @@ static __used__ int EMIT_orx(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_mulli(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint16_t immed = opcode & 0xffff;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    if (immed & 0x8000) {
+        EMIT(tc, movn_immed_u16(tmp, ~immed & 0xffff, 0));
+    } else {
+        EMIT(tc, mov_immed_u16(tmp, immed, 0));
+    }
+
+    EMIT(tc, mul(reg_rd, reg_ra, tmp));
+
+    FreeARMRegister(tc, tmp);
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_addx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t oe = (opcode >> 10) & 1;
+    uint8_t rc = opcode & 1;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+
+    if (oe || rc) {
+        EMIT(tc, adds_reg(reg_rd, reg_ra, reg_rb, LSL, 0));
+    } else {
+        EMIT(tc, add_reg(reg_rd, reg_ra, reg_rb, LSL, 0));
+    }
+
+    if (oe) {
+        uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+        uint8_t tmp = AllocARMRegister(tc);
+
+        EMIT(tc,
+            orr_immed(reg_xer, reg_xer, 2, 2),
+            bic_immed(tmp, reg_xer, 1, 2),
+            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
+        );
+
+        FreeARMRegister(tc, tmp);
+    }
+
+    if (rc) {
+        EMIT_set_crn_signed(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static inline int globalDebug() {
     //extern int debug;
     return 1; //debug;
@@ -2394,14 +2511,14 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         //case 0b0000001011: return EMIT_mulhwux(tc, opcode);
         case 0b0000010011: return EMIT_mfcr(tc, opcode);
         //case 0b0000010100: return EMIT_lwarx(tc, opcode);
-        //case 0b0000010111: return EMIT_lwzx(tc, opcode);
+        case 0b0000010111: return EMIT_lwzx(tc, opcode);
         //case 0b0000011000: return EMIT_slwx(tc, opcode);
         //case 0b0000011010: return EMIT_cntlzwx(tc, opcode);
         //case 0b0000011100: return EMIT_andx(tc, opcode);
         //case 0b0000100000: return EMIT_cmpl(tc, opcode);
         //case 0b0000101000: return EMIT_subfx(tc, opcode);
         //case 0b0000110110: return EMIT_dcbst(tc, opcode);
-        //case 0b0000110111: return EMIT_lwzux(tc, opcode);
+        case 0b0000110111: return EMIT_lwzux(tc, opcode);
         //case 0b0000111100: return EMIT_andcx(tc, opcode);
         //case 0b0001001011: return EMIT_mulhwx(tc, opcode);
         //case 0b0001010011: return EMIT_mfmsr(tc, opcode);
@@ -2427,7 +2544,7 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         //case 0b0011110010: return EMIT_mtsrin(tc, opcode);
         //case 0b0011110110: return EMIT_dcbtst(tc, opcode);
         //case 0b0011110111: return EMIT_stbux(tc, opcode);
-        //case 0b0100001010: return EMIT_addx(tc, opcode);
+        case 0b0100001010: return EMIT_addx(tc, opcode);
         //case 0b0100010110: return EMIT_dcbt(tc, opcode);
         //case 0b0100010111: return EMIT_lhzx(tc, opcode);
         //case 0b0100011100: return EMIT_eqvx(tc, opcode);
@@ -2495,7 +2612,7 @@ static inline int EmitINSN(struct TranslatorContext *tc)
 
     switch (group) {
         // case 0b000011: count = EMIT_twi(tc, opcode); break;
-        // case 0b000111: count = EMIT_mulli(tc, opcode); break;
+        case 0b000111: count = EMIT_mulli(tc, opcode); break;
         // case 0b001000: count = EMIT_subfic(tc, opcode); break;
         case 0b001010: count = EMIT_cmpli(tc, opcode); break;
         case 0b001011: count = EMIT_cmpi(tc, opcode); break;
