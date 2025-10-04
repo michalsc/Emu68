@@ -111,7 +111,41 @@ static __used__ uint8_t AllocARMRegister(struct TranslatorContext *)
         }
     }
 
-    return 0xff;
+    /* No free ARM register. Remove last entry from GPR_LRU */
+    struct RegisterNode *rn = (struct RegisterNode *)REMTAIL(&GPR_LRU);
+
+    /* If dirty, store it back to PPC context */
+    if (rn->rn_Dirty) {
+        /* Store value from ARM register back into PPC context */
+        switch(rn->rn_RegNum) {
+            case GPR(14): EMIT(tc, mov_reg_to_simd(GPR14, rn->rn_ARM)); break;
+            case GPR(15): EMIT(tc, mov_reg_to_simd(GPR15, rn->rn_ARM)); break;
+            case GPR(16): EMIT(tc, mov_reg_to_simd(GPR16, rn->rn_ARM)); break;
+            case GPR(17): EMIT(tc, mov_reg_to_simd(GPR17, rn->rn_ARM)); break;
+            case GPR(18): EMIT(tc, mov_reg_to_simd(GPR18, rn->rn_ARM)); break;
+            case GPR(19): EMIT(tc, mov_reg_to_simd(GPR19, rn->rn_ARM)); break;
+            case GPR(20): EMIT(tc, mov_reg_to_simd(GPR20, rn->rn_ARM)); break;
+            case GPR(21): EMIT(tc, mov_reg_to_simd(GPR21, rn->rn_ARM)); break;
+            case GPR(22): EMIT(tc, mov_reg_to_simd(GPR22, rn->rn_ARM)); break;
+            case GPR(23): EMIT(tc, mov_reg_to_simd(GPR23, rn->rn_ARM)); break;
+            case GPR(24): EMIT(tc, mov_reg_to_simd(GPR24, rn->rn_ARM)); break;
+            case GPR(25): EMIT(tc, mov_reg_to_simd(GPR25, rn->rn_ARM)); break;
+            case GPR(26): EMIT(tc, mov_reg_to_simd(GPR26, rn->rn_ARM)); break;
+            case GPR(27): EMIT(tc, mov_reg_to_simd(GPR27, rn->rn_ARM)); break;
+            case GPR(28): EMIT(tc, mov_reg_to_simd(GPR28, rn->rn_ARM)); break;
+            case GPR(29): EMIT(tc, mov_reg_to_simd(GPR29, rn->rn_ARM)); break;
+            case GPR(30): EMIT(tc, mov_reg_to_simd(GPR30, rn->rn_ARM)); break;
+            case GPR(31): EMIT(tc, mov_reg_to_simd(GPR31, rn->rn_ARM)); break;
+            case CRn: EMIT(tc, mov_reg_to_simd(REG_CR, rn->rn_ARM)); break;
+            case XERn: EMIT(tc, mov_reg_to_simd(REG_XER, rn->rn_ARM)); break;
+            case FPSCRn: EMIT(tc, mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
+            default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
+        }
+    }
+
+    ADDTAIL(&FreePool, rn);
+
+    return rn->rn_ARM;
 }
 
 static __used__ void FreeARMRegister(struct TranslatorContext *, uint8_t arm_reg)
