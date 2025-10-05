@@ -445,7 +445,6 @@ static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
 {
     struct RegisterNode *rn, *next;
 
-    kprintf("FlushAllGPRs\n");
     bzero(FlushStore, sizeof(FlushStore));
 
     ForeachNodeSafe(&GPR_LRU, rn, next)
@@ -497,8 +496,6 @@ static __used__ void StoreDirtyGPRs(struct TranslatorContext *tc)
     struct RegisterNode *rn;
 
     bzero(FlushStore, sizeof(FlushStore));
-
-    kprintf("StoreDirtyGPRs\n");
 
     ForeachNode(&GPR_LRU, rn)
     {
@@ -3228,7 +3225,7 @@ static __used__ int EMIT_norx(struct TranslatorContext *tc, uint32_t opcode)
         EMIT(tc, cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
-    
+
     tc->tc_PPCCodePtr++;
     AdvancePC(tc, 4);
     return 1;
