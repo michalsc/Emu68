@@ -377,9 +377,76 @@ static __used__ void SetDirtyGPR(struct TranslatorContext *, uint8_t reg)
     }
 }
 
+struct FlushItem {
+    uint8_t Vn, Size, Pos, ARM;
+} FlushStore[20];
+
+inline void MarkForFlush(uint8_t vn, uint8_t size, uint8_t lane, uint8_t arm) {
+    FlushStore[lane + (vn - 22) * 4].Vn = vn;
+    FlushStore[lane + (vn - 22) * 4].Size = size;
+    FlushStore[lane + (vn - 22) * 4].Pos = lane;
+    FlushStore[lane + (vn - 22) * 4].ARM = arm;
+}
+
+void PurgeFlushStore(struct TranslatorContext *tc)
+{
+    struct FlushItem FlushStoreSorted[20];
+    struct FlushItem *last = FlushStoreSorted;
+
+    bzero(FlushStoreSorted, sizeof(FlushStoreSorted));
+
+    /* Naive sorting by usage of lanes */
+    for (int lanes = 4; lanes > 0; lanes--)
+    {
+        for (int i=0; i < 5; i++)
+        {
+            int count = 0;
+            for (int j=0; j < 4; j++) {
+                if (FlushStore[4 * i + j].Vn != 0) count++;
+            }
+
+            if (count == lanes) {
+                *last++ = FlushStore[4 * i];
+                *last++ = FlushStore[4 * i + 1];
+                *last++ = FlushStore[4 * i + 2];
+                *last++ = FlushStore[4 * i + 3];
+            }
+        }
+    }
+
+    /* Emit stores, register by register, starting at first lane for given register which is there to be stored. */
+    int stored = 0;
+    do
+    {
+        stored = 0;
+        for (unsigned int vn=0; vn < 5; vn++)
+        {
+            for (unsigned int lane=0; lane < 4; lane++) {
+                if (FlushStoreSorted[4 * vn + lane].Vn != 0)
+                {
+                    /* EMIT actual store */
+                    EMIT(tc, mov_reg_to_simd(
+                                FlushStoreSorted[4 * vn + lane].Vn,
+                                FlushStoreSorted[4 * vn + lane].Size,
+                                FlushStoreSorted[4 * vn + lane].Pos,
+                                FlushStoreSorted[4 * vn + lane].ARM)
+                    );
+                    
+                    FlushStoreSorted[4 * vn + lane].Vn = 0;
+                    stored = 1;
+                    break;
+                }
+            }
+        }
+    } while(stored);
+}
+
 static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
 {
     struct RegisterNode *rn, *next;
+
+    kprintf("FlushAllGPRs\n");
+    bzero(FlushStore, sizeof(FlushStore));
 
     ForeachNodeSafe(&GPR_LRU, rn, next)
     {
@@ -390,75 +457,82 @@ static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
         if (rn->rn_Dirty) {
             /* Store value from ARM register back into PPC context */
             switch(rn->rn_RegNum) {
-                case GPR(14): EMIT(tc, mov_reg_to_simd(GPR14, rn->rn_ARM)); break;
-                case GPR(15): EMIT(tc, mov_reg_to_simd(GPR15, rn->rn_ARM)); break;
-                case GPR(16): EMIT(tc, mov_reg_to_simd(GPR16, rn->rn_ARM)); break;
-                case GPR(17): EMIT(tc, mov_reg_to_simd(GPR17, rn->rn_ARM)); break;
-                case GPR(18): EMIT(tc, mov_reg_to_simd(GPR18, rn->rn_ARM)); break;
-                case GPR(19): EMIT(tc, mov_reg_to_simd(GPR19, rn->rn_ARM)); break;
-                case GPR(20): EMIT(tc, mov_reg_to_simd(GPR20, rn->rn_ARM)); break;
-                case GPR(21): EMIT(tc, mov_reg_to_simd(GPR21, rn->rn_ARM)); break;
-                case GPR(22): EMIT(tc, mov_reg_to_simd(GPR22, rn->rn_ARM)); break;
-                case GPR(23): EMIT(tc, mov_reg_to_simd(GPR23, rn->rn_ARM)); break;
-                case GPR(24): EMIT(tc, mov_reg_to_simd(GPR24, rn->rn_ARM)); break;
-                case GPR(25): EMIT(tc, mov_reg_to_simd(GPR25, rn->rn_ARM)); break;
-                case GPR(26): EMIT(tc, mov_reg_to_simd(GPR26, rn->rn_ARM)); break;
-                case GPR(27): EMIT(tc, mov_reg_to_simd(GPR27, rn->rn_ARM)); break;
-                case GPR(28): EMIT(tc, mov_reg_to_simd(GPR28, rn->rn_ARM)); break;
-                case GPR(29): EMIT(tc, mov_reg_to_simd(GPR29, rn->rn_ARM)); break;
-                case GPR(30): EMIT(tc, mov_reg_to_simd(GPR30, rn->rn_ARM)); break;
-                case GPR(31): EMIT(tc, mov_reg_to_simd(GPR31, rn->rn_ARM)); break;
-                case CRn: EMIT(tc, mov_reg_to_simd(REG_CR, rn->rn_ARM)); break;
-                case XERn: EMIT(tc, mov_reg_to_simd(REG_XER, rn->rn_ARM)); break;
+                case GPR(14): MarkForFlush(GPR14, rn->rn_ARM); break;
+                case GPR(15): MarkForFlush(GPR15, rn->rn_ARM); break;
+                case GPR(16): MarkForFlush(GPR16, rn->rn_ARM); break;
+                case GPR(17): MarkForFlush(GPR17, rn->rn_ARM); break;
+                case GPR(18): MarkForFlush(GPR18, rn->rn_ARM); break;
+                case GPR(19): MarkForFlush(GPR19, rn->rn_ARM); break;
+                case GPR(20): MarkForFlush(GPR20, rn->rn_ARM); break;
+                case GPR(21): MarkForFlush(GPR21, rn->rn_ARM); break;
+                case GPR(22): MarkForFlush(GPR22, rn->rn_ARM); break;
+                case GPR(23): MarkForFlush(GPR23, rn->rn_ARM); break;
+                case GPR(24): MarkForFlush(GPR24, rn->rn_ARM); break;
+                case GPR(25): MarkForFlush(GPR25, rn->rn_ARM); break;
+                case GPR(26): MarkForFlush(GPR26, rn->rn_ARM); break;
+                case GPR(27): MarkForFlush(GPR27, rn->rn_ARM); break;
+                case GPR(28): MarkForFlush(GPR28, rn->rn_ARM); break;
+                case GPR(29): MarkForFlush(GPR29, rn->rn_ARM); break;
+                case GPR(30): MarkForFlush(GPR30, rn->rn_ARM); break;
+                case GPR(31): MarkForFlush(GPR31, rn->rn_ARM); break;
+                case CRn: MarkForFlush(REG_CR, rn->rn_ARM); break;
+                case XERn: MarkForFlush(REG_XER, rn->rn_ARM); break;
                 case FPSCRn: EMIT(tc, mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
                 default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
             }
         }
-
+        
         /* Mark ARM register as free */
-        FreeARMRegister(tc, rn->rn_ARM);
+        FreeARMRegister(tc, rn->rn_ARM); 
 
         /* Add the node itself to free pool */
         ADDTAIL(&FreePool, rn);
     }
+
+    PurgeFlushStore(tc);
 }
 
 static __used__ void StoreDirtyGPRs(struct TranslatorContext *tc)
 {
     struct RegisterNode *rn;
 
+    bzero(FlushStore, sizeof(FlushStore));
+
+    kprintf("StoreDirtyGPRs\n");
+
     ForeachNode(&GPR_LRU, rn)
     {
-//        kprintf("checking reg %d, arm %d, dirty %d\n", rn->rn_RegNum, rn->rn_ARM, rn->rn_Dirty);
         /* If dirty, store it back to PPC context */
         if (rn->rn_Dirty) {
             /* Store value from ARM register back into PPC context */
             switch(rn->rn_RegNum) {
-                case GPR(14): EMIT(tc, mov_reg_to_simd(GPR14, rn->rn_ARM)); break;
-                case GPR(15): EMIT(tc, mov_reg_to_simd(GPR15, rn->rn_ARM)); break;
-                case GPR(16): EMIT(tc, mov_reg_to_simd(GPR16, rn->rn_ARM)); break;
-                case GPR(17): EMIT(tc, mov_reg_to_simd(GPR17, rn->rn_ARM)); break;
-                case GPR(18): EMIT(tc, mov_reg_to_simd(GPR18, rn->rn_ARM)); break;
-                case GPR(19): EMIT(tc, mov_reg_to_simd(GPR19, rn->rn_ARM)); break;
-                case GPR(20): EMIT(tc, mov_reg_to_simd(GPR20, rn->rn_ARM)); break;
-                case GPR(21): EMIT(tc, mov_reg_to_simd(GPR21, rn->rn_ARM)); break;
-                case GPR(22): EMIT(tc, mov_reg_to_simd(GPR22, rn->rn_ARM)); break;
-                case GPR(23): EMIT(tc, mov_reg_to_simd(GPR23, rn->rn_ARM)); break;
-                case GPR(24): EMIT(tc, mov_reg_to_simd(GPR24, rn->rn_ARM)); break;
-                case GPR(25): EMIT(tc, mov_reg_to_simd(GPR25, rn->rn_ARM)); break;
-                case GPR(26): EMIT(tc, mov_reg_to_simd(GPR26, rn->rn_ARM)); break;
-                case GPR(27): EMIT(tc, mov_reg_to_simd(GPR27, rn->rn_ARM)); break;
-                case GPR(28): EMIT(tc, mov_reg_to_simd(GPR28, rn->rn_ARM)); break;
-                case GPR(29): EMIT(tc, mov_reg_to_simd(GPR29, rn->rn_ARM)); break;
-                case GPR(30): EMIT(tc, mov_reg_to_simd(GPR30, rn->rn_ARM)); break;
-                case GPR(31): EMIT(tc, mov_reg_to_simd(GPR31, rn->rn_ARM)); break;
-                case CRn: EMIT(tc, mov_reg_to_simd(REG_CR, rn->rn_ARM)); break;
-                case XERn: EMIT(tc, mov_reg_to_simd(REG_XER, rn->rn_ARM)); break;
+                case GPR(14): MarkForFlush(GPR14, rn->rn_ARM); break;
+                case GPR(15): MarkForFlush(GPR15, rn->rn_ARM); break;
+                case GPR(16): MarkForFlush(GPR16, rn->rn_ARM); break;
+                case GPR(17): MarkForFlush(GPR17, rn->rn_ARM); break;
+                case GPR(18): MarkForFlush(GPR18, rn->rn_ARM); break;
+                case GPR(19): MarkForFlush(GPR19, rn->rn_ARM); break;
+                case GPR(20): MarkForFlush(GPR20, rn->rn_ARM); break;
+                case GPR(21): MarkForFlush(GPR21, rn->rn_ARM); break;
+                case GPR(22): MarkForFlush(GPR22, rn->rn_ARM); break;
+                case GPR(23): MarkForFlush(GPR23, rn->rn_ARM); break;
+                case GPR(24): MarkForFlush(GPR24, rn->rn_ARM); break;
+                case GPR(25): MarkForFlush(GPR25, rn->rn_ARM); break;
+                case GPR(26): MarkForFlush(GPR26, rn->rn_ARM); break;
+                case GPR(27): MarkForFlush(GPR27, rn->rn_ARM); break;
+                case GPR(28): MarkForFlush(GPR28, rn->rn_ARM); break;
+                case GPR(29): MarkForFlush(GPR29, rn->rn_ARM); break;
+                case GPR(30): MarkForFlush(GPR30, rn->rn_ARM); break;
+                case GPR(31): MarkForFlush(GPR31, rn->rn_ARM); break;
+                case CRn: MarkForFlush(REG_CR, rn->rn_ARM); break;
+                case XERn: MarkForFlush(REG_XER, rn->rn_ARM); break;
                 case FPSCRn: EMIT(tc, mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
                 default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
             }
         }
     }
+
+    PurgeFlushStore(tc);
 }
 
 static __used__ void GetOffsetPC(struct TranslatorContext *tc, int8_t *offset)
@@ -1093,6 +1167,48 @@ static __used__ int EMIT_lwz(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_lwzu(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    int16_t d = opcode & 0xffff;
+
+    uint8_t reg = MapGPRForWrite(tc, rd);
+    uint8_t base = MapGPRForReadAndWrite(tc, ra);
+
+    /* Ra is a register, check if displacement can be used for load directly */
+    if (d >= -256 && d <= 255) {
+        EMIT(tc, ldr_offset_preindex(base, reg, d));
+    }
+    else if (d >= 0 && d <= 0xfff && (d & 3) == 0) {
+        EMIT(tc, 
+            ldr_offset(base, reg, d),
+            add_immed(base, base, d)
+        );
+    }
+    else {
+        uint8_t ea = AllocARMRegister(tc);
+
+        if (d < 0) {
+            EMIT(tc, movn_immed_u16(ea, ~d & 0xffff, 0));
+        }
+        else {
+            EMIT(tc, mov_immed_u16(ea, d, 0));
+        }
+        
+        EMIT(tc, 
+            ldr_regoffset(base, reg, ea, SXTX, 0),
+            add_reg(base, base, ea, LSL, 0)
+        );
+
+        FreeARMRegister(tc, ea);
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static __used__ int EMIT_lwzx(struct TranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -1143,6 +1259,31 @@ static __used__ int EMIT_lhzx(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_lhzux(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    if (ra == 0 || ra == rd) return -1;
+
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+
+    EMIT(tc, 
+        ldrh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
+        add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
+    );
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static __used__ int EMIT_lhax(struct TranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -1162,6 +1303,31 @@ static __used__ int EMIT_lhax(struct TranslatorContext *tc, uint32_t opcode)
         uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldrsh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
+static __used__ int EMIT_lhaux(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    if (ra == 0 || rd == ra) return -1;
+
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+
+    EMIT(tc, 
+        ldrsh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
+        add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
+    );
 
     tc->tc_PPCCodePtr++;
     AdvancePC(tc, 4);
@@ -3288,13 +3454,13 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         //case 0b0100011100: return EMIT_eqvx(tc, opcode);
         //case 0b0100110010: return EMIT_tlbie(tc, opcode);
         //case 0b0100110110: return EMIT_eciwx(tc, opcode);
-        //case 0b0100110111: return EMIT_lhzux(tc, opcode);
+        case 0b0100110111: return EMIT_lhzux(tc, opcode);
         //case 0b0100111100: return EMIT_xorx(tc, opcode);
         case 0b0101010011: return EMIT_mfspr(tc, opcode);
         case 0b0101010111: return EMIT_lhax(tc, opcode);
         //case 0b0101110010: return EMIT_tlbia(tc, opcode);
         case 0b0101110011: return EMIT_mftb(tc, opcode);
-        //case 0b0101110111: return EMIT_lhaux(tc, opcode);
+        case 0b0101110111: return EMIT_lhaux(tc, opcode);
         case 0b0110010111: return EMIT_sthx(tc, opcode);
         //case 0b0110011100: return EMIT_orcx(tc, opcode);
         //case 0b0110110110: return EMIT_ecowx(tc, opcode);
@@ -3373,7 +3539,7 @@ static inline int EmitINSN(struct TranslatorContext *tc)
         case 0b011101: count = EMIT_andis_dot(tc, opcode); break;
         case 0b011111: count = EMIT_Group_31(tc, opcode); break;
         case 0b100000: count = EMIT_lwz(tc, opcode); break;
-        // case 0b100001: count = EMIT_lwzu(tc, opcode); break;
+        case 0b100001: count = EMIT_lwzu(tc, opcode); break;
         case 0b100010: count = EMIT_lbz(tc, opcode); break;
         case 0b100011: count = EMIT_lbzu(tc, opcode); break;
         case 0b100100: count = EMIT_stw(tc, opcode); break;
