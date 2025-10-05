@@ -931,14 +931,15 @@ static __used__ int EMIT_stb(struct TranslatorContext *tc, uint32_t opcode)
 
         FreeARMRegister(tc, ea);
     } else {
+        uint8_t base = MapGPRForRead(tc, ra);
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0xfff) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, strb_offset(base, reg, d));
+        } else if (d >= -256 && d < 255) {
+            EMIT(tc, sturb_offset(base, reg, d));
         }
         else {
             uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
 
             if (d < 0) {
                 EMIT(tc, movn_immed_u16(ea, ~d & 0xffff, 0));
