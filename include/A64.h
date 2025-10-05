@@ -171,6 +171,7 @@ static inline uint32_t dc_civac(uint8_t rt) { ASSERT_REG(rt); return sys(rt, 3, 
 static inline uint32_t dsb_sy() { return I32(0xd5033f9f); }
 static inline uint32_t isb() { return I32(0xd5033fdf); }
 static inline uint32_t dmb_ish() { return I32(0xd5033bbf); }
+static inline uint32_t dmb_sy() { return I32(0xd5033fbf); }
 static inline uint32_t nop() { return I32(0xd503201f); }
 static inline uint32_t svc(uint16_t code) { return I32(0xd4000001 | (code << 5)); }
 
