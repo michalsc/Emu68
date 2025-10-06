@@ -2214,19 +2214,21 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
         }
     } else {
         uint8_t success_condition;
-        uint8_t reg_cr = MapGPRForRead(tc, CRn);
 
         /* BO[2] == 0 - decrement CTR and set condition */
         if (dec_ctr) {
             EMIT(tc, subs_immed(REG_CTR, REG_CTR, 1));
             /* bo3 == 1 <- take branch if CTR == 0; bo3 == 0 <- take branch if CTR != 0 */
             if (bo3) {
-                EMIT(tc, cset(tmp, A64_CC_EQ));
+                success_condition = A64_CC_EQ;
+                if (bo0 == 0) EMIT(tc, cset(tmp, A64_CC_EQ));
             } else {
-                EMIT(tc, cset(tmp, A64_CC_NE));
+                success_condition = A64_CC_NE;
+                if (bo0 == 0) EMIT(tc, cset(tmp, A64_CC_NE));
             }
             /* if bo0 == 1 there is no need to test condition flags */
             if (bo0 == 0) {
+                uint8_t reg_cr = MapGPRForRead(tc, CRn);
                 EMIT(tc, 
                     /* Test condition */
                     tst_immed(reg_cr, 1, (1 + bi) & 31),
@@ -2235,9 +2237,10 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
                     /* If both CTR condition and CR conditions are met, tmp == 2. Test it. */
                     tst_immed(tmp, 1, 31)
                 );
+                success_condition = A64_CC_NE;
             }
-            success_condition = A64_CC_NE;
         } else {
+            uint8_t reg_cr = MapGPRForRead(tc, CRn);
             /* Check the condition */
             EMIT(tc, tst_immed(reg_cr, 1, (1 + bi) & 31));
             success_condition = condition_true ? A64_CC_NE : A64_CC_EQ;
