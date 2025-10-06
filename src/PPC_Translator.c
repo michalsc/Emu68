@@ -4214,7 +4214,8 @@ static inline int EmitINSN(struct TranslatorContext *tc)
 static __used__ void LocalExit(struct TranslatorContext *tc, uint32_t insn_fixup)
 {
 #if EMU68_INSN_COUNTER
-    EMIT(tc, mov_simd_to_reg(0, CTX_INSN_COUNT));
+    uint8_t icnt_reg = AllocARMRegister(tc);
+    EMIT(tc, mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
 #endif
 
     //StoreDirtyFPURegs(tc);
@@ -4224,9 +4225,10 @@ static __used__ void LocalExit(struct TranslatorContext *tc, uint32_t insn_fixup
 
 #if EMU68_INSN_COUNTER
     EMIT(tc,
-        add64_immed(0, 0, (insn_count + insn_fixup) & 0xfff),
-        mov_reg_to_simd(CTX_INSN_COUNT, 0)
+        add64_immed(icnt_reg, icnt_reg, (insn_count + insn_fixup) & 0xfff),
+        mov_reg_to_simd(CTX_INSN_COUNT, icnt_reg)
     );
+    FreeARMRegister(tc, icnt_reg);
 #else
     (void)insn_fixup;
 #endif
