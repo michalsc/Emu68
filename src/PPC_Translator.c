@@ -484,7 +484,7 @@ static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
         }
         
         /* Mark ARM register as free */
-        FreeARMRegister(tc, rn->rn_ARM); 
+        FreeARMRegister(tc, rn->rn_ARM);
 
         /* Add the node itself to free pool */
         ADDTAIL(&FreePool, rn);
@@ -767,8 +767,8 @@ static __used__ int EMIT_addi(struct TranslatorContext *tc, uint32_t opcode)
             arm_rd = MapGPRForReadAndWrite(tc, rd);
             arm_ra = arm_rd;
         } else {
-            arm_rd = MapGPRForWrite(tc, rd);
             arm_ra = MapGPRForRead(tc, ra);
+            arm_rd = MapGPRForWrite(tc, rd);
         }
 
         /* If negative, we handle subtraction */
@@ -821,8 +821,8 @@ static __used__ int EMIT_addis(struct TranslatorContext *tc, uint32_t opcode)
             arm_rd = MapGPRForReadAndWrite(tc, rd);
             arm_ra = arm_rd;
         } else {
-            arm_rd = MapGPRForWrite(tc, rd);
             arm_ra = MapGPRForRead(tc, ra);
+            arm_rd = MapGPRForWrite(tc, rd);
         }
 
         if (imm & 0xff00) {
@@ -1068,6 +1068,7 @@ static __used__ int EMIT_lha(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
+    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* If Ra is 0, then address is the displacement, only */
@@ -1086,16 +1087,13 @@ static __used__ int EMIT_lha(struct TranslatorContext *tc, uint32_t opcode)
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x1ffe && (d & 1) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, ldrsh_offset(base, reg, d));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, ldursh_offset(base, reg, d));
         }
         else {
             uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
 
             if (d < 0) {
                 EMIT(tc, movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1121,6 +1119,7 @@ static __used__ int EMIT_lwz(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
+    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* If Ra is 0, then address is the displacement, only */
@@ -1139,16 +1138,13 @@ static __used__ int EMIT_lwz(struct TranslatorContext *tc, uint32_t opcode)
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 3) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, ldr_offset(base, reg, d));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, ldur_offset(base, reg, d));
         }
         else {
             uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
 
             if (d < 0) {
                 EMIT(tc, movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1174,8 +1170,8 @@ static __used__ int EMIT_lwzu(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForWrite(tc, rd);
     uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -1216,8 +1212,8 @@ static __used__ int EMIT_lhzu(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForWrite(tc, rd);
     uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -1258,8 +1254,8 @@ static __used__ int EMIT_lhau(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForWrite(tc, rd);
     uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -1303,14 +1299,15 @@ static __used__ int EMIT_lwzx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         EMIT(tc, ldr_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldr_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
@@ -1328,14 +1325,14 @@ static __used__ int EMIT_lwbrx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         EMIT(tc, ldr_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldr_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
@@ -1355,14 +1352,14 @@ static __used__ int EMIT_lhzx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         EMIT(tc, ldrh_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldrh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
@@ -1380,14 +1377,14 @@ static __used__ int EMIT_lhbrx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0;
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         EMIT(tc, ldrh_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldrh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
@@ -1409,10 +1406,10 @@ static __used__ int EMIT_lhzux(struct TranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rd) return -1;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
-
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    
     EMIT(tc, 
         ldrh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
@@ -1434,9 +1431,9 @@ static __used__ int EMIT_lbzux(struct TranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rd) return -1;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
     EMIT(tc, 
         ldrb_regoffset(reg_ra, reg_rd, reg_rb, SXTX),
@@ -1457,14 +1454,14 @@ static __used__ int EMIT_lhax(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         EMIT(tc, ldrsh_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldrsh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
@@ -1484,9 +1481,9 @@ static __used__ int EMIT_lhaux(struct TranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || rd == ra) return -1;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
     EMIT(tc, 
         ldrsh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
@@ -1507,14 +1504,14 @@ static __used__ int EMIT_lbzx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         EMIT(tc, ldrb_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
         EMIT(tc, ldrb_regoffset(reg_ra, reg_rd, reg_rb, SXTX));
     }
 
@@ -1744,9 +1741,9 @@ static __used__ int EMIT_lwzux(struct TranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rd) return -1;
 
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
     /* If Ra is 0, then address is the displacement, only */
     
@@ -1819,6 +1816,7 @@ static __used__ int EMIT_lbz(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
+    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
     uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* If Ra is 0, then address is the displacement, only */
@@ -1837,16 +1835,13 @@ static __used__ int EMIT_lbz(struct TranslatorContext *tc, uint32_t opcode)
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0xfff) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, ldrb_offset(base, reg, d));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
             EMIT(tc, ldurb_offset(base, reg, d));
         }
         else {
             uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
 
             if (d < 0) {
                 EMIT(tc, movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1872,8 +1867,8 @@ static __used__ int EMIT_lbzu(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForWrite(tc, rd);
     uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    uint8_t reg = MapGPRForWrite(tc, rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -4333,9 +4328,18 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         disasm = globalDisasm();
     }
 
+    if (!IsListEmpty(&GPR_LRU)) {
+        kprintf("[PPC] GPR_LRU list is not empty!\n");
+        while(1);
+    }
+
+    if (!IsListEmpty(&FPR_LRU)) {
+        kprintf("[PPC] FPR_LRU list is not empty!\n");
+        while(1);
+    }
+
     if (GetTempAllocMask(&tc)) {
         kprintf("[PPC] Temporary register alloc mask on translate start is non-zero %x\n", GetTempAllocMask(&tc));
-
         while(1);
     }
 
@@ -4555,7 +4559,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                 int capacity = var_EMU68_PPC_INSN_DEPTH / insn_count;
                 if (capacity > var_EMU68_MAX_LOOP_COUNT) capacity = var_EMU68_MAX_LOOP_COUNT;
 
-                if (insn_count == 1) break;
                 if (capacity <= 1) break;
 
                 inner_loop_limit = capacity - 1;
