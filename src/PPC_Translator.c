@@ -4360,6 +4360,9 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     ppc_low = tc.tc_PPCCodePtr;
     ppc_high = tc.tc_PPCCodePtr + 16;
 
+    int inner_loop_length = 0;
+    int inner_loop_limit = 0;
+
     while (break_loop == FALSE && soft_break == FALSE && insn_count < var_EMU68_PPC_INSN_DEPTH)
     {
         uint16_t insn_consumed;
@@ -4539,14 +4542,32 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
             }
             else {
                 last_rev_jump = tc.tc_PPCCodePtr;
-                max_rev_jumps = var_EMU68_MAX_LOOP_COUNT - 1;
+                max_rev_jumps = var_EMU68_MAX_LOOP_COUNT;
             }
         }
 
         if (!break_loop && (orig_ppccodeptr == tc.tc_PPCCodePtr))
         {
             inner_loop = TRUE;
-            if (!soft_break) break;
+
+            kprintf("inner loop, max_rev_jumps = %d\n", max_rev_jumps);
+
+            if (inner_loop_length == 0) {
+                inner_loop_length = insn_count;
+                int capacity = var_EMU68_PPC_INSN_DEPTH / insn_count;
+                if (capacity > var_EMU68_MAX_LOOP_COUNT) capacity = var_EMU68_MAX_LOOP_COUNT;
+
+                kprintf("inner loop length: %d instructions, have capacity for %d loops\n", insn_count, capacity);
+
+                if (insn_count == 1) break;
+                if (capacity <= 1) break;
+
+                inner_loop_limit = capacity - 1;
+            } else {
+                if (--inner_loop_limit == 0) break;
+            }
+
+            //if (!soft_break) break;
         }
     }
 
