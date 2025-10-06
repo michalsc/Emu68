@@ -2893,16 +2893,11 @@ static __used__ int EMIT_bcctrx(struct TranslatorContext *tc, uint32_t opcode)
 
     /* Branch always */
     if (bo & 0b10100) {
-        uint8_t success = 0;
-        uint32_t *last_pc = PopReturnAddress(&success);
-
         /* if LR needs to be updated, do it now */
         if (update_lr) {
             int8_t pc_offset = 4;
 
             GetOffsetPC(tc, &pc_offset);
-
-            PushReturnAddress(tc->tc_PPCCodePtr + 1);
 
             if (pc_offset >= 0) {
                 EMIT(tc, add_immed(REG_LR, REG_PC, pc_offset));
@@ -2918,15 +2913,12 @@ static __used__ int EMIT_bcctrx(struct TranslatorContext *tc, uint32_t opcode)
             EMIT(tc, bic_immed(REG_PC, REG_CTR, 2, 0));
         }
 
-        if (success) {
-            tc->tc_PPCCodePtr = last_pc;
-        } else {
-            /* The return address stack was not available, stop now */
-            EMIT(tc, INSN_TO_LE(MARKER_STOP));
-        }
+        /* The return address stack was not available, stop now */
+        EMIT(tc, INSN_TO_LE(MARKER_STOP));
 
         ResetOffsetPC(tc);
     } else {
+        kprintf("UNIMPLEMENTED bcctrlx with condition\n");
         (void)bi;
         (void)take_branch;
         return -1;
