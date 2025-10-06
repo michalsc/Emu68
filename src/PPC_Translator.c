@@ -829,6 +829,7 @@ static __used__ int EMIT_addis(struct TranslatorContext *tc, uint32_t opcode)
                 mov_immed_u16(tmp, imm, 1),
                 add_reg(arm_rd, arm_ra, tmp, LSL, 0)
             );
+            FreeARMRegister(tc, tmp);
         }
         else {
             EMIT(tc, add_immed_lsl12(arm_rd, arm_ra, (imm & 0xff) << 4));
