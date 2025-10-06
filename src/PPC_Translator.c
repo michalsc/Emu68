@@ -25,9 +25,11 @@
 register uint32_t PC __asm__("w18");
 register void (*ARMCode)() __asm__("x12");
 
+#if 0
 /* Disable INSN counter for now (not needed yet) */
 #undef EMU68_INSN_COUNTER
 #define EMU68_INSN_COUNTER 0
+#endif
 
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
@@ -4003,13 +4005,13 @@ static __used__ int EMIT_mtcrf(struct TranslatorContext *tc, uint32_t opcode)
 }
 
 static inline int globalDebug() {
-    //extern int debug;
-    return 1; //debug;
+    extern int debug;
+    return debug;
 }
 
 static inline int globalDisasm() {
-    //extern int disasm;
-    return 1; //disasm;
+    extern int disasm;
+    return disasm;
 }
 
 static inline int EMIT_Group_19(struct TranslatorContext *tc, uint32_t opcode)
@@ -4502,7 +4504,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     uint8_t icnt_reg = AllocARMRegister(&tc);
     EMIT(&tc, mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
 #endif
-    //RA_FlushFPURegs(&ctx);
     FlushAllGPRs(&tc);
     FlushPC(&tc);
 
