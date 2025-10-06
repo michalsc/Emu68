@@ -1423,6 +1423,31 @@ static __used__ int EMIT_lhzux(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_lbzux(struct TranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    if (ra == 0 || ra == rd) return -1;
+
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+
+    EMIT(tc, 
+        ldrb_regoffset(reg_ra, reg_rd, reg_rb, SXTX),
+        add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
+    );
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static __used__ int EMIT_lhax(struct TranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -3234,6 +3259,29 @@ static __used__ int EMIT_norx(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_andcx(struct TranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t update_cr = opcode & 1;
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
+    
+    if (update_cr) {
+        EMIT(tc, bics_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        EMIT_set_crn_logic(tc, 0);
+    } else {
+        EMIT(tc, bic_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+    }
+
+    tc->tc_PPCCodePtr++;
+    AdvancePC(tc, 4);
+    return 1;
+}
+
 static __used__ int EMIT_eqvx(struct TranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
@@ -4042,8 +4090,6 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
 {
     uint32_t secondary = (opcode >> 1) & 0x3ff;
 
-//    kprintf("Group 31, secondary=%d\n");
-
     switch (secondary) {
         case 0b0000000000: return EMIT_cmp(tc, opcode);
         //case 0b0000000100: return EMIT_tw(tc, opcode);        
@@ -4060,13 +4106,13 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         case 0b0000101000: return EMIT_subfx(tc, opcode);
         //case 0b0000110110: return EMIT_dcbst(tc, opcode);     // VEA
         case 0b0000110111: return EMIT_lwzux(tc, opcode);
-        //case 0b0000111100: return EMIT_andcx(tc, opcode);
+        case 0b0000111100: return EMIT_andcx(tc, opcode);
         //case 0b0001001011: return EMIT_mulhwx(tc, opcode);
         //case 0b0001010011: return EMIT_mfmsr(tc, opcode);     // OEA, supervisor
         //case 0b0001010110: return EMIT_dbcf(tc, opcode);      // VEA
         case 0b0001010111: return EMIT_lbzx(tc, opcode);
         case 0b0001101000: return EMIT_negx(tc, opcode);
-        //case 0b0001110111: return EMIT_lbzux(tc, opcode);
+        case 0b0001110111: return EMIT_lbzux(tc, opcode);
         case 0b0001111100: return EMIT_norx(tc, opcode);
         //case 0b0010001000: return EMIT_subfex(tc, opcode);
         case 0b0010001010: return EMIT_addex(tc, opcode);
@@ -4111,24 +4157,24 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         case 0b1000000000: return EMIT_mcrxr(tc, opcode);
         //case 0b1000010101: return EMIT_lswx(tc, opcode);
         case 0b1000010110: return EMIT_lwbrx(tc, opcode);
-        //case 0b1000010111: return EMIT_lfsx(tc, opcode);
+        //case 0b1000010111: return EMIT_lfsx(tc, opcode);      // FPU
         case 0b1000011000: return EMIT_srwx(tc, opcode);
         //case 0b1000110110: return EMIT_tlbsync(tc, opcode);   // OEA, supervisor, optional
-        //case 0b1000110111: return EMIT_lfsux(tc, opcode);
+        //case 0b1000110111: return EMIT_lfsux(tc, opcode);     // FPU
         //case 0b1001010011: return EMIT_mfsr(tc, opcode);      // OEA, supervisor
         //case 0b1001010101: return EMIT_lswi(tc, opcode);
         case 0b1001010110: return EMIT_sync(tc, opcode);
-        //case 0b1001010111: return EMIT_lfdx(tc, opcode);
-        //case 0b1001110111: return EMIT_lfdux(tc, opcode);
+        //case 0b1001010111: return EMIT_lfdx(tc, opcode);      // FPU
+        //case 0b1001110111: return EMIT_lfdux(tc, opcode);     // FPU
         //case 0b1010010011: return EMIT_mfsrin(tc, opcode);    // OEA
         //case 0b1010010101: return EMIT_stswx(tc, opcode);
         case 0b1010010110: return EMIT_stwbrx(tc, opcode);
-        //case 0b1010010111: return EMIT_stfsx(tc, opcode);
-        //case 0b1010110111: return EMIT_stfsux(tc, opcode);
-        //case 0b1011010101: return EMIT_stswi(tc, opcode);
-        //case 0b1011010111: return EMIT_stfdx(tc, opcode);
+        //case 0b1010010111: return EMIT_stfsx(tc, opcode);     // FPU
+        //case 0b1010110111: return EMIT_stfsux(tc, opcode);    // FPU
+        //case 0b1011010101: return EMIT_stswi(tc, opcode);     // FPU
+        //case 0b1011010111: return EMIT_stfdx(tc, opcode);     // FPU
         //case 0b1011110110: return EMIT_dcba(tc, opcode);      // VEA, optional
-        //case 0b1011110111: return EMIT_stfdux(tc, opcode);
+        //case 0b1011110111: return EMIT_stfdux(tc, opcode);    // FPU
         case 0b1100010110: return EMIT_lhbrx(tc, opcode);
         case 0b1100011000: return EMIT_srawx(tc, opcode);
         case 0b1100111000: return EMIT_srawix(tc, opcode);
@@ -4137,7 +4183,7 @@ static inline int EMIT_Group_31(struct TranslatorContext *tc, uint32_t opcode)
         case 0b1110011010: return EMIT_extshx(tc, opcode);
         case 0b1110111010: return EMIT_extsbx(tc, opcode);    
         //case 0b1111010110: return EMIT_icbi(tc, opcode);      // VEA
-        //case 0b1111010111: return EMIT_stfiwx(tc, opcode);    
+        //case 0b1111010111: return EMIT_stfiwx(tc, opcode);    // FPU
         //case 0b1111110110: return EMIT_dcbz(tc, opcode);      // VEA
         default: return -1;
     }
