@@ -177,7 +177,7 @@ static __used__ void FlushCTX(struct TranslatorContext *ctx)
 {
     if (reg_CTX != 0xff)
     {
-        RA_FreeARMRegister(ctx, reg_CTX);
+        FreeARMRegister(ctx, reg_CTX);
     }
 
     reg_CTX = 0xff;
