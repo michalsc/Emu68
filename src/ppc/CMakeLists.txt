@@ -14,7 +14,7 @@ add_executable(ppc_rom
 )
 
 target_link_options(ppc_rom PRIVATE -Wl,--build-id=none -nostdlib -nostartfiles -static -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/ppc_rom.map -T ${LINKER_SCRIPT} ${CMAKE_SOURCE_DIR}/../../scripts/ldscript-ppc.lds)
-target_compile_options(ppc_rom PRIVATE -falign-functions=32 -O2 -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
+target_compile_options(ppc_rom PRIVATE -falign-functions=32 -O2 -mcpu=G3 -msoft-float -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
 
 add_custom_command(
     TARGET ppc_rom POST_BUILD
