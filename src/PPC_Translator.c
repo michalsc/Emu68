@@ -2191,14 +2191,17 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
             } else {
                 EMIT(tc, cset(tmp, A64_CC_NE));
             }
-            EMIT(tc, 
-                /* Test condition */
-                tst_immed(reg_cr, 1, (1 + bi) & 31),
-                /* Increase tmp if condition is met */
-                cinc(tmp, tmp, condition_true ? A64_CC_NE : A64_CC_EQ),
-                /* If both CTR condition and CR conditions are met, tmp == 2. Test it. */
-                tst_immed(tmp, 1, 31)
-            );
+            /* if bo0 == 1 there is no need to test condition flags */
+            if (bo0 == 0) {
+                EMIT(tc, 
+                    /* Test condition */
+                    tst_immed(reg_cr, 1, (1 + bi) & 31),
+                    /* Increase tmp if condition is met */
+                    cinc(tmp, tmp, condition_true ? A64_CC_NE : A64_CC_EQ),
+                    /* If both CTR condition and CR conditions are met, tmp == 2. Test it. */
+                    tst_immed(tmp, 1, 31)
+                );
+            }
             success_condition = A64_CC_NE;
         } else {
             /* Check the condition */
