@@ -507,9 +507,28 @@ void kprintf(const char * restrict format, ...)
     va_end(v);
 }
 
+asm(
+"delay_loop:    \n"
+"    mtctr   %r3 \n"     /* number of iterations in r3 */
+"1:  bdnz+    1b \n"
+"    blr");
+
+void delay_loop(uint32_t count);
+
+void GetBogoMIPS()
+{
+    uint32_t Begin_Time, End_Time;
+
+    asm volatile("lwbrx %0, 0, %1":"=r"(Begin_Time):"r"(0xf2003004));
+    delay_loop(100000000);
+    asm volatile("lwbrx %0, 0, %1":"=r"(End_Time):"r"(0xf2003004));
+
+    kprintf("100000000 loop cycles in %d us -> %d BogoMIPS\n", End_Time - Begin_Time, 100000000 / (End_Time - Begin_Time));
+}
+
 void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, uint32_t pitch)
 {
-    uint32_t Begin_Time; // = LE32(*(volatile uint32_t*)0xf2003004);
+    uint32_t Begin_Time, End_Time;
     uint32_t Begin_Cycles, End_Cycles;
 
     kprintf("Hello, PPC\n");
@@ -519,6 +538,8 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("  %%c: %c\n", 'A');
     kprintf("  %%d: %d\n", 1536);
     kprintf("  %%x: %x\n", 0xdeadbeef);
+
+    GetBogoMIPS();
 
     asm volatile("lwbrx %0, 0, %1":"=r"(Begin_Time):"r"(0xf2003004));
     asm volatile("mftbl %0":"=r"(Begin_Cycles));
@@ -543,7 +564,6 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     }
     kprintf("%d\n", c);
 
-    uint32_t End_Time;// = LE32(*(volatile uint32_t*)0xf2003004);
     asm volatile("lwbrx %0, 0, %1":"=r"(End_Time):"r"(0xf2003004));
     asm volatile("mftbl %0":"=r"(End_Cycles));
 
