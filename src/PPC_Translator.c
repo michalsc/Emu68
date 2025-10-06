@@ -4550,14 +4550,10 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         {
             inner_loop = TRUE;
 
-            kprintf("inner loop, max_rev_jumps = %d\n", max_rev_jumps);
-
             if (inner_loop_length == 0) {
                 inner_loop_length = insn_count;
                 int capacity = var_EMU68_PPC_INSN_DEPTH / insn_count;
                 if (capacity > var_EMU68_MAX_LOOP_COUNT) capacity = var_EMU68_MAX_LOOP_COUNT;
-
-                kprintf("inner loop length: %d instructions, have capacity for %d loops\n", insn_count, capacity);
 
                 if (insn_count == 1) break;
                 if (capacity <= 1) break;
