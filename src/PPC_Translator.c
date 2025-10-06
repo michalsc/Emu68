@@ -2119,6 +2119,9 @@ static __used__ int EMIT_bx(struct TranslatorContext *tc, uint32_t opcode)
         EMIT(tc, INSN_TO_LE(MARKER_STOP));
     }
 
+    /* If jump to itself, insert NOP */
+    if (distance == 0) EMIT(tc, nop());
+
     return 1;
 }
 
