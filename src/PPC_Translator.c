@@ -2072,7 +2072,7 @@ static __used__ int EMIT_bx(struct TranslatorContext *tc, uint32_t opcode)
                 EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                 FreeARMRegister(tc, tmp);
             }
-        } else {
+        } else if (pc_adj > 0) {
             if ((pc_adj & 0xfffff000) == 0) {
                 EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
             } else if ((pc_adj & 0xff000fff) == 0) {
@@ -2167,7 +2167,7 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
                     EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
                     EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                 }
-            } else {
+            } else if (pc_adj > 0) {
                 if ((pc_adj & 0xfffff000) == 0) {
                     EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
                 } else if ((pc_adj & 0xff000fff) == 0) {
@@ -2239,7 +2239,7 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
                         EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
                         EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                     }
-                } else {
+                } else if (pc_adj > 0) {
                     if ((pc_adj & 0xfffff000) == 0) {
                         EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
                     } else if ((pc_adj & 0xff000fff) == 0) {
@@ -2264,7 +2264,7 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
                     EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
                     EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                 }
-            } else {
+            } else if (pc_adj > 0) {
                 if ((pc_adj & 0xfffff000) == 0) {
                     EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
                 } else if ((pc_adj & 0xff000fff) == 0) {
@@ -2295,7 +2295,7 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
                         EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
                         EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                     }
-                } else {
+                } else if (pc_adj > 0) {
                     if ((pc_adj & 0xfffff000) == 0) {
                         EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
                     } else if ((pc_adj & 0xff000fff) == 0) {
@@ -2320,7 +2320,7 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
                     EMIT_LoadImmediate(tc, tmp, (uint32_t)pc_adj);
                     EMIT(tc, sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                 }
-            } else {
+            } else if (pc_adj > 0) {
                 if ((pc_adj & 0xfffff000) == 0) {
                     EMIT(tc, add_immed(REG_PC, REG_PC, pc_adj));
                 } else if ((pc_adj & 0xff000fff) == 0) {
