@@ -5313,6 +5313,12 @@ void StartupPPC()
     /* Start at reset vector */
     ppc.PC = 0xfff00100;
 
+    /* Put some start parameters for now, remove later */
+    extern uint16_t *framebuffer;
+    extern uint32_t pitch;
+    extern uint32_t fb_width;
+    extern uint32_t fb_height;
+
     /* Set PPC context pointer */
     __asm__ volatile("mov "CTX_POINTER_ASM", %0\n"::"r"(&ppc));
 
@@ -5321,6 +5327,11 @@ void StartupPPC()
     spinlock_acquire(&PPCStart);
 
     kprintf("[PPC] Starting up!\n");
+
+    ppc.GPR[3] = BE32((uint32_t)(intptr_t)framebuffer);
+    ppc.GPR[4] = BE32((uint32_t)fb_width);
+    ppc.GPR[5] = BE32((uint32_t)fb_height);
+    ppc.GPR[6] = BE32((uint32_t)pitch);
 
     PPC_PrintContext(&ppc);
 
