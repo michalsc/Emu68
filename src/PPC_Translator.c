@@ -4726,7 +4726,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         kprintf("[PPC] Endless loop detected. We are done here\n");
         PPC_PrintContext(ctx);
         kprintf("[PPC] Instructions executed: %ld\n", ctx->INSN_COUNT);
-        while(1);
+        while(1) { asm volatile("wfi"); };
     }
 
     // Put a marker at the end of translation unit
