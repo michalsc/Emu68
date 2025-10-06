@@ -4675,8 +4675,10 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     }
 
     if (inner_loop && insn_count == 1) {
+        struct PPCState *ctx = getHostCTX();
         kprintf("[PPC] Endless loop detected. We are done here\n");
-        PPC_PrintContext(getHostCTX());
+        PPC_PrintContext(ctx);
+        kprintf("[PPC] Instructions executed: %ld\n", ctx->INSN_COUNT);
         while(1);
     }
 
