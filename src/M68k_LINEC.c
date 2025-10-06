@@ -474,14 +474,20 @@ uint32_t EMIT_lineC(struct TranslatorContext *ctx)
     else
     {
         EMIT_FlushPC(ctx);
-        EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
-        EMIT(ctx,
-            svc(0x100),
-            svc(0x101),
-            svc(0x103),
-            (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
-            48
-        );
+
+        extern int debug_not_implemented;
+        if (debug_not_implemented)
+        {
+            EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
+            EMIT(ctx,
+                svc(0x100),
+                svc(0x101),
+                svc(0x103),
+                (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
+                48
+            );
+        }
+        
         EMIT_Exception(ctx, VECTOR_ILLEGAL_INSTRUCTION, 0);
         EMIT(ctx, INSN_TO_LE(0xffffffff));
     }
