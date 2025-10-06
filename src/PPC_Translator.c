@@ -2119,7 +2119,11 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
     uint8_t condition_true = bo1 == 1;
     uint8_t bo4 = bo & 1;
     uint8_t sign = (opcode >> 15) & 1;
-    uint8_t take_branch = ((bo0 & bo2) | sign) == bo4;
+    uint8_t take_branch = 0;
+
+    /* In case of bcx instruction branch is predicted taken if bo4 == 0 for negative jumps, or bo4 == 1 for positive jumps */
+    if ((bo4 == 0 && sign != 0) ||
+        (bo4 != 0 && sign == 0)) take_branch = 1;
 
     /* Sign-extend the offset */
     if (offset & 0x00008000) offset |= 0xffff0000;
