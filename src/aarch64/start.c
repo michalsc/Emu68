@@ -543,6 +543,14 @@ void parse_cmdline(const char *cmdline)
     enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
 
+    extern int disasm;
+    extern int debug;
+    extern int DisableFPU;
+
+    DisableFPU = !!find_token(cmdline, "nofpu");
+    debug = !!find_token(cmdline, "debug");
+    disasm = !!find_token(cmdline, "disassemble");
+
     if ((tok = find_token(cmdline, "ICNT=")))
     {
         uint32_t val = 0;
@@ -1880,11 +1888,16 @@ void M68K_PrintContext(struct M68KState *m68k)
 
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
-
+/*
 uint16_t *framebuffer __attribute__((weak)) = NULL;
 uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
 uint32_t fb_height  __attribute__((weak))= 0;
+*/
+extern uint16_t *framebuffer;
+extern uint32_t pitch;
+extern uint32_t fb_width;
+extern uint32_t fb_height;
 
 void ExecutionLoop(struct M68KState *ctx);
 
@@ -2004,19 +2017,6 @@ void M68K_StartEmu(void *addr, void *fdt)
         {
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
-
-            extern int disasm;
-            extern int debug;
-            extern int DisableFPU;
-
-            if (strstr(prop->op_value, "nofpu"))
-                DisableFPU = 1;
-
-            if (strstr(prop->op_value, "debug"))
-                debug = 1;
-
-            if (strstr(prop->op_value, "disassemble"))
-                disasm = 1;
 
 #ifdef PISTORM_ANY_MODEL
             if (strstr(prop->op_value, "enable_c0_slow"))
