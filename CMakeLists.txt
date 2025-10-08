@@ -79,7 +79,7 @@ set(EMU68_FILES
     src/M68k_ExceptionEntry.c
     src/M68k_CC.c
     src/ExecutionLoop.c
-    src/PPC_Translator.c
+    src/PPC_Translator.cpp
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
@@ -145,7 +145,7 @@ set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
      -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
 
-set_source_files_properties(src/PPC_Translator.c PROPERTIES COMPILE_FLAGS 
+set_source_files_properties(src/PPC_Translator.cpp PROPERTIES COMPILE_FLAGS 
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \

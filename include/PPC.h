@@ -12,10 +12,22 @@
 
 #include <stdint.h>
 #include <stdarg.h>
+#include <cpp/nodes>
+#include "TranslatorContext.hpp"
 
-#include "nodes.h"
-#include "md5.h"
-#include "lists.h"
+namespace Emu68::PPC
+{
+
+struct ExitBlock : public Emu68::Node
+{
+    uint32_t    eb_Type;
+    uint32_t    eb_InstructionCount;
+    uint32_t    eb_Fixup1Type;
+    uint32_t *  eb_Fixup1Location;
+    uint32_t    eb_Fixup2Type;
+    uint32_t *  eb_Fixup2Location;
+    uint32_t    eb_ARMCode[0];
+};
 
 struct PPCState
 {
@@ -234,10 +246,16 @@ struct PPCLocalState
     int32_t         pls_PCRel;
 };
 
-struct PPCTranslationUnit
+struct PPCTranslationUnit;
+struct TranslationUnitLRU : public Emu68::Node {
+    PPCTranslationUnit *unit;
+    TranslationUnitLRU(PPCTranslationUnit *node = nullptr) : unit(node) {}
+};
+
+struct PPCTranslationUnit : public Emu68::Node
 {
     /* Hot part of the structure shall preferably reside in one or at most two cache lines */
-    struct Node         ptu_HashNode;       /* 00: 2 x 8 bytes - prev and next pointer in the has table bucket */
+    //struct Node         ptu_HashNode;       /* 00: 2 x 8 bytes - prev and next pointer in the has table bucket */
     union {
         struct {
             uint32_t    ptu_Epoch;          /* 16: 2 x 4 bytes - first 32-bit epoch incremented after every cache flush */
@@ -252,7 +270,7 @@ struct PPCTranslationUnit
     uint32_t            ptu_Fingerprint;    /* 36: 1 x 4 bytes - *mt_M68kAddress ^ *(mt_M68kAddress + 4) */
     uint32_t            ptu_PPCLow;        /* 40: 1 x 4 bytes - lowest m68k address in this block */
     uint32_t            ptu_PPCHigh;       /* 44: 1 x 4 bytes - highest m68k address in this block */
-    struct Node         ptu_LRUNode;        /* 48: 2 x 8 bytes - LRU node */
+    TranslationUnitLRU  ptu_LRU;
 
     /* Cold part of the structure */
     uint32_t            ptu_PPCInsnCnt;
@@ -266,7 +284,14 @@ struct PPCTranslationUnit
     #endif
     struct PPCLocalState * ptu_LocalState;
 
-    uint32_t            ptu_ARMCode[] __attribute__((aligned(64)));
+    uint32_t            ptu_ARMCode[0] __attribute__((aligned(64)));
 };
+
+struct PPCTranslatorContext : public TranslatorContext {
+    uint32_t *      tc_PPCCodeStart;
+    uint32_t *      tc_PPCCodePtr;
+};
+
+}
 
 #endif /* _PPC_H */

@@ -9,7 +9,14 @@
 
 #define _GNU_SOURCE 1
 
+#define restrict __restrict__
+
+#include <cpp/lists>
+#include <cpp/nodes>
+
 #include "PPC.h"
+
+extern "C" {
 #include "A64.h"
 #include "DuffCopy.h"
 #include "nodes.h"
@@ -21,6 +28,10 @@
 #include "doorbell.h"
 #include "cache.h"
 #include "mmu.h"
+}
+
+
+namespace Emu68::PPC {
 
 register uint32_t PC __asm__("w18");
 register void (*ARMCode)() __asm__("x12");
@@ -47,31 +58,19 @@ __attribute__((aligned(4096)))
 
 // Mapping for fixed PPC registers, all -1 regs are dynamically allocated
 static const uint8_t _int_reg_mapping[] = {
-    13, 14, 15, 16, 17, 19, 20, 21, // GPR00 .. GPR07
-    22, 23, 24, 25, 26, 27, -1, -1, // GPR08 .. GPR15
-    -1, -1, -1, -1, -1, -1, -1, -1, // GPR16 .. GPR23
-    -1, -1, -1, -1, -1, -1, -1, -1, // GPR24 .. GPR31
-    -1, -1, 28, 29, -1, 18          // CR, XER, LR, CTR, FPSCR, PC
-};
-
-#define FPR(n)  (n)
-
-struct RegisterNode {
-    struct Node rn_Node;
-    uint8_t rn_RegNum;
-    uint8_t rn_ARM;
-    uint8_t rn_Dirty;
+     13,  14,  15,  16,  17,  19,  20,  21, // GPR00 .. GPR07
+     22,  23,  24,  25,  26,  27, 255, 255, // GPR08 .. GPR15
+    255, 255, 255, 255, 255, 255, 255, 255, // GPR16 .. GPR23
+    255, 255, 255, 255, 255, 255, 255, 255, // GPR24 .. GPR31
+    255, 255,  28,  29, 255,  18            // CR, XER, LR, CTR, FPSCR, PC
 };
 
 #define __used__ __attribute__((used))
 
+#define FPR(n)  (n)
+
 static uint32_t ARMTmpPool;
-static struct List FreePool;
-static struct List GPR_LRU;
-static struct List FPR_LRU;
 static uint8_t reg_CTX = 0xff;
-static struct List ICache[EMU68_HASHSIZE];
-static struct List LRU;
 static uint32_t *temporary_arm_code;
 static void *jit_ppc;
 static int32_t _pc_rel = 0;
@@ -83,13 +82,29 @@ static uint32_t debug_range_min = 0x00000000;
 static uint32_t debug_range_max = 0xffffffff;
 static struct PPCLocalState *local_state;
 
+struct RegisterNode : public Emu68::Node {
+    uint8_t rn_RegNum;
+    uint8_t rn_ARM;
+    uint8_t rn_Dirty;
+};
+
+namespace {
+
+Emu68::List<RegisterNode> FreePool;
+Emu68::List<RegisterNode> GPR_LRU;
+Emu68::List<RegisterNode> FPR_LRU;
+Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE] __attribute__((aligned(256)));
+Emu68::List<TranslationUnitLRU> LRU;
+
+}
+
 static __used__ void LocalExit(struct TranslatorContext *tc, uint32_t insn_fixup);
 static void PPC_PrintContext(struct PPCState *ppc);
 
 static inline struct PPCState *getHostCTX()
 {
     struct PPCState *ctx;
-    __asm__ volatile("mov %0, "CTX_POINTER_ASM:"=r"(ctx));
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
 }
 
@@ -113,9 +128,8 @@ static __used__ uint8_t AllocARMRegister(struct TranslatorContext *tc)
             return reg;
         }
     }
-
     /* No free ARM register. Remove last entry from GPR_LRU */
-    struct RegisterNode *rn = (struct RegisterNode *)REMTAIL(&GPR_LRU);
+    struct RegisterNode *rn = GPR_LRU.remTail();
 
     /* If dirty, store it back to PPC context */
     if (rn->rn_Dirty) {
@@ -146,7 +160,7 @@ static __used__ uint8_t AllocARMRegister(struct TranslatorContext *tc)
         }
     }
 
-    ADDTAIL(&FreePool, rn);
+    FreePool.addTail(rn);
 
     return rn->rn_ARM;
 }
@@ -187,7 +201,7 @@ static __used__ void FlushCTX(struct TranslatorContext *ctx)
 
 static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int load, int set_dirty)
 {
-    struct RegisterNode *rn, *next;
+    struct RegisterNode *rn;
 
     /* If register is a fixed-assigned one, return ASAP */
     if (_int_reg_mapping[reg] != 0xff) {
@@ -195,15 +209,14 @@ static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int
     }
 
     /* Check if register is already in LRU */
-    ForeachNodeSafe(&GPR_LRU, rn, next)
+    for(auto rn: GPR_LRU)
     {
         if (rn->rn_RegNum == reg)
         {
             /* Found it, move it to the top of LRU, return ARM reg number */
-            if (GetHead(&GPR_LRU) != &rn->rn_Node) {
-                REMOVE(&rn->rn_Node);
-                ADDHEAD(&GPR_LRU, rn);
-            }
+            rn->remove();
+            GPR_LRU.addHead(rn);
+
             /* Update dirty flag but does not allow to reset it */
             rn->rn_Dirty |= set_dirty;
             return rn->rn_ARM;
@@ -215,7 +228,7 @@ static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int
     if (arm_reg != 0xff)
     {
         /* Get free RegisterNode, we must have some! */
-        rn = (struct RegisterNode *)REMHEAD(&FreePool);
+        rn = FreePool.remHead();
 
         /* Update values in RegisterNode */
         rn->rn_Dirty = set_dirty;
@@ -251,13 +264,13 @@ static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int
         }
 
         /* Put into GPR_LRU */
-        ADDHEAD(&GPR_LRU, rn);
+        GPR_LRU.addHead(rn);
 
         return arm_reg;
     }
     
     /* No free ARM register. Remove last entry from GPR_LRU */
-    rn = (struct RegisterNode *)REMTAIL(&GPR_LRU);
+    rn = GPR_LRU.remTail();
 
     /* If dirty, store it back to PPC context */
     if (rn->rn_Dirty) {
@@ -321,7 +334,7 @@ static __used__ uint8_t IntMapGPR(struct TranslatorContext *tc, uint8_t reg, int
     }
 
     /* Put into GPR_LRU */
-    ADDHEAD(&GPR_LRU, rn);
+    GPR_LRU.addHead(rn);
 
     return rn->rn_ARM;
 }
@@ -343,15 +356,13 @@ static __used__ uint8_t MapGPRForWrite(struct TranslatorContext *tc, uint8_t reg
 
 static __used__ uint8_t IsGPRMapped(struct TranslatorContext *, uint8_t reg)
 {
-    struct RegisterNode *rn;
-
     /* If register is a fixed-assigned one, return ASAP */
     if (_int_reg_mapping[reg] != 0xff) {
         return _int_reg_mapping[reg];
     }
 
     /* Not fixed mapped, check GPR_LRU now */
-    ForeachNode(&GPR_LRU, rn)
+    for(auto rn: GPR_LRU)
     {
 //        kprintf("testing node %p, reg %d, arm reg %d, dirty %d\n", rn, rn->rn_RegNum, rn->rn_ARM, rn->rn_Dirty);
         if (rn->rn_RegNum == reg) {
@@ -364,13 +375,11 @@ static __used__ uint8_t IsGPRMapped(struct TranslatorContext *, uint8_t reg)
 
 static __used__ void SetDirtyGPR(struct TranslatorContext *, uint8_t reg)
 {
-    struct RegisterNode *rn;
-
     /* Register with fixed mapping does not need to be set dirty */
     if (_int_reg_mapping[reg] != 0xff) return;
 
     /* Check if register is already in LRU */
-    ForeachNode(&GPR_LRU, rn)
+    for(auto rn: GPR_LRU)
     {
         if (rn->rn_RegNum == reg) {
             rn->rn_Dirty = 1;
@@ -429,7 +438,7 @@ void PurgeFlushStore(struct TranslatorContext *tc)
                     /* EMIT actual store */
                     EMIT(tc, mov_reg_to_simd(
                                 FlushStoreSorted[4 * vn + lane].Vn,
-                                FlushStoreSorted[4 * vn + lane].Size,
+                                (TS)FlushStoreSorted[4 * vn + lane].Size,
                                 FlushStoreSorted[4 * vn + lane].Pos,
                                 FlushStoreSorted[4 * vn + lane].ARM)
                     );
@@ -445,15 +454,12 @@ void PurgeFlushStore(struct TranslatorContext *tc)
 
 static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
 {
-    struct RegisterNode *rn, *next;
+    struct RegisterNode *rn;//, *next;
 
     bzero(FlushStore, sizeof(FlushStore));
 
-    ForeachNodeSafe(&GPR_LRU, rn, next)
+    while((rn = GPR_LRU.remHead()) != nullptr)
     {
-        /* Remove itself from the list */
-        REMOVE(&rn->rn_Node);
-
         /* If dirty, store it back to PPC context */
         if (rn->rn_Dirty) {
             /* Store value from ARM register back into PPC context */
@@ -487,7 +493,7 @@ static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
         FreeARMRegister(tc, rn->rn_ARM);
 
         /* Add the node itself to free pool */
-        ADDTAIL(&FreePool, rn);
+        FreePool.addTail(rn);
     }
 
     PurgeFlushStore(tc);
@@ -495,11 +501,9 @@ static __used__ void FlushAllGPRs(struct TranslatorContext *tc)
 
 static __used__ void StoreDirtyGPRs(struct TranslatorContext *tc)
 {
-    struct RegisterNode *rn;
-
     bzero(FlushStore, sizeof(FlushStore));
 
-    ForeachNode(&GPR_LRU, rn)
+    for(auto rn: GPR_LRU)
     {
         /* If dirty, store it back to PPC context */
         if (rn->rn_Dirty) {
@@ -2373,9 +2377,9 @@ static __used__ int EMIT_bcx(struct TranslatorContext *tc, uint32_t opcode)
 
         /* Insert fixup location */
         EMIT(tc, 
-            exit_code_end - jump_location,
+            (uint32_t)(exit_code_end - jump_location),
             fixup_type,
-            exit_code_end - exit_code_start,
+            (uint32_t)(exit_code_end - exit_code_start),
             INSN_TO_LE(MARKER_EXIT_BLOCK)
         );
     }
@@ -4053,13 +4057,16 @@ static __used__ int EMIT_mtcrf(struct TranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+extern "C" {
+        extern int debug;
+        extern int disasm;
+    }
+
 static inline int globalDebug() {
-    extern int debug;
     return debug;
 }
 
 static inline int globalDisasm() {
-    extern int disasm;
     return disasm;
 }
 
@@ -4196,7 +4203,7 @@ static inline int EmitINSN(struct TranslatorContext *tc)
     uint8_t group = opcode >> 26;
     int count = -1;
 
-//    kprintf("[PPC] EmitINSN @ %08x, opcode %08x, group %d\n", (uint32_t)(uintptr_t)tc->tc_PPCCodePtr, opcode, group);
+    //kprintf("[PPC] EmitINSN @ %08x, opcode %08x, group %d\n", (uint32_t)(uintptr_t)tc->tc_PPCCodePtr, opcode, group);
 
     switch (group) {
         // case 0b000011: count = EMIT_twi(tc, opcode); break;
@@ -4294,7 +4301,7 @@ static struct DisasmOut {
 
 static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 {
-    struct List exitList;
+    Emu68::List<ExitBlock> exitList;
     struct PPCState *ctx = getHostCTX();
     ppc_entry_point = PPCCodePtr;
     uint32_t *orig_ppccodeptr = PPCCodePtr;
@@ -4316,8 +4323,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 
     uint32_t *last_rev_jump = (uint32_t *)0xffffffff;
 
-    NEWLIST(&exitList);
-
     disasm_ptr = disasm_items;
 
     int debug = 0;
@@ -4328,12 +4333,12 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         disasm = globalDisasm();
     }
 
-    if (!IsListEmpty(&GPR_LRU)) {
+    if (!GPR_LRU.isEmpty()) {
         kprintf("[PPC] GPR_LRU list is not empty!\n");
         while(1);
     }
 
-    if (!IsListEmpty(&FPR_LRU)) {
+    if (!FPR_LRU.isEmpty()) {
         kprintf("[PPC] FPR_LRU list is not empty!\n");
         while(1);
     }
@@ -4402,8 +4407,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         {
             uint8_t map = _int_reg_mapping[i];
             if (map == 0xff) {
-                struct RegisterNode *rn;
-                ForeachNode(&GPR_LRU, rn)
+                for(auto rn: GPR_LRU)
                 {
                     if (rn->rn_RegNum == i) {
                         map = rn->rn_RegNum;
@@ -4448,12 +4452,12 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                 uint32_t fixup_type = tc.tc_CodePtr[1];
                 uint32_t fixup_target = tc.tc_CodePtr[0];
 
-                eb = tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
+                eb = (ExitBlock *)tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
 
                 eb->eb_Type = MARKER_EXIT_BLOCK;
                 eb->eb_InstructionCount = insn_count;
-                eb->eb_FixupType = fixup_type;
-                eb->eb_FixupLocation = tc.tc_CodePtr - fixup_target;
+                eb->eb_Fixup1Type = fixup_type;
+                eb->eb_Fixup1Location = tc.tc_CodePtr - fixup_target;
 
                 tc.tc_CodePtr -= insn_count;
 
@@ -4461,11 +4465,11 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                     eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
                 }
 
-                ADDTAIL(&exitList, eb);
+                exitList.addTail(eb);
             }
             else if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_DOUBLE_EXIT))
             {
-                struct DoubleExitBlock *eb;
+                struct ExitBlock *eb;
 
                 tc.tc_CodePtr -= 6;
 
@@ -4475,7 +4479,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                 uint32_t fixup1_type = tc.tc_CodePtr[1];
                 uint32_t fixup1_target = tc.tc_CodePtr[0];
 
-                eb = tlsf_malloc(tlsf, sizeof(struct DoubleExitBlock) + 4 * insn_count);
+                eb = (ExitBlock *)tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
 
                 eb->eb_Type = MARKER_DOUBLE_EXIT;
                 eb->eb_InstructionCount = insn_count;
@@ -4491,7 +4495,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                     eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
                 }
 
-                ADDTAIL(&exitList, eb);
+                exitList.addTail(eb);
             }
             else if (tc.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
             {
@@ -4608,7 +4612,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     tc.tc_CodePtr = _tmpptr;
 
     if (disasm) {
-        disasm_ptr->do_PPCAddr = NULL;
+        disasm_ptr->do_PPCAddr = nullptr;
         disasm_ptr->do_PPCCount = 0;
         disasm_ptr->do_ArmAddr = out_code;
         disasm_ptr->do_ArmCount = tc.tc_CodePtr - out_code;
@@ -4616,16 +4620,16 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     }
 
     /* Get all exit entries and append them here */
-    struct ExitBlock *n = NULL;
+    struct ExitBlock *n = nullptr;
     //int exit_num = 0;
-    while ((n = (struct ExitBlock *)REMHEAD(&exitList)))
+    while ((n = exitList.remHead()))
     {
         uint32_t *old_end = tc.tc_CodePtr;
         uint32_t op;
 
         if (n->eb_Type == MARKER_DOUBLE_EXIT)
         {
-            struct DoubleExitBlock *eb2 = (struct DoubleExitBlock *)n;
+            ExitBlock *eb2 = n;
 
             for (unsigned i = 0; i < eb2->eb_InstructionCount; i++)
             {
@@ -4674,36 +4678,36 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         }
         else
         {
-            struct ExitBlock *eb = n;
+            ExitBlock *eb = n;
             
             for (unsigned i = 0; i < eb->eb_InstructionCount; i++)
             {
                 EMIT(&tc, eb->eb_ARMCode[i]);
             }
 
-            switch (eb->eb_FixupType)
+            switch (eb->eb_Fixup1Type)
             {
                 case FIXUP_BCC:
-                    op = I32(*eb->eb_FixupLocation);
+                    op = I32(*eb->eb_Fixup1Location);
                     op &= ~(0x7ffff << 5);
-                    op |= ((old_end - eb->eb_FixupLocation) & 0x7ffff) << 5;
-                    *eb->eb_FixupLocation = I32(op);
+                    op |= ((old_end - eb->eb_Fixup1Location) & 0x7ffff) << 5;
+                    *eb->eb_Fixup1Location = I32(op);
                     break;
 
                 case FIXUP_TBZ:
-                    op = I32(*eb->eb_FixupLocation);
+                    op = I32(*eb->eb_Fixup1Location);
                     op &= ~(0x3fff << 5);
-                    op |= ((old_end - eb->eb_FixupLocation) & 0x3fff) << 5;
-                    *eb->eb_FixupLocation = I32(op);
+                    op |= ((old_end - eb->eb_Fixup1Location) & 0x3fff) << 5;
+                    *eb->eb_Fixup1Location = I32(op);
                     break;
 
                 default:
-                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb->eb_FixupType);
+                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb->eb_Fixup1Type);
             }
         }
 
         if (disasm) {
-            disasm_ptr->do_PPCAddr = NULL;
+            disasm_ptr->do_PPCAddr = nullptr;
             disasm_ptr->do_PPCCount = 0;
             disasm_ptr->do_ArmAddr = old_end;
             disasm_ptr->do_ArmCount = tc.tc_CodePtr - old_end;
@@ -4713,7 +4717,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         tlsf_free(tlsf, n);
     }
 
-    disasm_ptr->do_ArmAddr = NULL;
+    disasm_ptr->do_ArmAddr = nullptr;
 
     if (disasm) {
         int exit_num = 0;
@@ -4773,7 +4777,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     extern uint32_t debug_range_max;
 
     struct PPCState *ctx = getHostCTX();
-    struct PPCTranslationUnit *unit = NULL;
+    struct PPCTranslationUnit *unit = nullptr;
     uintptr_t hash = (uintptr_t)ppccodeptr;
     uint32_t *orig_ppccodeptr = ppccodeptr;
 
@@ -4791,38 +4795,37 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
 
     uintptr_t line_length = PPC_Translate(ppccodeptr);
     uintptr_t arm_insn_count = line_length/4 - 1;
-
     uintptr_t unit_length = (line_length + 63 + sizeof(struct PPCTranslationUnit)) & ~63;
 
     do {
-        unit = tlsf_malloc_aligned(jit_ppc, unit_length, 64);
-
+        unit = (PPCTranslationUnit *)tlsf_malloc_aligned(jit_ppc, unit_length, 64);
+        
         ctx->JIT_CACHE_FREE = tlsf_get_free_size(jit_ppc);
 
         if (unit == NULL)
         {
             if (debug > 0) {
-                kprintf("[PPC] Requested block was %d bytes long\n", unit_length);
+                kprintf("[PPC] Requested block was %d bytes long\n", sizeof(struct PPCTranslationUnit));
             }
 
             for (int i=0; i < 8; i++) {
-                struct Node *n = REMTAIL(&LRU);
+                auto n = LRU.remTail()->unit;
 
-                if (n == NULL)
+                if (n == nullptr)
                     break;
 
-                void *ptr = (char *)n - __builtin_offsetof(struct PPCTranslationUnit, ptu_LRUNode);
-                REMOVE((struct Node *)ptr);
+                n->remove();
                 if (debug > 0)
                 {    
-                    kprintf("[PPC] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
+                    kprintf("[PPC] Run out of cache. Removing least recently used cache line node @ %p\n", n);
                 }
-                tlsf_free(jit_ppc, ptr);
+
+                tlsf_free(jit_ppc, n);
                 ctx->JIT_UNIT_COUNT--;
             }
             ctx->JIT_CACHE_FREE = tlsf_get_free_size(jit_ppc);
             
-            __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
+            __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0"::"r"(0xffffffff));
         }
     } while(unit == NULL);
 
@@ -4859,8 +4862,9 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     unit->mt_Conditionals = conditionals_count;
     #endif
 
-    ADDHEAD(&LRU, &unit->ptu_LRUNode);
-    ADDHEAD(&ICache[hash], &unit->ptu_HashNode);
+    unit->ptu_LRU.unit = unit;
+    LRU.addHead(&unit->ptu_LRU);
+    ICache[hash].addHead(unit);
 
     ctx->JIT_UNIT_COUNT++;
     ctx->JIT_CACHE_MISS++;
@@ -4909,10 +4913,10 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
 
 void __used__ PPC_LoadContext(struct PPCState *ctx)
 {
-    __asm__ volatile("mov "CTX_POINTER_ASM", %0\n"::"r"(ctx));
+    __asm__ volatile("mov " CTX_POINTER_ASM ", %0\n"::"r"(ctx));
 
-    __asm__ volatile("mov "CTX_INSN_COUNT_ASM", %0"::"r"(ctx->INSN_COUNT));
-    __asm__ volatile("mov "REG_FPSCR_ASM", %w0"::"r"(ctx->FPSCR));
+    __asm__ volatile("mov " CTX_INSN_COUNT_ASM ", %0"::"r"(ctx->INSN_COUNT));
+    __asm__ volatile("mov " REG_FPSCR_ASM ", %w0"::"r"(ctx->FPSCR));
 
     __asm__ volatile("ldp w%0, w%1, %2"::"i"(_int_reg_mapping[0]),"i"(_int_reg_mapping[1]),"m"(ctx->GPR[0]));
     __asm__ volatile("ldp w%0, w%1, %2"::"i"(_int_reg_mapping[2]),"i"(_int_reg_mapping[3]),"m"(ctx->GPR[2]));
@@ -4937,8 +4941,8 @@ void __used__ PPC_LoadContext(struct PPCState *ctx)
 
 void __used__ PPC_SaveContext(struct PPCState *ctx)
 {
-    __asm__ volatile("mov x1, "CTX_INSN_COUNT_ASM"; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
-    __asm__ volatile("mov w1, "REG_FPSCR_ASM"; str w1, %0"::"m"(ctx->FPSCR):"x1");
+    __asm__ volatile("mov x1, " CTX_INSN_COUNT_ASM "; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
+    __asm__ volatile("mov w1, " REG_FPSCR_ASM "; str w1, %0"::"m"(ctx->FPSCR):"x1");
 
     __asm__ volatile("stp w%0, w%1, %2"::"i"(_int_reg_mapping[0]),"i"(_int_reg_mapping[1]),"m"(ctx->GPR[0]));
     __asm__ volatile("stp w%0, w%1, %2"::"i"(_int_reg_mapping[2]),"i"(_int_reg_mapping[3]),"m"(ctx->GPR[2]));
@@ -5009,7 +5013,7 @@ static uint32_t *PPC_LRU_FindBlock(uint32_t address)
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static __used__ void PPC_LRU_InvalidateByARMAddress(uint32_t *addr)
@@ -5018,7 +5022,7 @@ static __used__ void PPC_LRU_InvalidateByARMAddress(uint32_t *addr)
     {
         if (LRU_cache[i].arm == addr)
         {
-            LRU_cache[i].arm = (void*)0;
+            LRU_cache[i].arm = nullptr;
             LRU_cache[i].ppc = 0xffffffff;
             break;
         }
@@ -5034,7 +5038,7 @@ static __used__ void PPC_LRU_InvalidateByM68kAddress(uint32_t addr)
     {
         if (e[i].ppc == addr)
         {
-            e[i].arm= (void*)0;
+            e[i].arm= nullptr;
             e[i].ppc = 0xffffffff;
             LRU_alloc[set] &= ~(0x80000000 >> i);
             break;
@@ -5047,7 +5051,7 @@ static void PPC_LRU_InvalidateAll()
     for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
     {
         LRU_cache[i].ppc = 0xffffffff;
-        LRU_cache[i].arm = (void*)0;
+        LRU_cache[i].arm = nullptr;
     }
 
     for (int i = 0; i < EMU68_LRU_SET_COUNT; i++)
@@ -5065,7 +5069,7 @@ static void PPC_LRU_InsertBlock(struct PPCTranslationUnit *unit)
 
     // Insert new entry
     e[loc].ppc = unit->ptu_PPCAddress;
-    e[loc].arm = unit->ptu_ARMEntryPoint;
+    e[loc].arm = (uint32_t*)unit->ptu_ARMEntryPoint;
 
     // Touch the last used
     uint32_t current = LRU_alloc[set] | mask; 
@@ -5081,14 +5085,13 @@ static inline uint32_t * FindUnitQuick()
     if (likely(code != NULL))
         return code;
 #endif
-    struct PPCTranslationUnit *node;
 
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-    struct List *bucket = &ICache[hash];
+    Emu68::List<PPCTranslationUnit> &bucket = ICache[hash];
 
     /* Go through the list of translated units */
-    ForeachNode(bucket, node)
+    for(auto node: bucket)
     {
         /* Check if unit is found */
         if (node->ptu_PPCAddress == PC)
@@ -5099,23 +5102,21 @@ static inline uint32_t * FindUnitQuick()
 #if EMU68_USE_LRU
             PPC_LRU_InsertBlock(node);
 #endif
-            return node->ptu_ARMEntryPoint;
+            return (uint32_t *)(node->ptu_ARMEntryPoint);
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static inline struct PPCTranslationUnit *FindUnit()
 {
-    struct PPCTranslationUnit *node;
-
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-    struct List *bucket = &ICache[hash];
+    Emu68::List<PPCTranslationUnit> &bucket = ICache[hash];
 
     /* Go through the list of translated units */
-    ForeachNode(bucket, node)
+    for(auto node: bucket)
     {
         /* Check if unit is found */
         if (node->ptu_PPCAddress == PC)
@@ -5127,26 +5128,26 @@ static inline struct PPCTranslationUnit *FindUnit()
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static inline uint32_t getLastPC()
 {
     uint32_t lastPC;
-    __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
+    __asm__ volatile("mov %w0, " CTX_LAST_PC_ASM:"=r"(lastPC));
     return lastPC;
 }
 
 static inline struct PPCState *getCTX()
 {
     struct PPCState *ctx;
-    __asm__ volatile("mov %0, "CTX_POINTER_ASM:"=r"(ctx));
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
 }
 
 static inline void setLastPC(uint32_t pc)
 {
-    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
+    __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(pc));
 }
 
 static void PPCMainLoop()
@@ -5294,10 +5295,10 @@ static void PPCMainLoop()
             if (code != NULL)
             {
                 /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
-                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
+                __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
 
                 /* This is the case, load entry point into x12 */
-                ARMCode = (void*)code;
+                ARMCode = (void (*)())code;
                 
                 ARMCode();
 
@@ -5309,60 +5310,54 @@ static void PPCMainLoop()
             uint32_t copyPC = PC;
             PPC_SaveContext(ctx);
             /* Get the code. This never fails */
-            struct PPCTranslationUnit *node = PPC_GetTranslationUnit((void*)(uintptr_t)copyPC);
+            struct PPCTranslationUnit *node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
 #if EMU68_USE_LRU
             PPC_LRU_InsertBlock(node);
 #endif
             /* Load CPU context */
             PPC_LoadContext(getHostCTX());
-            __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
+            __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
             /* Prepare ARM pointer in x12 and call it */
-            ARMCode = node->ptu_ARMEntryPoint;
+            ARMCode = (void (*)())node->ptu_ARMEntryPoint;
             ARMCode();
         }
     }
 }
 
+}
+
 spinlock_t PPCStart;
 
-void InitPPC()
+extern "C" void InitPPC()
 {
-    static struct RegisterNode rn[64];
-
-    NEWLIST(&GPR_LRU);
-    NEWLIST(&FPR_LRU);
-    NEWLIST(&FreePool);
+    static struct Emu68::PPC::RegisterNode rn[64];
     
     kprintf("[PPC] InitPPC()\n");
 
-    jit_ppc = tlsf_init_with_memory((void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)), (KERNEL_JIT_PAGES / 2) << 21);
+    Emu68::PPC::jit_ppc = tlsf_init_with_memory((void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)), (KERNEL_JIT_PAGES / 2) << 21);
 
     kprintf("[PPC] JIT memory at %p\n", (void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)));
 
-    for (int i=0; i < 64; i++) ADDHEAD(&FreePool, &rn[i]);
+    for (int i=0; i < 64; i++) Emu68::PPC::FreePool.addHead(&rn[i]);
 
     kprintf("[PPC] Setting up LRU\n");
-    NEWLIST(&LRU);
 
     kprintf("[PPC] Setting up ICache\n");
 
-    temporary_arm_code = tlsf_malloc(jit_ppc, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
-    kprintf("[PPC] Temporary code at %p\n", temporary_arm_code);
-    local_state = tlsf_malloc(tlsf, sizeof(struct PPCLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
-    kprintf("[PPC] ICache array at %p\n", ICache);
+    Emu68::PPC::temporary_arm_code = (uint32_t *)tlsf_malloc(Emu68::PPC::jit_ppc, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
+    kprintf("[PPC] Temporary code at %p\n", Emu68::PPC::temporary_arm_code);
+    Emu68::PPC::local_state = (struct Emu68::PPC::PPCLocalState *)tlsf_malloc(tlsf, sizeof(Emu68::PPC::PPCLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
+    kprintf("[PPC] ICache array at %p\n", Emu68::PPC::ICache);
 
-    for (int i=0; i < 65536; i++)
-        NEWLIST(&ICache[i]);
-
-    kprintf("[PPC] Mapping PPC ROM at 0x%08x - 0x%08x\n", 0xfff00000, 0xfff00000 + ppc_rom_img_len - 1);
-    kprintf("[PPC] Mapping PPC boot stack at 0x%08x - 0x%08x\n", 0xfff00000 - sizeof(ppc_tmp_stack), 0xfff00000 - 1);
-    mmu_map(mmu_virt2phys((uintptr_t)ppc_rom_img), 0xfff00000, ppc_rom_img_len, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
-    mmu_map(mmu_virt2phys((uintptr_t)ppc_tmp_stack), 0xfff00000 - sizeof(ppc_tmp_stack), sizeof(ppc_tmp_stack), MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+    kprintf("[PPC] Mapping PPC ROM at 0x%08x - 0x%08x\n", 0xfff00000, 0xfff00000 + Emu68::PPC::ppc_rom_img_len - 1);
+    kprintf("[PPC] Mapping PPC boot stack at 0x%08x - 0x%08x\n", 0xfff00000 - sizeof(Emu68::PPC::ppc_tmp_stack), 0xfff00000 - 1);
+    mmu_map(mmu_virt2phys((uintptr_t)Emu68::PPC::ppc_rom_img), 0xfff00000, Emu68::PPC::ppc_rom_img_len, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+    mmu_map(mmu_virt2phys((uintptr_t)Emu68::PPC::ppc_tmp_stack), 0xfff00000 - sizeof(Emu68::PPC::ppc_tmp_stack), sizeof(Emu68::PPC::ppc_tmp_stack), MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
 }
 
-void StartupPPC()
+extern "C" void StartupPPC()
 {
-    static struct PPCState ppc;
+    static struct Emu68::PPC::PPCState ppc;
 
     /* Init spinlock as busy */
     PPCStart.lock = 1;
@@ -5375,8 +5370,8 @@ void StartupPPC()
         ppc.FPR_u64[fp] = 0x7fffffffffffffffULL;
     }
 
-    ppc.JIT_CACHE_TOTAL = tlsf_get_total_size(jit_ppc);
-    ppc.JIT_CACHE_FREE = tlsf_get_free_size(jit_ppc);
+    ppc.JIT_CACHE_TOTAL = tlsf_get_total_size(Emu68::PPC::jit_ppc);
+    ppc.JIT_CACHE_FREE = tlsf_get_free_size(Emu68::PPC::jit_ppc);
     ppc.JIT_UNIT_COUNT = 0;
     ppc.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
     ppc.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
@@ -5395,7 +5390,7 @@ void StartupPPC()
     extern uint32_t fb_height;
 
     /* Set PPC context pointer */
-    __asm__ volatile("mov "CTX_POINTER_ASM", %0\n"::"r"(&ppc));
+    __asm__ volatile("mov " CTX_POINTER_ASM ", %0\n"::"r"(&ppc));
 
     kprintf("[PPC] Waiting for startup\n");
 
@@ -5408,7 +5403,7 @@ void StartupPPC()
     ppc.GPR[5] = BE32((uint32_t)fb_height);
     ppc.GPR[6] = BE32((uint32_t)pitch);
 
-    PPC_PrintContext(&ppc);
+    Emu68::PPC::PPC_PrintContext(&ppc);
 
-    PPCMainLoop();
+    Emu68::PPC::PPCMainLoop();
 }

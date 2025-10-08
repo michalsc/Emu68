@@ -1,0 +1,102 @@
+#ifndef _CPP_LISTS
+#define _CPP_LISTS
+
+#include <cpp/nodes>
+
+namespace Emu68 {
+
+template < class T = Node >
+class NodeIterator
+{
+    T * _n;
+public:
+    NodeIterator(T * node) : _n(node) {}
+    NodeIterator(const NodeIterator &it) : _n(it._n) {}
+    NodeIterator &operator++() { _n = static_cast<T *>(_n->next()); return *this; }
+    NodeIterator &operator--() { _n = static_cast<T *>(_n->prev()); return *this; }
+    NodeIterator operator++(int) { NodeIterator tmp(*this); operator++(); return tmp; }
+    NodeIterator operator--(int) { NodeIterator tmp(*this); operator--(); return tmp; }
+    bool operator==(const NodeIterator &rhs) const { return _n == rhs._n; }
+    bool operator!=(const NodeIterator &rhs) const { return _n != rhs._n; }
+    T * operator*() { return _n; }
+};
+
+template < class T = Node >
+class List
+{
+    T l_head;
+    T l_tail;
+
+public:
+    List() {
+        l_head.setNext(&l_tail);
+        l_head.setPrev(nullptr);
+        
+        l_tail.setPrev(&l_head);
+        l_tail.setNext(nullptr);
+    }
+
+    T * addHead(T *n) {
+        if (n == nullptr) return nullptr;
+
+        n->setPrev(&l_head);
+        l_head.next()->setPrev(n);
+
+        n->setNext(l_head.next());
+        l_head.setNext(n);
+        
+        return n;
+    }
+
+    T * addTail(T *n) {
+        if (n == nullptr) return nullptr;
+
+        n->setNext(&l_tail);
+        n->setPrev(l_tail.prev());
+
+        l_tail.prev()->setNext(n);
+        l_tail.setPrev(n);
+
+        return n;
+    }
+
+    bool isHead(T *n) { return n->n_prev == &l_head; }
+    bool isTail(T *n) { return n->n_next == &l_tail; }
+    bool isEmpty() { return l_head.next() == &l_tail; }
+
+    T * getHead() {
+        if (l_head.next() == &l_tail)
+            return nullptr;
+        else
+            return static_cast<T *>(l_head.next());
+    }
+
+    NodeIterator<T> begin() { return NodeIterator<T>(static_cast<T *>(l_head.next())); }
+    NodeIterator<T> end() { return NodeIterator<T>(&l_tail); }
+
+    T * getTail() {
+        if (l_tail.prev() == &l_head)
+            return nullptr;
+        else
+            return static_cast<T *>(l_tail.prev());
+    }
+
+    T * remHead() {
+        T * n = getHead();
+        if (n != nullptr) n->remove();
+
+        return n;
+    }
+
+    T * remTail() {
+        T * n = getTail();
+        if (n != nullptr) n->remove();
+
+        return n;
+    }
+
+};
+
+}
+
+#endif /* _CPP_LISTS */

@@ -1295,6 +1295,15 @@ void boot(void *dtree)
         kprintf("[BOOT] TLB invalidated\n");
     }
 
+    extern void (*__init_start)();
+    void (**InitFunctions)() = &__init_start;
+    while(*InitFunctions)
+    {
+        kprintf("[BOOT] Calling init function @ %p\n", *InitFunctions);
+        (*InitFunctions)();
+        InitFunctions++;
+    }
+
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -1378,14 +1387,6 @@ void boot(void *dtree)
     }
 
     platform_post_init();
-
-    extern void (*__init_start)();
-    void (**InitFunctions)() = &__init_start;
-    while(*InitFunctions)
-    {
-        (*InitFunctions)();
-        InitFunctions++;
-    }
 
 #ifndef PISTORM_ANY_MODEL
     if (initramfs_loc != NULL && initramfs_size != 0)
