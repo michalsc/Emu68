@@ -654,6 +654,39 @@ static __used__ void ResetReturnStack()
     ReturnStackDepth = 0;
 }
 
+void EMIT_Exception(PPCTranslatorContext *tc, uint16_t type)
+{
+    /* When entering exception, all dirty registers must be stored! */
+    // StoreDirtyFPRs(tc);
+    StoreDirtyGPRs(tc);
+
+    /* Flush program counter */
+    tc->FlushPC();
+
+    /* Get PPCState to shuffle regs */
+    uint8_t ctx = GetCTX(tc);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    tc->EMIT({
+        /* Store MSR into SRR1, Store PC into SRR0 */
+        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+        str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1)),
+        str_offset(ctx, REG_PC, __builtin_offsetof(PPCState, SRR0)),
+        
+        /* Set supervisor mode in MSR */
+        bic_immed(tmp, tmp, 1, 18),
+        str_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+
+        /* Load new program counter */
+        mov_immed_u16(REG_PC, type, 0),
+        movk_immed_u16(REG_PC, 0xfff0, 1),
+    });
+
+    FreeARMRegister(tc, tmp);
+
+    LocalExit(tc, 0);
+}
+
 void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
@@ -3063,10 +3096,67 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rs = MapGPRForRead(tc, rs);
 
     if (spr & 0x10) {
+        uint8_t ctx = GetCTX(tc);
+        uint8_t tmp = AllocARMRegister(tc);
 
-        /* Accessing supervisor level SPRs */
-        /* TODO: Implement Supervisor SPRs */
-        return -1;
+        /* We need to flush PC now, just in case */
+        tc->FlushPC();
+
+        /* 
+            Fetch MSR and check if exceptions are enabled - it is illegal to call
+            RFI from user
+        */
+        tc->EMIT({
+            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+            tbnz(tmp, 14, 0)
+        });
+
+        /* Emit jump, remember its location and fixup type */
+        uint32_t fixup_type = FIXUP_TBZ;
+        uint32_t *jump_location = tc->tc_CodePtr - 1;
+
+        switch(spr) {
+            case 26:    /* SRR0 */
+                tc->EMIT({
+                    bic_immed(tmp, reg_rs, 2, 0), 
+                    str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR0))
+                });
+                break;
+            case 27:    /* SRR1 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SRR1)));
+                break;
+            case 272:   /* SPRG0 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[0])));
+                break;
+            case 273:   /* SPRG1 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[1])));
+                break;
+            case 274:   /* SPRG2 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[2])));
+                break;
+            case 275:   /* SPRG3 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[3])));
+                break;
+        }
+
+        FreeARMRegister(tc, tmp);
+
+        /* Now insert the program exception path - raise exception if RFI was not allowed */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+        EMIT_Exception(tc, 0x700);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        /* Insert fixup location */
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - jump_location),
+            fixup_type,
+            (uint32_t)(exit_code_end - exit_code_start),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+
+        tc->AdvancePC(4);
+        tc->tc_PPCCodePtr++;
+        return 1;
 
     } else {
         /* Accessing user level SPRs */
@@ -4201,6 +4291,98 @@ static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_sc(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode != 0x44000002) return -1;
+
+    /* Advance program counter by 4 */
+    tc->AdvancePC(4);
+
+    /* Flush it - this is a point of no return */
+    tc->FlushPC();
+
+    /* Emit exception itself */
+    uint8_t ctx = GetCTX(tc);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    tc->EMIT({
+        /* Store MSR into SRR1, Store PC into SRR0 */
+        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+        str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1)),
+        str_offset(ctx, REG_PC, __builtin_offsetof(PPCState, SRR0)),
+        
+        /* Set supervisor mode in MSR */
+        bic_immed(tmp, tmp, 1, 18),
+
+        /* Load new program counter */
+        mov_immed_u16(REG_PC, 0xc00, 0),
+        movk_immed_u16(REG_PC, 0xfff0, 1),
+
+        /* Store updated MSR */
+        str_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR))
+    });
+
+    FreeARMRegister(tc, tmp);
+
+    tc->EMIT(INSN_TO_LE(MARKER_STOP));
+
+    return 1;
+}
+
+static __used__ int EMIT_rfi(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode != 0x4c000064) return -1;
+
+    uint8_t ctx = GetCTX(tc);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    /* 
+        Fetch MSR and check if exceptions are enabled - it is illegal to call
+        RFI from user
+    */
+    tc->EMIT({
+        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+        tbnz(tmp, 14, 0)
+    });
+
+    /* Emit jump, remember its location and fixup type */
+    uint32_t fixup_type = FIXUP_TBZ;
+    uint32_t *jump_location = tc->tc_CodePtr - 1;
+
+    tc->EMIT({
+        /* Load SRR1, clear POW bit, store into MSR */
+        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1)),
+        bic_immed(tmp, tmp, 1, 14),
+        str_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+
+        /* Load SRR0, store into PC */
+        ldr_offset(ctx, REG_PC, __builtin_offsetof(PPCState, SRR0)),
+        bic_immed(REG_PC, REG_PC, 2, 0),
+    });
+
+    FreeARMRegister(tc, tmp);
+
+    /* This instruction exits the JIT loop */
+    tc->EMIT(INSN_TO_LE(MARKER_STOP));
+
+    /* Now insert the program exception path - raise exception if RFI was not allowed */
+    uint32_t *exit_code_start = tc->tc_CodePtr;
+    EMIT_Exception(tc, 0x700);
+    uint32_t *exit_code_end = tc->tc_CodePtr;
+
+    /* Insert fixup location */
+    tc->EMIT({ 
+        (uint32_t)(exit_code_end - jump_location),
+        fixup_type,
+        (uint32_t)(exit_code_end - exit_code_start),
+        INSN_TO_LE(MARKER_EXIT_BLOCK)
+    });
+
+    return 1;
+}
+
 extern "C" {
         extern int debug;
         extern int disasm;
@@ -4224,7 +4406,7 @@ static inline int EMIT_Group_19(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0000000000: return EMIT_mcrf(tc, opcode);
         case 0b0000010000: return EMIT_bclrx(tc, opcode);
         case 0b0000100001: return EMIT_crnor(tc, opcode);
-        //case 0b0000110010: return EMIT_rfi(tc, opcode);
+        case 0b0000110010: return EMIT_rfi(tc, opcode);
         case 0b0010000001: return EMIT_crandc(tc, opcode);
         case 0b0010010110: return EMIT_isync(tc, opcode);
         case 0b0011000001: return EMIT_crxor(tc, opcode);
@@ -4360,7 +4542,7 @@ static inline int EmitINSN(struct PPCTranslatorContext *tc)
         case 0b001110: count = EMIT_addi(tc, opcode); break;
         case 0b001111: count = EMIT_addis(tc, opcode); break;
         case 0b010000: count = EMIT_bcx(tc, opcode); break;
-        // case 0b010001: count = EMIT_sc(tc, opcode); break;
+        case 0b010001: count = EMIT_sc(tc, opcode); break;
         case 0b010010: count = EMIT_bx(tc, opcode); break;
         case 0b010011: count = EMIT_Group_19(tc, opcode); break;
         case 0b010100: count = EMIT_rlwimix(tc, opcode); break;
@@ -4387,8 +4569,8 @@ static inline int EmitINSN(struct PPCTranslatorContext *tc)
         case 0b101011: count = EMIT_lhau(tc, opcode); break;
         case 0b101100: count = EMIT_sth(tc, opcode); break;
         case 0b101101: count = EMIT_sthu(tc, opcode); break;
-        //case 0b101110: count = EMIT_lmw(tc, opcode); break;
-        //case 0b101111: count = EMIT_stmw(tc, opcode); break;
+        //case 0b101110: count = EMIT_lmw(tc, opcode); break;   // Need to be interpreted
+        //case 0b101111: count = EMIT_stmw(tc, opcode); break;  // Need to be interpreted
         //case 0b110000: count = EMIT_lfs(tc, opcode); break;
         //case 0b110001: count = EMIT_lfsu(tc, opcode); break;
         //case 0b110010: count = EMIT_lfd(tc, opcode); break;
@@ -5135,9 +5317,12 @@ static void PPC_PrintContext(struct PPCState *ppc)
     }
     kprintf("\n[PPC]\n[PPC] ");
 
-    kprintf("   PC = 0x%08x   LR = 0x%08x   CTR = 0x%08x   XER = 0x%08x", BE32(ppc->PC), BE32(ppc->LR), BE32(ppc->CTR), BE32(ppc->XER));
+    kprintf("   PC = 0x%08x     LR = 0x%08x ", BE32(ppc->PC), BE32(ppc->LR));
     kprintf("\n[JIT] ");
-    kprintf("   CR = 0x%08x\n", BE32(ppc->CR));
+    kprintf("   CR = 0x%08x    CTR = 0x%08x   XER = 0x%08x\n", BE32(ppc->CR), BE32(ppc->CTR), BE32(ppc->XER));
+
+    kprintf("[JIT]\n[JIT]  SRR0 = 0x%08x   SRR1 = 0x%08x   MSR = 0x%08x\n", BE32(ppc->SRR0), BE32(ppc->SRR1), BE32(ppc->MSR));
+    kprintf("[JIT]  SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
 }
 
 struct Entry {
