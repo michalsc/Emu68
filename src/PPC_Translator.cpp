@@ -3099,6 +3099,66 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t update_cr = opcode & 1;
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t sh = (opcode >> 11) & 31;
+    uint8_t mb = (opcode >> 6) & 31;
+    uint8_t me = (opcode >> 1) & 31;
+
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
+    uint8_t tmp = AllocARMRegister(tc);
+    
+    /* TODO: add obvious shortcuts! */
+
+    /* If sh is set, rotate left */
+    if (sh) {
+        tc->EMIT(ror(tmp, reg_rs, (32 - sh) & 31));
+    }
+
+    /* Mask result if me - mb is not 31 */
+    if (((me - mb) & 31) != 31)
+    {
+        if (mb <= me)
+        {
+            /* mb < me - mask of type 0x0f...f0 */
+            tc->EMIT({
+                bic_immed(reg_ra, reg_ra, 1 + me - mb, 31 & (me + 1)),
+                and_immed(tmp, tmp, 1 + me - mb, 31 & (me + 1)),
+                orr_reg(reg_ra, reg_ra, tmp, LSL, 0)
+            });
+        }
+        else if (me < mb)
+        {
+            /* mb < me - mask of type 0xf..0..f */
+            tc->EMIT({
+                bic_immed(reg_ra, reg_ra, mb - me - 1, me + 1),
+                and_immed(tmp, tmp, mb - me - 1, me + 1),
+                orr_reg(reg_ra, reg_ra, tmp, LSL, 0)
+            });
+        }
+    } else if (update_cr) {
+        if (!sh)
+            tc->EMIT(adds_immed(reg_ra, reg_rs, 0));
+        else
+            tc->EMIT(adds_immed(reg_ra, tmp, 0));
+    }
+
+    if (update_cr) 
+    {
+        EMIT_set_crn_logic(tc, 0);
+    }
+
+    FreeARMRegister(tc, tmp);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
@@ -3144,6 +3204,59 @@ static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcod
             tc->EMIT( adds_immed(reg_ra, reg_rs, 0));
         else
             tc->EMIT( tst_immed(reg_ra, 32, 0));
+    }
+
+    if (update_cr) 
+    {
+        EMIT_set_crn_logic(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_rlwnmx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t update_cr = opcode & 1;
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t mb = (opcode >> 6) & 31;
+    uint8_t me = (opcode >> 1) & 31;
+
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
+
+    /* TODO: add obvious shortcuts! */
+
+    tc->EMIT({
+        neg_reg(reg_ra, reg_rb, LSL, 0),
+        rorv(reg_ra, reg_rs, reg_ra)
+    });
+
+    /* Mask result if me - mb is not 31 */
+    if (((me - mb) & 31) != 31)
+    {
+        if (mb <= me)
+        {
+            /* mb < me - mask of type 0x0f...f0 */
+            tc->EMIT( update_cr ?
+                ands_immed(reg_ra, reg_ra, 1 + me - mb, 31 & (me + 1)) :
+                and_immed(reg_ra, reg_ra, 1 + me - mb, 31 & (me + 1))
+            );
+        }
+        else if (me < mb)
+        {
+            /* mb < me - mask of type 0xf..0..f */
+            tc->EMIT( update_cr ?
+                ands_immed(reg_ra, reg_ra, mb - me - 1, me + 1) :
+                and_immed(reg_ra, reg_ra, mb - me - 1, me + 1)
+            );
+        }
+    } else if (update_cr) {
+        tc->EMIT(cmp_immed(reg_ra, 0));
     }
 
     if (update_cr) 
@@ -4250,9 +4363,9 @@ static inline int EmitINSN(struct PPCTranslatorContext *tc)
         // case 0b010001: count = EMIT_sc(tc, opcode); break;
         case 0b010010: count = EMIT_bx(tc, opcode); break;
         case 0b010011: count = EMIT_Group_19(tc, opcode); break;
-        // case 0b010100: count = EMIT_rlwimix(tc, opcode); break;
+        case 0b010100: count = EMIT_rlwimix(tc, opcode); break;
         case 0b010101: count = EMIT_rlwinmx(tc, opcode); break;
-        // case 0b010111: count = EMIT_rlwnmx(tc, opcode); break;
+        case 0b010111: count = EMIT_rlwnmx(tc, opcode); break;
         case 0b011000: count = EMIT_ori(tc, opcode); break;
         case 0b011001: count = EMIT_oris(tc, opcode); break;
         case 0b011010: count = EMIT_xori(tc, opcode); break;
