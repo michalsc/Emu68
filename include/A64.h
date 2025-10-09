@@ -520,6 +520,8 @@ static inline uint32_t umaddl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { 
 static inline uint32_t umsubl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(ra); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9ba08000 | (rd & 31) | ((rn & 31) << 5) | ((ra & 31) << 10) | ((rm & 31) << 16)); }
 static inline uint32_t umnegl(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return umsubl(rd, 31, rn, rm); }
 static inline uint32_t umull(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return umaddl(rd, 31, rn, rm); }
+static inline uint32_t umulh(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9bc07c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
+static inline uint32_t smulh(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9b407c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
 
 /* Data processing: divide */
 static inline uint32_t sdiv(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x1ac00c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
