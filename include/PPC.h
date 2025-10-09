@@ -78,7 +78,6 @@ struct PPCState
     uint32_t JIT_UNIT_COUNT;
     uint32_t JIT_CACHE_TOTAL;
     uint32_t JIT_CACHE_FREE;
-    uint32_t JIT_SOFTFLUSH_THRESH;
     uint32_t JIT_CONTROL;
     uint32_t JIT_CONTROL2;
 };
