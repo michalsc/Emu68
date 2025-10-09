@@ -2399,11 +2399,11 @@ static __used__ int EMIT_andi_dot(struct PPCTranslatorContext *tc, uint32_t opco
         uint8_t tmp = AllocARMRegister(tc);
         tc->EMIT({
             mov_immed_u16(tmp, immed, 0),
-            and_reg(reg_rA, reg_rS, tmp, LSL, 0)
+            ands_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( and_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->EMIT( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     EMIT_set_crn_logic(tc, 0);
@@ -2428,11 +2428,11 @@ static __used__ int EMIT_andis_dot(struct PPCTranslatorContext *tc, uint32_t opc
         uint8_t tmp = AllocARMRegister(tc);
         tc->EMIT({
             mov_immed_u16(tmp, immed, 1),
-            and_reg(reg_rA, reg_rS, tmp, LSL, 0)
+            ands_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( and_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->EMIT( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     EMIT_set_crn_logic(tc, 0);
