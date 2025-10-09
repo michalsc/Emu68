@@ -530,7 +530,6 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
 {
     uint32_t Begin_Time, End_Time;
     uint32_t Begin_Cycles, End_Cycles;
-    char buf[20];
 
     kprintf("Hello, PPC\n");
     kprintf("Here is Emu68, %s, speaking ;)\n", "or maybe EmuPPC");
@@ -539,7 +538,6 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("  %%c: %c\n", 'A');
     kprintf("  %%d: %d\n", 1536);
     kprintf("  %%x: %x\n", 0xdeadbeef);
-
 
     GetBogoMIPS();
 
@@ -580,8 +578,5 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("Test loop instructions: %u\n", end - start);
     uint32_t speed = (((end - start) / ((End_Time - Begin_Time) / 1000)) ) / 100;
     kprintf("Test loop speed: %u.%u MIPS\n", speed / 10, speed % 10);
-
-    int_itoa(buf, 10, 1536, 0, 0, 0, 0, 0, 0, 0);
-    kprintf(buf);
 }
 
