@@ -68,6 +68,11 @@ struct PPCState
     };
 
     /* OEA */
+    uint32_t MSR;
+    uint32_t SRR0;
+    uint32_t SRR1;
+    uint32_t SPRG[4];
+
     uint64_t INSN_COUNT;
     uint32_t JIT_CACHE_MISS;
     uint32_t JIT_UNIT_COUNT;
