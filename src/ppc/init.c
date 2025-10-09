@@ -44,6 +44,13 @@ __asm__(
 "Program:                               \n"
 "1:     b 1b                            \n"
 
+"       .org 0xc00,0                    \n"
+"       .globl SysCall                  \n"
+"SysCall:                               \n"
+"       lis %r3, 0xcafe                 \n"
+"       ori %r3, %r3, 0xb1ba            \n"
+"       rfi                             \n"
+
 );
 }
 
@@ -526,6 +533,12 @@ void GetBogoMIPS()
     kprintf("100000000 loop cycles in %d us -> %d BogoMIPS\n", End_Time - Begin_Time, 100000000 / (End_Time - Begin_Time));
 }
 
+void foo()
+{
+    asm volatile("sc");
+    while(1);
+}
+
 void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, uint32_t pitch)
 {
     uint32_t Begin_Time, End_Time;
@@ -578,5 +591,7 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("Test loop instructions: %u\n", end - start);
     uint32_t speed = (((end - start) / ((End_Time - Begin_Time) / 1000)) ) / 100;
     kprintf("Test loop speed: %u.%u MIPS\n", speed / 10, speed % 10);
+
+    asm volatile("mtsrr0 %0; mtsrr1 %1; rfi"::"r"(foo), "r"(1 << 14));
 }
 
