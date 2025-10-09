@@ -13,6 +13,11 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <cpp/nodes>
+
+extern "C" {
+#include "A64.h"
+}
+
 #include "TranslatorContext.hpp"
 
 namespace Emu68::PPC
@@ -290,6 +295,44 @@ struct PPCTranslationUnit : public Emu68::Node
 struct PPCTranslatorContext : public TranslatorContext {
     uint32_t *      tc_PPCCodeStart;
     uint32_t *      tc_PPCCodePtr;
+
+    int32_t _pc_rel;
+
+    PPCTranslatorContext() : _pc_rel(0) {}
+
+    void GetOffsetPC(int8_t *offset);
+    void AdvancePC(uint8_t offset);
+    void FlushPC();
+    void ResetOffsetPC() { _pc_rel = 0; }
+};
+
+struct Opcode {
+    uint32_t opcode;
+
+    Opcode(uint32_t o) : opcode(o) {}
+
+    bool illegal(uint32_t mask) { return (opcode & mask) != 0; }
+
+    uint32_t u32() { return opcode; }
+    uint32_t i32() { return (int32_t)opcode; }
+    constexpr uint32_t u32(int s, int e) {
+        return (opcode >> (31 - e)) & ((1 << (1 + e - s)) - 1);
+    }
+    constexpr uint32_t i32(int s, int e) {
+        return (int32_t)((opcode >> (31 - e)) & ((1 << (1 + e - s)) - 1));
+    }
+    constexpr uint32_t u16(int s, int e) {
+        return (uint16_t)((opcode >> (31 - e)) & ((1 << (1 + e - s)) - 1));
+    }
+    constexpr uint32_t i16(int s, int e) {
+        return (int16_t)((opcode >> (31 - e)) & ((1 << (1 + e - s)) - 1));
+    }
+    constexpr uint32_t u8(int s, int e) {
+        return (uint8_t)((opcode >> (31 - e)) & ((1 << (1 + e - s)) - 1));
+    }
+    constexpr uint32_t i8(int s, int e) {
+        return (int8_t)((opcode >> (31 - e)) & ((1 << (1 + e - s)) - 1));
+    }
 };
 
 }

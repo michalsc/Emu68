@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <initializer_list>
 
+extern "C" {
 #include "A64.h"
+}
 
 #undef EMIT
 
