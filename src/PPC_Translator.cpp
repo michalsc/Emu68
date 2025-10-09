@@ -3031,13 +3031,105 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
-    if (spr & 0x10) {
+    if (spr & 0x10)
+    {
+        uint8_t ctx = GetCTX(tc);
+        uint8_t tmp = AllocARMRegister(tc);
 
-        /* Accessing supervisor level SPRs */
-        /* TODO: Implement Supervisor SPRs */
-        return -1;
+        /* 
+            This fetches must not be context synchronizing and one supervisor check per
+            code block is sufficient.
+        */
+        if (!tc->tc_SupervisorChecked)
+        {
+            /* We need to flush PC now, just in case */
+            tc->FlushPC();
 
-    } else {
+            /* 
+                Fetch MSR and check if exceptions are enabled - it is illegal to call
+                RFI from user
+            */
+            tc->EMIT({
+                ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+                tbnz(tmp, 14, 0)
+            });
+        }
+
+        /* Emit jump, remember its location and fixup type */
+        uint32_t fixup_type = FIXUP_TBZ;
+        uint32_t *jump_location = tc->tc_CodePtr - 1;
+
+        switch(spr) {
+            case 26:    /* SRR0 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SRR0)));
+                break;
+            case 27:    /* SRR1 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SRR1)));
+                break;
+            case 272:   /* SPRG0 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[0])));
+                break;
+            case 273:   /* SPRG1 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[1])));
+                break;
+            case 274:   /* SPRG2 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[2])));
+                break;
+            case 275:   /* SPRG3 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[3])));
+                break;
+            case 287:   /* PVR */
+                tc->EMIT({
+                    mov_immed_u16(reg_rd, (EMU68_VERSION_MAJOR << 8) | EMU68_VERSION_MINOR, 0),
+                    movk_immed_u16(reg_rd, 0xee68, 1)
+                });
+                break;
+            case 916:   /* JIT_CACHE_TOTAL */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CACHE_TOTAL)));
+                break;
+            case 917:   /* JIT_CACHE_FREE */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CACHE_FREE)));
+                break;
+            case 918:   /* JIT_CACHE_MISS */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CACHE_MISS)));
+                break;
+            case 919:   /* JIT_UNIT_COUNT */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_UNIT_COUNT)));
+                break;
+            case 920:   /* JIT_CONTROL */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CONTROL)));
+                break;
+            case 921:   /* JIT_CONTROL_2 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CONTROL2)));
+                break;
+        }
+
+        FreeARMRegister(tc, tmp);
+
+        if (!tc->tc_SupervisorChecked)
+        {
+            /* Now insert the program exception path - raise exception if RFI was not allowed */
+            uint32_t *exit_code_start = tc->tc_CodePtr;
+            EMIT_Exception(tc, 0x700);
+            uint32_t *exit_code_end = tc->tc_CodePtr;
+
+            /* Insert fixup location */
+            tc->EMIT({ 
+                (uint32_t)(exit_code_end - jump_location),
+                fixup_type,
+                (uint32_t)(exit_code_end - exit_code_start),
+                INSN_TO_LE(MARKER_EXIT_BLOCK)
+            });
+
+            tc->tc_SupervisorChecked = true;
+        }
+
+        tc->AdvancePC(4);
+        tc->tc_PPCCodePtr++;
+        return 1;
+    }
+    else
+    {
         uint8_t tmp;
 
         /* Accessing user level SPRs */
@@ -3083,6 +3175,123 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_mfmsr(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Stanity check */
+    if (opcode & 0x001ff801) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t ctx = GetCTX(tc);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    /* 
+        This fetches must not be context synchronizing and one supervisor check per
+        code block is sufficient.
+    */
+    if (!tc->tc_SupervisorChecked)
+    {
+        /* We need to flush PC now, just in case */
+        tc->FlushPC();
+
+        /* 
+            Fetch MSR and check if exceptions are enabled - it is illegal to call
+            RFI from user
+        */
+        tc->EMIT({
+            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+            tbnz(tmp, 14, 0)
+        });
+    }
+
+    /* Emit jump, remember its location and fixup type */
+    uint32_t fixup_type = FIXUP_TBZ;
+    uint32_t *jump_location = tc->tc_CodePtr - 1;
+
+    tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, MSR)));
+
+    FreeARMRegister(tc, tmp);
+
+    if (!tc->tc_SupervisorChecked)
+    {
+        /* Now insert the program exception path - raise exception if RFI was not allowed */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+        EMIT_Exception(tc, 0x700);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        /* Insert fixup location */
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - jump_location),
+            fixup_type,
+            (uint32_t)(exit_code_end - exit_code_start),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+
+        tc->tc_SupervisorChecked = true;
+    }
+
+    tc->AdvancePC(4);
+    tc->tc_PPCCodePtr++;
+    return 1;
+}
+
+static __used__ int EMIT_mtmsr(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Stanity check */
+    if (opcode & 0x001ff801) return -1;
+
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t ctx = GetCTX(tc);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    /* We need to flush PC now, just in case */
+    tc->FlushPC();
+
+    /* 
+        Fetch MSR and check if exceptions are enabled - it is illegal to call
+        RFI from user
+    */
+    tc->EMIT({
+        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+        tbnz(tmp, 14, 0)
+    });
+
+    /* Emit jump, remember its location and fixup type */
+    uint32_t fixup_type = FIXUP_TBZ;
+    uint32_t *jump_location = tc->tc_CodePtr - 1;
+
+    tc->EMIT({
+        /* Clear top + POW, ILE */
+        bic_immed(tmp, reg_rs, 16, 16),
+        /* Clear IP, IR, DR, RI, LE */
+        bic_immed(tmp, tmp, 8, 0),
+        /* Set IP again */
+        orr_immed(tmp, tmp, 1, 26),
+        str_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR))
+    });
+
+    FreeARMRegister(tc, tmp);
+
+    /* Now insert the program exception path - raise exception if RFI was not allowed */
+    uint32_t *exit_code_start = tc->tc_CodePtr;
+    EMIT_Exception(tc, 0x700);
+    uint32_t *exit_code_end = tc->tc_CodePtr;
+
+    /* Insert fixup location */
+    tc->EMIT({ 
+        (uint32_t)(exit_code_end - jump_location),
+        fixup_type,
+        (uint32_t)(exit_code_end - exit_code_start),
+        INSN_TO_LE(MARKER_EXIT_BLOCK)
+    });
+
+    /* Stop here */
+    tc->EMIT(INSN_TO_LE(MARKER_STOP));
+
+    return 1;
+}
+
 static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Stanity check */
@@ -3099,17 +3308,24 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
         uint8_t ctx = GetCTX(tc);
         uint8_t tmp = AllocARMRegister(tc);
 
-        /* We need to flush PC now, just in case */
-        tc->FlushPC();
-
         /* 
-            Fetch MSR and check if exceptions are enabled - it is illegal to call
-            RFI from user
+            This fetches must not be context synchronizing and one supervisor check per
+            code block is sufficient.
         */
-        tc->EMIT({
-            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-            tbnz(tmp, 14, 0)
-        });
+        if (!tc->tc_SupervisorChecked)
+        {
+            /* We need to flush PC now, just in case */
+            tc->FlushPC();
+
+            /* 
+                Fetch MSR and check if exceptions are enabled - it is illegal to call
+                RFI from user
+            */
+            tc->EMIT({
+                ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+                tbnz(tmp, 14, 0)
+            });
+        }
 
         /* Emit jump, remember its location and fixup type */
         uint32_t fixup_type = FIXUP_TBZ;
@@ -3123,7 +3339,11 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
                 });
                 break;
             case 27:    /* SRR1 */
-                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SRR1)));
+                tc->EMIT({
+                    /* Set IP */
+                    orr_immed(tmp, reg_rs, 1, 26),
+                    str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1))
+                });
                 break;
             case 272:   /* SPRG0 */
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[0])));
@@ -3137,27 +3357,39 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             case 275:   /* SPRG3 */
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[3])));
                 break;
+            case 920:   /* JIT_CONTROL */
+                kprintf("[PPC] JIT_CONTROL written to, need update\n");
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, JIT_CONTROL)));
+                break;
+            case 921:   /* JIT_CONTROL_2 */
+                kprintf("[PPC] JIT_CONTROL2 written to, need update\n");
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, JIT_CONTROL2)));
+                break;
         }
 
         FreeARMRegister(tc, tmp);
 
-        /* Now insert the program exception path - raise exception if RFI was not allowed */
-        uint32_t *exit_code_start = tc->tc_CodePtr;
-        EMIT_Exception(tc, 0x700);
-        uint32_t *exit_code_end = tc->tc_CodePtr;
+        if (!tc->tc_SupervisorChecked)
+        {
+            /* Now insert the program exception path - raise exception if RFI was not allowed */
+            uint32_t *exit_code_start = tc->tc_CodePtr;
+            EMIT_Exception(tc, 0x700);
+            uint32_t *exit_code_end = tc->tc_CodePtr;
 
-        /* Insert fixup location */
-        tc->EMIT({ 
-            (uint32_t)(exit_code_end - jump_location),
-            fixup_type,
-            (uint32_t)(exit_code_end - exit_code_start),
-            INSN_TO_LE(MARKER_EXIT_BLOCK)
-        });
+            /* Insert fixup location */
+            tc->EMIT({ 
+                (uint32_t)(exit_code_end - jump_location),
+                fixup_type,
+                (uint32_t)(exit_code_end - exit_code_start),
+                INSN_TO_LE(MARKER_EXIT_BLOCK)
+            });
+
+            tc->tc_SupervisorChecked = true;
+        }
 
         tc->AdvancePC(4);
         tc->tc_PPCCodePtr++;
         return 1;
-
     } else {
         /* Accessing user level SPRs */
         switch(spr) {
@@ -4400,8 +4632,6 @@ static inline int EMIT_Group_19(struct PPCTranslatorContext *tc, uint32_t opcode
 {
     uint32_t secondary = (opcode >> 1) & 0x3ff;
 
-//    kprintf("Group 19, secondary=%d\n");
-
     switch (secondary) {
         case 0b0000000000: return EMIT_mcrf(tc, opcode);
         case 0b0000010000: return EMIT_bclrx(tc, opcode);
@@ -4442,7 +4672,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0000110111: return EMIT_lwzux(tc, opcode);
         case 0b0000111100: return EMIT_andcx(tc, opcode);
         case 0b0001001011: return EMIT_mulhwx(tc, opcode);
-        //case 0b0001010011: return EMIT_mfmsr(tc, opcode);     // OEA, supervisor
+        case 0b0001010011: return EMIT_mfmsr(tc, opcode);     // OEA, supervisor
         //case 0b0001010110: return EMIT_dbcf(tc, opcode);      // VEA
         case 0b0001010111: return EMIT_lbzx(tc, opcode);
         case 0b0001101000: return EMIT_negx(tc, opcode);
@@ -4451,7 +4681,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         //case 0b0010001000: return EMIT_subfex(tc, opcode);
         case 0b0010001010: return EMIT_addex(tc, opcode);
         case 0b0010010000: return EMIT_mtcrf(tc, opcode);
-        //case 0b0010010010: return EMIT_mtmsr(tc, opcode);     // OEA, supervisor
+        case 0b0010010010: return EMIT_mtmsr(tc, opcode);     // OEA, supervisor
         //case 0b0010010110: return EMIT_stwcx_dot(tc, opcode);
         case 0b0010010111: return EMIT_stwx(tc, opcode);
         case 0b0010110111: return EMIT_stwux(tc, opcode);
@@ -4648,6 +4878,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     tc.tc_CodeStart = temporary_arm_code;
     tc.tc_PPCCodePtr = PPCCodePtr;
     tc.tc_PPCCodeStart = PPCCodePtr;
+    tc.tc_SupervisorChecked = false;
 
     uint32_t *last_rev_jump = (uint32_t *)0xffffffff;
 
@@ -5714,15 +5945,15 @@ extern "C" void StartupPPC()
         ppc.FPR_u64[fp] = 0x7fffffffffffffffULL;
     }
 
+    ppc.MSR = 0x0040;
     ppc.JIT_CACHE_TOTAL = tlsf_get_total_size(Emu68::PPC::jit_ppc);
     ppc.JIT_CACHE_FREE = tlsf_get_free_size(Emu68::PPC::jit_ppc);
     ppc.JIT_UNIT_COUNT = 0;
-    ppc.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
-    ppc.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
+    ppc.JIT_CONTROL = 0;
     ppc.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
     ppc.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     ppc.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
-    ppc.JIT_CONTROL2 = (EMU68_CCR_SCAN_DEPTH << JC2B_CCR_SCAN_DEPTH);
+    ppc.JIT_CONTROL2 = 0;
     
     /* Start at reset vector */
     ppc.PC = 0xfff00100;
