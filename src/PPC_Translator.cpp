@@ -838,7 +838,24 @@ static __used__ int EMIT_addis(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* If rA == 0 then this is load upper */
     if (ra == 0) {
         uint8_t arm_rd = MapGPRForWrite(tc, rd);
-        tc->EMIT( mov_immed_u16(arm_rd, imm, 1));
+        
+        /* If next opcode is ori or addi to the same register, then it is a load immediate */
+        uint32_t opcode2 = cache_read_32(ICACHE, (uint32_t)(uintptr_t)(tc->tc_PPCCodePtr + 1));
+        uint32_t expected = (rd << 21) | (rd << 16);
+        /* Check if ori or addi */
+        if ((opcode2 & 0xffff0000) == (expected | (24 << 26)) ||     // This is ori
+            (opcode2 & 0xffff8000) == (expected | (14 << 26)))       // This is addi, must be positive, thus test bit 15 too
+        {
+            tc->LoadImmediate(arm_rd, (opcode << 16) | (opcode2 & 0xffff));
+            tc->tc_PPCCodePtr+=2;
+            tc->AdvancePC(8);
+            return 2;
+        }
+        else
+        {
+            /* Regular case, just a load immediate shifted */
+            tc->EMIT(mov_immed_u16(arm_rd, imm, 1));
+        }
     } else {
         uint8_t arm_rd, arm_ra;
 
@@ -3151,13 +3168,13 @@ static __used__ int EMIT_orx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     if (rb == rs) {
-        tc->EMIT( mov_reg(reg_ra, reg_rs));
+        tc->EMIT(mov_reg(reg_ra, reg_rs));
     } else {
-        tc->EMIT( orr_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->EMIT(orr_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
     }
 
     if (update_cr) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->EMIT(cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
@@ -4313,6 +4330,8 @@ static struct DisasmOut {
     uint32_t do_ArmCount;
 } disasm_items[512], *disasm_ptr;
 
+uint64_t arm_cycle_counter_start;
+
 static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 {
     Emu68::List<ExitBlock> exitList;
@@ -4620,6 +4639,8 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     }
     tc.EMIT(bx_lr());
     
+    uint32_t *main_block_end = tc.tc_CodePtr;
+
     uint32_t *_tmpptr = tc.tc_CodePtr;
     FreeARMRegister(&tc, tmp2);
     FlushCTX(&tc);
@@ -4758,7 +4779,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         //kprintf("[PPC] Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
         //    prologue_size, epilogue_size, conditionals_count);
         //kprintf("[PPC]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
-        uint32_t mean = 100 * (tc.tc_CodePtr - tc.tc_CodeStart); // - (prologue_size + epilogue_size));
+        uint32_t mean = 100 * (main_block_end - tc.tc_CodeStart); // - (prologue_size + epilogue_size));
         mean = mean / insn_count;
         uint32_t mean_n = mean / 100;
         uint32_t mean_f = mean % 100;
@@ -4766,10 +4787,21 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     }
 
     if (inner_loop && insn_count == 1) {
+        uint64_t arm_cycle_counter_end;
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(arm_cycle_counter_end));
         struct PPCState *ctx = getHostCTX();
         kprintf("[PPC] Endless loop detected. We are done here\n");
         PPC_PrintContext(ctx);
-        kprintf("[PPC] Instructions executed: %ld\n", ctx->INSN_COUNT);
+        kprintf("[PPC] PPC Instructions executed: %ld\n", ctx->INSN_COUNT);
+        kprintf("[PPC] ARM cycles: %ld\n", arm_cycle_counter_end - arm_cycle_counter_start);
+
+        uint64_t mean = 100 * ctx->INSN_COUNT;
+        mean = mean / (arm_cycle_counter_end - arm_cycle_counter_start);
+        uint64_t mean_n = mean / 100;
+        uint64_t mean_f = mean % 100;
+
+        kprintf("[PPC] Mean PPC instructions per ARM cpu cycle: %ld.%02ld\n", mean_n, mean_f);
+
         while(1) { asm volatile("wfi"); };
     }
 
@@ -5419,5 +5451,6 @@ extern "C" void StartupPPC()
 
     Emu68::PPC::PPC_PrintContext(&ppc);
 
+    __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(Emu68::PPC::arm_cycle_counter_start));
     Emu68::PPC::PPCMainLoop();
 }
