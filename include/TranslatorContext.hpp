@@ -15,7 +15,8 @@ namespace Emu68 {
 struct TranslatorContext {
     uint32_t *      tc_CodeStart;
     uint32_t *      tc_CodePtr;
-    
+    bool            tc_SupervisorChecked;
+
     uint32_t * EMIT(std::initializer_list<uint32_t> list) {
         for(auto insn: list) {
             *tc_CodePtr++ = insn;
