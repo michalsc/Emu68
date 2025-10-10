@@ -3642,6 +3642,30 @@ static __used__ int EMIT_orx(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_cntlzwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x0000f800) return -1;
+
+    uint8_t update_cr = opcode & 1;
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
+
+    tc->EMIT(clz(reg_ra, reg_rs));
+
+    if (update_cr) {
+        tc->EMIT(cmp_immed(reg_ra, 0));
+        EMIT_set_crn_logic(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_mulhwux(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -4930,7 +4954,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         //case 0b0000010100: return EMIT_lwarx(tc, opcode);
         case 0b0000010111: return EMIT_lwzx(tc, opcode);
         //case 0b0000011000: return EMIT_slwx(tc, opcode);
-        //case 0b0000011010: return EMIT_cntlzwx(tc, opcode);
+        case 0b0000011010: return EMIT_cntlzwx(tc, opcode);
         case 0b0000011100: return EMIT_andx(tc, opcode);
         case 0b0000100000: return EMIT_cmpl(tc, opcode);
         case 0b0000101000: return EMIT_subfx(tc, opcode);
