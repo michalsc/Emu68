@@ -536,6 +536,10 @@ void GetBogoMIPS()
 void foo()
 {
     asm volatile("sc");
+    asm volatile("icbi %r0, %r0");
+    GetBogoMIPS();
+    asm volatile("icbi %r0, %r0");
+    GetBogoMIPS();
     while(1);
 }
 
@@ -579,6 +583,7 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
             ptr += fb_width;
         }
     }
+    asm volatile("icbi %r0, %r0");
     kprintf("%d\n", c);
 
     asm volatile("lwbrx %0, 0, %1":"=r"(End_Time):"r"(0xf2003004));
