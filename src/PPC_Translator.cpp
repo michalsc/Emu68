@@ -4205,6 +4205,101 @@ static __used__ int EMIT_tw(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_twi(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t to = (opcode >> 21) & 31;
+
+    if (to == 0)
+    {
+        /* Not expecting any condition generating exception so skip */
+        tc->EMIT(nop());
+        
+        tc->tc_PPCCodePtr++;
+        tc->AdvancePC(4);
+        return 1;
+    }
+    else if (to == 31)
+    {
+        /* All bits set, trap always */
+        EMIT_Exception(tc, 0x700);
+        tc->STOP();
+        return 1;
+    }
+
+    uint8_t ra = (opcode >> 16) & 31;
+    uint16_t imm = opcode & 0xffff;
+    int32_t simm = (int16_t)imm;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+
+    int number_of_cases = 0;
+    uint32_t *locations[5];
+
+    /* Is the immediate in range for CMP? */
+    if ((simm & 0xfffff000) == 0) {
+        tc->EMIT( cmp_immed(reg_ra, simm));
+    }
+    else if ((simm & 0xff000fff) == 0) {
+        tc->EMIT( cmp_immed_lsl12(reg_ra, simm >> 12));
+    }
+    else {
+        uint8_t tmp = AllocARMRegister(tc);
+
+        tc->LoadImmediate(tmp, simm);
+        tc->EMIT( cmp_reg(reg_ra, tmp, LSL, 0));
+
+        FreeARMRegister(tc, tmp);
+    }
+
+    if (to & 1) {
+        
+        tc->EMIT(b_cc(A64_CC_HI, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 2) {
+        
+        tc->EMIT(b_cc(A64_CC_CC, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 4) {
+        
+        tc->EMIT(b_cc(A64_CC_EQ, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 8) {
+        
+        tc->EMIT(b_cc(A64_CC_GT, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 16) {
+        
+        tc->EMIT(b_cc(A64_CC_LT, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+
+    uint32_t *exit_code_start = tc->tc_CodePtr;
+    EMIT_Exception(tc, 0x700);
+    uint32_t *exit_code_end = tc->tc_CodePtr;
+
+    /* Insert additional exit points */
+    for (int i=0; i < number_of_cases; i++) {
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - locations[i]),
+            FIXUP_BCC
+        });
+    }
+
+    tc->EMIT({
+        (uint32_t)number_of_cases,
+        (uint32_t)(exit_code_end - exit_code_start),
+        INSN_TO_LE(MARKER_EXIT_BLOCK)
+    });
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_cmpl(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* sanity check */
@@ -4933,7 +5028,7 @@ static inline int EmitINSN(struct PPCTranslatorContext *tc)
     //kprintf("[PPC] EmitINSN @ %08x, opcode %08x, group %d\n", (uint32_t)(uintptr_t)tc->tc_PPCCodePtr, opcode, group);
 
     switch (group) {
-        // case 0b000011: count = EMIT_twi(tc, opcode); break;
+        case 0b000011: count = EMIT_twi(tc, opcode); break;
         case 0b000111: count = EMIT_mulli(tc, opcode); break;
         case 0b001000: count = EMIT_subfic(tc, opcode); break;
         case 0b001010: count = EMIT_cmpli(tc, opcode); break;
