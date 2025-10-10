@@ -4637,6 +4637,30 @@ static __used__ int EMIT_srwx(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_slwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    
+    uint8_t rc = opcode & 1;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+
+    tc->EMIT( lslv(reg_ra, reg_rs, reg_rb));
+
+    if (rc) {
+        tc->EMIT( cmp_immed(reg_ra, 0));
+        EMIT_set_crn_signed(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_srawix(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
@@ -4863,6 +4887,206 @@ static __used__ int EMIT_sync(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_dcbst(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT({
+        dsb_sy(),
+        dc_cvac(base),
+        dsb_sy()
+    });
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_dcbf(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT({
+        dsb_sy(),
+        dc_civac(base),
+        dsb_sy()
+    });
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_dcbz(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT({
+        dsb_sy(),
+        dc_zva(base),
+        dsb_sy()
+    });
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_dcba(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT({
+        prfm_pst(base)
+    });
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_dcbi(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    uint8_t ctx = GetCTX(tc);
+    uint8_t tmp = AllocARMRegister(tc);
+
+    /* 
+        This fetches must not be context synchronizing and one supervisor check per
+        code block is sufficient.
+    */
+    if (!tc->tc_SupervisorChecked)
+    {
+        /* We need to flush PC now, just in case */
+        tc->FlushPC();
+
+        /* 
+            Fetch MSR and check if exceptions are enabled - it is illegal to call
+            RFI from user
+        */
+        tc->EMIT({
+            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+            tbnz(tmp, 14, 0)
+        });
+    }
+
+    uint32_t fixup_type = FIXUP_TBZ;
+    uint32_t *jump_location = tc->tc_CodePtr - 1;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT({
+        dc_ivac(base)
+    });
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    if (!tc->tc_SupervisorChecked)
+    {
+        /* Now insert the program exception path - raise exception if RFI was not allowed */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+        EMIT_Exception(tc, 0x700);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        /* Insert fixup location */
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - jump_location),
+            fixup_type,
+            1,
+            (uint32_t)(exit_code_end - exit_code_start),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+
+        tc->tc_SupervisorChecked = true;
+    }
+    
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -5059,17 +5283,17 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0000010011: return EMIT_mfcr(tc, opcode);
         //case 0b0000010100: return EMIT_lwarx(tc, opcode);
         case 0b0000010111: return EMIT_lwzx(tc, opcode);
-        //case 0b0000011000: return EMIT_slwx(tc, opcode);
+        case 0b0000011000: return EMIT_slwx(tc, opcode);
         case 0b0000011010: return EMIT_cntlzwx(tc, opcode);
         case 0b0000011100: return EMIT_andx(tc, opcode);
         case 0b0000100000: return EMIT_cmpl(tc, opcode);
         case 0b0000101000: return EMIT_subfx(tc, opcode);
-        //case 0b0000110110: return EMIT_dcbst(tc, opcode);     // VEA
+        case 0b0000110110: return EMIT_dcbst(tc, opcode);
         case 0b0000110111: return EMIT_lwzux(tc, opcode);
         case 0b0000111100: return EMIT_andcx(tc, opcode);
         case 0b0001001011: return EMIT_mulhwx(tc, opcode);
         case 0b0001010011: return EMIT_mfmsr(tc, opcode);     // OEA, supervisor
-        //case 0b0001010110: return EMIT_dbcf(tc, opcode);      // VEA
+        case 0b0001010110: return EMIT_dcbf(tc, opcode);
         case 0b0001010111: return EMIT_lbzx(tc, opcode);
         case 0b0001101000: return EMIT_negx(tc, opcode);
         case 0b0001110111: return EMIT_lbzux(tc, opcode);
@@ -5111,30 +5335,21 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0110111100: return EMIT_orx(tc, opcode);
         case 0b0111001011: return EMIT_divwux(tc, opcode);
         case 0b0111010011: return EMIT_mtspr(tc, opcode);
-        //case 0b0111010110: return EMIT_dcbi(tc, opcode);      // VEA, supervisor
+        case 0b0111010110: return EMIT_dcbi(tc, opcode);      // VEA, supervisor
         case 0b0111011100: return EMIT_nandx(tc, opcode);
         case 0b0111101011: return EMIT_divwx(tc, opcode);
         case 0b1000000000: return EMIT_mcrxr(tc, opcode);
         //case 0b1000010101: return EMIT_lswx(tc, opcode);
         case 0b1000010110: return EMIT_lwbrx(tc, opcode);
-        //case 0b1000010111: return EMIT_lfsx(tc, opcode);      // FPU
         case 0b1000011000: return EMIT_srwx(tc, opcode);
         //case 0b1000110110: return EMIT_tlbsync(tc, opcode);   // OEA, supervisor, optional
-        //case 0b1000110111: return EMIT_lfsux(tc, opcode);     // FPU
         //case 0b1001010011: return EMIT_mfsr(tc, opcode);      // OEA, supervisor
         //case 0b1001010101: return EMIT_lswi(tc, opcode);
         case 0b1001010110: return EMIT_sync(tc, opcode);
-        //case 0b1001010111: return EMIT_lfdx(tc, opcode);      // FPU
-        //case 0b1001110111: return EMIT_lfdux(tc, opcode);     // FPU
         //case 0b1010010011: return EMIT_mfsrin(tc, opcode);    // OEA
         //case 0b1010010101: return EMIT_stswx(tc, opcode);
         case 0b1010010110: return EMIT_stwbrx(tc, opcode);
-        //case 0b1010010111: return EMIT_stfsx(tc, opcode);     // FPU
-        //case 0b1010110111: return EMIT_stfsux(tc, opcode);    // FPU
-        //case 0b1011010101: return EMIT_stswi(tc, opcode);     // FPU
-        //case 0b1011010111: return EMIT_stfdx(tc, opcode);     // FPU
-        //case 0b1011110110: return EMIT_dcba(tc, opcode);      // VEA, optional
-        //case 0b1011110111: return EMIT_stfdux(tc, opcode);    // FPU
+        case 0b1011110110: return EMIT_dcba(tc, opcode);      // VEA, optional
         case 0b1100010110: return EMIT_lhbrx(tc, opcode);
         case 0b1100011000: return EMIT_srawx(tc, opcode);
         case 0b1100111000: return EMIT_srawix(tc, opcode);
@@ -5143,8 +5358,20 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b1110011010: return EMIT_extshx(tc, opcode);
         case 0b1110111010: return EMIT_extsbx(tc, opcode);
         case 0b1111010110: return EMIT_icbi(tc, opcode);
+        case 0b1111110110: return EMIT_dcbz(tc, opcode);      // VEA
+
+        /* FPU part */
+        //case 0b1000010111: return EMIT_lfsx(tc, opcode);      // FPU
+        //case 0b1000110111: return EMIT_lfsux(tc, opcode);     // FPU
+        //case 0b1001010111: return EMIT_lfdx(tc, opcode);      // FPU
+        //case 0b1001110111: return EMIT_lfdux(tc, opcode);     // FPU
         //case 0b1111010111: return EMIT_stfiwx(tc, opcode);    // FPU
-        //case 0b1111110110: return EMIT_dcbz(tc, opcode);      // VEA
+        //case 0b1011110111: return EMIT_stfdux(tc, opcode);    // FPU
+        //case 0b1010010111: return EMIT_stfsx(tc, opcode);     // FPU
+        //case 0b1010110111: return EMIT_stfsux(tc, opcode);    // FPU
+        //case 0b1011010101: return EMIT_stswi(tc, opcode);     // FPU
+        //case 0b1011010111: return EMIT_stfdx(tc, opcode);     // FPU
+        
         default: return -1;
     }
 }
