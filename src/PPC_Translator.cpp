@@ -2210,7 +2210,7 @@ static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* If jump distance is larger than allowed, break translation */
     ptrdiff_t distance = 4 * (tc->tc_PPCCodePtr - old_pc);
     if (distance > var_EMU68_BRANCH_INLINE_DISTANCE || distance < -var_EMU68_BRANCH_INLINE_DISTANCE) {
-        tc->EMIT( INSN_TO_LE(MARKER_STOP));
+        tc->STOP();
     }
 
     /* If jump to itself, insert NOP */
@@ -2379,6 +2379,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         tc->EMIT({ 
             (uint32_t)(exit_code_end - jump_location),
             fixup_type,
+            1,
             (uint32_t)(exit_code_end - exit_code_start),
             INSN_TO_LE(MARKER_EXIT_BLOCK)
         });
@@ -2387,7 +2388,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* If jump distance is larger than allowed, break translation */
     ptrdiff_t distance = 4 * (tc->tc_PPCCodePtr - old_pc);
     if (distance > var_EMU68_BRANCH_INLINE_DISTANCE || distance < -var_EMU68_BRANCH_INLINE_DISTANCE) {
-        tc->EMIT( INSN_TO_LE(MARKER_STOP));
+        tc->STOP();
     }
     
     FreeARMRegister(tc, tmp);
@@ -2901,7 +2902,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             tc->tc_PPCCodePtr = last_pc;
         } else {
             /* The return address stack was not available, stop now */
-            tc->EMIT( INSN_TO_LE(MARKER_STOP));
+            tc->STOP();
         }
 
         tc->ResetOffsetPC();
@@ -2953,7 +2954,7 @@ static __used__ int EMIT_bcctrx(struct PPCTranslatorContext *tc, uint32_t opcode
         }
 
         /* The return address stack was not available, stop now */
-        tc->EMIT( INSN_TO_LE(MARKER_STOP));
+        tc->STOP();
 
         tc->ResetOffsetPC();
     } else {
@@ -3136,6 +3137,7 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             tc->EMIT({ 
                 (uint32_t)(exit_code_end - jump_location),
                 fixup_type,
+                1,
                 (uint32_t)(exit_code_end - exit_code_start),
                 INSN_TO_LE(MARKER_EXIT_BLOCK)
             });
@@ -3242,6 +3244,7 @@ static __used__ int EMIT_mfmsr(struct PPCTranslatorContext *tc, uint32_t opcode)
         tc->EMIT({ 
             (uint32_t)(exit_code_end - jump_location),
             fixup_type,
+            1,
             (uint32_t)(exit_code_end - exit_code_start),
             INSN_TO_LE(MARKER_EXIT_BLOCK)
         });
@@ -3301,12 +3304,13 @@ static __used__ int EMIT_mtmsr(struct PPCTranslatorContext *tc, uint32_t opcode)
     tc->EMIT({ 
         (uint32_t)(exit_code_end - jump_location),
         fixup_type,
+        1,
         (uint32_t)(exit_code_end - exit_code_start),
         INSN_TO_LE(MARKER_EXIT_BLOCK)
     });
 
     /* Stop here */
-    tc->EMIT(INSN_TO_LE(MARKER_STOP));
+    tc->STOP();
 
     return 1;
 }
@@ -3399,6 +3403,7 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             tc->EMIT({ 
                 (uint32_t)(exit_code_end - jump_location),
                 fixup_type,
+                1,
                 (uint32_t)(exit_code_end - exit_code_start),
                 INSN_TO_LE(MARKER_EXIT_BLOCK)
             });
@@ -4116,6 +4121,90 @@ static __used__ int EMIT_cmp(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_tw(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* sanity check */
+    if (opcode & 0x00000001) return -1;
+
+    uint8_t to = (opcode >> 21) & 31;
+
+    if (to == 0)
+    {
+        /* Not expecting any condition generating exception so skip */
+        tc->EMIT(nop());
+        
+        tc->tc_PPCCodePtr++;
+        tc->AdvancePC(4);
+        return 1;
+    }
+    else if (to == 31)
+    {
+        /* All bits set, trap always */
+        EMIT_Exception(tc, 0x700);
+        tc->STOP();
+        return 1;
+    }
+
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    int number_of_cases = 0;
+    uint32_t *locations[5];
+
+    /* Emit comparison */
+    tc->EMIT(cmp_reg(reg_ra, reg_rb, LSL, 0));
+    
+    if (to & 1) {
+        
+        tc->EMIT(b_cc(A64_CC_HI, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 2) {
+        
+        tc->EMIT(b_cc(A64_CC_CC, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 4) {
+        
+        tc->EMIT(b_cc(A64_CC_EQ, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 8) {
+        
+        tc->EMIT(b_cc(A64_CC_GT, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+    if (to & 16) {
+        
+        tc->EMIT(b_cc(A64_CC_LT, 0));
+        locations[number_of_cases++] = tc->tc_CodePtr - 1;
+    }
+
+    uint32_t *exit_code_start = tc->tc_CodePtr;
+    EMIT_Exception(tc, 0x700);
+    uint32_t *exit_code_end = tc->tc_CodePtr;
+
+    /* Insert additional exit points */
+    for (int i=0; i < number_of_cases; i++) {
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - locations[i]),
+            FIXUP_BCC
+        });
+    }
+
+    tc->EMIT({
+        (uint32_t)number_of_cases,
+        (uint32_t)(exit_code_end - exit_code_start),
+        INSN_TO_LE(MARKER_EXIT_BLOCK)
+    });
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_cmpl(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* sanity check */
@@ -4638,7 +4727,7 @@ static __used__ int EMIT_sc(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     FreeARMRegister(tc, tmp);
 
-    tc->EMIT(INSN_TO_LE(MARKER_STOP));
+    tc->STOP();
 
     return 1;
 }
@@ -4678,7 +4767,7 @@ static __used__ int EMIT_rfi(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
 
     /* This instruction exits the JIT loop */
-    tc->EMIT(INSN_TO_LE(MARKER_STOP));
+    tc->STOP();
 
     /* Now insert the program exception path - raise exception if RFI was not allowed */
     uint32_t *exit_code_start = tc->tc_CodePtr;
@@ -4689,6 +4778,7 @@ static __used__ int EMIT_rfi(struct PPCTranslatorContext *tc, uint32_t opcode)
     tc->EMIT({ 
         (uint32_t)(exit_code_end - jump_location),
         fixup_type,
+        1,
         (uint32_t)(exit_code_end - exit_code_start),
         INSN_TO_LE(MARKER_EXIT_BLOCK)
     });
@@ -4737,7 +4827,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
 
     switch (secondary) {
         case 0b0000000000: return EMIT_cmp(tc, opcode);
-        //case 0b0000000100: return EMIT_tw(tc, opcode);        
+        case 0b0000000100: return EMIT_tw(tc, opcode);
         case 0b0000001000: return EMIT_subfcx(tc, opcode);
         //case 0b0000001010: return EMIT_addcx(tc, opcode);
         case 0b0000001011: return EMIT_mulhwux(tc, opcode);
@@ -4826,8 +4916,8 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b1101010110: return EMIT_eieio(tc, opcode);
         case 0b1110010110: return EMIT_sthbrx(tc, opcode);
         case 0b1110011010: return EMIT_extshx(tc, opcode);
-        case 0b1110111010: return EMIT_extsbx(tc, opcode);    
-        case 0b1111010110: return EMIT_icbi(tc, opcode);      // VEA
+        case 0b1110111010: return EMIT_extsbx(tc, opcode);
+        case 0b1111010110: return EMIT_icbi(tc, opcode);
         //case 0b1111010111: return EMIT_stfiwx(tc, opcode);    // FPU
         //case 0b1111110110: return EMIT_dcbz(tc, opcode);      // VEA
         default: return -1;
@@ -5086,52 +5176,31 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
             {
                 struct ExitBlock *eb;
                 
-                tc.tc_CodePtr -= 4;
-                
-                uint32_t insn_count = tc.tc_CodePtr[2];
-                uint32_t fixup_type = tc.tc_CodePtr[1];
-                uint32_t fixup_target = tc.tc_CodePtr[0];
+                tc.tc_CodePtr -= 3;
 
-                eb = (ExitBlock *)tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
+                uint32_t insn_count = tc.tc_CodePtr[1];
+                uint32_t fixup_count = tc.tc_CodePtr[0];
 
-                eb->eb_Type = MARKER_EXIT_BLOCK;
+                tc.tc_CodePtr -= 2 * fixup_count;
+
+                eb = (ExitBlock *)tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count + sizeof(eb->eb_Fixup[0]) * fixup_count);
+
+                eb->eb_FixupCount = fixup_count;
                 eb->eb_InstructionCount = insn_count;
-                eb->eb_Fixup1Type = fixup_type;
-                eb->eb_Fixup1Location = tc.tc_CodePtr - fixup_target;
+                eb->eb_ARMCode = (uint32_t *)((uintptr_t)eb + sizeof(ExitBlock));
+                eb->eb_Fixup = (typeof(eb->eb_Fixup[0]) *)((uintptr_t)eb + sizeof(ExitBlock) + 4 * insn_count);
+
+                for (uint32_t i=0; i < fixup_count; i++) {
+                    uint32_t fixup_type = tc.tc_CodePtr[2 * i + 1];
+                    uint32_t fixup_target = tc.tc_CodePtr[2 * i];
+
+                    eb->eb_Fixup[i].type = fixup_type;
+                    eb->eb_Fixup[i].location = tc.tc_CodePtr - fixup_target;
+                }
 
                 tc.tc_CodePtr -= insn_count;
 
                 for (unsigned i=0; i < insn_count; i++) {
-                    eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
-                }
-
-                exitList.addTail(eb);
-            }
-            else if (tc.tc_CodePtr[-1] == INSN_TO_LE(MARKER_DOUBLE_EXIT))
-            {
-                struct ExitBlock *eb;
-
-                tc.tc_CodePtr -= 6;
-
-                uint32_t insn_count = tc.tc_CodePtr[4];
-                uint32_t fixup2_type = tc.tc_CodePtr[3];
-                uint32_t fixup2_target = tc.tc_CodePtr[2];
-                uint32_t fixup1_type = tc.tc_CodePtr[1];
-                uint32_t fixup1_target = tc.tc_CodePtr[0];
-
-                eb = (ExitBlock *)tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count);
-
-                eb->eb_Type = MARKER_DOUBLE_EXIT;
-                eb->eb_InstructionCount = insn_count;
-                eb->eb_Fixup1Type = fixup1_type;
-                eb->eb_Fixup1Location = tc.tc_CodePtr - fixup1_target;
-                eb->eb_Fixup2Type = fixup2_type;
-                eb->eb_Fixup2Location = tc.tc_CodePtr - fixup2_target;
-
-                tc.tc_CodePtr -= insn_count;
-
-                for (unsigned i = 0; i < insn_count; i++)
-                {
                     eb->eb_ARMCode[i] = tc.tc_CodePtr[i];
                 }
 
@@ -5262,89 +5331,38 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     }
 
     /* Get all exit entries and append them here */
-    struct ExitBlock *n = nullptr;
+    struct ExitBlock *eb = nullptr;
     //int exit_num = 0;
-    while ((n = exitList.remHead()))
+    while ((eb = exitList.remHead()))
     {
         uint32_t *old_end = tc.tc_CodePtr;
         uint32_t op;
 
-        if (n->eb_Type == MARKER_DOUBLE_EXIT)
+        for (unsigned i = 0; i < eb->eb_InstructionCount; i++)
         {
-            ExitBlock *eb2 = n;
-
-            for (unsigned i = 0; i < eb2->eb_InstructionCount; i++)
-            {
-                tc.EMIT(eb2->eb_ARMCode[i]);
-            }
-
-            switch (eb2->eb_Fixup1Type)
-            {
-                case FIXUP_BCC:
-                    op = I32(*eb2->eb_Fixup1Location);
-                    op &= ~(0x7ffff << 5);
-                    op |= ((old_end - eb2->eb_Fixup1Location) & 0x7ffff) << 5;
-                    *eb2->eb_Fixup1Location = I32(op);
-                    break;
-
-                case FIXUP_TBZ:
-                    op = I32(*eb2->eb_Fixup1Location);
-                    op &= ~(0x3fff << 5);
-                    op |= ((old_end - eb2->eb_Fixup1Location) & 0x3fff) << 5;
-                    *eb2->eb_Fixup1Location = I32(op);
-                    break;
-
-                default:
-                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup1Type);
-            }
-
-            switch (eb2->eb_Fixup2Type)
-            {
-                case FIXUP_BCC:
-                    op = I32(*eb2->eb_Fixup2Location);
-                    op &= ~(0x7ffff << 5);
-                    op |= ((old_end - eb2->eb_Fixup2Location) & 0x7ffff) << 5;
-                    *eb2->eb_Fixup2Location = I32(op);
-                    break;
-
-                case FIXUP_TBZ:
-                    op = I32(*eb2->eb_Fixup2Location);
-                    op &= ~(0x3fff << 5);
-                    op |= ((old_end - eb2->eb_Fixup2Location) & 0x3fff) << 5;
-                    *eb2->eb_Fixup2Location = I32(op);
-                    break;
-
-                default:
-                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup2Type);
-            }
+            tc.EMIT(eb->eb_ARMCode[i]);
         }
-        else
-        {
-            ExitBlock *eb = n;
-            
-            for (unsigned i = 0; i < eb->eb_InstructionCount; i++)
-            {
-                tc.EMIT(eb->eb_ARMCode[i]);
-            }
 
-            switch (eb->eb_Fixup1Type)
+        for (uint32_t i=0; i < eb->eb_FixupCount; i++)
+        {
+            switch (eb->eb_Fixup[i].type)
             {
                 case FIXUP_BCC:
-                    op = I32(*eb->eb_Fixup1Location);
+                    op = I32(*eb->eb_Fixup[i].location);
                     op &= ~(0x7ffff << 5);
-                    op |= ((old_end - eb->eb_Fixup1Location) & 0x7ffff) << 5;
-                    *eb->eb_Fixup1Location = I32(op);
+                    op |= ((old_end - eb->eb_Fixup[i].location) & 0x7ffff) << 5;
+                    *eb->eb_Fixup[i].location = I32(op);
                     break;
 
                 case FIXUP_TBZ:
-                    op = I32(*eb->eb_Fixup1Location);
+                    op = I32(*eb->eb_Fixup[i].location);
                     op &= ~(0x3fff << 5);
-                    op |= ((old_end - eb->eb_Fixup1Location) & 0x3fff) << 5;
-                    *eb->eb_Fixup1Location = I32(op);
+                    op |= ((old_end - eb->eb_Fixup[i].location) & 0x3fff) << 5;
+                    *eb->eb_Fixup[i].location = I32(op);
                     break;
 
                 default:
-                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb->eb_Fixup1Type);
+                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb->eb_Fixup[i].type);
             }
         }
 
@@ -5356,7 +5374,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
             disasm_ptr++;
         }
 
-        tlsf_free(tlsf, n);
+        tlsf_free(tlsf, eb);
     }
 
     disasm_ptr->do_ArmAddr = nullptr;

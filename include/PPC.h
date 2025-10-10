@@ -25,13 +25,13 @@ namespace Emu68::PPC
 
 struct ExitBlock : public Emu68::Node
 {
-    uint32_t    eb_Type;
+    uint32_t    eb_FixupCount;
     uint32_t    eb_InstructionCount;
-    uint32_t    eb_Fixup1Type;
-    uint32_t *  eb_Fixup1Location;
-    uint32_t    eb_Fixup2Type;
-    uint32_t *  eb_Fixup2Location;
-    uint32_t    eb_ARMCode[0];
+    struct {
+        uint32_t    type;
+        uint32_t *  location;
+    } *         eb_Fixup;
+    uint32_t *  eb_ARMCode;
 };
 
 struct PPCState
