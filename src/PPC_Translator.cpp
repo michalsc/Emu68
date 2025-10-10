@@ -5411,6 +5411,29 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 
         kprintf("[PPC] Cache EPOCH: %d\n", getEPOCH());
 
+        uint32_t used = 0;
+        uint32_t lines_active = 0;
+        uint32_t items_in_lines = 0;
+        for (int i=0; i < EMU68_LRU_SET_COUNT; i++) {
+            Entry *e = &LRU_cache[i * EMU68_LRU_WAY_COUNT];
+            int line_used = 0;
+            for (int j=0; j < EMU68_LRU_WAY_COUNT; j++) {
+                if (e[j].ppc != 0xffffffff && e[j].arm != 0)
+                {
+                    line_used++;
+                }
+            }
+            used += line_used;
+            if (line_used) {
+                lines_active++;
+                items_in_lines += line_used;
+            }
+        }
+
+        kprintf("[PPC] Cache usage: %d%%\n", (50 + used * 100) / (EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT));
+        int mean_ways = 100 * items_in_lines / lines_active;
+        kprintf("[PPC] Mean Ways in Set: %d.%02d\n", mean_ways / 100, mean_ways % 100);
+
         while(1) { asm volatile("wfi"); };
     }
 
@@ -5703,7 +5726,7 @@ static void PPC_PrintContext(struct PPCState *ppc)
     kprintf("[PPC]  SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
 }
 
-#define ADDR_2_SET(addr) (((addr) >> 4) % EMU68_LRU_SET_COUNT)
+#define ADDR_2_SET(addr) (((addr) >> 2) % EMU68_LRU_SET_COUNT)
 #define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
 
 static uint32_t *PPC_LRU_FindBlock(uint32_t address)
