@@ -69,17 +69,29 @@ static const uint8_t _int_reg_mapping[] = {
 
 #define FPR(n)  (n)
 
-static uint32_t ARMTmpPool;
-static uint8_t reg_CTX = 0xff;
-static uint32_t *temporary_arm_code;
-static void *jit_ppc;
-static uint32_t *ppc_high;
-static uint32_t *ppc_low;
-static uint32_t insn_count;
-static uint32_t * ppc_entry_point;
-static uint32_t debug_range_min = 0x00000000;
-static uint32_t debug_range_max = 0xffffffff;
-static struct PPCLocalState *local_state;
+namespace {
+
+uint32_t ARMTmpPool;
+uint8_t reg_CTX = 0xff;
+uint32_t *temporary_arm_code;
+void *jit_ppc;
+uint32_t *ppc_high;
+uint32_t *ppc_low;
+uint32_t insn_count;
+uint32_t * ppc_entry_point;
+uint32_t debug_range_min = 0x00000000;
+uint32_t debug_range_max = 0xffffffff;
+struct PPCLocalState *local_state;
+
+}
+
+struct Entry {
+    uintptr_t ppc;
+    uint32_t *arm;
+};
+
+static struct Entry    LRU_cache[EMU68_LRU_WAY_COUNT * EMU68_LRU_SET_COUNT] __attribute__((aligned(64)));
+static uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT] __attribute__((aligned(64)));
 
 struct RegisterNode : public Emu68::Node {
     uint8_t rn_RegNum;
@@ -95,6 +107,13 @@ Emu68::List<RegisterNode> FPR_LRU;
 Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE] __attribute__((aligned(256)));
 Emu68::List<TranslationUnitLRU> LRU;
 
+}
+
+static inline uint32_t getEPOCH()
+{
+    uint32_t epoch;
+    __asm__ volatile("mov %w0, " EPOCH_ASM :"=r"(epoch));
+    return epoch;
 }
 
 void PPCTranslatorContext::GetOffsetPC(int8_t *offset) {
@@ -4456,6 +4475,68 @@ static __used__ int EMIT_eieio(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_icbi(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t base = AllocARMRegister(tc);
+    uint8_t cnt = AllocARMRegister(tc);
+    uint8_t fill = AllocARMRegister(tc);
+    
+    /*
+        PPC Architecture allows that icbi flushes more than requested. This is what
+        will be done here.
+    */
+    tc->EMIT({
+        /* Load offset for LRU cache */
+        mov_immed_u16(base, (uint16_t)(uintptr_t)Emu68::PPC::LRU_cache, 0),
+        movk_immed_u16(base, (uint16_t)((uintptr_t)Emu68::PPC::LRU_cache >> 16), 1),
+
+        /* make "high" address from offset */
+        orr64_immed(base, base, 25, 25, 1),
+
+        /* Load fill values */
+        movn64_immed_u16(fill, 0, 0),
+
+        /* Load counter */
+        mov_immed_u16(cnt, EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT, 0),
+
+        /* In the loop: */
+        stp64_postindex(base, fill, XZR, 16),
+        subs_immed(cnt, cnt, 1),
+        b_cc(A64_CC_NE, -2),
+
+        /* Upper base bits are still valid, update lower ones */
+        movk_immed_u16(base, (uint16_t)(uintptr_t)Emu68::PPC::LRU_alloc, 0),
+        movk_immed_u16(base, (uint16_t)((uintptr_t)Emu68::PPC::LRU_alloc >> 16), 1),
+
+        /* Load counter, we clear 4 items with one stp */
+        mov_immed_u16(cnt, EMU68_LRU_SET_COUNT / 4, 0),
+
+        /* In the loop: */
+        stp64_postindex(base, XZR, XZR, 16),
+        subs_immed(cnt, cnt, 1),
+        b_cc(A64_CC_NE, -2),
+
+        /* Clear last PC value so that a short path in JIT loop is avoided, fill register is already there */
+        mov_reg_to_simd(CTX_LAST_PC, fill),
+
+        /* Last but not least - increase epoch */
+        mov_simd_to_reg(cnt, EPOCH),
+        add_immed(cnt, cnt, 1),
+        mov_reg_to_simd(EPOCH, cnt),
+    });
+    
+    FreeARMRegister(tc, cnt);
+    FreeARMRegister(tc, fill);
+    FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_sync(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -4746,7 +4827,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b1110010110: return EMIT_sthbrx(tc, opcode);
         case 0b1110011010: return EMIT_extshx(tc, opcode);
         case 0b1110111010: return EMIT_extsbx(tc, opcode);    
-        //case 0b1111010110: return EMIT_icbi(tc, opcode);      // VEA
+        case 0b1111010110: return EMIT_icbi(tc, opcode);      // VEA
         //case 0b1111010111: return EMIT_stfiwx(tc, opcode);    // FPU
         //case 0b1111110110: return EMIT_dcbz(tc, opcode);      // VEA
         default: return -1;
@@ -5214,7 +5295,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                     break;
 
                 default:
-                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup1Type);
+                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup1Type);
             }
 
             switch (eb2->eb_Fixup2Type)
@@ -5234,7 +5315,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                     break;
 
                 default:
-                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup2Type);
+                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb2->eb_Fixup2Type);
             }
         }
         else
@@ -5263,7 +5344,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
                     break;
 
                 default:
-                    kprintf("[JIT] I don't know how to deal with fixup type 0x%08x\n", eb->eb_Fixup1Type);
+                    kprintf("[PPC] I don't know how to deal with fixup type 0x%08x\n", eb->eb_Fixup1Type);
             }
         }
 
@@ -5328,6 +5409,8 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 
         kprintf("[PPC] Mean PPC instructions per ARM cpu cycle: %ld.%02ld\n", mean_n, mean_f);
 
+        kprintf("[PPC] Cache EPOCH: %d\n", getEPOCH());
+
         while(1) { asm volatile("wfi"); };
     }
 
@@ -5345,9 +5428,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 */
 struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
 {
-    extern uint32_t debug_range_min;
-    extern uint32_t debug_range_max;
-
     struct PPCState *ctx = getHostCTX();
     struct PPCTranslationUnit *unit = nullptr;
     uintptr_t hash = (uintptr_t)ppccodeptr;
@@ -5433,6 +5513,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     unit->mt_EpilogueSize = epilogue_size;
     unit->mt_Conditionals = conditionals_count;
     #endif
+    unit->ptu_Epoch = getEPOCH();
 
     unit->ptu_LRU.unit = unit;
     LRU.addHead(&unit->ptu_LRU);
@@ -5479,6 +5560,72 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
         }
     }
 
+    return unit;
+}
+
+
+/*
+    Verify if the translated code has changed since the unit was created. In order
+    to do this MD5 sum of the block is compared with the previousy calculated one.
+
+    If th sums are not same, the block is removed form LRU cache and hashtable and memory
+    is released.
+
+    The function returns poitner to verified unit or NULL if the unit changed
+*/
+struct PPCTranslationUnit *PPC_VerifyUnit(struct PPCTranslationUnit *unit)
+{
+    if (unit)
+    {
+        uint32_t crc = 0;
+
+        /* Quick path - ROM is always valid as long as we don't use any fancy remapping, at least on Amiga */
+        if (unit->ptu_PPCAddress >= 0xfff00000 && unit->ptu_PPCAddress < 0xffff0000) {
+            /* Update EPOCH of the unit */
+            unit->ptu_Epoch = getEPOCH();
+
+            /* Move the unit to the beginning of LRU list */
+            unit->ptu_LRU.remove();
+            LRU.addHead(&unit->ptu_LRU);
+            
+            return unit;
+        }
+
+        /* 
+            First check fingerprint - if this one changed then there is no need to calculate CRC32
+            of the whole block
+        */
+        uint32_t fp = cache_read_32(ICACHE, unit->ptu_PPCAddress) ^ cache_read_32(ICACHE, unit->ptu_PPCAddress + 4);
+
+        /* If FP matches, calculate CRC32 */
+        if (fp == unit->ptu_Fingerprint)
+        {
+            crc = CalcCRC32((void *)(uintptr_t)unit->ptu_PPCLow, (void*)(uintptr_t)unit->ptu_PPCHigh);
+        }
+
+        /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
+        if (fp != unit->ptu_Fingerprint || crc != unit->ptu_CRC32)
+        {
+            auto ctx = getHostCTX();
+            unit->remove();
+            unit->ptu_LRU.remove();
+            tlsf_free(jit_ppc, unit);
+
+            ctx->JIT_UNIT_COUNT--;
+            ctx->JIT_CACHE_FREE = tlsf_get_free_size(jit_ppc);
+
+            unit = nullptr;
+        }
+        else
+        {
+            /* Update EPOCH of the unit */
+            unit->ptu_Epoch = getEPOCH();
+
+            /* Move the unit to the beginning of LRU list */
+            unit->ptu_LRU.remove();
+            LRU.addHead(&unit->ptu_LRU);
+        }
+    }
 
     return unit;
 }
@@ -5549,22 +5696,14 @@ static void PPC_PrintContext(struct PPCState *ppc)
     kprintf("\n[PPC]\n[PPC] ");
 
     kprintf("   PC = 0x%08x     LR = 0x%08x ", BE32(ppc->PC), BE32(ppc->LR));
-    kprintf("\n[JIT] ");
+    kprintf("\n[PPC] ");
     kprintf("   CR = 0x%08x    CTR = 0x%08x   XER = 0x%08x\n", BE32(ppc->CR), BE32(ppc->CTR), BE32(ppc->XER));
 
-    kprintf("[JIT]\n[JIT]  SRR0 = 0x%08x   SRR1 = 0x%08x   MSR = 0x%08x\n", BE32(ppc->SRR0), BE32(ppc->SRR1), BE32(ppc->MSR));
-    kprintf("[JIT]  SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
+    kprintf("[PPC]\n[PPC]  SRR0 = 0x%08x   SRR1 = 0x%08x   MSR = 0x%08x\n", BE32(ppc->SRR0), BE32(ppc->SRR1), BE32(ppc->MSR));
+    kprintf("[PPC]  SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
 }
 
-struct Entry {
-    uintptr_t ppc;
-    uint32_t *arm;
-};
-
-static struct Entry    LRU_cache[EMU68_LRU_WAY_COUNT * EMU68_LRU_SET_COUNT] __attribute__((aligned(64)));
-static uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT];
-
-#define ADDR_2_SET(addr) (((addr) >> 2) % EMU68_LRU_SET_COUNT)
+#define ADDR_2_SET(addr) (((addr) >> 4) % EMU68_LRU_SET_COUNT)
 #define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
 
 static uint32_t *PPC_LRU_FindBlock(uint32_t address)
@@ -5661,6 +5800,19 @@ static inline uint32_t * FindUnitQuick()
         return code;
 #endif
 
+    union {
+        struct {
+            uint32_t    ptu_Epoch;          /* 16: 2 x 4 bytes - first 32-bit epoch incremented after every cache flush */
+            uint32_t    ptu_PPCAddress;     /*                   followed by 32-bit PPC entry address */
+        };
+        uint64_t        ptu_Key;            /*     1 x 8 bytes - match key, the two above combined */
+    } u;
+
+    u.ptu_Epoch = getEPOCH();
+    u.ptu_PPCAddress = PC;
+
+    uint64_t key = u.ptu_Key;
+
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
     Emu68::List<PPCTranslationUnit> &bucket = ICache[hash];
@@ -5669,7 +5821,7 @@ static inline uint32_t * FindUnitQuick()
     for(auto node: bucket)
     {
         /* Check if unit is found */
-        if (node->ptu_PPCAddress == PC)
+        if (node->ptu_Key == key)
         {
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(node->ptu_ARMEntryPoint));
@@ -5882,10 +6034,32 @@ static void PPCMainLoop()
             }
 
             /* If we are that far there was no JIT unit found */
-            uint32_t copyPC = PC;
             PPC_SaveContext(ctx);
-            /* Get the code. This never fails */
-            struct PPCTranslationUnit *node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
+
+            uint32_t copyPC = getCTX()->PC;
+
+            /* Perform search without testing Epoch */
+            struct PPCTranslationUnit *node = nullptr;
+            uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+            auto bucket = &ICache[hash];
+
+            /* Go through the list of translated units */
+            for(auto n: *bucket)
+            {
+                /* Check if unit is found */
+                if (n->ptu_PPCAddress == copyPC)
+                {
+                    /* Node found, most likely Epoch broken */
+                    node = PPC_VerifyUnit(n);
+                    break;
+                }
+            }
+
+            if (node == NULL) {
+                /* Get the code. This never fails */
+                node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
+            }
+
 #if EMU68_USE_LRU
             PPC_LRU_InsertBlock(node);
 #endif
@@ -5916,6 +6090,11 @@ extern "C" void InitPPC()
     for (int i=0; i < 64; i++) Emu68::PPC::FreePool.addHead(&rn[i]);
 
     kprintf("[PPC] Setting up LRU\n");
+
+    kprintf("[PPC] LRU_cache @ %p\n", Emu68::PPC::LRU_cache);
+    kprintf("[PPC] LRU_alloc @ %p\n", Emu68::PPC::LRU_alloc);
+
+    asm volatile("mov " EPOCH_ASM ", %w0"::"r"(0));
 
     kprintf("[PPC] Setting up ICache\n");
 

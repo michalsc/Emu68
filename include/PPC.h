@@ -107,6 +107,13 @@ struct PPCState
 
 #define REG_FPSCR    REG_FPSCR_VN,REG_FPSCR_SIZE,REG_FPSCR_POS
 
+#define EPOCH_VN 19
+#define EPOCH_SIZE TS_S
+#define EPOCH_POS 1
+#define EPOCH_ASM "v19.s[1]"
+
+#define EPOCH       EPOCH_VN,EPOCH_SIZE,EPOCH_POS
+
 #define CTX_LAST_PC_VN 19
 #define CTX_LAST_PC_SIZE TS_S
 #define CTX_LAST_PC_POS 3
