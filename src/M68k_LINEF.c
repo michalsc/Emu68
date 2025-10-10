@@ -1903,7 +1903,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 {
     (void)target_addr;
     (void)pc;
-
+    
     int i;
     //uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
     //struct M68KTranslationUnit *u;
@@ -1940,7 +1940,6 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     EPOCH++;
 
 #if 0
-
     /* Get the scope */
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
@@ -5449,14 +5448,20 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     else
     {
         EMIT_FlushPC(ctx);
-        EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
-        EMIT(ctx, 
-            svc(0x100),
-            svc(0x101),
-            svc(0x103),
-            (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
-            48
-        );
+        
+        extern int debug_not_implemented;
+        if (debug_not_implemented)
+        {
+            EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
+            EMIT(ctx, 
+                svc(0x100),
+                svc(0x101),
+                svc(0x103),
+                (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
+                48
+            );
+        }
+
         EMIT_Exception(ctx, VECTOR_LINE_F, 0);
         EMIT(ctx, INSN_TO_LE(0xffffffff));
     }

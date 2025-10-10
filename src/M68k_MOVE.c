@@ -23,6 +23,7 @@ uint32_t EMIT_moveq(struct TranslatorContext *ctx)
 
     if (opcode & 0x100) {
         EMIT_FlushPC(ctx);
+        
         EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
         EMIT(ctx,
             svc(0x100),

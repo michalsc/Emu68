@@ -306,6 +306,7 @@ int limit_2g = 0;
 int zorro_disable = 0;
 int chip_slowdown;
 int dbf_slowdown;
+int debug_not_implemented = 0;
 int emu68_icnt = EMU68_M68K_INSN_DEPTH;
 int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
 int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
@@ -1960,7 +1961,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     extern uint32_t EPOCH;
 
     EPOCH = 0;
-
+    
     __m68k_state = &__m68k;
 
     //*(uint32_t*)4 = 0;

@@ -167,7 +167,7 @@ static inline uint32_t * FindUnitQuick()
 
     struct M68KTranslationUnit *node;
 
-        union {
+    union {
         struct {
             uint32_t    mt_Epoch;           /* 16: 2 x 4 bytes - first 32-bit epoch incremented after every cache flush */
             uint32_t    mt_M68kAddress;     /*                   followed by 32-bit m68k entry address */
@@ -423,7 +423,7 @@ void MainLoop()
 
                 /* If we are that far there was no JIT unit found */
                 M68K_SaveContext(ctx);
-                
+
                 uint32_t copyPC = getCTX()->PC;
 
                 /* Perform search without testing Epoch */
@@ -447,6 +447,7 @@ void MainLoop()
                     /* Get the code. This never fails */
                     node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
                 }
+
 #if EMU68_USE_LRU
                 LRU_InsertBlock(node);
 #endif
