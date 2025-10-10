@@ -3965,6 +3965,70 @@ static __used__ int EMIT_addx(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_addic(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint16_t imm = (opcode & 0xffff);
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+
+    if (imm & 0x8000) {
+        tc->EMIT( movn_immed_u16(tmp, ~imm & 0xffff, 0));
+    } else {
+        tc->EMIT( mov_immed_u16(tmp, imm, 0));
+    }
+
+    tc->EMIT({ 
+        bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
+        adds_reg(reg_rd, tmp, reg_ra, LSL, 0),
+        orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
+        csel(reg_xer, tmp, reg_xer, A64_CC_CS)  // Select CA set or clear in XER depending on A64 C flag
+    });
+
+    FreeARMRegister(tc, tmp);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_addic_dot(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint16_t imm = (opcode & 0xffff);
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+
+    if (imm & 0x8000) {
+        tc->EMIT( movn_immed_u16(tmp, ~imm & 0xffff, 0));
+    } else {
+        tc->EMIT( mov_immed_u16(tmp, imm, 0));
+    }
+
+    tc->EMIT({ 
+        bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
+        adds_reg(reg_rd, tmp, reg_ra, LSL, 0),
+        orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
+        csel(reg_xer, tmp, reg_xer, A64_CC_CS)  // Select CA set or clear in XER depending on A64 C flag
+    });
+
+    FreeARMRegister(tc, tmp);
+
+    EMIT_set_crn_signed(tc, 0);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_subfx(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
@@ -4059,6 +4123,48 @@ static __used__ int EMIT_subfcx(struct PPCTranslatorContext *tc, uint32_t opcode
         subs_reg(reg_rd, reg_rb, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
         csel(reg_xer, tmp, reg_xer, A64_CC_CC)  // Select CA set or clear in XER depending on A64 C flag
+    });
+
+    if (oe) {
+        tc->EMIT({
+            orr_immed(reg_xer, reg_xer, 2, 2),
+            bic_immed(tmp, reg_xer, 1, 2),
+            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
+        });
+    }
+
+    FreeARMRegister(tc, tmp);
+
+    if (rc) {
+        EMIT_set_crn_signed(tc, 0);
+    }
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_addcx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t oe = (opcode >> 10) & 1;
+    uint8_t rc = opcode & 1;
+
+    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+
+    // TODO: Verify if flag set correctly
+
+    tc->EMIT({ 
+        bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
+        adds_reg(reg_rd, reg_rb, reg_ra, LSL, 0),
+        orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
+        csel(reg_xer, tmp, reg_xer, A64_CC_CS)  // Select CA set or clear in XER depending on A64 C flag
     });
 
     if (oe) {
@@ -4948,7 +5054,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0000000000: return EMIT_cmp(tc, opcode);
         case 0b0000000100: return EMIT_tw(tc, opcode);
         case 0b0000001000: return EMIT_subfcx(tc, opcode);
-        //case 0b0000001010: return EMIT_addcx(tc, opcode);
+        case 0b0000001010: return EMIT_addcx(tc, opcode);
         case 0b0000001011: return EMIT_mulhwux(tc, opcode);
         case 0b0000010011: return EMIT_mfcr(tc, opcode);
         //case 0b0000010100: return EMIT_lwarx(tc, opcode);
@@ -5057,8 +5163,8 @@ static inline int EmitINSN(struct PPCTranslatorContext *tc)
         case 0b001000: count = EMIT_subfic(tc, opcode); break;
         case 0b001010: count = EMIT_cmpli(tc, opcode); break;
         case 0b001011: count = EMIT_cmpi(tc, opcode); break;
-        // case 0b001100: count = EMIT_addic(tc, opcode); break;
-        // case 0b001101: count = EMIT_addic_dot(tc, opcode); break;
+        case 0b001100: count = EMIT_addic(tc, opcode); break;
+        case 0b001101: count = EMIT_addic_dot(tc, opcode); break;
         case 0b001110: count = EMIT_addi(tc, opcode); break;
         case 0b001111: count = EMIT_addis(tc, opcode); break;
         case 0b010000: count = EMIT_bcx(tc, opcode); break;
