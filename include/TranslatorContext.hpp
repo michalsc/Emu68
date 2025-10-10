@@ -17,6 +17,9 @@ struct TranslatorContext {
     uint32_t *      tc_CodePtr;
     bool            tc_SupervisorChecked;
 
+    uint32_t * STOP() { return EMIT(INSN_TO_LE(MARKER_STOP)); }
+    uint32_t * BREAK() { return EMIT(INSN_TO_LE(MARKER_BREAK)); }
+
     uint32_t * EMIT(std::initializer_list<uint32_t> list) {
         for(auto insn: list) {
             *tc_CodePtr++ = insn;
