@@ -30,7 +30,7 @@
 
 #define EMU68_USE_LRU           1
 #define EMU68_LRU_WAY_COUNT     4
-#define EMU68_LRU_SET_COUNT     32
+#define EMU68_LRU_SET_COUNT     128
 
 #define EMU68_ARM_CACHE_SIZE    (4*1024*1024)
 #define EMU68_M68K_INSN_DEPTH   256

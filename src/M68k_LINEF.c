@@ -1897,16 +1897,20 @@ void __clear_cache(void *begin, void *end);
 
 #define MAX_EPILOGUE_LENGTH 256
 uint32_t icache_epilogue[MAX_EPILOGUE_LENGTH];
+uint32_t EPOCH;
 
 void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t *arm_pc)
 {
+    (void)target_addr;
+    (void)pc;
+
     int i;
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
-    struct M68KTranslationUnit *u;
-    struct Node *n, *next;
-    extern struct List LRU;
+    //uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
+    //struct M68KTranslationUnit *u;
+    //struct Node *n, *next;
+    //extern struct List LRU;
     extern void *jit_tlsf;
-    extern struct M68KState *__m68k_state;
+    //extern struct M68KState *__m68k_state;
 
     (void)jit_tlsf;
 
@@ -1932,6 +1936,10 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     __asm__ volatile("mov "CTX_LAST_PC_ASM",%w0": :"r"(0xffffffff));
 
     LRU_InvalidateAll();
+
+    EPOCH++;
+
+#if 0
 
     /* Get the scope */
     switch (opcode & 0x18) {
@@ -2058,6 +2066,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             }
             break;
     }
+#endif
 
     return &icache_epilogue[0];
 }
