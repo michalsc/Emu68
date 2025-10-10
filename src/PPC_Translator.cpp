@@ -1411,6 +1411,78 @@ static __used__ int EMIT_lwzx(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_lwarx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    uint8_t base = reg_rb;
+
+    /* If Ra is 0, then address is the displacement, only */
+    if (ra != 0) {
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_rb, reg_ra, LSL, 0));
+    }
+
+    tc->EMIT(ldxr(base, reg_rd));
+
+    if (ra != 0) {
+        FreeARMRegister(tc, base);
+    }
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_stwcx_dot(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 1) return -1;
+
+    uint8_t rs = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t base = reg_rb;
+
+    /* If Ra is 0, then address is the displacement, only */
+    if (ra != 0) {
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_rb, reg_ra, LSL, 0));
+    }
+
+    tc->EMIT({
+        stlxr(base, reg_rs, tmp),
+        cmp_immed(tmp, 0),
+        bic_immed(reg_cr, reg_cr, 1, 3),
+        orr_immed(tmp, reg_cr, 1, 3),
+        csel(reg_cr, tmp, reg_cr, A64_CC_EQ)
+    });
+
+    if (ra != 0) {
+        FreeARMRegister(tc, base);
+    }
+
+    FreeARMRegister(tc, tmp);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_lwbrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -5281,7 +5353,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0000001010: return EMIT_addcx(tc, opcode);
         case 0b0000001011: return EMIT_mulhwux(tc, opcode);
         case 0b0000010011: return EMIT_mfcr(tc, opcode);
-        //case 0b0000010100: return EMIT_lwarx(tc, opcode);
+        case 0b0000010100: return EMIT_lwarx(tc, opcode);
         case 0b0000010111: return EMIT_lwzx(tc, opcode);
         case 0b0000011000: return EMIT_slwx(tc, opcode);
         case 0b0000011010: return EMIT_cntlzwx(tc, opcode);
@@ -5302,7 +5374,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0010001010: return EMIT_addex(tc, opcode);
         case 0b0010010000: return EMIT_mtcrf(tc, opcode);
         case 0b0010010010: return EMIT_mtmsr(tc, opcode);     // OEA, supervisor
-        //case 0b0010010110: return EMIT_stwcx_dot(tc, opcode);
+        case 0b0010010110: return EMIT_stwcx_dot(tc, opcode);
         case 0b0010010111: return EMIT_stwx(tc, opcode);
         case 0b0010110111: return EMIT_stwux(tc, opcode);
         //case 0b0011001000: return EMIT_subfzex(tc, opcode);
