@@ -1017,14 +1017,14 @@ void boot(void *dtree)
             dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16"));
             break;
         case PISTORM_MODEL_32:
-            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32", sizeof("pistorm32"));
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32lite", sizeof("pistorm32lite"));
             break;
         default:
             dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown"));
             break;
     }
 #elif defined(PISTORM_CLASSIC)
-    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm-classic", sizeof("pistorm-classic"));
+    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm"));
 #endif
 
 #if defined(PISTORM)
