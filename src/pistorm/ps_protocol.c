@@ -787,6 +787,25 @@ static uint8_t g_fc = 0;
 
 #define SLOW_IO(address) ((address) >= 0xDFF09A && (address) < 0xDFF09E)
 
+static inline void check_blit_active(unsigned int addr, unsigned int size) {
+    if (__m68k_state == NULL || !(__m68k_state->JIT_CONTROL2 & JC2F_BLITWAIT))
+        return;
+
+    const uint32_t bstart = 0xDFF040;   // BLTCON0
+    const uint32_t bend = 0xDFF076;     // BLTADAT+2
+    if (addr >= bend || addr + size <= bstart)
+        return;
+
+    const uint16_t mask = 1<<14 | 1<<9 | 1<<6; // BBUSY | DMAEN | BLTEN
+    while ((ps_read_16_int(0xdff002) & mask) == mask) {
+        // Dummy reads to not steal too many cycles from the blitter.
+        // But don't use e.g. CIA reads as we expect the operation
+        // to finish soon.
+        ps_read_8_int(0x00f00000);
+        ps_read_8_int(0x00f00000);
+    }
+}
+
 /* PiStorm32 */
 
 static void ps32_do_write_access_2s(unsigned int address, unsigned int data, unsigned int size)
@@ -1407,6 +1426,75 @@ void (*ps32_write_access)(unsigned int address, unsigned int data, unsigned int 
 void (*ps32_write_access_64)(unsigned int address, uint64_t data);
 void (*ps32_write_access_128)(unsigned int address, uint128_t data);
 
+void ps32_write_8_int(unsigned int address, unsigned int data) {
+    ps32_write_access(address, data, SIZE_BYTE);
+}
+
+void ps32_write_8(unsigned int address, unsigned int data) {
+    ps32_write_8_int(address, data);
+    if (SLOW_IO(address))
+    {
+        ps32_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 1);
+}
+
+void ps32_write_16_int(unsigned int address, unsigned int data) {
+    ps32_write_access(address, data, SIZE_WORD);
+}
+
+void ps32_write_16(unsigned int address, unsigned int data) {
+    check_blit_active(address, 2);
+    ps32_write_16_int(address, data);
+    if (SLOW_IO(address))
+    {
+        ps32_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 2);
+}
+
+void ps32_write_32_int(unsigned int address, unsigned int data) {
+    ps32_write_access(address, data, SIZE_LONG);
+}
+
+void ps32_write_32(unsigned int address, unsigned int data) {
+    check_blit_active(address, 4);
+    ps32_write_32_int(address, data);
+    if (SLOW_IO(address))
+    {
+        ps32_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 4);
+}
+
+void ps32_write_64_int(unsigned int address, uint64_t data) {
+    ps32_write_access_64(address, data);
+}
+
+void ps32_write_64(unsigned int address, uint64_t data) {
+    check_blit_active(address, 8);
+    ps32_write_64_int(address, data);
+    if (SLOW_IO(address))
+    {
+        ps32_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 8);
+}
+
+void ps32_write_128_int(unsigned int address, uint128_t data) {
+    ps32_write_access_128(address, data);
+}
+
+void ps32_write_128(unsigned int address, uint128_t data) {
+    check_blit_active(address, 16);
+    ps32_write_128_int(address, data);
+    if (SLOW_IO(address))
+    {
+        ps32_read_access(0x00f00000, SIZE_BYTE);
+    }
+    cache_invalidate_range(ICACHE, address, 16);
+}
+
 unsigned int ps32_read_8(unsigned int address) {
     return ps32_read_access(address, SIZE_BYTE);
 }
@@ -1604,24 +1692,6 @@ uint128_t ps16_read_128(unsigned int address)
     return ps16_read_128_int(address);
 }
 
-static inline void check_blit_active(unsigned int addr, unsigned int size) {
-    if (__m68k_state == NULL || !(__m68k_state->JIT_CONTROL2 & JC2F_BLITWAIT))
-        return;
-
-    const uint32_t bstart = 0xDFF040;   // BLTCON0
-    const uint32_t bend = 0xDFF076;     // BLTADAT+2
-    if (addr >= bend || addr + size <= bstart)
-        return;
-
-    const uint16_t mask = 1<<14 | 1<<9 | 1<<6; // BBUSY | DMAEN | BLTEN
-    while ((ps_read_16_int(0xdff002) & mask) == mask) {
-        // Dummy reads to not steal too many cycles from the blitter.
-        // But don't use e.g. CIA reads as we expect the operation
-        // to finish soon.
-        ps_read_8_int(0x00f00000);
-        ps_read_8_int(0x00f00000);
-    }
-}
 
 void ps16_write_8_int(unsigned int address, unsigned int data)
 {
@@ -1817,6 +1887,16 @@ void ps_setup_protocol()
             ps_read_32 = ps32_read_32;
             ps_read_64 = ps32_read_64;
             ps_read_128 = ps32_read_128;
+
+            ps_write_8_int = ps32_write_8_int;
+            ps_write_16_int = ps32_write_16_int;
+            ps_write_32_int = ps32_write_32_int;
+
+            ps_write_8 = ps32_write_8;
+            ps_write_16 = ps32_write_16;
+            ps_write_32 = ps32_write_32;
+            ps_write_64 = ps32_write_64;
+            ps_write_128 = ps32_write_128;
 
             break;
 
