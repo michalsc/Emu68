@@ -2,16 +2,22 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#include "libstructs.h"
+#include "version.h"
+
 void  __attribute__((used,aligned(256),section(".vectors"))) __stub_vectors() {
 __asm__(
 "       .section .vectors               \n"
-
+"       .ascii  \"" VERSION_STRING "\"  \n"
+"       .byte 0                         \n"
+"       .ascii \"Based on WarpOS project for Sonnet cards by Dennis van der Boon\"\n"
+"       .byte 0                         \n"
 "       .org 0x100,0                    \n"
 "       .globl SystemReset              \n"
 "SystemReset:                           \n"
 "       lis %r1, 0xffef                 \n"
 "       ori %r1, %r1, 0xffe0            \n"
-"       bl PPC_C_Init                   \n"
+//"       bl PPC_C_Init                   \n"
 "1:     b 1b                            \n"
 
 "       .org 0x200,0                    \n"
@@ -53,6 +59,557 @@ __asm__(
 
 );
 }
+
+void  __attribute__((used)) __stub_exception_exit() {
+/*
+    ExceptionExit is called with the exception frame in r31
+*/
+asm volatile(
+"       .globl ExceptionExit                        \n"
+"ExceptionExit:                                     \n"
+"       mr      %%r1, %%r31                         \n"
+"       bl      LoadFrame                           \n"
+"       bl      FlushICache                         \n"
+"       lwz     %%r0, %[if_context_cr](%%r1)        \n"
+"       mtcr    %%r0                                \n"
+"       lwz     %%r3, %[if_context_gpr3](%%r1)      \n"
+"       lwz     %%r0, %[if_context_gpr0](%%r1)      \n"
+"       mtsprg2 %%r0                                \n"
+"       lwz     %%r1, %[if_context_gpr1](%%r1)      \n"
+"       mfsprg0 %%r0                                \n"
+"       mtsrr0  %%r0                                \n"
+"       mfsprg1 %%r0                                \n"
+"       mtsrr1  %%r0                                \n"
+"       mfsprg3 %%r0                                \n"
+"       mtlr    %%r0                                \n"
+"       mfsprg2 %%r0                                \n"
+"       rfi                                         \n"
+:
+:[if_context_cr]"i"(__builtin_offsetof(struct iframe, if_Context.ec_CR)),
+ [if_context_gpr0]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[0])),
+ [if_context_gpr1]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[1])),
+ [if_context_gpr3]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[3]))
+);
+}
+
+void __attribute__((used)) __stub_icache_flush() {
+asm volatile(
+"       .globl FlushICache          \n"
+"FlushICache:                       \n"
+"       icbi    0, %%r0             \n" // On Emu68 it is sufficient to flush single cache line,
+"       blr                         \n" // since Emu68 will flush entire cache anyway
+::);
+}
+
+void __attribute__((used)) __stub_frame_store() {
+asm volatile(
+"       .globl StoreFrame                   \n"
+"StoreFrame:                                \n"
+#if HAVE_FPU
+"       stfd    %%f0,[IF_CONTEXT_FPR](r3)   \n"
+#endif
+"       mfsprg0 %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n"
+"       mfsprg1 %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n"
+"       mfdar   %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n"
+"       mfdsisr %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n"
+"       lwz     %%r0, 104(%%r1)             \n" // cr - change to number!!!
+"       stwu    %%r0, 4(%%r3)               \n"
+"       mfctr   %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n"
+"       mfsprg2 %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n" // lr
+#if HAVE_FPU
+"       mffs    f0                          \n"
+"       stfdu   f0,4(r3)                    \n"
+"       mfxer   r0                          \n"
+"       stw     r0,0(r3)                    \n"
+#else
+"       mfxer   %%r0                        \n"
+"       stwu    %%r0, 4(%%r3)               \n"
+#endif
+"       lwz     %%r0, 0(%%r1)               \n" //
+"       stwu    %%r0, 12(%%r3)              \n" // r1, skipped r0
+"       stwu    %%r2, 4(%%r3)               \n"
+"       stwu    %%r5, 12(%%r3)              \n" // skipped r3 and r4. Need to be stored seperately
+"       stwu    %%r6, 4(%%r3)               \n"
+"       stwu    %%r7, 4(%%r3)               \n"
+"       stwu    %%r8, 4(%%r3)               \n"
+"       stwu    %%r9, 4(%%r3)               \n"
+"       stwu    %%r10, 4(%%r3)              \n"
+"       stwu    %%r11, 4(%%r3)              \n"
+"       stwu    %%r12, 4(%%r3)              \n"
+"       stwu    %%r13, 4(%%r3)              \n"
+"       stwu    %%r14, 4(%%r3)              \n"
+"       stwu    %%r15, 4(%%r3)              \n"
+"       stwu    %%r16, 4(%%r3)              \n"
+"       stwu    %%r17, 4(%%r3)              \n"
+"       stwu    %%r18, 4(%%r3)              \n"
+"       stwu    %%r19, 4(%%r3)              \n"
+"       stwu    %%r20, 4(%%r3)              \n"
+"       stwu    %%r21, 4(%%r3)              \n"
+"       stwu    %%r22, 4(%%r3)              \n"
+"       stwu    %%r23, 4(%%r3)              \n"
+"       stwu    %%r24, 4(%%r3)              \n"
+"       stwu    %%r25, 4(%%r3)              \n"
+"       stwu    %%r26, 4(%%r3)              \n"
+"       stwu    %%r27, 4(%%r3)              \n"
+"       stwu    %%r28, 4(%%r3)              \n"
+"       stwu    %%r29, 4(%%r3)              \n"
+"       stwu    %%r30, 4(%%r3)              \n"
+"       stwu    %%r31, 4(%%r3)              \n"
+#if HAVE_FPU
+        stfdu   f1,12(r3)                    #skipped f0 (see above)
+        stfdu   f2,8(r3)
+        stfdu   f3,8(r3)
+        stfdu   f4,8(r3)
+        stfdu   f5,8(r3)
+        stfdu   f6,8(r3)
+        stfdu   f7,8(r3)
+        stfdu   f8,8(r3)
+        stfdu   f9,8(r3)
+        stfdu   f10,8(r3)
+        stfdu   f11,8(r3)
+        stfdu   f12,8(r3)
+        stfdu   f13,8(r3)
+        stfdu   f14,8(r3)
+        stfdu   f15,8(r3)
+        stfdu   f16,8(r3)
+        stfdu   f17,8(r3)
+        stfdu   f18,8(r3)
+        stfdu   f19,8(r3)
+        stfdu   f20,8(r3)
+        stfdu   f21,8(r3)
+        stfdu   f22,8(r3)
+        stfdu   f23,8(r3)
+        stfdu   f24,8(r3)
+        stfdu   f25,8(r3)
+        stfdu   f26,8(r3)
+        stfdu   f27,8(r3)
+        stfdu   f28,8(r3)
+        stfdu   f29,8(r3)
+        stfdu   f30,8(r3)
+        stfdu   f31,8(r3)
+#endif
+#if HAVE_ALTIVEC
+        mfsprg1 r0
+        andis.  r0,r0,PSL_VEC@h
+        bne     .DoVMX
+        addi    r3,r3,8+8+512+16           #f31, alignstore, vectors, vscr
+        b       .NoVMX
+
+.DoVMX: mfmsr   r0
+        oris    r0,r0,PSL_VEC@h
+        mtmsr   r0
+        isync
+
+        addi    r3,r3,32
+        stvx	v0,r0,r3
+        subi    r3,r3,16
+        mfvscr  v0
+        stvx    v0,r0,r3
+        addi    r3,r3,32
+		stvx	v1,r0,r3
+		addi	r3,r3,16
+		stvx	v2,r0,r3
+		addi	r3,r3,16
+		stvx	v3,r0,r3
+		addi	r3,r3,16
+		stvx	v4,r0,r3
+		addi	r3,r3,16
+		stvx	v5,r0,r3
+		addi	r3,r3,16
+		stvx	v6,r0,r3
+		addi	r3,r3,16
+		stvx	v7,r0,r3
+		addi	r3,r3,16
+		stvx	v8,r0,r3
+		addi	r3,r3,16
+		stvx	v9,r0,r3
+		addi	r3,r3,16
+		stvx	v10,r0,r3
+		addi	r3,r3,16
+		stvx	v11,r0,r3
+		addi	r3,r3,16
+		stvx	v12,r0,r3
+		addi	r3,r3,16
+		stvx	v13,r0,r3
+		addi	r3,r3,16
+		stvx	v14,r0,r3
+		addi	r3,r3,16
+		stvx	v15,r0,r3
+		addi	r3,r3,16
+		stvx	v16,r0,r3
+		addi	r3,r3,16
+		stvx	v17,r0,r3
+		addi	r3,r3,16
+		stvx	v18,r0,r3
+		addi	r3,r3,16
+		stvx	v19,r0,r3
+		addi	r3,r3,16
+		stvx	v20,r0,r3
+		addi	r3,r3,16
+		stvx	v21,r0,r3
+		addi	r3,r3,16
+		stvx	v22,r0,r3
+		addi	r3,r3,16
+		stvx	v23,r0,r3
+		addi	r3,r3,16
+		stvx	v24,r0,r3
+		addi	r3,r3,16
+		stvx	v25,r0,r3
+		addi	r3,r3,16
+		stvx	v26,r0,r3
+		addi	r3,r3,16
+		stvx	v27,r0,r3
+		addi	r3,r3,16
+		stvx	v28,r0,r3
+		addi	r3,r3,16
+		stvx	v29,r0,r3
+		addi	r3,r3,16
+		stvx	v30,r0,r3
+		addi	r3,r3,16
+		stvx	v31,r0,r3
+		mfspr	r0,VRSAVE
+		stwu    r0,16(r3)
+#endif
+#if HAVE_BAT
+.NoVMX: mfibatu r0,0
+        stwu    r0,4(r3)
+        mfibatl r0,0
+        stwu    r0,4(r3)
+        mfdbatu r0,0
+        stwu    r0,4(r3)
+        mfdbatl r0,0
+        stwu    r0,4(r3)
+        mfibatu r0,1
+        stwu    r0,4(r3)
+        mfibatl r0,1
+        stwu    r0,4(r3)
+        mfdbatu r0,1
+        stwu    r0,4(r3)
+        mfdbatl r0,1
+        stwu    r0,4(r3)
+        mfibatu r0,2
+        stwu    r0,4(r3)
+        mfibatl r0,2
+        stwu    r0,4(r3)
+        mfdbatu r0,2
+        stwu    r0,4(r3)
+        mfdbatl r0,2
+        stwu    r0,4(r3)
+        mfibatu r0,3
+        stwu    r0,4(r3)
+        mfibatl r0,3
+        stwu    r0,4(r3)
+        mfdbatu r0,3
+        stwu    r0,4(r3)
+        mfdbatl r0,3
+        stwu    r0,4(r3)
+#endif
+#if HAVE_SEGMENTS
+        mfsr    r0,0
+        stwu    r0,4(r3)
+        mfsr    r0,1
+        stwu    r0,4(r3)
+        mfsr    r0,2
+        stwu    r0,4(r3)
+        mfsr    r0,3
+        stwu    r0,4(r3)
+        mfsr    r0,4
+        stwu    r0,4(r3)
+        mfsr    r0,5
+        stwu    r0,4(r3)
+        mfsr    r0,6
+        stwu    r0,4(r3)
+        mfsr    r0,7
+        stwu    r0,4(r3)
+        mfsr    r0,8
+        stwu    r0,4(r3)
+        mfsr    r0,9
+        stwu    r0,4(r3)
+        mfsr    r0,10
+        stwu    r0,4(r3)
+        mfsr    r0,11
+        stwu    r0,4(r3)
+        mfsr    r0,12
+        stwu    r0,4(r3)
+        mfsr    r0,13
+        stwu    r0,4(r3)
+        mfsr    r0,14
+        stwu    r0,4(r3)
+        mfsr    r0,15
+        stwu    r0,4(r3)
+#endif
+"       blr                                 \n"
+:
+:[IF_CONTEXT_FPR]"i"(__builtin_offsetof(struct iframe, if_Context.ec_FPR[0]))
+);
+}
+
+void __attribute__((used)) __stub_frame_load() {
+asm volatile(
+/*
+    Restore registers from exception frame. The frame is given in r31
+*/
+"       .globl LoadFrame                            \n"
+"LoadFrame:                                         \n"
+"       lwzu    %%r3,4(%%r31)                       \n"
+"       mtsprg0 %%r3                                \n"
+"       lwzu    %%r3,4(%%r31)                       \n"
+"       mtsprg1 %%r3                                \n"
+"       lwzu    %%r3,4(%%r31)                       \n"
+"       mtdar   %%r3                                \n"
+"       lwzu    %%r3,4(%%r31)                       \n"
+"       mtdsisr %%r3                                \n"
+"       lwzu    %%r3,8(%%r31)                       \n" // skip cr
+"       mtctr   %%r3                                \n"
+"       lwzu    %%r3,4(%%r31)                       \n"
+"       mtsprg3 %%r3                                \n"
+"       lwzu    %%r3,4(%%r31)                       \n"
+"       mtxer   %%r3                                \n"
+#if HAVE_FPU
+"       lfd     %%f0,0(%%r31)                       \n"
+"       mtfsf   0xff,%%f0                           \n"
+#endif
+"       lwzu    %%r2,16(%%r31)                      \n" // skip r0-r1, is loaded seperately
+"       lwzu    %%r4,8(%%r31)                       \n" // skip r3, is loaded seperately
+"       lwzu    %%r5,4(%%r31)                       \n"
+"       lwzu    %%r6,4(%%r31)                       \n"
+"       lwzu    %%r7,4(%%r31)                       \n"
+"       lwzu    %%r8,4(%%r31)                       \n"
+"       lwzu    %%r9,4(%%r31)                       \n"
+"       lwzu    %%r10,4(%%r31)                      \n"
+"       lwzu    %%r11,4(%%r31)                      \n"
+"       lwzu    %%r12,4(%%r31)                      \n"
+"       lwzu    %%r13,4(%%r31)                      \n"
+"       lwzu    %%r14,4(%%r31)                      \n"
+"       lwzu    %%r15,4(%%r31)                      \n"
+"       lwzu    %%r16,4(%%r31)                      \n"
+"       lwzu    %%r17,4(%%r31)                      \n"
+"       lwzu    %%r18,4(%%r31)                      \n"
+"       lwzu    %%r19,4(%%r31)                      \n"
+"       lwzu    %%r20,4(%%r31)                      \n"
+"       lwzu    %%r21,4(%%r31)                      \n"
+"       lwzu    %%r22,4(%%r31)                      \n"
+"       lwzu    %%r23,4(%%r31)                      \n"
+"       lwzu    %%r24,4(%%r31)                      \n"
+"       lwzu    %%r25,4(%%r31)                      \n"
+"       lwzu    %%r26,4(%%r31)                      \n"
+"       lwzu    %%r27,4(%%r31)                      \n"
+"       lwzu    %%r28,4(%%r31)                      \n"
+"       lwzu    %%r29,4(%%r31)                      \n"
+"       lwzu    %%r30,4(%%r31)                      \n"
+"       lwzu    %%r0,4(%%r31)                       \n" // temp store r31 in r0
+#if HAVE_FPU
+        lfdu    f0,4(r31)
+        lfdu    f1,8(r31)
+        lfdu    f2,8(r31)
+        lfdu    f3,8(r31)
+        lfdu    f4,8(r31)
+        lfdu    f5,8(r31)
+        lfdu    f6,8(r31)
+        lfdu    f7,8(r31)
+        lfdu    f8,8(r31)
+        lfdu    f9,8(r31)
+        lfdu    f10,8(r31)
+        lfdu    f11,8(r31)
+        lfdu    f12,8(r31)
+        lfdu    f13,8(r31)
+        lfdu    f14,8(r31)
+        lfdu    f15,8(r31)
+        lfdu    f16,8(r31)
+        lfdu    f17,8(r31)
+        lfdu    f18,8(r31)
+        lfdu    f19,8(r31)
+        lfdu    f20,8(r31)
+        lfdu    f21,8(r31)
+        lfdu    f22,8(r31)
+        lfdu    f23,8(r31)
+        lfdu    f24,8(r31)
+        lfdu    f25,8(r31)
+        lfdu    f26,8(r31)
+        lfdu    f27,8(r31)
+        lfdu    f28,8(r31)
+        lfdu    f29,8(r31)
+        lfdu    f30,8(r31)
+        lfdu    f31,8(r31)
+#endif
+#if HAVE_ALTIVEC
+        mfsprg1 r3
+        andis.  r3,r3,PSL_VEC@h
+        bne     .DoAV
+        addi    %%r31,%%r31,8+8+512+16
+        b       .NoAV
+
+.DoAV:  mfmsr   r3
+        oris    r3,r3,PSL_VEC@h
+        mtmsr   r3
+        isync
+
+        addi    r31,r31,16
+        lvx     v0,r0,r31
+        mtvscr  v0
+        addi    r31,r31,16
+        lvx     v0,r0,r31
+		addi    r31,r31,16
+		lvx     v1,r0,r31
+		addi    r31,r31,16
+		lvx     v2,r0,r31
+		addi    r31,r31,16
+		lvx     v3,r0,r31
+		addi    r31,r31,16
+		lvx     v4,r0,r31
+		addi    r31,r31,16
+		lvx     v5,r0,r31
+		addi    r31,r31,16
+		lvx     v6,r0,r31
+		addi    r31,r31,16
+		lvx     v7,r0,r31
+		addi    r31,r31,16
+		lvx     v8,r0,r31
+		addi    r31,r31,16
+		lvx     v9,r0,r31
+		addi    r31,r31,16
+		lvx     v10,r0,r31
+		addi    r31,r31,16
+		lvx     v11,r0,r31
+		addi    r31,r31,16
+		lvx     v12,r0,r31
+		addi    r31,r31,16
+		lvx     v13,r0,r31
+		addi    r31,r31,16
+		lvx     v14,r0,r31
+		addi    r31,r31,16
+		lvx     v15,r0,r31
+		addi    r31,r31,16
+		lvx     v16,r0,r31
+		addi    r31,r31,16
+		lvx     v17,r0,r31
+		addi    r31,r31,16
+		lvx     v18,r0,r31
+		addi    r31,r31,16
+		lvx     v19,r0,r31
+		addi    r31,r31,16
+		lvx     v20,r0,r31
+		addi    r31,r31,16
+		lvx     v21,r0,r31
+		addi    r31,r31,16
+		lvx     v22,r0,r31
+		addi    r31,r31,16
+		lvx     v23,r0,r31
+		addi    r31,r31,16
+		lvx     v24,r0,r31
+		addi    r31,r31,16
+		lvx     v25,r0,r31
+		addi    r31,r31,16
+		lvx     v26,r0,r31
+		addi    r31,r31,16
+		lvx     v27,r0,r31
+		addi    r31,r31,16
+		lvx     v28,r0,r31
+		addi    r31,r31,16
+		lvx     v29,r0,r31
+		addi    r31,r31,16
+		lvx     v30,r0,r31
+        addi    r31,r31,16
+        lvx     v31,r0,r31
+        lwzu    r3,16(r31)
+		mtspr	VRSAVE,r3
+#endif
+#if HAVE_BAT
+.NoAV:  lwzu    r3,4(r31)
+        mtibatu 0,r3
+        lwzu    r3,4(r31)
+        mtibatl 0,r3
+        lwzu    r3,4(r31)
+        mtdbatu 0,r3
+        lwzu    r3,4(r31)
+        mtdbatl 0,r3
+        lwzu    r3,4(r31)
+        mtibatu 1,r3
+        lwzu    r3,4(r31)
+        mtibatl 1,r3
+        lwzu    r3,4(r31)
+        mtdbatu 1,r3
+        lwzu    r3,4(r31)
+        mtdbatl 1,r3
+        lwzu    r3,4(r31)
+        mtibatu 2,r3
+        lwzu    r3,4(r31)
+        mtibatl 2,r3
+        lwzu    r3,4(r31)
+        mtdbatu 2,r3
+        lwzu    r3,4(r31)
+        mtdbatl 2,r3
+        lwzu    r3,4(r31)
+        mtibatu 3,r3
+        lwzu    r3,4(r31)
+        mtibatl 3,r3
+        lwzu    r3,4(r31)
+        mtdbatu 3,r3
+        lwzu    r3,4(r31)
+        mtdbatl 3,r3
+#endif
+#if HAVE_SEGMENTS
+        lwzu    r3,4(r31)
+        mtsr    0,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    1,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    2,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    3,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    4,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    5,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    6,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    7,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    8,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    9,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    10,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    11,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    12,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    13,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    14,r3
+        isync
+        lwzu    r3,4(r31)
+        mtsr    15,r3
+        isync
+#endif
+"       mr      %%r31, %%r0                         \n"
+"       blr                                         \n"
+::);
+}
+
+#if 0
 
 
 /*********** SUPPORT *************/
@@ -600,3 +1157,4 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     asm volatile("mtsrr0 %0; mtsrr1 %1; rfi"::"r"(foo), "r"(1 << 14));
 }
 
+#endif
