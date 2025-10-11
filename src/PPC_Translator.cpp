@@ -6458,6 +6458,10 @@ static void PPCMainLoop()
         LastPC = getLastPC();
         ctx = getHostCTX();
 
+        //if (unlikely(ctx->INT32 != 0))
+        /* Not sure yet if we need interrupts on PPC at all */
+        if (false)
+        {
 #if 0
         /* If (unlikely) there was interrupt pending, check if it needs to be processed */
         if (unlikely(ctx->INT32 != 0))
@@ -6571,69 +6575,73 @@ static void PPCMainLoop()
         }
 #endif
 
-        /* The last PC is the same as currently set PC? */
-        if (LastPC == PC)
-        {
-            /* Jump to the code now */
-            ARMCode();
-            continue;
         }
         else
         {
-            /* Find unit in the hashtable based on the PC value */
-            uint32_t *code = FindUnitQuick();
-
-            /* Unit exists ? */
-            if (code != NULL)
+            /* The last PC is the same as currently set PC? */
+            if (LastPC == PC)
             {
-                /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
-                __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
-
-                /* This is the case, load entry point into x12 */
-                ARMCode = (void (*)())code;
-                
+                /* Jump to the code now */
                 ARMCode();
-
-                /* Go back to beginning of the loop */
                 continue;
             }
-
-            /* If we are that far there was no JIT unit found */
-            PPC_SaveContext(ctx);
-
-            uint32_t copyPC = getCTX()->PC;
-
-            /* Perform search without testing Epoch */
-            struct PPCTranslationUnit *node = nullptr;
-            uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-            auto bucket = &ICache[hash];
-
-            /* Go through the list of translated units */
-            for(auto n: *bucket)
+            else
             {
-                /* Check if unit is found */
-                if (n->ptu_PPCAddress == copyPC)
+                /* Find unit in the hashtable based on the PC value */
+                uint32_t *code = FindUnitQuick();
+
+                /* Unit exists ? */
+                if (code != NULL)
                 {
-                    /* Node found, most likely Epoch broken */
-                    node = PPC_VerifyUnit(n);
-                    break;
+                    /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
+                    __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
+
+                    /* This is the case, load entry point into x12 */
+                    ARMCode = (void (*)())code;
+                    
+                    ARMCode();
+
+                    /* Go back to beginning of the loop */
+                    continue;
                 }
-            }
 
-            if (node == NULL) {
-                /* Get the code. This never fails */
-                node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
-            }
+                /* If we are that far there was no JIT unit found */
+                PPC_SaveContext(ctx);
 
-#if EMU68_USE_LRU
-            PPC_LRU_InsertBlock(node);
-#endif
-            /* Load CPU context */
-            PPC_LoadContext(getHostCTX());
-            __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
-            /* Prepare ARM pointer in x12 and call it */
-            ARMCode = (void (*)())node->ptu_ARMEntryPoint;
-            ARMCode();
+                uint32_t copyPC = getCTX()->PC;
+
+                /* Perform search without testing Epoch */
+                struct PPCTranslationUnit *node = nullptr;
+                uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+                auto bucket = &ICache[hash];
+
+                /* Go through the list of translated units */
+                for(auto n: *bucket)
+                {
+                    /* Check if unit is found */
+                    if (n->ptu_PPCAddress == copyPC)
+                    {
+                        /* Node found, most likely Epoch broken */
+                        node = PPC_VerifyUnit(n);
+                        break;
+                    }
+                }
+
+                if (node == NULL) {
+                    /* Get the code. This never fails */
+                    node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
+                }
+
+    #if EMU68_USE_LRU
+                PPC_LRU_InsertBlock(node);
+    #endif
+                /* Load CPU context */
+                PPC_LoadContext(getHostCTX());
+                __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
+                /* Prepare ARM pointer in x12 and call it */
+                ARMCode = (void (*)())node->ptu_ARMEntryPoint;
+                ARMCode();
+            }
         }
     }
 }
