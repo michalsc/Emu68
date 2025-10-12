@@ -165,8 +165,8 @@ struct M68KState
             uint8_t IPL;
             uint8_t RESET;
         } INT;
-        uint32_t INT32;
-    };
+        uint64_t INT64;
+    } __attribute__((aligned(8)));
     uint64_t INSN_COUNT;
 
     uint32_t JIT_CACHE_MISS;
