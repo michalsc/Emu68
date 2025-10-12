@@ -2372,15 +2372,10 @@ void IRQHandler(uint32_t , uint64_t *)
 
     /* Core 3 received IRQ */
     if (cpu_id == 3) {
-        extern uint32_t pi_local_intc;
         uint64_t tmp;
-        uint32_t src_irq = rd32le(pi_local_intc + 0x6c);
-        uint32_t src_fiq = rd32le(pi_local_intc + 0x7c);
 
         /* Check if the interrupt comes from the timer */
         __asm__ volatile("mrs %0, CNTP_CTL_EL0":"=r"(tmp));
-
-        kprintf("IRQ core %d : %08x, %08x\n", cpu_id, src_irq, src_fiq);
 
         /* Bit 2 set == interrupt reported */
         if (tmp & 4)
@@ -2398,8 +2393,6 @@ void IRQHandler(uint32_t , uint64_t *)
         }
     }
     if (cpu_id != 0) {
-        uint64_t tmp;
-        __asm__ volatile("mrs %0, CNTP_CTL_EL0":"=r"(tmp));
-        kprintf("[JIT:SYS] IRQ Exception on CPU%d %08lx\n", cpu_id, tmp);
+        kprintf("[JIT:SYS] IRQ/FIQ Exception on CPU%d %08lx\n", cpu_id);
     }
 }

@@ -6510,10 +6510,6 @@ static void PPCMainLoop()
         {
             uint32_t vector = 0;
 
-                PPC_SaveContext(ctx);
-                kprintf("[PPC] INT64 not zero %016lx\n", ctx->INT64);
-                PPC_LoadContext(getHostCTX());
-
             /* Check flags by the priority */
             if (ctx->INT.EXT) {
                 if (ctx->MSR & MSR_EE) {
@@ -6529,7 +6525,6 @@ static void PPCMainLoop()
             }
 
             if (vector) {
-                
                 /* 
                     When entering interrupt or exception:
                     - remember PC and MSR in SRR0 and SRR1
@@ -6558,6 +6553,10 @@ static void PPCMainLoop()
                 /* Set PC to new vector */
                 LastPC = 0xffffffff;
                 PC = vector;
+
+                PPC_SaveContext(ctx);
+                kprintf("[PPC] Going to exception vector %08x\n", vector);
+                PPC_LoadContext(getHostCTX());
             }
         }  
 

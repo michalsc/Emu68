@@ -765,6 +765,8 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("  %%d: %d\n", 1536);
     kprintf("  %%x: %x\n", 0xdeadbeef);
 
+    asm volatile("mtdec %0"::"r"(5000000));
+
     GetBogoMIPS(100000000);
 
     uint32_t start, end;
@@ -806,7 +808,7 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     uint32_t speed = (((end - start) / ((End_Time - Begin_Time) / 1000)) ) / 100;
     kprintf("Test loop speed: %u.%u MIPS\n", speed / 10, speed % 10);
 
-    asm volatile("mtdec %0"::"r"(5000000));
+    
 
     uint32_t dec;
     asm volatile("mfdec %0":"=r"(dec));

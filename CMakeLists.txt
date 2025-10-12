@@ -241,6 +241,7 @@ list(APPEND ARCH_FILES
     src/aarch64/mmu.c
     src/aarch64/RegisterAllocator64.c
     src/aarch64/vectors.c
+    src/aarch64/intc.c
 )
 
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
