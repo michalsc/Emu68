@@ -11,6 +11,8 @@ typedef void *              APTR;
 typedef unsigned long       IPTR;
 typedef signed long         SIPTR;
 
+typedef void                VOID;
+
 typedef float               FLOAT;
 typedef double              DOUBLE;
 

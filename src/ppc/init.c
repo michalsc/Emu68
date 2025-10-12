@@ -4,59 +4,173 @@
 
 #include "libstructs.h"
 #include "version.h"
+#include "support.h"
 
 void  __attribute__((used,aligned(256),section(".vectors"))) __stub_vectors() {
 __asm__(
 "       .section .vectors               \n"
+"       .byte 0                         \n"
+"       .balign 16                      \n"
 "       .ascii  \"" VERSION_STRING "\"  \n"
 "       .byte 0                         \n"
+"       .balign 16                      \n"
 "       .ascii \"Based on WarpOS project for Sonnet cards by Dennis van der Boon\"\n"
 "       .byte 0                         \n"
 "       .org 0x100,0                    \n"
-"       .globl SystemReset              \n"
 "SystemReset:                           \n"
 "       lis %r1, 0xffef                 \n"
 "       ori %r1, %r1, 0xffe0            \n"
-//"       bl PPC_C_Init                   \n"
+"       bl PPC_C_Init                   \n"
 "1:     b 1b                            \n"
 
 "       .org 0x200,0                    \n"
-"       .globl MachineCheck             \n"
 "MachineCheck:                          \n"
-"1:     b 1b                            \n"
+"       mtsprg3 %r0                     \n" // Store r0
+"       mflr %r0                        \n" // Back up original LR in r0
+"       bl ExceptionEntry               \n" // Jump updating LR, this way ExceptionEntry knows vector number
 
 "       .org 0x300,0                    \n"
-"       .globl DSI                      \n"
 "DSI:                                   \n"
-"1:     b 1b                            \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
 
 "       .org 0x400,0                    \n"
-"       .globl ISI                      \n"
 "ISI:                                   \n"
-"1:     b 1b                            \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
 
 "       .org 0x500,0                    \n"
-"       .globl ExternalInt              \n"
 "ExternalInt:                           \n"
-"1:     b 1b                            \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
 
 "       .org 0x600,0                    \n"
-"       .globl Alignment                \n"
 "Alignment:                             \n"
-"1:     b 1b                            \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
 
 "       .org 0x700,0                    \n"
-"       .globl Program                  \n"
 "Program:                               \n"
-"1:     b 1b                            \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
+
+"       .org 0x800,0                    \n"
+"FPU:                                   \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
+
+"       .org 0x900,0                    \n"
+"Decrementer:                           \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
 
 "       .org 0xc00,0                    \n"
-"       .globl SysCall                  \n"
 "SysCall:                               \n"
-"       lis %r3, 0xcafe                 \n"
-"       ori %r3, %r3, 0xb1ba            \n"
-"       rfi                             \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
 
+"       .org 0xd00,0                    \n"
+"Trace:                                 \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
+
+"       .org 0xe00,0                    \n"
+"FPU_Assist:                            \n"
+"       mtsprg3 %r0                     \n"
+"       mflr %r0                        \n"
+"       bl ExceptionEntry               \n"
+
+/* Padding */
+"       .org 0x2ff0,0                   \n"
+);
+}
+
+void __attribute__((used)) __stub_exception_entry() {
+asm volatile(
+"       .globl ExceptionEntry                           \n"
+"ExceptionEntry:                                        \n"
+"       mtsprg2 %%r0                                    \n" // SPRG3 == r0, SPRG2 == lr
+
+"       mfsrr0  %%r0                                    \n"
+"       mtsprg0 %%r0                                    \n" // SPRG0 == SRR0
+"       mfsrr1  %%r0                                    \n"
+"       mtsprg1 %%r0                                    \n" // SPRG1 == SRR1
+
+#if HAVE_FPU
+        mfmsr   r0
+        ori     r0,r0,(PSL_IR|PSL_DR|PSL_FP)
+        mtmsr   r0                                                     #Reenable MMU
+        sync                                               #Also reenable FPU
+        isync
+#endif
+
+"       stwu    %%r1, -2048(%%r1)                       \n" // Create 2KB frame on stack
+
+"       mfcr    %%r0                                    \n" // Back-up CR on stack
+"       stw     %%r0, 104(%%r1)                         \n"
+"       stw     %%r4, 108(%%r1)                         \n" // Back-up r4 on stack
+
+"       lwz     %%r4, %[POWERPCBASE](%%r0)              \n"
+"       lwz     %%r4, %[POWERPCBASE_THISPPCTASK](%%r4)  \n"
+"       mr.     %%r4, %%r4                              \n"
+"       bne     .NoIdl                                  \n" // If ThisPPCTask is not null, we are not idling
+
+/* The case when going back from idle... */
+
+"       lwz     %%r3, %[PPCMEMHEADER](%%r0)             \n"
+"       subi    %%r4, %%r3, 0x2000                      \n"
+"       subi    %%r3, %%r4, 0x5000                      \n"
+"       subi    %%r3, %%r3, 0x5000                      \n" // coming from idle, just dump everything.
+"       stw     %%r4, 0(%%r1)                           \n"
+"       mr      %%r4, %%r3                              \n"
+"       b       .DoExc                                  \n"
+
+".NoIdl:                                                \n"
+"       lwz     %%r4, %[PPCTASK_CONTEXMEM](%%r4)        \n" // iFrame
+"       lwz     %%r0, 108(%%r1)                         \n"
+#if 0
+"       stw     %%r0,IF_CONTEXT_GPR+GPR4(r4)              "   #GPR[4]
+"       stw     %%r3,IF_CONTEXT_GPR+GPR3(r4)              "  #GPR[3]
+"       mfsprg3 %%r0"
+"       stw     %%r0,IF_CONTEXT_GPR+GPR0(r4)           "     #GPR[0]
+"       mr      %%r3,r4"
+#endif
+
+".DoExc:                                                \n" 
+"       mflr    %%r0                                    \n"
+"       stw     %%r0, %[IF_CONTEXT](%%r3)               \n"
+"       bl      StoreFrame                              \n" // r0, r3 and r4 are skipped in this routine and were saved above
+
+"       lwz     %%r3, %[POWERPCBASE](%%r0)              \n" // Loads PowerPCBase
+"       bl      Exception_Entry                         \n"
+
+"       lwz     %%r31, %[POWERPCBASE](%%r0)             \n"
+"       lwz     %%r31, %[POWERPCBASE_THISPPCTASK](%%r31)\n"
+"       mr.     %%r31, %%r31                            \n"
+"       bne     .NI2                                    \n" // trash everything, is idle task.
+
+"       lwz     %%r31, %[PPCMEMHEADER](%%r0)            \n"
+"       subi    %%r31, %%r31, 0x7000                    \n"
+"       subi    %%r31, %%r31, 0x5000                    \n" // go to idle, don't care about registers
+"       b       ExceptionExit                           \n"
+
+".NI2:  lwz     %%r31, %[PPCTASK_CONTEXMEM](%%r31)      \n"
+"       b       ExceptionExit                           \n"
+:
+:[POWERPCBASE]"i"(__builtin_offsetof(struct PPCZeroPage, zp_PowerPCBase)),
+ [PPCMEMHEADER]"i"(__builtin_offsetof(struct PPCZeroPage, zp_PPCMemHeader)),
+ [POWERPCBASE_THISPPCTASK]"i"(0x94), // ??? where is it? in internals of powerpc.library?? __builtin_offsetof(struct PPCZeroPage, zp_PowerPCBase)),
+ [PPCTASK_CONTEXMEM]"i"(__builtin_offsetof(struct TaskPPC, tp_ContextMem)),
+ [IF_CONTEXT]"i"(__builtin_offsetof(struct iframe, if_Context.ec_CR))
 );
 }
 
@@ -609,467 +723,8 @@ asm volatile(
 ::);
 }
 
-#if 0
 
 
-/*********** SUPPORT *************/
-
-static inline __attribute__((always_inline)) uint64_t BE64(uint64_t x)
-{
-    return x;
-}
-
-static inline __attribute__((always_inline)) uint64_t LE64(uint64_t x)
-{
-    return __builtin_bswap64(x);
-}
-
-static inline __attribute__((always_inline)) uint32_t BE32(uint32_t x)
-{
-    return x;
-}
-
-static inline __attribute__((always_inline)) uint32_t LE32(uint32_t x)
-{
-    return __builtin_bswap32(x);
-}
-
-static inline __attribute__((always_inline)) uint16_t BE16(uint16_t x)
-{
-    return x;
-}
-
-static inline __attribute__((always_inline)) uint16_t LE16(uint16_t x)
-{
-    return __builtin_bswap16(x);
-}
-
-
-static inline uint32_t rd32le(uint32_t iobase) {
-    return LE32(*(volatile uint32_t *)(iobase));
-}
-
-static inline uint32_t rd32be(uint32_t iobase) {
-    return BE32(*(volatile uint32_t *)(iobase));
-}
-
-static inline uint16_t rd16le(uint32_t iobase) {
-    return LE16(*(volatile uint16_t *)(iobase));
-}
-
-static inline uint16_t rd16be(uint32_t iobase) {
-    return BE16(*(volatile uint16_t *)(iobase));
-}
-
-static inline uint8_t rd8(uint32_t iobase) {
-    return *(volatile uint8_t *)(iobase);
-}
-
-static inline void wr32le(uint32_t iobase, uint32_t value) {
-    *(volatile uint32_t *)(iobase) = LE32(value);
-}
-
-static inline void wr32be(uint32_t iobase, uint32_t value) {
-    *(volatile uint32_t *)(iobase) = BE32(value);
-}
-
-static inline void wr16le(uint32_t iobase, uint16_t value) {
-    *(volatile uint16_t *)(iobase) = LE16(value);
-}
-
-static inline void wr16be(uint32_t iobase, uint16_t value) {
-    *(volatile uint16_t *)(iobase) = BE16(value);
-}
-
-static inline void wr8(uint32_t iobase, uint8_t value) {
-    *(volatile uint8_t *)(iobase) = value;
-}
-
-typedef void (*putc_func)(void *data, char c);
-
-
-char *
-strcpy(char *s1, const char *s2)
-{
-    char *s = s1;
-    while ((*s++ = *s2++) != 0)
-	;
-    return (s1);
-}
-
-int
-strcmp(const char *s1, const char *s2)
-{
-    for ( ; *s1 == *s2; s1++, s2++)
-	if (*s1 == '\0')
-	    return 0;
-    return ((*(unsigned char *)s1 < *(unsigned char *)s2) ? -1 : +1);
-}
-
-int int_strlen(char *buf)
-{
-    int len = 0;
-
-    if (buf)
-        while(*buf++)
-            len++;
-
-    return len;
-}
-
-
-void int_itoa(char *buf, char base, uintptr_t value, char zero_pad, int precision, int size_mod, char big, int alternate_form, int neg, char sign)
-{
-    int length = 0;
-
-    do {
-        char c = value % base;
-
-        if (c >= 10) {
-            if (big)
-                c += 'A'-10;
-            else
-                c += 'a'-10;
-        }
-        else
-            c += '0';
-
-        value = value / base;
-        buf[length++] = c;
-    } while(value != 0);
-
-    if (precision != 0)
-    {
-        while (length < precision)
-            buf[length++] = '0';
-    }
-    else if (size_mod != 0 && zero_pad)
-    {
-        int sz_mod = size_mod;
-        if (alternate_form)
-        {
-            if (base == 16) sz_mod -= 2;
-            else if (base == 8) sz_mod -= 1;
-        }
-        if (neg)
-            sz_mod -= 1;
-
-        while (length < sz_mod)
-            buf[length++] = '0';
-    }
-    if (alternate_form)
-    {
-        if (base == 8)
-            buf[length++] = '0';
-        if (base == 16) {
-            buf[length++] = big ? 'X' : 'x';
-            buf[length++] = '0';
-        }
-    }
-
-    if (neg)
-        buf[length++] = '-';
-    else {
-        if (sign == '+')
-            buf[length++] = '+';
-        else if (sign == ' ')
-            buf[length++] = ' ';
-    }
-
-    for (int i=0; i < length/2; i++)
-    {
-        char tmp = buf[i];
-        buf[i] = buf[length - i - 1];
-        buf[length - i - 1] = tmp;
-    }
-
-    buf[length] = 0;
-}
-
-void vkprintf_pc(putc_func putc_f, void *putc_data, const char * restrict format, va_list args)
-{
-    char tmpbuf[32];
-
-    while(*format)
-    {
-        char c;
-        char alternate_form = 0;
-        int size_mod = 0;
-        int length_mod = 0;
-        int precision = 0;
-        char zero_pad = 0;
-        char *str;
-        char sign = 0;
-        char leftalign = 0;
-        uintptr_t value = 0;
-        intptr_t ivalue = 0;
-
-        char big = 0;
-
-        c = *format++;
-
-        if (c != '%')
-        {
-            putc_f(putc_data, c);
-        }
-        else
-        {
-            c = *format++;
-
-            if (c == '#') {
-                alternate_form = 1;
-                c = *format++;
-            }
-
-            if (c == '-') {
-                leftalign = 1;
-                c = *format++;
-            }
-
-            if (c == ' ' || c == '+') {
-                sign = c;
-                c = *format++;
-            }
-
-            if (c == '0') {
-                zero_pad = 1;
-                c = *format++;
-            }
-
-            while(c >= '0' && c <= '9') {
-                size_mod = size_mod * 10;
-                size_mod = size_mod + c - '0';
-                c = *format++;
-            }
-
-            if (c == '.') {
-                c = *format++;
-                while(c >= '0' && c <= '9') {
-                    precision = precision * 10;
-                    precision = precision + c - '0';
-                    c = *format++;
-                }
-            }
-
-            big = 0;
-
-            if (c == 'h')
-            {
-                c = *format++;
-                if (c == 'h')
-                {
-                    c = *format++;
-                    length_mod = 1;
-                }
-                else length_mod = 2;
-            }
-            else if (c == 'l')
-            {
-                c = *format++;
-                if (c == 'l')
-                {
-                    c = *format++;
-                    length_mod = 8;
-                }
-                else length_mod = 4;
-            }
-            else if (c == 'j')
-            {
-                c = *format++;
-                length_mod = 9;
-            }
-            else if (c == 't')
-            {
-                c = *format++;
-                length_mod = 10;
-            }
-            else if (c == 'z')
-            {
-                c = *format++;
-                length_mod = 11;
-            }
-
-            switch (c) {
-                case 0:
-                    return;
-
-                case '%':
-                    putc_f(putc_data, '%');
-                    break;
-
-                case 'X':
-                    big = 1;
-                    /* fallthrough */
-                case 'x':
-                    switch (length_mod) {
-                        case 8:
-                            value = va_arg(args, uint64_t);
-                            break;
-                        case 9:
-                            value = va_arg(args, uintmax_t);
-                            break;
-                        case 10:
-                            value = va_arg(args, uintptr_t);
-                            break;
-                        case 11:
-                            value = va_arg(args, size_t);
-                            break;
-                        default:
-                            value = va_arg(args, unsigned int);
-                            break;
-                    }
-                    int_itoa(tmpbuf, 16, value, zero_pad, precision, size_mod, big, alternate_form, 0, sign);
-                    str = tmpbuf;
-                    size_mod -= int_strlen(str);
-                    if (!leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
-                    if (leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-
-                    break;
-
-                case 'u':
-                    switch (length_mod) {
-                        case 8:
-                            value = va_arg(args, uint64_t);
-                            break;
-                        case 9:
-                            value = va_arg(args, uintmax_t);
-                            break;
-                        case 10:
-                            value = va_arg(args, uintptr_t);
-                            break;
-                        case 11:
-                            value = va_arg(args, size_t);
-                            break;
-                        default:
-                            value = va_arg(args, unsigned int);
-                            break;
-                    }
-                    int_itoa(tmpbuf, 10, value, zero_pad, precision, size_mod, 0, alternate_form, 0, sign);
-                    str = tmpbuf;
-                    size_mod -= int_strlen(str);
-                    if (!leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
-                    if (leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    break;
-
-                case 'd':
-                case 'i':
-                    switch (length_mod) {
-                        case 8:
-                            ivalue = va_arg(args, int64_t);
-                            break;
-                        case 9:
-                            ivalue = va_arg(args, intmax_t);
-                            break;
-                        case 10:
-                            ivalue = va_arg(args, intptr_t);
-                            break;
-                        case 11:
-                            ivalue = va_arg(args, size_t);
-                            break;
-                        default:
-                            ivalue = va_arg(args, int);
-                            break;
-                    }
-                    if (ivalue < 0)
-                        int_itoa(tmpbuf, 10, -ivalue, zero_pad, precision, size_mod, 0, alternate_form, 1, sign);
-                    else
-                        int_itoa(tmpbuf, 10, ivalue, zero_pad, precision, size_mod, 0, alternate_form, 0, sign);
-                    str = tmpbuf;
-                    size_mod -= int_strlen(str);
-                    if (!leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
-                    if (leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    break;
-
-                case 'o':
-                    switch (length_mod) {
-                        case 8:
-                            value = va_arg(args, uint64_t);
-                            break;
-                        case 9:
-                            value = va_arg(args, uintmax_t);
-                            break;
-                        case 10:
-                            value = va_arg(args, uintptr_t);
-                            break;
-                        case 11:
-                            value = va_arg(args, size_t);
-                            break;
-                        default:
-                            value = va_arg(args, uint32_t);
-                            break;
-                    }
-                    int_itoa(tmpbuf, 8, value, zero_pad, precision, size_mod, 0, alternate_form, 0, sign);
-                    str = tmpbuf;
-                    size_mod -= int_strlen(str);
-                    if (!leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    do {
-                        putc_f(putc_data, *str);
-                    } while(*str++);
-                    if (leftalign)
-                        while(size_mod-- > 0)
-                            putc_f(putc_data, ' ');
-                    break;
-
-                case 'c':
-                    putc_f(putc_data, va_arg(args, int));
-                    break;
-
-                case 's':
-                    {
-                        str = va_arg(args, char *);
-                        do {
-                            if (*str == 0)
-                                break;
-                            else
-                                putc_f(putc_data, *str);
-                        } while(*str++ && --precision);
-                    }
-                    break;
-
-                default:
-                    putc_f(putc_data, c);
-                    break;
-            }
-        }
-    }
-}
-
-void putByte(void *data, char c)
-{
-    (void)data;
-    *(volatile uint8_t *)0xdeadbeef = c;
-}
-
-void kprintf(const char * restrict format, ...)
-{
-    va_list v;
-    va_start(v, format);
-    vkprintf_pc(putByte, 0, format, v);
-    va_end(v);
-}
 
 asm(
 "delay_loop:    \n"
@@ -1088,16 +743,6 @@ void GetBogoMIPS()
     asm volatile("lwbrx %0, 0, %1":"=r"(End_Time):"r"(0xf2003004));
 
     kprintf("100000000 loop cycles in %d us -> %d BogoMIPS\n", End_Time - Begin_Time, 100000000 / (End_Time - Begin_Time));
-}
-
-void foo()
-{
-    asm volatile("sc");
-    asm volatile("icbi %r0, %r0");
-    GetBogoMIPS();
-    asm volatile("icbi %r0, %r0");
-    GetBogoMIPS();
-    while(1);
 }
 
 void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, uint32_t pitch)
@@ -1154,7 +799,5 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     uint32_t speed = (((end - start) / ((End_Time - Begin_Time) / 1000)) ) / 100;
     kprintf("Test loop speed: %u.%u MIPS\n", speed / 10, speed % 10);
 
-    asm volatile("mtsrr0 %0; mtsrr1 %1; rfi"::"r"(foo), "r"(1 << 14));
+    while(1) asm volatile("nop");
 }
-
-#endif

@@ -5,6 +5,20 @@
 
 #include <exec/types.h>
 #include <powerpc/powerpc.h>
+#include <powerpc/tasksPPC.h>
+
+/* Zero page shortcuts */
+struct PPCZeroPage {
+    ULONG               zp_PPCMemBase;
+    struct ExecBase*    zp_SysBase;
+    struct MemHeader*   zp_PPCMemHeader;
+    volatile ULONG      zp_Status;
+    struct PPCBase*     zp_PowerPCBase;         //Also used in kernel.s as 16(r0)!
+    ULONG               zp_PageTableSize;
+    ULONG               zp_CacheGap[2];
+    ULONG               zp_MemSize;
+    volatile ULONG      zp_DECCounter;
+};
 
 /* Structure to store BAT entries */
 struct BATArray {
