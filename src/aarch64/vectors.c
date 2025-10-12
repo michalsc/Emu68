@@ -2403,7 +2403,23 @@ void IRQHandler(uint32_t , uint64_t *)
             return;
         }
     }
-    if (cpu_id != 0) {
-        kprintf("[JIT:SYS] IRQ/FIQ Exception on CPU%d %08lx\n", cpu_id);
+    else if (cpu_id == 0)
+    {
+        uint32_t id = 0;
+        void M68kReportInterrupt(int);
+
+        if (gic_available()) {
+            id = gic_read_iar();
+        }
+
+        M68kReportInterrupt(1);
+
+        if (gic_available()) {
+            gic_write_eoir(id);
+        }
+        
+        return;
     }
+
+    kprintf("[JIT:SYS] IRQ/FIQ Exception on CPU%d %08lx\n", cpu_id);
 }

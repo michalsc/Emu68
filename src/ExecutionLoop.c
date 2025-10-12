@@ -278,7 +278,7 @@ void MainLoop()
 #endif
 
         /* If (unlikely) there was interrupt pending, check if it needs to be processed */
-        if (unlikely(ctx->INT32 != 0))
+        if (unlikely(ctx->INT64 != 0))
         {
             uint32_t SR, SRcopy;
             int level = 0;
@@ -488,4 +488,12 @@ void MainLoop()
             ARMCode();
         }
     }
+}
+
+void M68kReportInterrupt(int)
+{
+    struct M68KState * ctx = getCTX();
+    
+    /* TODO - add more types (we have 8 slots in total) here */
+    ctx->INT.ARM = 1;
 }

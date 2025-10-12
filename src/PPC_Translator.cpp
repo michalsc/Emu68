@@ -6555,7 +6555,7 @@ static void PPCMainLoop()
                 LastPC = 0xffffffff;
                 PC = vector;
             }
-        }  
+        }
 
         /* The last PC is the same as currently set PC? */
         if (LastPC == PC)
