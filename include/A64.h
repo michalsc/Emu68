@@ -148,6 +148,16 @@ static inline uint32_t tbnz(uint8_t rt, uint8_t bit, uint16_t offset) { ASSERT_O
 static inline uint32_t tbz(uint8_t rt, uint8_t bit, uint16_t offset) { ASSERT_OFFSET(offset, 0x3fff); ASSERT_REG(rt); return I32(bit & 32 ? 0xb6000000 : 0x36000000 | ((bit & 31) << 19) | ((offset & 0x3fff) << 5) | (rt & 31)); }
 static inline uint32_t bx_lr() { return ret(); }
 
+/* Few registers accessible by mrs/msr */
+#define sys_NZCV            3,3,4,2,0
+#define sys_FPCR            3,3,4,4,0
+#define sys_CNTP_TVAL_EL0   3,3,14,2,0
+#define sys_CNTP_CTL_EL0    3,3,14,2,1
+#define sys_CNTPCT_EL0      3,3,14,0,1
+#define sys_CNTFRQ_EL0      3,3,14,0,0
+#define sys_CTR_EL0         3,3,0,0,1
+#define sys_PMCCNTR_EL0     3,3,9,13,0
+
 /* System instructions */
 static inline uint32_t mrs(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5300000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
 static inline uint32_t msr(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5100000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
@@ -159,10 +169,10 @@ static inline uint32_t hint(uint8_t h) { return I32(0xd503201f | ((h & 0x7f) << 
 static inline uint32_t wfe() { return hint(2); }
 static inline uint32_t wfi() { return hint(3); }
 static inline uint32_t sev() { return hint(4); }
-static inline uint32_t get_nzcv(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, 3, 3, 4, 2, 0); }
-static inline uint32_t set_nzcv(uint8_t rt) { ASSERT_REG(rt); return msr(rt, 3, 3, 4, 2, 0); }
-static inline uint32_t get_fpcr(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, 3, 3, 4, 4, 0); }
-static inline uint32_t set_fpcr(uint8_t rt) { ASSERT_REG(rt); return msr(rt, 3, 3, 4, 4, 0); }
+static inline uint32_t get_nzcv(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, sys_NZCV); }
+static inline uint32_t set_nzcv(uint8_t rt) { ASSERT_REG(rt); return msr(rt, sys_NZCV); }
+static inline uint32_t get_fpcr(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, sys_FPCR); }
+static inline uint32_t set_fpcr(uint8_t rt) { ASSERT_REG(rt); return msr(rt, sys_FPCR); }
 static inline uint32_t cfinv() { return I32(0xd500401f); }
 static inline uint32_t sys(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5080000 | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((cn & 15) << 12) | ((cm & 15) << 8) | (rt & 31)); }
 static inline uint32_t sysl(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5280000 | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((cn & 15) << 12) | ((cm & 15) << 8) | (rt & 31)); }
@@ -178,6 +188,7 @@ static inline uint32_t nop() { return I32(0xd503201f); }
 static inline uint32_t svc(uint16_t code) { return I32(0xd4000001 | (code << 5)); }
 static inline uint32_t prfm_pst(uint8_t rt) { return I32(0xf9800010 | (rt << 5)); }
 static inline uint32_t prfm_pld(uint8_t rt) { return I32(0xf9800000 | (rt << 5)); }
+
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { ASSERT_OFFSET(imm21, 0x1fffff); ASSERT_REG(rd); return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
