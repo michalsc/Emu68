@@ -67,6 +67,12 @@ __asm__(
 
 "       .org 0x900,0                    \n"
 "Decrementer:                           \n"
+"       mtsprg3 %r1                     \n"
+"       lis %r1, 0x262                  \n"
+"       mtdec %r1                       \n"
+"       mfsprg3 %r1                     \n"
+"       rfi                             \n"
+
 "       mtsprg3 %r0                     \n"
 "       mflr %r0                        \n"
 "       bl ExceptionEntry               \n"
@@ -735,15 +741,15 @@ asm(
 
 void delay_loop(uint32_t count);
 
-void GetBogoMIPS()
+void GetBogoMIPS(uint32_t count)
 {
     uint32_t Begin_Time, End_Time;
 
     asm volatile("lwbrx %0, 0, %1":"=r"(Begin_Time):"r"(0xf2003004));
-    delay_loop(100000000);
+    delay_loop(count);
     asm volatile("lwbrx %0, 0, %1":"=r"(End_Time):"r"(0xf2003004));
 
-    kprintf("100000000 loop cycles in %d us -> %d BogoMIPS\n", End_Time - Begin_Time, 100000000 / (End_Time - Begin_Time));
+    kprintf("%d loop cycles in %d us -> %d BogoMIPS\n", count, End_Time - Begin_Time, 100000000 / (End_Time - Begin_Time));
 }
 
 void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, uint32_t pitch)
@@ -759,7 +765,7 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("  %%d: %d\n", 1536);
     kprintf("  %%x: %x\n", 0xdeadbeef);
 
-    GetBogoMIPS();
+    GetBogoMIPS(100000000);
 
     uint32_t start, end;
 
@@ -799,6 +805,19 @@ void PPC_C_Init(uint16_t *framebuffer, uint32_t fb_width, uint32_t fb_height, ui
     kprintf("Test loop instructions: %u\n", end - start);
     uint32_t speed = (((end - start) / ((End_Time - Begin_Time) / 1000)) ) / 100;
     kprintf("Test loop speed: %u.%u MIPS\n", speed / 10, speed % 10);
+
+    asm volatile("mtdec %0"::"r"(5000000));
+
+    uint32_t dec;
+    asm volatile("mfdec %0":"=r"(dec));
+    kprintf("Decrementer: %d\n", dec);
+    GetBogoMIPS(100000000);
+    asm volatile("mfdec %0":"=r"(dec));
+    kprintf("Decrementer: %d\n", dec);
+    GetBogoMIPS(100000000);
+    asm volatile("mfdec %0":"=r"(dec));
+    kprintf("Decrementer: %d\n", dec);
+    GetBogoMIPS(100000000);
 
     while(1) asm volatile("nop");
 }

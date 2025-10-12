@@ -5865,7 +5865,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     if (inner_loop)
     {
         uint8_t cpuctx = GetCTX(&tc);
-        tc.EMIT(ldr_offset(cpuctx, tmp2, __builtin_offsetof(struct PPCState, INT)));
+        tc.EMIT(ldr64_offset(cpuctx, tmp2, __builtin_offsetof(struct PPCState, INT64)));
     }
 
 #if EMU68_INSN_COUNTER
@@ -5876,7 +5876,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     if (inner_loop)
     {
         uint32_t *tmpptr = tc.tc_CodePtr;
-        tc.EMIT(cbz(tmp2, tc.tc_CodeStart - tmpptr));
+        tc.EMIT(cbz_64(tmp2, tc.tc_CodeStart - tmpptr));
     }
     tc.EMIT(bx_lr());
     
@@ -6510,6 +6510,10 @@ static void PPCMainLoop()
         {
             uint32_t vector = 0;
 
+                PPC_SaveContext(ctx);
+                kprintf("[PPC] INT64 not zero %016lx\n", ctx->INT64);
+                PPC_LoadContext(getHostCTX());
+
             /* Check flags by the priority */
             if (ctx->INT.EXT) {
                 if (ctx->MSR & MSR_EE) {
@@ -6525,6 +6529,7 @@ static void PPCMainLoop()
             }
 
             if (vector) {
+                
                 /* 
                     When entering interrupt or exception:
                     - remember PC and MSR in SRR0 and SRR1
@@ -6674,7 +6679,7 @@ extern "C" void StartupPPC()
         ppc.FPR_u64[fp] = 0x7fffffffffffffffULL;
     }
 
-    ppc.MSR = MSR_IP | MSR_RI;
+    ppc.MSR = MSR_IP | MSR_RI | MSR_EE;
 
     ppc.JIT_CACHE_TOTAL = tlsf_get_total_size(Emu68::PPC::jit_ppc);
     ppc.JIT_CACHE_FREE = tlsf_get_free_size(Emu68::PPC::jit_ppc);

@@ -171,6 +171,9 @@ void  __attribute__((used)) __stub_vectors()
 "       .balign 0x80                    \n"
 "curr_el_spx_fiq:                       \n" // The exception handler for an FIQ from 
 "       stp x0, x1, [sp, -16]!          \n" // the current EL using the current SP.
+"       mrs x0, MPIDR_EL1               \n" // Check CPU core id
+"       tst x0, #3                      \n" // if Core ID != 0
+"       b.ne 2b                         \n" // Go to SysHandler
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x0c0              \n" // Disable IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
@@ -2369,10 +2372,15 @@ void IRQHandler(uint32_t , uint64_t *)
 
     /* Core 3 received IRQ */
     if (cpu_id == 3) {
+        extern uint32_t pi_local_intc;
         uint64_t tmp;
-        
+        uint32_t src_irq = rd32le(pi_local_intc + 0x6c);
+        uint32_t src_fiq = rd32le(pi_local_intc + 0x7c);
+
         /* Check if the interrupt comes from the timer */
         __asm__ volatile("mrs %0, CNTP_CTL_EL0":"=r"(tmp));
+
+        kprintf("IRQ core %d : %08x, %08x\n", cpu_id, src_irq, src_fiq);
 
         /* Bit 2 set == interrupt reported */
         if (tmp & 4)

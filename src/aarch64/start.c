@@ -284,6 +284,7 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
 #endif
 
+extern uint32_t pi_local_intc;
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
 
@@ -1667,25 +1668,29 @@ void boot(void *dtree)
 
     }
 
-    kprintf("[BOOT] Setting IRQ routing to core 0\n");
-    wr32le(0xf300000c, 0);
-    
-    kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
-    wr32le(0xf3000010, 1);      // Enable PMU IRQ on core 0
-    wr32le(0xf3000014, 0xfe);   // Disable PMU IRQ on all otehr cores
+    kprintf("[BOOT] Local INT Controller mapped at %08x\n", pi_local_intc);
+    if (pi_local_intc != 0)
+    {
+        kprintf("[BOOT] Setting IRQ routing to core 0\n");
+        wr32le(pi_local_intc + 0x000c, 0);
+        
+        kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
+        wr32le(pi_local_intc + 0x0010, 1);      // Enable PMU IRQ on core 0
+        wr32le(pi_local_intc + 0x0014, 0xfe);   // Disable PMU IRQ on all otehr cores
 
-    wr32le(0xf3000040, 0x0f);   // Enable all CNT IRQs on core 0
-    wr32le(0xf3000044, 0x00);   // Disable all CNT IRQs on core 1
-    wr32le(0xf3000048, 0x00);   // Disable all CNT IRQs on core 2
-    
-    kprintf("[BOOT] Enabling Timer interrupts on core 3\n");
-    wr32le(0xf300004c, 0x0f);   // Enable all CNT IRQs on core 3
+        wr32le(pi_local_intc + 0x0040, 0x0f);   // Enable all CNT IRQs on core 0
+        wr32le(pi_local_intc + 0x0044, 0x00);   // Disable all CNT IRQs on core 1
+        wr32le(pi_local_intc + 0x0048, 0x00);   // Disable all CNT IRQs on core 2
+        
+        kprintf("[BOOT] Enabling Timer interrupts on core 3\n");
+        wr32le(pi_local_intc + 0x004c, 0xf0);   // Enable all CNT IRQs on core 3
 
-    kprintf("[BOOT] Disabling mailbox interrupts\n");
-    wr32le(0xf3000050, 0x00);   // Disable Mailbox IRQs on core 0
-    wr32le(0xf3000054, 0x00);   // Disable Mailbox IRQs on core 1
-    wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
-    wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
+        kprintf("[BOOT] Disabling mailbox interrupts\n");
+        wr32le(pi_local_intc + 0x0050, 0x00);   // Disable Mailbox IRQs on core 0
+        wr32le(pi_local_intc + 0x0054, 0x00);   // Disable Mailbox IRQs on core 1
+        wr32le(pi_local_intc + 0x0058, 0x00);   // Disable Mailbox IRQs on core 2
+        wr32le(pi_local_intc + 0x005c, 0x00);   // Disable Mailbox IRQs on core 3
+    }
 
     //dt_dump_tree();
 

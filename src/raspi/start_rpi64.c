@@ -246,6 +246,8 @@ uintptr_t top_of_ram;
 extern int block_c0;
 #endif
 
+uint32_t pi_local_intc = 0;
+
 void platform_init()
 {
     of_node_t *e = NULL;
@@ -288,6 +290,10 @@ void platform_init()
             kprintf("bus: %08x, cpu: %08x, len: %08x\n", addr_bus, addr_cpu, addr_len);
 
             ranges[pos_acpu] = BE32(start_map << 21);
+
+            if (addr_bus == 0x40000000) {
+                pi_local_intc = start_map << 21;
+            }
 
             start_map += addr_len >> 21;
 
