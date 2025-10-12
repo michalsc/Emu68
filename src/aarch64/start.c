@@ -1307,6 +1307,8 @@ void boot(void *dtree)
         InitFunctions++;
     }
 
+    intc_global_init();
+
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -1667,32 +1669,6 @@ void boot(void *dtree)
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
-    }
-
-    intc_global_init();
-
-    kprintf("[BOOT] Local INT Controller mapped at %08x\n", local_intc_base);
-    if (local_intc_base != 0)
-    {
-        kprintf("[BOOT] Setting IRQ routing to core 0\n");
-        wr32le(local_intc_base + 0x000c, 0);
-        
-        kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
-        wr32le(local_intc_base + 0x0010, 1);      // Enable PMU IRQ on core 0
-        wr32le(local_intc_base + 0x0014, 0xfe);   // Disable PMU IRQ on all otehr cores
-
-        wr32le(local_intc_base + 0x0040, 0x0f);   // Enable all CNT IRQs on core 0
-        wr32le(local_intc_base + 0x0044, 0x00);   // Disable all CNT IRQs on core 1
-        wr32le(local_intc_base + 0x0048, 0x00);   // Disable all CNT IRQs on core 2
-        
-        kprintf("[BOOT] Enabling Timer interrupts on core 3\n");
-        wr32le(local_intc_base + 0x004c, 0xf0);   // Enable all CNT IRQs on core 3
-
-        kprintf("[BOOT] Disabling mailbox interrupts\n");
-        wr32le(local_intc_base + 0x0050, 0x00);   // Disable Mailbox IRQs on core 0
-        wr32le(local_intc_base + 0x0054, 0x00);   // Disable Mailbox IRQs on core 1
-        wr32le(local_intc_base + 0x0058, 0x00);   // Disable Mailbox IRQs on core 2
-        wr32le(local_intc_base + 0x005c, 0x00);   // Disable Mailbox IRQs on core 3
     }
 
     //dt_dump_tree();

@@ -17,6 +17,7 @@
 #include "PPC.h"
 
 extern "C" {
+#include "intc.h"
 #include "A64.h"
 #include "DuffCopy.h"
 #include "nodes.h"
@@ -6713,6 +6714,12 @@ extern "C" void StartupPPC()
     ppc.GPR[6] = BE32((uint32_t)pitch);
 
     Emu68::PPC::PPC_PrintContext(&ppc);
+
+    if (gic_available()) {
+        gic_local_init();
+        gic_set_priority(GIC_PPI_NPTIMER, 0x80);
+        gic_irq_eanble(GIC_PPI_NPTIMER);
+    }
 
     /* Enable external interrupts */
     __asm__ volatile("msr daifclr, #7");

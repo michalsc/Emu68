@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "M68k.h"
 #include "cache.h"
+#include "intc.h"
 
 #define FULL_CONTEXT 0
 
@@ -2373,6 +2374,11 @@ void IRQHandler(uint32_t , uint64_t *)
     /* Core 3 received IRQ */
     if (cpu_id == 3) {
         uint64_t tmp;
+        uint32_t id = 0;
+
+        if (gic_available()) {
+            id = gic_read_iar();
+        }
 
         /* Check if the interrupt comes from the timer */
         __asm__ volatile("mrs %0, CNTP_CTL_EL0":"=r"(tmp));
@@ -2389,6 +2395,11 @@ void IRQHandler(uint32_t , uint64_t *)
             void PPCReportInterrupt(int interrupt);
 
             PPCReportInterrupt(0x900);
+
+            if (gic_available()) {
+                gic_write_eoir(id);
+            }
+
             return;
         }
     }

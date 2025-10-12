@@ -17,34 +17,25 @@ uintptr_t gic_base_cpu;
 uintptr_t local_intc_base;
 
 /* Distributor registers */
-#define GIC_PPI_LEGACY_IRQ      31
-#define GIC_PPI_NPTIMER         30
-#define GIC_PPI_SPTIMER         29
-#define GIC_PPI_LEGACY_FIQ      28
-#define GIC_PPI_VTIMER          27
-#define GIC_PPI_HTIMER          26
-#define GIC_PPI_VMI             25
-
-#define GIC_SPI(n)              (32 + (n))
 
 #define GICD_CTLR           0x000
 #define GICD_TYPER          0x004
 #define GICD_IIDR           0x008
-#define GICD_IGROUPR(n)    (0x080 + 4 * ((n)/32))
-#define GICD_ISENABLER(n)  (0x100 + 4 * ((n)/32))
-#define GICD_ICENABLER(n)  (0x180 + 4 * ((n)/32))
-#define GICD_ISPENDR(n)    (0x200 + 4 * ((n)/32))
-#define GICD_ICPENDR(n)    (0x280 + 4 * ((n)/32))
-#define GICD_ISACTIVER(n)  (0x300 + 4 * ((n)/32))
-#define GICD_ICACTIVER(n)  (0x380 + 4 * ((n)/32))
-#define GICD_IPRIORITYR(n) (0x400 + (n)/4)
-#define GICD_ITARGETSR(n)  (0x800 + (n)/4)
-#define GICD_ICFGR(n)      (0xc00 + 4 * ((n)/16))
+#define GICD_IGROUPR(n)    (0x080 + 4 * (n))
+#define GICD_ISENABLER(n)  (0x100 + 4 * (n))
+#define GICD_ICENABLER(n)  (0x180 + 4 * (n))
+#define GICD_ISPENDR(n)    (0x200 + 4 * (n))
+#define GICD_ICPENDR(n)    (0x280 + 4 * (n))
+#define GICD_ISACTIVER(n)  (0x300 + 4 * (n))
+#define GICD_ICACTIVER(n)  (0x380 + 4 * (n))
+#define GICD_IPRIORITYR(n) (0x400 + 4 * (n))
+#define GICD_ITARGETSR(n)  (0x800 + 4 * (n))
+#define GICD_ICFGR(n)      (0xc00 + 4 * (n))
 #define GICD_PPISR          0xd00
-#define GICD_SPISR(n)      (0xd00 + 4 * ((n)/32))
+#define GICD_SPISR(n)      (0xd00 + 4 * (n))
 #define GICD_SGIR           0xf00
-#define GICD_CPENDSGIR(n)  (0xf10 + (n)/4)
-#define GICD_SPENDSGIR(n)  (0xf20 + (n)/4)
+#define GICD_CPENDSGIR(n)  (0xf10 + 4 * (n))
+#define GICD_SPENDSGIR(n)  (0xf20 + 4 * (n))
 #define GICD_PIDR4          0xfd0
 #define GICD_PIDR5          0xfd4
 #define GICD_PIDR6          0xfd8
@@ -64,6 +55,7 @@ uintptr_t local_intc_base;
 #define GICD_PPISR_ID(n)    (1 << ((n) - 16))
 
 /* CPU registers */
+
 #define GICC_CTLR           0x0000
 #define GICC_PMR            0x0004
 #define GICC_BPR            0x0008
@@ -82,22 +74,87 @@ uintptr_t local_intc_base;
 
 void gic_local_init()
 {
+    kprintf("[GIC] gic_local_init()\n");
+
     /* Enable distributor */
     wr32le(gic_base + GICD_CTLR, 1);
+
+    kprintf("[GIC] Distributor enabled, Version %08x\n", rd32le(gic_base + GICD_IIDR));
 
     /* Set CPU interface - enable and allow all interrupts */
     wr32le(gic_base_cpu + GICC_PMR, 0xff);
     wr32le(gic_base_cpu + GICC_CTLR, 1);
+
+    kprintf("[GIC] CPU local enabled, Version %08x\n", rd32le(gic_base_cpu + GICC_IIDR));
+}
+
+void gic_irq_eanble(unsigned int id)
+{
+    uint32_t reg = id / 32;
+    uint32_t bit = 1u << (id & 31);
+
+    wr32le(gic_base + GICD_ISENABLER(reg), bit);
+}
+
+void gic_irq_disable(unsigned int id)
+{
+    uint32_t reg = id / 32;
+    uint32_t bit = 1u << (id & 31);
+
+    wr32le(gic_base + GICD_ICENABLER(reg), bit);
+}
+
+void gic_set_priority(unsigned int id, uint8_t prio)
+{
+    uintptr_t reg = id / 4;
+    uint32_t shift = (int)(id % 4) * 8;
+
+    uint32_t cur = rd32le(gic_base + GICD_IPRIORITYR(reg));
+    cur = (cur & ~(0xffu << shift)) | ((uint32_t)prio << shift);
+    wr32le(gic_base + GICD_IPRIORITYR(reg), cur);
+}
+
+uint32_t gic_read_iar()
+{
+    return rd32le(gic_base_cpu + GICC_IAR);
+}
+
+void gic_write_eoir(uint32_t id)
+{
+    wr32le(gic_base_cpu + GICC_EOIR, id);
+}
+
+int gic_available()
+{
+    return !!(gic_base);
 }
 
 /* Legacy interrupt controller, as used in Pi3 */
 
 void legacy_local_init()
 {
+    kprintf("[BOOT] Setting IRQ routing to core 0\n");
+    wr32le(local_intc_base + 0x000c, 0);
+    
+    kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
+    wr32le(local_intc_base + 0x0010, 1);      // Enable PMU IRQ on core 0
+    wr32le(local_intc_base + 0x0014, 0xfe);   // Disable PMU IRQ on all otehr cores
+
+    wr32le(local_intc_base + 0x0040, 0x0f);   // Enable all CNT IRQs on core 0
+    wr32le(local_intc_base + 0x0044, 0x00);   // Disable all CNT IRQs on core 1
+    wr32le(local_intc_base + 0x0048, 0x00);   // Disable all CNT IRQs on core 2
+    
+    kprintf("[BOOT] Enabling Timer interrupts on core 3\n");
+    wr32le(local_intc_base + 0x004c, 0xf0);   // Enable all CNT IRQs on core 3
+
+    kprintf("[BOOT] Disabling mailbox interrupts\n");
+    wr32le(local_intc_base + 0x0050, 0x00);   // Disable Mailbox IRQs on core 0
+    wr32le(local_intc_base + 0x0054, 0x00);   // Disable Mailbox IRQs on core 1
+    wr32le(local_intc_base + 0x0058, 0x00);   // Disable Mailbox IRQs on core 2
+    wr32le(local_intc_base + 0x005c, 0x00);   // Disable Mailbox IRQs on core 3
 }
 
-
-
+/* Setup */
 
 void intc_global_init()
 {
@@ -120,8 +177,6 @@ void intc_global_init()
         union ptr soc_ranges;
 
         gic_reg.v = dt_find_property(gic, "reg")->op_value;
-
-        kprintf("[BOOT] Found GICv2\n");
 
         of_node_t *soc = dt_find_node("/soc");
         int soc_size_cells = dt_get_property_value_u32(soc, "#size-cells", 1, 1);;
@@ -198,9 +253,9 @@ void intc_global_init()
         gic_base = gic_virt_base[0];
         gic_base_cpu = gic_virt_base[1];
 
-        kprintf("[BOOT] Found GIC @ %p (distributor), %p (cpu)\n", gic_base, gic_base_cpu);
+        kprintf("[BOOT] Found GICv2\n[BOOT]   Distributor @ %p\n[BOOT]   CPU area @ %p\n", gic_base, gic_base_cpu);
     }
-    /*else*/ if ((prop = dt_find_property(symbols, "local_intc")))
+    if ((prop = dt_find_property(symbols, "local_intc")))
     {
         of_node_t *local_intc = dt_find_node(prop->op_value);
         uintptr_t vpu_addr_phys = 0;
@@ -274,5 +329,10 @@ void intc_global_init()
 
         kprintf("[BOOT] Found Legacy INTC @ %p\n", local_intc_base);
     }
-}
 
+    if (gic_base) {
+        gic_local_init();
+    } else {
+        legacy_local_init();
+    }
+}
