@@ -2,6 +2,7 @@
 kernel=Emu68-@VARIANT@.gz
 disable_splash=1
 arm_64bit=1
+enable_gic=0
 
 # Limit total memory size to 2GB for now. Necessary for CM4/Pi4
 total_mem=2048
