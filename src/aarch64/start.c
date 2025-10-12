@@ -1677,7 +1677,9 @@ void boot(void *dtree)
     wr32le(0xf3000040, 0x0f);   // Enable all CNT IRQs on core 0
     wr32le(0xf3000044, 0x00);   // Disable all CNT IRQs on core 1
     wr32le(0xf3000048, 0x00);   // Disable all CNT IRQs on core 2
-    wr32le(0xf300004c, 0x00);   // Disable all CNT IRQs on core 3
+    
+    kprintf("[BOOT] Enabling Timer interrupts on core 3\n");
+    wr32le(0xf300004c, 0x0f);   // Enable all CNT IRQs on core 3
 
     kprintf("[BOOT] Disabling mailbox interrupts\n");
     wr32le(0xf3000050, 0x00);   // Disable Mailbox IRQs on core 0
