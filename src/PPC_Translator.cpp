@@ -6554,10 +6554,6 @@ static void PPCMainLoop()
                 /* Set PC to new vector */
                 LastPC = 0xffffffff;
                 PC = vector;
-
-                PPC_SaveContext(ctx);
-                kprintf("[PPC] Going to exception vector %08x\n", vector);
-                PPC_LoadContext(getHostCTX());
             }
         }  
 
