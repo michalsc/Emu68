@@ -3074,7 +3074,7 @@ static __used__ int EMIT_mftb(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
     uint8_t tmp = AllocARMRegister(tc);
 
-    tc->EMIT( mrs(tmp, 3, 3, 14, 0, 1));
+    tc->EMIT(mrs(tmp, sys_CNTPCT_EL0));
 
     if (tbr == 268) // TBL
         tc->EMIT( mov_reg(reg_rd, tmp));
@@ -3152,6 +3152,15 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
         uint32_t *jump_location = tc->tc_CodePtr - 1;
 
         switch(spr) {
+            case 18:    /* DSISR */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, DSISR)));
+                break;
+            case 19:    /* DAR */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, DAR)));
+                break;
+            case 22:    /* DEC */
+                tc->EMIT(mrs(reg_rd, sys_CNTP_TVAL_EL0));
+                break;
             case 26:    /* SRR0 */
                 tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SRR0)));
                 break;
@@ -3258,6 +3267,23 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
                 tc->EMIT(lsr64(reg_rd, tmp, 32));
                 FreeARMRegister(tc, tmp);
                 break;
+            case 902: /* ARMCNTLO - lower 32 bits of ARM instruction counter */
+                tmp = AllocARMRegister(tc);
+                tc->EMIT({
+                    mrs(tmp, sys_PMCCNTR_EL0),
+                    mov_reg(reg_rd, tmp)
+                });
+                FreeARMRegister(tc, tmp);
+                break;
+            case 903: /* ARMCNTHI - higher 32 bits of ARM instruction counter */
+                tmp = AllocARMRegister(tc);
+                tc->EMIT({
+                    mrs(tmp, sys_PMCCNTR_EL0),
+                    lsr64(reg_rd, tmp, 32)
+                });
+                FreeARMRegister(tc, tmp);
+                break;
+
             default:
                 return -1;
         }
@@ -3427,6 +3453,21 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
         uint32_t *jump_location = tc->tc_CodePtr - 1;
 
         switch(spr) {
+            case 18:   /* DSISR */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, DSISR)));
+                break;
+            case 19:   /* DAR */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, DAR)));
+                break;
+            case 22:    /* DEC */
+                tc->EMIT({
+                    /* Set new counter value, starts immediately counting */
+                    msr(reg_rs, sys_CNTP_TVAL_EL0),
+                    mov_immed_u16(tmp, 1, 0),
+                    /* Set 1 to CNTP_CTL_EL0 to enable timer and unmask interrupt */
+                    msr(tmp, sys_CNTP_CTL_EL0)
+                });
+                break;
             case 26:    /* SRR0 */
                 tc->EMIT({
                     bic_immed(tmp, reg_rs, 2, 0), 
@@ -5934,7 +5975,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         uint32_t mean_f = mean % 100;
         kprintf("[PPC] Mean ARM instructions per PPC instruction: %d.%02d\n", mean_n, mean_f);
     }
-
+#if 0
     if (inner_loop && insn_count == 1) {
         uint64_t arm_cycle_counter_end;
         __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(arm_cycle_counter_end));
@@ -5978,7 +6019,13 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
 
         while(1) { asm volatile("wfi"); };
     }
-
+#else
+    if (inner_loop && insn_count == 1) {
+        /* This is an endless loop, intentional or not. Change it to WFI/WFE loop to conserve power */
+        tc.tc_CodePtr--;
+        tc.EMIT(wfi());
+    }
+#endif
     // Put a marker at the end of translation unit
     tc.EMIT(0xffffffff);
 
@@ -6458,190 +6505,120 @@ static void PPCMainLoop()
         LastPC = getLastPC();
         ctx = getHostCTX();
 
-        //if (unlikely(ctx->INT32 != 0))
-        /* Not sure yet if we need interrupts on PPC at all */
-        if (false)
+        /* If any interrupts are pending */
+        if (unlikely(ctx->INT64))
         {
-#if 0
-        /* If (unlikely) there was interrupt pending, check if it needs to be processed */
-        if (unlikely(ctx->INT32 != 0))
+            uint32_t vector = 0;
+
+            /* Check flags by the priority */
+            if (ctx->INT.EXT) {
+                if (ctx->MSR & MSR_EE) {
+                    ctx->INT.EXT = 0;
+                    vector = 0x500;
+                }
+            }
+            else if (ctx->INT.DEC) {
+                if (ctx->MSR & MSR_EE) {
+                    ctx->INT.DEC = 0;
+                    vector = 0x900;
+                }
+            }
+
+            if (vector) {
+                /* 
+                    When entering interrupt or exception:
+                    - remember PC and MSR in SRR0 and SRR1
+                    - clear almost all MSR flags, keep IP and ILE
+                    - copy ILE bit to LE bit
+                    - if IP is set, put vector into 0xfff0xxxx space
+                    - Load PC with new address
+                    - reset LastPC to avoid short JIT path
+                */
+
+                /* Store SRR1 (MSR) and SRR0 (PC) */
+                ctx->SRR0 = PC;
+                ctx->SRR1 = ctx->MSR;
+
+                /* IP == 1 -> use high vectors, low vectors otherwise */
+                if (ctx->MSR & MSR_IP) {
+                    vector |= 0xfff00000;
+                }
+
+                /* MSR is almost entirely cleared, keep IP and ILE */
+                ctx->MSR &= MSR_IP | MSR_ILE;
+
+                /* Normally ILE should be copied to LE to set endian mode. we ignore that */
+                //ctx->MSR |= (ctx->MSR >> 16) & 1;
+
+                /* Set PC to new vector */
+                LastPC = 0xffffffff;
+                PC = vector;
+            }
+        }  
+
+        /* The last PC is the same as currently set PC? */
+        if (LastPC == PC)
         {
-            uint32_t SR, SRcopy;
-            int level = 0;
-            uint32_t vector;
-            uint32_t vbr;
-
-            /* Find out requested IPL level based on ARM state and real IPL line */
-            if (ctx->INT.ARM_err)
-            {
-                level = 7;
-                ctx->INT.ARM_err = 0;
-            }
-            else
-            {
-                if (ctx->INT.ARM)
-                {
-                    level = 6;
-                    ctx->INT.ARM = 0;
-                }
-#if defined(PISTORM)
-                /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
-                if (ctx->INT.IPL > level)
-                {
-                    level = ctx->INT.IPL;
-                }
-#else
-                /* On classic pistorm we need to obtain IPL from PiStorm status register */
-                if (ctx->INT.IPL)
-                {
-                    int ipl_level;
-
-#if PISTORM_WRITE_BUFFER
-                    while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
-#endif
-
-                    ipl_level = GetIPLLevel();
-
-#if PISTORM_WRITE_BUFFER
-                    __atomic_clear(&bus_lock, __ATOMIC_RELEASE);
-#endif
-                    /* Obtained IPL level higher than until now detected? */
-                    if (ipl_level > level)
-                    {
-                        level = ipl_level;
-                    }
-                }           
-#endif
-            }
-
-            /* Get SR and test the IPL mask value */
-            SR = getSR();
-
-            int IPL_mask = (SR & SR_IPL) >> SRB_IPL;
-
-            /* Any unmasked interrupts? Proceess them */
-            if (level == 7 || level > IPL_mask)
-            {
-                register uint64_t sp __asm__("r29");
-
-                if (likely((SR & SR_S) == 0))
-                {
-                    /* If we are not yet in supervisor mode, the USP needs to be updated */
-                    __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(sp));
-
-                    /* Load eiter ISP or MSP */
-                    if (unlikely((SR & SR_M) != 0))
-                    {
-                        __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(sp));
-                    }
-                    else
-                    {
-                        __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(sp));
-                    }
-                }
-                
-                SRcopy = SR;
-                /* Swap C and V flags in the copy */
-                if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3)
-                SRcopy ^= 3;
-                vector = 0x60 + (level << 2);
-
-                /* Set supervisor mode */
-                SR |= SR_S;
-
-                /* Clear Trace mode */
-                SR &= ~(SR_T0 | SR_T1);
-
-                /* Insert current level into SR */
-                SR &= ~SR_IPL;
-                SR |= ((level & 7) << SRB_IPL);
-
-                /* Push exception frame */
-                __asm__ volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
-                __asm__ volatile("str %w1, [%0, #2]": :"r"(sp),"r"(PC));
-                __asm__ volatile("strh %w1, [%0, #6]": :"r"(sp),"r"(vector));
-
-                /* Set SR */
-                setSR(SR);
-
-                /* Get VBR */
-                vbr = ctx->VBR;
-
-                /* Load PC */
-                __asm__ volatile("ldr %w0, [%1, %2]":"=r"(PC):"r"(vbr),"r"(vector)); 
-            }
-
-            /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
-        }
-#endif
-
+            /* Jump to the code now */
+            ARMCode();
+            continue;
         }
         else
         {
-            /* The last PC is the same as currently set PC? */
-            if (LastPC == PC)
+            /* Find unit in the hashtable based on the PC value */
+            uint32_t *code = FindUnitQuick();
+
+            /* Unit exists ? */
+            if (code != NULL)
             {
-                /* Jump to the code now */
+                /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
+                __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
+
+                /* This is the case, load entry point into x12 */
+                ARMCode = (void (*)())code;
+                
                 ARMCode();
+
+                /* Go back to beginning of the loop */
                 continue;
             }
-            else
+
+            /* If we are that far there was no JIT unit found */
+            PPC_SaveContext(ctx);
+
+            uint32_t copyPC = getCTX()->PC;
+
+            /* Perform search without testing Epoch */
+            struct PPCTranslationUnit *node = nullptr;
+            uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+            auto bucket = &ICache[hash];
+
+            /* Go through the list of translated units */
+            for(auto n: *bucket)
             {
-                /* Find unit in the hashtable based on the PC value */
-                uint32_t *code = FindUnitQuick();
-
-                /* Unit exists ? */
-                if (code != NULL)
+                /* Check if unit is found */
+                if (n->ptu_PPCAddress == copyPC)
                 {
-                    /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
-                    __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
-
-                    /* This is the case, load entry point into x12 */
-                    ARMCode = (void (*)())code;
-                    
-                    ARMCode();
-
-                    /* Go back to beginning of the loop */
-                    continue;
+                    /* Node found, most likely Epoch broken */
+                    node = PPC_VerifyUnit(n);
+                    break;
                 }
-
-                /* If we are that far there was no JIT unit found */
-                PPC_SaveContext(ctx);
-
-                uint32_t copyPC = getCTX()->PC;
-
-                /* Perform search without testing Epoch */
-                struct PPCTranslationUnit *node = nullptr;
-                uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-                auto bucket = &ICache[hash];
-
-                /* Go through the list of translated units */
-                for(auto n: *bucket)
-                {
-                    /* Check if unit is found */
-                    if (n->ptu_PPCAddress == copyPC)
-                    {
-                        /* Node found, most likely Epoch broken */
-                        node = PPC_VerifyUnit(n);
-                        break;
-                    }
-                }
-
-                if (node == NULL) {
-                    /* Get the code. This never fails */
-                    node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
-                }
-
-    #if EMU68_USE_LRU
-                PPC_LRU_InsertBlock(node);
-    #endif
-                /* Load CPU context */
-                PPC_LoadContext(getHostCTX());
-                __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
-                /* Prepare ARM pointer in x12 and call it */
-                ARMCode = (void (*)())node->ptu_ARMEntryPoint;
-                ARMCode();
             }
+
+            if (node == NULL) {
+                /* Get the code. This never fails */
+                node = PPC_GetTranslationUnit((uint32_t *)(uintptr_t)copyPC);
+            }
+
+#if EMU68_USE_LRU
+            PPC_LRU_InsertBlock(node);
+#endif
+            /* Load CPU context */
+            PPC_LoadContext(getHostCTX());
+            __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
+            /* Prepare ARM pointer in x12 and call it */
+            ARMCode = (void (*)())node->ptu_ARMEntryPoint;
+            ARMCode();
         }
     }
 }
@@ -6697,7 +6674,8 @@ extern "C" void StartupPPC()
         ppc.FPR_u64[fp] = 0x7fffffffffffffffULL;
     }
 
-    ppc.MSR = 0x0040;
+    ppc.MSR = MSR_IP | MSR_RI;
+
     ppc.JIT_CACHE_TOTAL = tlsf_get_total_size(Emu68::PPC::jit_ppc);
     ppc.JIT_CACHE_FREE = tlsf_get_free_size(Emu68::PPC::jit_ppc);
     ppc.JIT_UNIT_COUNT = 0;
@@ -6732,6 +6710,26 @@ extern "C" void StartupPPC()
 
     Emu68::PPC::PPC_PrintContext(&ppc);
 
+    /* Enable external interrupts */
+    __asm__ volatile("msr daifclr, #7");
+
+    /* Get arm cycle counter on start - debug only, can go away later */
     __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(Emu68::PPC::arm_cycle_counter_start));
+
     Emu68::PPC::PPCMainLoop();
+}
+
+extern "C" void PPCReportInterrupt(int interrupt)
+{
+    auto ctx = Emu68::PPC::getHostCTX();
+    
+    switch (interrupt)
+    {
+        case 0x900:
+            ctx->INT.DEC = 1;
+            break;
+        case 0x500:
+            ctx->INT.EXT = 1;
+            break;
+    }
 }

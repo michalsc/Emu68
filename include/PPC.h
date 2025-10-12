@@ -40,18 +40,16 @@ struct PPCState
     uint32_t GPR[32];
     uint32_t CR;    /* Must follow GPR immediately! */
     uint32_t XER;   /* Must follow CR immediately! */
-    
     uint32_t LR;
     uint32_t CTR;   /* Must follow LR immediately! */
-
     uint32_t PC;
 
     /* UISA - FPU Part */
+    uint32_t FPSCR;
     union {
         double FPR[32];
         uint64_t FPR_u64[32];
     };
-    uint32_t FPSCR;
 
     /* VEA */
     uint64_t TB_offset;
@@ -59,12 +57,13 @@ struct PPCState
     /* Async IRQ part */
     union {
         struct {
-            uint8_t ARM;
-            uint8_t ARM_err;
-            uint8_t EXT;
-            uint8_t RESET;
+            volatile uint8_t ARM;
+            volatile uint8_t ARM_err;
+            volatile uint8_t EXT;
+            volatile uint8_t RESET;
+            volatile uint8_t DEC;
         } INT;
-        uint32_t INT32;
+        volatile uint64_t INT64;
     };
 
     /* OEA */
@@ -72,6 +71,8 @@ struct PPCState
     uint32_t SRR0;
     uint32_t SRR1;
     uint32_t SPRG[4];
+    uint32_t DAR;
+    uint32_t DSISR;
 
     uint64_t INSN_COUNT;
     uint32_t JIT_CACHE_MISS;
@@ -81,6 +82,22 @@ struct PPCState
     uint32_t JIT_CONTROL;
     uint32_t JIT_CONTROL2;
 };
+
+#define MSR_LE      0x000001
+#define MSR_RI      0x000002
+#define MSR_DR      0x000010
+#define MSR_IR      0x000020
+#define MSR_IP      0x000040
+#define MSR_FE1     0x000100
+#define MSR_BE      0x000200
+#define MSR_SE      0x000400
+#define MSR_FE0     0x000800
+#define MSR_ME      0x001000
+#define MSR_FP      0x002000
+#define MSR_PR      0x004000
+#define MSR_EE      0x008000
+#define MSR_ILE     0x010000
+#define MSR_POW     0x040000
 
 #define REG_PC      18
 #define REG_LR      28
