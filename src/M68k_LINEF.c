@@ -5200,7 +5200,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp3 = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
                         mov_immed_u8(tmp3, 4),
-                        mrs(tmp2, 3, 3, 0, 0, 1), // Get CTR_EL0
+                        mrs(tmp2, sys_CTR_EL0), // Get CTR_EL0
                         ubfx(tmp2, tmp2, 16, 4),
                         lslv(tmp2, tmp3, tmp2),
                         sub_immed(tmp2, tmp2, 1),
@@ -5219,7 +5219,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp3 = RA_AllocARMRegister(ctx);
                     tmp4 = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
-                        mrs(tmp3, 3, 3, 0, 0, 1), // Get CTR_EL0
+                        mrs(tmp3, sys_CTR_EL0), // Get CTR_EL0
                         ubfx(tmp3, tmp3, 16, 4),
                         mov_immed_u16(tmp2, 1024, 0),
                         lsrv(tmp2, tmp2, tmp3),
@@ -5332,7 +5332,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp3 = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
                         mov_immed_u8(tmp3, 4),
-                        mrs(tmp2, 3, 3, 0, 0, 1), // Get CTR_EL0
+                        mrs(tmp2, sys_CTR_EL0), // Get CTR_EL0
                         ubfx(tmp2, tmp2, 16, 4),
                         lslv(tmp2, tmp3, tmp2),
                         sub_immed(tmp2, tmp2, 1),
@@ -5351,7 +5351,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp3 = RA_AllocARMRegister(ctx);
                     tmp4 = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
-                        mrs(tmp3, 3, 3, 0, 0, 1), // Get CTR_EL0
+                        mrs(tmp3, sys_CTR_EL0), // Get CTR_EL0
                         ubfx(tmp3, tmp3, 16, 4),
                         mov_immed_u16(tmp2, 1024, 0),
                         lsrv(tmp2, tmp2, tmp3),

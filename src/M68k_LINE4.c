@@ -2169,12 +2169,12 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x0e0: /* CNTFRQ - speed of counter clock in Hz */
-                EMIT(ctx, mrs(reg, 3, 3, 14, 0, 0));
+                EMIT(ctx, mrs(reg, sys_CNTFRQ_EL0));
                 break;
             case 0x0e1: /* CNTVALLO - lower 32 bits of the counter */
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
-                    mrs(tmp, 3, 3, 14, 0, 1),
+                    mrs(tmp, sys_CNTPCT_EL0),
                     mov_reg(reg, tmp)
                 );
                 RA_FreeARMRegister(ctx, tmp);
@@ -2182,7 +2182,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             case 0x0e2: /* CNTVALHI - higher 32 bits of the counter */
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
-                    mrs(tmp, 3, 3, 14, 0, 1),
+                    mrs(tmp, sys_CNTPCT_EL0),
                     lsr64(reg, tmp, 32)
                 );
                 RA_FreeARMRegister(ctx, tmp);
@@ -2212,7 +2212,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             case 0x0e5: /* ARMCNTLO - lower 32 bits of ARM instruction counter */
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
-                    mrs(tmp, 3, 3, 9, 13, 0),
+                    mrs(tmp, sys_PMCCNTR_EL0),
                     mov_reg(reg, tmp)
                 );
                 RA_FreeARMRegister(ctx, tmp);
@@ -2220,7 +2220,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             case 0x0e6: /* ARMCNTHI - higher 32 bits of ARM instruction counter */
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
-                    mrs(tmp, 3, 3, 9, 13, 0),
+                    mrs(tmp, sys_PMCCNTR_EL0),
                     lsr64(reg, tmp, 32)
                 );
                 RA_FreeARMRegister(ctx, tmp);
