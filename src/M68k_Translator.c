@@ -815,6 +815,20 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
     {
         uint32_t crc = 0;
 
+        /* If JIT settings from the moment of compilation are different than now, the unit is invalid */
+        if (unit->mt_JIT_CONTROL != __m68k_state->JIT_CONTROL ||
+            unit->mt_JIT_CONTROL2 != __m68k_state->JIT_CONTROL2)
+        {
+            REMOVE(&unit->mt_LRUNode);
+            REMOVE(&unit->mt_HashNode);
+            tlsf_free(jit_tlsf, unit);
+
+            __m68k_state->JIT_UNIT_COUNT--;
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+            return NULL;
+        }
+
         /* Quick path - ROM is always valid as long as we don't use any fancy remapping, at least on Amiga */
         if (unit->mt_M68kAddress >= 0xf80000 && unit->mt_M68kAddress < 0x1000000) {
             /* Update EPOCH of the unit */
@@ -960,6 +974,10 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         unit->mt_PrologueSize = prologue_size;
         unit->mt_EpilogueSize = epilogue_size;
         unit->mt_Conditionals = conditionals_count;
+
+        /* Remember settings of JIT for this compiled fragment */
+        unit->mt_JIT_CONTROL = __m68k_state->JIT_CONTROL;
+        unit->mt_JIT_CONTROL2 = __m68k_state->JIT_CONTROL2;
 
         ADDHEAD(&LRU, &unit->mt_LRUNode);
         ADDHEAD(&ICache[hash], &unit->mt_HashNode);

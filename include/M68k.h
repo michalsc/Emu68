@@ -46,6 +46,8 @@ struct M68KTranslationUnit
     struct Node         mt_LRUNode;         /* 48: 2 x 8 bytes - LRU node */
 
     /* Cold part of the structure */
+    uint32_t        mt_JIT_CONTROL;
+    uint32_t        mt_JIT_CONTROL2;
     uint32_t        mt_PrologueSize;
     uint32_t        mt_EpilogueSize;
     uint32_t        mt_Conditionals;
