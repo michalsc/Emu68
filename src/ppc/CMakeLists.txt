@@ -15,12 +15,13 @@ add_executable(ppc_rom
   init.c
   kernel.c
   support.c
+  supportppc.c
 )
-
+# 
 get_verstring(VERSTRING)
 
 target_link_options(ppc_rom PRIVATE -Wl,--build-id=none -nostdlib -nostartfiles -static -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/ppc_rom.map -T ${LINKER_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/ldscript-ppc.lds)
-target_compile_options(ppc_rom PRIVATE -fpack-struct=2 -falign-functions=32 -O2 -mcpu=G3 -msoft-float -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
+target_compile_options(ppc_rom PRIVATE -fno-delete-null-pointer-checks -fpack-struct=2 -falign-functions=32 -O2 -mcpu=G3 -msoft-float -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
 target_include_directories(ppc_rom PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR})
 
 add_custom_command(

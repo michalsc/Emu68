@@ -10,6 +10,8 @@ typedef signed int          LONG;
 typedef void *              APTR;
 typedef unsigned long       IPTR;
 typedef signed long         SIPTR;
+typedef char *              STRPTR;
+typedef int                 BPTR;
 
 typedef void                VOID;
 

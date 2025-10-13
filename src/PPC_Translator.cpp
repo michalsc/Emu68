@@ -3366,17 +3366,24 @@ static __used__ int EMIT_mtmsr(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ctx = GetCTX(tc);
     uint8_t tmp = AllocARMRegister(tc);
 
-    /* We need to flush PC now, just in case */
-    tc->FlushPC();
-
     /* 
-        Fetch MSR and check if exceptions are enabled - it is illegal to call
-        RFI from user
+        This fetches must not be context synchronizing and one supervisor check per
+        code block is sufficient.
     */
-    tc->EMIT({
-        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-        tbnz(tmp, 14, 0)
-    });
+    if (!tc->tc_SupervisorChecked)
+    {
+        /* We need to flush PC now, just in case */
+        tc->FlushPC();
+
+        /* 
+            Fetch MSR and check if exceptions are enabled - it is illegal to call
+            RFI from user
+        */
+        tc->EMIT({
+            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+            tbnz(tmp, 14, 0)
+        });
+    }
 
     /* Emit jump, remember its location and fixup type */
     uint32_t fixup_type = FIXUP_TBZ;
@@ -3394,21 +3401,28 @@ static __used__ int EMIT_mtmsr(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     FreeARMRegister(tc, tmp);
 
-    /* Now insert the program exception path - raise exception if RFI was not allowed */
-    uint32_t *exit_code_start = tc->tc_CodePtr;
-    EMIT_Exception(tc, 0x700);
-    uint32_t *exit_code_end = tc->tc_CodePtr;
+    if (!tc->tc_SupervisorChecked)
+    {
+        /* Now insert the program exception path - raise exception if RFI was not allowed */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+        EMIT_Exception(tc, 0x700);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
 
-    /* Insert fixup location */
-    tc->EMIT({ 
-        (uint32_t)(exit_code_end - jump_location),
-        fixup_type,
-        1,
-        (uint32_t)(exit_code_end - exit_code_start),
-        INSN_TO_LE(MARKER_EXIT_BLOCK)
-    });
+        /* Insert fixup location */
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - jump_location),
+            fixup_type,
+            1,
+            (uint32_t)(exit_code_end - exit_code_start),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+
+        tc->tc_SupervisorChecked = true;
+    }
 
     /* Stop here */
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
     tc->STOP();
 
     return 1;
@@ -6045,6 +6059,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     struct PPCTranslationUnit *unit = nullptr;
     uintptr_t hash = (uintptr_t)ppccodeptr;
     uint32_t *orig_ppccodeptr = ppccodeptr;
+    uint64_t time_start, time_end;
 
     int debug = 0;
 
@@ -6058,9 +6073,11 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     if (debug > 2)
         kprintf("[PPC] GetTranslationUnit(%08x)\n[PPC] Hash: 0x%04x\n", (void*)ppccodeptr, (int)hash);
 
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(time_start));
     uintptr_t line_length = PPC_Translate(ppccodeptr);
     uintptr_t arm_insn_count = line_length/4 - 1;
     uintptr_t unit_length = (line_length + 63 + sizeof(struct PPCTranslationUnit)) & ~63;
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(time_end));
 
     do {
         unit = (PPCTranslationUnit *)tlsf_malloc_aligned(jit_ppc, unit_length, 64);
@@ -6094,6 +6111,9 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
         }
     } while(unit == NULL);
 
+    /* Store JIT translation time */
+    unit->ptu_CompileTime = time_end - time_start;
+
     /* Set-up entry point */
     unit->ptu_ARMEntryPoint = &unit->ptu_ARMCode[0];
     unit->ptu_ARMEntryPoint = (void *)((uintptr_t)unit->ptu_ARMEntryPoint | 0x0000001000000000ULL);
@@ -6118,7 +6138,11 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     unit->ptu_PPCLow = (uint32_t)(uintptr_t)ppc_low;
     unit->ptu_PPCHigh = (uint32_t)(uintptr_t)ppc_high;
     unit->ptu_Fingerprint = cache_read_32(ICACHE, unit->ptu_PPCAddress) ^ cache_read_32(ICACHE, unit->ptu_PPCAddress + 4);
+    
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(time_start));
     unit->ptu_CRC32 = CalcCRC32(ppc_low, ppc_high);
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(time_end));
+    unit->ptu_VerifyTime = time_end - time_start;
     #if 0
     unit->ptu_UseCount = 0;
     unit->ptu_FetchCount = 0;
@@ -6137,6 +6161,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
 
     if (debug) {
         kprintf("[PPC] Block checksum: %08x, Fingerprint: %08x\n", unit->ptu_CRC32, unit->ptu_Fingerprint);
+        kprintf("[PPC] Compile time: %d, Verify time: %d\n", unit->ptu_CompileTime, unit->ptu_VerifyTime);
         kprintf("[PPC] ARM code at %p\n", unit->ptu_ARMEntryPoint);
     }
 
@@ -6675,7 +6700,7 @@ extern "C" void StartupPPC()
         ppc.FPR_u64[fp] = 0x7fffffffffffffffULL;
     }
 
-    ppc.MSR = MSR_IP | MSR_RI | MSR_EE;
+    ppc.MSR = MSR_IP | MSR_RI;
 
     ppc.JIT_CACHE_TOTAL = tlsf_get_total_size(Emu68::PPC::jit_ppc);
     ppc.JIT_CACHE_FREE = tlsf_get_free_size(Emu68::PPC::jit_ppc);
@@ -6711,13 +6736,14 @@ extern "C" void StartupPPC()
 
     Emu68::PPC::PPC_PrintContext(&ppc);
 
+    /* It is time to enable the non-secure physical timer on GIC, if available */
     if (gic_available()) {
         gic_local_init();
         gic_set_priority(GIC_PPI_NPTIMER, 0x80);
         gic_irq_eanble(GIC_PPI_NPTIMER);
     }
 
-    /* Enable external interrupts */
+    /* Enable external interrupts on ARM - it doesn't mean PPC will get them */
     __asm__ volatile("msr daifclr, #7");
 
     /* Get arm cycle counter on start - debug only, can go away later */

@@ -18,9 +18,10 @@ __asm__(
 "       .byte 0                         \n"
 "       .org 0x100,0                    \n"
 "SystemReset:                           \n"
-"       lis %r1, 0xffef                 \n"
+"       lis %r1, 0xffef                 \n" // Set up stack to a known address - Emu68 keeps it safe
 "       ori %r1, %r1, 0xffe0            \n"
-"       bl PPC_C_Init                   \n"
+"       bl Start                        \n"
+//"       bl PPC_C_Init                   \n"
 "1:     b 1b                            \n"
 
 "       .org 0x200,0                    \n"
@@ -67,12 +68,13 @@ __asm__(
 
 "       .org 0x900,0                    \n"
 "Decrementer:                           \n"
+#if 0
 "       mtsprg3 %r1                     \n"
 "       lis %r1, 0x262                  \n"
 "       mtdec %r1                       \n"
 "       mfsprg3 %r1                     \n"
 "       rfi                             \n"
-
+#endif
 "       mtsprg3 %r0                     \n"
 "       mflr %r0                        \n"
 "       bl ExceptionEntry               \n"
@@ -111,13 +113,11 @@ asm volatile(
 "       mfsrr1  %%r0                                    \n"
 "       mtsprg1 %%r0                                    \n" // SPRG1 == SRR1
 
-#if HAVE_FPU
-        mfmsr   r0
-        ori     r0,r0,(PSL_IR|PSL_DR|PSL_FP)
-        mtmsr   r0                                                     #Reenable MMU
-        sync                                               #Also reenable FPU
-        isync
-#endif
+"       mfmsr   %%r0                                    \n"
+"       ori     %%r0, %%r0, %[MSR_FLAGS]                \n"
+"       mtmsr   %%r0                                    \n" // Reenable MMU
+"       sync                                            \n" // Also reenable FPU
+"       isync                                           \n"
 
 "       stwu    %%r1, -2048(%%r1)                       \n" // Create 2KB frame on stack
 
@@ -172,12 +172,13 @@ asm volatile(
 :
 :[POWERPCBASE]"i"(__builtin_offsetof(struct PPCZeroPage, zp_PowerPCBase)),
  [PPCMEMHEADER]"i"(__builtin_offsetof(struct PPCZeroPage, zp_PPCMemHeader)),
- [POWERPCBASE_THISPPCTASK]"i"(0x94), // ??? where is it? in internals of powerpc.library?? __builtin_offsetof(struct PPCZeroPage, zp_PowerPCBase)),
+ [POWERPCBASE_THISPPCTASK]"i"(__builtin_offsetof(struct PrivatePPCBase, pp_ThisPPCProc)),
  [PPCTASK_CONTEXMEM]"i"(__builtin_offsetof(struct TaskPPC, tp_ContextMem)),
  [IF_CONTEXT]"i"(__builtin_offsetof(struct iframe, if_Context.ec_CR)),
  [IF_CONTEXT_GPR0]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[0])),
  [IF_CONTEXT_GPR3]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[3])),
- [IF_CONTEXT_GPR4]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[4]))
+ [IF_CONTEXT_GPR4]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[4])),
+ [MSR_FLAGS]"i"(MSR_IR|MSR_DR|MSR_FP)
 );
 }
 
@@ -744,6 +745,8 @@ void delay_loop(uint32_t count);
 void GetBogoMIPS(uint32_t count)
 {
     uint32_t Begin_Time, End_Time;
+
+    *(uint32_t *)0 = 0xdead;
 
     asm volatile("lwbrx %0, 0, %1":"=r"(Begin_Time):"r"(0xf2003004));
     delay_loop(count);

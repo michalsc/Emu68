@@ -308,6 +308,8 @@ struct PPCTranslationUnit : public Emu68::Node
     /* Cold part of the structure */
     uint32_t            ptu_PPCInsnCnt;
     uint32_t            ptu_ARMInsnCnt;
+    uint32_t            ptu_CompileTime;
+    uint32_t            ptu_VerifyTime;
     #if 0
     uint32_t        mt_PrologueSize;
     uint32_t        mt_EpilogueSize;
