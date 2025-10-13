@@ -1230,7 +1230,7 @@ uint32_t EMIT_ANDI_TO_CCR(struct TranslatorContext *ctx, uint16_t opcode)
         Before swapping flags - invalidate host flags: all flags modified by this instruction
         are out of sync now
     */
-    host_flags &= ~val;
+    host_flags &= val;
 
     /* Swap C and V flags in immediate */
     if ((val & 3) != 0 && (val & 3) < 3)
