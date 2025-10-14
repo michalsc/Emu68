@@ -28,13 +28,13 @@ char * strcpy(char *s1, const char *s2);
 static inline APTR getBASE()
 {
     APTR base;
-    asm volatile("mfspr %0, 940":"=r"(base));
+    asm volatile("mfspr %0, 944":"=r"(base));
     return base;
 }
 
 static inline void setBASE(APTR base)
 {
-    asm volatile("mtspr 940, %0"::"r"(base));
+    asm volatile("mtspr 944, %0"::"r"(base));
 }
 
 static inline ULONG getTBL()
