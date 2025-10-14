@@ -3204,7 +3204,7 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             case 921:   /* JIT_CONTROL_2 */
                 tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CONTROL2)));
                 break;
-            case 940:   /* BASE */
+            case 944:   /* BASE */
                 tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, BASEREG)));
                 break;
         }
@@ -3519,7 +3519,7 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
                 kprintf("[PPC] JIT_CONTROL2 written to, need update\n");
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, JIT_CONTROL2)));
                 break;
-            case 940:   /* BASE */
+            case 944:   /* BASE */
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, BASEREG)));
                 break;
         }
@@ -5012,9 +5012,20 @@ static __used__ int EMIT_icbi(struct PPCTranslatorContext *tc, uint32_t opcode)
 static __used__ int EMIT_sync(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
-    if (opcode & 0x03fff800) return -1;
+    if (opcode & 0x001ff800) return -1;
 
-    tc->EMIT( isb());
+    uint8_t op = (opcode >> 21) & 31;
+
+    switch(op) {
+        case 0:
+            tc->EMIT(isb());
+            break;
+        case 1:
+            tc->EMIT(dmb_sy());
+            break;
+        default:
+            return -1;
+    }
 
     tc->tc_PPCCodePtr++;
     tc->AdvancePC(4);
