@@ -81,6 +81,7 @@ struct PPCState
     uint32_t JIT_CACHE_FREE;
     uint32_t JIT_CONTROL;
     uint32_t JIT_CONTROL2;
+    uint32_t BASEREG;
 };
 
 #define MSR_LE      0x000001

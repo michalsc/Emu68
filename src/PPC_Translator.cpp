@@ -3204,6 +3204,9 @@ static __used__ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             case 921:   /* JIT_CONTROL_2 */
                 tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, JIT_CONTROL2)));
                 break;
+            case 940:   /* BASE */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, BASEREG)));
+                break;
         }
 
         FreeARMRegister(tc, tmp);
@@ -3515,6 +3518,9 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             case 921:   /* JIT_CONTROL_2 */
                 kprintf("[PPC] JIT_CONTROL2 written to, need update\n");
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, JIT_CONTROL2)));
+                break;
+            case 940:   /* BASE */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, BASEREG)));
                 break;
         }
 
