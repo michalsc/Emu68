@@ -1446,7 +1446,7 @@ static __used__ int EMIT_lwarx(struct PPCTranslatorContext *tc, uint32_t opcode)
 static __used__ int EMIT_stwcx_dot(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
-    if (opcode & 1) return -1;
+    if ((opcode & 1) == 0) return -1;
 
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
