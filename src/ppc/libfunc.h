@@ -10,17 +10,21 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-void L_AddHeadPPC(struct PowerPCBase *, struct List *list, struct Node *node);
-void L_AddTailPPC(struct PowerPCBase *, struct List *list, struct Node *node);
-void L_AddTimePPC(struct PowerPCBase *, struct timeval *dest, struct timeval *source);
-LONG L_CmpTimePPC(struct PowerPCBase *, struct timeval *dest, struct timeval *source);
-void L_CopyMemPPC(struct PowerPCBase *, void * source, void * dest, ULONG size);
-void L_EnqueuePPC(struct PowerPCBase *, struct List *list, struct Node *node);
-struct Node * L_FindNamePPC(struct PowerPCBase *, struct List *list, STRPTR name);
-void L_NewListdPPC(struct PowerPCBase *, struct List *list);
-struct Node * L_RemHeadPPC(struct PowerPCBase *, struct List *list);
-struct Node * L_RemTailPPC(struct PowerPCBase *, struct List *list);
-void L_RemovePPC(struct PowerPCBase *, struct Node *node);
-void L_SubTimePPC(struct PowerPCBase *, struct timeval *dest, struct timeval *source);
+void L_AddHeadPPC(struct PPCBase *, struct List *list, struct Node *node);
+void L_AddTailPPC(struct PPCBase *, struct List *list, struct Node *node);
+void L_AddTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source);
+void L_ChangeMMU(struct PPCBase *, ULONG);
+LONG L_CmpTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source);
+void L_CopyMemPPC(struct PPCBase *, void * source, void * dest, ULONG size);
+void L_EnqueuePPC(struct PPCBase *, struct List *list, struct Node *node);
+struct Node * L_FindNamePPC(struct PPCBase *, struct List *list, STRPTR name);
+struct TagItem * L_FindTagItemPPC(struct PPCBase *base, ULONG tag, struct TagItem *tagList);
+ULONG L_GetTagDataPPC(struct PPCBase *base, ULONG tag, ULONG defaultValue, struct TagItem *tagList);
+void L_NewListdPPC(struct PPCBase *, struct List *list);
+struct TagItem * L_NextTagItemPPC(struct PPCBase *, struct TagItem **tagList);
+struct Node * L_RemHeadPPC(struct PPCBase *, struct List *list);
+struct Node * L_RemTailPPC(struct PPCBase *, struct List *list);
+void L_RemovePPC(struct PPCBase *, struct Node *node);
+void L_SubTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source);
 
 #endif /* __LIBFUNC_H */

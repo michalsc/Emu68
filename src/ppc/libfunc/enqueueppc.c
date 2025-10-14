@@ -6,7 +6,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-void L_EnqueuePPC(struct PowerPCBase *, struct List *list, struct Node *node)
+void L_EnqueuePPC(struct PPCBase *, struct List *list, struct Node *node)
 {
     LONG pri = node->ln_Pri;
     struct Node *next = list->lh_Head;

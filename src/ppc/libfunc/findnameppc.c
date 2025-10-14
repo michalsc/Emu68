@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "../support.h"
 
-struct Node * L_FindNamePPC(struct PowerPCBase *, struct List *list, STRPTR name)
+struct Node * L_FindNamePPC(struct PPCBase *, struct List *list, STRPTR name)
 {
     struct Node *next;
     struct Node *node = list->lh_Head;

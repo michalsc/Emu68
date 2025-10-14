@@ -6,7 +6,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-void L_NewListdPPC(struct PowerPCBase *, struct List *list)
+void L_NewListdPPC(struct PPCBase *, struct List *list)
 {
     list->lh_TailPred_ = list;
     list->lh_Tail = 0;

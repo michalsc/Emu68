@@ -4,7 +4,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-void L_SubTimePPC(struct PowerPCBase *, struct timeval *dest, struct timeval *source)
+void L_SubTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source)
 {
     if (dest->tv_micro < source->tv_micro) {
         dest->tv_micro += 1000000;

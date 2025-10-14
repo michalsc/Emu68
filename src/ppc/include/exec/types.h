@@ -18,4 +18,8 @@ typedef void                VOID;
 typedef float               FLOAT;
 typedef double              DOUBLE;
 
+#ifndef NULL
+#define NULL ((APTR)0)
+#endif
+
 #endif /* __TYPES_H */

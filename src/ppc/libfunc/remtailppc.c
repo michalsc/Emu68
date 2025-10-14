@@ -8,7 +8,7 @@
 
 #include <stddef.h>
 
-struct Node * L_RemTailPPC(struct PowerPCBase *, struct List *list)
+struct Node * L_RemTailPPC(struct PPCBase *, struct List *list)
 {
     if (list->lh_TailPred->ln_Pred == NULL) return NULL;
 

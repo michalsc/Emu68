@@ -3,7 +3,7 @@
 #pragma pack(pop)
 
 /* On AArch64 we do not have so many constraints regarding the alignment */
-void L_CopyMemPPC(struct PowerPCBase *, void * source, void * dest, ULONG size)
+void L_CopyMemPPC(struct PPCBase *, void * source, void * dest, ULONG size)
 {
     union {
         ULONG *u32;

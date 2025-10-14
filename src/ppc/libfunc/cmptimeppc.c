@@ -4,7 +4,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-LONG L_CmpTimePPC(struct PowerPCBase *, struct timeval *dest, struct timeval *source)
+LONG L_CmpTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source)
 {
     if (dest->tv_micro == source->tv_micro && dest->tv_secs == source->tv_secs)
         return 0;

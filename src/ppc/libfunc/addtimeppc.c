@@ -4,7 +4,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-void L_AddTimePPC(struct PowerPCBase *, struct timeval *dest, struct timeval *source)
+void L_AddTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source)
 {
     dest->tv_micro += source->tv_micro;
     dest->tv_secs += source->tv_secs;

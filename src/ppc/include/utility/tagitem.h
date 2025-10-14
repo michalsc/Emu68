@@ -12,7 +12,6 @@
 #ifndef EXEC_TYPES_H
 #   include <exec/types.h>
 #endif
-#include <stdarg.h>
 
 typedef ULONG Tag;
 

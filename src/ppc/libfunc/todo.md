@@ -1,4 +1,6 @@
-Functions to be implemented, PPC side:
+## Functions to be implemented, PPC side:
+
+### Implemented
 
 **powerpc.library/AddHeadPPC**
 **powerpc.library/AddTailPPC**
@@ -12,11 +14,15 @@ Functions to be implemented, PPC side:
 **powerpc.library/RemTailPPC**
 **powerpc.library/EnqueuePPC**
 **powerpc.library/FindNamePPC**
+**powerpc.library/NextTagItemPPC**
+**powerpc.library/FindTagItemPPC**
+**powerpc.library/GetTagDataPPC**
+
+### Intentionally not implemented
+~~powerpc.library/ChangeMMU~~
+
 
 powerpc.library/InsertPPC
-powerpc.library/FindTagItemPPC
-powerpc.library/NextTagItemPPC
-
 
 powerpc.library/AddPortPPC
 powerpc.library/AddSemaphorePPC
@@ -27,7 +33,6 @@ powerpc.library/AllocXMsgPPC
 powerpc.library/AttemptSemaphorePPC
 powerpc.library/AttemptSemaphoreSharedPPC
 powerpc.library/CauseInterrupt
-powerpc.library/ChangeMMU
 powerpc.library/ClearExcMMU
 powerpc.library/CreateMsgPortPPC
 powerpc.library/CreatePoolPPC
@@ -50,7 +55,6 @@ powerpc.library/GetHALInfo
 powerpc.library/GetInfo
 powerpc.library/GetMsgPPC
 powerpc.library/GetSysTimePPC
-powerpc.library/GetTagDataPPC
 powerpc.library/InitSemaphorePPC
 powerpc.library/LockTaskList
 powerpc.library/ModifyFPExc

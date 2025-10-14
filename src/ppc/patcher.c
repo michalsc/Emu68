@@ -1,6 +1,6 @@
 #include <exec/types.h>
 #include <powerpc/warpup_macros.h>
-#include <stddef.h>
+
 #include "libfunc.h"
 #include "support.h"
 
@@ -17,6 +17,10 @@ const struct {
     { -432, L_RemTailPPC },
     { -432, L_EnqueuePPC },
     { -444, L_FindNamePPC },
+    { -450, L_FindTagItemPPC },
+    { -456, L_GetTagDataPPC },
+    { -462, L_NextTagItemPPC },
+    { -588, L_ChangeMMU },
     { -660, L_CopyMemPPC },
     { -690, L_AddTimePPC },
     { -696, L_SubTimePPC },

@@ -6,7 +6,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
-void L_AddHeadPPC(struct PowerPCBase *, struct List *list, struct Node *node)
+void L_AddHeadPPC(struct PPCBase *, struct List *list, struct Node *node)
 {
     node->ln_Succ = list->lh_Head;
     node->ln_Pred = (struct Node *)&list->lh_Head;

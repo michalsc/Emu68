@@ -8,7 +8,7 @@
 
 #include <stddef.h>
 
-struct Node * L_RemHeadPPC(struct PowerPCBase *, struct List *list)
+struct Node * L_RemHeadPPC(struct PPCBase *, struct List *list)
 {
     if (list->lh_Head->ln_Succ == NULL) return NULL;
 

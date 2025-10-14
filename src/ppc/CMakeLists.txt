@@ -20,11 +20,15 @@ add_executable(ppc_rom
   libfunc/addheadppc.c
   libfunc/addtailppc.c
   libfunc/addtimeppc.c
+  libfunc/changemmu.c
   libfunc/cmptimeppc.c
   libfunc/copymemppc.c
   libfunc/enqueueppc.c
   libfunc/findnameppc.c
+  libfunc/findtagitemppc.c
+  libfunc/gettagdatappc.c
   libfunc/newlistppc.c
+  libfunc/nexttagitemppc.c
   libfunc/subtimeppc.c
   libfunc/removeppc.c
   libfunc/remheadppc.c
