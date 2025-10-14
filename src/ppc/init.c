@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#include "powerpc.h"
 #include "libstructs.h"
 #include "version.h"
 #include "support.h"
@@ -19,7 +20,7 @@ __asm__(
 "       .org 0x100,0                    \n"
 "SystemReset:                           \n"
 "       lis %r1, 0xffef                 \n" // Set up stack to a known address - Emu68 keeps it safe
-"       ori %r1, %r1, 0xffe0            \n"
+"       ori %r1, %r1, 0xff00            \n"
 "       bl Start                        \n"
 //"       bl PPC_C_Init                   \n"
 "1:     b 1b                            \n"
