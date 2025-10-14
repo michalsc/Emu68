@@ -5047,6 +5047,62 @@ static __used__ int EMIT_dcbst(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_dcbtst(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT(prfm_pst(base));
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_dcbt(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x03e00001) return -1;
+
+    uint8_t ra = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    uint8_t base;
+
+    if (ra == 0) {
+        base = reg_rb;
+    } else {
+        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        base = AllocARMRegister(tc);
+        tc->EMIT(add_reg(base, reg_ra, reg_rb, LSL, 0));
+    }
+
+    tc->EMIT(prfm_pld(base));
+
+    if (ra != 0)
+        FreeARMRegister(tc, base);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_dcbf(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -5441,10 +5497,10 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         //case 0b0011101010: return EMIT_addmex(tc, opcode);
         case 0b0011101011: return EMIT_mullwx(tc, opcode);
         //case 0b0011110010: return EMIT_mtsrin(tc, opcode);    // OEA, supervisor
-        //case 0b0011110110: return EMIT_dcbtst(tc, opcode);    // VEA
+        case 0b0011110110: return EMIT_dcbtst(tc, opcode);    // VEA
         case 0b0011110111: return EMIT_stbux(tc, opcode);
         case 0b0100001010: return EMIT_addx(tc, opcode);
-        //case 0b0100010110: return EMIT_dcbt(tc, opcode);      // VEA
+        case 0b0100010110: return EMIT_dcbt(tc, opcode);      // VEA
         case 0b0100010111: return EMIT_lhzx(tc, opcode);
         case 0b0100011100: return EMIT_eqvx(tc, opcode);
         //case 0b0100110010: return EMIT_tlbie(tc, opcode);     // OEA, supervisor, optional
