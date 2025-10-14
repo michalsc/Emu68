@@ -22,6 +22,8 @@
 
 
 #include <powerpc/powerpc.h>
+#include <powerpc/powerpc_protos.h>
+
 #include "libstructs.h"
 #include "support.h"
 #include "doorbell.h"
@@ -67,7 +69,6 @@ void Exception_Entry(struct PPCBase * PowerPCBase, struct iframe *iframe)
 
     kprintf("e\n");
 }
-
 
 /********************************************************************************************
 *

@@ -28,7 +28,6 @@ struct List
 		* lh_Tail,
 		* lh_TailPred;
     UBYTE	  lh_Type;
-    UBYTE	  l_pad;
 };
 
 /* Minimal list */

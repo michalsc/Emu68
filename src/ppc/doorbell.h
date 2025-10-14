@@ -2,6 +2,7 @@
 #define _DOORBELL_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct {
     volatile uint32_t val;

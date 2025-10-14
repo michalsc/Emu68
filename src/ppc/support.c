@@ -78,21 +78,18 @@ static inline void wr8(uint32_t iobase, uint8_t value) {
 typedef void (*putc_func)(void *data, char c);
 
 
-char *
-strcpy(char *s1, const char *s2)
+char * strcpy(char *s1, const char *s2)
 {
     char *s = s1;
-    while ((*s++ = *s2++) != 0)
-	;
+    while ((*s++ = *s2++) != 0) {}
     return (s1);
 }
 
-int
-strcmp(const char *s1, const char *s2)
+int strcmp(const char *s1, const char *s2)
 {
     for ( ; *s1 == *s2; s1++, s2++)
-	if (*s1 == '\0')
-	    return 0;
+    if (*s1 == '\0')
+        return 0;
     return ((*(unsigned char *)s1 < *(unsigned char *)s2) ? -1 : +1);
 }
 

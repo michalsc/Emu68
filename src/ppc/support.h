@@ -6,6 +6,8 @@
 #define __used__ __attribute__((__used__))
 
 void kprintf(const char * format, ...);
+int strcmp(const char *s1, const char *s2);
+char * strcpy(char *s1, const char *s2);
 
 #define MSR_LE      0x000001
 #define MSR_RI      0x000002
