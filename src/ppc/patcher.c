@@ -4,7 +4,7 @@
 #include "libfunc.h"
 #include "support.h"
 
-#define D(x) /* x */
+#define D(x) x
 
 const struct {
     WORD lvo;

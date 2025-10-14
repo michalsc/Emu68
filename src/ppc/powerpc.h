@@ -11,9 +11,7 @@
 
 struct PrivatePPCBase {
     struct PPCBase      pp_Public;
-
     struct TaskPPC *    pp_ThisPPCProc;
-
 
     /* Two doorbells used for communication - subject of change in future */
     doorbell_t          M68k_to_PPC;

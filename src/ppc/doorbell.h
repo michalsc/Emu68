@@ -6,7 +6,7 @@
 
 typedef struct {
     volatile uint32_t val;
-} __attribute__((aligned(4))) doorbell_t;
+} doorbell_t;
 
 static inline void doorbell_init(doorbell_t *d) {
     d->val = 0;

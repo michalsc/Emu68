@@ -20,14 +20,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
+#pragma pack(push,2)
 #include <powerpc/powerpc.h>
 #include <powerpc/powerpc_protos.h>
+#include "powerpc.h"
+#pragma pack(pop)
 
 #include "libstructs.h"
 #include "support.h"
 #include "doorbell.h"
-#include "powerpc.h"
 #include "kernel.h"
 
 void Start()
@@ -59,6 +60,12 @@ void Start()
     setBASE(PPCBase);
 
     PatchLVOTable(&PPCBase->pp_Public);
+
+    kprintf("[PPC] Ringing m68k back\n");
+
+    kprintf("[PPC] Doorbell offset %d\n", __builtin_offsetof(struct PrivatePPCBase, PPC_to_M68k));
+
+    doorbell_send(&PPCBase->PPC_to_M68k, STATUS_IDLE);
 
     while(1);
 }
