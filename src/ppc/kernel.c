@@ -50,8 +50,7 @@ void Start()
 
     kprintf("[PPC] Waiting for powerpc.library to come up\n");
 
-    /* The very first message is just the base address of powerpc.library */
-    uint32_t msg = doorbell_wait((doorbell_t*)0xffefff80);
+    uint32_t msg = doorbell_wait((doorbell_t *)0xffefff80);
 
     kprintf("[PPC] Got the message %08x\n", msg);
 
