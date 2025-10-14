@@ -27,12 +27,11 @@
 #include "libstructs.h"
 #include "support.h"
 #include "doorbell.h"
+#include "powerpc.h"
+#include "kernel.h"
 
 void Start()
 {
-//    struct PPCZeroPage * zp = (struct PPCZeroPage *)0;
-    doorbell_t bell; // = (doorbell_t *)8;
-
     /* We start in C as soon as possible. Reset MSR to known state first */
     uint32_t msr = getMSR();
     setMSR(msr & MSR_IP);
@@ -51,9 +50,16 @@ void Start()
 
     kprintf("[PPC] Waiting for powerpc.library to come up\n");
 
-    uint32_t msg = doorbell_wait(&bell);
+    /* The very first message is just the base address of powerpc.library */
+    uint32_t msg = doorbell_wait((doorbell_t*)0xffefff80);
 
     kprintf("[PPC] Got the message %08x\n", msg);
+
+    struct PrivatePPCBase *PPCBase = (struct PrivatePPCBase *)msg;
+
+    setBASE(PPCBase);
+
+    PatchLVOTable(&PPCBase->pp_Public);
 
     while(1);
 }
@@ -70,6 +76,7 @@ void Exception_Entry(struct PPCBase * PowerPCBase, struct iframe *iframe)
     kprintf("e\n");
 }
 
+#if 0
 /********************************************************************************************
 *
 *
@@ -1588,4 +1595,5 @@ PPCKERNEL void CommonExcError(__reg("r3") struct PrivatePPCBase* PowerPCBase, __
     SwitchPPC(PowerPCBase, iframe);
 }
 
+#endif
 #endif

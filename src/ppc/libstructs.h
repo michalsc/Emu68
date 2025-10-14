@@ -130,6 +130,7 @@ struct LibSema {
     ULONG                       ls_Reserved[8];
 };
 
+#if 0
 struct PrivatePPCBase {
     struct PPCBase              pp_PowerPCBase;
     struct MinList              pp_MirrorList;
@@ -228,6 +229,7 @@ struct PrivatePPCBase {
     struct BATArray             pp_SystemBATs[4];
     ULONG                       pp_SystemSegs[16];
 };
+#endif
 
 struct killFIFO {
     ULONG                       kf_MIOFH;

@@ -10,11 +10,14 @@
 #define PPC_REVISION     15
 
 struct PrivatePPCBase {
-    struct PPCBase  p_Public;
+    struct PPCBase      pp_Public;
+
+    struct TaskPPC *    pp_ThisPPCProc;
+
 
     /* Two doorbells used for communication - subject of change in future */
-    doorbell_t      M68k_to_PPC;
-    doorbell_t      PPC_to_M68k;
+    doorbell_t          M68k_to_PPC;
+    doorbell_t          PPC_to_M68k;
 };
 
 #define LIB_POSSIZE             sizeof(struct PrivatePPCBase)

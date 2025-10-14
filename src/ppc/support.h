@@ -25,6 +25,18 @@ char * strcpy(char *s1, const char *s2);
 #define MSR_ILE     0x010000
 #define MSR_POW     0x040000
 
+static inline APTR getBASE()
+{
+    APTR base;
+    asm volatile("mfspr %0, 940":"=r"(base));
+    return base;
+}
+
+static inline void setBASE(APTR base)
+{
+    asm volatile("mtspr 940, %0"::"r"(base));
+}
+
 static inline ULONG getTBL()
 {
     ULONG tbl;

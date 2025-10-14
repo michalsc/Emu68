@@ -30,7 +30,7 @@ const struct {
     { 0, NULL }
 };
 
-void PatchLVOTable(struct PowerPCBase *ppcbase)
+void PatchLVOTable(struct PPCBase *ppcbase)
 {
     ULONG lvo = (ULONG)ppcbase;
     ULONG pos;
