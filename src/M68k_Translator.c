@@ -144,6 +144,8 @@ static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
     uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)ctx->tc_M68kCodePtr);
     uint8_t group = opcode >> 12;
 
+    host_flags = 0;
+
     if (debug > 2)
     {
         EMIT(ctx,
