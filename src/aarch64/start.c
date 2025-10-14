@@ -320,6 +320,7 @@ static int membench = 0;
 #endif
 
 extern const char _verstring_object[];
+uint32_t _vernumber_object[3] = { VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH };
 
 void _secondary_start();
 __asm__(
@@ -829,6 +830,7 @@ void boot(void *dtree)
         }
     }
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
+    dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
     dt_add_property(e, "support", supporters, supporters_size);
 
