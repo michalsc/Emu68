@@ -41,5 +41,7 @@ void PatchLVOTable(struct PPCBase *ppcbase)
         *(APTR *)(lvo + 6 * patch[pos].lvo + 2) = patch[pos].function;
     }
 
+    sync();
+
     D(kprintf("[PPC] Patched %d functions\n", pos));
 }

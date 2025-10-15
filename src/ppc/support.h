@@ -25,16 +25,33 @@ char * strcpy(char *s1, const char *s2);
 #define MSR_ILE     0x010000
 #define MSR_POW     0x040000
 
+#define SPR_BASEREG 944
+
+static inline void sync()
+{
+    asm volatile("sync":::"memory");
+}
+
+static inline void lwsync()
+{
+    asm volatile("lwsync":::"memory");
+}
+
+static inline void isync()
+{
+    asm volatile("isync");
+}
+
 static inline APTR getBASE()
 {
     APTR base;
-    asm volatile("mfspr %0, 944":"=r"(base));
+    asm volatile("mfspr %0, %i":"=r"(base):"i"(SPR_BASEREG));
     return base;
 }
 
 static inline void setBASE(APTR base)
 {
-    asm volatile("mtspr 944, %0"::"r"(base));
+    asm volatile("mtspr %0, %1"::"i"(SPR_BASEREG), "r"(base));
 }
 
 static inline ULONG getTBL()

@@ -5,16 +5,15 @@
 
 typedef struct {
     volatile char lock;
-} __attribute__((aligned(64))) spinlock_t;
+} spinlock_t;
 
 static inline void spinlock_init(spinlock_t *s) {
     s->lock = 0;
 }
 
 static inline void spinlock_acquire(spinlock_t *s) {
-    __asm__ __volatile__("sevl");
     while (__atomic_test_and_set(&s->lock, __ATOMIC_ACQUIRE))
-        __asm__ __volatile__("wfe");
+        __asm__ __volatile__("or 27,27,27":::"memory");
 }
 
 static inline void spinlock_release(spinlock_t *s) {

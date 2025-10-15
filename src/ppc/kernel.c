@@ -43,17 +43,11 @@ void Start()
     /* Nothing can be really done here until the PowerPC base is set up by m68k part */
     kprintf("[PPC] Booting Emu68-PowerPC Kernel\n");
 
-    /* Clear zero page structure */
-    for (ULONG i=0; i < sizeof(struct PPCZeroPage); i+=4) {
-        if (i == 1) continue;
-            *(ULONG *)i = 0;
-    }
-
     kprintf("[PPC] Waiting for powerpc.library to come up\n");
 
     uint32_t msg = doorbell_wait((doorbell_t *)0xffefff80);
 
-    kprintf("[PPC] Got the message %08x\n", msg);
+    kprintf("[PPC] PPCBase = %08x\n", msg);
 
     struct PrivatePPCBase *PPCBase = (struct PrivatePPCBase *)msg;
 
@@ -63,11 +57,50 @@ void Start()
 
     kprintf("[PPC] Ringing m68k back\n");
 
-    kprintf("[PPC] Doorbell offset %d\n", __builtin_offsetof(struct PrivatePPCBase, PPC_to_M68k));
+    struct XMessage m;
+    m.id = SIGNAL_TASK;
+    m.SignalTask.task = PPCBase->pp_WaitingTask;
+    m.SignalTask.sigset = 1 << PPCBase->pp_WaitingTaskBit;
 
-    doorbell_send(&PPCBase->PPC_to_M68k, STATUS_IDLE);
+    SendPacketMessage(PPCBase, &m);
 
     while(1);
+}
+
+void SendPacketMessage(struct PrivatePPCBase * PPCBase, APTR message)
+{
+    ULONG reg;
+
+    /* Send message */
+    doorbell_send(&PPCBase->PPC_to_M68k, STATUS_MSG);
+    
+    /* Fire interrupt */
+    asm volatile("mfspr %0, 921":"=r"(reg));
+    reg |= 0x80000000;
+    asm volatile("mtspr 921, %0"::"r"(reg));
+    
+    /* Wait for ACK */
+    while(doorbell_wait(&PPCBase->M68k_to_PPC) != STATUS_ACK);
+
+    /* Send message address */
+    doorbell_send(&PPCBase->PPC_to_M68k, (ULONG)message);
+
+    /* Wait for ACK */
+    while(doorbell_wait(&PPCBase->M68k_to_PPC) != STATUS_ACK);
+}
+
+APTR StartRecievingMessage(struct PrivatePPCBase * PPCBase)
+{
+    while(doorbell_wait(&PPCBase->M68k_to_PPC) != STATUS_MSG);
+
+    doorbell_send(&PPCBase->PPC_to_M68k, STATUS_ACK);
+
+    return (APTR)doorbell_wait(&PPCBase->M68k_to_PPC);
+}
+
+void EndReceivingMessage(struct PrivatePPCBase * PPCBase)
+{
+    doorbell_send(&PPCBase->PPC_to_M68k, STATUS_ACK);
 }
 
 void Exception_Entry(struct PPCBase * PowerPCBase, struct iframe *iframe)

@@ -16,6 +16,11 @@ struct PrivatePPCBase {
     /* Two doorbells used for communication - subject of change in future */
     doorbell_t          M68k_to_PPC;
     doorbell_t          PPC_to_M68k;
+
+    /* Task waiting for a signal */
+    struct Task *       pp_WaitingTask;
+    UBYTE               pp_WaitingTaskBit;
+
 };
 
 #define LIB_POSSIZE             sizeof(struct PrivatePPCBase)
@@ -30,6 +35,22 @@ struct PrivatePPCBase {
 
 #define TF_PPC                  (1 << 2)
 
-#define STATUS_IDLE             0x0000aa55
+#define STATUS_IDLE             0x69646c65
+#define STATUS_MSG              0x006d7367
+#define STATUS_ACK              0x0061636b
+
+enum XMsgType {
+    SIGNAL_TASK = 1
+};
+
+struct XMessage {
+    enum XMsgType id;
+    union {
+        struct {
+            struct Task*    task;
+            ULONG           sigset;
+        } SignalTask;
+    };
+};
 
 #endif /* _234234_POWERPC_H */
