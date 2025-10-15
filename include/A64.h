@@ -166,9 +166,11 @@ static inline uint32_t brk(uint16_t imm16) { return I32(0xd4200000 | (imm16 << 5
 static inline uint32_t hlt(uint16_t imm16) { return I32(0xd4400000 | (imm16 << 5)); }
 static inline uint32_t udf(uint16_t imm16) { return hlt(imm16); }
 static inline uint32_t hint(uint8_t h) { return I32(0xd503201f | ((h & 0x7f) << 5)); }
+static inline uint32_t yield() { return hint(1); }
 static inline uint32_t wfe() { return hint(2); }
 static inline uint32_t wfi() { return hint(3); }
 static inline uint32_t sev() { return hint(4); }
+static inline uint32_t sevl() { return hint(5); }
 static inline uint32_t get_nzcv(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, sys_NZCV); }
 static inline uint32_t set_nzcv(uint8_t rt) { ASSERT_REG(rt); return msr(rt, sys_NZCV); }
 static inline uint32_t get_fpcr(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, sys_FPCR); }
