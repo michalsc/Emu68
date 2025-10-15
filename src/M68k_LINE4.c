@@ -1615,8 +1615,8 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
 
     // Don't wait for event if IRQ is already pending
     EMIT(ctx, 
-        ldr_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, INT)),
-        cbnz(tmpreg, 4)
+        ldr64_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, INT64)),
+        cbnz_64(tmpreg, 4)
     );
 
     start = ctx->tc_CodePtr;
@@ -1624,10 +1624,10 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
     /* PiStorm waits for event and checks INT - aggregate of ~IPL0 and ARM */
     EMIT(ctx, 
         wfe(),
-        ldr_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, INT))
+        ldr64_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, INT64))
     );
     end = ctx->tc_CodePtr;
-    EMIT(ctx, cbz(tmpreg, start - end));
+    EMIT(ctx, cbz_64(tmpreg, start - end));
 
     RA_FreeARMRegister(ctx, tmpreg);
 #endif
@@ -1915,6 +1915,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t ctxreg = RA_GetCTX(ctx);
     uint8_t cc = RA_ModifyCC(ctx);
     uint8_t tmp = 0xff;
+    uint8_t tmp2 = 0xff;
     uint8_t sp = 0xff;
     uint32_t *tmpptr;
     int illegal = 0;
@@ -2057,7 +2058,22 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x1e0: /* JITCTRL2 - JIT second control register */
-                EMIT(ctx, str_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2)));
+                tmp = RA_AllocARMRegister(ctx);
+                tmp2 = RA_AllocARMRegister(ctx);
+                EMIT(ctx,
+                    tbz(reg, 31, 4),
+                        ldr64_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, PPC_EE_FLAG)),
+                        mov_immed_u16(tmp2, 255, 0),
+                        strb_offset(tmp, tmp2, 0),
+                    tbz(reg, 30, 2),
+                        strb_offset(ctxreg, WZR, __builtin_offsetof(struct M68KState, INTF.PPC)),
+                    tbz(reg, 29, 2),
+                        strb_offset(ctxreg, WZR, __builtin_offsetof(struct M68KState, INTF.ARM)),
+                    ands_immed(tmp, reg, 29, 0),
+                    str_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, JIT_CONTROL2))
+                );
+                RA_FreeARMRegister(ctx, tmp2);
+                RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 tmp = RA_AllocARMRegister(ctx);
@@ -2308,7 +2324,15 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x1e0: /* JITCTRL2 - JIT second control register */
-                EMIT(ctx, ldr_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2)));
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    ldr_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL2)),
+                    ldrb_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, INTF.PPC)),
+                    bfi(reg, tmp, 30, 1),
+                    ldrb_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, INTF.ARM)),
+                    bfi(reg, tmp, 29, 1)
+                );
+                RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x003: // TCR - write bits 15, 14, read all zeros for now
                 EMIT(ctx, ldrh_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, TCR)));

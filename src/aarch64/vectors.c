@@ -280,8 +280,8 @@ void  __attribute__((used)) __stub_vectors()
 "                                       \n"
 "       .section .text                  \n"
 :
-:[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
- [perr]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
+:[pint]"i"(__builtin_offsetof(struct M68KState, INTF.ARM)),
+ [perr]"i"(__builtin_offsetof(struct M68KState, INTF.ARM_err)),
  [intena]"i"(__builtin_offsetof(struct INT_shadow, INTENA)),
  [armpend]"i"(__builtin_offsetof(struct INT_shadow, ARMPending))
 
@@ -367,7 +367,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
             struct M68KState *ctx;
             __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
-            ctx->INT.ARM = 0x01;
+            ctx->INTF.ARM = 0x01;
         }
     }
 
@@ -381,7 +381,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         if ((value & 0xa000) == 0x2000) {
             struct M68KState *ctx;
             __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
-            ctx->INT.ARM = 0;
+            ctx->INTF.ARM = 0;
             INT_shadow.ARMPending = 0;
         }
     }

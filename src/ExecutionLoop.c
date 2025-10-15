@@ -286,23 +286,29 @@ void MainLoop()
             uint32_t vbr;
 
             /* Find out requested IPL level based on ARM state and real IPL line */
-            if (ctx->INT.ARM_err)
+            if (ctx->INTF.ARM_err)
             {
                 level = 7;
-                ctx->INT.ARM_err = 0;
+                ctx->INTF.ARM_err = 0;
             }
             else
             {
-                if (ctx->INT.ARM)
+                /* Assert one of external interrupts if ARM or PPC flag was active */
+                if (ctx->INTF.ARM)
                 {
                     level = 6;
-                    ctx->INT.ARM = 0;
                 }
+                else if (ctx->INTF.PPC)
+                {
+                    level = 2;
+                }
+
+                /* Now, if Higher-level interrupt was coming from Paula, report it */
 #if defined(PISTORM)
                 /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
-                if (ctx->INT.IPL > level)
+                if (ctx->INTF.IPL > level)
                 {
-                    level = ctx->INT.IPL;
+                    level = ctx->INTF.IPL;
                 }
 #else
                 /* On classic pistorm we need to obtain IPL from PiStorm status register */
@@ -490,10 +496,11 @@ void MainLoop()
     }
 }
 
-void M68kReportInterrupt(int)
+void M68kReportInterrupt(int irq)
 {
     struct M68KState * ctx = getCTX();
     
     /* TODO - add more types (we have 8 slots in total) here */
-    ctx->INT.ARM = 1;
+    if (irq == 1) ctx->INTF.ARM = 1;
+    else if (irq == 2) ctx->INTF.ARM_err = 1;
 }

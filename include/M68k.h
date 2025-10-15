@@ -164,7 +164,8 @@ struct M68KState
             uint8_t ARM_err;
             uint8_t IPL;
             uint8_t RESET;
-        } INT;
+            uint8_t PPC;
+        } INTF;
         uint64_t INT64;
     } __attribute__((aligned(8)));
     uint64_t INSN_COUNT;
@@ -176,6 +177,8 @@ struct M68KState
     uint32_t JIT_SOFTFLUSH_THRESH;
     uint32_t JIT_CONTROL;
     uint32_t JIT_CONTROL2;
+
+    volatile uint8_t * PPC_EE_FLAG;
 };
 
 #define JCCB_SOFT               0
@@ -198,6 +201,13 @@ struct M68KState
 #define JC2_CHIP_SLOWDOWN_RATIO_MASK    0x07
 #define JC2B_BLITWAIT                   11
 #define JC2F_BLITWAIT                   (1 << JC2B_BLITWAIT)
+#define JC2B_INT_FROM_ARM               29
+#define JC2F_INT_FROM_ARM               (1 << JC2B_INT_FROM_ARM)
+#define JC2B_INT_FROM_PPC               30
+#define JC2F_INT_FROM_PPC               (1 << JC2B_INT_FROM_PPC)
+#define JC2B_CAUSE_PPCINT               31
+#define JC2F_CAUSE_PPCINT               (1 << JC2F_CAUSE_PPCINT)
+
 
 #define DCB_VERBOSE 0
 #define DCB_VERBOSE_MASK 0x3

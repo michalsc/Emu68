@@ -3446,6 +3446,7 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
     if (spr & 0x10) {
         uint8_t ctx = GetCTX(tc);
         uint8_t tmp = AllocARMRegister(tc);
+        uint8_t tmp2;
 
         /* 
             This fetches must not be context synchronizing and one supervisor check per
@@ -3517,7 +3518,19 @@ static __used__ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
                 break;
             case 921:   /* JIT_CONTROL_2 */
                 kprintf("[PPC] JIT_CONTROL2 written to, need update\n");
-                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, JIT_CONTROL2)));
+                tmp2 = AllocARMRegister(tc);
+                tc->EMIT({
+                    /* Test if topmost bit was set, if not, skip causing m68k interrupt */
+                    tbz(reg_rs, 31, 6),
+                        ldr64_offset(ctx, tmp, __builtin_offsetof(PPCState, M68K_FLAG)),
+                        mov_immed_u16(tmp2, 255, 0),
+                        strb_offset(tmp, tmp2, 0),
+                        dmb_ish(),
+                        sev(),
+                    and_immed(tmp, reg_rs, 31, 0),
+                    str_offset(ctx, tmp, __builtin_offsetof(PPCState, JIT_CONTROL2))
+                });
+                FreeARMRegister(tc, tmp2);
                 break;
             case 944:   /* BASE */
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, BASEREG)));
@@ -3755,6 +3768,13 @@ static __used__ int EMIT_orx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
+
+    if (rs == 27 && ra == 27 && rb == 27) {
+        tc->EMIT(yield());
+        tc->tc_PPCCodePtr++;
+        tc->AdvancePC(4);
+        return 1;
+    }
 
     uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
@@ -6758,6 +6778,9 @@ extern "C" void InitPPC()
     mmu_map(mmu_virt2phys((uintptr_t)Emu68::PPC::ppc_tmp_stack), 0xfff00000 - sizeof(Emu68::PPC::ppc_tmp_stack), sizeof(Emu68::PPC::ppc_tmp_stack), MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
 }
 
+void * __PPCContext;
+extern struct M68KState * volatile __m68k_state;
+
 extern "C" void StartupPPC()
 {
     static struct Emu68::PPC::PPCState ppc;
@@ -6822,12 +6845,16 @@ extern "C" void StartupPPC()
     /* Get arm cycle counter on start - debug only, can go away later */
     __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(Emu68::PPC::arm_cycle_counter_start));
 
+    /* Chain pointers to flag causing interrupt on the counterpart */
+    __m68k_state->PPC_EE_FLAG = &ppc.INT.EXT;
+    ppc.M68K_FLAG = &__m68k_state->INTF.PPC;
+
     Emu68::PPC::PPCMainLoop();
 }
 
 extern "C" void PPCReportInterrupt(int interrupt)
 {
-    auto ctx = Emu68::PPC::getHostCTX();
+    struct Emu68::PPC::PPCState * ctx = (struct Emu68::PPC::PPCState *)__PPCContext;
     
     switch (interrupt)
     {
