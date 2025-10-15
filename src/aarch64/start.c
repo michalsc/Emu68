@@ -1699,9 +1699,6 @@ void boot(void *dtree)
     }
 #endif
 
-    extern spinlock_t PPCStart;
-    spinlock_release(&PPCStart);
-
     M68K_StartEmu(0, NULL);
 
     while(1) __asm__ volatile("wfe");
@@ -2065,6 +2062,10 @@ __asm__ volatile(
 
     /* Save the context to CTX_POINTER_ASM, it will be fetched in main loop */
     __asm__ volatile("mov "CTX_POINTER_ASM", %0"::"r"(&__m68k));
+
+    /* Fire PPC */
+    extern spinlock_t PPCStart;
+    spinlock_release(&PPCStart);
 
     /* Start M68k now */
 #ifndef PISTORM_ANY_MODEL
