@@ -2348,8 +2348,13 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
 
     if (!handled)
     {
-        kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
+        kprintf("[JIT:SYS] Exception with vector %04x on CPU%d. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, cpu_id, elr, spsr, esr, far);
         kprintf("[JIT:SYS] Failed instruction: %08x\n", LE32(*(uint32_t*)elr));
+        uint32_t *ptr = (uint32_t *)elr;
+        
+        for (int i=-10; i < 11; i++) {
+            kprintf("[JIT:SYS] %p: %s %08x\n", &ptr[i], i == 0 ? "-->" : "   ", ptr[i]);
+        }
 
         for (int i=0; i < 16; i++)
         {
