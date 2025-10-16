@@ -2061,10 +2061,11 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 tmp = RA_AllocARMRegister(ctx);
                 tmp2 = RA_AllocARMRegister(ctx);
                 EMIT(ctx,
-                    tbz(reg, 31, 4),
+                    tbz(reg, 31, 5),
                         ldr64_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, PPC_EE_FLAG)),
                         mov_immed_u16(tmp2, 255, 0),
                         strb_offset(tmp, tmp2, 0),
+                        sev(),
                     tbz(reg, 30, 2),
                         strb_offset(ctxreg, WZR, __builtin_offsetof(struct M68KState, INTF.PPC)),
                     tbz(reg, 29, 2),
