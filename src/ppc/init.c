@@ -120,23 +120,21 @@ asm volatile(
 "       sync                                            \n" // Also reenable FPU
 "       isync                                           \n"
 
-"       stwu    %%r1, -2048(%%r1)                       \n" // Create 2KB frame on stack
+"       stwu    %%r1, -256(%%r1)                        \n" // Create frame on stack large enough to store the context
 
 "       mfcr    %%r0                                    \n" // Back-up CR on stack
 "       stw     %%r0, 104(%%r1)                         \n"
 "       stw     %%r4, 108(%%r1)                         \n" // Back-up r4 on stack
 
-"       lwz     %%r4, %[POWERPCBASE](0)                 \n"
+"       mfspr   %%r4, %[BASEREG]                        \n"
 "       lwz     %%r4, %[POWERPCBASE_THISPPCTASK](%%r4)  \n"
 "       mr.     %%r4, %%r4                              \n"
 "       bne     .NoIdl                                  \n" // If ThisPPCTask is not null, we are not idling
 
-/* The case when going back from idle... */
+/* PPC's ThisTask is not set (NULL), so store iframe on the stack instead of Task's context */
 
-"       lwz     %%r3, %[PPCMEMHEADER](0)                \n"
-"       subi    %%r4, %%r3, 0x2000                      \n"
-"       subi    %%r3, %%r4, 0x5000                      \n"
-"       subi    %%r3, %%r3, 0x5000                      \n" // coming from idle, just dump everything.
+"       mfspr   %%r4, %[BASEREG]                        \n"
+"       lwz     %%r4, %[NULL_FRAME](%%r4)               \n"
 "       stw     %%r4, 0(%%r1)                           \n"
 "       mr      %%r4, %%r3                              \n"
 "       b       .DoExc                                  \n"
@@ -155,31 +153,30 @@ asm volatile(
 "       stw     %%r0, %[IF_CONTEXT](%%r3)               \n"
 "       bl      StoreFrame                              \n" // r0, r3 and r4 are skipped in this routine and were saved above
 
-"       lwz     %%r3, %[POWERPCBASE](0)                 \n" // Loads PowerPCBase
+"       mfspr   %%r3, %[BASEREG]                        \n" // Loads PowerPCBase
 "       bl      Exception_Entry                         \n"
 
-"       lwz     %%r31, %[POWERPCBASE](0)                \n"
+"       mfspr   %%r31, %[BASEREG]                       \n"
 "       lwz     %%r31, %[POWERPCBASE_THISPPCTASK](%%r31)\n"
 "       mr.     %%r31, %%r31                            \n"
 "       bne     .NI2                                    \n" // trash everything, is idle task.
 
-"       lwz     %%r31, %[PPCMEMHEADER](0)               \n"
-"       subi    %%r31, %%r31, 0x7000                    \n"
-"       subi    %%r31, %%r31, 0x5000                    \n" // go to idle, don't care about registers
+"       mfspr   %%r31, %[BASEREG]                       \n"
+"       lwz     %%r31, %[NULL_FRAME](%%r31)             \n" // go to idle, don't care about registers
 "       b       ExceptionExit                           \n"
 
 ".NI2:  lwz     %%r31, %[PPCTASK_CONTEXMEM](%%r31)      \n"
 "       b       ExceptionExit                           \n"
 :
-:[POWERPCBASE]"i"(__builtin_offsetof(struct PPCZeroPage, zp_PowerPCBase)),
- [PPCMEMHEADER]"i"(__builtin_offsetof(struct PPCZeroPage, zp_PPCMemHeader)),
- [POWERPCBASE_THISPPCTASK]"i"(__builtin_offsetof(struct PrivatePPCBase, pp_ThisPPCProc)),
+:[POWERPCBASE_THISPPCTASK]"i"(__builtin_offsetof(struct PrivatePPCBase, pp_ThisPPCProc)),
  [PPCTASK_CONTEXMEM]"i"(__builtin_offsetof(struct TaskPPC, tp_ContextMem)),
- [IF_CONTEXT]"i"(__builtin_offsetof(struct iframe, if_Context.ec_CR)),
+ [IF_CONTEXT]"i"(__builtin_offsetof(struct iframe, if_Context)),
  [IF_CONTEXT_GPR0]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[0])),
  [IF_CONTEXT_GPR3]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[3])),
  [IF_CONTEXT_GPR4]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[4])),
- [MSR_FLAGS]"i"(MSR_IR|MSR_DR|MSR_FP)
+ [MSR_FLAGS]"i"(MSR_IR|MSR_DR|MSR_FP),
+ [BASEREG]"i"(SPR_BASEREG),
+ [NULL_FRAME]"i"(__builtin_offsetof(struct PrivatePPCBase, pp_iFrame))
 );
 }
 

@@ -17,6 +17,9 @@ struct PrivatePPCBase {
     doorbell_t          M68k_to_PPC;
     doorbell_t          PPC_to_M68k;
 
+    /* Placeholder for NULL-Task context */
+    APTR                pp_iFrame;
+
     /* Task waiting for a signal */
     struct Task *       pp_WaitingTask;
     UBYTE               pp_WaitingTaskBit;
@@ -40,7 +43,8 @@ struct PrivatePPCBase {
 #define STATUS_ACK              0x0061636b
 
 enum XMsgType {
-    SIGNAL_TASK = 1
+    XMSG_SIGNAL_TASK = 1,
+    XMSG_CAUSE
 };
 
 struct XMessage {

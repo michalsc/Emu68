@@ -58,11 +58,18 @@ void Start()
     kprintf("[PPC] Ringing m68k back\n");
 
     struct XMessage m;
-    m.id = SIGNAL_TASK;
+    m.id = XMSG_SIGNAL_TASK;
     m.SignalTask.task = PPCBase->pp_WaitingTask;
     m.SignalTask.sigset = 1 << PPCBase->pp_WaitingTaskBit;
 
+    msr = getMSR();
+    setMSR(msr | MSR_EE);
+
+    kprintf("[PPC] External interrupts enabled\n");
+
     SendPacketMessage(PPCBase, &m);
+
+    kprintf("[PPC] Packet sent\n");
 
     while(1);
 }
@@ -103,16 +110,26 @@ void EndReceivingMessage(struct PrivatePPCBase * PPCBase)
     doorbell_send(&PPCBase->PPC_to_M68k, STATUS_ACK);
 }
 
-void Exception_Entry(struct PPCBase * PowerPCBase, struct iframe *iframe)
+void Exception_Entry(struct PrivatePPCBase * PPCBase, struct iframe *iframe)
 {
-    (void)PowerPCBase;
-
     /* Get the vector we are in, recaltulate the fields to match what's expected */
     ULONG ExceptionVector = iframe->if_Context.ec_ExcID & 0xfff0;
     iframe->if_ExcNum = ExceptionVector >> 8;
     iframe->if_Context.ec_ExcID = 1 << iframe->if_ExcNum;
 
-    kprintf("e\n");
+    kprintf("ExceptionEntry if_ExcNum=%x, excid=%d\n", iframe->if_ExcNum, iframe->if_Context.ec_ExcID);
+
+
+    switch(iframe->if_ExcNum) {
+        case 5:
+        {
+            struct XMessage *msg = StartRecievingMessage(PPCBase);
+            if (msg->id == XMSG_CAUSE) {
+                kprintf("[PPC] Cause() triggered from m68k\n");
+            }
+            EndReceivingMessage(PPCBase);
+        }
+    }
 }
 
 #if 0
