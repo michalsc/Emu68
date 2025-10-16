@@ -6131,7 +6131,8 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
     if (inner_loop && insn_count == 1) {
         /* This is an endless loop, intentional or not. Change it to WFI/WFE loop to conserve power */
         tc.tc_CodePtr--;
-        tc.EMIT(wfi());
+        tc.EMIT(wfe());
+        tc.EMIT(bx_lr());
     }
 #endif
     // Put a marker at the end of translation unit
@@ -6632,7 +6633,6 @@ static void PPCMainLoop()
             /* Check flags by the priority */
             if (ctx->INT.EXT) {
                 if (ctx->MSR & MSR_EE) {
-                    ctx->INT.EXT = 0;
                     vector = 0x500;
                 }
             }
@@ -6642,6 +6642,8 @@ static void PPCMainLoop()
                     vector = 0x900;
                 }
             }
+
+            if (vector == 0x500) ctx->INT.EXT = 0;
 
             if (vector) {
                 /* 
