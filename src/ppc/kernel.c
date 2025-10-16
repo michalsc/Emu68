@@ -117,7 +117,7 @@ void Exception_Entry(struct PrivatePPCBase * PPCBase, struct iframe *iframe)
     iframe->if_ExcNum = ExceptionVector >> 8;
     iframe->if_Context.ec_ExcID = 1 << iframe->if_ExcNum;
 
-    kprintf("ExceptionEntry if_ExcNum=%x, excid=%d\n", iframe->if_ExcNum, iframe->if_Context.ec_ExcID);
+    kprintf("[PPC] ExceptionEntry if_ExcNum=%x, excid=%d\n", iframe->if_ExcNum, iframe->if_Context.ec_ExcID);
 
 
     switch(iframe->if_ExcNum) {
@@ -130,6 +130,10 @@ void Exception_Entry(struct PrivatePPCBase * PPCBase, struct iframe *iframe)
             EndReceivingMessage(PPCBase);
         }
     }
+
+    kprintf("[PPC] End of kernel... waiting for more to come ;)\n");
+
+    while(1);
 }
 
 #if 0
