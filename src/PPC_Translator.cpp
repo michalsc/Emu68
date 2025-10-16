@@ -5956,6 +5956,14 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         }
     }
 
+    if (inner_loop && insn_count == 1 && tc.tc_PPCCodePtr[0] == 0x48000000) {
+        kprintf("Replacing ARM opcode %08x for the endless PPC loop\n", tc.tc_CodePtr[-1]);
+        
+        /* This is an endless loop, intentional or not. Change it to WFI/WFE loop to conserve power */
+        tc.tc_CodePtr--;
+        tc.EMIT(wfe());
+    }
+
     uint32_t *out_code = tc.tc_CodePtr;
 
 #if EMU68_INSN_COUNTER
@@ -6126,13 +6134,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr)
         kprintf("[PPC] Mean Ways in Set: %d.%02d\n", mean_ways / 100, mean_ways % 100);
 
         while(1) { asm volatile("wfi"); };
-    }
-#else
-    if (inner_loop && insn_count == 1) {
-        /* This is an endless loop, intentional or not. Change it to WFI/WFE loop to conserve power */
-        tc.tc_CodePtr--;
-        tc.EMIT(wfe());
-        tc.EMIT(bx_lr());
     }
 #endif
     // Put a marker at the end of translation unit
