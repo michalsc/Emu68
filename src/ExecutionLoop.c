@@ -66,13 +66,13 @@ uint32_t *LRU_FindBlock(uint32_t address)
     {
         if (likely(e[i].m68k == address))
         {
+            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
+
             uint32_t current = LRU_alloc[set] | mask; 
             if (current == BIT_MASK) current = mask;
             LRU_alloc[set] = current;
             
-            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
-            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
-
             return e[i].arm;
         }
     }
@@ -312,7 +312,7 @@ void MainLoop()
                 }
 #else
                 /* On classic pistorm we need to obtain IPL from PiStorm status register */
-                if (ctx->INT.IPL)
+                if (ctx->INTF.IPL)
                 {
                     int ipl_level;
 

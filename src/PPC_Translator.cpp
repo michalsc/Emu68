@@ -6449,12 +6449,12 @@ static uint32_t *PPC_LRU_FindBlock(uint32_t address)
     {
         if (likely(e[i].ppc == address))
         {
+            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
+
             uint32_t current = LRU_alloc[set] | mask; 
             if (current == BIT_MASK) current = mask;
             LRU_alloc[set] = current;
-            
-            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
-            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
             return e[i].arm;
         }
