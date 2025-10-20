@@ -5007,7 +5007,7 @@ static __used__ int EMIT_icbi(struct PPCTranslatorContext *tc, uint32_t opcode)
         mov_immed_u16(cnt, EMU68_LRU_SET_COUNT / 4, 0),
 
         /* In the loop: */
-        stp64_postindex(base, XZR, XZR, 16),
+        stp64_postindex(base, fill, fill, 16),
         subs_immed(cnt, cnt, 1),
         b_cc(A64_CC_NE, -2),
 
@@ -6452,8 +6452,8 @@ static uint32_t *PPC_LRU_FindBlock(uint32_t address)
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
-            uint32_t current = LRU_alloc[set] | mask; 
-            if (current == BIT_MASK) current = mask;
+            uint32_t current = LRU_alloc[set] & ~mask; 
+            if (current == 0) current = ~mask;
             LRU_alloc[set] = current;
 
             return e[i].arm;
@@ -6487,7 +6487,7 @@ static __used__ void PPC_LRU_InvalidateByM68kAddress(uint32_t addr)
         {
             e[i].arm= nullptr;
             e[i].ppc = 0xffffffff;
-            LRU_alloc[set] &= ~(0x80000000 >> i);
+            LRU_alloc[set] |= (0x80000000 >> i);
             break;
         }
     }
@@ -6503,7 +6503,7 @@ static void PPC_LRU_InvalidateAll()
 
     for (int i = 0; i < EMU68_LRU_SET_COUNT; i++)
     {
-        LRU_alloc[i] = 0;
+        LRU_alloc[i] = 0xffffffff;
     }
 }
 
@@ -6511,7 +6511,7 @@ static void PPC_LRU_InsertBlock(struct PPCTranslationUnit *unit)
 {
     const uint32_t set = ADDR_2_SET(unit->ptu_PPCAddress);
     struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
-    int loc = __builtin_clz(~LRU_alloc[set]);
+    int loc = __builtin_clz(LRU_alloc[set]);
     uint32_t mask = 0x80000000 >> loc;
 
     // Insert new entry
@@ -6519,8 +6519,8 @@ static void PPC_LRU_InsertBlock(struct PPCTranslationUnit *unit)
     e[loc].arm = (uint32_t*)unit->ptu_ARMEntryPoint;
 
     // Touch the last used
-    uint32_t current = LRU_alloc[set] | mask; 
-    if (current == BIT_MASK) current = mask;
+    uint32_t current = LRU_alloc[set] & ~mask; 
+    if (current == 0) current = ~mask;
     LRU_alloc[set] = current;
 }
 

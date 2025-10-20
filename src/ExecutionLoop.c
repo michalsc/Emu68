@@ -69,8 +69,8 @@ uint32_t *LRU_FindBlock(uint32_t address)
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
-            uint32_t current = LRU_alloc[set] | mask; 
-            if (current == BIT_MASK) current = mask;
+            uint32_t current = LRU_alloc[set] & ~mask; 
+            if (current == 0) current = ~mask;
             LRU_alloc[set] = current;
             
             return e[i].arm;
@@ -119,7 +119,7 @@ void LRU_InvalidateByM68kAddress(uint32_t addr)
         {
             e[i].arm= (void*)0;
             e[i].m68k = 0xffffffff;
-            LRU_alloc[set] &= ~(0x80000000 >> i);
+            LRU_alloc[set] |= (0x80000000 >> i);
             break;
         }
     }
@@ -135,7 +135,7 @@ void LRU_InvalidateAll()
 
     for (int i = 0; i < EMU68_LRU_SET_COUNT; i++)
     {
-        LRU_alloc[i] = 0;
+        LRU_alloc[i] = 0xffffffff;
     }
 }
 
@@ -143,7 +143,7 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 {
     const uint32_t set = ADDR_2_SET(unit->mt_M68kAddress);
     struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
-    int loc = __builtin_clz(~LRU_alloc[set]);
+    int loc = __builtin_clz(LRU_alloc[set]);
     uint32_t mask = 0x80000000 >> loc;
 
     // Insert new entry
@@ -151,8 +151,8 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
     e[loc].arm = unit->mt_ARMEntryPoint;
 
     // Touch the last used
-    uint32_t current = LRU_alloc[set] | mask; 
-    if (current == BIT_MASK) current = mask;
+    uint32_t current = LRU_alloc[set] & ~mask; 
+    if (current == 0) current = ~mask;
     LRU_alloc[set] = current;
 }
 
