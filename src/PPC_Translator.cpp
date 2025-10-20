@@ -6569,6 +6569,7 @@ static inline uint32_t * FindUnitQuick()
     return nullptr;
 }
 
+#if 0
 static inline struct PPCTranslationUnit *FindUnit()
 {
     /* Perform search */
@@ -6590,6 +6591,7 @@ static inline struct PPCTranslationUnit *FindUnit()
 
     return nullptr;
 }
+#endif
 
 static inline uint32_t getLastPC()
 {
