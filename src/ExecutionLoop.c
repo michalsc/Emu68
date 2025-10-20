@@ -66,13 +66,13 @@ uint32_t *LRU_FindBlock(uint32_t address)
     {
         if (likely(e[i].m68k == address))
         {
-            uint32_t current = LRU_alloc[set] | mask; 
-            if (current == BIT_MASK) current = mask;
-            LRU_alloc[set] = current;
-            
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
+            uint32_t current = LRU_alloc[set] & ~mask; 
+            if (current == 0) current = ~mask;
+            LRU_alloc[set] = current;
+            
             return e[i].arm;
         }
     }
@@ -119,7 +119,7 @@ void LRU_InvalidateByM68kAddress(uint32_t addr)
         {
             e[i].arm= (void*)0;
             e[i].m68k = 0xffffffff;
-            LRU_alloc[set] &= ~(0x80000000 >> i);
+            LRU_alloc[set] |= (0x80000000 >> i);
             break;
         }
     }
@@ -135,7 +135,7 @@ void LRU_InvalidateAll()
 
     for (int i = 0; i < EMU68_LRU_SET_COUNT; i++)
     {
-        LRU_alloc[i] = 0;
+        LRU_alloc[i] = 0xffffffff;
     }
 }
 
@@ -143,7 +143,7 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 {
     const uint32_t set = ADDR_2_SET(unit->mt_M68kAddress);
     struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
-    int loc = __builtin_clz(~LRU_alloc[set]);
+    int loc = __builtin_clz(LRU_alloc[set]);
     uint32_t mask = 0x80000000 >> loc;
 
     // Insert new entry
@@ -151,8 +151,8 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
     e[loc].arm = unit->mt_ARMEntryPoint;
 
     // Touch the last used
-    uint32_t current = LRU_alloc[set] | mask; 
-    if (current == BIT_MASK) current = mask;
+    uint32_t current = LRU_alloc[set] & ~mask; 
+    if (current == 0) current = ~mask;
     LRU_alloc[set] = current;
 }
 
@@ -164,6 +164,7 @@ static inline uint32_t * FindUnitQuick()
     if (likely(code != NULL))
         return code;
 #endif
+
     struct M68KTranslationUnit *node;
 
     union {
@@ -277,7 +278,7 @@ void MainLoop()
 #endif
 
         /* If (unlikely) there was interrupt pending, check if it needs to be processed */
-        if (unlikely(ctx->INT32 != 0))
+        if (unlikely(ctx->INT64 != 0))
         {
             uint32_t SR, SRcopy;
             int level = 0;
@@ -285,27 +286,33 @@ void MainLoop()
             uint32_t vbr;
 
             /* Find out requested IPL level based on ARM state and real IPL line */
-            if (ctx->INT.ARM_err)
+            if (ctx->INTF.ARM_err)
             {
                 level = 7;
-                ctx->INT.ARM_err = 0;
+                ctx->INTF.ARM_err = 0;
             }
             else
             {
-                if (ctx->INT.ARM)
+                /* Assert one of external interrupts if ARM or PPC flag was active */
+                if (ctx->INTF.ARM)
                 {
                     level = 6;
-                    ctx->INT.ARM = 0;
                 }
+                else if (ctx->INTF.PPC)
+                {
+                    level = 2;
+                }
+
+                /* Now, if Higher-level interrupt was coming from Paula, report it */
 #if defined(PISTORM)
                 /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
-                if (ctx->INT.IPL > level)
+                if (ctx->INTF.IPL > level)
                 {
-                    level = ctx->INT.IPL;
+                    level = ctx->INTF.IPL;
                 }
 #else
                 /* On classic pistorm we need to obtain IPL from PiStorm status register */
-                if (ctx->INT.IPL)
+                if (ctx->INTF.IPL)
                 {
                     int ipl_level;
 
@@ -487,4 +494,13 @@ void MainLoop()
             ARMCode();
         }
     }
+}
+
+void M68kReportInterrupt(int irq)
+{
+    struct M68KState * ctx = getCTX();
+    
+    /* TODO - add more types (we have 8 slots in total) here */
+    if (irq == 1) ctx->INTF.ARM = 1;
+    else if (irq == 2) ctx->INTF.ARM_err = 1;
 }

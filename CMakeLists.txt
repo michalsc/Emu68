@@ -3,6 +3,15 @@ project(Emu68 VERSION 1.0.999)
 set(PROJECT_VERSION 1.0.999)
 
 #set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+include(ExternalProject)
+
+ExternalProject_Add(
+    ppc_rom
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/ppc
+    CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/toolchains/ppc-linux-gnu.cmake -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/include
+    BUILD_IN_SOURCE 0
+    BUILD_ALWAYS 1
+)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
@@ -17,7 +26,7 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 23)
 
-set(CONTEXT_RESERVE_FLAGS "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21")
+set(CONTEXT_RESERVE_FLAGS "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21 -ffixed-v22 -ffixed-d22 -ffixed-v23 -ffixed-d23 -ffixed-v24 -ffixed-d24 -ffixed-v25 -ffixed-d25 -ffixed-v26 -ffixed-d26")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
@@ -70,6 +79,7 @@ set(EMU68_FILES
     src/M68k_ExceptionEntry.c
     src/M68k_CC.c
     src/ExecutionLoop.c
+    src/PPC_Translator.cpp
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
@@ -130,6 +140,12 @@ set_source_files_properties(src/math/__rem_pio2.c PROPERTIES COMPILE_FLAGS
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
+    "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
+     -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
+     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+
+set_source_files_properties(src/PPC_Translator.cpp PROPERTIES COMPILE_FLAGS 
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
@@ -225,8 +241,9 @@ list(APPEND ARCH_FILES
     src/aarch64/mmu.c
     src/aarch64/RegisterAllocator64.c
     src/aarch64/vectors.c
+    src/aarch64/intc.c
 )
-set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
+
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
 add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
 add_compile_options(-falign-functions=32 -march=armv8-a+crc -mtune=cortex-a76 -fomit-frame-pointer -O3 -ffixed-x12)
@@ -249,12 +266,17 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+add_dependencies(Emu68.elf ppc_rom)
+
 add_subdirectory(external)
 
 target_link_libraries(Emu68.elf capstone_static libdeflate_static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_BINARY_DIR}/include)
-target_compile_definitions(Emu68.elf PRIVATE)
+target_compile_definitions(Emu68.elf PRIVATE 
+    EMU68_VERSION_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}
+    EMU68_VERSION_MINOR=${CMAKE_PROJECT_VERSION_MINOR}
+)
 
 configure_file(include/version.h.in include/version.h @ONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/.git/index)

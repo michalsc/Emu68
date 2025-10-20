@@ -32,105 +32,6 @@
 /* SR is stored in TPIDR_EL0 */
 /* last_PC is stored in TPIDR_EL1 */
 
-#define REG_PC    18
-
-#define REG_D0    19
-#define REG_D1    20
-#define REG_D2    21
-#define REG_D3    22
-#define REG_D4    23
-#define REG_D5    24
-#define REG_D6    25
-#define REG_D7    26
-
-#define REG_A0    13
-#define REG_A1    14
-#define REG_A2    15
-#define REG_A3    16
-#define REG_A4    17
-#define REG_A5    27
-#define REG_A6    28
-#define REG_A7    29
-
-#define REG_FPSR_VN 19
-#define REG_FPSR_SIZE TS_S
-#define REG_FPSR_POS 0
-#define REG_FPSR_ASM "v19.s[0]"
-
-#define REG_FPIAR_VN 19
-#define REG_FPIAR_SIZE TS_S
-#define REG_FPIAR_POS 1
-#define REG_FPIAR_ASM "v19.s[1]"
-
-#define REG_FPCR_VN 19
-#define REG_FPCR_SIZE TS_H
-#define REG_FPCR_POS 4
-#define REG_FPCR_ASM "v19.h[4]"
-
-#define REG_FPSR    REG_FPSR_VN,REG_FPSR_SIZE,REG_FPSR_POS
-#define REG_FPIAR   REG_FPIAR_VN,REG_FPIAR_SIZE,REG_FPIAR_POS
-#define REG_FPCR    REG_FPCR_VN,REG_FPCR_SIZE,REG_FPCR_POS
-
-#define REG_CACR_VN 21
-#define REG_CACR_SIZE TS_S
-#define REG_CACR_POS 0
-#define REG_CACR_ASM "v21.s[0]"
-
-#define REG_USP_VN 21
-#define REG_USP_SIZE TS_S
-#define REG_USP_POS 1
-#define REG_USP_ASM "v21.s[1]"
-
-#define REG_ISP_VN 21
-#define REG_ISP_SIZE TS_S
-#define REG_ISP_POS 2
-#define REG_ISP_ASM "v21.s[2]"
-
-#define REG_MSP_VN 21
-#define REG_MSP_SIZE TS_S
-#define REG_MSP_POS 3
-#define REG_MSP_ASM "v21.s[3]"
-
-#define CTX_POINTER_VN 20
-#define CTX_POINTER_SIZE TS_D
-#define CTX_POINTER_POS 1
-#define CTX_POINTER_ASM "v20.d[1]"
-
-#define CTX_INSN_COUNT_VN 20
-#define CTX_INSN_COUNT_SIZE TS_D
-#define CTX_INSN_COUNT_POS 0
-#define CTX_INSN_COUNT_ASM "v20.d[0]"
-
-#define REG_SR_VN 19
-#define REG_SR_SIZE TS_H
-#define REG_SR_POS 5
-#define REG_SR_ASM "v19.h[5]"
-
-#define CTX_LAST_PC_VN 19
-#define CTX_LAST_PC_SIZE TS_S
-#define CTX_LAST_PC_POS 3
-#define CTX_LAST_PC_ASM "v19.s[3]"
-
-#define REG_CACR        REG_CACR_VN,REG_CACR_SIZE,REG_CACR_POS
-#define REG_USP         REG_USP_VN,REG_USP_SIZE,REG_USP_POS
-#define REG_ISP         REG_ISP_VN,REG_ISP_SIZE,REG_ISP_POS
-#define REG_MSP         REG_MSP_VN,REG_MSP_SIZE,REG_MSP_POS
-#define REG_SR          REG_SR_VN,REG_SR_SIZE,REG_SR_POS
-
-#define CTX_POINTER     CTX_POINTER_VN,CTX_POINTER_SIZE,CTX_POINTER_POS
-#define CTX_INSN_COUNT  CTX_INSN_COUNT_VN,CTX_INSN_COUNT_SIZE,CTX_INSN_COUNT_POS
-#define CTX_LAST_PC     CTX_LAST_PC_VN,CTX_LAST_PC_SIZE,CTX_LAST_PC_POS
-
-#define REG_PROTECT ((1 << 30) | (1 << (REG_A0)) | (1 << (REG_A1)) | (1 << (REG_A2)) | (1 << (REG_A3)) | (1 << (REG_A4)) | (1 << (REG_PC)))
-
-#define REG_FP0   8
-#define REG_FP1   9
-#define REG_FP2   10
-#define REG_FP3   11
-#define REG_FP4   12
-#define REG_FP5   13
-#define REG_FP6   14
-#define REG_FP7   15
 
 #define A64_CC_EQ 0x00 /* Z=1 */
 #define A64_CC_NE 0x01 /* Z=0 */
@@ -247,6 +148,16 @@ static inline uint32_t tbnz(uint8_t rt, uint8_t bit, uint16_t offset) { ASSERT_O
 static inline uint32_t tbz(uint8_t rt, uint8_t bit, uint16_t offset) { ASSERT_OFFSET(offset, 0x3fff); ASSERT_REG(rt); return I32(bit & 32 ? 0xb6000000 : 0x36000000 | ((bit & 31) << 19) | ((offset & 0x3fff) << 5) | (rt & 31)); }
 static inline uint32_t bx_lr() { return ret(); }
 
+/* Few registers accessible by mrs/msr */
+#define sys_NZCV            3,3,4,2,0
+#define sys_FPCR            3,3,4,4,0
+#define sys_CNTP_TVAL_EL0   3,3,14,2,0
+#define sys_CNTP_CTL_EL0    3,3,14,2,1
+#define sys_CNTPCT_EL0      3,3,14,0,1
+#define sys_CNTFRQ_EL0      3,3,14,0,0
+#define sys_CTR_EL0         3,3,0,0,1
+#define sys_PMCCNTR_EL0     3,3,9,13,0
+
 /* System instructions */
 static inline uint32_t mrs(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5300000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
 static inline uint32_t msr(uint8_t rt, uint8_t op0, uint8_t op1, uint8_t crn, uint8_t crm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5100000 | (rt & 31) | (op0 == 3 ? 0x80000 : 0) | ((op1 & 7) << 16) | ((crn & 15) << 12) | ((crm & 15) << 8) | ((op2 & 7) << 5)); }
@@ -255,22 +166,31 @@ static inline uint32_t brk(uint16_t imm16) { return I32(0xd4200000 | (imm16 << 5
 static inline uint32_t hlt(uint16_t imm16) { return I32(0xd4400000 | (imm16 << 5)); }
 static inline uint32_t udf(uint16_t imm16) { return hlt(imm16); }
 static inline uint32_t hint(uint8_t h) { return I32(0xd503201f | ((h & 0x7f) << 5)); }
+static inline uint32_t yield() { return hint(1); }
 static inline uint32_t wfe() { return hint(2); }
 static inline uint32_t wfi() { return hint(3); }
 static inline uint32_t sev() { return hint(4); }
-static inline uint32_t get_nzcv(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, 3, 3, 4, 2, 0); }
-static inline uint32_t set_nzcv(uint8_t rt) { ASSERT_REG(rt); return msr(rt, 3, 3, 4, 2, 0); }
-static inline uint32_t get_fpcr(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, 3, 3, 4, 4, 0); }
-static inline uint32_t set_fpcr(uint8_t rt) { ASSERT_REG(rt); return msr(rt, 3, 3, 4, 4, 0); }
+static inline uint32_t sevl() { return hint(5); }
+static inline uint32_t get_nzcv(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, sys_NZCV); }
+static inline uint32_t set_nzcv(uint8_t rt) { ASSERT_REG(rt); return msr(rt, sys_NZCV); }
+static inline uint32_t get_fpcr(uint8_t rt) { ASSERT_REG(rt); return mrs(rt, sys_FPCR); }
+static inline uint32_t set_fpcr(uint8_t rt) { ASSERT_REG(rt); return msr(rt, sys_FPCR); }
 static inline uint32_t cfinv() { return I32(0xd500401f); }
 static inline uint32_t sys(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5080000 | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((cn & 15) << 12) | ((cm & 15) << 8) | (rt & 31)); }
 static inline uint32_t sysl(uint8_t rt, uint8_t op1, uint8_t cn, uint8_t cm, uint8_t op2) { ASSERT_REG(rt); return I32(0xd5280000 | ((op1 & 7) << 16) | ((op2 & 7) << 5) | ((cn & 15) << 12) | ((cm & 15) << 8) | (rt & 31)); }
 static inline uint32_t dc_ivac(uint8_t rt) { ASSERT_REG(rt); return sys(rt, 0, 7, 6, 1); }
 static inline uint32_t dc_civac(uint8_t rt) { ASSERT_REG(rt); return sys(rt, 3, 7, 14, 1); }
+static inline uint32_t dc_cvac(uint8_t rt) { ASSERT_REG(rt); return sys(rt, 3, 7, 10, 1); }
+static inline uint32_t dc_zva(uint8_t rt) { ASSERT_REG(rt); return sys(rt, 3, 7, 4, 1); }
 static inline uint32_t dsb_sy() { return I32(0xd5033f9f); }
+static inline uint32_t isb() { return I32(0xd5033fdf); }
 static inline uint32_t dmb_ish() { return I32(0xd5033bbf); }
+static inline uint32_t dmb_sy() { return I32(0xd5033fbf); }
 static inline uint32_t nop() { return I32(0xd503201f); }
 static inline uint32_t svc(uint16_t code) { return I32(0xd4000001 | (code << 5)); }
+static inline uint32_t prfm_pst(uint8_t rt) { return I32(0xf9800010 | (rt << 5)); }
+static inline uint32_t prfm_pld(uint8_t rt) { return I32(0xf9800000 | (rt << 5)); }
+
 
 /* Load PC-relatve address */
 static inline uint32_t adr(uint8_t rd, uint32_t imm21) { ASSERT_OFFSET(imm21, 0x1fffff); ASSERT_REG(rd); return I32(0x10000000 | (rd & 31) | ((imm21 & 3) << 29) | (((imm21 >> 2) & 0x7ffff) << 5)); }
@@ -617,6 +537,8 @@ static inline uint32_t umaddl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { 
 static inline uint32_t umsubl(uint8_t rd, uint8_t ra, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(ra); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9ba08000 | (rd & 31) | ((rn & 31) << 5) | ((ra & 31) << 10) | ((rm & 31) << 16)); }
 static inline uint32_t umnegl(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return umsubl(rd, 31, rn, rm); }
 static inline uint32_t umull(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return umaddl(rd, 31, rn, rm); }
+static inline uint32_t umulh(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9bc07c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
+static inline uint32_t smulh(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9b407c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }
 
 /* Data processing: divide */
 static inline uint32_t sdiv(uint8_t rd, uint8_t rn, uint8_t rm) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x1ac00c00 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16)); }

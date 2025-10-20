@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "M68k.h"
 #include "cache.h"
+#include "intc.h"
 
 #define FULL_CONTEXT 0
 
@@ -146,6 +147,9 @@ void  __attribute__((used)) __stub_vectors()
 "       .balign 0x80                    \n"
 "curr_el_spx_irq:                       \n" // The exception handler for an IRQ exception from 
 "       stp x0, x1, [sp, -16]!          \n" // the current EL using the current SP.
+"       mrs x0, MPIDR_EL1               \n" // Check CPU core id
+"       tst x0, #3                      \n" // if Core ID != 0
+"       b.ne 2f                         \n" // Go to SysHandler
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x080              \n" // Disable IRQ interrupt so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
@@ -162,10 +166,15 @@ void  __attribute__((used)) __stub_vectors()
 "       strb w0, [x1, #%[pint]]         \n"
 "1:     ldp x0, x1, [sp], #16           \n" // Restore scratch registers
 "       eret                            \n"
+"2:     ldp x0, x1, [sp], #16           \n"
+"       b IRQonOtherCores               \n"
 "                                       \n"
 "       .balign 0x80                    \n"
 "curr_el_spx_fiq:                       \n" // The exception handler for an FIQ from 
 "       stp x0, x1, [sp, -16]!          \n" // the current EL using the current SP.
+"       mrs x0, MPIDR_EL1               \n" // Check CPU core id
+"       tst x0, #3                      \n" // if Core ID != 0
+"       b.ne 2b                         \n" // Go to SysHandler
 "       mrs x0, SPSR_EL1                \n" // Get SPSR
 "       orr x0, x0, #0x0c0              \n" // Disable IRQ and FIQ interrupts so that we are not disturbed on return
 "       msr SPSR_EL1, x0                \n"
@@ -259,14 +268,20 @@ void  __attribute__((used)) __stub_vectors()
 "       bl SYSHandler                   \n"
 "       b ExceptionExit                 \n"
 "                                       \n"
+"IRQonOtherCores:                       \n"
+        SAVE_CONTEXT                        // exception from a lower EL(AArch32).
+"       mov x0, #0xffff                 \n"
+"       mov x1, sp                      \n"
+"       bl IRQHandler                   \n"
+        // Fallback to exit
 "ExceptionExit:                         \n"
         LOAD_CONTEXT
 "       eret                            \n"
 "                                       \n"
 "       .section .text                  \n"
 :
-:[pint]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
- [perr]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
+:[pint]"i"(__builtin_offsetof(struct M68KState, INTF.ARM)),
+ [perr]"i"(__builtin_offsetof(struct M68KState, INTF.ARM_err)),
  [intena]"i"(__builtin_offsetof(struct INT_shadow, INTENA)),
  [armpend]"i"(__builtin_offsetof(struct INT_shadow, ARMPending))
 
@@ -352,7 +367,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
             struct M68KState *ctx;
             __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
-            ctx->INT.ARM = 0x01;
+            ctx->INTF.ARM = 0x01;
         }
     }
 
@@ -366,7 +381,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         if ((value & 0xa000) == 0x2000) {
             struct M68KState *ctx;
             __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
-            ctx->INT.ARM = 0;
+            ctx->INTF.ARM = 0;
             INT_shadow.ARMPending = 0;
         }
     }
@@ -674,6 +689,11 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
     
+    if (far == 0xdeadbeef && size == 1) {
+        kprintf("%c", value);
+        return 1;
+    }
+
     switch(size)
     {
         case 1:
@@ -2175,10 +2195,13 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     int handled = 0;
-    uint64_t elr, spsr, esr, far;
+    uint64_t elr, spsr, esr, far, cpu_id;
     __asm__ volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
     __asm__ volatile("mrs %0, ESR_EL1":"=r"(esr));
     __asm__ volatile("mrs %0, FAR_EL1":"=r"(far));
+    __asm__ volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
+   
+    cpu_id &= 3;
 
     if ((vector & 0x1ff) == 0x00 && (esr & 0xf8000000) == 0x90000000)
     {
@@ -2325,8 +2348,13 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
 
     if (!handled)
     {
-        kprintf("[JIT:SYS] Exception with vector %04x. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, elr, spsr, esr, far);
+        kprintf("[JIT:SYS] Exception with vector %04x on CPU%d. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, cpu_id, elr, spsr, esr, far);
         kprintf("[JIT:SYS] Failed instruction: %08x\n", LE32(*(uint32_t*)elr));
+        uint32_t *ptr = (uint32_t *)elr;
+        
+        for (int i=-10; i < 11; i++) {
+            kprintf("[JIT:SYS] %p: %s %08x\n", &ptr[i], i == 0 ? "-->" : "   ", ptr[i]);
+        }
 
         for (int i=0; i < 16; i++)
         {
@@ -2336,4 +2364,67 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
         
         while(1) { __asm__ volatile("wfe"); };
     }
+}
+
+void IRQHandler(uint32_t , uint64_t *)
+{
+    uint64_t elr, spsr, esr, far, cpu_id;
+    __asm__ volatile("mrs %0, ELR_EL1; mrs %1, SPSR_EL1":"=r"(elr),"=r"(spsr));
+    __asm__ volatile("mrs %0, ESR_EL1":"=r"(esr));
+    __asm__ volatile("mrs %0, FAR_EL1":"=r"(far));
+    __asm__ volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
+   
+    cpu_id &= 3;
+
+    /* Core 3 received IRQ */
+    if (cpu_id == 3) {
+        uint64_t tmp;
+        uint32_t id = 0;
+
+        if (gic_available()) {
+            id = gic_read_iar();
+        }
+
+        /* Check if the interrupt comes from the timer */
+        __asm__ volatile("mrs %0, CNTP_CTL_EL0":"=r"(tmp));
+
+        /* Bit 2 set == interrupt reported */
+        if (tmp & 4)
+        {
+            /*
+                Mask further interrupts but keep timer running, the timer will 
+                be unmasked by next write to decrementer
+            */
+            __asm__ volatile("msr CNTP_CTL_EL0, %0"::"r"(3));
+
+            void PPCReportInterrupt(int interrupt);
+
+            PPCReportInterrupt(0x900);
+
+            if (gic_available()) {
+                gic_write_eoir(id);
+            }
+
+            return;
+        }
+    }
+    else if (cpu_id == 0)
+    {
+        uint32_t id = 0;
+        void M68kReportInterrupt(int);
+
+        if (gic_available()) {
+            id = gic_read_iar();
+        }
+
+        M68kReportInterrupt(1);
+
+        if (gic_available()) {
+            gic_write_eoir(id);
+        }
+        
+        return;
+    }
+
+    kprintf("[JIT:SYS] IRQ/FIQ Exception on CPU%d %08lx\n", cpu_id);
 }

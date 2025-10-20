@@ -15,6 +15,7 @@ __attribute__((aligned(4096)))
 #include "./brcm-emmc.device.h"
 #include "./68040.library.h"
 #include "./mailbox.resource.h"
+#include "./powerpc.library.h"
 //#include "./gic.resource.h"
 
 static struct { 
@@ -28,6 +29,7 @@ static struct {
     { brcm_emmc_device, sizeof(brcm_emmc_device), 0 },
     { __68040_library, sizeof(__68040_library), 0 },
     { mailbox_resource, sizeof(mailbox_resource), 0},
+    { powerpc_library, sizeof(powerpc_library), 0 },
     //{ gic_resource, sizeof(gic_resource), 0 },
     { NULL, 0, 0 }
 };

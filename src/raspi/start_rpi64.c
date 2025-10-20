@@ -289,6 +289,11 @@ void platform_init()
 
             ranges[pos_acpu] = BE32(start_map << 21);
 
+            if (addr_bus == 0x40000000) {
+                extern uintptr_t local_intc_base;
+                local_intc_base = start_map << 21;
+            }
+
             start_map += addr_len >> 21;
 
             len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);

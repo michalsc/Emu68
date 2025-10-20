@@ -5,6 +5,7 @@
 kernel=Emu68.img
 disable_splash=1
 arm_64bit=1
+enable_gic=0
 avoid_warnings=1
 
 # Limit GPU memory a little, force 1080p video mode

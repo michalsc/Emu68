@@ -28,6 +28,8 @@
 #include "version.h"
 #include "cache.h"
 #include "sponsoring.h"
+#include "spinlock.h"
+#include "intc.h"
 
 void _start();
 void _boot();
@@ -283,6 +285,7 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
 #endif
 
+extern uintptr_t local_intc_base;
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
 
@@ -317,6 +320,7 @@ static int membench = 0;
 #endif
 
 extern const char _verstring_object[];
+uint32_t _vernumber_object[3] = { VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH };
 
 void _secondary_start();
 __asm__(
@@ -442,7 +446,17 @@ void secondary_boot(void)
         }
     }
 
+    if (cpu_id == 3) {
+        extern void InitPPC();
+        InitPPC();
+    }
+
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
+
+    if (cpu_id == 3) {
+        extern void StartupPPC();
+        StartupPPC();
+    }
 
 #ifdef PISTORM_ANY_MODEL
     if (cpu_id == 1)
@@ -453,11 +467,6 @@ void secondary_boot(void)
     else if (cpu_id == 2)
     {
         ps_housekeeper();
-    }
-    else if (cpu_id == 3)
-    {
-        wb_init();
-        wb_task();
     }
 #else
     (void)async_log;
@@ -537,6 +546,14 @@ void parse_cmdline(const char *cmdline)
 
     enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
+
+    extern int disasm;
+    extern int debug;
+    extern int DisableFPU;
+
+    DisableFPU = !!find_token(cmdline, "nofpu");
+    debug = !!find_token(cmdline, "debug");
+    disasm = !!find_token(cmdline, "disassemble");
 
     if ((tok = find_token(cmdline, "ICNT=")))
     {
@@ -813,6 +830,7 @@ void boot(void *dtree)
         }
     }
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
+    dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
     dt_add_property(e, "support", supporters, supporters_size);
 
@@ -1227,7 +1245,7 @@ void boot(void *dtree)
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
-        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
+        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, (KERNEL_JIT_PAGES / 2) << 21);
 
         kprintf("[BOOT] Local memory pools:\n");
         kprintf("[BOOT]    SYS: %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
@@ -1281,6 +1299,17 @@ void boot(void *dtree)
 
         kprintf("[BOOT] TLB invalidated\n");
     }
+
+    extern void (*__init_start)();
+    void (**InitFunctions)() = &__init_start;
+    while(*InitFunctions)
+    {
+        kprintf("[BOOT] Calling init function @ %p\n", *InitFunctions);
+        (*InitFunctions)();
+        InitFunctions++;
+    }
+
+    intc_global_init();
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
@@ -1365,14 +1394,6 @@ void boot(void *dtree)
     }
 
     platform_post_init();
-
-    extern void (*__init_start)();
-    void (**InitFunctions)() = &__init_start;
-    while(*InitFunctions)
-    {
-        (*InitFunctions)();
-        InitFunctions++;
-    }
 
 #ifndef PISTORM_ANY_MODEL
     if (initramfs_loc != NULL && initramfs_size != 0)
@@ -1652,24 +1673,6 @@ void boot(void *dtree)
 
     }
 
-    kprintf("[BOOT] Setting IRQ routing to core 0\n");
-    wr32le(0xf300000c, 0);
-    
-    kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
-    wr32le(0xf3000010, 1);      // Enable PMU IRQ on core 0
-    wr32le(0xf3000014, 0xfe);   // Disable PMU IRQ on all otehr cores
-
-    wr32le(0xf3000040, 0x0f);   // Enable all CNT IRQs on core 0
-    wr32le(0xf3000044, 0x00);   // Disable all CNT IRQs on core 1
-    wr32le(0xf3000048, 0x00);   // Disable all CNT IRQs on core 2
-    wr32le(0xf300004c, 0x00);   // Disable all CNT IRQs on core 3
-
-    kprintf("[BOOT] Disabling mailbox interrupts\n");
-    wr32le(0xf3000050, 0x00);   // Disable Mailbox IRQs on core 0
-    wr32le(0xf3000054, 0x00);   // Disable Mailbox IRQs on core 1
-    wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
-    wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
-
     //dt_dump_tree();
 
 #ifdef PISTORM_ANY_MODEL
@@ -1872,11 +1875,16 @@ void M68K_PrintContext(struct M68KState *m68k)
 
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
-
+/*
 uint16_t *framebuffer __attribute__((weak)) = NULL;
 uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
 uint32_t fb_height  __attribute__((weak))= 0;
+*/
+extern uint16_t *framebuffer;
+extern uint32_t pitch;
+extern uint32_t fb_width;
+extern uint32_t fb_height;
 
 void ExecutionLoop(struct M68KState *ctx);
 
@@ -2001,22 +2009,6 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
 
-            extern int disasm;
-            extern int debug;
-            extern int DisableFPU;
-
-            if (strstr(prop->op_value, "nofpu"))
-                DisableFPU = 1;
-
-            if (strstr(prop->op_value, "debug_not_implemented"))
-                debug_not_implemented = 1;
-
-            if (strstr(prop->op_value, "debug"))
-                debug = 1;
-
-            if (strstr(prop->op_value, "disassemble"))
-                disasm = 1;
-
 #ifdef PISTORM_ANY_MODEL
             if (strstr(prop->op_value, "enable_c0_slow"))
                 mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
@@ -2046,7 +2038,6 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     kprintf("[JIT] Let it go...\n");
 
-
     clear_entire_dcache();
 
 __asm__ volatile(
@@ -2071,6 +2062,10 @@ __asm__ volatile(
 
     /* Save the context to CTX_POINTER_ASM, it will be fetched in main loop */
     __asm__ volatile("mov "CTX_POINTER_ASM", %0"::"r"(&__m68k));
+
+    /* Fire PPC */
+    extern spinlock_t PPCStart;
+    spinlock_release(&PPCStart);
 
     /* Start M68k now */
 #ifndef PISTORM_ANY_MODEL

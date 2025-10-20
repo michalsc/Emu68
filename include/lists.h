@@ -151,17 +151,17 @@ static inline struct Node * REMHEAD(struct List *l)
 #define ForeachNode(list, node)                        \
 for                                                    \
 (                                                      \
-    node = (void *)(((struct List *)(list))->lh_Head); \
+    node = (typeof(node))(((struct List *)(list))->lh_Head); \
     ((struct Node *)(node))->ln_Succ;                  \
-    node = (void *)(((struct Node *)(node))->ln_Succ)  \
+    node = (typeof(node))(((struct Node *)(node))->ln_Succ)  \
 )
 
 #define ForeachNodeSafe(list, current, next)              \
 for                                                       \
 (                                                         \
-    current = (void *)(((struct List *)(list))->lh_Head); \
-    (next = (void *)((struct Node *)(current))->ln_Succ); \
-    current = (void *)next                                \
+    current = (typeof(current))(((struct List *)(list))->lh_Head); \
+    (next = (typeof(next))((struct Node *)(current))->ln_Succ); \
+    current = (typeof(current))next                                \
 )
 
 #define ListLength(list,count)     \

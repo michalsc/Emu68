@@ -2127,11 +2127,11 @@ void ps_housekeeper()
             // Update IPL if and only if two subsequent IPL reads are the same.
             if ((pin & 7) == (pin_prev & 7))
             {
-                __m68k_state->INT.IPL = ~pin & 7;
+                __m68k_state->INTF.IPL = ~pin & 7;
 
                 asm volatile("" ::: "memory");
 
-                if (__m68k_state->INT.IPL)
+                if (__m68k_state->INTF.IPL)
                     asm volatile("sev" ::: "memory");
             }
 

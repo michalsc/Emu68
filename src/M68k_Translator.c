@@ -145,7 +145,6 @@ static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
     uint8_t group = opcode >> 12;
 
     host_flags = 0;
-    
     if (debug > 2)
     {
         EMIT(ctx,
@@ -603,7 +602,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
     if (inner_loop)
     {
         uint8_t cpuctx = RA_GetCTX(&ctx);
-        EMIT(&ctx, ldr_offset(cpuctx, tmp2, __builtin_offsetof(struct M68KState, INT)));
+        EMIT(&ctx, ldr64_offset(cpuctx, tmp2, __builtin_offsetof(struct M68KState, INT64)));
     }
 #if EMU68_INSN_COUNTER
     EMIT(&ctx, mov_reg_to_simd(CTX_INSN_COUNT, 0));
@@ -619,7 +618,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
     if (inner_loop)
     {
         uint32_t *tmpptr = ctx.tc_CodePtr;
-        EMIT(&ctx, cbz(tmp2, ctx.tc_CodeStart - tmpptr));
+        EMIT(&ctx, cbz_64(tmp2, ctx.tc_CodeStart - tmpptr));
     }
     EMIT(&ctx, bx_lr());
     
