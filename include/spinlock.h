@@ -1,6 +1,10 @@
 #ifndef _SPINLOCK_H
 #define _SPINLOCK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
 
 typedef struct {
@@ -24,5 +28,9 @@ static inline void spinlock_release(spinlock_t *s) {
 static inline bool spinlock_try_acquire(spinlock_t *s) {
     return !__atomic_test_and_set(&s->lock, __ATOMIC_ACQUIRE);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SPINLOCK_H */

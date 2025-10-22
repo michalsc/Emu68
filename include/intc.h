@@ -1,6 +1,10 @@
 #ifndef _INTC_H
 #define _INTC_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 #define GIC_PPI_LEGACY_IRQ      31
@@ -22,5 +26,9 @@ uint32_t gic_read_iar();
 void gic_write_eoir(uint32_t id);
 
 void intc_global_init();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _INTC_H */

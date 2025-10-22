@@ -1,6 +1,10 @@
 #ifndef _CACHE_H
 #define _CACHE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include "support.h"
 
@@ -25,5 +29,9 @@ int cache_write_16(enum CacheType type, uint32_t address, uint16_t data, uint8_t
 int cache_write_32(enum CacheType type, uint32_t address, uint32_t data, uint8_t write_back);
 int cache_write_64(enum CacheType type, uint32_t address, uint64_t data, uint8_t write_back);
 int cache_write_128(enum CacheType type, uint32_t address, uint128_t data, uint8_t write_back);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CACHE_H */

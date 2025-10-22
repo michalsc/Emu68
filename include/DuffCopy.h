@@ -1,6 +1,10 @@
 #ifndef _DUFFCOPY_H
 #define _DUFFCOPY_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 static inline __attribute__((always_inline)) void DuffCopy(uint32_t * to, const uint32_t * from, uint32_t count)
@@ -18,5 +22,9 @@ static inline __attribute__((always_inline)) void DuffCopy(uint32_t * to, const 
             } while (--n != 0);
     }
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _DUFFCOPY_H */

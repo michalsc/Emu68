@@ -10,6 +10,10 @@
 #ifndef _A64_H
 #define _A64_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -1430,6 +1434,10 @@ uint32_t number_to_mask(uint32_t number);
         else
             return 0xffffffff;
     }
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

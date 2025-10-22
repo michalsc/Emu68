@@ -10,6 +10,10 @@
 #ifndef _SUPPORT_H
 #define _SUPPORT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -175,7 +179,12 @@ struct Result64 sldiv(int64_t n, int64_t d);
 #include "support_rpi.h"
 #endif
 
-#define likely(x)      __builtin_expect(!!(x), 1) 
-#define unlikely(x)    __builtin_expect(!!(x), 0)
+#define likely(x)       __builtin_expect(!!(x), 1) 
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#define __used__        __attribute__((used))
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _SUPPORT_H */

@@ -1,6 +1,10 @@
 #ifndef _DOORBELL_H
 #define _DOORBELL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 typedef struct {
@@ -35,5 +39,9 @@ static inline void doorbell_send(doorbell_t *d, uint32_t msg) {
 
     __atomic_store_n(&d->val, msg, __ATOMIC_RELEASE);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _DOORBELL_H */
