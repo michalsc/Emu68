@@ -16,7 +16,7 @@ public:
     void remove();
 };
 
-void Node::remove()
+inline void Node::remove()
 {
     n_prev->n_next = n_next;
     n_next->n_prev = n_prev;
