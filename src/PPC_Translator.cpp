@@ -2824,15 +2824,15 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     /* Calculate if the branch shall be considered taken */
     uint8_t bo0 = (bo >> 4) & 1;
+    uint8_t bo1 = (bo >> 3) & 1;
     uint8_t bo2 = (bo >> 2) & 1;
-    uint8_t bo4 = bo & 1;
-    uint8_t sign = (opcode >> 15) & 1;
-    uint8_t take_branch = ((bo0 & bo2) | sign) == bo4;
-
-//    kprintf("bo = %d, bi = %d, take_branch = %d\n", bo, bi, take_branch);
+    uint8_t bo3 = (bo >> 1) & 1;
+    uint8_t dec_ctr = bo2 == 0;
+    uint8_t condition_true = bo1 == 1;
+    uint8_t take_branch = (bo & 1);
 
     /* Branch always */
-    if (bo & 0b10100) {
+    if ((bo & 0b10100) == 0b10100) {
         uint8_t success = 0;
         uint32_t *last_pc = PopReturnAddress(&success);
 
@@ -2872,9 +2872,217 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
         tc->ResetOffsetPC();
     } else {
-        (void)bi;
-        (void)take_branch;
-        return -1;
+        uint8_t success = 0;
+        uint8_t success_condition;
+        uint8_t tmp = AllocARMRegister(tc);
+        uint32_t *last_pc = PopReturnAddress(&success);
+        int8_t pc_offset = 4;
+        
+        ResetReturnStack();
+
+        tc->GetOffsetPC(&pc_offset);
+
+        /* BO[2] == 0 - decrement CTR and set condition */
+        if (dec_ctr) {
+            tc->EMIT(subs_immed(REG_CTR, REG_CTR, 1));
+            /* bo3 == 1 <- take branch if CTR == 0; bo3 == 0 <- take branch if CTR != 0 */
+            if (bo3) {
+                success_condition = A64_CC_EQ;
+                if (bo0 == 0) tc->EMIT(cset(tmp, A64_CC_EQ));
+            } else {
+                success_condition = A64_CC_NE;
+                if (bo0 == 0) tc->EMIT(cset(tmp, A64_CC_NE));
+            }
+            /* if bo0 == 1 there is no need to test condition flags */
+            if (bo0 == 0) {
+                uint8_t reg_cr = MapGPRForRead(tc, CRn);
+                tc->EMIT({ 
+                    /* Test condition */
+                    tst_immed(reg_cr, 1, (1 + bi) & 31),
+                    /* Increase tmp if condition is met */
+                    cinc(tmp, tmp, condition_true ? A64_CC_NE : A64_CC_EQ),
+                    /* If both CTR condition and CR conditions are met, tmp == 2. Test it. */
+                    tst_immed(tmp, 1, 31)
+                });
+                success_condition = A64_CC_NE;
+            }
+        } else {
+            uint8_t reg_cr = MapGPRForRead(tc, CRn);
+            /* Check the condition */
+            tc->EMIT(tst_immed(reg_cr, 1, (1 + bi) & 31));
+            success_condition = condition_true ? A64_CC_NE : A64_CC_EQ;
+        }
+
+        /* If branch is taken by default, invert success condition, since it will jump to local exit point */
+        if (take_branch) {
+            success_condition ^= 1;
+        }
+
+        /* Emit jump, remember its location and fixup type */
+        uint32_t fixup_type = FIXUP_BCC;
+        uint32_t *jump_location = tc->tc_CodePtr;
+        tc->EMIT( b_cc(success_condition, 0));
+
+        /* Here is expected code path */
+        if (take_branch)
+        {
+            /* if LR needs to be updated, do it now */
+            if (update_lr) {
+                uint8_t tmp = AllocARMRegister(tc);
+
+                PushReturnAddress(tc->tc_PPCCodePtr + 1);
+
+                tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
+
+                if (pc_offset >= 0) {
+                    tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+                } else {
+                    tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+                }
+
+                tc->EMIT( mov_reg(REG_PC, tmp));
+
+                FreeARMRegister(tc, tmp);
+            }
+            else
+            {
+                /* Move LR to PC */
+                tc->EMIT( bic_immed(REG_PC, REG_LR, 2, 0));
+            }
+
+            if (success) {
+                tc->tc_PPCCodePtr = last_pc;
+            } else {
+                /* The return address stack was not available, stop now */
+                tc->STOP();
+            }
+        }
+        else
+        {
+            int32_t pc_adj = pc_offset;
+            AddImmediate(tc, REG_PC, pc_adj);
+            tc->tc_PPCCodePtr++;
+        }
+
+        /* Now insert the other code path - this will be treated as exit code */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+
+        if (!take_branch)
+        {
+            /* if LR needs to be updated, do it now */
+            if (update_lr) {
+                uint8_t tmp = AllocARMRegister(tc);
+
+                PushReturnAddress(tc->tc_PPCCodePtr + 1);
+
+                tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
+
+                if (pc_offset >= 0) {
+                    tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+                } else {
+                    tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+                }
+
+                tc->EMIT( mov_reg(REG_PC, tmp));
+
+                FreeARMRegister(tc, tmp);
+            }
+            else
+            {
+                /* Move LR to PC */
+                tc->EMIT( bic_immed(REG_PC, REG_LR, 2, 0));
+            }
+        }
+        else
+        {
+            int32_t pc_adj = pc_offset;
+            AddImmediate(tc, REG_PC, pc_adj);
+        }
+
+        tc->ResetOffsetPC();
+
+        /* Insert local exit */
+        LocalExit(tc, 1);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        /* Insert fixup location */
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - jump_location),
+            fixup_type,
+            1,
+            (uint32_t)(exit_code_end - exit_code_start),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+
+        #if 0
+
+
+        
+
+        
+        if (take_branch)
+        {
+            success_condition ^= 1;
+            tc->tc_PPCCodePtr = (uint32_t *)(uintptr_t)branch_target;
+        }
+        else
+        {
+            tc->tc_PPCCodePtr++;
+        }
+
+        /* Here the expected code path follows */
+        if (take_branch)
+        {
+            if (is_absolute) {
+                tc->LoadImmediate(REG_PC, (uint32_t)offset);
+            } else {
+                int32_t pc_adj = pc_offset + offset - 4;
+                AddImmediate(tc, REG_PC, pc_adj);
+            }
+        }
+        else
+        {
+            int32_t pc_adj = pc_offset;
+            AddImmediate(tc, REG_PC, pc_adj);
+        }
+
+        /* Now insert the other code path - this will be treated as exit code */
+        uint32_t *exit_code_start = tc->tc_CodePtr;
+
+        if (!take_branch)
+        {
+            if (is_absolute) {
+                tc->LoadImmediate(REG_PC, (uint32_t)offset);
+            } else {
+                int32_t pc_adj = pc_offset + offset - 4;
+                AddImmediate(tc, REG_PC, pc_adj);
+            }
+        }
+        else
+        {
+            int32_t pc_adj = pc_offset;
+            AddImmediate(tc, REG_PC, pc_adj);
+        }
+
+        /* Insert local exit */
+        LocalExit(tc, 1);
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        /* Insert fixup location */
+        tc->EMIT({ 
+            (uint32_t)(exit_code_end - jump_location),
+            fixup_type,
+            1,
+            (uint32_t)(exit_code_end - exit_code_start),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+        #endif
+
+        FreeARMRegister(tc, tmp);
+        
+//        (void)bi;
+//        (void)take_branch;
+        return 1;
     }
 
     return 1;
@@ -2897,7 +3105,7 @@ static __used__ int EMIT_bcctrx(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t take_branch = ((bo0 & bo2) | sign) == bo4;
 
     /* Branch always */
-    if (bo & 0b10100) {
+    if ((bo & 0b10100) == 0b10100) {
         /* if LR needs to be updated, do it now */
         if (update_lr) {
             int8_t pc_offset = 4;
@@ -2923,7 +3131,6 @@ static __used__ int EMIT_bcctrx(struct PPCTranslatorContext *tc, uint32_t opcode
 
         tc->ResetOffsetPC();
     } else {
-        kprintf("UNIMPLEMENTED bcctrlx with condition\n");
         (void)bi;
         (void)take_branch;
         return -1;
