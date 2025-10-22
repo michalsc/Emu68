@@ -21,6 +21,29 @@ uintptr_t tlsf_get_free_size(void *memory);
 
 #ifdef __cplusplus
 }
+
+namespace Emu68 {
+
+class TLSF
+{
+public:
+    TLSF() : handle(nullptr) {}
+    TLSF(void *memory, uintptr_t size) { handle = tlsf_init_with_memory(memory, size); }
+    TLSF(void *handle) : handle(handle) {}
+
+    void *malloc(uintptr_t size) { return tlsf_malloc(handle, size); }
+    void *malloc_aligned(uintptr_t size, uintptr_t align) { return tlsf_malloc_aligned(handle, size, align); }
+    void *realloc(void *ptr, uintptr_t new_size) { return tlsf_realloc(handle, ptr, new_size); }
+    void free(void *ptr) { tlsf_free(handle, ptr); }
+    uintptr_t total_size() { return tlsf_get_total_size(handle); }
+    uintptr_t free_size() { return tlsf_get_free_size(handle); }
+
+private:
+    void *handle;
+};
+
+}
+
 #endif
 
 #endif /* _TLSF_H */
