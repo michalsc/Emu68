@@ -4132,13 +4132,11 @@ static __used__ int EMIT_subfic(struct PPCTranslatorContext *tc, uint32_t opcode
         tc->EMIT( mov_immed_u16(tmp, imm, 0));
     }
 
-    // TODO: Verify if flag set correctly
-
     tc->EMIT({ 
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         subs_reg(reg_rd, tmp, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
-        csel(reg_xer, tmp, reg_xer, A64_CC_CC)  // Select CA set or clear in XER depending on A64 C flag
+        csel(reg_xer, tmp, reg_xer, A64_CC_CS)  // Select CA set or clear in XER depending on A64 C flag
     });
 
     FreeARMRegister(tc, tmp);
@@ -4168,7 +4166,7 @@ static __used__ int EMIT_subfcx(struct PPCTranslatorContext *tc, uint32_t opcode
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         subs_reg(reg_rd, reg_rb, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
-        csel(reg_xer, tmp, reg_xer, A64_CC_CC)  // Select CA set or clear in XER depending on A64 C flag
+        csel(reg_xer, tmp, reg_xer, A64_CC_CS)  // Select CA set or clear in XER depending on A64 C flag
     });
 
     if (oe) {
