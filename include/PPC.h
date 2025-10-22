@@ -14,9 +14,7 @@
 #include <stdarg.h>
 #include <cpp/nodes>
 
-extern "C" {
 #include "A64.h"
-}
 
 #include "TranslatorContext.hpp"
 
@@ -281,6 +279,12 @@ struct PPCLocalState
     int32_t         pls_PCRel;
 };
 
+struct RegisterNode : public Emu68::Node {
+    uint8_t rn_RegNum;
+    uint8_t rn_ARM;
+    uint8_t rn_Dirty;
+};
+
 struct PPCTranslationUnit;
 struct TranslationUnitLRU : public Emu68::Node {
     PPCTranslationUnit *unit;
@@ -338,6 +342,52 @@ struct PPCTranslatorContext : public TranslatorContext {
     void ResetOffsetPC() { _pc_rel = 0; }
 };
 
+inline void PPCTranslatorContext::GetOffsetPC(int8_t *offset) {
+    // Calculate new PC relative offset
+    int new_offset = _pc_rel + *offset;
+
+    // If overflow would occur then compute PC and get new offset
+    if (new_offset > 127 || new_offset < -127)
+    {
+        if (_pc_rel > 0)
+            EMIT(add_immed(REG_PC, REG_PC, _pc_rel));
+        else
+            EMIT(sub_immed(REG_PC, REG_PC, -_pc_rel));
+
+        _pc_rel = 0;
+        new_offset = *offset;
+    }
+
+    *offset = new_offset;
+}
+
+inline void PPCTranslatorContext::AdvancePC(uint8_t offset)
+{
+    // Calculate new PC relative offset
+    _pc_rel += (int)offset;
+
+    // If overflow would occur then compute PC and get new offset
+    if (_pc_rel > 120 || _pc_rel < -120)
+    {
+        if (_pc_rel > 0)
+            EMIT(add_immed(REG_PC, REG_PC, _pc_rel));
+        else
+            EMIT(sub_immed(REG_PC, REG_PC, -_pc_rel));
+
+        _pc_rel = 0;
+    }
+}
+
+inline void PPCTranslatorContext::FlushPC()
+{
+    if (_pc_rel > 0)
+            EMIT(add_immed(REG_PC, REG_PC, _pc_rel));
+    else if (_pc_rel < 0)
+            EMIT(sub_immed(REG_PC, REG_PC, -_pc_rel));
+
+    _pc_rel = 0;
+}
+
 struct Opcode {
     uint32_t opcode;
 
@@ -367,6 +417,41 @@ struct Opcode {
     }
 };
 
+/* Utility inlines */
+static inline uint32_t getEPOCH()
+{
+    uint32_t epoch;
+    __asm__ volatile("mov %w0, " EPOCH_ASM :"=r"(epoch));
+    return epoch;
 }
+
+static inline struct PPCState *getHostCTX()
+{
+    struct PPCState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
+
+/* Map between PPC integer/special purpose registers and AArch64 registers */
+
+#define GPR(n)  (n)
+#define CRn     32
+#define XERn    33
+#define LRn     34
+#define CTRn    35
+#define FPSCRn  36
+#define PCn     37
+
+// Mapping for fixed PPC registers, all -1 regs are dynamically allocated
+constexpr uint8_t INT_REG_MAPPING[] = {
+     REG_GPR0,  REG_GPR1,  REG_GPR2,  REG_GPR3,  REG_GPR4,  REG_GPR5,  REG_GPR6,  REG_GPR7, // GPR00 .. GPR07
+     REG_GPR8,  REG_GPR9, REG_GPR10, REG_GPR11, REG_GPR12, REG_GPR13,       255,       255, // GPR08 .. GPR15
+          255,       255,       255,       255,       255,       255,       255,       255, // GPR16 .. GPR23
+          255,       255,       255,       255,       255,       255,       255,       255, // GPR24 .. GPR31
+          255,       255,    REG_LR,   REG_CTR,       255,    REG_PC                        // CR, XER, LR, CTR, FPSCR, PC
+};
+
+
+} // Emu68::PPC
 
 #endif /* _PPC_H */
