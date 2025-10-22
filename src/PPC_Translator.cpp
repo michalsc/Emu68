@@ -639,6 +639,42 @@ void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
     FreeARMRegister(tc, tmp);
 }
 
+void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
+{
+    uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
+    uint8_t tmp = AllocARMRegister(tc);
+    uint8_t reg_xer;
+
+    /* Shift right XER by 31 so that SO is bit 0 */
+    if ((reg_xer = IsGPRMapped(tc, XERn)) != 0xff)
+    {
+        /* XER was already in one of GPRs, rotate with tmp as target */
+        tc->EMIT(lsr(tmp, reg_xer, 31));
+    }
+    else
+    {
+        /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
+        tc->EMIT({
+            mov_simd_to_reg(tmp, REG_XER),
+            lsr(tmp, tmp, 31)
+        });
+    }
+
+    uint8_t reg_zero_case = AllocARMRegister(tc);
+
+    tc->EMIT({
+        orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
+        orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+        csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
+
+        /* Insert into CRn */
+        bfi(reg_cr, tmp, 4 * (7 - cr), 4)
+    });
+
+    FreeARMRegister(tc, reg_zero_case);
+    FreeARMRegister(tc, tmp);
+}
+
 void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
