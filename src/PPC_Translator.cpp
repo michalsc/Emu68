@@ -877,6 +877,10 @@ static __used__ int EMIT_cmpi(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint16_t imm = opcode & 0xffff;
     int32_t simm = (int16_t)imm;
 
+    /* Force-load XER and CR */
+    MapGPRForRead(tc, XERn);
+    MapGPRForReadAndWrite(tc, CRn);
+
     uint8_t reg_ra = MapGPRForRead(tc, ra);
 
     /* Is the immediate in range for CMP? */
@@ -4531,6 +4535,10 @@ static __used__ int EMIT_cmp(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     uint8_t reg_ra = MapGPRForRead(tc, ra);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
+
+    /* Force-load XER and CR */
+    MapGPRForRead(tc, XERn);
+    MapGPRForReadAndWrite(tc, CRn);
 
     tc->EMIT( cmp_reg(reg_ra, reg_rb, LSL, 0));
 
