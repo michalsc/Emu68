@@ -5659,8 +5659,14 @@ static inline int EmitINSN(struct PPCTranslatorContext *tc)
     }
 
     if (count < 1) {
-        kprintf("[PPC] UNIMPLEMENTED %08x @ %08x...", opcode, (uint32_t)(uintptr_t)tc->tc_PPCCodePtr);
-        PPC_PrintContext(getHostCTX());
+        kprintf("[PPC] UNIMPLEMENTED %08x @ %08x...\n", opcode, (uint32_t)(uintptr_t)tc->tc_PPCCodePtr);
+
+        if (!disasm) {
+            disasm_open();
+        }
+
+        disasm_print_ppc_only(tc->tc_PPCCodePtr);
+
         while(1);
     }
 
