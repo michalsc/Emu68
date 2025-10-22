@@ -1499,8 +1499,20 @@ void boot(void *dtree)
 
             tlsf_free(tlsf, initramfs_loc);
 
-            if (ptr)
-                M68K_StartEmu(ptr, fdt);
+            if (ptr) {
+                if (GetELFMachine() == 20) {
+                    /* Fire PPC */
+                    extern spinlock_t PPCStart;
+                    extern uint32_t ppc_boot_addr;
+                    ppc_boot_addr = (uint32_t)(uintptr_t)ptr;
+                    spinlock_release(&PPCStart);
+                }
+                else
+                {
+                    M68K_StartEmu(ptr, fdt);
+                }
+            }
+                
             
             while(1) __asm__ volatile("wfi");
         }
