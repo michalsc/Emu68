@@ -4775,9 +4775,9 @@ static __used__ int EMIT_srwx(struct PPCTranslatorContext *tc, uint32_t opcode)
     
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapGPRForRead(tc, ra);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     tc->EMIT( lsrv(reg_ra, reg_rs, reg_rb));
 
@@ -4799,9 +4799,9 @@ static __used__ int EMIT_slwx(struct PPCTranslatorContext *tc, uint32_t opcode)
     
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     tc->EMIT( lslv(reg_ra, reg_rs, reg_rb));
 
@@ -4823,8 +4823,8 @@ static __used__ int EMIT_srawix(struct PPCTranslatorContext *tc, uint32_t opcode
     
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapGPRForRead(tc, ra);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     uint8_t tmp = AllocARMRegister(tc);
     uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
@@ -4867,9 +4867,9 @@ static __used__ int EMIT_srawx(struct PPCTranslatorContext *tc, uint32_t opcode)
     
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapGPRForRead(tc, ra);
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     uint8_t tmp = AllocARMRegister(tc);
     uint8_t mask = AllocARMRegister(tc);
@@ -4915,8 +4915,8 @@ static __used__ int EMIT_extsbx(struct PPCTranslatorContext *tc, uint32_t opcode
     
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapGPRForRead(tc, ra);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
     
     tc->EMIT( sxtb(reg_ra, reg_rs));
 
@@ -4940,8 +4940,8 @@ static __used__ int EMIT_extshx(struct PPCTranslatorContext *tc, uint32_t opcode
     
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapGPRForRead(tc, ra);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
+    uint8_t reg_rs = MapGPRForRead(tc, rs);
+    uint8_t reg_ra = MapGPRForWrite(tc, ra);
     
     tc->EMIT( sxth(reg_ra, reg_rs));
 
