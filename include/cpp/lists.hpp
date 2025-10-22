@@ -10,7 +10,7 @@ class NodeIterator
 {
     T * _n;
 public:
-    NodeIterator(T * node) : _n(node) {}
+    NodeIterator(Node * node) : _n(static_cast<T *>(node)) {}
     NodeIterator(const NodeIterator &it) : _n(it._n) {}
     NodeIterator &operator++() { _n = static_cast<T *>(_n->next()); return *this; }
     NodeIterator &operator--() { _n = static_cast<T *>(_n->prev()); return *this; }
@@ -24,8 +24,8 @@ public:
 template < class T = Node >
 class List
 {
-    T l_head;
-    T l_tail;
+    Node l_head;
+    Node l_tail;
 
 public:
     List() {
