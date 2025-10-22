@@ -5349,8 +5349,8 @@ static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
             FreeARMRegister(tc, imm);
         } else {
             tc->EMIT({
-                bic_immed(reg_cr, reg_cr, (mask >> 16) & 0x3f, mask & 0x3f),
-                and_immed(tmp, tmp, (mask >> 16) & 0x3f, mask & 0x3f),
+                bic_immed(reg_cr, reg_cr, (encoded >> 16) & 0x3f, encoded & 0x3f),
+                and_immed(tmp, tmp, (encoded >> 16) & 0x3f, encoded & 0x3f),
                 orr_reg(reg_cr, reg_cr, tmp, LSL, 0)
             });
         }
