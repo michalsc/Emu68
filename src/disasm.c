@@ -192,6 +192,45 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
         cs_free(insn_arm, count_arm);
 }
 
+void disasm_print_ppc_only(uint32_t *ppc_addr)
+{
+    cs_insn *insn_ppc;
+    size_t count_ppc = 0;
+
+    count_ppc = cs_disasm(h_ppc, (const uint8_t *)(ppc_addr-2), 128, (uintptr_t)ppc_addr-8, 7, &insn_ppc);
+
+    for (size_t i=0; i < count_ppc; i++)
+    {
+        if (insn_ppc[i].address == (uintptr_t)ppc_addr)
+            kprintf("[PPC] %08x: --> %7s %21s", insn_ppc[i].address, insn_ppc[i].mnemonic, insn_ppc[i].op_str);
+        else
+            kprintf("[PPC] %08x:     %7s %21s", insn_ppc[i].address, insn_ppc[i].mnemonic, insn_ppc[i].op_str);
+        kprintf("\n");
+    }
+
+    if (count_ppc)
+        cs_free(insn_ppc, count_ppc);
+}
+
+void disasm_print_arm_only(uint32_t *arm_addr)
+{
+    cs_insn *insn_arm;
+    size_t count_arm = 0;
+
+    count_arm = cs_disasm(h_arm, (const uint8_t *)(arm_addr-2), 128, (uintptr_t)arm_addr-8, 7, &insn_arm);
+
+    for (size_t i=0; i < count_arm; i++)
+    {
+        if (insn_arm[i].address == (uintptr_t)arm_addr)
+            kprintf("[JIT:SYS] %p: --> %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+        else
+            kprintf("[JIT_SYS] %p:     %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+        kprintf("\n");
+    }
+
+    if (count_arm)
+        cs_free(insn_arm, count_arm);
+}
 
 void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
 {
