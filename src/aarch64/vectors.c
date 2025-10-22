@@ -2192,6 +2192,8 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 #undef D
 #define D(x)  x 
 
+#include "disasm.h"
+
 void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     int handled = 0;
@@ -2352,9 +2354,9 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
         kprintf("[JIT:SYS] Failed instruction: %08x\n", LE32(*(uint32_t*)elr));
         uint32_t *ptr = (uint32_t *)elr;
         
-        for (int i=-10; i < 11; i++) {
-            kprintf("[JIT:SYS] %p: %s %08x\n", &ptr[i], i == 0 ? "-->" : "   ", ptr[i]);
-        }
+        disasm_open();
+
+        disasm_print_arm_only(ptr);
 
         for (int i=0; i < 16; i++)
         {
