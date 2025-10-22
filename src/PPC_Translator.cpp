@@ -2470,7 +2470,10 @@ static __used__ int EMIT_andis_dot(struct PPCTranslatorContext *tc, uint32_t opc
         tc->EMIT( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
-    EMIT_set_crn_logic(tc, 0);
+    if (immed & 0x8000)
+        EMIT_set_crn_logic(tc, 0);
+    else
+        EMIT_set_crn_logic_no_minus(tc, 0);
 
     tc->tc_PPCCodePtr++;
     tc->AdvancePC(4);
