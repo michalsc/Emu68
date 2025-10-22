@@ -4249,7 +4249,7 @@ static __used__ int EMIT_addex(struct PPCTranslatorContext *tc, uint32_t opcode)
     // TODO: Verify if flag set correctly
 
     tc->EMIT({ 
-        bfxil(tmp, reg_xer, 29, 1),                 // Extract CA field into tmp
+        ubfx(tmp, reg_xer, 29, 1),                 // Extract CA field into tmp
         subs_immed(WZR, tmp, 1),                    // Subtract 1, this will set carry bit
         bic_immed(reg_xer, reg_xer, 1, 3),          // Clear CA flag in xer
         adcs(reg_rd, reg_ra, reg_rb),               // Add with carry
