@@ -5402,6 +5402,33 @@ static __used__ int EMIT_sc(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_subfex(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t rc = opcode & 1;
+    uint8_t oe = (opcode >> 10) & 1;
+
+    uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
+
+    /* Shortcut - subfe rX, rX, rX gives the CA flag in rX */
+    if (rc == 0 && oe == 0 && rd == ra && rd == rb) {
+        uint8_t reg_rd = MapGPRForWrite(tc, rd);
+
+        tc->EMIT({
+            tst_immed(reg_xer, 1, 3),
+            csetm(reg_rd, A64_CC_EQ)
+        });
+
+        tc->tc_PPCCodePtr++;
+        tc->AdvancePC(4);
+        return 1;
+    }
+
+    return -1;
+}
+
 static __used__ int EMIT_rfi(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -5519,7 +5546,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
         case 0b0001101000: return EMIT_negx(tc, opcode);
         case 0b0001110111: return EMIT_lbzux(tc, opcode);
         case 0b0001111100: return EMIT_norx(tc, opcode);
-        //case 0b0010001000: return EMIT_subfex(tc, opcode);
+        case 0b0010001000: return EMIT_subfex(tc, opcode);
         case 0b0010001010: return EMIT_addex(tc, opcode);
         case 0b0010010000: return EMIT_mtcrf(tc, opcode);
         case 0b0010010010: return EMIT_mtmsr(tc, opcode);     // OEA, supervisor
