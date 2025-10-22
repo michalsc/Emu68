@@ -918,7 +918,7 @@ static __used__ int EMIT_cmpli(struct PPCTranslatorContext *tc, uint32_t opcode)
         /* Force-load XER and CR */
     MapGPRForRead(tc, XERn);
     MapGPRForReadAndWrite(tc, CRn);
-    
+
     uint8_t reg_ra = MapGPRForRead(tc, ra);
 
     /* Is the immediate in range for CMP? */
@@ -2298,6 +2298,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         }
     } else {
         uint8_t success_condition;
+        bool use_tbz = false;
 
         /* BO[2] == 0 - decrement CTR and set condition */
         if (dec_ctr) {
@@ -2324,10 +2325,11 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
                 success_condition = A64_CC_NE;
             }
         } else {
-            uint8_t reg_cr = MapGPRForRead(tc, CRn);
+            //uint8_t reg_cr = MapGPRForRead(tc, CRn);
             /* Check the condition */
-            tc->EMIT( tst_immed(reg_cr, 1, (1 + bi) & 31));
+            //tc->EMIT( tst_immed(reg_cr, 1, (1 + bi) & 31));
             success_condition = condition_true ? A64_CC_NE : A64_CC_EQ;
+            use_tbz = true;
         }
 
         /* If branch is taken by default, invert success condition, since it will jump to local exit point */
@@ -2342,9 +2344,21 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         /* Emit jump, remember its location and fixup type */
-        uint32_t fixup_type = FIXUP_BCC;
-        uint32_t *jump_location = tc->tc_CodePtr;
-        tc->EMIT( b_cc(success_condition, 0));
+        uint32_t fixup_type = use_tbz ? FIXUP_TBZ : FIXUP_BCC;
+        
+        if (use_tbz) {
+            uint8_t reg_cr = MapGPRForRead(tc, CRn);
+            
+            tc->EMIT(
+                success_condition == A64_CC_EQ ?
+                    tbz(reg_cr, 31 - bi, 0):
+                    tbnz(reg_cr, 31 - bi, 0)
+            );
+        } else { 
+            tc->EMIT( b_cc(success_condition, 0));
+        }
+
+        uint32_t *jump_location = tc->tc_CodePtr - 1;
 
         /* Here the expected code path follows */
         if (take_branch)
