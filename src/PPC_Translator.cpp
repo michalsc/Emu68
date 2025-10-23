@@ -13,7 +13,7 @@
 
 #include <cpp/lists>
 #include <cpp/nodes>
-#include <cpp/lrucache.hpp>
+#include <cpp/lrucache>
 
 #include "PPC.h"
 #include "intc.h"
@@ -603,6 +603,8 @@ void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
+
+#if PPC_SO_PROPAGATION
     uint8_t reg_xer;
 
     /* Shift right XER by 31 so that SO is bit 0 */
@@ -619,14 +621,21 @@ void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
             lsr(tmp, tmp, 31)
         });
     }
+#endif
 
     uint8_t reg_zero_case = AllocARMRegister(tc);
     uint8_t reg_minus_case = AllocARMRegister(tc);
 
     tc->EMIT({
+#if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
         orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+#else
+        mov_immed_u16(reg_zero_case, 2, 0),
+        mov_immed_u16(reg_minus_case, 8, 0),
+        mov_immed_u16(tmp, 4, 0),
+#endif
         csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
         csel(tmp, reg_minus_case, tmp, A64_CC_MI),
 
@@ -643,6 +652,8 @@ void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
+
+#if PPC_SO_PROPAGATION
     uint8_t reg_xer;
 
     /* Shift right XER by 31 so that SO is bit 0 */
@@ -659,12 +670,18 @@ void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
             lsr(tmp, tmp, 31)
         });
     }
+#endif
 
     uint8_t reg_zero_case = AllocARMRegister(tc);
 
     tc->EMIT({
+#if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+#else
+        mov_immed_u16(reg_zero_case, 2, 0),
+        mov_immed_u16(tmp, 4, 0),
+#endif
         csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
 
         /* Insert into CRn */
@@ -679,6 +696,8 @@ void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
+
+#if PPC_SO_PROPAGATION
     uint8_t reg_xer;
 
     /* Shift right XER by 31 so that SO is bit 0 */
@@ -695,14 +714,21 @@ void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
             lsr(tmp, tmp, 31)
         });
     }
+#endif
 
     uint8_t reg_zero_case = AllocARMRegister(tc);
     uint8_t reg_minus_case = AllocARMRegister(tc);
 
     tc->EMIT({ 
+#if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
         orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+#else
+        mov_immed_u16(reg_zero_case, 2, 0),
+        mov_immed_u16(reg_minus_case, 8, 0),
+        mov_immed_u16(tmp, 4, 0),
+#endif
         csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
         csel(tmp, reg_minus_case, tmp, A64_CC_CC),
 
@@ -719,6 +745,8 @@ void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
+
+#if PPC_SO_PROPAGATION
     uint8_t reg_xer = MapGPRForRead(tc, XERn);
 
     /* Shift right XER by 31 so that SO is bit 0 */
@@ -735,14 +763,21 @@ void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr)
             lsr(tmp, tmp, 31)
         });
     }
+#endif
 
     uint8_t reg_zero_case = AllocARMRegister(tc);
     uint8_t reg_minus_case = AllocARMRegister(tc);
 
-    tc->EMIT({ 
+    tc->EMIT({
+#if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
         orr_immed(tmp, tmp, 1, 30),            // Set GT flag
+#else
+        mov_immed_u16(reg_zero_case, 2, 0),
+        mov_immed_u16(reg_minus_case, 8, 0),
+        mov_immed_u16(tmp, 4, 0),
+#endif
         csel(tmp, reg_zero_case, tmp, A64_CC_EQ),
         csel(tmp, reg_minus_case, tmp, A64_CC_LT),
 
@@ -878,7 +913,9 @@ static __used__ int EMIT_cmpi(struct PPCTranslatorContext *tc, uint32_t opcode)
     int32_t simm = (int16_t)imm;
 
     /* Force-load XER and CR */
+#if PPC_SO_PROPAGATION
     MapGPRForRead(tc, XERn);
+#endif
     MapGPRForReadAndWrite(tc, CRn);
 
     uint8_t reg_ra = MapGPRForRead(tc, ra);
@@ -915,8 +952,10 @@ static __used__ int EMIT_cmpli(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint32_t imm = opcode & 0xffff;
 
-        /* Force-load XER and CR */
+    /* Force-load XER and CR */
+#if PPC_SO_PROPAGATION
     MapGPRForRead(tc, XERn);
+#endif
     MapGPRForReadAndWrite(tc, CRn);
 
     uint8_t reg_ra = MapGPRForRead(tc, ra);
@@ -3827,36 +3866,49 @@ static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcod
 
     /* TODO: add obvious shortcuts! */
 
-    /* If sh is set, rotate left */
-    if (sh) {
-        tc->EMIT( ror(reg_ra, reg_rs, (32 - sh) & 31));
-        and_src = reg_ra;
-    }
-
-    /* Mask result if me - mb is not 31 */
-    if (((me - mb) & 31) != 31)
+    if (mb == 0 && me == (31 - sh))
     {
-        if (mb <= me)
-        {
-            /* mb < me - mask of type 0x0f...f0 */
-            tc->EMIT( update_cr ?
-                ands_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1)) :
-                and_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1))
-            );
+        /* shifting left, leaving zeros on right */
+        tc->EMIT(lsl(reg_ra, reg_rs, sh));
+    }
+    else if (me == 31 && sh == (32 - mb))
+    {
+        /* shifting right, zeros on the left */
+        tc->EMIT(lsr(reg_ra, reg_rs, 32 - sh));
+    }
+    else
+    {
+        /* If sh is set, rotate left */
+        if (sh) {
+            tc->EMIT( ror(reg_ra, reg_rs, (32 - sh) & 31));
+            and_src = reg_ra;
         }
-        else if (me < mb)
+
+        /* Mask result if me - mb is not 31 */
+        if (((me - mb) & 31) != 31)
         {
-            /* mb < me - mask of type 0xf..0..f */
-            tc->EMIT( update_cr ?
-                ands_immed(reg_ra, and_src, mb - me - 1, me + 1) :
-                and_immed(reg_ra, and_src, mb - me - 1, me + 1)
-            );
+            if (mb <= me)
+            {
+                /* mb < me - mask of type 0x0f...f0 */
+                tc->EMIT( update_cr ?
+                    ands_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1)) :
+                    and_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1))
+                );
+            }
+            else if (me < mb)
+            {
+                /* mb < me - mask of type 0xf..0..f */
+                tc->EMIT( update_cr ?
+                    ands_immed(reg_ra, and_src, mb - me - 1, me + 1) :
+                    and_immed(reg_ra, and_src, mb - me - 1, me + 1)
+                );
+            }
+        } else if (update_cr) {
+            if (!sh)
+                tc->EMIT( adds_immed(reg_ra, reg_rs, 0));
+            else
+                tc->EMIT( tst_immed(reg_ra, 32, 0));
         }
-    } else if (update_cr) {
-        if (!sh)
-            tc->EMIT( adds_immed(reg_ra, reg_rs, 0));
-        else
-            tc->EMIT( tst_immed(reg_ra, 32, 0));
     }
 
     if (update_cr) 
@@ -4555,7 +4607,9 @@ static __used__ int EMIT_cmp(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rb = MapGPRForRead(tc, rb);
 
     /* Force-load XER and CR */
+#if PPC_SO_PROPAGATION
     MapGPRForRead(tc, XERn);
+#endif
     MapGPRForReadAndWrite(tc, CRn);
 
     tc->EMIT( cmp_reg(reg_ra, reg_rb, LSL, 0));
@@ -4755,8 +4809,10 @@ static __used__ int EMIT_cmpl(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
     uint8_t cr = (opcode >> 23) & 7;
 
-        /* Force-load XER and CR */
+    /* Force-load XER and CR */
+#if PPC_SO_PROPAGATION
     MapGPRForRead(tc, XERn);
+#endif
     MapGPRForReadAndWrite(tc, CRn);
 
     uint8_t reg_ra = MapGPRForRead(tc, ra);

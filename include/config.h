@@ -28,6 +28,9 @@
 #define SET_OPTIONS_AT_RUNTIME  0
 #endif
 
+/* Set 1 to propagate SO bit from XER to CRn */
+#define PPC_SO_PROPAGATION      0
+
 #define EMU68_USE_LRU           1
 #define EMU68_LRU_WAY_COUNT     4
 #define EMU68_LRU_SET_COUNT     128
