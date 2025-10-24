@@ -46,6 +46,9 @@ Register ``X12`` is a pointer to the entry point of currently used JIT block.
 | ``FPR11``                | ``D19``                      | Floating point register                          |
 | ``FPR12``                | ``D27``                      | Floating point register                          |
 | ``FPR13``                | ``D28``                      | Floating point register                          |
+| ``FPR29``                | ``D29``                      | Floating point register                          |
+| ``FPR30``                | ``D30``                      | Floating point register                          |
+| ``FPR31``                | ``D31``                      | Floating point register                          |
 | ``FPSCR``                | ``V20.S[0]``                 | FPU Status and Control register                  |
 | *EPOCH*                  | ``V20.S[1]``                 | Cache EPOCH counter.                             |
 | *last PC*                | ``V20.S[3]``                 | Program counter of previously executed JIT block |
