@@ -306,6 +306,7 @@ extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
 int zorro_disable = 0;
+int ppc_enable = 0;
 int chip_slowdown;
 int dbf_slowdown;
 int debug_not_implemented = 0;
@@ -446,14 +447,14 @@ void secondary_boot(void)
         }
     }
 
-    if (cpu_id == 3) {
+    if (cpu_id == 3 && ppc_enable) {
         extern void InitPPC();
         InitPPC();
     }
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-    if (cpu_id == 3) {
+    if (cpu_id == 3 && ppc_enable) {
         extern void StartupPPC();
         StartupPPC();
     }
@@ -544,6 +545,7 @@ void parse_cmdline(const char *cmdline)
 {
     const char *tok;
 
+    ppc_enable = !!find_token(cmdline, "ppc_enable");
     enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
 
