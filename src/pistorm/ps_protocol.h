@@ -119,8 +119,8 @@ extern void (*ps_write_32_int)(unsigned int address, unsigned int data);
 
 #endif
 
-void ps_memtest();
-void ps_buptest();
+void ps_memtest(unsigned int test_size);
+void ps_buptest(unsigned int test_size, unsigned int maxiter);
 
 unsigned int ps_read_status_reg();
 void ps_write_status_reg(unsigned int value);
