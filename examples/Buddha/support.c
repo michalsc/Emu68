@@ -10,6 +10,8 @@ void silence(int s)
     silent = s;
 }
 
+#if 0
+
 double copysign (double x, double y)
 {
     union {
@@ -381,6 +383,8 @@ double erand48(unsigned short *Xi)
 
     return n.d;
 }
+
+#endif
 
 void *memcpy(void *d, const void *s, long unsigned int l)
 {
