@@ -47,7 +47,7 @@ struct PPCState
     union {
         double FPR[32];
         uint64_t FPR_u64[32];
-    };
+    } __attribute__((aligned(8)));
 
     /* VEA */
     uint64_t TB_offset;
@@ -117,34 +117,64 @@ struct PPCState
 #define REG_GPR12   26
 #define REG_GPR13   27
 
-#define REG_FPSCR_VN 19
+#define REG_FPR0    8
+#define REG_FPR1    9
+#define REG_FPR2    10
+#define REG_FPR3    11
+#define REG_FPR4    12
+#define REG_FPR5    13
+#define REG_FPR6    14
+#define REG_FPR7    15
+#define REG_FPR8    16
+#define REG_FPR9    17
+#define REG_FPR10   18
+#define REG_FPR11   19
+#define REG_FPR12   27
+#define REG_FPR13   28
+
+#define REG_FPSCR_VN 20
 #define REG_FPSCR_SIZE TS_S
 #define REG_FPSCR_POS 0
-#define REG_FPSCR_ASM "v19.s[0]"
+#define REG_FPSCR_ASM "v20.s[0]"
 
 #define REG_FPSCR    REG_FPSCR_VN,REG_FPSCR_SIZE,REG_FPSCR_POS
 
-#define EPOCH_VN 19
+#define EPOCH_VN 20
 #define EPOCH_SIZE TS_S
 #define EPOCH_POS 1
-#define EPOCH_ASM "v19.s[1]"
+#define EPOCH_ASM "v20.s[1]"
 
 #define EPOCH       EPOCH_VN,EPOCH_SIZE,EPOCH_POS
 
-#define CTX_LAST_PC_VN 19
+#undef CTX_LAST_PC_VN
+#undef CTX_LAST_PC_SIZE
+#undef CTX_LAST_PC_POS
+#undef CTX_LAST_PC_ASM
+
+#define CTX_LAST_PC_VN 20
 #define CTX_LAST_PC_SIZE TS_S
 #define CTX_LAST_PC_POS 3
-#define CTX_LAST_PC_ASM "v19.s[3]"
+#define CTX_LAST_PC_ASM "v20.s[3]"
 
-#define CTX_POINTER_VN 20
+#undef CTX_POINTER_VN
+#undef CTX_POINTER_SIZE
+#undef CTX_POINTER_POS
+#undef CTX_POINTER_ASM
+
+#define CTX_POINTER_VN 21
 #define CTX_POINTER_SIZE TS_D
 #define CTX_POINTER_POS 1
-#define CTX_POINTER_ASM "v20.d[1]"
+#define CTX_POINTER_ASM "v21.d[1]"
 
-#define CTX_INSN_COUNT_VN 20
+#undef CTX_INSN_COUNT_VN
+#undef CTX_INSN_COUNT_ASM
+#undef CTX_INSN_COUNT_SIZE
+#undef CTX_INSN_COUNT_POS
+
+#define CTX_INSN_COUNT_VN 21
 #define CTX_INSN_COUNT_SIZE TS_D
 #define CTX_INSN_COUNT_POS 0
-#define CTX_INSN_COUNT_ASM "v20.d[0]"
+#define CTX_INSN_COUNT_ASM "v21.d[0]"
 
 #define CTX_POINTER     CTX_POINTER_VN,CTX_POINTER_SIZE,CTX_POINTER_POS
 #define CTX_INSN_COUNT  CTX_INSN_COUNT_VN,CTX_INSN_COUNT_SIZE,CTX_INSN_COUNT_POS
@@ -340,7 +370,27 @@ struct PPCTranslatorContext : public TranslatorContext {
     void AdvancePC(uint8_t offset);
     void FlushPC();
     void ResetOffsetPC() { _pc_rel = 0; }
+    void EMIT_Exception(uint16_t type);
+    void LocalExit(uint32_t insn_fixup);
 };
+
+uint8_t AllocARMRegister(PPCTranslatorContext *tc);
+void FreeARMRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
+uint8_t AllocFPRegister(PPCTranslatorContext *tc);
+void FreeFPRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
+
+uint8_t GetCTX(struct PPCTranslatorContext *tc);
+void StoreDirtyGPRs(struct PPCTranslatorContext *tc);
+void StoreDirtyFPRs(struct PPCTranslatorContext *tc);
+uint8_t MapGPRForRead(struct PPCTranslatorContext *tc, uint8_t reg);
+uint8_t MapGPRForReadAndWrite(struct PPCTranslatorContext *tc, uint8_t reg);
+uint8_t MapGPRForWrite(struct PPCTranslatorContext *tc, uint8_t reg);
+uint8_t IsGPRMapped(struct PPCTranslatorContext *, uint8_t reg);
+uint8_t MapFPRForRead(struct PPCTranslatorContext *tc, uint8_t reg);
+uint8_t MapFPRForReadAndWrite(struct PPCTranslatorContext *tc, uint8_t reg);
+uint8_t MapFPRForWrite(struct PPCTranslatorContext *tc, uint8_t reg);
+uint8_t IsFPRMapped(struct PPCTranslatorContext *, uint8_t reg);
+
 
 inline void PPCTranslatorContext::GetOffsetPC(int8_t *offset) {
     // Calculate new PC relative offset
@@ -435,6 +485,7 @@ static inline struct PPCState *getHostCTX()
 /* Map between PPC integer/special purpose registers and AArch64 registers */
 
 #define GPR(n)  (n)
+#define FPR(n)  (n)
 #define CRn     32
 #define XERn    33
 #define LRn     34
@@ -451,6 +502,60 @@ constexpr uint8_t INT_REG_MAPPING[] = {
           255,       255,    REG_LR,   REG_CTR,       255,    REG_PC                        // CR, XER, LR, CTR, FPSCR, PC
 };
 
+constexpr uint8_t FP_REG_MAPPING[] = {
+     REG_FPR0,  REG_FPR1,  REG_FPR2,  REG_FPR3,  REG_FPR4,  REG_FPR5,  REG_FPR6,  REG_FPR7, // FPR00 .. FPR07
+     REG_FPR8,  REG_FPR9, REG_FPR10, REG_FPR11, REG_FPR12, REG_FPR13,       255,       255, // FPR08 .. FPR15
+          255,       255,       255,       255,       255,       255,       255,       255, // FPR16 .. FPR23
+          255,       255,       255,       255,       255,       255,       255,       255, // FPR24 .. FPR31
+};
+
+int EMIT_lbz(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lbzx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lbzu(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lbzux(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_lha(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhax(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhau(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhaux(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_lhz(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhzx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhzu(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhzux(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lhbrx(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_lwz(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lwzx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lwzu(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lwzux(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lwbrx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lwarx(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_stb(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stbx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stbu(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stbux(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_sth(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_sthx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_sthu(PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_sthux(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_sthbrx(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_stw(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stwx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stwu(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stwux(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stwcx_dot(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stwbrx(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_stfd(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stfs(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_stfiwx(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_lfd(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_lfs(struct PPCTranslatorContext *tc, uint32_t opcode);
 
 } // Emu68::PPC
 

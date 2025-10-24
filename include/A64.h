@@ -615,6 +615,7 @@ static inline uint32_t fstd_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12)
 static inline uint32_t fsts_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fsts(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xbc000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
+static inline uint32_t fsts_regoffset(uint8_t v_dst, uint8_t base, uint8_t rm, uint8_t option, uint8_t amount) { return I32(0xbc000800 | ((base & 31) << 5) | (v_dst & 31) | ((rm & 31) << 16) | ((option & 7) << 13) | (amount ? (1 << 12) : 0)); }
 static inline uint32_t fsts_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0xbd000000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
 static inline uint32_t fstq_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fstq_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3c800400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }

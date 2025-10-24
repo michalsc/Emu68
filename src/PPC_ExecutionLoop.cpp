@@ -13,7 +13,7 @@
 
 #include <cpp/lists>
 #include <cpp/nodes>
-#include <cpp/lrucache.hpp>
+#include <cpp/LRUCache>
 
 #include "PPC.h"
 #include "A64.h"
@@ -77,8 +77,23 @@ void LoadContext(struct PPCState *ctx)
     __asm__ volatile("ld1 {v%0.4s}, [%1]"::"i"(GPR22_VN),"r"(&ctx->GPR[22]));
     __asm__ volatile("ld1 {v%0.4s}, [%1]"::"i"(GPR26_VN),"r"(&ctx->GPR[26]));
     __asm__ volatile("ld1 {v%0.4s}, [%1]"::"i"(GPR30_VN),"r"(&ctx->GPR[30]));
-
+#if 1
     /* FPU part... */
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR0),"m"(ctx->FPR[0]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR1),"m"(ctx->FPR[1]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR2),"m"(ctx->FPR[2]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR3),"m"(ctx->FPR[3]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR4),"m"(ctx->FPR[4]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR5),"m"(ctx->FPR[5]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR6),"m"(ctx->FPR[6]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR7),"m"(ctx->FPR[7]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR8),"m"(ctx->FPR[8]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR9),"m"(ctx->FPR[9]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR10),"m"(ctx->FPR[10]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR11),"m"(ctx->FPR[11]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR12),"m"(ctx->FPR[12]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR13),"m"(ctx->FPR[13]));
+#endif
 }
 
 void SaveContext(struct PPCState *ctx)
@@ -103,8 +118,23 @@ void SaveContext(struct PPCState *ctx)
     __asm__ volatile("st1 {v%0.4s}, [%1]"::"i"(GPR22_VN),"r"(&ctx->GPR[22]));
     __asm__ volatile("st1 {v%0.4s}, [%1]"::"i"(GPR26_VN),"r"(&ctx->GPR[26]));
     __asm__ volatile("st1 {v%0.4s}, [%1]"::"i"(GPR30_VN),"r"(&ctx->GPR[30]));
-
+#if 1
     /* FPU part... */
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR0),"m"(ctx->FPR[0]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR1),"m"(ctx->FPR[1]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR2),"m"(ctx->FPR[2]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR3),"m"(ctx->FPR[3]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR4),"m"(ctx->FPR[4]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR5),"m"(ctx->FPR[5]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR6),"m"(ctx->FPR[6]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR7),"m"(ctx->FPR[7]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR8),"m"(ctx->FPR[8]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR9),"m"(ctx->FPR[9]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR10),"m"(ctx->FPR[10]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR11),"m"(ctx->FPR[11]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR12),"m"(ctx->FPR[12]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR13),"m"(ctx->FPR[13]));
+#endif
 }
 
 static __used__ void PrintContext(struct PPCState *ppc)
@@ -121,9 +151,22 @@ static __used__ void PrintContext(struct PPCState *ppc)
     kprintf("   PC = 0x%08x     LR = 0x%08x ", BE32(ppc->PC), BE32(ppc->LR));
     kprintf("\n[PPC] ");
     kprintf("   CR = 0x%08x    CTR = 0x%08x   XER = 0x%08x\n", BE32(ppc->CR), BE32(ppc->CTR), BE32(ppc->XER));
+    
+    kprintf("[PPC]\n[PPC] ");
 
-    kprintf("[PPC]\n[PPC]  SRR0 = 0x%08x   SRR1 = 0x%08x   MSR = 0x%08x\n", BE32(ppc->SRR0), BE32(ppc->SRR1), BE32(ppc->MSR));
-    kprintf("[PPC]  SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
+    for (int i=0; i < 32; i++) {
+        union {
+            double d;
+            uint64_t u64;
+            uint32_t u[2];
+        } u;
+        if ((i != 0) && ((i & 1) == 0))
+            kprintf("\n[PPC] ");
+        u.u64 = ppc->FPR_u64[i];
+        kprintf("   fr%02d = %08x%08x (%f)", i, u.u[0], u.u[1], u.d);
+    }
+    kprintf("\n[PPC]\n[PPC]    SRR0 = 0x%08x   SRR1 = 0x%08x   MSR = 0x%08x\n", BE32(ppc->SRR0), BE32(ppc->SRR1), BE32(ppc->MSR));
+    kprintf("[PPC]    SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
 }
 
 static inline uint32_t * FindUnitQuick()

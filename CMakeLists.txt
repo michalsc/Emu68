@@ -81,6 +81,8 @@ set(EMU68_FILES
     src/ExecutionLoop.c
     src/PPC_Translator.cpp
     src/PPC_ExecutionLoop.cpp
+    src/PPC_TranslatorContext.cpp
+    src/PPC_LoadStore.cpp
     src/LRUCache.cpp
     
     src/math/__rem_pio2.c
