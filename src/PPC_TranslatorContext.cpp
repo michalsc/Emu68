@@ -1,7 +1,7 @@
 #define restrict __restrict__
 
 #include "config.h"
-#include "ppc.h"
+#include "PPC.h"
 #include "A64.h"
 
 namespace Emu68::PPC {
