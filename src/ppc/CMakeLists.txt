@@ -49,5 +49,16 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+add_executable(Buddha.ppc
+  ../../examples/Buddha/startup_ppc.c
+  ../../examples/Buddha/buddha.c
+  ../../examples/Buddha/support.c
+  ../../examples/Buddha/topaz.c
+)
+
+target_link_options(Buddha.ppc PRIVATE -nostdlib -nostartfiles -ffreestanding -Ttext=0x10000)
+target_compile_options(Buddha.ppc PRIVATE -O2 -mcpu=G3 -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-exceptions -ffreestanding)
+target_include_directories(Buddha.ppc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/Buddha)
+
 configure_file(version.h.in version.h @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/ppc_rom.h DESTINATION .)
