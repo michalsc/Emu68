@@ -200,7 +200,7 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
             install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION . RENAME Emu68-${VARIANT}.gz)
             install(FILES ${CMAKE_BINARY_DIR}/scripts/config.txt DESTINATION .)
         else()
-            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
+            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
             install(FILES ${CMAKE_SOURCE_DIR}/scripts/config.txt DESTINATION .)
         endif()
         add_compile_definitions(RASPI)
@@ -210,14 +210,14 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
             src/pine64/support_pbpro.c
         )
         install(FILES ${CMAKE_SOURCE_DIR}/blobs/rk3399-pinebookpro.dtb DESTINATION .)
-        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
+        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
         install(FILES ${CMAKE_SOURCE_DIR}/scripts/extlinux.conf DESTINATION extlinux/)
     elseif(${TARGET} STREQUAL "virt")
         list(APPEND TARGET_FILES
             src/virt/start_virt.c
             src/virt/support_virt.c
         )
-        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
+        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
     endif()
 
     set(TARGET_ARCH "aarch64")
