@@ -131,6 +131,9 @@ struct PPCState
 #define REG_FPR11   19
 #define REG_FPR12   27
 #define REG_FPR13   28
+#define REG_FPR29   29
+#define REG_FPR30   30
+#define REG_FPR31   31
 
 #define REG_FPSCR_VN 20
 #define REG_FPSCR_SIZE TS_S
@@ -380,6 +383,7 @@ uint8_t AllocFPRegister(PPCTranslatorContext *tc);
 void FreeFPRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
 
 uint8_t GetCTX(struct PPCTranslatorContext *tc);
+uint8_t TryCTX(struct TranslatorContext *);
 void StoreDirtyGPRs(struct PPCTranslatorContext *tc);
 void StoreDirtyFPRs(struct PPCTranslatorContext *tc);
 uint8_t MapGPRForRead(struct PPCTranslatorContext *tc, uint8_t reg);
@@ -506,7 +510,7 @@ constexpr uint8_t FP_REG_MAPPING[] = {
      REG_FPR0,  REG_FPR1,  REG_FPR2,  REG_FPR3,  REG_FPR4,  REG_FPR5,  REG_FPR6,  REG_FPR7, // FPR00 .. FPR07
      REG_FPR8,  REG_FPR9, REG_FPR10, REG_FPR11, REG_FPR12, REG_FPR13,       255,       255, // FPR08 .. FPR15
           255,       255,       255,       255,       255,       255,       255,       255, // FPR16 .. FPR23
-          255,       255,       255,       255,       255,       255,       255,       255, // FPR24 .. FPR31
+          255,       255,       255,       255,       255, REG_FPR29, REG_FPR30, REG_FPR31, // FPR24 .. FPR31
 };
 
 int EMIT_lbz(struct PPCTranslatorContext *tc, uint32_t opcode);
