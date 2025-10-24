@@ -289,12 +289,18 @@ static __used__ void SetDirtyFPR(struct TranslatorContext *, uint8_t reg)
 static __used__ void FlushAllFPRs(struct PPCTranslatorContext *tc)
 {
     struct RegisterNode *rn;//, *next;
+    uint8_t ctx = TryCTX(tc);
+    bool must_flush_ctx = ctx == 0xff;
 
     while((rn = FPR_LRU.remHead()) != nullptr)
     {
         /* If dirty, store it back to PPC context */
         if (rn->rn_Dirty) {
-            uint8_t ctx = GetCTX(tc);
+            if (ctx == 0xff) {
+                ctx = AllocARMRegister(tc);
+                tc->EMIT(mov_simd_to_reg(ctx, CTX_POINTER));
+            }
+
             uint16_t base_offset = __builtin_offsetof(PPCState, FPR) >> 3;
             
             /* Store value from ARM register back into PPC context */
@@ -314,15 +320,25 @@ static __used__ void FlushAllFPRs(struct PPCTranslatorContext *tc)
         /* Add the node itself to free pool */
         FreePool.addTail(rn);
     }
+
+    if (must_flush_ctx)
+        FreeARMRegister(tc, ctx);
 }
 
 void StoreDirtyFPRs(struct PPCTranslatorContext *tc)
 {
+    uint8_t ctx = TryCTX(tc);
+    bool must_flush_ctx = ctx == 0xff;
+
     for(auto rn: FPR_LRU)
     {
         /* If dirty, store it back to PPC context */
         if (rn->rn_Dirty) {
-            uint8_t ctx = GetCTX(tc);
+            if (ctx == 0xff) {
+                ctx = AllocARMRegister(tc);
+                tc->EMIT(mov_simd_to_reg(ctx, CTX_POINTER));
+            }
+
             uint16_t base_offset = __builtin_offsetof(PPCState, FPR) >> 3;
             
             /* Store value from ARM register back into PPC context */
@@ -334,8 +350,13 @@ void StoreDirtyFPRs(struct PPCTranslatorContext *tc)
             {
                 kprintf("[PPC] Illegal reg %d in FlushAllFPRs()\n", rn->rn_ARM);
             }
+
+            FreeARMRegister(tc, ctx);
         }
     }
+
+    if (must_flush_ctx)
+        FreeARMRegister(tc, ctx);
 }
 
 void AddImmediate(struct PPCTranslatorContext *tc, uint8_t rd, int32_t delta) {
@@ -365,7 +386,7 @@ void AddImmediate(struct PPCTranslatorContext *tc, uint8_t rd, int32_t delta) {
     }
 }
 
-static __used__ uint8_t TryCTX(struct TranslatorContext *)
+uint8_t TryCTX(struct TranslatorContext *)
 {
     return reg_CTX;
 }
@@ -4709,6 +4730,32 @@ static __used__ int EMIT_fsubx(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+static __used__ int EMIT_faddx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x000007c0) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t rc = opcode & 1;
+
+    uint8_t reg_ra = MapFPRForRead(tc, ra);
+    uint8_t reg_rb = MapFPRForRead(tc, rb);
+    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+
+    if (rc) {
+        kprintf("fadd. not supported yet!");
+        return -1;
+    }
+
+    tc->EMIT(faddd(reg_rd, reg_ra, reg_rb));
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static __used__ int EMIT_fmulx(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
@@ -4724,7 +4771,7 @@ static __used__ int EMIT_fmulx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rd = MapFPRForWrite(tc, rd);
 
     if (rc) {
-        kprintf("fsub. not supported yet!");
+        kprintf("fmul. not supported yet!");
         return -1;
     }
 
@@ -4750,7 +4797,7 @@ static __used__ int EMIT_fdivx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rd = MapFPRForWrite(tc, rd);
 
     if (rc) {
-        kprintf("fsub. not supported yet!");
+        kprintf("fdiv. not supported yet!");
         return -1;
     }
 
@@ -4775,7 +4822,7 @@ static __used__ int EMIT_fctiwzx(struct PPCTranslatorContext *tc, uint32_t opcod
     uint8_t tmp = AllocARMRegister(tc);
 
     if (rc) {
-        kprintf("fsub. not supported yet!");
+        kprintf("fctiwzx. not supported yet!");
         return -1;
     }
 
@@ -4791,17 +4838,96 @@ static __used__ int EMIT_fctiwzx(struct PPCTranslatorContext *tc, uint32_t opcod
     return 1;
 }
 
+static __used__ int EMIT_fmrx(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x001f0000) return -1;
+
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t rc = opcode & 1;
+
+    uint8_t reg_rb = MapFPRForRead(tc, rb);
+    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+
+    if (rc) {
+        kprintf("fmr. not supported yet!");
+        return -1;
+    }
+
+    tc->EMIT(fcpyd(reg_rd, reg_rb));
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_fcmpu(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check */
+    if (opcode & 0x00600001) return -1;
+
+    uint8_t crn = (opcode >> 23) & 7;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+
+    uint8_t reg_rb = MapFPRForRead(tc, rb);
+    uint8_t reg_ra = MapFPRForRead(tc, ra);
+
+    tc->EMIT(fcmpd(reg_ra, reg_rb));
+
+    EMIT_set_crn_signed(tc, crn);
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
+static __used__ int EMIT_fmadd(struct PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t rc = (opcode >> 6) & 31;
+    uint8_t c = opcode & 1;
+
+    uint8_t reg_ra = MapFPRForRead(tc, ra);
+    uint8_t reg_rb = MapFPRForRead(tc, rb);
+    uint8_t reg_rc = MapFPRForRead(tc, rc);
+    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+
+    if (c) {
+        kprintf("fmadd. not supported yet!");
+        return -1;
+    }
+
+    tc->EMIT(fmaddd(reg_rd, reg_ra, reg_rc, reg_rb));
+
+    tc->tc_PPCCodePtr++;
+    tc->AdvancePC(4);
+    return 1;
+}
+
 static inline int EMIT_Group_63(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
-    uint32_t secondary = (opcode >> 1) & 0x1f;
+    uint32_t secondary_short = (opcode >> 1) & 0x1f;
+    uint32_t secondary_long = (opcode >> 1) & 0x3ff;
 
-    switch (secondary) {
+    switch (secondary_long) {
+        case 0b0000000000: return EMIT_fcmpu(tc, opcode);
+        case 0b0001001000: return EMIT_fmrx(tc, opcode);
+    }
+
+    switch (secondary_short) {
         case 0b10100: return EMIT_fsubx(tc, opcode);
+        case 0b10101: return EMIT_faddx(tc, opcode);
         case 0b11001: return EMIT_fmulx(tc, opcode);
         case 0b10010: return EMIT_fdivx(tc, opcode);
         case 0b01111: return EMIT_fctiwzx(tc, opcode);
-        default: return -1;
+        case 0b11101: return EMIT_fmadd(tc, opcode);
     }
+
+    return -1;
 }
 
 static inline int EMIT_Group_19(struct PPCTranslatorContext *tc, uint32_t opcode)
