@@ -77,23 +77,17 @@ void LoadContext(struct PPCState *ctx)
     __asm__ volatile("ld1 {v%0.4s}, [%1]"::"i"(GPR22_VN),"r"(&ctx->GPR[22]));
     __asm__ volatile("ld1 {v%0.4s}, [%1]"::"i"(GPR26_VN),"r"(&ctx->GPR[26]));
     __asm__ volatile("ld1 {v%0.4s}, [%1]"::"i"(GPR30_VN),"r"(&ctx->GPR[30]));
-#if 1
+
     /* FPU part... */
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR0),"m"(ctx->FPR[0]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR1),"m"(ctx->FPR[1]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR2),"m"(ctx->FPR[2]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR3),"m"(ctx->FPR[3]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR4),"m"(ctx->FPR[4]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR5),"m"(ctx->FPR[5]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR6),"m"(ctx->FPR[6]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR7),"m"(ctx->FPR[7]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR8),"m"(ctx->FPR[8]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR9),"m"(ctx->FPR[9]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR10),"m"(ctx->FPR[10]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR11),"m"(ctx->FPR[11]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR12),"m"(ctx->FPR[12]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR13),"m"(ctx->FPR[13]));
-#endif
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR0),"i"(REG_FPR1),"m"(ctx->FPR[0]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR2),"i"(REG_FPR3),"m"(ctx->FPR[2]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR4),"i"(REG_FPR5),"m"(ctx->FPR[4]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR6),"i"(REG_FPR7),"m"(ctx->FPR[6]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR8),"i"(REG_FPR9),"m"(ctx->FPR[8]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR10),"i"(REG_FPR11),"m"(ctx->FPR[10]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR12),"i"(REG_FPR13),"m"(ctx->FPR[12]));
+    __asm__ volatile("ldp d%0, d%1, %2"::"i"(REG_FPR29),"i"(REG_FPR30),"m"(ctx->FPR[29]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR31),"m"(ctx->FPR[31]));
 }
 
 void SaveContext(struct PPCState *ctx)
@@ -118,23 +112,17 @@ void SaveContext(struct PPCState *ctx)
     __asm__ volatile("st1 {v%0.4s}, [%1]"::"i"(GPR22_VN),"r"(&ctx->GPR[22]));
     __asm__ volatile("st1 {v%0.4s}, [%1]"::"i"(GPR26_VN),"r"(&ctx->GPR[26]));
     __asm__ volatile("st1 {v%0.4s}, [%1]"::"i"(GPR30_VN),"r"(&ctx->GPR[30]));
-#if 1
+
     /* FPU part... */
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR0),"m"(ctx->FPR[0]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR1),"m"(ctx->FPR[1]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR2),"m"(ctx->FPR[2]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR3),"m"(ctx->FPR[3]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR4),"m"(ctx->FPR[4]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR5),"m"(ctx->FPR[5]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR6),"m"(ctx->FPR[6]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR7),"m"(ctx->FPR[7]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR8),"m"(ctx->FPR[8]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR9),"m"(ctx->FPR[9]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR10),"m"(ctx->FPR[10]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR11),"m"(ctx->FPR[11]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR12),"m"(ctx->FPR[12]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FPR13),"m"(ctx->FPR[13]));
-#endif
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR0),"i"(REG_FPR1),"m"(ctx->FPR[0]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR2),"i"(REG_FPR3),"m"(ctx->FPR[2]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR4),"i"(REG_FPR5),"m"(ctx->FPR[4]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR6),"i"(REG_FPR7),"m"(ctx->FPR[6]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR8),"i"(REG_FPR9),"m"(ctx->FPR[8]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR10),"i"(REG_FPR11),"m"(ctx->FPR[10]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR12),"i"(REG_FPR13),"m"(ctx->FPR[12]));
+    __asm__ volatile("stp d%0, d%1, %2"::"i"(REG_FPR29),"i"(REG_FPR30),"m"(ctx->FPR[29]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FPR31),"m"(ctx->FPR[31]));
 }
 
 static __used__ void PrintContext(struct PPCState *ppc)
