@@ -816,11 +816,11 @@ void ps_housekeeper()
         if (housekeeper_enabled)
         {
             uint32_t pin = LE32(*(gpio + 13));
-            __m68k_state->INT.IPL = (pin & (1 << PIN_IPL_ZERO)) ? 0 : 1;
+            __m68k_state->INTF.IPL = (pin & (1 << PIN_IPL_ZERO)) ? 0 : 1;
 
             asm volatile("":::"memory");
 
-            if (__m68k_state->INT.IPL)
+            if (__m68k_state->INTF.IPL)
                 asm volatile("sev":::"memory");
 
             if ((pin & (1 << PIN_RESET)) == 0) {
