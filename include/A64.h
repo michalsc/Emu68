@@ -588,6 +588,8 @@ static inline uint32_t fldq_preindex(uint8_t v_dst, uint8_t base, int16_t offset
 static inline uint32_t fldq_postindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00400 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fldq(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0x3cc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 static inline uint32_t fldq_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0x3dc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
+static inline uint32_t fmaddd(uint8_t v_dst, uint8_t v_n, uint8_t v_m, uint8_t v_a) { return I32(0x1f400000 | ((v_n & 31) << 5) | ((v_a & 31) << 10) | ((v_m & 31) << 16) | (v_dst & 31)); }
+static inline uint32_t fmadds(uint8_t v_dst, uint8_t v_n, uint8_t v_m, uint8_t v_a) { return I32(0x1f000000 | ((v_n & 31) << 5) | ((v_a & 31) << 10) | ((v_m & 31) << 16) | (v_dst & 31)); }
 
 static inline uint32_t fldd_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x5c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
 static inline uint32_t flds_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x1c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
