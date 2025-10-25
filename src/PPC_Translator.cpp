@@ -14,6 +14,7 @@
 #include <cpp/lists>
 #include <cpp/nodes>
 #include <cpp/LRUCache>
+#include <cpp/ReturnStack>
 
 #include "PPC.h"
 #include "intc.h"
@@ -33,44 +34,38 @@ namespace Emu68::PPC {
 register uint32_t PC __asm__("w18");
 register void (*ARMCode)() __asm__("x12");
 
-#if 0
-/* Disable INSN counter for now (not needed yet) */
-#undef EMU68_INSN_COUNTER
-#define EMU68_INSN_COUNTER 0
-#endif
-
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
-#define FPR(n)  (n)
-
 TLSF jit_ppc;
+PPCTranslatorContext localTranslator;
+ReturnStack returnStack;
+List<RegisterNode> FreePool;
+List<RegisterNode> GPR_LRU;
+List<RegisterNode> FPR_LRU;
+
+extern List<PPCTranslationUnit> ICache[EMU68_HASHSIZE];
+extern List<TranslationUnitLRU> LRU;
+
+PPCLocalState *local_state;
+
 
 uint32_t ARMTmpPool;
 uint32_t FPTmpPool;
 uint8_t reg_CTX = 0xff;
-
-PPCTranslatorContext localTranslator;
-
 uint32_t *ppc_high;
 uint32_t *ppc_low;
 uint32_t * ppc_entry_point;
 uint32_t debug_range_min = 0x00000000;
 uint32_t debug_range_max = 0xffffffff;
-struct PPCLocalState *local_state;
 
-Emu68::List<RegisterNode> FreePool;
-Emu68::List<RegisterNode> GPR_LRU;
-Emu68::List<RegisterNode> FPR_LRU;
 
-extern Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE];
-extern Emu68::List<TranslationUnitLRU> LRU;
 
 static __used__ uint32_t GetTempAllocMask(TranslatorContext *)
 {
     return ARMTmpPool;
 }
 
-uint8_t AllocARMRegister(PPCTranslatorContext *tc)
+uint8_t AllocARMRegister(TranslatorContext *tc)
 {
     static int last_allocated = 0;
 
@@ -122,7 +117,7 @@ uint8_t AllocARMRegister(PPCTranslatorContext *tc)
     return rn->rn_ARM;
 }
 
-void FreeARMRegister(struct PPCTranslatorContext *, uint8_t arm_reg)
+void FreeARMRegister(struct TranslatorContext *, uint8_t arm_reg)
 {
     if (arm_reg > 11)
         return;
@@ -752,50 +747,6 @@ void StoreDirtyGPRs(struct PPCTranslatorContext *tc)
     PurgeFlushStore(tc);
 }
 
-#define RTSTACK_SIZE    32
-static uint32_t *ReturnStack[RTSTACK_SIZE];
-static uint32_t ReturnStackDepth = 0;
-
-void PushReturnAddress(uint32_t *ret_addr)
-{
-    if (ReturnStackDepth >= RTSTACK_SIZE) {
-        for (int i=1; i < RTSTACK_SIZE; i++) {
-            ReturnStack[i-1] = ReturnStack[i];
-        }
-        ReturnStackDepth--;
-    }
-
-    ReturnStack[ReturnStackDepth++] = ret_addr;
-}
-
-uint32_t *PopReturnAddress(uint8_t *success)
-{
-    uint32_t *ptr;
-
-    if (EMU68_USE_RETURN_STACK && ReturnStackDepth > 0)
-    {
-        ptr = ReturnStack[--ReturnStackDepth];
-
-        if (success)
-            *success = 1;
-    }
-    else
-    {
-        ptr = (uint32_t *)0xffffffff;
-        if (success)
-            *success = 0;
-    }
-
-    return ptr;
-}
-
-void ResetReturnStack()
-{
-    ReturnStackDepth = 0;
-}
-
-
-
 void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
@@ -1195,7 +1146,7 @@ static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
     if (offset & 0x02000000) offset |= 0xfc000000;
 
     if (update_lr) {
-        PushReturnAddress(tc->tc_PPCCodePtr + 1);
+        returnStack.Push(tc->tc_PPCCodePtr + 1);
 
         if (pc_offset >= 0) {
             tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
@@ -1297,7 +1248,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
 //    kprintf("pc_offset = %d\n", pc_offset);
 
     if (update_lr) {
-        PushReturnAddress(tc->tc_PPCCodePtr + 1);
+        returnStack.Push(tc->tc_PPCCodePtr + 1);
 
         if (pc_offset >= 0) {
             tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
@@ -1915,8 +1866,8 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     /* Branch always */
     if ((bo & 0b10100) == 0b10100) {
-        uint8_t success = 0;
-        uint32_t *last_pc = PopReturnAddress(&success);
+        bool success = 0;
+        uint32_t *last_pc = returnStack.Pop(&success);
 
         /* if LR needs to be updated, do it now */
         if (update_lr) {
@@ -1925,7 +1876,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
             tc->GetOffsetPC(&pc_offset);
 
-            PushReturnAddress(tc->tc_PPCCodePtr + 1);
+            returnStack.Push(tc->tc_PPCCodePtr + 1);
 
             tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
 
@@ -1954,13 +1905,13 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
         tc->ResetOffsetPC();
     } else {
-        uint8_t success = 0;
+        bool success = 0;
         uint8_t success_condition;
         uint8_t tmp = AllocARMRegister(tc);
-        uint32_t *last_pc = PopReturnAddress(&success);
+        uint32_t *last_pc = returnStack.Pop(&success);
         int8_t pc_offset = 4;
         
-        ResetReturnStack();
+        returnStack.Reset();
 
         tc->GetOffsetPC(&pc_offset);
 
@@ -2012,7 +1963,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             if (update_lr) {
                 uint8_t tmp = AllocARMRegister(tc);
 
-                PushReturnAddress(tc->tc_PPCCodePtr + 1);
+                returnStack.Push(tc->tc_PPCCodePtr + 1);
 
                 tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
 
@@ -2055,7 +2006,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             if (update_lr) {
                 uint8_t tmp = AllocARMRegister(tc);
 
-                PushReturnAddress(tc->tc_PPCCodePtr + 1);
+                returnStack.Push(tc->tc_PPCCodePtr + 1);
 
                 tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
 
@@ -3857,7 +3808,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
         disasm_open();
     }
 
-    ResetReturnStack();
+    returnStack.Reset();
 
     if (debug) {
         uint32_t hash_calc = (hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK;

@@ -1,11 +1,14 @@
 #define restrict __restrict__
 
 #include <cpp/LRUCache>
+#include <cpp/ReturnStack>
 #include "config.h"
 #include "PPC.h"
 #include "A64.h"
 
 namespace Emu68::PPC {
+
+extern ReturnStack returnStack;
 
 int EMIT_mftb(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
@@ -327,7 +330,7 @@ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             }
             case 8:
                 tc->EMIT( mov_reg(MapGPRForWrite(tc, LRn), reg_rs));
-                ResetReturnStack();
+                returnStack.Reset();
                 break;
             case 9:
                 tc->EMIT( mov_reg(MapGPRForWrite(tc, CTRn), reg_rs));
