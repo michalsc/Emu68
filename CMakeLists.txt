@@ -92,6 +92,7 @@ set(EMU68_FILES
     src/PPC_FPU.cpp
     src/PPC_SystemInstructions.cpp
     src/LRUCache.cpp
+    src/ReturnStack.cpp
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
