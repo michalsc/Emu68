@@ -5,12 +5,18 @@ set(PROJECT_VERSION 1.0.999)
 #set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 include(ExternalProject)
 
+set(PPC_ROM_HEADER ${CMAKE_BINARY_DIR}/include/ppc_rom.h)
+
 ExternalProject_Add(
     ppc_rom
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/ppc
-    CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/toolchains/ppc-linux-gnu.cmake -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/include
+    CMAKE_ARGS 
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/toolchains/ppc-linux-gnu.cmake 
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/include
     BUILD_IN_SOURCE 0
-    BUILD_ALWAYS 1
+    BUILD_ALWAYS TRUE
+    INSTALL_COMMAND "" 
+    BYPRODUCTS ${PPC_ROM_HEADER}
 )
 
 include(cmake/verstring.cmake)
@@ -83,6 +89,8 @@ set(EMU68_FILES
     src/PPC_ExecutionLoop.cpp
     src/PPC_TranslatorContext.cpp
     src/PPC_LoadStore.cpp
+    src/PPC_FPU.cpp
+    src/PPC_SystemInstructions.cpp
     src/LRUCache.cpp
     
     src/math/__rem_pio2.c
