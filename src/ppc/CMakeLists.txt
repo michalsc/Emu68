@@ -45,7 +45,7 @@ target_compile_definitions(ppc_rom PRIVATE __PPC__)
 add_custom_command(
     TARGET ppc_rom POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -v -O binary ppc_rom ppc_rom.img
-    COMMAND ${XXD} -i ppc_rom.img >ppc_rom.h
+    COMMAND ${XXD} -i ppc_rom.img >${CMAKE_INSTALL_PREFIX}/ppc_rom.h
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
@@ -61,4 +61,3 @@ target_compile_options(Buddha.ppc PRIVATE -O2 -mcpu=G3 -fno-asynchronous-unwind-
 target_include_directories(Buddha.ppc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/Buddha)
 
 configure_file(version.h.in version.h @ONLY)
-install(FILES ${CMAKE_BINARY_DIR}/ppc_rom.h DESTINATION .)
