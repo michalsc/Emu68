@@ -250,6 +250,18 @@ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             case 275:   /* SPRG3 */
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[3])));
                 break;
+            case 276:   /* SPRG4 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[4])));
+                break;
+            case 277:   /* SPRG5 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[5])));
+                break;
+            case 278:   /* SPRG6 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[6])));
+                break;
+            case 279:   /* SPRG7 */
+                tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, SPRG[7])));
+                break;
             case 920:   /* JIT_CONTROL */
                 kprintf("[PPC] JIT_CONTROL written to, need update\n");
                 tc->EMIT(str_offset(ctx, reg_rs, __builtin_offsetof(PPCState, JIT_CONTROL)));
@@ -397,6 +409,18 @@ int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode)
                 break;
             case 275:   /* SPRG3 */
                 tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[3])));
+                break;
+            case 276:   /* SPRG4 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[4])));
+                break;
+            case 277:   /* SPRG5 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[5])));
+                break;
+            case 278:   /* SPRG6 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[6])));
+                break;
+            case 279:   /* SPRG7 */
+                tc->EMIT(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, SPRG[7])));
                 break;
             case 287:   /* PVR */
                 tc->EMIT({

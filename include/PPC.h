@@ -68,7 +68,7 @@ struct PPCState
     uint32_t MSR;
     uint32_t SRR0;
     uint32_t SRR1;
-    uint32_t SPRG[4];
+    uint32_t SPRG[8];
     uint32_t DAR;
     uint32_t DSISR;
 
