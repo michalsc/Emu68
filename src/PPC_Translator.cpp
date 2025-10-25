@@ -478,74 +478,9 @@ static __used__ uint8_t IntMapGPR(struct PPCTranslatorContext *tc, uint8_t reg, 
         return arm_reg;
     }
     
-    /* No free ARM register. Remove last entry from GPR_LRU */
-    rn = GPR_LRU.remTail();
-
-    /* If dirty, store it back to PPC context */
-    if (rn->rn_Dirty) {
-        /* Store value from ARM register back into PPC context */
-        switch(rn->rn_RegNum) {
-            case GPR(14): tc->EMIT(mov_reg_to_simd(GPR14, rn->rn_ARM)); break;
-            case GPR(15): tc->EMIT(mov_reg_to_simd(GPR15, rn->rn_ARM)); break;
-            case GPR(16): tc->EMIT(mov_reg_to_simd(GPR16, rn->rn_ARM)); break;
-            case GPR(17): tc->EMIT(mov_reg_to_simd(GPR17, rn->rn_ARM)); break;
-            case GPR(18): tc->EMIT(mov_reg_to_simd(GPR18, rn->rn_ARM)); break;
-            case GPR(19): tc->EMIT(mov_reg_to_simd(GPR19, rn->rn_ARM)); break;
-            case GPR(20): tc->EMIT(mov_reg_to_simd(GPR20, rn->rn_ARM)); break;
-            case GPR(21): tc->EMIT(mov_reg_to_simd(GPR21, rn->rn_ARM)); break;
-            case GPR(22): tc->EMIT(mov_reg_to_simd(GPR22, rn->rn_ARM)); break;
-            case GPR(23): tc->EMIT(mov_reg_to_simd(GPR23, rn->rn_ARM)); break;
-            case GPR(24): tc->EMIT(mov_reg_to_simd(GPR24, rn->rn_ARM)); break;
-            case GPR(25): tc->EMIT(mov_reg_to_simd(GPR25, rn->rn_ARM)); break;
-            case GPR(26): tc->EMIT(mov_reg_to_simd(GPR26, rn->rn_ARM)); break;
-            case GPR(27): tc->EMIT(mov_reg_to_simd(GPR27, rn->rn_ARM)); break;
-            case GPR(28): tc->EMIT(mov_reg_to_simd(GPR28, rn->rn_ARM)); break;
-            case GPR(29): tc->EMIT(mov_reg_to_simd(GPR29, rn->rn_ARM)); break;
-            case GPR(30): tc->EMIT(mov_reg_to_simd(GPR30, rn->rn_ARM)); break;
-            case GPR(31): tc->EMIT(mov_reg_to_simd(GPR31, rn->rn_ARM)); break;
-            case CRn: tc->EMIT(mov_reg_to_simd(REG_CR, rn->rn_ARM)); break;
-            case XERn: tc->EMIT(mov_reg_to_simd(REG_XER, rn->rn_ARM)); break;
-            case FPSCRn: tc->EMIT(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
-            default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
-        }
-    }
-
-    /* Update values in RegisterNode */
-    rn->rn_Dirty = set_dirty;
-    rn->rn_RegNum = reg;
-
-    if (load) {
-        /* Load value from PPC context into ARM register */
-        switch(reg) {
-            case GPR(14): tc->EMIT(mov_simd_to_reg(arm_reg, GPR14)); break;
-            case GPR(15): tc->EMIT(mov_simd_to_reg(arm_reg, GPR15)); break;
-            case GPR(16): tc->EMIT(mov_simd_to_reg(arm_reg, GPR16)); break;
-            case GPR(17): tc->EMIT(mov_simd_to_reg(arm_reg, GPR17)); break;
-            case GPR(18): tc->EMIT(mov_simd_to_reg(arm_reg, GPR18)); break;
-            case GPR(19): tc->EMIT(mov_simd_to_reg(arm_reg, GPR19)); break;
-            case GPR(20): tc->EMIT(mov_simd_to_reg(arm_reg, GPR20)); break;
-            case GPR(21): tc->EMIT(mov_simd_to_reg(arm_reg, GPR21)); break;
-            case GPR(22): tc->EMIT(mov_simd_to_reg(arm_reg, GPR22)); break;
-            case GPR(23): tc->EMIT(mov_simd_to_reg(arm_reg, GPR23)); break;
-            case GPR(24): tc->EMIT(mov_simd_to_reg(arm_reg, GPR24)); break;
-            case GPR(25): tc->EMIT(mov_simd_to_reg(arm_reg, GPR25)); break;
-            case GPR(26): tc->EMIT(mov_simd_to_reg(arm_reg, GPR26)); break;
-            case GPR(27): tc->EMIT(mov_simd_to_reg(arm_reg, GPR27)); break;
-            case GPR(28): tc->EMIT(mov_simd_to_reg(arm_reg, GPR28)); break;
-            case GPR(29): tc->EMIT(mov_simd_to_reg(arm_reg, GPR29)); break;
-            case GPR(30): tc->EMIT(mov_simd_to_reg(arm_reg, GPR30)); break;
-            case GPR(31): tc->EMIT(mov_simd_to_reg(arm_reg, GPR31)); break;
-            case CRn: tc->EMIT(mov_simd_to_reg(arm_reg, REG_CR)); break;
-            case XERn: tc->EMIT(mov_simd_to_reg(arm_reg, REG_XER)); break;
-            case FPSCRn: tc->EMIT(mov_simd_to_reg(arm_reg, REG_FPSCR)); break;
-            default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", reg);
-        }
-    }
-
-    /* Put into GPR_LRU */
-    GPR_LRU.addHead(rn);
-
-    return rn->rn_ARM;
+    /* No free ARM register? Impossible since AllocARMRegister should flush something! */
+    kprintf("[PPC] Run out of free GP registers. That should never happen\n");
+    while(1) asm volatile("wfi");
 }
 
 uint8_t MapGPRForRead(struct PPCTranslatorContext *tc, uint8_t reg)
