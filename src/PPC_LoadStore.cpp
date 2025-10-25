@@ -1333,7 +1333,6 @@ int EMIT_stfs(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
-
 int EMIT_stfiwx(struct PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */

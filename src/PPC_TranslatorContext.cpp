@@ -41,7 +41,6 @@ void PPCTranslatorContext::EMIT_Exception(uint16_t type)
 
 void PPCTranslatorContext::LocalExit(uint32_t insn_fixup)
 {
-    extern uint32_t insn_count;
 #if EMU68_INSN_COUNTER
     uint8_t icnt_reg = AllocARMRegister(this);
     EMIT( mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
@@ -54,7 +53,7 @@ void PPCTranslatorContext::LocalExit(uint32_t insn_fixup)
 
 #if EMU68_INSN_COUNTER
     EMIT({
-        add64_immed(icnt_reg, icnt_reg, (insn_count + insn_fixup) & 0xfff),
+        add64_immed(icnt_reg, icnt_reg, (tc_InsnCount + insn_fixup) & 0xfff),
         mov_reg_to_simd(CTX_INSN_COUNT, icnt_reg)
     });
     FreeARMRegister(this, icnt_reg);

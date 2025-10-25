@@ -381,6 +381,8 @@ uint8_t AllocARMRegister(PPCTranslatorContext *tc);
 void FreeARMRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
 uint8_t AllocFPRegister(PPCTranslatorContext *tc);
 void FreeFPRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
+void SetDirtyGPR(struct TranslatorContext *, uint8_t reg);
+void SetDirtyFPR(struct TranslatorContext *, uint8_t reg);
 
 uint8_t GetCTX(struct PPCTranslatorContext *tc);
 uint8_t TryCTX(struct TranslatorContext *);
@@ -395,6 +397,9 @@ uint8_t MapFPRForReadAndWrite(struct PPCTranslatorContext *tc, uint8_t reg);
 uint8_t MapFPRForWrite(struct PPCTranslatorContext *tc, uint8_t reg);
 uint8_t IsFPRMapped(struct PPCTranslatorContext *, uint8_t reg);
 
+void ResetReturnStack();
+uint32_t *PopReturnAddress(uint8_t *success);
+void PushReturnAddress(uint32_t *ret_addr);
 
 inline void PPCTranslatorContext::GetOffsetPC(int8_t *offset) {
     // Calculate new PC relative offset
@@ -513,6 +518,11 @@ constexpr uint8_t FP_REG_MAPPING[] = {
           255,       255,       255,       255,       255, REG_FPR29, REG_FPR30, REG_FPR31, // FPR24 .. FPR31
 };
 
+void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr);
+void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr);
+void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr);
+void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr);
+
 int EMIT_lbz(struct PPCTranslatorContext *tc, uint32_t opcode);
 int EMIT_lbzx(struct PPCTranslatorContext *tc, uint32_t opcode);
 int EMIT_lbzu(struct PPCTranslatorContext *tc, uint32_t opcode);
@@ -560,6 +570,35 @@ int EMIT_stfiwx(struct PPCTranslatorContext *tc, uint32_t opcode);
 
 int EMIT_lfd(struct PPCTranslatorContext *tc, uint32_t opcode);
 int EMIT_lfs(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_fmadd(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_fcmpu(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_fmrx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_fctiwzx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_fdivx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_fmulx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_faddx(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_fsubx(struct PPCTranslatorContext *tc, uint32_t opcode);
+
+int EMIT_mftb(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_mfspr(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_mtmsr(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_mfmsr(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_tw(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_twi(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_sync(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_icbi(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_eieio(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcbi(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcba(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcbz(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcbf(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcbt(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcbtst(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_dcbst(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_sc(struct PPCTranslatorContext *tc, uint32_t opcode);
+int EMIT_rfi(struct PPCTranslatorContext *tc, uint32_t opcode);
 
 } // Emu68::PPC
 

@@ -43,7 +43,7 @@ __attribute__((aligned(4096)))
 Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE] __attribute__((aligned(256)));
 Emu68::List<TranslationUnitLRU> LRU;
 extern TLSF jit_ppc;
-extern uint32_t *temporary_arm_code;
+extern TranslatorContext localTranslator;
 extern struct PPCLocalState *local_state;
 extern Emu68::List<RegisterNode> FreePool;
 
@@ -389,8 +389,8 @@ extern "C" void InitPPC()
 
     kprintf("[PPC] Setting up ICache\n");
 
-    Emu68::PPC::temporary_arm_code = (uint32_t *)Emu68::PPC::jit_ppc.malloc((JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
-    kprintf("[PPC] Temporary code at %p\n", Emu68::PPC::temporary_arm_code);
+    Emu68::PPC::localTranslator.tc_CodeStart = (uint32_t *)Emu68::PPC::jit_ppc.malloc((JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
+    kprintf("[PPC] Temporary code at %p\n", Emu68::PPC::localTranslator.tc_CodeStart);
     Emu68::PPC::local_state = (struct Emu68::PPC::PPCLocalState *)tlsf_malloc(tlsf, sizeof(Emu68::PPC::PPCLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[PPC] ICache array at %p\n", Emu68::PPC::ICache);
 

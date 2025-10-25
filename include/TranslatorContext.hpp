@@ -15,6 +15,7 @@ namespace Emu68 {
 struct TranslatorContext {
     uint32_t *      tc_CodeStart;
     uint32_t *      tc_CodePtr;
+    uint32_t        tc_InsnCount;
     bool            tc_SupervisorChecked;
 
     uint32_t * STOP() { return EMIT(INSN_TO_LE(MARKER_STOP)); }
