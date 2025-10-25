@@ -377,8 +377,8 @@ struct PPCTranslatorContext : public TranslatorContext {
     void LocalExit(uint32_t insn_fixup);
 };
 
-uint8_t AllocARMRegister(PPCTranslatorContext *tc);
-void FreeARMRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
+uint8_t AllocARMRegister(TranslatorContext *tc);
+void FreeARMRegister(TranslatorContext *, uint8_t arm_reg);
 uint8_t AllocFPRegister(PPCTranslatorContext *tc);
 void FreeFPRegister(struct PPCTranslatorContext *, uint8_t arm_reg);
 void SetDirtyGPR(struct TranslatorContext *, uint8_t reg);
