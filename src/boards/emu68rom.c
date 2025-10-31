@@ -200,6 +200,7 @@ static void build_fdt()
 static void map(struct ExpansionBoard *board)
 {
     uint32_t total_length = 0;
+    extern int ppc_enable;
     void *rom_modules = 0;
     void *virt_base = (void*)((uintptr_t)board->map_base + 0x1000);
     
@@ -210,6 +211,9 @@ static void map(struct ExpansionBoard *board)
 
     for (int i=0; roms[i].rom_base; i++)
     {
+        if (!ppc_enable && roms[i].rom_base == powerpc_library)
+            continue;
+
         roms[i].load_size = GetHunkFileSize(roms[i].rom_base);
 
         if (roms[i].load_size > 0) total_length += roms[i].load_size;
@@ -225,6 +229,9 @@ static void map(struct ExpansionBoard *board)
 
     for (int i=0; roms[i].rom_base; i++)
     {
+        if (!ppc_enable && roms[i].rom_base == powerpc_library)
+            continue;
+
         LoadHunkFile(roms[i].rom_base, rom_modules, virt_base);
         kprintf("[BOARD] Loaded module to %08lx...%08lx\n", virt_base, virt_base + roms[i].load_size - 1);
         
