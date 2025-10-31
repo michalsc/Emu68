@@ -545,6 +545,7 @@ void parse_cmdline(const char *cmdline)
 {
     const char *tok;
 
+    debug_not_implemented = !!find_token(cmdline, "debug_not_implemented");
     ppc_enable = !!find_token(cmdline, "ppc_enable");
     enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
