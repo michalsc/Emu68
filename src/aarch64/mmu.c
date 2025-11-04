@@ -215,6 +215,8 @@ struct MemoryBlock *sys_memory;
 
 extern uint32_t vid_memory;
 extern uintptr_t vid_base;
+extern uintptr_t unicam_base;
+extern uintptr_t unicam_size;
 
 void mmu_init()
 {
@@ -255,6 +257,14 @@ void mmu_init()
                 if (addr + size <= 0x40000000) {
                     size -= (vid_memory + 2) << 20;
                     vid_base = addr + size + (2 << 20);
+                    update_needed = 1;
+                }
+            }
+
+            if (unicam_size != 0 && unicam_base == 0) {
+                if (addr + size <= 0x40000000) {
+                    size -= (unicam_size + 0x1fffff) & ~0x1fffff;
+                    unicam_base = addr + size;
                     update_needed = 1;
                 }
             }
