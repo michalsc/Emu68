@@ -835,9 +835,9 @@ void boot(void *dtree)
             parse_cmdline(prop->op_value);
         }
     }
-    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
+    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object) + 1);
     dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
-    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
+    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
 
     /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
@@ -1038,17 +1038,17 @@ void boot(void *dtree)
     switch(pistorm_model)
     {
         case PISTORM_MODEL_16:
-            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16"));
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16") + 1);
             break;
         case PISTORM_MODEL_32:
-            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32lite", sizeof("pistorm32lite"));
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32lite", sizeof("pistorm32lite") + 1);
             break;
         default:
-            dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown"));
+            dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown") + 1);
             break;
     }
 #elif defined(PISTORM_CLASSIC)
-    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm"));
+    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm") + 1);
 #endif
 
 #if defined(PISTORM)
