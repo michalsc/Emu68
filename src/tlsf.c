@@ -483,8 +483,11 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
         uintptr_t diff_begin = (uintptr_t)aligned_bhdr - (uintptr_t)b;
         uintptr_t diff_end = (uintptr_t)GET_NEXT_BHDR(b, GET_SIZE(b)) - (uintptr_t)GET_NEXT_BHDR(aligned_bhdr, size);
 
+        /* Aligned block is busy and has given size*/
         SET_SIZE(aligned_bhdr, size);
+        SET_BUSY_BLOCK(aligned_bhdr);
 
+        /* If aligned block does not start at the original malloc result, free the diff space at begin */
         if (aligned_ptr != ptr)
         {
             if (diff_begin > 0)
@@ -611,7 +614,7 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
     bnext = GET_NEXT_BHDR(b, GET_SIZE(b));
 
     /* Is new size smaller than the previous one? Try to split the block if this is the case */
-    if (new_size <= (GET_SIZE(b)))
+    if (new_size < GET_SIZE(b))
     {
         /* New header starts right after the current block b */
         bhdr_t * b1 = GET_NEXT_BHDR(b, new_size);
