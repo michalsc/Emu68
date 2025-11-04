@@ -357,6 +357,11 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         far &= 0xffffffff;
     }
 
+    if ((far >> 32) != 0) {
+        kprintf("Write in high memory with far %p, size %d, value %08x\n", far, size, value);
+        return 0;
+    }
+
     if (far == INTENA) {
         if (value & 0x8000) {
             INT_shadow.INTENA |= value & 0x7fff;
@@ -513,6 +518,11 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     */
     if ((far >> 32) == 1 || (far >> 32) == 0xffffffff) {
         far &= 0xffffffff;
+    }
+
+    if ((far >> 32) != 0) {
+        kprintf("Read from high memory with far %p, size %d\n", far, size);
+        return 0;
     }
 
     if (far >= 0x1000000) {
