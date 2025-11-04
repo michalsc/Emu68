@@ -461,6 +461,7 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
     bhdr_t *b;
 
     size = ROUNDUP(size);
+    align = ROUNDUP(align);
 
     /* Adjust align to the top nearest power of two */
     align = 1 << MS(align);
