@@ -49,29 +49,17 @@ static uint32_t allocated_len;
 
 static void put_word(uint32_t word)
 {
-    while ((sizeof(uint32_t) * (data_len + 1)) > allocated_len)
-    {
-        uint32_t *new_data = tlsf_malloc(tlsf, allocated_len + 4096);
-        memcpy(new_data, data, allocated_len);
-        tlsf_free(tlsf, data);
-        data = new_data;
-        allocated_len += 4096;
-    }
+    if (sizeof(uint32_t) * (data_len + 1) >= allocated_len)
+        data = tlsf_realloc(tlsf, data, allocated_len + 4096);
 
     data[data_len++] = word;
 }
 
 static void put_words(uint32_t *words, uint32_t count)
 {
-    while ((sizeof(uint32_t) * (data_len + count)) > allocated_len)
-    {
-        uint32_t *new_data = tlsf_malloc(tlsf, allocated_len + 4096);
-        memcpy(new_data, data, allocated_len);
-        tlsf_free(tlsf, data);
-        data = new_data;
-        allocated_len += 4096;
-    }
-
+    if (sizeof(uint32_t) * (data_len + count) >= allocated_len)
+        data = tlsf_realloc(tlsf, data, sizeof(uint32_t) * (data_len + count) + 4096);
+    
     for (unsigned i=0; i < count; i++)
     {
         data[data_len++] = *words++;
@@ -151,7 +139,7 @@ static void dump_node(of_node_t *node)
 static void build_fdt()
 {
     struct fdt_header *fdt_orig = dt_fdt_base();
-    struct fdt_header fdt = *fdt_orig;
+    struct fdt_header fdt;
 
     data = tlsf_malloc(tlsf, 262144);
     allocated_len = 262144;
@@ -162,9 +150,10 @@ static void build_fdt()
     dump_node(dt_find_node("/"));
     put_word(FDT_END);
 
-    fdt.totalsize -= fdt.size_dt_strings;
-    fdt.totalsize -= fdt.size_dt_struct;  
-
+    fdt.magic = FDT_MAGIC;
+    fdt.totalsize = sizeof(struct fdt_header) + 16;
+    fdt.version = 17;
+    fdt.last_comp_version = 16;
     fdt.size_dt_strings = strings_len;
     fdt.size_dt_struct = data_len * sizeof(uint32_t);
 
@@ -174,19 +163,17 @@ static void build_fdt()
     *fdt_base = fdt;
     fdt_base->off_mem_rsvmap = sizeof(struct fdt_header);
 
-    uint64_t *rsrvd_src = (uint64_t *)((uintptr_t)fdt_orig + fdt_orig->off_mem_rsvmap);
     uint64_t *rsrvd_dest = (uint64_t *)((uintptr_t)fdt_base + sizeof(struct fdt_header));
-
-    do {
-        *rsrvd_dest++ = *rsrvd_src++;
-        *rsrvd_dest++ = *rsrvd_src++;
-    } while(*(rsrvd_src - 1) != 0);
+    *rsrvd_dest++ = 0;
+    *rsrvd_dest++ = 0;
 
     fdt_base->off_dt_struct = (uintptr_t)rsrvd_dest - (uintptr_t)fdt_base;
     memcpy((void*)((uintptr_t)fdt_base + fdt_base->off_dt_struct), data, data_len * sizeof(uint32_t));
 
     fdt_base->off_dt_strings = fdt_base->off_dt_struct + data_len * sizeof(uint32_t);
     memcpy((void*)((uintptr_t)fdt_base + fdt_base->off_dt_strings), strings, strings_len);
+
+    kprintf("[BOARD] Constructed FDT of size %d, original size was supposed to be %d\n", fdt_base->totalsize, fdt_orig->totalsize);
 
     tlsf_free(tlsf, data);
     tlsf_free(tlsf, strings);
