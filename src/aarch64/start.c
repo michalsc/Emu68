@@ -477,6 +477,9 @@ void secondary_boot(void)
 }
 uintptr_t vid_base;
 
+uintptr_t unicam_base;
+uintptr_t unicam_size = 2 * 1024 * 1024;
+
 /* Amiga checksum, taken from AROS source code */
 int amiga_checksum(uint8_t *mem, uintptr_t size, uintptr_t chkoff, int update)
 {
@@ -1183,6 +1186,14 @@ void boot(void *dtree)
                 vid_memory);
         }
 
+        if (unicam_base)
+        {
+            kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
+                unicam_base,
+                unicam_base + unicam_size - 1, 
+                unicam_size >> 20);
+        }
+
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
         intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0x7fffe00000;
 
@@ -1243,6 +1254,15 @@ void boot(void *dtree)
             dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
 
             mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        }
+
+        if (unicam_base) {
+            uint32_t reg[] = { 
+                (uint32_t)unicam_base, (uint32_t)unicam_size
+            };
+            dt_add_property(dt_find_node("/emu68"), "unicam-mem", reg, 8);
+
+            mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
         mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
