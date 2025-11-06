@@ -49,16 +49,20 @@ static uint32_t allocated_len;
 
 static void put_word(uint32_t word)
 {
-    if (sizeof(uint32_t) * (data_len + 1) >= allocated_len)
+    if (sizeof(uint32_t) * (data_len + 1) >= allocated_len) {
         data = tlsf_realloc(tlsf, data, allocated_len + 4096);
+        allocated_len = allocated_len + 4096;
+    }
 
     data[data_len++] = word;
 }
 
 static void put_words(uint32_t *words, uint32_t count)
 {
-    if (sizeof(uint32_t) * (data_len + count) >= allocated_len)
+    if (sizeof(uint32_t) * (data_len + count) >= allocated_len) {
         data = tlsf_realloc(tlsf, data, sizeof(uint32_t) * (data_len + count) + 4096);
+        allocated_len = sizeof(uint32_t) * (data_len + count) + 4096;
+    }
     
     for (unsigned i=0; i < count; i++)
     {
@@ -141,8 +145,8 @@ static void build_fdt()
     struct fdt_header *fdt_orig = dt_fdt_base();
     struct fdt_header fdt;
 
-    data = tlsf_malloc(tlsf, 262144);
-    allocated_len = 262144;
+    data = NULL;
+    allocated_len = 0;
     data_len = 0;
     strings_len = 0;
     strings = NULL;
@@ -221,7 +225,7 @@ static void map(struct ExpansionBoard *board)
 
         LoadHunkFile(roms[i].rom_base, rom_modules, virt_base);
         kprintf("[BOARD] Loaded module to %08lx...%08lx\n", virt_base, virt_base + roms[i].load_size - 1);
-        
+
         rom_modules = (void*)((uintptr_t)rom_modules + roms[i].load_size);
         virt_base = (void*)((uintptr_t)virt_base + roms[i].load_size);
 
