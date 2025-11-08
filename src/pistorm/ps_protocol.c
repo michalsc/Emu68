@@ -1947,6 +1947,9 @@ extern struct ExpansionBoard *__boards_start;
 extern int board_idx;
 extern uint32_t overlay;
 
+volatile int housekeeper_enabled = 0;
+volatile int ignore_reset = 0;
+
 #define PM_RSTC ((volatile unsigned int *)(0xf2000000 + 0x0010001c))
 #define PM_RSTS ((volatile unsigned int *)(0xf2000000 + 0x00100020))
 #define PM_WDOG ((volatile unsigned int *)(0xf2000000 + 0x00100024))
@@ -1955,6 +1958,8 @@ extern uint32_t overlay;
 
 void ps_pulse_reset()
 {
+    ignore_reset = 1;
+
     if (pistorm_model == PISTORM_MODEL_16) {
         kprintf("[PS] Set DTACK delay\n");
         ps_set_control(23 << 8);
@@ -2076,9 +2081,10 @@ void ps_pulse_reset()
     overlay = 1;
     board = &__boards_start;
     board_idx = 0;
+
+    ignore_reset = 0;
 }
 
-volatile int housekeeper_enabled = 0;
 
 void ps_housekeeper()
 {
@@ -2137,7 +2143,7 @@ void ps_housekeeper()
 
             pin_prev = pin;
 
-            if ((pin & (1 << PIN_KBRESET)) == 0)
+            if ((pin & (1 << PIN_KBRESET)) == 0 && ignore_reset == 0)
             {
                 kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
 
@@ -2166,4 +2172,27 @@ void ps_housekeeper()
             asm volatile("wfe");
         }
     }
+}
+
+/* Send reset from Emu68 to the mainbard. Set a flag to let housekeeper ignore it */
+void ps_send_reset()
+{
+    ignore_reset = 1;
+
+    kprintf("[PS] CPU sending RESET\n");
+    ps_set_control(CONTROL_DRIVE_RESET);
+    usleep(150000);
+
+    kprintf("[PS] CPU clearing \n");
+    ps_clr_control(CONTROL_DRIVE_RESET);
+
+    kprintf("[PS] RESET done\n");
+
+    overlay = 1;
+    board = &__boards_start;
+    board_idx = 0;
+
+    usleep(10000);
+
+    ignore_reset = 0;
 }

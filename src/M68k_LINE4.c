@@ -3187,11 +3187,11 @@ int M68K_GetLine4Length(uint16_t *insn_stream)
 #ifdef PISTORM_ANY_MODEL
 void do_reset()
 {
-    void ps_pulse_reset();
+    void ps_send_reset();
 
     struct Size sz = get_display_size();
     init_display(sz, NULL, NULL);
 
-    ps_pulse_reset();
+    ps_send_reset();
 }
 #endif

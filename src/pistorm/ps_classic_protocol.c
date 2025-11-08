@@ -789,9 +789,12 @@ extern struct ExpansionBoard **board;
 extern struct ExpansionBoard *__boards_start;
 extern int board_idx;
 extern uint32_t overlay;
+volatile int ignore_reset = 0;
 
 void ps_pulse_reset()
 {
+    ignore_reset = 1;
+
     ps_write_status_reg(0);
     usleep(30000);
     ps_write_status_reg(STATUS_BIT_RESET);
@@ -799,7 +802,12 @@ void ps_pulse_reset()
     overlay = 1;
     board = &__boards_start;
     board_idx = 0;
+
+    usleep(10000);
+    ignore_reset = 0;
 }
+
+void ps_send_reset() { ps_pulse_reset(); }
 
 unsigned int ps_get_ipl_zero()
 {
@@ -859,7 +867,7 @@ void ps_housekeeper()
             if (__m68k_state->INTF.IPL)
                 asm volatile("sev":::"memory");
 
-            if ((pin & (1 << PIN_RESET)) == 0) {
+            if ((pin & (1 << PIN_RESET)) == 0 && ignore_reset == 0) {
                 kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
 
                 unsigned int r;
