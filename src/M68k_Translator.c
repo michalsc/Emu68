@@ -45,7 +45,6 @@ static inline int globalDisasm() {
 
 struct List ICache[EMU68_HASHSIZE];
 struct List LRU;
-static uint32_t *temporary_arm_code;
 static struct M68KLocalState *local_state;
 
 int32_t _pc_rel = 0;
@@ -292,7 +291,7 @@ struct DisasmOut {
     uint32_t do_ArmCount;
 } disasm_items[512], *disasm_ptr;
 
-static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
+static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_start, uint32_t *arm_end)
 {
     struct List exitList;
     m68k_entry_point = M68kCodePtr;
@@ -307,8 +306,9 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
 
     struct TranslatorContext ctx;
 
-    ctx.tc_CodePtr = temporary_arm_code;
-    ctx.tc_CodeStart = temporary_arm_code;
+    ctx.tc_CodePtr = arm_start;
+    ctx.tc_CodeStart = arm_start;
+    ctx.tc_CodeEnd = arm_end;
     ctx.tc_M68kCodePtr = M68kCodePtr;
     ctx.tc_M68kCodeStart = M68kCodePtr;
 
@@ -751,7 +751,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
             }
             disasm_print(
                 disasm_ptr->do_M68kAddr, disasm_ptr->do_M68kCount,
-                disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, temporary_arm_code);
+                disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, arm_start);
         }
         disasm_close();
     }
@@ -776,6 +776,11 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
         uint32_t mean_n = mean / 100;
         uint32_t mean_f = mean % 100;
         kprintf("[ICache]   Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    }
+
+    if (ctx.tc_CodePtr > ctx.tc_CodeEnd) {
+        kprintf("[JIT] The generated code exceeded allowed memory region by %d bytes!\n", 4 * (ctx.tc_CodePtr - ctx.tc_CodeEnd));
+        while(1) asm volatile("wfi");
     }
 
     return (uintptr_t)ctx.tc_CodePtr - (uintptr_t)ctx.tc_CodeStart;
@@ -869,7 +874,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 */
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 {
-    struct M68KTranslationUnit *unit = NULL; //, *n;
+    struct M68KTranslationUnit *unit = NULL;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
 
@@ -885,120 +890,156 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     if (debug > 2)
         kprintf("[ICache] GetTranslationUnit(%08x)\n[ICache] Hash: 0x%04x\n", (void*)m68kcodeptr, (int)hash);
 
-    if (unit == NULL)
-    {
-        uintptr_t line_length = M68K_Translate(m68kcodeptr);
-        uintptr_t arm_insn_count = line_length/4 - 1;
+    /* Create translation unit of size which shall be sufficient */
+    do {
+        /* Allocate as much as you can */
+        unit = tlsf_malloc_aligned(jit_tlsf, 262144, 64);
 
-        uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
+        /* Update free coutner */
+        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
 
-        do {
-            unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
-
-            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-
-            if (unit == NULL)
-            {
-                if (debug > 0) {
-                    kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
-                }
-
-                for (int i=0; i < 8; i++) {
-                    struct Node *n = REMTAIL(&LRU);
-
-                    if (n == NULL)
-                        break;
-
-                    void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
-                    REMOVE((struct Node *)ptr);
-                    if (debug > 0)
-                    {    
-                        kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
-                    }
-                    tlsf_free(jit_tlsf, ptr);
-                    __m68k_state->JIT_UNIT_COUNT--;
-                }
-                __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-                
-                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
-            }
-        } while(unit == NULL);
-
-        /* Set-up entry point */
-        unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
-        unit->mt_ARMEntryPoint = (void *)((uintptr_t)unit->mt_ARMEntryPoint | 0x0000001000000000ULL);
-
-        /* Copy the code to the new location */
-        DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
-
-        /* The code is ready, so flush the caches*/
-        arm_flush_cache((uintptr_t)&unit->mt_ARMCode, line_length);
-        arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, line_length);
-
-        /* Tell CPU we are going to execute the code soon, give it time to prefetch while CRC is still calculated */
-        asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
-        /* If more than 16 ARM instructions were generated, prefetch another line of cache */
-        if (arm_insn_count > 16)
-            asm volatile ("prfm plil1keep, [%0, #64]"::"r"(unit->mt_ARMEntryPoint));
-        
-        extern uint32_t EPOCH;
-        unit->mt_Epoch = EPOCH;
-        unit->mt_M68kInsnCnt = insn_count;
-        unit->mt_ARMInsnCnt = arm_insn_count;
-        unit->mt_UseCount = 0;
-        unit->mt_FetchCount = 0;
-        unit->mt_M68kAddress = (uint32_t)(uintptr_t)orig_m68kcodeptr;
-        unit->mt_M68kLow = (uint32_t)(uintptr_t)m68k_low;
-        unit->mt_M68kHigh = (uint32_t)(uintptr_t)m68k_high;
-        unit->mt_Fingerprint = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
-        unit->mt_CRC32 = CalcCRC32(m68k_low, m68k_high);
-        unit->mt_PrologueSize = prologue_size;
-        unit->mt_EpilogueSize = epilogue_size;
-        unit->mt_Conditionals = conditionals_count;
-
-        /* Remember settings of JIT for this compiled fragment */
-        unit->mt_JIT_CONTROL = __m68k_state->JIT_CONTROL;
-        unit->mt_JIT_CONTROL2 = __m68k_state->JIT_CONTROL2;
-
-        ADDHEAD(&LRU, &unit->mt_LRUNode);
-        ADDHEAD(&ICache[hash], &unit->mt_HashNode);
-
-        __m68k_state->JIT_UNIT_COUNT++;
-        __m68k_state->JIT_CACHE_MISS++;
-
-        if (debug) {
-            kprintf("[ICache]   Block checksum: %08x, Fingerprint: %08x\n", unit->mt_CRC32, unit->mt_Fingerprint);
-            kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
-        }
-
-        if (debug)
+        if (unit == NULL)
         {
-            kprintf("-- ARM Code dump --\n");
-            for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
-            {
-                if ((i % 5) == 0)
-                    kprintf("   ");
-                uint32_t insn = LE32(unit->mt_ARMCode[i]);
-                kprintf(" %02x %02x %02x %02x", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
-                if ((i % 5) == 4)
-                    kprintf("\n");
+            if (debug > 0) {
+                kprintf("[ICache] Requested block was %d bytes long\n", 262144);
             }
-            if (unit->mt_ARMInsnCnt % 5 != 0)
-                kprintf("\n");
-            if (debug > 3)
-            {
-                kprintf("\n-- Local State --\n");
-                for (unsigned i=0; i < insn_count; i++)
-                {
-                    kprintf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
-                    for (int r=0; r < 16; r++) {
-                        if (local_state[i].mls_RegMap[r] != 0xff) {
-                            kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
-                            local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
-                        }
-                    }
-                    kprintf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
+
+            for (int i=0; i < 8; i++) {
+                struct Node *n = REMTAIL(&LRU);
+
+                if (n == NULL)
+                    break;
+
+                void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
+                REMOVE((struct Node *)ptr);
+                if (debug > 0)
+                {    
+                    kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
                 }
+                tlsf_free(jit_tlsf, ptr);
+                __m68k_state->JIT_UNIT_COUNT--;
+            }
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+            
+            __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
+        }
+    } while(unit == NULL);
+
+    uintptr_t line_length = M68K_Translate(m68kcodeptr, &unit->mt_ARMCode[0], (uint32_t *)unit + (262144 / sizeof(uint32_t)));
+    uintptr_t arm_insn_count = line_length/4 - 1;
+
+    uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
+#if 0
+    do {
+        unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
+
+        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+        if (unit == NULL)
+        {
+            if (debug > 0) {
+                kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
+            }
+
+            for (int i=0; i < 8; i++) {
+                struct Node *n = REMTAIL(&LRU);
+
+                if (n == NULL)
+                    break;
+
+                void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
+                REMOVE((struct Node *)ptr);
+                if (debug > 0)
+                {    
+                    kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
+                }
+                tlsf_free(jit_tlsf, ptr);
+                __m68k_state->JIT_UNIT_COUNT--;
+            }
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+            
+            __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
+        }
+    } while(unit == NULL);
+#endif
+
+    /* Trim the unit to calculated unit length */
+    unit = tlsf_realloc(jit_tlsf, unit, unit_length);
+
+    /* Set-up entry point */
+    unit->mt_ARMEntryPoint = &unit->mt_ARMCode[0];
+    unit->mt_ARMEntryPoint = (void *)((uintptr_t)unit->mt_ARMEntryPoint | 0x0000001000000000ULL);
+
+    /* Copy the code to the new location */
+//    DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
+
+    /* The code is ready, so flush the caches*/
+    arm_flush_cache((uintptr_t)&unit->mt_ARMCode, line_length);
+    arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, line_length);
+
+    /* Tell CPU we are going to execute the code soon, give it time to prefetch while CRC is still calculated */
+    asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
+    /* If more than 16 ARM instructions were generated, prefetch another line of cache */
+    if (arm_insn_count > 16)
+        asm volatile ("prfm plil1keep, [%0, #64]"::"r"(unit->mt_ARMEntryPoint));
+    
+    extern uint32_t EPOCH;
+    unit->mt_Epoch = EPOCH;
+    unit->mt_M68kInsnCnt = insn_count;
+    unit->mt_ARMInsnCnt = arm_insn_count;
+    unit->mt_UseCount = 0;
+    unit->mt_FetchCount = 0;
+    unit->mt_M68kAddress = (uint32_t)(uintptr_t)orig_m68kcodeptr;
+    unit->mt_M68kLow = (uint32_t)(uintptr_t)m68k_low;
+    unit->mt_M68kHigh = (uint32_t)(uintptr_t)m68k_high;
+    unit->mt_Fingerprint = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
+    unit->mt_CRC32 = CalcCRC32(m68k_low, m68k_high);
+    unit->mt_PrologueSize = prologue_size;
+    unit->mt_EpilogueSize = epilogue_size;
+    unit->mt_Conditionals = conditionals_count;
+
+    /* Remember settings of JIT for this compiled fragment */
+    unit->mt_JIT_CONTROL = __m68k_state->JIT_CONTROL;
+    unit->mt_JIT_CONTROL2 = __m68k_state->JIT_CONTROL2;
+
+    ADDHEAD(&LRU, &unit->mt_LRUNode);
+    ADDHEAD(&ICache[hash], &unit->mt_HashNode);
+
+    __m68k_state->JIT_UNIT_COUNT++;
+    __m68k_state->JIT_CACHE_MISS++;
+
+    if (debug) {
+        kprintf("[ICache]   Block checksum: %08x, Fingerprint: %08x\n", unit->mt_CRC32, unit->mt_Fingerprint);
+        kprintf("[ICache]   ARM code at %p\n", unit->mt_ARMEntryPoint);
+    }
+
+    if (debug)
+    {
+        kprintf("-- ARM Code dump --\n");
+        for (uint32_t i=0; i < unit->mt_ARMInsnCnt; i++)
+        {
+            if ((i % 5) == 0)
+                kprintf("   ");
+            uint32_t insn = LE32(unit->mt_ARMCode[i]);
+            kprintf(" %02x %02x %02x %02x", insn & 0xff, (insn >> 8) & 0xff, (insn >> 16) & 0xff, (insn >> 24) & 0xff);
+            if ((i % 5) == 4)
+                kprintf("\n");
+        }
+        if (unit->mt_ARMInsnCnt % 5 != 0)
+            kprintf("\n");
+        if (debug > 3)
+        {
+            kprintf("\n-- Local State --\n");
+            for (unsigned i=0; i < insn_count; i++)
+            {
+                kprintf("    %p -> %08x", local_state[i].mls_M68kPtr, local_state[i].mls_ARMOffset);
+                for (int r=0; r < 16; r++) {
+                    if (local_state[i].mls_RegMap[r] != 0xff) {
+                        kprintf(" %c%d=r%d%s", r < 8 ? 'D' : 'A', r % 8, local_state[i].mls_RegMap[r] & 15,
+                        local_state[i].mls_RegMap[r] & 0x80 ? "!":"");
+                    }
+                }
+                kprintf(" PC_Rel=%d\n", local_state[i].mls_PCRel);
             }
         }
     }
@@ -1015,9 +1056,9 @@ void M68K_InitializeCache()
 
     kprintf("[ICache] Setting up ICache\n");
 
-    temporary_arm_code = tlsf_malloc(jit_tlsf, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
+//    temporary_arm_code = tlsf_malloc(jit_tlsf, (JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
     __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-    kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
+//    kprintf("[ICache] Temporary code at %p\n", temporary_arm_code);
     local_state = tlsf_malloc(tlsf, sizeof(struct M68KLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[ICache] ICache array at %p\n", ICache);
 

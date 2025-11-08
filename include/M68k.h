@@ -92,6 +92,7 @@ struct DoubleExitBlock
 
 struct TranslatorContext {
     uint32_t *      tc_CodeStart;
+    uint32_t *      tc_CodeEnd;
     uint32_t *      tc_CodePtr;
     union {
         uint16_t *  tc_M68kCodeStart;
