@@ -782,24 +782,6 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr)
 }
 
 /*
-    Translate portion of m68k code into ARM. No new unit is created, instead
-    a raw pointer to ARM code is returned and instruction cache on host side is
-    invalidated
-*/
-void *M68K_TranslateNoCache(uint16_t *m68kcodeptr)
-{
-    uintptr_t line_length = M68K_Translate(m68kcodeptr);
-    void *entry_point = (void*)temporary_arm_code;
-
-    entry_point = (void *)((uintptr_t)entry_point | 0x0000001000000000ULL);
-
-    arm_flush_cache((uintptr_t)entry_point, line_length);
-    arm_icache_invalidate((intptr_t)entry_point, line_length);
-
-    return entry_point;
-} 
-
-/*
     Verify if the translated code has changed since the unit was created. In order
     to do this MD5 sum of the block is compared with the previousy calculated one.
 
