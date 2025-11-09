@@ -477,13 +477,19 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
 {
     int cnt = 0;
 
+    /* Break on recursion level too high */
+    if (level > 10) {
+        return 1;
+    } 
+
     while((cache_read_16(ICACHE, (uintptr_t)ptr) & 0xfe00) != 0xf200)
     {
         if (cnt++ > 200)
             return 1;
         if (M68K_IsBranch(ptr))
         {
-            if ((ptr = M68K_TryFollowBranch(ptr)))
+            ptr = M68K_TryFollowBranch(ptr);
+            if (ptr != NULL)
                 continue;
             else
                 return 1;
