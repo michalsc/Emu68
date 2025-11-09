@@ -26,7 +26,7 @@
  */
 #define MAX_LOG2_SLI    (5)
 #define MAX_SLI         (1 << MAX_LOG2_SLI)
-#define MAX_FLI         (32+5)
+#define MAX_FLI         (32)
 #define FLI_OFFSET      (6)
 #define SMALL_BLOCK     (2 << FLI_OFFSET)
 
