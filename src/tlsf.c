@@ -26,11 +26,7 @@
  */
 #define MAX_LOG2_SLI    (5)
 #define MAX_SLI         (1 << MAX_LOG2_SLI)
-#if __WORDSIZE == 64
-#define MAX_FLI         (32+7)
-#else
-#define MAX_FLI         (32)
-#endif
+#define MAX_FLI         (32+5)
 #define FLI_OFFSET      (6)
 #define SMALL_BLOCK     (2 << FLI_OFFSET)
 
@@ -298,6 +294,8 @@ static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bh
     if (b->free_node.prev)
         b->free_node.prev->free_node.next = b->free_node.next;
 
+    tlsf->free_size -= GET_SIZE(b);
+
     if (tlsf->matrix[fl][sl] == b)
     {
         tlsf->matrix[fl][sl] = b->free_node.next;
@@ -311,6 +309,8 @@ static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bh
 static inline __attribute__((always_inline)) void INSERT_FREE_BLOCK(tlsf_t *tlsf, bhdr_t *b)
 {
     int fl, sl;
+
+    tlsf->free_size += GET_SIZE(b);
 
     MAPPING_INSERT(GET_SIZE(b), &fl, &sl);
 
@@ -385,9 +385,6 @@ static bhdr_t * tlsf_intern_malloc(tlsf_t *tlsf, uintptr_t size)
     /* Clear the pointers just in case */
     b->free_node.next = NULL;
     b->free_node.prev = NULL;
-
-    /* Update counters */
-    tlsf->free_size -= GET_SIZE(b);
 
     return b;
 }
@@ -509,8 +506,6 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
         {
             SET_SIZE(b, diff_begin - ROUNDUP(sizeof(hdr_t)));
 
-            tlsf->free_size += GET_SIZE(b);
-
             aligned_bhdr->header.prev = b;
             SET_FREE_PREV_BLOCK(aligned_bhdr);
             SET_FREE_BLOCK(b);
@@ -564,9 +559,6 @@ void tlsf_free(void *t, void *ptr)
 
     /* Mark block as free */
     SET_FREE_BLOCK(fb);
-
-    /* adjust free size field on tlsf */
-    tlsf->free_size += GET_SIZE(fb);
 
     /* Try to merge with previous and next blocks (if free) */
     fb = MERGE_PREV(tlsf, fb);
@@ -640,8 +632,6 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
         /* Current block gets smaller */
         SET_SIZE(b, new_size);
 
-        tlsf->free_size += GET_SIZE(b1);
-
         /* Try to merge with next block */
         b1 = MERGE_NEXT(tlsf, b1);
 
@@ -667,8 +657,6 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
 
         REMOVE_HEADER(tlsf, bnext, fl, sl);
 
-        tlsf->free_size -= GET_SIZE(bnext);
-
         if (rest_size >= ROUNDUP(sizeof(hdr_t)))
         {
             /* Split: allocated block + new free block */
@@ -677,8 +665,6 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
             bhdr_t *b1 = GET_NEXT_BHDR(b, new_size);
             b1->header.prev = b;
             SET_SIZE_AND_FLAGS(b1, rest_size - ROUNDUP(sizeof(hdr_t)), THIS_FREE | PREV_BUSY);
-
-            tlsf->free_size += GET_SIZE(b1);  // FIX: Account for new free block
 
             bnext = GET_NEXT_BHDR(b1, GET_SIZE(b1));
             bnext->header.prev = b1;
