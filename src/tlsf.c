@@ -52,7 +52,7 @@
 /* Size of additional memory needed to manage new block */
 #define HEADERS_SIZE (((3 * ROUNDUP(sizeof(hdr_t))) + ROUNDUP(sizeof(tlsf_area_t))))
 
-/* free node links together all free blocks if similar size */
+/* free node links together all free blocks of similar size */
 typedef struct free_node_s {
     struct bhdr_s *    prev;
     struct bhdr_s *    next;
@@ -88,7 +88,7 @@ typedef struct tlsf_area_s {
 } tlsf_area_t;
 
 typedef struct {
-    spinlock_t         lock;
+    spinlock_t          lock;
 
     tlsf_area_t *       memory_area;
 
@@ -309,6 +309,16 @@ static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bh
 static inline __attribute__((always_inline)) void INSERT_FREE_BLOCK(tlsf_t *tlsf, bhdr_t *b)
 {
     int fl, sl;
+
+    /* 
+        bhdr of length 0 consists of a header only, no extra data. This can happen and 
+        we still maintain it - it will eventually merge with previous or next header
+        at some point
+    */
+    if (GET_SIZE(b) == 0)
+    {
+        return;
+    }
 
     tlsf->free_size += GET_SIZE(b);
 
