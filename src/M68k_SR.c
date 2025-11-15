@@ -149,7 +149,7 @@ uint16_t *M68K_TryFollowBranch(uint16_t *insn_stream)
             bra_off = (int8_t)(opcode & 0xff);
         }
 
-        return insn_stream + bra_off;
+        return (uint16_t *)((uintptr_t)insn_stream + bra_off);
     }
 
     return NULL;
