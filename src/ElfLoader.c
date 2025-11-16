@@ -399,6 +399,9 @@ static int relocate(Elf32_Ehdr *eh, Elf32_Shdr *sh, int shrel_idx)
         }
         else
         {
+            union { unsigned short *u16; uint32_t *u32; } u;
+            u.u32 = p;
+
             switch (ELF32_R_TYPE(rel->r_info))
             {
                 case R_PPC_ADDR32:
@@ -407,14 +410,14 @@ static int relocate(Elf32_Ehdr *eh, Elf32_Shdr *sh, int shrel_idx)
 
                 case R_PPC_ADDR16_LO:
                     {
-                        unsigned short *c = (unsigned short *) p;
+                        unsigned short *c = u.u16;
                         *c = (s + rel->r_addend) & 0xffff;
                     }
                     break;
 
                 case R_PPC_ADDR16_HA:
                     {
-                        unsigned short *c = (unsigned short *) p;
+                        unsigned short *c = u.u16;
                         uint32_t temp = s + rel->r_addend;
                         *c = temp >> 16;
                         if ((temp & 0x8000) != 0)
@@ -424,14 +427,14 @@ static int relocate(Elf32_Ehdr *eh, Elf32_Shdr *sh, int shrel_idx)
 
                 case R_PPC_REL16_LO:
                     {
-                        unsigned short *c = (unsigned short *) p;
+                        unsigned short *c = u.u16;
                         *c = (s + rel->r_addend - (uint32_t)(uintptr_t) p) & 0xffff;
                     }
                     break;
 
                 case R_PPC_REL16_HA:
                     {
-                        unsigned short *c = (unsigned short *) p;
+                        unsigned short *c = u.u16;
                         uint32_t temp = s + rel->r_addend - (uint32_t)(uintptr_t) p;
                         *c = temp >> 16;
                         if ((temp & 0x8000) != 0)
