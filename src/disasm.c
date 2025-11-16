@@ -217,7 +217,7 @@ void disasm_print_arm_only(uint32_t *arm_addr)
     cs_insn *insn_arm;
     size_t count_arm = 0;
 
-    count_arm = cs_disasm(h_arm, (const uint8_t *)(arm_addr-2), 128, (uintptr_t)arm_addr-8, 7, &insn_arm);
+    count_arm = cs_disasm(h_arm, (const uint8_t *)(arm_addr-4), 128, (uintptr_t)arm_addr-16, 9, &insn_arm);
 
     for (size_t i=0; i < count_arm; i++)
     {
