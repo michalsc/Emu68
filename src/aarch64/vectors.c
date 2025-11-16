@@ -2366,6 +2366,10 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
         
         disasm_open();
 
+        for (int i=-4; i < 5; i++) {
+            kprintf("[JIT:SYS] %08x\n", LE32(ptr[i]));
+        }
+
         disasm_print_arm_only(ptr);
 
         for (int i=0; i < 16; i++)
