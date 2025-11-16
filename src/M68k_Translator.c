@@ -638,16 +638,20 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
     }
 
     /* Get all exit entries and append them here */
-    struct ExitBlock *n = NULL;
+    union {
+        struct Node *n;
+        struct ExitBlock *eb;
+        struct DoubleExitBlock *deb;
+    } u;
     //int exit_num = 0;
-    while ((n = (struct ExitBlock *)REMHEAD(&exitList)))
+    while ((u.n = REMHEAD(&exitList)))
     {
         uint32_t *old_end = ctx.tc_CodePtr;
         uint32_t op;
 
-        if (n->eb_Type == MARKER_DOUBLE_EXIT)
+        if (u.eb->eb_Type == MARKER_DOUBLE_EXIT)
         {
-            struct DoubleExitBlock *eb2 = (struct DoubleExitBlock *)n;
+            struct DoubleExitBlock *eb2 = u.deb;
 
             for (unsigned i = 0; i < eb2->eb_InstructionCount; i++)
             {
@@ -696,7 +700,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
         }
         else
         {
-            struct ExitBlock *eb = n;
+            struct ExitBlock *eb = u.eb;
             
             for (unsigned i = 0; i < eb->eb_InstructionCount; i++)
             {
@@ -732,7 +736,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
             disasm_ptr++;
         }
 
-        tlsf_free(tlsf, n);
+        tlsf_free(tlsf, u.n);
     }
 
     disasm_ptr->do_ArmAddr = NULL;
@@ -929,14 +933,14 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
     } while(unit == NULL);
 
-    uintptr_t line_length = M68K_Translate(m68kcodeptr, &unit->mt_ARMCode[0], (uint32_t *)unit + initial_alloc);
+    uintptr_t line_length = M68K_Translate(m68kcodeptr, &unit->mt_ARMCode[0], &unit->mt_ARMCode[((uint32_t)icnt + 1) * 64]);
     uintptr_t arm_insn_count = line_length/4 - 1;
 
     uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
 
     //kprintf("unit length: %ld, initial alloc: %ld\n", unit_length, initial_alloc);
     if (initial_alloc < unit_length) {
-        kprintf("we have likely trashed memory!\n");
+        kprintf("we have likely trashed memory! initial alloc %d, unit length %d\n", initial_alloc, unit_length);
         while(1) asm volatile("wfi");
     }
 
