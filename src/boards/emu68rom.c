@@ -231,12 +231,17 @@ static void map(struct ExpansionBoard *board)
 
         if (i == 0)
         {
+            union {
+                const uint32_t *u32;
+                struct fdt_header *hdr;
+            } u;
+            u.hdr = fdt_base;
             virt_base = (void*)((uintptr_t)virt_base - 0x18);
             rom_modules = (void*)((uintptr_t)rom_modules - 0x18);
             uint64_t size = (fdt_base->totalsize + 31) & ~31;
             kprintf("[BOARD]   Copy FDT to %08lx...%08lx\n", virt_base, virt_base + size - 1);
 
-            DuffCopy(rom_modules, (const uint32_t *)fdt_base, size / 4);
+            DuffCopy(rom_modules, u.u32, size / 4);
             rom_modules = (void*)((uintptr_t)rom_modules + size);
             virt_base = (void*)((uintptr_t)virt_base + size);
         }
