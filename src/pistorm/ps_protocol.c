@@ -490,6 +490,12 @@ void ps_efinix_load(char *buffer, long length)
 static uint8_t pistorm_model;
 static uint8_t pistorm_model_set = 0;
 
+void force_pistorm_model(uint8_t model)
+{
+    pistorm_model = model;
+    pistorm_model_set = 1;
+}
+
 // Guessing PiStorm model. Activate Pull-Up on GPIO17 and GPIO24. Then read
 // The value of this IO pins. Following values are expected
 //

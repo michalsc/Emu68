@@ -295,6 +295,10 @@ void fastSerial_init()
     fastSerial_reset();
 }
 
+void force_pistorm_model(uint8_t)
+{
+
+}
 
 static void pistorm_setup_io() {
     gpio = ((volatile unsigned *)BCM2708_PERI_BASE) + GPIO_ADDR / 4;
