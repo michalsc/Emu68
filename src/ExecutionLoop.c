@@ -165,7 +165,10 @@ static inline uint32_t * FindUnitQuick()
         return code;
 #endif
 
-    struct M68KTranslationUnit *node;
+    union {
+        struct Node * node;
+        struct M68KTranslationUnit * unit;
+    } un;
 
     union {
         struct {
@@ -185,18 +188,18 @@ static inline uint32_t * FindUnitQuick()
     struct List *bucket = &ICache[hash];
 
     /* Go through the list of translated units */
-    ForeachNode(bucket, node)
+    ForeachNode(bucket, un.node)
     {
         /* Check if unit is found */
-        if (node->mt_Key == key)
+        if (un.unit->mt_Key == key)
         {
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
-            asm volatile ("prfm plil1keep, [%0]"::"r"(node->mt_ARMEntryPoint));
+            asm volatile ("prfm plil1keep, [%0]"::"r"(un.unit->mt_ARMEntryPoint));
 
 #if EMU68_USE_LRU
-            LRU_InsertBlock(node);
+            LRU_InsertBlock(un.unit);
 #endif
-            return node->mt_ARMEntryPoint;
+            return un.unit->mt_ARMEntryPoint;
         }
     }
 
@@ -205,22 +208,25 @@ static inline uint32_t * FindUnitQuick()
 
 static inline struct M68KTranslationUnit *FindUnit()
 {
-    struct M68KTranslationUnit *node;
+    union {
+        struct Node * node;
+        struct M68KTranslationUnit * unit;
+    } un;
 
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
     struct List *bucket = &ICache[hash];
 
     /* Go through the list of translated units */
-    ForeachNode(bucket, node)
+    ForeachNode(bucket, un.node)
     {
         /* Check if unit is found */
-        if (node->mt_M68kAddress == PC)
+        if (un.unit->mt_M68kAddress == PC)
         {
 #if EMU68_USE_LRU
-            LRU_InsertBlock(node);
+            LRU_InsertBlock(un.unit);
 #endif
-            return node;
+            return un.unit;
         }
     }
 
@@ -433,18 +439,27 @@ void MainLoop()
                 uint32_t copyPC = getCTX()->PC;
 
                 /* Perform search without testing Epoch */
-                struct M68KTranslationUnit *node = NULL, *n;
+                struct M68KTranslationUnit __attribute__((may_alias)) *node = NULL;
+                struct Node *n;
                 uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
                 struct List *bucket = &ICache[hash];
 
                 /* Go through the list of translated units */
                 ForeachNode(bucket, n)
                 {
+                    union {
+                        struct Node *n;
+                        struct M68KTranslationUnit *u;
+                    } conv;
+
+                    conv.n = n;
+                    struct M68KTranslationUnit *u = conv.u;
+
                     /* Check if unit is found */
-                    if (n->mt_M68kAddress == copyPC)
+                    if (u->mt_M68kAddress == copyPC)
                     {
                         /* Node found, most likely Epoch broken */
-                        node = M68K_VerifyUnit(n);
+                        node = M68K_VerifyUnit(u);
                         break;
                     }
                 }
