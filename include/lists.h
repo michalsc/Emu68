@@ -8,6 +8,9 @@
     Structures and macros for exec lists.
 */
 
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
 
 /**************************************
 		Includes
@@ -21,19 +24,110 @@
 	       Structures
 **************************************/
 /* Normal list */
-struct __mayalias List;
 struct List
 {
-    struct Node * lh_Head,
-                * lh_Tail;
-    union
-    {
-        struct Node * lh_TailPred;
-        struct List * lh_TailPred_;
-    };
-    void *__dummy;  // Dummy entry just to keep the struct of 32 bytes
+    struct Node lh_Head;
+    struct Node lh_Tail;
 };
 
+static inline struct Node * REMOVE(struct Node *n)
+{
+    n->ln_Prev->ln_Next = n->ln_Next;
+    n->ln_Next->ln_Prev = n->ln_Prev;
+
+    return n;
+}
+
+static inline struct Node * ADDHEAD(struct List *l, struct Node *n)
+{
+    if (n == NULL) return NULL;
+    if (l == NULL) return NULL;
+    
+    n->ln_Prev = &l->lh_Head;
+    l->lh_Head.ln_Next->ln_Prev = n;
+
+    n->ln_Next = l->lh_Head.ln_Next;
+    l->lh_Head.ln_Next = n;
+
+    return n;
+}
+
+static inline struct Node * ADDTAIL(struct List *l, struct Node *n)
+{
+    if (n == NULL) return NULL;
+    if (l == NULL) return NULL;
+
+    n->ln_Next = &l->lh_Tail;
+    n->ln_Prev = l->lh_Tail.ln_Prev;
+
+    l->lh_Tail.ln_Prev->ln_Next = n;
+    l->lh_Tail.ln_Prev = n;
+
+    return n;
+}
+
+static inline struct Node * GETHEAD(struct List *l)
+{
+    if (l->lh_Head.ln_Next == &l->lh_Tail)
+        return NULL;
+    else
+        return l->lh_Head.ln_Next;
+}
+
+static inline struct Node * GETTAIL(struct List *l)
+{
+    if (l->lh_Tail.ln_Prev == &l->lh_Head)
+        return NULL;
+    else
+        return l->lh_Tail.ln_Prev;
+}
+
+static inline struct Node * REMHEAD(struct List *l)
+{
+    struct Node *n = GETHEAD(l);
+    
+    if (n != NULL) REMOVE(n);
+
+    return n;
+}
+
+static inline struct Node * REMTAIL(struct List *l)
+{
+    struct Node *n = GETTAIL(l);
+    
+    if (n != NULL) REMOVE(n);
+
+    return n;
+}
+
+static inline void NEWLIST(struct List *l)
+{
+    if (l == NULL) return;
+
+    l->lh_Head.ln_Next = &l->lh_Tail;
+    l->lh_Head.ln_Prev = NULL;
+        
+    l->lh_Tail.ln_Prev = &l->lh_Head;
+    l->lh_Tail.ln_Next = NULL;
+}
+
+#define ForeachNode(list, node)                                 \
+for                                                             \
+(                                                               \
+    node = (typeof(node))(&((struct List *)(list))->lh_Head);   \
+    ((struct Node *)(node))->ln_Next;                           \
+    node = (typeof(node))(((struct Node *)(node))->ln_Next)     \
+)
+
+#define ForeachNodeSafe(list, current, next)                    \
+for                                                             \
+(                                                               \
+    node = (typeof(node))(&((struct List *)(list))->lh_Head);   \
+    (next = (typeof(next))((struct Node *)(current))->ln_Next); \
+    current = (typeof(current))next                             \
+)
+
+#if 0
 /**************************************
 	       Macros
 **************************************/
@@ -99,13 +193,7 @@ do                                                        \
     l->lh_TailPred          = n;                          \
 } while (0)
 
-static inline struct Node * REMOVE(struct Node *n)
-{
-    n->ln_Pred->ln_Succ = n->ln_Succ;
-    n->ln_Succ->ln_Pred = n->ln_Pred;
 
-    return n;
-}
 
 static inline struct Node * REMTAIL(struct List *l)
 {
@@ -170,5 +258,6 @@ do {		                   \
     count = 0;		           \
     ForeachNode (list,__n) count ++; \
 } while (0)
+#endif
 
 #endif /* EXEC_LISTS_H */

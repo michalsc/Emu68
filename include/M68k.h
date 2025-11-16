@@ -39,11 +39,11 @@ struct M68KTranslationUnit
     void *              mt_ARMEntryPoint;   /* 24: 1 x 8 bytes - entry point for AArch64 code */
 
     /* Less hot part - in case cache line is 32 bytes long, only */
-    uint32_t            mt_CRC32;           /* 32: 1 x 4 bytes - CRC32 of the whole block*/
-    uint32_t            mt_Fingerprint;     /* 36: 1 x 4 bytes - *mt_M68kAddress ^ *(mt_M68kAddress + 4) */
-    uint32_t            mt_M68kLow;         /* 40: 1 x 4 bytes - lowest m68k address in this block */
-    uint32_t            mt_M68kHigh;        /* 44: 1 x 4 bytes - highest m68k address in this block */
-    struct Node         mt_LRUNode;         /* 48: 2 x 8 bytes - LRU node */
+    struct Node         mt_LRUNode;         /* 32: 2 x 8 bytes - LRU node */
+    uint32_t            mt_CRC32;           /* 48: 1 x 4 bytes - CRC32 of the whole block*/
+    uint32_t            mt_Fingerprint;     /* 52: 1 x 4 bytes - *mt_M68kAddress ^ *(mt_M68kAddress + 4) */
+    uint32_t            mt_M68kLow;         /* 56: 1 x 4 bytes - lowest m68k address in this block */
+    uint32_t            mt_M68kHigh;        /* 60: 1 x 4 bytes - highest m68k address in this block */
 
     /* Cold part of the structure */
     uint32_t        mt_JIT_CONTROL;
