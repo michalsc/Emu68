@@ -465,7 +465,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
                 eb->eb_ARMCode[i] = ctx.tc_CodePtr[i];
             }
 
-            ADDTAIL(&exitList, eb);
+            ADDTAIL(&exitList, &eb->eb_Node);
         }
         if (ctx.tc_CodePtr[-1] == INSN_TO_LE(MARKER_DOUBLE_EXIT))
         {
@@ -495,7 +495,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
                 eb->eb_ARMCode[i] = ctx.tc_CodePtr[i];
             }
 
-            ADDTAIL(&exitList, eb);
+            ADDTAIL(&exitList, &eb->eb_Node);
         }
         if (ctx.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
         {
@@ -874,6 +874,8 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 */
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 {
+    const uint8_t icnt = ((__m68k_state->JIT_CONTROL >> JCCB_INSN_DEPTH) & JCCB_INSN_DEPTH_MASK) - 1;
+    const uint32_t initial_alloc = sizeof(struct M68KTranslationUnit) + ((uint32_t)icnt + 1) * 256;
     struct M68KTranslationUnit *unit = NULL;
     uintptr_t hash = (uintptr_t)m68kcodeptr;
     uint16_t *orig_m68kcodeptr = m68kcodeptr;
@@ -893,18 +895,20 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     /* Create translation unit of size which shall be sufficient */
     do {
         /* Allocate as much as you can */
-        unit = tlsf_malloc_aligned(jit_tlsf, 262144, 64);
+        unit = tlsf_malloc_aligned(jit_tlsf, initial_alloc, 64);
 
         /* Update free coutner */
         __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
 
         if (unit == NULL)
         {
-            if (debug > 0) {
-                kprintf("[ICache] Requested block was %d bytes long\n", 262144);
+            if (debug > 0)
+            {
+                kprintf("[ICache] Requested block was %d bytes long\n", initial_alloc);
+                kprintf("[ICache] JIT cache free: %d kB, total: %d kB\n", __m68k_state->JIT_CACHE_FREE, __m68k_state->JIT_CACHE_TOTAL);
             }
 
-            for (int i=0; i < 8; i++) {
+            for (int i=0; i < 16; i++) {
                 struct Node *n = REMTAIL(&LRU);
 
                 if (n == NULL)
@@ -925,43 +929,16 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
         }
     } while(unit == NULL);
 
-    uintptr_t line_length = M68K_Translate(m68kcodeptr, &unit->mt_ARMCode[0], (uint32_t *)unit + (262144 / sizeof(uint32_t)));
+    uintptr_t line_length = M68K_Translate(m68kcodeptr, &unit->mt_ARMCode[0], (uint32_t *)unit + initial_alloc);
     uintptr_t arm_insn_count = line_length/4 - 1;
 
     uintptr_t unit_length = (line_length + 63 + sizeof(struct M68KTranslationUnit)) & ~63;
-#if 0
-    do {
-        unit = tlsf_malloc_aligned(jit_tlsf, unit_length, 64);
 
-        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-
-        if (unit == NULL)
-        {
-            if (debug > 0) {
-                kprintf("[ICache] Requested block was %d bytes long\n", unit_length);
-            }
-
-            for (int i=0; i < 8; i++) {
-                struct Node *n = REMTAIL(&LRU);
-
-                if (n == NULL)
-                    break;
-
-                void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
-                REMOVE((struct Node *)ptr);
-                if (debug > 0)
-                {    
-                    kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
-                }
-                tlsf_free(jit_tlsf, ptr);
-                __m68k_state->JIT_UNIT_COUNT--;
-            }
-            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
-            
-            __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
-        }
-    } while(unit == NULL);
-#endif
+    //kprintf("unit length: %ld, initial alloc: %ld\n", unit_length, initial_alloc);
+    if (initial_alloc < unit_length) {
+        kprintf("we have likely trashed memory!\n");
+        while(1) asm volatile("wfi");
+    }
 
     /* Trim the unit to calculated unit length */
     unit = tlsf_realloc(jit_tlsf, unit, unit_length);
@@ -1078,6 +1055,7 @@ void M68K_DumpStats()
 
     if (debug)
         kprintf("[ICache] Listing translation units:\n");
+
     ForeachNode(&LRU, n)
     {
         cnt++;
