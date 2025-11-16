@@ -960,6 +960,9 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     if (arm_insn_count > 16)
         asm volatile ("prfm plil1keep, [%0, #64]"::"r"(unit->mt_ARMEntryPoint));
     
+    m68k_low = (uint16_t *)(((uintptr_t)m68k_low) & ~7);
+    m68k_high = (uint16_t *)(((uintptr_t)m68k_high + 7) & ~7);
+
     extern uint32_t EPOCH;
     unit->mt_Epoch = EPOCH;
     unit->mt_M68kInsnCnt = insn_count;
