@@ -22,6 +22,7 @@
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 #include "version.h"
+#include "ps_protocol.h"
 
 void _start();
 void _boot();
@@ -31,7 +32,7 @@ extern uint64_t mmu_user_L2[4*512];
 
 void M68K_StartEmu(void *addr);
 
-uint16_t *framebuffer;
+void *framebuffer;
 uint32_t pitch;
 uint32_t fb_width;
 uint32_t fb_height;
@@ -94,6 +95,7 @@ static void __putc(void *data, char c)
 
 void display_logo()
 {
+    uint16_t *fb;
     struct Size sz = get_display_size();
     uint32_t start_x, start_y;
     uint16_t *buff;
@@ -126,6 +128,7 @@ void display_logo()
     fb_height = sz.height;
     init_display(sz, (void**)&framebuffer, &pitch);
     kprintf("[BOOT] Framebuffer @ %08x\n", framebuffer);
+    fb = framebuffer;
 
     start_x = (sz.width - EmuLogo.el_Width) / 2;
     start_y = (sz.height - EmuLogo.el_Height) / 2;
@@ -135,6 +138,21 @@ void display_logo()
     /* Calculate text coordinate for version string */
     text_y = (fb_height - 16 - 5) / 16;
     text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
+
+#if defined(PISTORM)
+    const uint8_t pistorm_model = pistorm_get_model();
+    switch(pistorm_model)
+    {
+        case PISTORM_MODEL_16:
+            text_x -= strlen("PiStorm16, ");
+            break;
+        case PISTORM_MODEL_32:
+            text_x -= strlen("PiStorm32lite, ");
+            break;
+    }
+#elif defined(PISTORM_CLASSIC)
+    text_x -= strlen("PiStorm Classic, ");
+#endif
 
     /* First clear the screen. Use color in top left corner of RLE image for that */
     {
@@ -168,7 +186,7 @@ void display_logo()
         }
 
         for (int i=0; i < sz.width * sz.height; i++)
-            framebuffer[i] = LE16(color);
+            fb[i] = LE16(color);
     }
 
     /* Now decode RLE and draw it on the screen */
@@ -222,9 +240,22 @@ void display_logo()
         }
     }
 
+#if defined(PISTORM)
+    switch(pistorm_model)
+    {
+        case PISTORM_MODEL_16:
+            kprintf_pc(__putc, NULL, "PiStorm16, ");
+            break;
+        case PISTORM_MODEL_32:
+            kprintf_pc(__putc, NULL, "PiStorm32lite, ");
+            break;
+    }
+#elif defined(PISTORM_CLASSIC)
+    kprintf_pc(__putc, NULL, "PiStorm Classic, ");
+#endif
     /* Print EMu68 version number and git sha. */
     kprintf_pc(__putc, NULL, &VERSION_STRING[6]);
-
+    
     /* Reset test coordinates for further text printing (e.g. buptest) */
     text_x = 0;
     text_y = 0;
