@@ -544,6 +544,8 @@ int fast_page0 = 0;
 
 uint8_t slot_set = 0;
 
+void force_pistorm_model(uint8_t model);
+
 void parse_cmdline(const char *cmdline)
 {
     const char *tok;
@@ -552,6 +554,11 @@ void parse_cmdline(const char *cmdline)
     ppc_enable = !!find_token(cmdline, "ppc_enable");
     enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
+    int force_ps16 = !!find_token(cmdline, "ps16");
+    int force_ps32 = !!find_token(cmdline, "ps32");
+
+    if (force_ps16) force_pistorm_model(PISTORM_MODEL_16);
+    else if (force_ps32) force_pistorm_model(PISTORM_MODEL_32);
 
     extern int disasm;
     extern int debug;
@@ -1964,7 +1971,7 @@ void MainLoop();
 
 void M68K_StartEmu(void *addr, void *fdt)
 {
-    void (*arm_code)();
+    //void (*arm_code)();
     struct M68KTranslationUnit * unit = (void*)0;
     struct M68KState __m68k;
     uint64_t t1=0, t2=0;
@@ -2091,7 +2098,8 @@ __asm__ volatile(
     __asm__ volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
     __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
 
-    *(void**)(&arm_code) = NULL;
+    //arm_code = NULL;
+    //*(void**)(&arm_code) = NULL;
 
     (void)unit;
 
