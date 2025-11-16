@@ -23,7 +23,11 @@ extern "C" {
     ({ do                                                                             \
     {                                                                                 \
         const uint32_t __emit_args__[] = {__VA_ARGS__};                               \
-        for (size_t i = 0; i < sizeof(__emit_args__) / sizeof(__emit_args__[0]); i++) \
+        const uint32_t count = sizeof(__emit_args__) / sizeof(__emit_args__[0]);      \
+        if ((ctx)->tc_CodePtr + count > (ctx)->tc_CodeEnd) {                          \
+            kprintf("[EMIT] Need more space for code - %d instructions!", ((ctx)->tc_CodePtr + count - (ctx)->tc_CodeEnd)); \
+        }                                                                             \
+        for (size_t i = 0; i < count; i++)                                            \
         {                                                                             \
             *((ctx)->tc_CodePtr)++ = __emit_args__[i];                                \
         }                                                                             \
