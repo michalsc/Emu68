@@ -26,7 +26,7 @@
  */
 #define MAX_LOG2_SLI    (5)
 #define MAX_SLI         (1 << MAX_LOG2_SLI)
-#define MAX_FLI         (32)
+#define MAX_FLI         (30)
 #define FLI_OFFSET      (6)
 #define SMALL_BLOCK     (2 << FLI_OFFSET)
 
@@ -185,51 +185,16 @@ static inline __attribute__((always_inline)) bhdr_t * FIND_SUITABLE_BLOCK(tlsf_t
     return b;
 }
 
-
-#ifdef USE_MACROS
-
-#define GET_SIZE(b) ({ IPTR size = b->header.length & SIZE_MASK; size; })
-#define GET_FLAGS(b) ({ IPTR flags = b->header.length & (THIS_FREE_MASK | PREV_FREE_MASK); flags; })
-#define SET_SIZE(b, size) do{ b->header.length = GET_FLAGS(b) | (size); }while(0)
-#define SET_FLAGS(b, flags) do{ b->header.length = GET_SIZE(b) | (flags); }while(0)
-#define SET_SIZE_AND_FLAGS(b, size, flags) do{b->header.length = (size) | (flags);}while(0)
-#define FREE_BLOCK(b) ((b->header.length & THIS_FREE_MASK) == THIS_FREE)
-#define SET_FREE_BLOCK(b) do{b->header.length = (b->header.length & ~THIS_FREE_MASK) | THIS_FREE;}while(0)
-#define SET_BUSY_BLOCK(b) do{b->header.length = (b->header.length & ~THIS_FREE_MASK) | THIS_BUSY;}while(0)
-#define SET_FREE_PREV_BLOCK(b) do{b->header.length = (b->header.length & ~PREV_FREE_MASK) | PREV_FREE;}while(0)
-#define SET_BUSY_PREV_BLOCK(b) do{b->header.length = (b->header.length & ~PREV_FREE_MASK) | PREV_BUSY;}while(0)
-#define FREE_PREV_BLOCK(b) ((b->header.length & PREV_FREE_MASK) == PREV_FREE)
-#define GET_NEXT_BHDR(hdr, size) ({ bhdr_t * __b = (bhdr_t *)((UBYTE *)&hdr->mem[0] + (size)); __b; })
-#define MEM_TO_BHDR(ptr) ({ bhdr_t * b = (bhdr_t*)((void*)(ptr) - offsetof(bhdr_t, mem)); b; })
-
-#define REMOVE_HEADER(tlsf, b, fl, sl) do{ \
-        if (b->free_node.next)                                          \
-            b->free_node.next->free_node.prev = b->free_node.prev;      \
-        if (b->free_node.prev)                                          \
-            b->free_node.prev->free_node.next = b->free_node.next;      \
-        if (tlsf->matrix[fl][sl] == b) {                                \
-            tlsf->matrix[fl][sl] = b->free_node.next;                   \
-            if (!tlsf->matrix[fl][sl])                                  \
-                ClrBit(sl, &tlsf->slbitmap[fl]);                        \
-            if (!tlsf->slbitmap[fl])                                    \
-                ClrBit(fl, &tlsf->flbitmap);                            \
-        } } while(0)
-
-#define INSERT_FREE_BLOCK(tlsf, b) do {                     \
-    int fl, sl; MAPPING_INSERT(GET_SIZE(b), &fl, &sl);      \
-    b->free_node.prev = NULL;                               \
-    b->free_node.next = tlsf->matrix[fl][sl];               \
-    if (tlsf->matrix[fl][sl])                               \
-        tlsf->matrix[fl][sl]->free_node.prev = b;           \
-    tlsf->matrix[fl][sl] = b;                               \
-    SetBit(fl, &tlsf->flbitmap);                            \
-    SetBit(sl, &tlsf->slbitmap[fl]); }while(0)
-
-#else
-
 static inline __attribute__((always_inline)) uintptr_t GET_SIZE(bhdr_t *b)
 {
-    return b->header.length & SIZE_MASK;
+    uintptr_t size = b->header.length & SIZE_MASK;
+    if (size > 0xffffffff) {
+        kprintf("ERROR! GET_SIZE block %p with size=%p\n", b, size);
+        kprintf("  caller %p\n", __builtin_return_address(0));
+
+        while(1) asm volatile("wfe");
+    }
+    return size;
 }
 
 static inline __attribute__((always_inline)) uintptr_t GET_FLAGS(bhdr_t *b)
@@ -239,11 +204,19 @@ static inline __attribute__((always_inline)) uintptr_t GET_FLAGS(bhdr_t *b)
 
 static inline __attribute__((always_inline)) void SET_SIZE(bhdr_t *b, uintptr_t size)
 {
+    if (size > 0xffffffff) {
+        kprintf("ERROR! SET_SIZE on block %p with size=%p\n", b, size);
+        while(1) asm volatile("wfe");
+    }
     b->header.length = GET_FLAGS(b) | size;
 }
 
 static inline __attribute__((always_inline)) void SET_SIZE_AND_FLAGS(bhdr_t *b, uintptr_t size, uintptr_t flags)
 {
+    if (size > 0xffffffff) {
+        kprintf("ERROR! SET_SIZE_AND_FLAGS on block %p with size=%p\n", b, size);
+        while(1) asm volatile("wfe");
+    }
     b->header.length = size | flags;
 }
 
@@ -289,6 +262,10 @@ static inline __attribute__((always_inline)) bhdr_t * MEM_TO_BHDR(void *ptr)
 
 static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bhdr_t *b, int fl, int sl)
 {
+    if (GET_SIZE(b) == 0) {
+        return;
+    }
+
     if (b->free_node.next)
         b->free_node.next->free_node.prev = b->free_node.prev;
     if (b->free_node.prev)
@@ -335,8 +312,6 @@ static inline __attribute__((always_inline)) void INSERT_FREE_BLOCK(tlsf_t *tlsf
     SetBit(fl, &tlsf->flbitmap);
     SetBit(sl, &tlsf->slbitmap[fl]);
 }
-
-#endif /* USE_MACROS */
 
 static bhdr_t * tlsf_intern_malloc(tlsf_t *tlsf, uintptr_t size)
 {
@@ -498,7 +473,7 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
     }
 
     /* Convert bhdr_t to pointer */
-    ptr = b->mem;
+    ptr = &b->mem[0];
 
     if (align > SIZE_ALIGN)
     {
@@ -512,18 +487,21 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
         SET_BUSY_BLOCK(aligned_bhdr);
 
         /* If aligned block does not start at the original malloc result, free the diff space at begin */
-        if (aligned_ptr != ptr && diff_begin >= ROUNDUP(sizeof(hdr_t)))
+        if (aligned_ptr != ptr)
         {
-            SET_SIZE(b, diff_begin - ROUNDUP(sizeof(hdr_t)));
+            if (diff_begin >= ROUNDUP(sizeof(hdr_t)))
+            {
+                SET_SIZE(b, diff_begin - ROUNDUP(sizeof(hdr_t)));
 
-            aligned_bhdr->header.prev = b;
-            SET_FREE_PREV_BLOCK(aligned_bhdr);
-            SET_FREE_BLOCK(b);
+                aligned_bhdr->header.prev = b;
+                SET_FREE_PREV_BLOCK(aligned_bhdr);
+                SET_FREE_BLOCK(b);
 
-            b = MERGE_PREV(tlsf, b);
+                b = MERGE_PREV(tlsf, b);
 
-            /* Insert free block into the proper list */
-            INSERT_FREE_BLOCK(tlsf, b);
+                /* Insert free block into the proper list */
+                INSERT_FREE_BLOCK(tlsf, b);
+            }
 
             ptr = &aligned_bhdr->mem[0];
         }
@@ -539,11 +517,11 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
             SET_BUSY_PREV_BLOCK(b1);
             SET_FREE_BLOCK(b1);
 
+            b1 = MERGE_NEXT(tlsf, b1);
+
             next = GET_NEXT_BHDR(b1, GET_SIZE(b1));
             next->header.prev = b1;
             SET_FREE_PREV_BLOCK(next);
-
-            b1 = MERGE_NEXT(tlsf, b1);
 
             INSERT_FREE_BLOCK(tlsf, b1);
         }
