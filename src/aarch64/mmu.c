@@ -237,7 +237,7 @@ void mmu_init()
         int block_size = 4 * (size_cells + address_cells);
         int block_count = p->op_length / block_size;
 
-        sys_memory = tlsf_malloc(tlsf, (1 + block_count) * block_size);
+        sys_memory = tlsf_malloc(tlsf, (1 + block_count) * sizeof(struct MemoryBlock));
         for (int block=0; block < block_count; block++)
         {
             uintptr_t addr = 0;
