@@ -452,6 +452,7 @@ void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch)
 void setup_serial()
 {
     of_node_t *e = NULL;
+    int async = 0;
 
     serial_up = 1;
 
@@ -467,12 +468,18 @@ void setup_serial()
             }
             else
                 fast_serial = 0;
+            
+            if (strstr(prop->op_value, "async_log")) {
+                async = 1;
+            }
         }
     }
 
-    q_buffer = tlsf_malloc(tlsf, Q_SIZE);
-    q_head = 0;
-    q_tail = 0;
+    if (async) {
+        q_buffer = tlsf_malloc(tlsf, Q_SIZE);
+        q_head = 0;
+        q_tail = 0;
+    }
 }
 
 #else
