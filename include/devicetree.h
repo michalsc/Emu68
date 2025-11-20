@@ -29,9 +29,8 @@ struct fdt_prop_entry {
 typedef struct of_property {
     struct of_property *op_next;
     char *              op_name;
-    uint32_t            op_length;
     void *              op_value;
-    uint8_t             op_storage[];
+    uint32_t            op_length;
 } of_property_t;
 
 typedef struct of_node {
@@ -40,7 +39,6 @@ typedef struct of_node {
     char *          on_name;
     struct of_node *on_children;
     of_property_t * on_properties;
-    uint8_t         on_storage[];
 } of_node_t;
 
 #define FDT_END         0x00000009
