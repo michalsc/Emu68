@@ -687,7 +687,7 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                     break;
 
                 case SIZE_L:
-                    int32_t imm32 = (uint16_t)cache_read_32(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    int32_t imm32 = (uint32_t)cache_read_32(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
                     switch (imm32) {
                         case 0:
                             EMIT(ctx, fmov_0(*reg));
