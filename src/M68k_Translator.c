@@ -905,7 +905,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
                 kprintf("[ICache] JIT cache free: %d kB, total: %d kB\n", __m68k_state->JIT_CACHE_FREE, __m68k_state->JIT_CACHE_TOTAL);
             }
 
-            for (int i=0; i < 16; i++) {
+            for (int i=0; i < 64; i++) {
                 struct Node *n = REMTAIL(&LRU);
 
                 if (n == NULL)
