@@ -280,7 +280,9 @@ static inline uint32_t read_ps_reg_ps16(uint32_t address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
 
-    uint32_t data = LE32((gpio_lev0 = GPIO->GPLEV0));
+    // More conservative behavior - read the GPLEV0 twice
+    uint32_t data = LE32(GPIO->GPLEV0);
+    data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -326,7 +328,9 @@ static inline uint32_t read_ps_reg_with_wait_ps16(uint32_t address)
     while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN))
         asm volatile("");
 
-    uint32_t data = LE32(gpio_lev0);
+    // More conservative behavior - read the GPLEV0 twice
+    uint32_t data = LE32(GPIO->GPLEV0);
+    data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(CLEAR_BITS);
@@ -367,6 +371,10 @@ static inline void write_ps_reg_ps16(uint32_t address, uint16_t data)
     GPIO->GPSET0 = LE32((data << PIN_D(0)) | (address << PIN_A(0)));
 
     // Delay for Pi4, 2*3.5nS
+    // More conservative behavior do 4 writes instead of one here
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
+    GPIO->GPCLR0 = LE32(1 << PIN_WR);
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
 
     GPIO->GPSET0 = LE32(1 << PIN_WR);
