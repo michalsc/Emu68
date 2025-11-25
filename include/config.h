@@ -55,7 +55,7 @@
 
 #define EMU68_HASHSIZE          65536
 #define EMU68_HASHMASK          (EMU68_HASHSIZE - 1)
-#define EMU68_HASHSHIFT         5
+#define EMU68_HASHSHIFT         2
 
 #ifdef PISTORM_ANY_MODEL
 
