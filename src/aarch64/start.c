@@ -554,11 +554,14 @@ void parse_cmdline(const char *cmdline)
     ppc_enable = !!find_token(cmdline, "ppc_enable");
     enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
+
+#ifdef PISTORM_ANY_MODEL
     int force_ps16 = !!find_token(cmdline, "ps16");
     int force_ps32 = !!find_token(cmdline, "ps32");
 
     if (force_ps16) force_pistorm_model(PISTORM_MODEL_16);
     else if (force_ps32) force_pistorm_model(PISTORM_MODEL_32);
+#endif
 
     extern int disasm;
     extern int debug;
