@@ -22,7 +22,9 @@
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 #include "version.h"
+#ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
+#endif
 
 void _start();
 void _boot();
