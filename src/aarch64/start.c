@@ -1247,6 +1247,9 @@ void boot(void *dtree)
                 mmu_map(sys_memory[block].mb_Base, sys_memory[block].mb_Base, size,
                         MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
 
+                /* Make a hole for 0xdeadbeef */
+                mmu_map(0xdeadbeef & ~4095, 0xdeadbeef & ~4095, 4096, 0, 0);
+
                 if (sys_memory[block].mb_Base + size > top_of_ram)
                 {
                     top_of_ram = sys_memory[block].mb_Base + size;
