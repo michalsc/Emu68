@@ -857,6 +857,11 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
             /* Move the unit to the beginning of LRU list */
             REMOVE(&unit->mt_LRUNode);
             ADDHEAD(&LRU, &unit->mt_LRUNode);
+
+            /* Move the unit to the beginning of bucket - need to check if really important */
+            uint32_t hash = (unit->mt_M68kAddress >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+            REMOVE(&unit->mt_HashNode);
+            ADDHEAD(&ICache[hash], &unit->mt_HashNode);
         }
     }
 
