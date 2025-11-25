@@ -379,13 +379,12 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
     int inner_loop = FALSE;
     int soft_break = FALSE;
     int max_rev_jumps = 0;
-#if 0
-    int inner_loop_insn = -1;
-    int inner_loop_count = 0;
-#endif
+
+    int inner_loop_length = 0;
+    int inner_loop_limit = 0;
 
     m68k_low = ctx.tc_M68kCodePtr;
-    m68k_high = ctx.tc_M68kCodePtr + 16;
+    m68k_high = ctx.tc_M68kCodePtr + 2;
 
     while (break_loop == FALSE && soft_break == FALSE && insn_count < var_EMU68_M68K_INSN_DEPTH)
     {
@@ -423,8 +422,8 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
 
         if (ctx.tc_M68kCodePtr < m68k_low)
             m68k_low = ctx.tc_M68kCodePtr;
-        if (ctx.tc_M68kCodePtr + 16 > m68k_high)
-            m68k_high = ctx.tc_M68kCodePtr + 16;
+        if (ctx.tc_M68kCodePtr > m68k_high)
+            m68k_high = ctx.tc_M68kCodePtr;
 
         insn_count+=insn_consumed;
         if (ctx.tc_CodePtr[-1] == INSN_TO_LE(0xfffffff0))
@@ -555,30 +554,24 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
         if (!break_loop && (orig_m68kcodeptr == ctx.tc_M68kCodePtr))
         {
             inner_loop = TRUE;
-            if (!soft_break) break;
 
-#if 0
-            /* Set inner loop instruction count */
-            if (inner_loop_insn == -1)
-            {
-                inner_loop_insn = insn_count;
-                inner_loop_count = var_EMU68_MAX_LOOP_COUNT;
+            if (inner_loop_length == 0) {
+                inner_loop_length = insn_count;
+                int capacity = var_EMU68_M68K_INSN_DEPTH / insn_count;
+                if (capacity > var_EMU68_MAX_LOOP_COUNT) capacity = var_EMU68_MAX_LOOP_COUNT;
+
+                if (capacity <= 1) break;
+
+                inner_loop_limit = capacity - 1;
+            } else {
+                if (--inner_loop_limit == 0) break;
             }
 
-            /* If inner loop count is not 0 and there is still place for one loop, put it here */
-            if (--inner_loop_count)
-            {
-                if ((var_EMU68_M68K_INSN_DEPTH - insn_count) > (uint32_t)inner_loop_insn)
-                {
-                    soft_break = FALSE;
-                }
-            }
-            else {
-                break;
-            }
-#endif
+            if (soft_break) break;
         }
     }
+
+    if (orig_m68kcodeptr != ctx.tc_M68kCodePtr) inner_loop = FALSE;
 
     uint32_t *out_code = ctx.tc_CodePtr;
     uint32_t *tmpptr = ctx.tc_CodePtr;
@@ -964,8 +957,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
     if (arm_insn_count > 16)
         asm volatile ("prfm plil1keep, [%0, #64]"::"r"(unit->mt_ARMEntryPoint));
     
-    m68k_low = (uint16_t *)(((uintptr_t)m68k_low) & ~7);
-    m68k_high = (uint16_t *)(((uintptr_t)m68k_high + 7) & ~7);
+    //m68k_low = (uint16_t *)(((uintptr_t)m68k_low) & ~7);
+    //m68k_high = (uint16_t *)(((uintptr_t)m68k_high + 7) & ~7);
 
     extern uint32_t EPOCH;
     unit->mt_Epoch = EPOCH;
