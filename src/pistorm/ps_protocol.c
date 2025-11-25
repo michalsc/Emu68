@@ -1898,10 +1898,12 @@ void (*ps_write_128)(unsigned int address, uint128_t data);
 unsigned int (*ps_read_8_int)(unsigned int address);
 unsigned int (*ps_read_16_int)(unsigned int address);
 unsigned int (*ps_read_32_int)(unsigned int address);
+uint64_t (*ps_read_64_int)(unsigned int address);
 
 void (*ps_write_8_int)(unsigned int address, unsigned int data);
 void (*ps_write_16_int)(unsigned int address, unsigned int data);
 void (*ps_write_32_int)(unsigned int address, unsigned int data);
+void (*ps_write_64_int)(unsigned int address, uint64_t data);
 
 void ps_setup_protocol()
 {
@@ -1943,6 +1945,7 @@ void ps_setup_protocol()
             ps_read_8_int = ps32_read_8;
             ps_read_16_int = ps32_read_16;
             ps_read_32_int = ps32_read_32;
+            ps_read_64_int = ps32_read_64;
 
             ps_read_8 = ps32_read_8;
             ps_read_16 = ps32_read_16;
@@ -1953,6 +1956,7 @@ void ps_setup_protocol()
             ps_write_8_int = ps32_write_8_int;
             ps_write_16_int = ps32_write_16_int;
             ps_write_32_int = ps32_write_32_int;
+            ps_write_64_int = ps32_write_64_int;
 
             ps_write_8 = ps32_write_8;
             ps_write_16 = ps32_write_16;
@@ -1970,10 +1974,12 @@ void ps_setup_protocol()
             ps_read_8_int = ps16_read_8_int;
             ps_read_16_int = ps16_read_16_int;
             ps_read_32_int = ps16_read_32_int;
+            ps_read_64_int = ps16_read_64_int;
 
             ps_write_8_int = ps16_write_8_int;
             ps_write_16_int = ps16_write_16_int;
             ps_write_32_int = ps16_write_32_int;
+            ps_write_64_int = ps16_write_64_int;
 
             ps_read_8 = ps16_read_8;
             ps_read_16 = ps16_read_16;
@@ -2257,4 +2263,344 @@ void ps_send_reset()
     usleep(10000);
 
     ignore_reset = 0;
+}
+
+void put_char(uint8_t c);
+
+static void __putc(void *data, char c)
+{
+    (void)data;
+    put_char(c);
+}
+
+static uint32_t _seed;
+uint32_t rnd() {
+    _seed = (_seed * 1103515245) + 12345;
+    return _seed;
+}
+
+void ps_memtest(unsigned int test_size)
+{
+    ps_write_8_int(0xbfe201, 0x0101);       //CIA OVL
+    ps_write_8_int(0xbfe001, 0x0000);       //CIA OVL LOW
+
+    int num_iter = 1;
+    uint64_t clkspeed;
+    uint64_t t0, t1;
+    uint32_t ns;
+    double result;
+
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(clkspeed));
+
+    kprintf_pc(__putc, NULL, "MemBench with size %dK requested through commandline\n", test_size / 1024);
+
+    num_iter = 1;
+
+    do {
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr++)
+            {
+                (void)ps_read_8_int(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 1E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ BYTE:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr+=2)
+            {
+                (void)ps_read_16_int(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 2E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ WORD:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0x1000; addr < test_size + 0x1000; addr+=4)
+            {
+                (void)ps_read_32_int(addr);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 4E9 / result;
+
+    kprintf_pc(__putc, NULL, "  READ LONG:  %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr++)
+            {
+                (void)ps_write_8_int(addr, 0x00);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 1E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE BYTE: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr+=2)
+            {
+                (void)ps_write_16_int(addr, 0);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 2E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE WORD: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+
+    num_iter = 1;
+    do {    
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+
+        for (int iter = 0; iter < num_iter; iter++)
+        {
+            for (unsigned int addr = 0; addr < test_size; addr+=4)
+            {
+                (void)ps_write_32_int(addr, 0);
+            }
+        }
+
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        num_iter <<= 1;
+    } while((t1 - t0) < clkspeed);
+
+    result = (double)(t1 - t0) / (double)clkspeed;
+    result = (double)test_size * (double)(num_iter >> 1) / result;
+    ns = 4E9 / result;
+
+    kprintf_pc(__putc, NULL, "  WRITE LONG: %5ld KB/s   %5ld ns\n", (unsigned int)result / 1024, ns);
+}
+
+void ps_buptest(unsigned int test_size, unsigned int maxiter)
+{
+    // Initialize RNG
+    uint64_t tmp;
+    asm volatile("mrs %0, CNTPCT_EL0":"=r"(tmp));
+
+    _seed = tmp;
+
+    kprintf_pc(__putc, NULL, "BUPTest with size %dK requested through commandline\n", test_size / 1024);
+
+    uint32_t frac = test_size / 16;
+
+    uint8_t *garbage = tlsf_malloc(tlsf, test_size);
+
+    ps_write_8_int(0xbfe201, 0x0101);       //CIA OVL
+    ps_write_8_int(0xbfe001, 0x0000);       //CIA OVL LOW
+
+    for (unsigned int iter = 0; iter < maxiter; iter++) {
+        kprintf_pc(__putc, NULL, "Iteration %d...\n", iter + 1);
+
+        // Fill the garbage buffer and chip ram with random data
+        kprintf_pc(__putc, NULL, "  Writing BYTE garbage data to Chip...            ");
+
+        for (uint32_t i = 0; i < test_size; i++) {
+            uint8_t val = 0;
+            val = rnd();
+            garbage[i] = val;
+            ps_write_8_int(i, val);
+
+            if ((i % (frac * 2)) == 0)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 0; i < test_size; i++) {
+            uint32_t c = ps_read_8_int(i);
+            if (c != garbage[i]) {
+                kprintf_pc(__putc, NULL, "\n    READ8: Garbege data mismatch at $%.6X: %.2X should be %.2X.\n", i, c, garbage[i]);
+                while(1);
+            }
+
+            if ((i % (frac * 4)) == 0)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 0; i < (test_size) - 2; i += 2) {
+            uint32_t c = BE16(ps_read_16_int(i));
+            if (c != *((uint16_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ16_EVEN: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 4)) == 0)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
+            uint32_t c = BE16(ps_read_16_int(i));
+            if (c != *((uint16_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 4)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+        
+        for (uint32_t i = 0; i < (test_size) - 4; i += 2) {
+            uint32_t c = BE32(ps_read_32_int(i));
+            if (c != *((uint32_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ32_EVEN: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
+                while(1);
+            }
+            
+            if ((i % (frac * 4)) == 0)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 1; i < (test_size) - 4; i += 2) {
+            uint32_t c = BE32(ps_read_32_int(i));
+            if (c != *((uint32_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 4)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 0; i < test_size; i++) {
+            ps_write_8_int(i, (uint32_t)0x0);
+
+            if ((i % (frac * 8)) == 0)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        kprintf_pc(__putc, NULL, "\n  Writing WORD garbage data to Chip, unaligned... ");
+        for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
+            uint16_t v = *((uint16_t *)&garbage[i]);
+            ps_write_8_int(i + 1, (v & 0x00FF));
+            ps_write_8_int(i, (v >> 8));
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 1; i < (test_size) - 2; i += 2) {
+            uint32_t c = BE16((ps_read_8_int(i) << 8) | ps_read_8_int(i + 1));
+            if (c != *((uint16_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ16_ODD: Garbege data mismatch at $%.6X: %.4X should be %.4X.\n", i, c, *((uint16_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 0; i < test_size; i++) {
+            ps_write_8_int(i, (uint32_t)0x0);
+        }
+
+        kprintf_pc(__putc, NULL, "\n  Writing LONG garbage data to Chip, unaligned... ");
+        for (uint32_t i = 1; i < (test_size) - 4; i += 4) {
+            uint32_t v = *((uint32_t *)&garbage[i]);
+            ps_write_8_int(i , v & 0x0000FF);
+            ps_write_16_int(i + 1, BE16(((v & 0x00FFFF00) >> 8)));
+            ps_write_8_int(i + 3 , (v & 0xFF000000) >> 24);
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 1; i < (test_size) - 4; i += 4) {
+            uint32_t c = ps_read_8_int(i);
+            c |= (BE16(ps_read_16_int(i + 1)) << 8);
+            c |= (ps_read_8_int(i + 3) << 24);
+            if (c != *((uint32_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ32_ODD: Garbege data mismatch at $%.6X: %.8X should be %.8X.\n", i, c, *((uint32_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        kprintf_pc(__putc, NULL, "\n  Writing QUAD garbage data to Chip... ");
+        for (uint32_t i = 0; i < (test_size) - 8; i += 8) {
+            uint64_t v = *((uint64_t *)&garbage[i]);
+            ps_write_64_int(i , v);
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+        for (uint32_t i = 1; i < (test_size) - 16; i += 8) {
+            uint64_t c = ps_read_64_int(i);
+            if (c != *((uint64_t *)&garbage[i])) {
+                kprintf_pc(__putc, NULL, "\n    READ64_ODD: Garbege data mismatch at $%.6X: %.16X should be %.16X.\n", i, c, *((uint64_t *)&garbage[i]));
+                while(1);
+            }
+
+            if ((i % (frac * 2)) == 1)
+                kprintf_pc(__putc, NULL, "*");
+        }
+
+
+        kprintf_pc(__putc, NULL, "\n");
+    }
+
+
+    kprintf_pc(__putc, NULL, "All done. BUPTest completed.\n");
+
+    ps_pulse_reset();
+
+    tlsf_free(tlsf, garbage);
 }

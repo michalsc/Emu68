@@ -30,6 +30,9 @@
 #include "sponsoring.h"
 #include "spinlock.h"
 #include "intc.h"
+#ifdef PISTORM_ANY_MODEL
+#include "ps_protocol.h"
+#endif
 
 void _start();
 void _boot();
@@ -1728,16 +1731,31 @@ void boot(void *dtree)
         amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
     }
 
-    of_property_t * prop = dt_find_property(dt_find_node("/emu68/diag/buptest"), "status");
-    if (prop && strcmp(prop->op_value, "okay") == 0)
+    of_node_t *n = dt_find_node("/emu68/diag/buptest");
+    if (n != NULL)
     {
-       // ps_buptest();
+        of_property_t * prop = dt_find_property(n, "status");
+        if (prop && strcmp(prop->op_value, "okay") == 0)
+        {
+            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
+            uint32_t iter = dt_get_property_value_u32(n, "iterations", 1, 0);
+            kprintf("[BOOT] Calling buptest with size %d and iterations %d\n", size, iter);
+            ps_buptest(size, iter);
+        }
     }
+    
 
-    prop = dt_find_property(dt_find_node("/emu68/diag/membench"), "status");
-    if (prop && strcmp(prop->op_value, "okay") == 0)
+    n = dt_find_node("/emu68/diag/membench");
+    if (n != NULL)
     {
-       // ps_memtest();
+        of_property_t * prop = dt_find_property(n, "status");
+        if (prop && strcmp(prop->op_value, "okay") == 0)
+        {
+            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
+            kprintf("[BOOT] Calling membench with size %d\n", size);
+            ps_memtest(size / 1024);
+        }
+
     }
 
     /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
