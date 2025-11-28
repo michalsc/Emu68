@@ -680,7 +680,7 @@ void EMIT_GetFPUFlags(struct TranslatorContext *ctx, uint8_t fpsr)
 {
     uint8_t tmp_reg = RA_AllocARMRegister(ctx);
 
-    host_flags = FP_FLAGS;
+    host_flags = 0; //FP_FLAGS;
 
     EMIT(ctx,
         bic_immed(fpsr, fpsr, 4, 8),
