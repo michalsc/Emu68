@@ -11,6 +11,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "tlsf.h"
 
 extern uint32_t insn_count;
 
@@ -1970,6 +1971,37 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                     and_immed(tmp, reg, (mask >> 16) & 0x3f, mask & 0x3f),
                     mov_reg_to_simd(REG_CACR, tmp)
                 );
+
+                void check_cacr();
+
+                union {
+                    uint64_t u64;
+                    uint16_t u16[4];
+                } u;
+
+                u.u64 = (uintptr_t)check_cacr;
+
+                EMIT(ctx, stp64_preindex(31, 0, 1, -256));
+                for (int i=2; i < 30; i += 2)
+                    EMIT(ctx, stp64(31, i, i+1, i*8));
+                EMIT(ctx, str64_offset(31, 30, 240));
+
+                EMIT(ctx, 
+                    mov64_immed_u16(1, u.u16[3], 0),
+                    movk64_immed_u16(1, u.u16[2], 1),
+                    movk64_immed_u16(1, u.u16[1], 2),
+                    movk64_immed_u16(1, u.u16[0], 3),
+
+                    blr(1)
+                );
+
+                for (int i=2; i < 30; i += 2)
+                    EMIT(ctx, ldp64(31, i, i+1, i*8));
+                EMIT(ctx, 
+                    ldr64_offset(31, 30, 240),
+                    ldp64_postindex(31, 0, 1, 256)
+                );
+
                 RA_FreeARMRegister(ctx, tmp);
                 break;
             case 0x803: // MSP
@@ -3183,6 +3215,61 @@ int M68K_GetLine4Length(uint16_t *insn_stream)
     return length;
 }
 
+void check_cacr()
+{
+    extern struct List LRU;
+    extern struct M68KState *__m68k_state;
+    static uint32_t old_cacr;
+    uint32_t cacr;
+    uint32_t change;
+
+    asm volatile("mov %w0, " REG_CACR_ASM : "=r"(cacr));
+
+    change = old_cacr ^ cacr;
+    old_cacr = cacr;
+
+    /* Test if IE bit of CACR has changed and if it is clear now */
+    if ((change & CACR_IE) && (cacr & CACR_IE) == 0)
+    {
+        struct Node *n;
+        struct Node *keep = NULL;
+        
+        while ((n = REMTAIL(&LRU)))
+        {
+            void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
+            struct M68KTranslationUnit *u = ptr;
+            uint32_t *start;
+            uint32_t *end;
+            uint32_t *ret = __builtin_return_address(0);
+            start = u->mt_ARMEntryPoint;
+            end = start + u->mt_ARMInsnCnt;
+
+            /* Keep only one entry in cache - the one that flushed it, throw everything else away */
+            if (ret >= start && ret < end) {
+                keep = n;
+            }
+            else {
+                REMOVE(&u->mt_LRUNode);
+                REMOVE(&u->mt_HashNode);
+
+                tlsf_free(jit_tlsf, u);
+
+                __m68k_state->JIT_UNIT_COUNT--;
+            }
+        }
+
+        __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+            
+        __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
+
+        LRU_InvalidateAll();
+
+        if (keep != NULL)
+        {
+            ADDTAIL(&LRU, keep);
+        }
+    }
+}
 
 #ifdef PISTORM_ANY_MODEL
 void do_reset()
