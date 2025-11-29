@@ -279,60 +279,186 @@ uintptr_t top_of_ram;
 extern int block_c0;
 #endif
 
+// Helper function to map peripheral ranges
+void map_peripheral_ranges(char *node_name, uint32_t *start_map)
+{
+    of_node_t *e = dt_find_node(node_name);
+    if (!e)
+        return;
+
+    of_property_t *p = dt_find_property(e, "ranges");
+    if (!p)
+        return;
+
+    uint32_t *ranges = p->op_value;
+    int32_t len = p->op_length;
+
+    int addr_cpu_len = dt_get_property_value_u32(e->on_parent, "#address-cells", 1, FALSE);
+    int addr_bus_len = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+    int size_bus_len = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+
+    int pos_abus = addr_bus_len - 1;
+    int pos_acpu = pos_abus + addr_cpu_len;
+    int pos_sbus = pos_acpu + size_bus_len;
+
+    while (len > 0)
+    {
+        uint32_t addr_bus, addr_cpu;
+        uint32_t addr_len;
+
+        addr_bus = BE32(ranges[pos_abus]);
+        addr_cpu = BE32(ranges[pos_acpu]);
+        addr_len = BE32(ranges[pos_sbus]);
+
+        /* Ignore large identity mappings in /scb branch */
+        if(addr_bus == addr_cpu)
+        {
+            len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
+            ranges += addr_bus_len + addr_cpu_len + size_bus_len;
+            continue;
+        }
+
+        mmu_map(addr_cpu, *start_map << 21, addr_len,
+                MMU_ACCESS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
+
+        kprintf("bus: %08x, cpu: %08x, len: %08x\n", addr_bus, addr_cpu, addr_len);
+
+        ranges[pos_acpu] = BE32(*start_map << 21);
+
+        if (addr_bus == 0x40000000) {
+            extern uintptr_t local_intc_base;
+            local_intc_base = *start_map << 21;
+        }
+
+        *start_map += addr_len >> 21;
+
+        len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
+        ranges += addr_bus_len + addr_cpu_len + size_bus_len;
+    }
+}
+
+/* Helper to clamp and map PCIe MMIO window and publish DT properties */
+static void map_pcie_mmio_window(uint32_t *start_map)
+{
+    /* Resolve PCIe node via alias pcie0 */
+    of_node_t *pcie = NULL;
+    of_node_t *aliases = dt_find_node("/aliases");
+    if (aliases)
+    {
+        of_property_t *ap = dt_find_property(aliases, "pcie0");
+        if (ap && ap->op_value && ap->op_length > 0)
+        {
+            pcie = dt_find_node((char *)ap->op_value);
+        }
+    }
+
+    if (!pcie)
+    {
+        kprintf("[PCIE] No PCIe node, skipping\n");
+        return;
+    }
+
+    of_property_t *rp = dt_find_property(pcie, "ranges");
+    if (!rp)
+    {
+        kprintf("[PCIE] FATAL: Unable to find PCIe ranges property\n");
+        return;
+    }
+
+    uint32_t *ranges = (uint32_t *)rp->op_value;
+    int len = rp->op_length;
+
+    int addr_cpu_len = dt_get_property_value_u32(pcie->on_parent, "#address-cells", 2, FALSE);
+    int addr_bus_len = dt_get_property_value_u32(pcie, "#address-cells", 3, TRUE);
+    int size_bus_len = dt_get_property_value_u32(pcie, "#size-cells", 2, TRUE);
+
+    while (len > 0)
+    {
+        /* Decode the child (PCI) address space code from the first cell */
+        uint32_t space_code = BE32(ranges[0]);
+        int is_mem32 = ((space_code & 0x03000000u) == 0x02000000u);
+        int is_prefetch = ((space_code & 0x40000000u) != 0);
+        kprintf("[PCIE] space_code=%08x mem32=%d prefetch=%d\n", space_code, is_mem32, is_prefetch);
+
+        if (is_mem32 && !is_prefetch)
+        {
+            uint64_t phys;
+            if (addr_cpu_len >= 2)
+            {
+                phys = BE32(ranges[addr_bus_len + addr_cpu_len - 2]);
+                phys = (phys << 32) | BE32(ranges[addr_bus_len + addr_cpu_len - 1]);
+            } else if (addr_cpu_len == 1) {
+                phys = BE32(ranges[addr_bus_len + addr_cpu_len - 1]);
+            } else {
+                kprintf("[PCIE] Unsupported addr_cpu_len %d in PCIe ranges\n", addr_cpu_len);
+                break;
+            }
+
+            /* Clamp size to 64 MiB */
+            const uint32_t map_size = 0x04000000u;
+            if (size_bus_len >= 2) {
+                ranges[addr_bus_len + addr_cpu_len + size_bus_len - 2] = 0;
+            }
+            ranges[addr_bus_len + addr_cpu_len + size_bus_len - 1] = BE32(map_size);
+
+            /* Map into low virtual 0xF2xxxxxx area */
+            if (*start_map + (map_size >> 21) >= 0x1000 / 2)
+            {
+                kprintf("[PCIE] FATAL: Out of low-virt address space for PCIe MMIO!\n");
+                break;
+            }
+
+            uintptr_t virt = (uintptr_t)(*start_map << 21);
+            *start_map += map_size >> 21;
+            kprintf("[PCIE] Next low-virt addr: %08x\n", (*start_map) << 21);
+
+            mmu_map(phys, virt, (uintptr_t)map_size,
+                    MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
+
+            kprintf("[PCIE] MMIO: phys=%08x%08x virt=%08x size=%08x\n",
+                    (uint32_t)(phys >> 32), (uint32_t)phys, (uint32_t)virt, (uint32_t)map_size);
+
+            /* Expose phys/virt/size as emu68-specific properties for the guest */
+            uint32_t buf64[2];
+            buf64[0] = BE32((uint32_t)(phys >> 32));
+            buf64[1] = BE32((uint32_t)(phys & 0xffffffffu));
+            dt_add_property(pcie, "emu68,pci-mmio-phys", buf64, sizeof(buf64));
+
+            buf64[0] = BE32(virt);
+            dt_add_property(pcie, "emu68,pci-mmio-virt", buf64, sizeof(buf64[0]));
+
+            buf64[0] = BE32(map_size);
+            dt_add_property(pcie, "emu68,pci-mmio-size", buf64, sizeof(buf64[0]));
+
+            /* Only adjust/map the first non-prefetchable mem32 window */
+            break;
+        }
+
+        len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
+        ranges += addr_bus_len + addr_cpu_len + size_bus_len;
+    }
+}
+
 void platform_init()
 {
-    of_node_t *e = NULL;
+    uint32_t start_map = 0xf20 / 2;
 
     /*
         Prepare mapping for peripherals. Use and update the data from device tree here
         All peripherals are mapped in the lower 4G address space so that they can be
         accessed from m68k.
     */
-    e = dt_find_node("/soc");
-    if (e)
-    {
-        of_property_t *p = dt_find_property(e, "ranges");
-        uint32_t *ranges = p->op_value;
-        int32_t len = p->op_length;
-        uint32_t start_map = 0xf20 / 2;
+    map_peripheral_ranges("/soc", &start_map);
+    map_peripheral_ranges("/scb", &start_map);
 
-        int addr_cpu_len = dt_get_property_value_u32(e->on_parent, "#address-cells", 1, FALSE);
-        int addr_bus_len = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
-        int size_bus_len = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
-
-        int pos_abus = addr_bus_len - 1;
-        int pos_acpu = pos_abus + addr_cpu_len;
-        int pos_sbus = pos_acpu + size_bus_len;
-
-        while (len > 0)
-        {
-            uint32_t addr_bus, addr_cpu;
-            uint32_t addr_len;
-
-            addr_bus = BE32(ranges[pos_abus]);
-            addr_cpu = BE32(ranges[pos_acpu]);
-            addr_len = BE32(ranges[pos_sbus]);
-
-            (void)addr_bus;
-
-            mmu_map(addr_cpu, start_map << 21, addr_len, 
-                MMU_ACCESS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
-
-            kprintf("bus: %08x, cpu: %08x, len: %08x\n", addr_bus, addr_cpu, addr_len);
-
-            ranges[pos_acpu] = BE32(start_map << 21);
-
-            if (addr_bus == 0x40000000) {
-                extern uintptr_t local_intc_base;
-                local_intc_base = start_map << 21;
-            }
-
-            start_map += addr_len >> 21;
-
-            len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
-            ranges += addr_bus_len + addr_cpu_len + size_bus_len;
-        }
-    }
+    /* 
+        Map PCIe MMIO window if PCIe is present.
+        Reduces the window size to 64 MiB to fit into the low-virt area.
+        Exposes the phys/virt/size as emu68,pci-mmio-phys/virt/size properties.
+        The mapping in ranges remains using physical address.
+        The PCIe driver needs both the physical and virtual address.
+    */
+    map_pcie_mmio_window(&start_map);
 }
 
 void platform_post_init()

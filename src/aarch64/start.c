@@ -146,7 +146,7 @@ __asm__("   .section .startup           \n"
 "       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
+"       ldr     x10, =0x1b5193519   \n" /* Upper and lower enabled, both 39bit in size, 36bit IPS */
 "       msr     TCR_EL1, x10        \n"
 
 "       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
@@ -385,7 +385,7 @@ __asm__(
 "       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
+"       ldr     x10, =0x1b5193519    \n" /* Upper and lower enabled, both 39bit in size, 36bit IPS */
 "       msr     TCR_EL1, x10        \n"
 
 "       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
