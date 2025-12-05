@@ -369,10 +369,10 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         else {
             INT_shadow.INTENA &= ~(value & 0x7fff);
         }
-        if (INT_shadow.ARMPending && (INT_shadow.INTENA & 0x6000) == 0x6000) {
+        if (INT_shadow.ARMPending) {
             struct M68KState *ctx;
             __asm__ volatile("mov %0, "CTX_POINTER_ASM"\n":"=r"(ctx));
-            ctx->INTF.ARM = 0x01;
+            ctx->INTF.ARM = (INT_shadow.INTENA & 0x6000) == 0x6000 ? 0x01 : 0;
         }
     }
 
