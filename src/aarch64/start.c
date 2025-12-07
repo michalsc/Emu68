@@ -1145,6 +1145,26 @@ void boot(void *dtree)
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
 
+    /* If unicam type was set to c790, switch mode to 24bpp */
+    if ((e = dt_find_node("/emu68/unicam")) != NULL)
+    {
+        if (dt_get_property_value_u32(e, "type", 0, 0) == 1)
+        {
+            p = dt_find_property(e, "bpp");
+            
+            if (p)
+                *(uint32_t *)p->op_value = 24;
+            
+            p = dt_find_property(e, "mode");
+            if (p)
+                *(uint32_t *)p->op_value = 36;
+            
+            p = dt_find_property(e, "pixel-order");
+            if (p)
+                *(uint32_t *)p->op_value = 1;
+        }
+    }
+
     /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
     if ((e = dt_find_node("/emu68/defaults")) == NULL)
     {
