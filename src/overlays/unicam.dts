@@ -18,6 +18,7 @@
                     scaler = /bits/ 16 <3 64>;
                     kernel = /bits/ 16 <250 750>;
                     type = <0>;
+                    pixel-order = <0>;
 
                     // THESE BOOLS ARE OFF BY DEFAULT!
                     // smoothing
@@ -46,5 +47,6 @@
         smooth = <&unicam>,"smoothing?";
         integer = <&unicam>,"integer-scaling?";
         type = <&unicam>,"type:0{framethrower=0,c790=1,=0}";
+        order = <&unicam>,"pixel-order:0{rgb=0,bgr=1,=0}";
     };
 };
