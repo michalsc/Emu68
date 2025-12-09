@@ -16,6 +16,7 @@
 #include "ps_protocol.h"
 #include "M68k.h"
 #include "cache.h"
+#include "intc.h"
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
@@ -811,7 +812,13 @@ void ps_pulse_reset()
     ignore_reset = 0;
 }
 
-void ps_send_reset() { ps_pulse_reset(); }
+void ps_send_reset()
+{
+    if(gic_available())
+        gic_local_disable();
+
+    ps_pulse_reset();
+}
 
 unsigned int ps_get_ipl_zero()
 {

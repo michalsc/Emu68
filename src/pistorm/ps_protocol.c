@@ -16,6 +16,7 @@
 #include "ps_protocol.h"
 #include "M68k.h"
 #include "cache.h"
+#include "intc.h"
 
 extern struct M68KState *__m68k_state;
 
@@ -2000,6 +2001,31 @@ volatile int ignore_reset = 0;
 #define PM_WDOG_MAGIC 0x5a000000
 #define PM_RSTC_FULLRST 0x00000020
 
+void pi_reset()
+{
+    ps_set_control(CONTROL_REQ_BM);
+    usleep(100000);
+
+    ps_set_control(CONTROL_DRIVE_RESET);
+    usleep(150000);
+
+    unsigned int r;
+    // trigger a restart by instructing the GPU to boot from partition 0
+    r = LE32(*PM_RSTS);
+    r &= 0xfffffaaa; //bits 0,2,4,6,8,10 are boot partition
+    *PM_RSTS = LE32(PM_WDOG_MAGIC | r); // boot from partition 0
+    
+    *PM_WDOG = LE32(PM_WDOG_MAGIC | 10);
+
+    r = LE32(*PM_RSTC);
+    r &= 0xffffffcf;
+    r |= PM_WDOG_MAGIC | PM_RSTC_FULLRST;
+    *PM_RSTC = LE32(r);
+
+    while (1)
+        ;
+}
+
 void ps_pulse_reset()
 {
     ignore_reset = 1;
@@ -2093,23 +2119,7 @@ void ps_pulse_reset()
             kprintf("[PS] leaving stealth mode now\n");
 
             kprintf("[PS] Resetting RasPi now...\n");
-
-            ps_set_control(CONTROL_REQ_BM);
-            usleep(100000);
-
-            ps_set_control(CONTROL_DRIVE_RESET);
-            usleep(150000);
-
-            unsigned int r;
-            // trigger a restart by instructing the GPU to boot from partition 0
-            r = LE32(*PM_RSTS);
-            r &= ~0xfffffaaa;
-            *PM_RSTS = LE32(PM_WDOG_MAGIC | r); // boot from partition 0
-            *PM_WDOG = LE32(PM_WDOG_MAGIC | 10);
-            *PM_RSTC = LE32(PM_WDOG_MAGIC | PM_RSTC_FULLRST);
-
-            while (1)
-                ;
+            pi_reset();
         }
     }
     
@@ -2251,23 +2261,7 @@ void ps_housekeeper()
             if ((pin & (1 << PIN_KBRESET)) == 0 && ignore_reset == 0)
             {
                 kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
-
-                ps_set_control(CONTROL_REQ_BM);
-                usleep(100000);
-
-                ps_set_control(CONTROL_DRIVE_RESET);
-                usleep(150000);
-
-                unsigned int r;
-                // trigger a restart by instructing the GPU to boot from partition 0
-                r = LE32(*PM_RSTS);
-                r &= ~0xfffffaaa;
-                *PM_RSTS = LE32(PM_WDOG_MAGIC | r); // boot from partition 0
-                *PM_WDOG = LE32(PM_WDOG_MAGIC | 10);
-                *PM_RSTC = LE32(PM_WDOG_MAGIC | PM_RSTC_FULLRST);
-
-                while (1)
-                    ;
+                pi_reset();
             }
 
             /*
@@ -2282,6 +2276,9 @@ void ps_housekeeper()
 /* Send reset from Emu68 to the mainbard. Set a flag to let housekeeper ignore it */
 void ps_send_reset()
 {
+    if(gic_available())
+        gic_local_disable();
+
     ignore_reset = 1;
 
     kprintf("[PS] CPU sending RESET\n");
