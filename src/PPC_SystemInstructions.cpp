@@ -330,7 +330,7 @@ int EMIT_mtspr(struct PPCTranslatorContext *tc, uint32_t opcode)
             }
             case 8:
                 tc->EMIT( mov_reg(MapGPRForWrite(tc, LRn), reg_rs));
-                returnStack.Reset();
+                returnStack.reset();
                 break;
             case 9:
                 tc->EMIT( mov_reg(MapGPRForWrite(tc, CTRn), reg_rs));

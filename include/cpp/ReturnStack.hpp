@@ -10,9 +10,9 @@ class ReturnStack {
 
 public:
     ReturnStack() : stackDepth(0) { }
-    uint32_t *Pop(bool *success);
-    void Push(uint32_t *ret_addr);
-    void Reset() { stackDepth = 0; }
+    uint32_t *pop(bool *success);
+    void push(uint32_t *ret_addr);
+    void reset() { stackDepth = 0; }
 };
 
 #endif /* _CPP_RETURNSTACK_HPP */

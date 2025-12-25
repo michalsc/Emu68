@@ -1081,7 +1081,7 @@ static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
     if (offset & 0x02000000) offset |= 0xfc000000;
 
     if (update_lr) {
-        returnStack.Push(tc->tc_PPCCodePtr + 1);
+        returnStack.push(tc->tc_PPCCodePtr + 1);
 
         if (pc_offset >= 0) {
             tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
@@ -1183,7 +1183,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
 //    kprintf("pc_offset = %d\n", pc_offset);
 
     if (update_lr) {
-        returnStack.Push(tc->tc_PPCCodePtr + 1);
+        returnStack.push(tc->tc_PPCCodePtr + 1);
 
         if (pc_offset >= 0) {
             tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
@@ -1802,7 +1802,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* Branch always */
     if ((bo & 0b10100) == 0b10100) {
         bool success = 0;
-        uint32_t *last_pc = returnStack.Pop(&success);
+        uint32_t *last_pc = returnStack.pop(&success);
 
         /* if LR needs to be updated, do it now */
         if (update_lr) {
@@ -1811,7 +1811,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
             tc->GetOffsetPC(&pc_offset);
 
-            returnStack.Push(tc->tc_PPCCodePtr + 1);
+            returnStack.push(tc->tc_PPCCodePtr + 1);
 
             tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
 
@@ -1843,10 +1843,10 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         bool success = 0;
         uint8_t success_condition;
         uint8_t tmp = AllocARMRegister(tc);
-        uint32_t *last_pc = returnStack.Pop(&success);
+        uint32_t *last_pc = returnStack.pop(&success);
         int8_t pc_offset = 4;
         
-        returnStack.Reset();
+        returnStack.reset();
 
         tc->GetOffsetPC(&pc_offset);
 
@@ -1898,7 +1898,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             if (update_lr) {
                 uint8_t tmp = AllocARMRegister(tc);
 
-                returnStack.Push(tc->tc_PPCCodePtr + 1);
+                returnStack.push(tc->tc_PPCCodePtr + 1);
 
                 tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
 
@@ -1941,7 +1941,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             if (update_lr) {
                 uint8_t tmp = AllocARMRegister(tc);
 
-                returnStack.Push(tc->tc_PPCCodePtr + 1);
+                returnStack.push(tc->tc_PPCCodePtr + 1);
 
                 tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
 
@@ -3743,7 +3743,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
         disasm_open();
     }
 
-    returnStack.Reset();
+    returnStack.reset();
 
     if (debug) {
         uint32_t hash_calc = (hash >> EMU68_HASHSHIFT) & EMU68_HASHMASK;

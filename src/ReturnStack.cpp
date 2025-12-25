@@ -1,7 +1,7 @@
 #include "config.h"
 #include <cpp/ReturnStack.hpp>
 
-void ReturnStack::Push(uint32_t *ret_addr)
+void ReturnStack::push(uint32_t *ret_addr)
 {
     if (stackDepth >= RTSTACK_SIZE) {
         for (int i=1; i < RTSTACK_SIZE; i++) {
@@ -13,7 +13,7 @@ void ReturnStack::Push(uint32_t *ret_addr)
     stack[stackDepth++] = ret_addr;
 }
 
-uint32_t *ReturnStack::Pop(bool *success)
+uint32_t *ReturnStack::pop(bool *success)
 {
     uint32_t *ptr;
 
