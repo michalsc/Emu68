@@ -375,8 +375,6 @@ extern "C" void InitPPC()
     
     kprintf("[PPC] InitPPC()\n");
 
-    Emu68::PPC::jit_ppc = Emu68::TLSF((void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)), (KERNEL_JIT_PAGES / 2) << 21);
-
     kprintf("[PPC] JIT memory at %p\n", (void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)));
 
     for (int i=0; i < 64; i++) Emu68::PPC::FreePool.addHead(&rn[i]);

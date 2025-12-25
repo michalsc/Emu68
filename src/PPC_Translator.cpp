@@ -36,7 +36,7 @@ register void (*ARMCode)() __asm__("x12");
 
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
-TLSF jit_ppc;
+TLSF jit_ppc((void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)), (KERNEL_JIT_PAGES / 2) << 21);
 PPCTranslatorContext localTranslator;
 ReturnStack returnStack;
 List<RegisterNode> FreePool;

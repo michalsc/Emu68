@@ -27,7 +27,6 @@ namespace Emu68 {
 class TLSF
 {
 public:
-    TLSF() : handle(nullptr) {}
     TLSF(void *memory, uintptr_t size) { handle = tlsf_init_with_memory(memory, size); }
     TLSF(void *handle) : handle(handle) {}
 
