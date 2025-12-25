@@ -130,6 +130,7 @@ Use **SCREAMING_SNAKE_CASE** for:
 - Compile-time constants
 - `constexpr` values
 - Enum values
+- Static inline functions considered as macro alternatives
 ```cpp
 #define MAX_BUFFER_SIZE 1024
 #define ENABLE_DEBUG_MODE

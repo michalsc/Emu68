@@ -95,13 +95,13 @@ typedef struct bhdr_s {
 /* Memory area within the TLSF pool */
 typedef struct tlsf_area_s {
     struct tlsf_area_s *    next;       // Next memory area
-    bhdr_t *                end;        // Pointer to "end-of-area" block header
+    bhdr_t*                 end;        // Pointer to "end-of-area" block header
 } tlsf_area_t;
 
 typedef struct {
     spinlock_t          lock;
 
-    tlsf_area_t *       memory_area;
+    tlsf_area_t*        memory_area;
 
     uintptr_t           total_size;
     uintptr_t           free_size;
@@ -109,7 +109,7 @@ typedef struct {
     uint32_t            flbitmap;
     uint32_t            slbitmap[REAL_FLI];
 
-    bhdr_t *            matrix[REAL_FLI][MAX_SLI];
+    bhdr_t*             matrix[REAL_FLI][MAX_SLI];
 } tlsf_t;
 
 static inline __attribute__((always_inline)) int LS(uintptr_t i)
@@ -128,12 +128,12 @@ static inline __attribute__((always_inline)) int MS(uintptr_t i)
         return 63 - __builtin_clzl(i);
 }
 
-static inline __attribute__((always_inline)) void SetBit(int nr, uint32_t *ptr)
+static inline __attribute__((always_inline)) void SET_BIT(int nr, uint32_t *ptr)
 {
     ptr[nr >> 5] |= (1 << (nr & 31));
 }
 
-static inline __attribute__((always_inline)) void ClrBit(int nr, uint32_t *ptr)
+static inline __attribute__((always_inline)) void CLR_BIT(int nr, uint32_t *ptr)
 {
     ptr[nr >> 5] &= ~(1 << (nr & 31));
 }
@@ -172,7 +172,7 @@ static inline __attribute__((always_inline)) void MAPPING_SEARCH(uintptr_t *r, i
     }
 }
 
-static inline __attribute__((always_inline)) bhdr_t * FIND_SUITABLE_BLOCK(tlsf_t *tlsf, int *fl, int *sl)
+static inline __attribute__((always_inline)) bhdr_t* FIND_SUITABLE_BLOCK(tlsf_t *tlsf, int *fl, int *sl)
 {
     uintptr_t bitmap_tmp = tlsf->slbitmap[*fl] & ((uint32_t)~0 << *sl);
     bhdr_t *b = NULL;
@@ -203,7 +203,7 @@ static inline __attribute__((always_inline)) uintptr_t GET_SIZE(bhdr_t *b)
         kprintf("ERROR! GET_SIZE block %p with size=%p\n", b, size);
         kprintf("  caller %p\n", __builtin_return_address(0));
 
-        while(1) asm volatile("wfe");
+        while (1) asm volatile("wfe");
     }
     return size;
 }
@@ -217,7 +217,7 @@ static inline __attribute__((always_inline)) void SET_SIZE(bhdr_t *b, uintptr_t 
 {
     if (size > 0xffffffff) {
         kprintf("ERROR! SET_SIZE on block %p with size=%p\n", b, size);
-        while(1) asm volatile("wfe");
+        while (1) asm volatile("wfe");
     }
     b->header.length = GET_FLAGS(b) | size;
 }
@@ -226,7 +226,7 @@ static inline __attribute__((always_inline)) void SET_SIZE_AND_FLAGS(bhdr_t *b, 
 {
     if (size > 0xffffffff) {
         kprintf("ERROR! SET_SIZE_AND_FLAGS on block %p with size=%p\n", b, size);
-        while(1) asm volatile("wfe");
+        while (1) asm volatile("wfe");
     }
     b->header.length = size | flags;
 }
@@ -261,12 +261,12 @@ static inline __attribute__((always_inline)) int FREE_PREV_BLOCK(bhdr_t *b)
     return ((b->header.length & PREV_FREE_MASK) == PREV_FREE);
 }
 
-static inline __attribute__((always_inline)) bhdr_t * GET_NEXT_BHDR(bhdr_t *hdr, uintptr_t size)
+static inline __attribute__((always_inline)) bhdr_t* GET_NEXT_BHDR(bhdr_t *hdr, uintptr_t size)
 {
     return (bhdr_t *)((uint8_t *)&hdr->mem[0] + size);
 }
 
-static inline __attribute__((always_inline)) bhdr_t * MEM_TO_BHDR(void *ptr)
+static inline __attribute__((always_inline)) bhdr_t* MEM_TO_BHDR(void *ptr)
 {
     return (bhdr_t *)((uintptr_t)ptr - __builtin_offsetof(bhdr_t, mem));
 }
@@ -277,10 +277,12 @@ static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bh
         return;
     }
 
-    if (b->free_node.next)
+    if (b->free_node.next) {
         b->free_node.next->free_node.prev = b->free_node.prev;
-    if (b->free_node.prev)
+    }
+    if (b->free_node.prev) {
         b->free_node.prev->free_node.next = b->free_node.next;
+    }
 
     tlsf->free_size -= GET_SIZE(b);
 
@@ -288,9 +290,9 @@ static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bh
     {
         tlsf->matrix[fl][sl] = b->free_node.next;
         if (!tlsf->matrix[fl][sl])
-            ClrBit(sl, &tlsf->slbitmap[fl]);
+            CLR_BIT(sl, &tlsf->slbitmap[fl]);
         if (!tlsf->slbitmap[fl])
-            ClrBit(fl, &tlsf->flbitmap);
+            CLR_BIT(fl, &tlsf->flbitmap);
     }
 }
 
@@ -320,11 +322,11 @@ static inline __attribute__((always_inline)) void INSERT_FREE_BLOCK(tlsf_t *tlsf
 
     tlsf->matrix[fl][sl] = b;
 
-    SetBit(fl, &tlsf->flbitmap);
-    SetBit(sl, &tlsf->slbitmap[fl]);
+    SET_BIT(fl, &tlsf->flbitmap);
+    SET_BIT(sl, &tlsf->slbitmap[fl]);
 }
 
-static bhdr_t * tlsf_intern_malloc(tlsf_t *tlsf, uintptr_t size)
+static bhdr_t* tlsf_intern_malloc(tlsf_t *tlsf, uintptr_t size)
 {
     bhdr_t *b = NULL;
     int fl, sl;
@@ -416,13 +418,13 @@ static inline __attribute__((always_inline)) void MERGE(bhdr_t *b1, bhdr_t *b2)
     if (unlikely(new_size > 0xffffffff)) {
         kprintf("[TLSF] ERROR! MERGE overflow: b1=%p (%p) + b2=%p (%p)\n", 
                 b1, GET_SIZE(b1), b2, GET_SIZE(b2));
-        while(1) asm volatile("wfe");
+        while (1) asm volatile("wfe");
     }
     
     SET_SIZE(b1, new_size);
 }
 
-static inline __attribute__((always_inline)) bhdr_t * MERGE_PREV(tlsf_t *tlsf, bhdr_t *block)
+static inline __attribute__((always_inline)) bhdr_t* MERGE_PREV(tlsf_t *tlsf, bhdr_t *block)
 {
     /* Is previous block free? */
     if (FREE_PREV_BLOCK(block))
@@ -441,11 +443,11 @@ static inline __attribute__((always_inline)) bhdr_t * MERGE_PREV(tlsf_t *tlsf, b
 
         return prev;
     }
-    else
-        return block;
+
+    return block;
 }
 
-static inline __attribute__((always_inline)) bhdr_t * MERGE_NEXT(tlsf_t *tlsf, bhdr_t *block)
+static inline __attribute__((always_inline)) bhdr_t* MERGE_NEXT(tlsf_t *tlsf, bhdr_t *block)
 {
     bhdr_t *next = GET_NEXT_BHDR(block, GET_SIZE(block));
 
@@ -469,9 +471,9 @@ static inline __attribute__((always_inline)) bhdr_t * MERGE_NEXT(tlsf_t *tlsf, b
 
 void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
 {
-    tlsf_t * tlsf = t;
-    void * ptr;
-    bhdr_t *b;
+    tlsf_t* tlsf = t;
+    void* ptr;
+    bhdr_t* b;
 
     size = ROUNDUP(size);
     
@@ -575,7 +577,7 @@ void tlsf_free(void *t, void *ptr)
     if (unlikely(FREE_BLOCK(fb))) {
         kprintf("[TLSF] ERROR! Double-free detected on block %p\n", ptr);
         kprintf("[TLSF]  caller %p\n", __builtin_return_address(0));
-        while(1) asm volatile("wfe");
+        while (1) asm volatile("wfe");
     }
 
     /* Mark block as free */
@@ -657,7 +659,7 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
     if (new_size <= GET_SIZE(b) - ROUNDUP(sizeof(hdr_t)))
     {
         /* New header starts right after the current block b */
-        bhdr_t * b1 = GET_NEXT_BHDR(b, new_size);
+        bhdr_t* b1 = GET_NEXT_BHDR(b, new_size);
 
         /* Update pointer and size */
         b1->header.prev = b;
@@ -748,13 +750,13 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
  * bend
  *  header      (ROUNDUP(sizeof(hdr_t))
  */
-tlsf_area_t * init_memory_area(void * memory, uintptr_t size)
+tlsf_area_t* init_memory_area(void * memory, uintptr_t size)
 {
-    bhdr_t * hdr = (bhdr_t *)memory;
-    bhdr_t * b;
-    bhdr_t * bend;
+    bhdr_t* hdr = (bhdr_t *)memory;
+    bhdr_t* b;
+    bhdr_t* bend;
 
-    tlsf_area_t * area;
+    tlsf_area_t* area;
 
     size = ROUNDDOWN(size);
 
