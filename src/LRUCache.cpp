@@ -5,7 +5,7 @@
 
 namespace Emu68 {
 
-uint32_t *LRUCache::FindBlock(uint32_t address)
+uint32_t *LRUCache::findBlock(uint32_t address)
 {
     const uint32_t set = ADDR_2_SET(address);
     struct Entry *e = &cache[set * WAY_COUNT];
@@ -30,7 +30,7 @@ uint32_t *LRUCache::FindBlock(uint32_t address)
 }
 
 
-void LRUCache::InvalidateByARMAddress(uint32_t *addr)
+void LRUCache::invalidateByARMAddress(uint32_t *addr)
 {
     for (unsigned i = 0; i < SET_COUNT * WAY_COUNT; i++)
     {
@@ -43,7 +43,7 @@ void LRUCache::InvalidateByARMAddress(uint32_t *addr)
     }
 }
 
-void LRUCache::InvalidateByAddress(uint32_t addr)
+void LRUCache::invalidateByAddress(uint32_t addr)
 {
     const uint32_t set = ADDR_2_SET(addr);
     struct Entry *e = &cache[set * WAY_COUNT];
@@ -60,7 +60,7 @@ void LRUCache::InvalidateByAddress(uint32_t addr)
     }
 }
 
-void LRUCache::InvalidateAll()
+void LRUCache::invalidateAll()
 {
     for (unsigned i = 0; i < SET_COUNT * WAY_COUNT; i++)
     {
@@ -74,7 +74,7 @@ void LRUCache::InvalidateAll()
     }
 }
 
-void LRUCache::InsertBlock(uint32_t address, uint32_t *entryPoint)
+void LRUCache::insertBlock(uint32_t address, uint32_t *entryPoint)
 {
     const uint32_t set = ADDR_2_SET(address);
     struct Entry *e = &cache[set * WAY_COUNT];

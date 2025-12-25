@@ -160,7 +160,7 @@ static __used__ void PrintContext(struct PPCState *ppc)
 static inline uint32_t * FindUnitQuick()
 {
 #if EMU68_USE_LRU
-    uint32_t *code = cache.FindBlock(PC);
+    uint32_t *code = cache.findBlock(PC);
 
     if (likely(code != NULL))
         return code;
@@ -193,7 +193,7 @@ static inline uint32_t * FindUnitQuick()
             asm volatile ("prfm plil1keep, [%0]"::"r"(node->ptu_ARMEntryPoint));
 
 #if EMU68_USE_LRU
-            cache.InsertBlock(node->ptu_PPCAddress, (uint32_t*)node->ptu_ARMEntryPoint);
+            cache.insertBlock(node->ptu_PPCAddress, (uint32_t*)node->ptu_ARMEntryPoint);
 #endif
             return (uint32_t *)(node->ptu_ARMEntryPoint);
         }
@@ -226,7 +226,7 @@ void PPCMainLoop()
     uint32_t LastPC;
     struct PPCState *ctx = getHostCTX();
 
-    cache.InvalidateAll();
+    cache.invalidateAll();
 
     LoadContext(ctx);
 
@@ -351,7 +351,7 @@ void PPCMainLoop()
             }
 
 #if EMU68_USE_LRU
-            cache.InsertBlock(node->ptu_PPCAddress, (uint32_t *)node->ptu_ARMEntryPoint);
+            cache.insertBlock(node->ptu_PPCAddress, (uint32_t *)node->ptu_ARMEntryPoint);
 #endif
             /* Load CPU context */
             LoadContext(getHostCTX());

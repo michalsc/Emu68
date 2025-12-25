@@ -21,11 +21,11 @@ class LRUCache {
     uint32_t ADDR_2_SET(uint32_t addr) const { return (((addr) >> 2) % SET_COUNT); }
 
 public:
-    uint32_t *FindBlock(uint32_t address);
-    void InvalidateByARMAddress(uint32_t *addr);
-    void InvalidateByAddress(uint32_t addr);
-    void InvalidateAll();
-    void InsertBlock(uint32_t address, uint32_t *entryPoint);
+    uint32_t *findBlock(uint32_t address);
+    void invalidateByARMAddress(uint32_t *addr);
+    void invalidateByAddress(uint32_t addr);
+    void invalidateAll();
+    void insertBlock(uint32_t address, uint32_t *entryPoint);
     uintptr_t cacheLoc() const { return (uintptr_t)&cache; }
     uintptr_t allocLoc() const { return (uintptr_t)&alloc; }
 };
