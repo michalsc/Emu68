@@ -1,9 +1,18 @@
-#ifndef _TRANSLATORCONTEXT_HPP
-#define _TRANSLATORCONTEXT_HPP
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
+#pragma once
 
 #include <cstdint>
 #include <initializer_list>
 
+// A64.h is not entirely c++ compliant
 extern "C" {
 #include "A64.h"
 }
@@ -13,22 +22,22 @@ extern "C" {
 namespace Emu68 {
 
 struct TranslatorContext {
-    uint32_t *      tc_CodeStart;
-    uint32_t *      tc_CodePtr;
-    uint32_t        tc_InsnCount;
-    bool            tc_SupervisorChecked;
+    uint32_t* tc_CodeStart;
+    uint32_t* tc_CodePtr;
+    uint32_t  tc_InsnCount;
+    bool tc_SupervisorChecked;
 
-    uint32_t * emitStop() { return emit(INSN_TO_LE(MARKER_STOP)); }
-    uint32_t * emitBreak() { return emit(INSN_TO_LE(MARKER_BREAK)); }
+    uint32_t* emitStop() { return emit(INSN_TO_LE(MARKER_STOP)); }
+    uint32_t* emitBreak() { return emit(INSN_TO_LE(MARKER_BREAK)); }
 
-    uint32_t * emit(std::initializer_list<uint32_t> list) {
-        for(auto insn: list) {
+    uint32_t* emit(std::initializer_list<uint32_t> list) {
+        for (auto insn : list) {
             *tc_CodePtr++ = insn;
         }
         return tc_CodePtr;
     }
 
-    uint32_t * emit(uint32_t insn) {
+    uint32_t* emit(uint32_t insn) {
         *tc_CodePtr++ = insn;
         return tc_CodePtr;
     }
@@ -75,6 +84,4 @@ struct TranslatorContext {
     }
 };
 
-}
-
-#endif /* _TRANSLATORCONTEXT_HPP */
+} // namespace Emu68

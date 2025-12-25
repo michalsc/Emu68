@@ -16,7 +16,7 @@
 
 #include "A64.h"
 
-#include "TranslatorContext.hpp"
+#include <emu68/TranslatorContext>
 
 namespace Emu68::PPC
 {
