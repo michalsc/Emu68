@@ -11,8 +11,8 @@
 
 #define restrict __restrict__
 
-#include <cpp/lists>
-#include <cpp/nodes>
+#include <cpp/List>
+#include <cpp/Node>
 #include <cpp/LRUCache>
 
 #include "PPC.h"
