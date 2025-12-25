@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cpp/Node>
+#include <emu68/Node>
 
 namespace Emu68 {
 

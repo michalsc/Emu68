@@ -1,7 +1,7 @@
 #define restrict __restrict__
 
-#include <cpp/LRUCache>
-#include <cpp/ReturnStack>
+#include <emu68/LRUCache>
+#include <emu68/ReturnStack>
 #include "config.h"
 #include "PPC.h"
 #include "A64.h"

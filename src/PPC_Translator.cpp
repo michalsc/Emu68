@@ -11,10 +11,10 @@
 
 #define restrict __restrict__
 
-#include <cpp/List>
-#include <cpp/Node>
-#include <cpp/LRUCache>
-#include <cpp/ReturnStack>
+#include <emu68/List>
+#include <emu68/Node>
+#include <emu68/LRUCache>
+#include <emu68/ReturnStack>
 
 #include "PPC.h"
 #include "intc.h"

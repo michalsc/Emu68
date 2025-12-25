@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 #include <stdarg.h>
-#include <cpp/Node>
+#include <emu68/Node>
 
 #include "A64.h"
 

@@ -11,9 +11,9 @@
 
 #define restrict __restrict__
 
-#include <cpp/List>
-#include <cpp/Node>
-#include <cpp/LRUCache>
+#include <emu68/List>
+#include <emu68/Node>
+#include <emu68/LRUCache>
 
 #include "PPC.h"
 #include "A64.h"
