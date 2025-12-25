@@ -1,5 +1,8 @@
-#include "config.h"
 #include <cpp/ReturnStack.hpp>
+
+#include "config.h"
+
+namespace Emu68 {
 
 void ReturnStack::push(uint32_t *ret_addr)
 {
@@ -33,3 +36,5 @@ uint32_t *ReturnStack::pop(bool *success)
 
     return ptr;
 }
+
+} // namespace Emu68

@@ -7,7 +7,7 @@ namespace Emu68 {
 
 uint32_t *LRUCache::findBlock(uint32_t address)
 {
-    const uint32_t set = ADDR_2_SET(address);
+    const uint32_t set = addressToSet(address);
     struct Entry *e = &cache[set * WAY_COUNT];
     uint32_t mask = 0x80000000;
     
@@ -45,7 +45,7 @@ void LRUCache::invalidateByARMAddress(uint32_t *addr)
 
 void LRUCache::invalidateByAddress(uint32_t addr)
 {
-    const uint32_t set = ADDR_2_SET(addr);
+    const uint32_t set = addressToSet(addr);
     struct Entry *e = &cache[set * WAY_COUNT];
 
     for (unsigned i = 0; i < WAY_COUNT; i++)
@@ -76,7 +76,7 @@ void LRUCache::invalidateAll()
 
 void LRUCache::insertBlock(uint32_t address, uint32_t *entryPoint)
 {
-    const uint32_t set = ADDR_2_SET(address);
+    const uint32_t set = addressToSet(address);
     struct Entry *e = &cache[set * WAY_COUNT];
     int loc = __builtin_clz(alloc[set]);
     uint32_t mask = 0x80000000 >> loc;
