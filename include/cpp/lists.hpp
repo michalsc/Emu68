@@ -60,8 +60,8 @@ public:
         return n;
     }
 
-    bool isHead(T *n) { return n->n_prev == &l_head; }
-    bool isTail(T *n) { return n->n_next == &l_tail; }
+    bool isHead(T *n) { return n->prev() == &l_head; }
+    bool isTail(T *n) { return n->next() == &l_tail; }
     bool isEmpty() { return l_head.next() == &l_tail; }
 
     T * getHead() {
