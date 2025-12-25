@@ -12,11 +12,22 @@
 #undef USE_MACROS
 
 /*
+ * IMPORTANT! This TLSF allocator is now fine-tuned for maintained memory area
+ * smaller than 1GB. Use with caution if re-designing it back for large memory
+ * blocks!!!
+ */
+
+/*
  * Minimal alignment as required by AROS. In contrary to the default
  * TLSF implementation, we do not allow smaller blocks here.
  * Size needs to be aligned to at least 8, see THIS_FREE_MASK comment.
  */
 #define SIZE_ALIGN      16
+
+/*
+ * Maximum alignment allowed by tlsf_malloc_aligned function.
+ */
+#define MAX_ALIGNMENT   2*1024*1024
 
 /*
  * Settings for TLSF allocator:
@@ -163,7 +174,7 @@ static inline __attribute__((always_inline)) void MAPPING_SEARCH(uintptr_t *r, i
 
 static inline __attribute__((always_inline)) bhdr_t * FIND_SUITABLE_BLOCK(tlsf_t *tlsf, int *fl, int *sl)
 {
-    uintptr_t bitmap_tmp = tlsf->slbitmap[*fl] & ((uintptr_t)~0 << *sl);
+    uintptr_t bitmap_tmp = tlsf->slbitmap[*fl] & ((uint32_t)~0 << *sl);
     bhdr_t *b = NULL;
 
     if (bitmap_tmp)
@@ -173,7 +184,7 @@ static inline __attribute__((always_inline)) bhdr_t * FIND_SUITABLE_BLOCK(tlsf_t
     }
     else
     {
-        bitmap_tmp = tlsf->flbitmap & ((uintptr_t)~0 << (*fl + 1));
+        bitmap_tmp = tlsf->flbitmap & ((uint32_t)~0 << (*fl + 1));
         if (likely(bitmap_tmp != 0))
         {
             *fl = LS(bitmap_tmp);
@@ -381,7 +392,7 @@ void * tlsf_malloc(void *t, uintptr_t size)
 
     size = ROUNDUP(size);
 
-    if (unlikely(!size)) return NULL;
+    if (unlikely(!tlsf || !size)) return NULL;
 
     spinlock_acquire(&tlsf->lock);
 
@@ -399,7 +410,16 @@ void * tlsf_malloc(void *t, uintptr_t size)
 static inline __attribute__((always_inline)) void MERGE(bhdr_t *b1, bhdr_t *b2)
 {
     /* Merging adjusts the size - it's sum of both sizes plus size of block header */
-    SET_SIZE(b1, GET_SIZE(b1) + GET_SIZE(b2) + ROUNDUP(sizeof(hdr_t)));
+    uintptr_t new_size = GET_SIZE(b1) + GET_SIZE(b2) + ROUNDUP(sizeof(hdr_t));
+    
+    /* Sanity check: merged size should never exceed reasonable limits (1GB region limit) */
+    if (unlikely(new_size > 0xffffffff)) {
+        kprintf("[TLSF] ERROR! MERGE overflow: b1=%p (%p) + b2=%p (%p)\n", 
+                b1, GET_SIZE(b1), b2, GET_SIZE(b2));
+        while(1) asm volatile("wfe");
+    }
+    
+    SET_SIZE(b1, new_size);
 }
 
 static inline __attribute__((always_inline)) bhdr_t * MERGE_PREV(tlsf_t *tlsf, bhdr_t *block)
@@ -455,11 +475,17 @@ void * tlsf_malloc_aligned(void *t, uintptr_t size, uintptr_t align)
 
     size = ROUNDUP(size);
     
+    if (unlikely(!tlsf || !size)) return NULL;
+
     if (align < SIZE_ALIGN) align = SIZE_ALIGN;
-    if (align > 2*1024*1024) align = 2*1024*1024;
+    if (align > MAX_ALIGNMENT) align = MAX_ALIGNMENT;
 
     /* Adjust align to the top nearest power of two */
     align = 1 << MS(align);
+
+    /* Prevent overflow in size + align */
+    if (unlikely(size > (uintptr_t)-1 - align))
+        return NULL;
 
     spinlock_acquire(&tlsf->lock);
 
@@ -538,12 +564,19 @@ void tlsf_free(void *t, void *ptr)
     bhdr_t *fb;
     bhdr_t *next;
 
-    if (unlikely(!ptr))
+    if (unlikely(!tlsf || !ptr))
         return;
 
     spinlock_acquire(&tlsf->lock);
 
     fb = MEM_TO_BHDR(ptr);
+
+    /* Detect double-free */
+    if (unlikely(FREE_BLOCK(fb))) {
+        kprintf("[TLSF] ERROR! Double-free detected on block %p\n", ptr);
+        kprintf("[TLSF]  caller %p\n", __builtin_return_address(0));
+        while(1) asm volatile("wfe");
+    }
 
     /* Mark block as free */
     SET_FREE_BLOCK(fb);
@@ -567,12 +600,18 @@ uintptr_t tlsf_get_free_size(void *t)
 {
     tlsf_t *tlsf = t;
 
+    if (unlikely(!tlsf))
+        return 0;
+
     return tlsf->free_size;
 }
 
 uintptr_t tlsf_get_total_size(void *t)
 {
     tlsf_t *tlsf = t;
+
+    if (unlikely(!tlsf))
+        return 0;
 
     return tlsf->total_size;
 }
@@ -584,6 +623,10 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
     bhdr_t *bnext;
     int fl;
     int sl;
+
+    /* No TLSF instance? return immediately */
+    if (unlikely(!tlsf))
+        return NULL;
 
     /* NULL pointer? just allocate the memory */
     if (unlikely(!ptr))
@@ -600,10 +643,13 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
 
     b = MEM_TO_BHDR(ptr);
 
-    if (unlikely(new_size == GET_SIZE(b)))
-        return ptr;
-
     spinlock_acquire(&tlsf->lock);
+
+    // If new size matches current size, just return same pointer
+    if (unlikely(new_size == GET_SIZE(b))) {
+        spinlock_release(&tlsf->lock);
+        return ptr;
+    }
 
     bnext = GET_NEXT_BHDR(b, GET_SIZE(b));
 
@@ -677,10 +723,15 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
     /* Can't grow in place: allocate new block */
     else
     {
+        uintptr_t old_size = GET_SIZE(b);
+        
         spinlock_release(&tlsf->lock);
 
         void * p = tlsf_malloc(tlsf, new_size);
-        uintptr_t copy_size = GET_SIZE(b) < new_size ? GET_SIZE(b) : new_size;
+        if (!p)
+            return NULL;
+        
+        uintptr_t copy_size = old_size < new_size ? old_size : new_size;
         memcpy(p, ptr, copy_size);
         tlsf_free(tlsf, ptr);
         return p;
@@ -729,22 +780,25 @@ void tlsf_add_memory(void *t, void *memory, uintptr_t size)
 {
     tlsf_t *tlsf = t;
 
-    if (memory && size > HEADERS_SIZE)
-    {
-        tlsf_area_t *area = init_memory_area(memory, size);
-        bhdr_t *b;
+    if (unlikely(!tlsf || !memory || size <= HEADERS_SIZE)) return;
 
-        area->next = tlsf->memory_area;
-        tlsf->memory_area = area;
+    tlsf_area_t *area = init_memory_area(memory, size);
+    bhdr_t *b;
 
-        b = MEM_TO_BHDR(area);
-        b = GET_NEXT_BHDR(b, GET_SIZE(b));
+    spinlock_acquire(&tlsf->lock);
 
-        tlsf->total_size += size;
+    area->next = tlsf->memory_area;
+    tlsf->memory_area = area;
 
-        /* Add the initialized memory */
-        tlsf_free(tlsf, b->mem);
-    }
+    b = MEM_TO_BHDR(area);
+    b = GET_NEXT_BHDR(b, GET_SIZE(b));
+
+    tlsf->total_size += size;
+
+    spinlock_release(&tlsf->lock);
+
+    /* Add the initialized memory */
+    tlsf_free(tlsf, b->mem);
 }
 
 static tlsf_t __tlsf;
@@ -753,12 +807,9 @@ void * tlsf_init()
 {
     tlsf_t *tlsf = &__tlsf;
 
-    if (tlsf)
-    {
-        bzero(tlsf, sizeof(tlsf_t));
+    bzero(tlsf, sizeof(tlsf_t));
 
-        spinlock_init(&tlsf->lock);
-    }
+    spinlock_init(&tlsf->lock);
 
     return tlsf;
 }
