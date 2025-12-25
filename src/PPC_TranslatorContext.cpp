@@ -6,20 +6,20 @@
 
 namespace Emu68::PPC {
 
-void PPCTranslatorContext::EMIT_Exception(uint16_t type)
+void PPCTranslatorContext::emitException(uint16_t type)
 {
     /* When entering exception, all dirty registers must be stored! */
     // StoreDirtyFPRs(tc);
     StoreDirtyGPRs(this);
 
     /* Flush program counter */
-    FlushPC();
+    flushPC();
 
     /* Get PPCState to shuffle regs */
     uint8_t ctx = GetCTX(this);
     uint8_t tmp = AllocARMRegister(this);
 
-    EMIT({
+    emit({
         /* Store MSR into SRR1, Store PC into SRR0 */
         ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
         str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1)),
@@ -36,23 +36,23 @@ void PPCTranslatorContext::EMIT_Exception(uint16_t type)
 
     FreeARMRegister(this, tmp);
 
-    LocalExit(0);
+    emitLocalExit(0);
 }
 
-void PPCTranslatorContext::LocalExit(uint32_t insn_fixup)
+void PPCTranslatorContext::emitLocalExit(uint32_t insn_fixup)
 {
 #if EMU68_INSN_COUNTER
     uint8_t icnt_reg = AllocARMRegister(this);
-    EMIT( mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
+    emit( mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
 #endif
 
     StoreDirtyFPRs(this);
     StoreDirtyGPRs(this);
 
-    FlushPC();
+    flushPC();
 
 #if EMU68_INSN_COUNTER
-    EMIT({
+    emit({
         add64_immed(icnt_reg, icnt_reg, (tc_InsnCount + insn_fixup) & 0xfff),
         mov_reg_to_simd(CTX_INSN_COUNT, icnt_reg)
     });
@@ -61,7 +61,7 @@ void PPCTranslatorContext::LocalExit(uint32_t insn_fixup)
     (void)insn_fixup;
 #endif
 
-    EMIT( bx_lr());
+    emit( bx_lr());
 }
 
 }

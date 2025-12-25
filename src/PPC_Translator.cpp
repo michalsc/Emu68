@@ -37,7 +37,7 @@ register void (*ARMCode)() __asm__("x12");
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
 TLSF jit_ppc((void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)), (KERNEL_JIT_PAGES / 2) << 21);
-PPCTranslatorContext localTranslator;
+PPCTranslatorContext local_translator;
 ReturnStack returnStack;
 List<RegisterNode> FreePool;
 List<RegisterNode> GPR_LRU;
@@ -87,27 +87,27 @@ uint8_t AllocARMRegister(TranslatorContext *tc)
     if (rn->rn_Dirty) {
         /* Store value from ARM register back into PPC context */
         switch(rn->rn_RegNum) {
-            case GPR(14): tc->EMIT(mov_reg_to_simd(GPR14, rn->rn_ARM)); break;
-            case GPR(15): tc->EMIT(mov_reg_to_simd(GPR15, rn->rn_ARM)); break;
-            case GPR(16): tc->EMIT(mov_reg_to_simd(GPR16, rn->rn_ARM)); break;
-            case GPR(17): tc->EMIT(mov_reg_to_simd(GPR17, rn->rn_ARM)); break;
-            case GPR(18): tc->EMIT(mov_reg_to_simd(GPR18, rn->rn_ARM)); break;
-            case GPR(19): tc->EMIT(mov_reg_to_simd(GPR19, rn->rn_ARM)); break;
-            case GPR(20): tc->EMIT(mov_reg_to_simd(GPR20, rn->rn_ARM)); break;
-            case GPR(21): tc->EMIT(mov_reg_to_simd(GPR21, rn->rn_ARM)); break;
-            case GPR(22): tc->EMIT(mov_reg_to_simd(GPR22, rn->rn_ARM)); break;
-            case GPR(23): tc->EMIT(mov_reg_to_simd(GPR23, rn->rn_ARM)); break;
-            case GPR(24): tc->EMIT(mov_reg_to_simd(GPR24, rn->rn_ARM)); break;
-            case GPR(25): tc->EMIT(mov_reg_to_simd(GPR25, rn->rn_ARM)); break;
-            case GPR(26): tc->EMIT(mov_reg_to_simd(GPR26, rn->rn_ARM)); break;
-            case GPR(27): tc->EMIT(mov_reg_to_simd(GPR27, rn->rn_ARM)); break;
-            case GPR(28): tc->EMIT(mov_reg_to_simd(GPR28, rn->rn_ARM)); break;
-            case GPR(29): tc->EMIT(mov_reg_to_simd(GPR29, rn->rn_ARM)); break;
-            case GPR(30): tc->EMIT(mov_reg_to_simd(GPR30, rn->rn_ARM)); break;
-            case GPR(31): tc->EMIT(mov_reg_to_simd(GPR31, rn->rn_ARM)); break;
-            case CRn: tc->EMIT(mov_reg_to_simd(REG_CR, rn->rn_ARM)); break;
-            case XERn: tc->EMIT(mov_reg_to_simd(REG_XER, rn->rn_ARM)); break;
-            case FPSCRn: tc->EMIT(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
+            case GPR(14): tc->emit(mov_reg_to_simd(GPR14, rn->rn_ARM)); break;
+            case GPR(15): tc->emit(mov_reg_to_simd(GPR15, rn->rn_ARM)); break;
+            case GPR(16): tc->emit(mov_reg_to_simd(GPR16, rn->rn_ARM)); break;
+            case GPR(17): tc->emit(mov_reg_to_simd(GPR17, rn->rn_ARM)); break;
+            case GPR(18): tc->emit(mov_reg_to_simd(GPR18, rn->rn_ARM)); break;
+            case GPR(19): tc->emit(mov_reg_to_simd(GPR19, rn->rn_ARM)); break;
+            case GPR(20): tc->emit(mov_reg_to_simd(GPR20, rn->rn_ARM)); break;
+            case GPR(21): tc->emit(mov_reg_to_simd(GPR21, rn->rn_ARM)); break;
+            case GPR(22): tc->emit(mov_reg_to_simd(GPR22, rn->rn_ARM)); break;
+            case GPR(23): tc->emit(mov_reg_to_simd(GPR23, rn->rn_ARM)); break;
+            case GPR(24): tc->emit(mov_reg_to_simd(GPR24, rn->rn_ARM)); break;
+            case GPR(25): tc->emit(mov_reg_to_simd(GPR25, rn->rn_ARM)); break;
+            case GPR(26): tc->emit(mov_reg_to_simd(GPR26, rn->rn_ARM)); break;
+            case GPR(27): tc->emit(mov_reg_to_simd(GPR27, rn->rn_ARM)); break;
+            case GPR(28): tc->emit(mov_reg_to_simd(GPR28, rn->rn_ARM)); break;
+            case GPR(29): tc->emit(mov_reg_to_simd(GPR29, rn->rn_ARM)); break;
+            case GPR(30): tc->emit(mov_reg_to_simd(GPR30, rn->rn_ARM)); break;
+            case GPR(31): tc->emit(mov_reg_to_simd(GPR31, rn->rn_ARM)); break;
+            case CRn: tc->emit(mov_reg_to_simd(REG_CR, rn->rn_ARM)); break;
+            case XERn: tc->emit(mov_reg_to_simd(REG_XER, rn->rn_ARM)); break;
+            case FPSCRn: tc->emit(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
             default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
         }
     }
@@ -152,7 +152,7 @@ uint8_t AllocFPRegister(PPCTranslatorContext *tc)
         /* Store value from ARM register back into PPC context */
         if (rn->rn_RegNum >= 14 && rn->rn_RegNum <= 31)
         {
-            tc->EMIT(fstd_pimm(rn->rn_ARM, ctx, base_offset + rn->rn_RegNum));
+            tc->emit(fstd_pimm(rn->rn_ARM, ctx, base_offset + rn->rn_RegNum));
         }
         else
         {
@@ -165,7 +165,7 @@ uint8_t AllocFPRegister(PPCTranslatorContext *tc)
     return rn->rn_ARM;
 }
 
-void FreeFPRegister(struct PPCTranslatorContext *, uint8_t fp_reg)
+void FreeFPRegister(PPCTranslatorContext *, uint8_t fp_reg)
 {
     if (fp_reg > 7)
         return;
@@ -173,7 +173,7 @@ void FreeFPRegister(struct PPCTranslatorContext *, uint8_t fp_reg)
     FPTmpPool &= ~(1 << fp_reg);
 }
 
-static __used__ uint8_t IntMapFPR(struct PPCTranslatorContext *tc, uint8_t reg, int load, int set_dirty)
+static __used__ uint8_t IntMapFPR(PPCTranslatorContext *tc, uint8_t reg, int load, int set_dirty)
 {
     struct RegisterNode *rn;
 
@@ -216,7 +216,7 @@ static __used__ uint8_t IntMapFPR(struct PPCTranslatorContext *tc, uint8_t reg, 
             /* Load value from PPC context into ARM register */
             if (reg >= 14 && reg <= 31)
             {
-                tc->EMIT(fldd_pimm(arm_reg, ctx, base_offset + FPR(reg)));
+                tc->emit(fldd_pimm(arm_reg, ctx, base_offset + FPR(reg)));
             }
             else
             {
@@ -234,22 +234,22 @@ static __used__ uint8_t IntMapFPR(struct PPCTranslatorContext *tc, uint8_t reg, 
     while(1) asm volatile("wfi");
 }
 
-uint8_t MapFPRForRead(struct PPCTranslatorContext *tc, uint8_t reg)
+uint8_t MapFPRForRead(PPCTranslatorContext *tc, uint8_t reg)
 {
     return IntMapFPR(tc, reg, 1, 0);
 }
 
-uint8_t MapFPRForReadAndWrite(struct PPCTranslatorContext *tc, uint8_t reg)
+uint8_t MapFPRForReadAndWrite(PPCTranslatorContext *tc, uint8_t reg)
 {
     return IntMapFPR(tc, reg, 1, 1);
 }
 
-uint8_t MapFPRForWrite(struct PPCTranslatorContext *tc, uint8_t reg)
+uint8_t MapFPRForWrite(PPCTranslatorContext *tc, uint8_t reg)
 {
     return IntMapFPR(tc, reg, 0, 1);
 }
 
-uint8_t IsFPRMapped(struct PPCTranslatorContext *, uint8_t reg)
+uint8_t IsFPRMapped(PPCTranslatorContext *, uint8_t reg)
 {
     /* If register is a fixed-assigned one, return ASAP */
     if (FP_REG_MAPPING[reg] != 0xff) {
@@ -282,7 +282,7 @@ void SetDirtyFPR(struct TranslatorContext *, uint8_t reg)
     }
 }
 
-static __used__ void FlushAllFPRs(struct PPCTranslatorContext *tc)
+static __used__ void FlushAllFPRs(PPCTranslatorContext *tc)
 {
     struct RegisterNode *rn;//, *next;
     uint8_t ctx = TryCTX(tc);
@@ -294,7 +294,7 @@ static __used__ void FlushAllFPRs(struct PPCTranslatorContext *tc)
         if (rn->rn_Dirty) {
             if (ctx == 0xff) {
                 ctx = AllocARMRegister(tc);
-                tc->EMIT(mov_simd_to_reg(ctx, CTX_POINTER));
+                tc->emit(mov_simd_to_reg(ctx, CTX_POINTER));
             }
 
             uint16_t base_offset = __builtin_offsetof(PPCState, FPR) >> 3;
@@ -302,7 +302,7 @@ static __used__ void FlushAllFPRs(struct PPCTranslatorContext *tc)
             /* Store value from ARM register back into PPC context */
             if (rn->rn_RegNum >= 14 && rn->rn_RegNum <= 31)
             {
-                tc->EMIT(fstd_pimm(rn->rn_ARM, ctx, base_offset + rn->rn_RegNum));
+                tc->emit(fstd_pimm(rn->rn_ARM, ctx, base_offset + rn->rn_RegNum));
             }
             else
             {
@@ -321,7 +321,7 @@ static __used__ void FlushAllFPRs(struct PPCTranslatorContext *tc)
         FreeARMRegister(tc, ctx);
 }
 
-void StoreDirtyFPRs(struct PPCTranslatorContext *tc)
+void StoreDirtyFPRs(PPCTranslatorContext *tc)
 {
     uint8_t ctx = TryCTX(tc);
     bool must_flush_ctx = ctx == 0xff;
@@ -332,7 +332,7 @@ void StoreDirtyFPRs(struct PPCTranslatorContext *tc)
         if (rn->rn_Dirty) {
             if (ctx == 0xff) {
                 ctx = AllocARMRegister(tc);
-                tc->EMIT(mov_simd_to_reg(ctx, CTX_POINTER));
+                tc->emit(mov_simd_to_reg(ctx, CTX_POINTER));
             }
 
             uint16_t base_offset = __builtin_offsetof(PPCState, FPR) >> 3;
@@ -340,7 +340,7 @@ void StoreDirtyFPRs(struct PPCTranslatorContext *tc)
             /* Store value from ARM register back into PPC context */
             if (rn->rn_RegNum >= 14 && rn->rn_RegNum <= 31)
             {
-                tc->EMIT(fstd_pimm(rn->rn_ARM, ctx, base_offset + rn->rn_RegNum));
+                tc->emit(fstd_pimm(rn->rn_ARM, ctx, base_offset + rn->rn_RegNum));
             }
             else
             {
@@ -355,28 +355,28 @@ void StoreDirtyFPRs(struct PPCTranslatorContext *tc)
         FreeARMRegister(tc, ctx);
 }
 
-void AddImmediate(struct PPCTranslatorContext *tc, uint8_t rd, int32_t delta) {
+void AddImmediate(PPCTranslatorContext *tc, uint8_t rd, int32_t delta) {
     if (delta < 0) {
         delta = -delta;
         if ((delta & 0xfffff000) == 0) {
-            tc->EMIT(sub_immed(rd, rd, delta));
+            tc->emit(sub_immed(rd, rd, delta));
         } else if ((delta & 0xff000fff) == 0) {
-            tc->EMIT(sub_immed_lsl12(rd, rd, delta >> 12));
+            tc->emit(sub_immed_lsl12(rd, rd, delta >> 12));
         } else {
             uint8_t tmp = AllocARMRegister(tc);
-            tc->LoadImmediate(tmp, (uint32_t)delta);
-            tc->EMIT(sub_reg(rd, rd, tmp, LSL, 0));
+            tc->emitLoadImmediate(tmp, (uint32_t)delta);
+            tc->emit(sub_reg(rd, rd, tmp, LSL, 0));
             FreeARMRegister(tc, tmp);
         }
     } else if (delta > 0) {
         if ((delta & 0xfffff000) == 0) {
-            tc->EMIT(add_immed(rd, rd, delta));
+            tc->emit(add_immed(rd, rd, delta));
         } else if ((delta & 0xff000fff) == 0) {
-            tc->EMIT(add_immed_lsl12(rd, rd, delta >> 12));
+            tc->emit(add_immed_lsl12(rd, rd, delta >> 12));
         } else {
             uint8_t tmp = AllocARMRegister(tc);
-            tc->LoadImmediate(tmp, (uint32_t)delta);
-            tc->EMIT(add_reg(rd, rd, tmp, LSL, 0));
+            tc->emitLoadImmediate(tmp, (uint32_t)delta);
+            tc->emit(add_reg(rd, rd, tmp, LSL, 0));
             FreeARMRegister(tc, tmp);
         }
     }
@@ -387,18 +387,18 @@ uint8_t TryCTX(struct TranslatorContext *)
     return reg_CTX;
 }
 
-uint8_t GetCTX(struct PPCTranslatorContext *tc)
+uint8_t GetCTX(PPCTranslatorContext *tc)
 {
     if (reg_CTX == 0xff)
     {
         reg_CTX = AllocARMRegister(tc);
-        tc->EMIT(mov_simd_to_reg(reg_CTX, CTX_POINTER));
+        tc->emit(mov_simd_to_reg(reg_CTX, CTX_POINTER));
     }
 
     return reg_CTX;
 }
 
-static __used__ void FlushCTX(struct PPCTranslatorContext *tc)
+static __used__ void FlushCTX(PPCTranslatorContext *tc)
 {
     if (reg_CTX != 0xff)
     {
@@ -408,7 +408,7 @@ static __used__ void FlushCTX(struct PPCTranslatorContext *tc)
     reg_CTX = 0xff;
 }
 
-static __used__ uint8_t IntMapGPR(struct PPCTranslatorContext *tc, uint8_t reg, int load, int set_dirty)
+static __used__ uint8_t IntMapGPR(PPCTranslatorContext *tc, uint8_t reg, int load, int set_dirty)
 {
     struct RegisterNode *rn;
 
@@ -447,27 +447,27 @@ static __used__ uint8_t IntMapGPR(struct PPCTranslatorContext *tc, uint8_t reg, 
         if (load) {
             /* Load value from PPC context into ARM register */
             switch(reg) {
-                case GPR(14): tc->EMIT(mov_simd_to_reg(arm_reg, GPR14)); break;
-                case GPR(15): tc->EMIT(mov_simd_to_reg(arm_reg, GPR15)); break;
-                case GPR(16): tc->EMIT(mov_simd_to_reg(arm_reg, GPR16)); break;
-                case GPR(17): tc->EMIT(mov_simd_to_reg(arm_reg, GPR17)); break;
-                case GPR(18): tc->EMIT(mov_simd_to_reg(arm_reg, GPR18)); break;
-                case GPR(19): tc->EMIT(mov_simd_to_reg(arm_reg, GPR19)); break;
-                case GPR(20): tc->EMIT(mov_simd_to_reg(arm_reg, GPR20)); break;
-                case GPR(21): tc->EMIT(mov_simd_to_reg(arm_reg, GPR21)); break;
-                case GPR(22): tc->EMIT(mov_simd_to_reg(arm_reg, GPR22)); break;
-                case GPR(23): tc->EMIT(mov_simd_to_reg(arm_reg, GPR23)); break;
-                case GPR(24): tc->EMIT(mov_simd_to_reg(arm_reg, GPR24)); break;
-                case GPR(25): tc->EMIT(mov_simd_to_reg(arm_reg, GPR25)); break;
-                case GPR(26): tc->EMIT(mov_simd_to_reg(arm_reg, GPR26)); break;
-                case GPR(27): tc->EMIT(mov_simd_to_reg(arm_reg, GPR27)); break;
-                case GPR(28): tc->EMIT(mov_simd_to_reg(arm_reg, GPR28)); break;
-                case GPR(29): tc->EMIT(mov_simd_to_reg(arm_reg, GPR29)); break;
-                case GPR(30): tc->EMIT(mov_simd_to_reg(arm_reg, GPR30)); break;
-                case GPR(31): tc->EMIT(mov_simd_to_reg(arm_reg, GPR31)); break;
-                case CRn: tc->EMIT(mov_simd_to_reg(arm_reg, REG_CR)); break;
-                case XERn: tc->EMIT(mov_simd_to_reg(arm_reg, REG_XER)); break;
-                case FPSCRn: tc->EMIT(mov_simd_to_reg(arm_reg, REG_FPSCR)); break;
+                case GPR(14): tc->emit(mov_simd_to_reg(arm_reg, GPR14)); break;
+                case GPR(15): tc->emit(mov_simd_to_reg(arm_reg, GPR15)); break;
+                case GPR(16): tc->emit(mov_simd_to_reg(arm_reg, GPR16)); break;
+                case GPR(17): tc->emit(mov_simd_to_reg(arm_reg, GPR17)); break;
+                case GPR(18): tc->emit(mov_simd_to_reg(arm_reg, GPR18)); break;
+                case GPR(19): tc->emit(mov_simd_to_reg(arm_reg, GPR19)); break;
+                case GPR(20): tc->emit(mov_simd_to_reg(arm_reg, GPR20)); break;
+                case GPR(21): tc->emit(mov_simd_to_reg(arm_reg, GPR21)); break;
+                case GPR(22): tc->emit(mov_simd_to_reg(arm_reg, GPR22)); break;
+                case GPR(23): tc->emit(mov_simd_to_reg(arm_reg, GPR23)); break;
+                case GPR(24): tc->emit(mov_simd_to_reg(arm_reg, GPR24)); break;
+                case GPR(25): tc->emit(mov_simd_to_reg(arm_reg, GPR25)); break;
+                case GPR(26): tc->emit(mov_simd_to_reg(arm_reg, GPR26)); break;
+                case GPR(27): tc->emit(mov_simd_to_reg(arm_reg, GPR27)); break;
+                case GPR(28): tc->emit(mov_simd_to_reg(arm_reg, GPR28)); break;
+                case GPR(29): tc->emit(mov_simd_to_reg(arm_reg, GPR29)); break;
+                case GPR(30): tc->emit(mov_simd_to_reg(arm_reg, GPR30)); break;
+                case GPR(31): tc->emit(mov_simd_to_reg(arm_reg, GPR31)); break;
+                case CRn: tc->emit(mov_simd_to_reg(arm_reg, REG_CR)); break;
+                case XERn: tc->emit(mov_simd_to_reg(arm_reg, REG_XER)); break;
+                case FPSCRn: tc->emit(mov_simd_to_reg(arm_reg, REG_FPSCR)); break;
                 default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", reg);
             }
         }
@@ -483,22 +483,22 @@ static __used__ uint8_t IntMapGPR(struct PPCTranslatorContext *tc, uint8_t reg, 
     while(1) asm volatile("wfi");
 }
 
-uint8_t MapGPRForRead(struct PPCTranslatorContext *tc, uint8_t reg)
+uint8_t MapGPRForRead(PPCTranslatorContext *tc, uint8_t reg)
 {
     return IntMapGPR(tc, reg, 1, 0);
 }
 
-uint8_t MapGPRForReadAndWrite(struct PPCTranslatorContext *tc, uint8_t reg)
+uint8_t MapGPRForReadAndWrite(PPCTranslatorContext *tc, uint8_t reg)
 {
     return IntMapGPR(tc, reg, 1, 1);
 }
 
-uint8_t MapGPRForWrite(struct PPCTranslatorContext *tc, uint8_t reg)
+uint8_t MapGPRForWrite(PPCTranslatorContext *tc, uint8_t reg)
 {
     return IntMapGPR(tc, reg, 0, 1);
 }
 
-uint8_t IsGPRMapped(struct PPCTranslatorContext *, uint8_t reg)
+uint8_t IsGPRMapped(PPCTranslatorContext *, uint8_t reg)
 {
     /* If register is a fixed-assigned one, return ASAP */
     if (INT_REG_MAPPING[reg] != 0xff) {
@@ -580,7 +580,7 @@ void PurgeFlushStore(struct TranslatorContext *tc)
                 if (FlushStoreSorted[4 * vn + lane].Vn != 0)
                 {
                     /* EMIT actual store */
-                    tc->EMIT(mov_reg_to_simd(
+                    tc->emit(mov_reg_to_simd(
                                 FlushStoreSorted[4 * vn + lane].Vn,
                                 (TS)FlushStoreSorted[4 * vn + lane].Size,
                                 FlushStoreSorted[4 * vn + lane].Pos,
@@ -596,7 +596,7 @@ void PurgeFlushStore(struct TranslatorContext *tc)
     } while(stored);
 }
 
-static __used__ void FlushAllGPRs(struct PPCTranslatorContext *tc)
+static __used__ void FlushAllGPRs(PPCTranslatorContext *tc)
 {
     struct RegisterNode *rn;//, *next;
 
@@ -628,7 +628,7 @@ static __used__ void FlushAllGPRs(struct PPCTranslatorContext *tc)
                 case GPR(31): MarkForFlush(GPR31, rn->rn_ARM); break;
                 case CRn: MarkForFlush(REG_CR, rn->rn_ARM); break;
                 case XERn: MarkForFlush(REG_XER, rn->rn_ARM); break;
-                case FPSCRn: tc->EMIT(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
+                case FPSCRn: tc->emit(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
                 default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
             }
         }
@@ -643,7 +643,7 @@ static __used__ void FlushAllGPRs(struct PPCTranslatorContext *tc)
     PurgeFlushStore(tc);
 }
 
-void StoreDirtyGPRs(struct PPCTranslatorContext *tc)
+void StoreDirtyGPRs(PPCTranslatorContext *tc)
 {
     bzero(FlushStore, sizeof(FlushStore));
 
@@ -673,7 +673,7 @@ void StoreDirtyGPRs(struct PPCTranslatorContext *tc)
                 case GPR(31): MarkForFlush(GPR31, rn->rn_ARM); break;
                 case CRn: MarkForFlush(REG_CR, rn->rn_ARM); break;
                 case XERn: MarkForFlush(REG_XER, rn->rn_ARM); break;
-                case FPSCRn: tc->EMIT(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
+                case FPSCRn: tc->emit(mov_reg_to_simd(REG_FPSCR, rn->rn_ARM)); break;
                 default: kprintf("[PPC] Illegal reg %d in IntMapGpr()\n", rn->rn_ARM);
             }
         }
@@ -682,7 +682,7 @@ void StoreDirtyGPRs(struct PPCTranslatorContext *tc)
     PurgeFlushStore(tc);
 }
 
-void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
+void EMIT_set_crn_logic(PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
@@ -694,12 +694,12 @@ void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
     if ((reg_xer = IsGPRMapped(tc, XERn)) != 0xff)
     {
         /* XER was already in one of GPRs, rotate with tmp as target */
-        tc->EMIT(lsr(tmp, reg_xer, 31));
+        tc->emit(lsr(tmp, reg_xer, 31));
     }
     else
     {
         /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
-        tc->EMIT({
+        tc->emit({
             mov_simd_to_reg(tmp, REG_XER),
             lsr(tmp, tmp, 31)
         });
@@ -709,7 +709,7 @@ void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
     uint8_t reg_zero_case = AllocARMRegister(tc);
     uint8_t reg_minus_case = AllocARMRegister(tc);
 
-    tc->EMIT({
+    tc->emit({
 #if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
@@ -731,7 +731,7 @@ void EMIT_set_crn_logic(struct PPCTranslatorContext *tc, uint8_t cr)
     FreeARMRegister(tc, tmp);
 }
 
-void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
+void EMIT_set_crn_logic_no_minus(PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
@@ -743,12 +743,12 @@ void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
     if ((reg_xer = IsGPRMapped(tc, XERn)) != 0xff)
     {
         /* XER was already in one of GPRs, rotate with tmp as target */
-        tc->EMIT(lsr(tmp, reg_xer, 31));
+        tc->emit(lsr(tmp, reg_xer, 31));
     }
     else
     {
         /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
-        tc->EMIT({
+        tc->emit({
             mov_simd_to_reg(tmp, REG_XER),
             lsr(tmp, tmp, 31)
         });
@@ -757,7 +757,7 @@ void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
 
     uint8_t reg_zero_case = AllocARMRegister(tc);
 
-    tc->EMIT({
+    tc->emit({
 #if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(tmp, tmp, 1, 30),            // Set GT flag
@@ -775,7 +775,7 @@ void EMIT_set_crn_logic_no_minus(struct PPCTranslatorContext *tc, uint8_t cr)
     FreeARMRegister(tc, tmp);
 }
 
-void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
+void EMIT_set_crn_unsigned(PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
@@ -787,12 +787,12 @@ void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
     if ((reg_xer = IsGPRMapped(tc, XERn)) != 0xff)
     {
         /* XER was already in one of GPRs, rotate with tmp as target */
-        tc->EMIT(lsr(tmp, reg_xer, 31));
+        tc->emit(lsr(tmp, reg_xer, 31));
     }
     else
     {
         /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
-        tc->EMIT({
+        tc->emit({
             mov_simd_to_reg(tmp, REG_XER),
             lsr(tmp, tmp, 31)
         });
@@ -802,7 +802,7 @@ void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
     uint8_t reg_zero_case = AllocARMRegister(tc);
     uint8_t reg_minus_case = AllocARMRegister(tc);
 
-    tc->EMIT({ 
+    tc->emit({ 
 #if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
@@ -824,7 +824,7 @@ void EMIT_set_crn_unsigned(struct PPCTranslatorContext *tc, uint8_t cr)
     FreeARMRegister(tc, tmp);
 }
 
-void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr)
+void EMIT_set_crn_signed(PPCTranslatorContext *tc, uint8_t cr)
 {
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
@@ -836,12 +836,12 @@ void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr)
     if (reg_xer != 0xff)
     {
         /* XER was already in one of GPRs, rotate with tmp as target */
-        tc->EMIT(lsr(tmp, reg_xer, 31));
+        tc->emit(lsr(tmp, reg_xer, 31));
     }
     else
     {
         /* XER was not mapped, get a copy from PPC context (SIMD register) and rotate */
-        tc->EMIT({
+        tc->emit({
             mov_simd_to_reg(tmp, REG_XER),
             lsr(tmp, tmp, 31)
         });
@@ -851,7 +851,7 @@ void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr)
     uint8_t reg_zero_case = AllocARMRegister(tc);
     uint8_t reg_minus_case = AllocARMRegister(tc);
 
-    tc->EMIT({
+    tc->emit({
 #if PPC_SO_PROPAGATION
         orr_immed(reg_zero_case, tmp, 1, 31),     // Set EQ flag
         orr_immed(reg_minus_case, tmp, 1, 29),    // Set LT flag
@@ -873,7 +873,7 @@ void EMIT_set_crn_signed(struct PPCTranslatorContext *tc, uint8_t cr)
     FreeARMRegister(tc, tmp);
 }
 
-static __used__ int EMIT_addi(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addi(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -883,7 +883,7 @@ static __used__ int EMIT_addi(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* If rA == 0 then this is just load immediate */
     if (ra == 0) {
         uint8_t reg_rd = MapGPRForWrite(tc, rd);
-        tc->LoadImmediate(reg_rd, (uint32_t)simm);
+        tc->emitLoadImmediate(reg_rd, (uint32_t)simm);
     } else {
         uint8_t arm_rd, arm_ra;
 
@@ -900,35 +900,35 @@ static __used__ int EMIT_addi(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (simm < 0) {
             simm = -simm;
             if ((simm & 0xfffff000) == 0) {
-                tc->EMIT( sub_immed(arm_rd, arm_ra, simm & 0xfff));
+                tc->emit( sub_immed(arm_rd, arm_ra, simm & 0xfff));
             } else if ((simm & 0xffff0fff) == 0) {
-                tc->EMIT( sub_immed_lsl12(arm_rd, arm_ra, (simm >> 12) & 0xfff));
+                tc->emit( sub_immed_lsl12(arm_rd, arm_ra, (simm >> 12) & 0xfff));
             } else {
                 uint8_t tmp = AllocARMRegister(tc);
-                tc->LoadImmediate(tmp, simm);
-                tc->EMIT(sub_reg(arm_rd, arm_ra, tmp, LSL, 0));
+                tc->emitLoadImmediate(tmp, simm);
+                tc->emit(sub_reg(arm_rd, arm_ra, tmp, LSL, 0));
                 FreeARMRegister(tc, tmp);
             }
         } else {
             if ((simm & 0xfffff000) == 0) {
-                tc->EMIT( add_immed(arm_rd, arm_ra, simm & 0xfff));
+                tc->emit( add_immed(arm_rd, arm_ra, simm & 0xfff));
             } else if ((simm & 0xffff0fff) == 0) {
-                tc->EMIT( add_immed_lsl12(arm_rd, arm_ra, (simm >> 12) & 0xfff));
+                tc->emit( add_immed_lsl12(arm_rd, arm_ra, (simm >> 12) & 0xfff));
             } else {
                 uint8_t tmp = AllocARMRegister(tc);
-                tc->LoadImmediate(tmp, simm);
-                tc->EMIT( add_reg(arm_rd, arm_ra, tmp, LSL, 0));
+                tc->emitLoadImmediate(tmp, simm);
+                tc->emit( add_reg(arm_rd, arm_ra, tmp, LSL, 0));
                 FreeARMRegister(tc, tmp);
             }
         }
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_addis(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addis(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -945,15 +945,15 @@ static __used__ int EMIT_addis(struct PPCTranslatorContext *tc, uint32_t opcode)
         if ((opcode2 & 0xffff0000) == (expected | (24 << 26)) ||     // This is ori
             (opcode2 & 0xffff8000) == (expected | (14 << 26)))       // This is addi, must be positive, thus test bit 15 too
         {
-            tc->LoadImmediate(arm_rd, (opcode << 16) | (opcode2 & 0xffff));
+            tc->emitLoadImmediate(arm_rd, (opcode << 16) | (opcode2 & 0xffff));
             tc->tc_PPCCodePtr+=2;
-            tc->AdvancePC(8);
+            tc->advancePC(8);
             return 2;
         }
         else
         {
             /* Regular case, just a load immediate shifted */
-            tc->EMIT(mov_immed_u16(arm_rd, imm, 1));
+            tc->emit(mov_immed_u16(arm_rd, imm, 1));
         }
     } else {
         uint8_t arm_rd, arm_ra;
@@ -969,23 +969,23 @@ static __used__ int EMIT_addis(struct PPCTranslatorContext *tc, uint32_t opcode)
 
         if (imm & 0xff00) {
             uint8_t tmp = AllocARMRegister(tc);
-            tc->EMIT({ 
+            tc->emit({ 
                 mov_immed_u16(tmp, imm, 1),
                 add_reg(arm_rd, arm_ra, tmp, LSL, 0)
             });
             FreeARMRegister(tc, tmp);
         }
         else {
-            tc->EMIT( add_immed_lsl12(arm_rd, arm_ra, (imm & 0xff) << 4));
+            tc->emit( add_immed_lsl12(arm_rd, arm_ra, (imm & 0xff) << 4));
         }
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_cmpi(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_cmpi(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x00600000) return -1;
@@ -1005,16 +1005,16 @@ static __used__ int EMIT_cmpi(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     /* Is the immediate in range for CMP? */
     if ((simm & 0xfffff000) == 0) {
-        tc->EMIT( cmp_immed(reg_ra, simm));
+        tc->emit( cmp_immed(reg_ra, simm));
     }
     else if ((simm & 0xff000fff) == 0) {
-        tc->EMIT( cmp_immed_lsl12(reg_ra, simm >> 12));
+        tc->emit( cmp_immed_lsl12(reg_ra, simm >> 12));
     }
     else {
         uint8_t tmp = AllocARMRegister(tc);
 
-        tc->LoadImmediate(tmp, simm);
-        tc->EMIT( cmp_reg(reg_ra, tmp, LSL, 0));
+        tc->emitLoadImmediate(tmp, simm);
+        tc->emit( cmp_reg(reg_ra, tmp, LSL, 0));
 
         FreeARMRegister(tc, tmp);
     }
@@ -1022,11 +1022,11 @@ static __used__ int EMIT_cmpi(struct PPCTranslatorContext *tc, uint32_t opcode)
     EMIT_set_crn_signed(tc, cr);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_cmpli(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_cmpli(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x00600000) return -1;
@@ -1045,16 +1045,16 @@ static __used__ int EMIT_cmpli(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     /* Is the immediate in range for CMP? */
     if ((imm & 0xfffff000) == 0) {
-        tc->EMIT( cmp_immed(reg_ra, imm));
+        tc->emit( cmp_immed(reg_ra, imm));
     }
     else if ((imm & 0xff000fff) == 0) {
-        tc->EMIT( cmp_immed_lsl12(reg_ra, imm >> 12));
+        tc->emit( cmp_immed_lsl12(reg_ra, imm >> 12));
     }
     else {
         uint8_t tmp = AllocARMRegister(tc);
 
-        tc->LoadImmediate(tmp, imm);
-        tc->EMIT( cmp_reg(reg_ra, tmp, LSL, 0));
+        tc->emitLoadImmediate(tmp, imm);
+        tc->emit( cmp_reg(reg_ra, tmp, LSL, 0));
 
         FreeARMRegister(tc, tmp);
     }
@@ -1062,11 +1062,11 @@ static __used__ int EMIT_cmpli(struct PPCTranslatorContext *tc, uint32_t opcode)
     EMIT_set_crn_unsigned(tc, cr);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_bx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     int32_t offset = opcode & 0x03fffffc;
     int update_lr = !!(opcode & 1);
@@ -1076,7 +1076,7 @@ static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint32_t *old_pc = tc->tc_PPCCodePtr;
     int32_t var_EMU68_BRANCH_INLINE_DISTANCE = (ctx->JIT_CONTROL >> JCCB_INLINE_RANGE) & JCCB_INLINE_RANGE_MASK;
 
-    tc->GetOffsetPC(&pc_offset);
+    tc->getOffsetPC(&pc_offset);
 
     if (offset & 0x02000000) offset |= 0xfc000000;
 
@@ -1084,41 +1084,41 @@ static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
         returnStack.push(tc->tc_PPCCodePtr + 1);
 
         if (pc_offset >= 0) {
-            tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+            tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
         } else {
-            tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+            tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
         }
     }
 
-    tc->ResetOffsetPC();
+    tc->resetOffsetPC();
 
     if (is_absolute) {
         tc->tc_PPCCodePtr = (uint32_t*)(uintptr_t)(uint32_t)offset;
-        tc->LoadImmediate(REG_PC, (uint32_t)offset);
+        tc->emitLoadImmediate(REG_PC, (uint32_t)offset);
     } else {
         tc->tc_PPCCodePtr += (offset >> 2);
         int32_t pc_adj = pc_offset + offset - 4;
         if (pc_adj < 0) {
             pc_adj = -pc_adj;
             if ((pc_adj & 0xfffff000) == 0) {
-                tc->EMIT( sub_immed(REG_PC, REG_PC, pc_adj));
+                tc->emit( sub_immed(REG_PC, REG_PC, pc_adj));
             } else if ((pc_adj & 0xff000fff) == 0) {
-                tc->EMIT( sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                tc->emit( sub_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
             } else {
                 uint8_t tmp = AllocARMRegister(tc);
-                tc->LoadImmediate(tmp, (uint32_t)pc_adj);
-                tc->EMIT( sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                tc->emitLoadImmediate(tmp, (uint32_t)pc_adj);
+                tc->emit( sub_reg(REG_PC, REG_PC, tmp, LSL, 0));
                 FreeARMRegister(tc, tmp);
             }
         } else if (pc_adj > 0) {
             if ((pc_adj & 0xfffff000) == 0) {
-                tc->EMIT( add_immed(REG_PC, REG_PC, pc_adj));
+                tc->emit( add_immed(REG_PC, REG_PC, pc_adj));
             } else if ((pc_adj & 0xff000fff) == 0) {
-                tc->EMIT( add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
+                tc->emit( add_immed_lsl12(REG_PC, REG_PC, pc_adj >> 12));
             } else {
                 uint8_t tmp = AllocARMRegister(tc);
-                tc->LoadImmediate(tmp, (uint32_t)pc_adj);
-                tc->EMIT( add_reg(REG_PC, REG_PC, tmp, LSL, 0));
+                tc->emitLoadImmediate(tmp, (uint32_t)pc_adj);
+                tc->emit( add_reg(REG_PC, REG_PC, tmp, LSL, 0));
                 FreeARMRegister(tc, tmp);
             }
         } 
@@ -1127,16 +1127,16 @@ static __used__ int EMIT_bx(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* If jump distance is larger than allowed, break translation */
     ptrdiff_t distance = 4 * (tc->tc_PPCCodePtr - old_pc);
     if (distance > var_EMU68_BRANCH_INLINE_DISTANCE || distance < -var_EMU68_BRANCH_INLINE_DISTANCE) {
-        tc->STOP();
+        tc->emitStop();
     }
 
     /* If jump to itself, insert NOP */
-    if (distance == 0) tc->EMIT({ nop(), INSN_TO_LE(MARKER_BREAK) });
+    if (distance == 0) tc->emit({ nop(), INSN_TO_LE(MARKER_BREAK) });
 
     return 1;
 }
 
-static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_bcx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     int32_t offset = opcode & 0x0000fffc;
     uint32_t branch_target;
@@ -1178,7 +1178,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
 //    kprintf("bcx: bo = %d, bi = %d, take_branch = %d\n", bo, bi, take_branch);
 //    kprintf("bcx: branch_target = %08x, old_pc = %08x, offset = %08x\n", branch_target, (uint32_t)(uintptr_t)old_pc, offset);
 
-    tc->GetOffsetPC(&pc_offset);
+    tc->getOffsetPC(&pc_offset);
 
 //    kprintf("pc_offset = %d\n", pc_offset);
 
@@ -1186,19 +1186,19 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         returnStack.push(tc->tc_PPCCodePtr + 1);
 
         if (pc_offset >= 0) {
-            tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+            tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
         } else {
-            tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+            tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
         }
     }
 
-    tc->ResetOffsetPC();
+    tc->resetOffsetPC();
 
     /* Branch always! */
     if (bo0 && bo2) {
         if (is_absolute) {
             tc->tc_PPCCodePtr = (uint32_t*)(uintptr_t)(uint32_t)offset;
-            tc->LoadImmediate(REG_PC, (uint32_t)offset);
+            tc->emitLoadImmediate(REG_PC, (uint32_t)offset);
         } else {
             tc->tc_PPCCodePtr += (offset >> 2);
             int32_t pc_adj = pc_offset + offset - 4;
@@ -1210,19 +1210,19 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
         /* BO[2] == 0 - decrement CTR and set condition */
         if (dec_ctr) {
-            tc->EMIT( subs_immed(REG_CTR, REG_CTR, 1));
+            tc->emit( subs_immed(REG_CTR, REG_CTR, 1));
             /* bo3 == 1 <- take branch if CTR == 0; bo3 == 0 <- take branch if CTR != 0 */
             if (bo3) {
                 success_condition = A64_CC_EQ;
-                if (bo0 == 0) tc->EMIT( cset(tmp, A64_CC_EQ));
+                if (bo0 == 0) tc->emit( cset(tmp, A64_CC_EQ));
             } else {
                 success_condition = A64_CC_NE;
-                if (bo0 == 0) tc->EMIT( cset(tmp, A64_CC_NE));
+                if (bo0 == 0) tc->emit( cset(tmp, A64_CC_NE));
             }
             /* if bo0 == 1 there is no need to test condition flags */
             if (bo0 == 0) {
                 uint8_t reg_cr = MapGPRForRead(tc, CRn);
-                tc->EMIT({ 
+                tc->emit({ 
                     /* Test condition */
                     tst_immed(reg_cr, 1, (1 + bi) & 31),
                     /* Increase tmp if condition is met */
@@ -1235,7 +1235,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         } else {
             //uint8_t reg_cr = MapGPRForRead(tc, CRn);
             /* Check the condition */
-            //tc->EMIT( tst_immed(reg_cr, 1, (1 + bi) & 31));
+            //tc->emit( tst_immed(reg_cr, 1, (1 + bi) & 31));
             success_condition = condition_true ? A64_CC_NE : A64_CC_EQ;
             use_tbz = true;
         }
@@ -1257,13 +1257,13 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (use_tbz) {
             uint8_t reg_cr = MapGPRForRead(tc, CRn);
             
-            tc->EMIT(
+            tc->emit(
                 success_condition == A64_CC_EQ ?
                     tbz(reg_cr, 31 - bi, 0):
                     tbnz(reg_cr, 31 - bi, 0)
             );
         } else { 
-            tc->EMIT( b_cc(success_condition, 0));
+            tc->emit( b_cc(success_condition, 0));
         }
 
         uint32_t *jump_location = tc->tc_CodePtr - 1;
@@ -1272,7 +1272,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (take_branch)
         {
             if (is_absolute) {
-                tc->LoadImmediate(REG_PC, (uint32_t)offset);
+                tc->emitLoadImmediate(REG_PC, (uint32_t)offset);
             } else {
                 int32_t pc_adj = pc_offset + offset - 4;
                 AddImmediate(tc, REG_PC, pc_adj);
@@ -1290,7 +1290,7 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (!take_branch)
         {
             if (is_absolute) {
-                tc->LoadImmediate(REG_PC, (uint32_t)offset);
+                tc->emitLoadImmediate(REG_PC, (uint32_t)offset);
             } else {
                 int32_t pc_adj = pc_offset + offset - 4;
                 AddImmediate(tc, REG_PC, pc_adj);
@@ -1303,11 +1303,11 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         /* Insert local exit */
-        tc->LocalExit(1);
+        tc->emitLocalExit(1);
         uint32_t *exit_code_end = tc->tc_CodePtr;
 
         /* Insert fixup location */
-        tc->EMIT({ 
+        tc->emit({ 
             (uint32_t)(exit_code_end - jump_location),
             fixup_type,
             1,
@@ -1319,14 +1319,14 @@ static __used__ int EMIT_bcx(struct PPCTranslatorContext *tc, uint32_t opcode)
     /* If jump distance is larger than allowed, break translation */
     ptrdiff_t distance = 4 * (tc->tc_PPCCodePtr - old_pc);
     if (distance > var_EMU68_BRANCH_INLINE_DISTANCE || distance < -var_EMU68_BRANCH_INLINE_DISTANCE) {
-        tc->STOP();
+        tc->emitStop();
     }
     
     FreeARMRegister(tc, tmp);
     return 1;
 }
 
-static __used__ int EMIT_ori(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_ori(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t immed = opcode & 0xffff;
     uint32_t mask = number_to_mask(immed);
@@ -1338,29 +1338,29 @@ static __used__ int EMIT_ori(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (immed == 0) {
         if (rs == ra)
-            tc->EMIT( nop());
+            tc->emit( nop());
         else
-            tc->EMIT( mov_reg(reg_rA, reg_rS));
+            tc->emit( mov_reg(reg_rA, reg_rS));
     }
     else {
         if (mask == 0) {
             uint8_t tmp = AllocARMRegister(tc);
-            tc->EMIT({
+            tc->emit({
                 mov_immed_u16(tmp, immed, 0),
                 orr_reg(reg_rA, reg_rS, tmp, LSL, 0)
             });
             FreeARMRegister(tc, tmp);
         } else {
-            tc->EMIT( orr_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+            tc->emit( orr_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
         }
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_oris(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_oris(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t immed = opcode & 0xffff;
     uint32_t mask = number_to_mask(immed << 16);
@@ -1372,21 +1372,21 @@ static __used__ int EMIT_oris(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (mask == 0) {
         uint8_t tmp = AllocARMRegister(tc);
-        tc->EMIT({
+        tc->emit({
             mov_immed_u16(tmp, immed, 1),
             orr_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( orr_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->emit( orr_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_andi_dot(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_andi_dot(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t immed = opcode & 0xffff;
     uint32_t mask = number_to_mask(immed);
@@ -1398,23 +1398,23 @@ static __used__ int EMIT_andi_dot(struct PPCTranslatorContext *tc, uint32_t opco
 
     if (mask == 0) {
         uint8_t tmp = AllocARMRegister(tc);
-        tc->EMIT({
+        tc->emit({
             mov_immed_u16(tmp, immed, 0),
             ands_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->emit( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     EMIT_set_crn_logic_no_minus(tc, 0);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_andis_dot(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_andis_dot(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t immed = opcode & 0xffff;
     uint32_t mask = number_to_mask(immed << 16);
@@ -1426,13 +1426,13 @@ static __used__ int EMIT_andis_dot(struct PPCTranslatorContext *tc, uint32_t opc
 
     if (mask == 0) {
         uint8_t tmp = AllocARMRegister(tc);
-        tc->EMIT({
+        tc->emit({
             mov_immed_u16(tmp, immed, 1),
             ands_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->emit( ands_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     if (immed & 0x8000)
@@ -1441,11 +1441,11 @@ static __used__ int EMIT_andis_dot(struct PPCTranslatorContext *tc, uint32_t opc
         EMIT_set_crn_logic_no_minus(tc, 0);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_xori(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_xori(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t immed = opcode & 0xffff;
     uint32_t mask = number_to_mask(immed);
@@ -1457,21 +1457,21 @@ static __used__ int EMIT_xori(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (mask == 0) {
         uint8_t tmp = AllocARMRegister(tc);
-        tc->EMIT({
+        tc->emit({
             mov_immed_u16(tmp, immed, 0),
             eor_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( eor_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->emit( eor_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_xoris(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_xoris(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t immed = opcode & 0xffff;
     uint32_t mask = number_to_mask(immed << 16);
@@ -1483,36 +1483,36 @@ static __used__ int EMIT_xoris(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (mask == 0) {
         uint8_t tmp = AllocARMRegister(tc);
-        tc->EMIT({
+        tc->emit({
             mov_immed_u16(tmp, immed, 1),
             eor_reg(reg_rA, reg_rS, tmp, LSL, 0)
         });
         FreeARMRegister(tc, tmp);
     } else {
-        tc->EMIT( eor_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
+        tc->emit( eor_immed(reg_rA, reg_rS, (mask >> 16) & 0x3f, mask & 0x3f));
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_isync(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_isync(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x03fff801) return -1;
 
-    tc->EMIT({ 
+    tc->emit({ 
         isb(),
         INSN_TO_LE(MARKER_STOP)
     });
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mcrf(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x63F801) return -1;
@@ -1523,7 +1523,7 @@ static __used__ int EMIT_mcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t tmp = AllocARMRegister(tc);
     uint8_t cr = MapGPRForReadAndWrite(tc, CRn);
 
-    tc->EMIT({
+    tc->emit({
         lsr(tmp, cr, (7 - src) * 4),
         bfi(cr, tmp, (7 - dst) * 4, 4)
     });
@@ -1531,11 +1531,11 @@ static __used__ int EMIT_mcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_crandc(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_crandc(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1547,7 +1547,7 @@ static __used__ int EMIT_crandc(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t cr_reg = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
 
-    tc->EMIT({
+    tc->emit({
         neg_reg(tmp, cr_reg, LSR, (31 - crb)),
         and_reg(tmp, tmp, cr_reg, LSR, (31 - cra)),
         bfi(cr_reg, tmp, 31 - crd, 1)
@@ -1556,11 +1556,11 @@ static __used__ int EMIT_crandc(struct PPCTranslatorContext *tc, uint32_t opcode
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_creqv(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_creqv(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1574,12 +1574,12 @@ static __used__ int EMIT_creqv(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (cra == crb) {
         /* Bit set */
-        tc->EMIT(
+        tc->emit(
             orr_immed(cr_reg, cr_reg, 1, (crd + 1) & 31)
         );
     }
     else {
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             eon_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
             bfi(cr_reg, tmp, 31 - crd, 1)
@@ -1589,11 +1589,11 @@ static __used__ int EMIT_creqv(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_crand(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_crand(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1607,12 +1607,12 @@ static __used__ int EMIT_crand(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (cra == crb) {
         /* Bit move */
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             bfi(cr_reg, tmp, 31 - crd, 1)
         });
     } else {
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             and_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
             bfi(cr_reg, tmp, 31 - crd, 1)
@@ -1622,11 +1622,11 @@ static __used__ int EMIT_crand(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_crnand(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_crnand(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1638,7 +1638,7 @@ static __used__ int EMIT_crnand(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t cr_reg = MapGPRForReadAndWrite(tc, CRn);
     uint8_t tmp = AllocARMRegister(tc);
 
-    tc->EMIT({
+    tc->emit({
         lsr(tmp, cr_reg, (31 - cra)),
         and_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
         neg_reg(tmp, tmp, LSL, 0),
@@ -1648,11 +1648,11 @@ static __used__ int EMIT_crnand(struct PPCTranslatorContext *tc, uint32_t opcode
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_crnor(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_crnor(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1666,11 +1666,11 @@ static __used__ int EMIT_crnor(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (cra == crb) {
         /* Bit change */
-        tc->EMIT(
+        tc->emit(
             eor_immed(cr_reg, cr_reg, 1, (crd + 1) & 31)
         );
     } else {
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             orr_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
             neg_reg(tmp, tmp, LSL, 0),
@@ -1681,11 +1681,11 @@ static __used__ int EMIT_crnor(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_cror(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_cror(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1699,12 +1699,12 @@ static __used__ int EMIT_cror(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (cra == crb) {
         /* Bit move */
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             bfi(cr_reg, tmp, 31 - crd, 1)
         });
     } else {
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             orr_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
             bfi(cr_reg, tmp, 31 - crd, 1)
@@ -1714,11 +1714,11 @@ static __used__ int EMIT_cror(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_crorc(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_crorc(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1732,11 +1732,11 @@ static __used__ int EMIT_crorc(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (cra == crb) {
         /* Bit set */
-        tc->EMIT(
+        tc->emit(
             orr_immed(cr_reg, cr_reg, 1, (crd + 1) & 31)
         );
     } else {
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             orn_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
             bfi(cr_reg, tmp, 31 - crd, 1)
@@ -1746,11 +1746,11 @@ static __used__ int EMIT_crorc(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
     
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_crxor(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_crxor(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1763,12 +1763,12 @@ static __used__ int EMIT_crxor(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     if (cra == crb) {
         /* Bit clear */
-        tc->EMIT(
+        tc->emit(
             bic_immed(cr_reg, cr_reg, 1, (crd + 1) & 31)
         );
     } else {
         uint8_t tmp = AllocARMRegister(tc);
-        tc->EMIT({
+        tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             orr_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
             bfi(cr_reg, tmp, 31 - crd, 1)
@@ -1777,11 +1777,11 @@ static __used__ int EMIT_crxor(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Stanity check */
     if (opcode & 0x0000f800) return -1;
@@ -1809,36 +1809,36 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             int8_t pc_offset = 4;
             uint8_t tmp = AllocARMRegister(tc);
 
-            tc->GetOffsetPC(&pc_offset);
+            tc->getOffsetPC(&pc_offset);
 
             returnStack.push(tc->tc_PPCCodePtr + 1);
 
-            tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
+            tc->emit( bic_immed(tmp, REG_LR, 2, 0));
 
             if (pc_offset >= 0) {
-                tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+                tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
             } else {
-                tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+                tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
             }
 
-            tc->EMIT( mov_reg(REG_PC, tmp));
+            tc->emit( mov_reg(REG_PC, tmp));
 
             FreeARMRegister(tc, tmp);
         }
         else
         {
             /* Move LR to PC */
-            tc->EMIT( bic_immed(REG_PC, REG_LR, 2, 0));
+            tc->emit( bic_immed(REG_PC, REG_LR, 2, 0));
         }
 
         if (success) {
             tc->tc_PPCCodePtr = last_pc;
         } else {
             /* The return address stack was not available, stop now */
-            tc->STOP();
+            tc->emitStop();
         }
 
-        tc->ResetOffsetPC();
+        tc->resetOffsetPC();
     } else {
         bool success = 0;
         uint8_t success_condition;
@@ -1848,23 +1848,23 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         
         returnStack.reset();
 
-        tc->GetOffsetPC(&pc_offset);
+        tc->getOffsetPC(&pc_offset);
 
         /* BO[2] == 0 - decrement CTR and set condition */
         if (dec_ctr) {
-            tc->EMIT(subs_immed(REG_CTR, REG_CTR, 1));
+            tc->emit(subs_immed(REG_CTR, REG_CTR, 1));
             /* bo3 == 1 <- take branch if CTR == 0; bo3 == 0 <- take branch if CTR != 0 */
             if (bo3) {
                 success_condition = A64_CC_EQ;
-                if (bo0 == 0) tc->EMIT(cset(tmp, A64_CC_EQ));
+                if (bo0 == 0) tc->emit(cset(tmp, A64_CC_EQ));
             } else {
                 success_condition = A64_CC_NE;
-                if (bo0 == 0) tc->EMIT(cset(tmp, A64_CC_NE));
+                if (bo0 == 0) tc->emit(cset(tmp, A64_CC_NE));
             }
             /* if bo0 == 1 there is no need to test condition flags */
             if (bo0 == 0) {
                 uint8_t reg_cr = MapGPRForRead(tc, CRn);
-                tc->EMIT({ 
+                tc->emit({ 
                     /* Test condition */
                     tst_immed(reg_cr, 1, (1 + bi) & 31),
                     /* Increase tmp if condition is met */
@@ -1877,7 +1877,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         } else {
             uint8_t reg_cr = MapGPRForRead(tc, CRn);
             /* Check the condition */
-            tc->EMIT(tst_immed(reg_cr, 1, (1 + bi) & 31));
+            tc->emit(tst_immed(reg_cr, 1, (1 + bi) & 31));
             success_condition = condition_true ? A64_CC_NE : A64_CC_EQ;
         }
 
@@ -1889,7 +1889,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         /* Emit jump, remember its location and fixup type */
         uint32_t fixup_type = FIXUP_BCC;
         uint32_t *jump_location = tc->tc_CodePtr;
-        tc->EMIT( b_cc(success_condition, 0));
+        tc->emit( b_cc(success_condition, 0));
 
         /* Here is expected code path */
         if (take_branch)
@@ -1900,29 +1900,29 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
                 returnStack.push(tc->tc_PPCCodePtr + 1);
 
-                tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
+                tc->emit( bic_immed(tmp, REG_LR, 2, 0));
 
                 if (pc_offset >= 0) {
-                    tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+                    tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
                 } else {
-                    tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+                    tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
                 }
 
-                tc->EMIT( mov_reg(REG_PC, tmp));
+                tc->emit( mov_reg(REG_PC, tmp));
 
                 FreeARMRegister(tc, tmp);
             }
             else
             {
                 /* Move LR to PC */
-                tc->EMIT( bic_immed(REG_PC, REG_LR, 2, 0));
+                tc->emit( bic_immed(REG_PC, REG_LR, 2, 0));
             }
 
             if (success) {
                 tc->tc_PPCCodePtr = last_pc;
             } else {
                 /* The return address stack was not available, stop now */
-                tc->STOP();
+                tc->emitStop();
             }
         }
         else
@@ -1943,22 +1943,22 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
                 returnStack.push(tc->tc_PPCCodePtr + 1);
 
-                tc->EMIT( bic_immed(tmp, REG_LR, 2, 0));
+                tc->emit( bic_immed(tmp, REG_LR, 2, 0));
 
                 if (pc_offset >= 0) {
-                    tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+                    tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
                 } else {
-                    tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+                    tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
                 }
 
-                tc->EMIT( mov_reg(REG_PC, tmp));
+                tc->emit( mov_reg(REG_PC, tmp));
 
                 FreeARMRegister(tc, tmp);
             }
             else
             {
                 /* Move LR to PC */
-                tc->EMIT( bic_immed(REG_PC, REG_LR, 2, 0));
+                tc->emit( bic_immed(REG_PC, REG_LR, 2, 0));
             }
         }
         else
@@ -1967,14 +1967,14 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
             AddImmediate(tc, REG_PC, pc_adj);
         }
 
-        tc->ResetOffsetPC();
+        tc->resetOffsetPC();
 
         /* Insert local exit */
-        tc->LocalExit(1);
+        tc->emitLocalExit(1);
         uint32_t *exit_code_end = tc->tc_CodePtr;
 
         /* Insert fixup location */
-        tc->EMIT({ 
+        tc->emit({ 
             (uint32_t)(exit_code_end - jump_location),
             fixup_type,
             1,
@@ -2002,7 +2002,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (take_branch)
         {
             if (is_absolute) {
-                tc->LoadImmediate(REG_PC, (uint32_t)offset);
+                tc->emitLoadImmediate(REG_PC, (uint32_t)offset);
             } else {
                 int32_t pc_adj = pc_offset + offset - 4;
                 AddImmediate(tc, REG_PC, pc_adj);
@@ -2020,7 +2020,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (!take_branch)
         {
             if (is_absolute) {
-                tc->LoadImmediate(REG_PC, (uint32_t)offset);
+                tc->emitLoadImmediate(REG_PC, (uint32_t)offset);
             } else {
                 int32_t pc_adj = pc_offset + offset - 4;
                 AddImmediate(tc, REG_PC, pc_adj);
@@ -2037,7 +2037,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         uint32_t *exit_code_end = tc->tc_CodePtr;
 
         /* Insert fixup location */
-        tc->EMIT({ 
+        tc->emit({ 
             (uint32_t)(exit_code_end - jump_location),
             fixup_type,
             1,
@@ -2056,7 +2056,7 @@ static __used__ int EMIT_bclrx(struct PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
-static __used__ int EMIT_bcctrx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_bcctrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Stanity check */
     if (opcode & 0x0000f800) return -1;
@@ -2078,26 +2078,26 @@ static __used__ int EMIT_bcctrx(struct PPCTranslatorContext *tc, uint32_t opcode
         if (update_lr) {
             int8_t pc_offset = 4;
 
-            tc->GetOffsetPC(&pc_offset);
+            tc->getOffsetPC(&pc_offset);
 
             if (pc_offset >= 0) {
-                tc->EMIT( add_immed(REG_LR, REG_PC, pc_offset));
+                tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
             } else {
-                tc->EMIT( sub_immed(REG_LR, REG_PC, -pc_offset));
+                tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
             }
 
-            tc->EMIT( bic_immed(REG_PC, REG_CTR, 2, 0));
+            tc->emit( bic_immed(REG_PC, REG_CTR, 2, 0));
         }
         else
         {
             /* Move LR to PC */
-            tc->EMIT( bic_immed(REG_PC, REG_CTR, 2, 0));
+            tc->emit( bic_immed(REG_PC, REG_CTR, 2, 0));
         }
 
         /* The return address stack was not available, stop now */
-        tc->STOP();
+        tc->emitStop();
 
-        tc->ResetOffsetPC();
+        tc->resetOffsetPC();
     } else {
         (void)bi;
         (void)take_branch;
@@ -2107,7 +2107,7 @@ static __used__ int EMIT_bcctrx(struct PPCTranslatorContext *tc, uint32_t opcode
     return 1;
 }
 
-static __used__ int EMIT_mfcr(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mfcr(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Stanity check */
     if (opcode & 0x001ff801) return -1;
@@ -2117,17 +2117,17 @@ static __used__ int EMIT_mfcr(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_cr = IsGPRMapped(tc, CRn);
 
     if (reg_cr != 0xff) {
-        tc->EMIT( mov_reg(reg_rd, reg_cr));
+        tc->emit( mov_reg(reg_rd, reg_cr));
     } else {
-        tc->EMIT( mov_simd_to_reg(reg_rd, REG_CR));
+        tc->emit( mov_simd_to_reg(reg_rd, REG_CR));
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mcrxr(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mcrxr(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Stanity check */
     if (opcode & 0x007ff801) return -1;
@@ -2137,7 +2137,7 @@ static __used__ int EMIT_mcrxr(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t cr_reg = MapGPRForReadAndWrite(tc, CRn);
     uint8_t crn = (opcode >> 23) & 7;
 
-    tc->EMIT({
+    tc->emit({
         lsr(tmp, xer_reg, 28),
         bfi(cr_reg, tmp, 4 * (7 - crn), 4),
         bic_immed(xer_reg, xer_reg, 4, 4)
@@ -2146,11 +2146,11 @@ static __used__ int EMIT_mcrxr(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_rlwimix(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2167,7 +2167,7 @@ static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcod
 
     /* If sh is set, rotate left */
     if (sh) {
-        tc->EMIT(ror(tmp, reg_rs, (32 - sh) & 31));
+        tc->emit(ror(tmp, reg_rs, (32 - sh) & 31));
     }
 
     /* Mask result if me - mb is not 31 */
@@ -2176,7 +2176,7 @@ static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcod
         if (mb <= me)
         {
             /* mb < me - mask of type 0x0f...f0 */
-            tc->EMIT({
+            tc->emit({
                 bic_immed(reg_ra, reg_ra, 1 + me - mb, 31 & (me + 1)),
                 and_immed(tmp, tmp, 1 + me - mb, 31 & (me + 1)),
                 orr_reg(reg_ra, reg_ra, tmp, LSL, 0)
@@ -2185,7 +2185,7 @@ static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcod
         else if (me < mb)
         {
             /* mb < me - mask of type 0xf..0..f */
-            tc->EMIT({
+            tc->emit({
                 bic_immed(reg_ra, reg_ra, mb - me - 1, me + 1),
                 and_immed(tmp, tmp, mb - me - 1, me + 1),
                 orr_reg(reg_ra, reg_ra, tmp, LSL, 0)
@@ -2193,9 +2193,9 @@ static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcod
         }
     } else if (update_cr) {
         if (!sh)
-            tc->EMIT(adds_immed(reg_ra, reg_rs, 0));
+            tc->emit(adds_immed(reg_ra, reg_rs, 0));
         else
-            tc->EMIT(adds_immed(reg_ra, tmp, 0));
+            tc->emit(adds_immed(reg_ra, tmp, 0));
     }
 
     if (update_cr) 
@@ -2206,11 +2206,11 @@ static __used__ int EMIT_rlwimix(struct PPCTranslatorContext *tc, uint32_t opcod
     FreeARMRegister(tc, tmp);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_rlwinmx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2228,18 +2228,18 @@ static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcod
     if (mb == 0 && me == (31 - sh))
     {
         /* shifting left, leaving zeros on right */
-        tc->EMIT(lsl(reg_ra, reg_rs, sh));
+        tc->emit(lsl(reg_ra, reg_rs, sh));
     }
     else if (me == 31 && sh == (32 - mb))
     {
         /* shifting right, zeros on the left */
-        tc->EMIT(lsr(reg_ra, reg_rs, 32 - sh));
+        tc->emit(lsr(reg_ra, reg_rs, 32 - sh));
     }
     else
     {
         /* If sh is set, rotate left */
         if (sh) {
-            tc->EMIT( ror(reg_ra, reg_rs, (32 - sh) & 31));
+            tc->emit( ror(reg_ra, reg_rs, (32 - sh) & 31));
             and_src = reg_ra;
         }
 
@@ -2249,7 +2249,7 @@ static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcod
             if (mb <= me)
             {
                 /* mb < me - mask of type 0x0f...f0 */
-                tc->EMIT( update_cr ?
+                tc->emit( update_cr ?
                     ands_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1)) :
                     and_immed(reg_ra, and_src, 1 + me - mb, 31 & (me + 1))
                 );
@@ -2257,16 +2257,16 @@ static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcod
             else if (me < mb)
             {
                 /* mb < me - mask of type 0xf..0..f */
-                tc->EMIT( update_cr ?
+                tc->emit( update_cr ?
                     ands_immed(reg_ra, and_src, mb - me - 1, me + 1) :
                     and_immed(reg_ra, and_src, mb - me - 1, me + 1)
                 );
             }
         } else if (update_cr) {
             if (!sh)
-                tc->EMIT( adds_immed(reg_ra, reg_rs, 0));
+                tc->emit( adds_immed(reg_ra, reg_rs, 0));
             else
-                tc->EMIT( tst_immed(reg_ra, 32, 0));
+                tc->emit( tst_immed(reg_ra, 32, 0));
         }
     }
 
@@ -2276,11 +2276,11 @@ static __used__ int EMIT_rlwinmx(struct PPCTranslatorContext *tc, uint32_t opcod
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_rlwnmx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_rlwnmx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2295,7 +2295,7 @@ static __used__ int EMIT_rlwnmx(struct PPCTranslatorContext *tc, uint32_t opcode
 
     /* TODO: add obvious shortcuts! */
 
-    tc->EMIT({
+    tc->emit({
         neg_reg(reg_ra, reg_rb, LSL, 0),
         rorv(reg_ra, reg_rs, reg_ra)
     });
@@ -2306,7 +2306,7 @@ static __used__ int EMIT_rlwnmx(struct PPCTranslatorContext *tc, uint32_t opcode
         if (mb <= me)
         {
             /* mb < me - mask of type 0x0f...f0 */
-            tc->EMIT( update_cr ?
+            tc->emit( update_cr ?
                 ands_immed(reg_ra, reg_ra, 1 + me - mb, 31 & (me + 1)) :
                 and_immed(reg_ra, reg_ra, 1 + me - mb, 31 & (me + 1))
             );
@@ -2314,13 +2314,13 @@ static __used__ int EMIT_rlwnmx(struct PPCTranslatorContext *tc, uint32_t opcode
         else if (me < mb)
         {
             /* mb < me - mask of type 0xf..0..f */
-            tc->EMIT( update_cr ?
+            tc->emit( update_cr ?
                 ands_immed(reg_ra, reg_ra, mb - me - 1, me + 1) :
                 and_immed(reg_ra, reg_ra, mb - me - 1, me + 1)
             );
         }
     } else if (update_cr) {
-        tc->EMIT(cmp_immed(reg_ra, 0));
+        tc->emit(cmp_immed(reg_ra, 0));
     }
 
     if (update_cr) 
@@ -2329,11 +2329,11 @@ static __used__ int EMIT_rlwnmx(struct PPCTranslatorContext *tc, uint32_t opcode
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_orx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_orx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2341,9 +2341,9 @@ static __used__ int EMIT_orx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
 
     if (rs == 27 && ra == 27 && rb == 27) {
-        tc->EMIT(yield());
+        tc->emit(yield());
         tc->tc_PPCCodePtr++;
-        tc->AdvancePC(4);
+        tc->advancePC(4);
         return 1;
     }
 
@@ -2352,22 +2352,22 @@ static __used__ int EMIT_orx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     if (rb == rs) {
-        tc->EMIT(mov_reg(reg_ra, reg_rs));
+        tc->emit(mov_reg(reg_ra, reg_rs));
     } else {
-        tc->EMIT(orr_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->emit(orr_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
     }
 
     if (update_cr) {
-        tc->EMIT(cmp_immed(reg_ra, 0));
+        tc->emit(cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_cntlzwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_cntlzwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x0000f800) return -1;
@@ -2379,19 +2379,19 @@ static __used__ int EMIT_cntlzwx(struct PPCTranslatorContext *tc, uint32_t opcod
     uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
-    tc->EMIT(clz(reg_ra, reg_rs));
+    tc->emit(clz(reg_ra, reg_rs));
 
     if (update_cr) {
-        tc->EMIT(cmp_immed(reg_ra, 0));
+        tc->emit(cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mulhwux(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mulhwux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & (0x80000000 >> 21)) return -1;
@@ -2405,23 +2405,23 @@ static __used__ int EMIT_mulhwux(struct PPCTranslatorContext *tc, uint32_t opcod
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
-    tc->EMIT({
+    tc->emit({
         umull(reg_rd, reg_ra, reg_rb),
         lsr64(reg_rd, reg_rd, 32)
     });
 
 
     if (update_cr) {
-        tc->EMIT(cmp_immed(reg_rd, 0));
+        tc->emit(cmp_immed(reg_rd, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mulhwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mulhwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & (0x80000000 >> 21)) return -1;
@@ -2435,22 +2435,22 @@ static __used__ int EMIT_mulhwx(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
-    tc->EMIT({
+    tc->emit({
         smull(reg_rd, reg_ra, reg_rb),
         lsr64(reg_rd, reg_rd, 32)
     });
 
     if (update_cr) {
-        tc->EMIT(cmp_immed(reg_rd, 0));
+        tc->emit(cmp_immed(reg_rd, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_andx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_andx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2462,18 +2462,18 @@ static __used__ int EMIT_andx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     if (update_cr) {
-        tc->EMIT( ands_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->emit( ands_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
         EMIT_set_crn_logic(tc, 0);
     } else {
-        tc->EMIT( and_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->emit( and_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_norx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_norx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2485,25 +2485,25 @@ static __used__ int EMIT_norx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     if (rs == rb) {
-        tc->EMIT( mvn_reg(reg_ra, reg_rb, LSL, 0));
+        tc->emit( mvn_reg(reg_ra, reg_rb, LSL, 0));
     } else {
-        tc->EMIT({ 
+        tc->emit({ 
             orr_reg(reg_ra, reg_rs, reg_rb, LSL, 0),
             mvn_reg(reg_ra, reg_ra, LSL, 0)
         });
     }
     
     if (update_cr) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_andcx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_andcx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2515,18 +2515,18 @@ static __used__ int EMIT_andcx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
     
     if (update_cr) {
-        tc->EMIT( bics_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->emit( bics_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
         EMIT_set_crn_logic(tc, 0);
     } else {
-        tc->EMIT( bic_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->emit( bic_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_eqvx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_eqvx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2538,22 +2538,22 @@ static __used__ int EMIT_eqvx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
     if (rb == rs) {
-        tc->EMIT( mvn_reg(reg_ra, WZR, LSL, 0));
+        tc->emit( mvn_reg(reg_ra, WZR, LSL, 0));
     } else {
-        tc->EMIT( eon_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+        tc->emit( eon_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
     }
 
     if (update_cr) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_xorx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_xorx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2564,19 +2564,19 @@ static __used__ int EMIT_xorx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
-    tc->EMIT( eor_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+    tc->emit( eor_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
 
     if (update_cr) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_orcx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_orcx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2587,19 +2587,19 @@ static __used__ int EMIT_orcx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
-    tc->EMIT( orn_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
+    tc->emit( orn_reg(reg_ra, reg_rs, reg_rb, LSL, 0));
 
     if (update_cr) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_nandx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_nandx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t update_cr = opcode & 1;
     uint8_t rs = (opcode >> 21) & 31;
@@ -2610,22 +2610,22 @@ static __used__ int EMIT_nandx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
-    tc->EMIT({ 
+    tc->emit({ 
         and_reg(reg_ra, reg_rs, reg_rb, LSL, 0),
         mvn_reg(reg_ra, reg_ra, LSL, 0)
     });
 
     if (update_cr) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mulli(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mulli(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2636,21 +2636,21 @@ static __used__ int EMIT_mulli(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t tmp = AllocARMRegister(tc);
 
     if (immed & 0x8000) {
-        tc->EMIT( movn_immed_u16(tmp, ~immed & 0xffff, 0));
+        tc->emit( movn_immed_u16(tmp, ~immed & 0xffff, 0));
     } else {
-        tc->EMIT( mov_immed_u16(tmp, immed, 0));
+        tc->emit( mov_immed_u16(tmp, immed, 0));
     }
 
-    tc->EMIT( mul(reg_rd, reg_ra, tmp));
+    tc->emit( mul(reg_rd, reg_ra, tmp));
 
     FreeARMRegister(tc, tmp);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_addx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2663,16 +2663,16 @@ static __used__ int EMIT_addx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
     if (oe || rc) {
-        tc->EMIT( adds_reg(reg_rd, reg_ra, reg_rb, LSL, 0));
+        tc->emit( adds_reg(reg_rd, reg_ra, reg_rb, LSL, 0));
     } else {
-        tc->EMIT( add_reg(reg_rd, reg_ra, reg_rb, LSL, 0));
+        tc->emit( add_reg(reg_rd, reg_ra, reg_rb, LSL, 0));
     }
 
     if (oe) {
         uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
         uint8_t tmp = AllocARMRegister(tc);
 
-        tc->EMIT({
+        tc->emit({
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
             csel(reg_xer, reg_xer, tmp, A64_CC_VS)
@@ -2686,11 +2686,11 @@ static __used__ int EMIT_addx(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_addic(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addic(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2702,12 +2702,12 @@ static __used__ int EMIT_addic(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
     if (imm & 0x8000) {
-        tc->EMIT( movn_immed_u16(tmp, ~imm & 0xffff, 0));
+        tc->emit( movn_immed_u16(tmp, ~imm & 0xffff, 0));
     } else {
-        tc->EMIT( mov_immed_u16(tmp, imm, 0));
+        tc->emit( mov_immed_u16(tmp, imm, 0));
     }
 
-    tc->EMIT({ 
+    tc->emit({ 
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         adds_reg(reg_rd, tmp, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
@@ -2717,11 +2717,11 @@ static __used__ int EMIT_addic(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_addic_dot(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addic_dot(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2733,12 +2733,12 @@ static __used__ int EMIT_addic_dot(struct PPCTranslatorContext *tc, uint32_t opc
     uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
     if (imm & 0x8000) {
-        tc->EMIT( movn_immed_u16(tmp, ~imm & 0xffff, 0));
+        tc->emit( movn_immed_u16(tmp, ~imm & 0xffff, 0));
     } else {
-        tc->EMIT( mov_immed_u16(tmp, imm, 0));
+        tc->emit( mov_immed_u16(tmp, imm, 0));
     }
 
-    tc->EMIT({ 
+    tc->emit({ 
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         adds_reg(reg_rd, tmp, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
@@ -2750,11 +2750,11 @@ static __used__ int EMIT_addic_dot(struct PPCTranslatorContext *tc, uint32_t opc
     EMIT_set_crn_signed(tc, 0);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_subfx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_subfx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2767,16 +2767,16 @@ static __used__ int EMIT_subfx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
     if (oe || rc) {
-        tc->EMIT( subs_reg(reg_rd, reg_rb, reg_ra, LSL, 0));
+        tc->emit( subs_reg(reg_rd, reg_rb, reg_ra, LSL, 0));
     } else {
-        tc->EMIT( sub_reg(reg_rd, reg_rb, reg_ra, LSL, 0));
+        tc->emit( sub_reg(reg_rd, reg_rb, reg_ra, LSL, 0));
     }
 
     if (oe) {
         uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
         uint8_t tmp = AllocARMRegister(tc);
 
-        tc->EMIT({
+        tc->emit({
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
             csel(reg_xer, reg_xer, tmp, A64_CC_VS)
@@ -2790,11 +2790,11 @@ static __used__ int EMIT_subfx(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_subfic(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_subfic(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2806,12 +2806,12 @@ static __used__ int EMIT_subfic(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
     if (imm & 0x8000) {
-        tc->EMIT( movn_immed_u16(tmp, ~imm & 0xffff, 0));
+        tc->emit( movn_immed_u16(tmp, ~imm & 0xffff, 0));
     } else {
-        tc->EMIT( mov_immed_u16(tmp, imm, 0));
+        tc->emit( mov_immed_u16(tmp, imm, 0));
     }
 
-    tc->EMIT({ 
+    tc->emit({ 
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         subs_reg(reg_rd, tmp, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
@@ -2821,11 +2821,11 @@ static __used__ int EMIT_subfic(struct PPCTranslatorContext *tc, uint32_t opcode
     FreeARMRegister(tc, tmp);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_subfcx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_subfcx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2841,7 +2841,7 @@ static __used__ int EMIT_subfcx(struct PPCTranslatorContext *tc, uint32_t opcode
 
     // TODO: Verify if flag set correctly
 
-    tc->EMIT({ 
+    tc->emit({ 
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         subs_reg(reg_rd, reg_rb, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
@@ -2849,7 +2849,7 @@ static __used__ int EMIT_subfcx(struct PPCTranslatorContext *tc, uint32_t opcode
     });
 
     if (oe) {
-        tc->EMIT({
+        tc->emit({
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
             csel(reg_xer, reg_xer, tmp, A64_CC_VS)
@@ -2863,11 +2863,11 @@ static __used__ int EMIT_subfcx(struct PPCTranslatorContext *tc, uint32_t opcode
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_addcx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addcx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2883,7 +2883,7 @@ static __used__ int EMIT_addcx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     // TODO: Verify if flag set correctly
 
-    tc->EMIT({ 
+    tc->emit({ 
         bic_immed(reg_xer, reg_xer, 1, 3),      // Clear CA flag in xer
         adds_reg(reg_rd, reg_rb, reg_ra, LSL, 0),
         orr_immed(tmp, reg_xer, 1, 3),          // Set CA flag from xer into tmp
@@ -2891,7 +2891,7 @@ static __used__ int EMIT_addcx(struct PPCTranslatorContext *tc, uint32_t opcode)
     });
 
     if (oe) {
-        tc->EMIT({
+        tc->emit({
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
             csel(reg_xer, reg_xer, tmp, A64_CC_VS)
@@ -2905,11 +2905,11 @@ static __used__ int EMIT_addcx(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_addex(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_addex(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -2925,7 +2925,7 @@ static __used__ int EMIT_addex(struct PPCTranslatorContext *tc, uint32_t opcode)
 
     // TODO: Verify if flag set correctly
 
-    tc->EMIT({ 
+    tc->emit({ 
         ubfx(tmp, reg_xer, 29, 1),                 // Extract CA field into tmp
         subs_immed(WZR, tmp, 1),                    // Subtract 1, this will set carry bit
         bic_immed(reg_xer, reg_xer, 1, 3),          // Clear CA flag in xer
@@ -2935,7 +2935,7 @@ static __used__ int EMIT_addex(struct PPCTranslatorContext *tc, uint32_t opcode)
     });
 
     if (oe) {
-        tc->EMIT({
+        tc->emit({
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
             csel(reg_xer, reg_xer, tmp, A64_CC_VS)
@@ -2949,11 +2949,11 @@ static __used__ int EMIT_addex(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_cmp(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_cmp(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* sanity check */
     if (opcode & 0x00600001) return -1;
@@ -2971,16 +2971,16 @@ static __used__ int EMIT_cmp(struct PPCTranslatorContext *tc, uint32_t opcode)
 #endif
     MapGPRForReadAndWrite(tc, CRn);
 
-    tc->EMIT( cmp_reg(reg_ra, reg_rb, LSL, 0));
+    tc->emit( cmp_reg(reg_ra, reg_rb, LSL, 0));
 
     EMIT_set_crn_signed(tc, cr);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_cmpl(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_cmpl(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* sanity check */
     if (opcode & 0x00600001) return -1;
@@ -2998,16 +2998,16 @@ static __used__ int EMIT_cmpl(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_ra = MapGPRForRead(tc, ra);
     uint8_t reg_rb = MapGPRForRead(tc, rb);
 
-    tc->EMIT( cmp_reg(reg_ra, reg_rb, LSL, 0));
+    tc->emit( cmp_reg(reg_ra, reg_rb, LSL, 0));
 
     EMIT_set_crn_unsigned(tc, cr);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_negx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_negx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x0000f800) return -1;
@@ -3022,16 +3022,16 @@ static __used__ int EMIT_negx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
     if (oe || rc) {
-        tc->EMIT( negs_reg(reg_rd, reg_ra, LSL, 0));
+        tc->emit( negs_reg(reg_rd, reg_ra, LSL, 0));
     } else {
-        tc->EMIT( neg_reg(reg_rd, reg_ra, LSL, 0));
+        tc->emit( neg_reg(reg_rd, reg_ra, LSL, 0));
     }
 
     if (oe) {
         uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
         uint8_t tmp = AllocARMRegister(tc);
 
-        tc->EMIT({
+        tc->emit({
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
             csel(reg_xer, reg_xer, tmp, A64_CC_VS)
@@ -3045,11 +3045,11 @@ static __used__ int EMIT_negx(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_divwux(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_divwux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3066,7 +3066,7 @@ static __used__ int EMIT_divwux(struct PPCTranslatorContext *tc, uint32_t opcode
         uint8_t tmp = AllocARMRegister(tc);
         uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
-        tc->EMIT({
+        tc->emit({
             cmp_immed(reg_rb, 0),
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
@@ -3076,19 +3076,19 @@ static __used__ int EMIT_divwux(struct PPCTranslatorContext *tc, uint32_t opcode
         FreeARMRegister(tc, tmp);
     }
 
-    tc->EMIT( udiv(reg_rd, reg_ra, reg_rb));
+    tc->emit( udiv(reg_rd, reg_ra, reg_rb));
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_rd, 0));
+        tc->emit( cmp_immed(reg_rd, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_divwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_divwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3107,7 +3107,7 @@ static __used__ int EMIT_divwx(struct PPCTranslatorContext *tc, uint32_t opcode)
 
         // TODO: set XER OV if 0x80000000 / -1 is attempted
 
-        tc->EMIT({
+        tc->emit({
             cmp_immed(reg_rb, 0),
             orr_immed(reg_xer, reg_xer, 2, 2),
             bic_immed(tmp, reg_xer, 1, 2),
@@ -3117,19 +3117,19 @@ static __used__ int EMIT_divwx(struct PPCTranslatorContext *tc, uint32_t opcode)
         FreeARMRegister(tc, tmp);
     }
 
-    tc->EMIT( sdiv(reg_rd, reg_ra, reg_rb));
+    tc->emit( sdiv(reg_rd, reg_ra, reg_rb));
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_rd, 0));
+        tc->emit( cmp_immed(reg_rd, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mullwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mullwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3142,13 +3142,13 @@ static __used__ int EMIT_mullwx(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
-    tc->EMIT( smull(reg_rd, reg_ra, reg_rb));
+    tc->emit( smull(reg_rd, reg_ra, reg_rb));
 
     if (oe) {
         uint8_t tmp = AllocARMRegister(tc);
         uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
-        tc->EMIT({
+        tc->emit({
             sxtw64(tmp, reg_rd),
             cmp_reg(tmp, reg_rd, LSL, 0),
             orr_immed(reg_xer, reg_xer, 2, 2),
@@ -3160,16 +3160,16 @@ static __used__ int EMIT_mullwx(struct PPCTranslatorContext *tc, uint32_t opcode
     }
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_rd, 0));
+        tc->emit( cmp_immed(reg_rd, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_srwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_srwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3181,19 +3181,19 @@ static __used__ int EMIT_srwx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
-    tc->EMIT( lsrv(reg_ra, reg_rs, reg_rb));
+    tc->emit( lsrv(reg_ra, reg_rs, reg_rb));
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_slwx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_slwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3205,19 +3205,19 @@ static __used__ int EMIT_slwx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rb = MapGPRForRead(tc, rb);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
 
-    tc->EMIT( lslv(reg_ra, reg_rs, reg_rb));
+    tc->emit( lslv(reg_ra, reg_rs, reg_rb));
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_srawix(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_srawix(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3232,7 +3232,7 @@ static __used__ int EMIT_srawix(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
     if (sh != 0) {
-        tc->EMIT({
+        tc->emit({
             /* Test if source is signed */
             tst_immed(reg_rs, 1, 1),
             /* If source is signed, put reg_rs to tmp, otherwise zero it */
@@ -3244,24 +3244,24 @@ static __used__ int EMIT_srawix(struct PPCTranslatorContext *tc, uint32_t opcode
             csel(reg_xer, reg_xer, tmp, A64_CC_NE)
         });
     } else {
-        tc->EMIT( bic_immed(reg_xer, reg_xer, 1, 3));
+        tc->emit( bic_immed(reg_xer, reg_xer, 1, 3));
     }
     
-    tc->EMIT( asr(reg_ra, reg_rs, sh));
+    tc->emit( asr(reg_ra, reg_rs, sh));
 
     FreeARMRegister(tc, tmp);
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_srawx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_srawx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3277,7 +3277,7 @@ static __used__ int EMIT_srawx(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t mask = AllocARMRegister(tc);
     uint8_t reg_xer = MapGPRForReadAndWrite(tc, XERn);
 
-    tc->EMIT({
+    tc->emit({
         /* Test if source is signed */
         tst_immed(reg_rs, 1, 1),
         /* If source is signed, put reg_rs to tmp, otherwise zero it */
@@ -3292,22 +3292,22 @@ static __used__ int EMIT_srawx(struct PPCTranslatorContext *tc, uint32_t opcode)
         csel(reg_xer, reg_xer, tmp, A64_CC_NE)
     });
     
-    tc->EMIT( asrv(reg_ra, reg_rs, reg_rb));
+    tc->emit( asrv(reg_ra, reg_rs, reg_rb));
 
     FreeARMRegister(tc, mask);
     FreeARMRegister(tc, tmp);
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_signed(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_extsbx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_extsbx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x0000f800) return -1;
@@ -3320,19 +3320,19 @@ static __used__ int EMIT_extsbx(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
     
-    tc->EMIT( sxtb(reg_ra, reg_rs));
+    tc->emit( sxtb(reg_ra, reg_rs));
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_extshx(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_extshx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x0000f800) return -1;
@@ -3345,19 +3345,19 @@ static __used__ int EMIT_extshx(struct PPCTranslatorContext *tc, uint32_t opcode
     uint8_t reg_rs = MapGPRForRead(tc, rs);
     uint8_t reg_ra = MapGPRForWrite(tc, ra);
     
-    tc->EMIT( sxth(reg_ra, reg_rs));
+    tc->emit( sxth(reg_ra, reg_rs));
 
     if (rc) {
-        tc->EMIT( cmp_immed(reg_ra, 0));
+        tc->emit( cmp_immed(reg_ra, 0));
         EMIT_set_crn_logic(tc, 0);
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_mtcrf(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x00100801) return -1;
@@ -3369,9 +3369,9 @@ static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
 
     if (mask == 0xff) {
-        tc->EMIT( mov_reg(reg_cr, reg_rs));
+        tc->emit( mov_reg(reg_cr, reg_rs));
     } else if (mask == 0) {
-        tc->EMIT( mov_reg(reg_cr, WZR));
+        tc->emit( mov_reg(reg_cr, WZR));
     } else {
         uint8_t tmp = AllocARMRegister(tc);
         uint32_t mask32 = 0;
@@ -3388,8 +3388,8 @@ static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
         if (encoded == 0) {
             uint32_t imm = AllocARMRegister(tc);
 
-            tc->LoadImmediate(imm, mask32);
-            tc->EMIT({
+            tc->emitLoadImmediate(imm, mask32);
+            tc->emit({
                 bic_reg(reg_cr, reg_cr, imm, LSL, 0),
                 and_reg(tmp, tmp, imm, LSL, 0),
                 orr_reg(reg_cr, reg_cr, tmp, LSL, 0)
@@ -3397,7 +3397,7 @@ static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
 
             FreeARMRegister(tc, imm);
         } else {
-            tc->EMIT({
+            tc->emit({
                 bic_immed(reg_cr, reg_cr, (encoded >> 16) & 0x3f, encoded & 0x3f),
                 and_immed(tmp, tmp, (encoded >> 16) & 0x3f, encoded & 0x3f),
                 orr_reg(reg_cr, reg_cr, tmp, LSL, 0)
@@ -3408,11 +3408,11 @@ static __used__ int EMIT_mtcrf(struct PPCTranslatorContext *tc, uint32_t opcode)
     }
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-static __used__ int EMIT_subfex(struct PPCTranslatorContext *tc, uint32_t opcode)
+static __used__ int EMIT_subfex(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -3426,13 +3426,13 @@ static __used__ int EMIT_subfex(struct PPCTranslatorContext *tc, uint32_t opcode
     if (rc == 0 && oe == 0 && rd == ra && rd == rb) {
         uint8_t reg_rd = MapGPRForWrite(tc, rd);
 
-        tc->EMIT({
+        tc->emit({
             tst_immed(reg_xer, 1, 3),
             csetm(reg_rd, A64_CC_EQ)
         });
 
         tc->tc_PPCCodePtr++;
-        tc->AdvancePC(4);
+        tc->advancePC(4);
         return 1;
     }
 
@@ -3456,7 +3456,7 @@ static inline int globalDisasm() {
 }
 
 
-static inline int EMIT_Group_63(struct PPCTranslatorContext *tc, uint32_t opcode)
+static inline int EMIT_Group_63(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t secondary_short = (opcode >> 1) & 0x1f;
     uint32_t secondary_long = (opcode >> 1) & 0x3ff;
@@ -3478,7 +3478,7 @@ static inline int EMIT_Group_63(struct PPCTranslatorContext *tc, uint32_t opcode
     return -1;
 }
 
-static inline int EMIT_Group_19(struct PPCTranslatorContext *tc, uint32_t opcode)
+static inline int EMIT_Group_19(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t secondary = (opcode >> 1) & 0x3ff;
 
@@ -3500,7 +3500,7 @@ static inline int EMIT_Group_19(struct PPCTranslatorContext *tc, uint32_t opcode
     }
 }
 
-static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode)
+static inline int EMIT_Group_31(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint32_t secondary = (opcode >> 1) & 0x3ff;
 
@@ -3606,7 +3606,7 @@ static inline int EMIT_Group_31(struct PPCTranslatorContext *tc, uint32_t opcode
     }
 }
 
-static inline int EmitINSN(struct PPCTranslatorContext *tc)
+static inline int EmitINSN(PPCTranslatorContext *tc)
 {
     uint32_t opcode = cache_read_32(ICACHE, (uint32_t)(uintptr_t)tc->tc_PPCCodePtr);
     uint8_t group = opcode >> 26;
@@ -3706,11 +3706,11 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
     if (var_EMU68_PPC_INSN_DEPTH == 0)
         var_EMU68_PPC_INSN_DEPTH = JCCB_INSN_DEPTH_MASK + 1;
 
-    localTranslator.tc_CodePtr = localTranslator.tc_CodeStart;
-    localTranslator.tc_PPCCodePtr = PPCCodePtr;
-    localTranslator.tc_PPCCodeStart = PPCCodePtr;
-    localTranslator.tc_SupervisorChecked = false;
-    localTranslator.tc_InsnCount = 0;
+    local_translator.tc_CodePtr = local_translator.tc_CodeStart;
+    local_translator.tc_PPCCodePtr = PPCCodePtr;
+    local_translator.tc_PPCCodeStart = PPCCodePtr;
+    local_translator.tc_SupervisorChecked = false;
+    local_translator.tc_InsnCount = 0;
 
     uint32_t *last_rev_jump = (uint32_t *)0xffffffff;
 
@@ -3734,8 +3734,8 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
         while(1);
     }
 
-    if (GetTempAllocMask(&localTranslator)) {
-        kprintf("[PPC] Temporary register alloc mask on translate start is non-zero %x\n", GetTempAllocMask(&localTranslator));
+    if (GetTempAllocMask(&local_translator)) {
+        kprintf("[PPC] Temporary register alloc mask on translate start is non-zero %x\n", GetTempAllocMask(&local_translator));
         while(1);
     }
 
@@ -3755,25 +3755,25 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
     int soft_break = FALSE;
     int max_rev_jumps = 0;
 
-    ppc_low = localTranslator.tc_PPCCodePtr;
-    ppc_high = localTranslator.tc_PPCCodePtr + 16;
+    ppc_low = local_translator.tc_PPCCodePtr;
+    ppc_high = local_translator.tc_PPCCodePtr + 16;
 
     int inner_loop_length = 0;
     int inner_loop_limit = 0;
 
-    while (break_loop == FALSE && soft_break == FALSE && localTranslator.tc_InsnCount < var_EMU68_PPC_INSN_DEPTH)
+    while (break_loop == FALSE && soft_break == FALSE && local_translator.tc_InsnCount < var_EMU68_PPC_INSN_DEPTH)
     {
         uint16_t insn_consumed;
-        uint32_t * const in_code = localTranslator.tc_PPCCodePtr;
-        uint32_t * const out_code = localTranslator.tc_CodePtr;
+        uint32_t * const in_code = local_translator.tc_PPCCodePtr;
+        uint32_t * const out_code = local_translator.tc_CodePtr;
 
-        if (localTranslator.tc_InsnCount && ((uintptr_t)localTranslator.tc_PPCCodePtr < (uintptr_t)local_state[localTranslator.tc_InsnCount-1].pls_PPCPtr))
+        if (local_translator.tc_InsnCount && ((uintptr_t)local_translator.tc_PPCCodePtr < (uintptr_t)local_state[local_translator.tc_InsnCount-1].pls_PPCPtr))
         {
             int found = -1;
 
-            for (int i=localTranslator.tc_InsnCount - 1; i >= 0; --i)
+            for (int i=local_translator.tc_InsnCount - 1; i >= 0; --i)
             {
-                if (local_state[i].pls_PPCPtr == localTranslator.tc_PPCCodePtr)
+                if (local_state[i].pls_PPCPtr == local_translator.tc_PPCCodePtr)
                 {
                     found = i;
                     break;
@@ -3782,16 +3782,16 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
 
             if (found > 0)
             {
-                if ((localTranslator.tc_InsnCount - found - 1) > (var_EMU68_PPC_INSN_DEPTH - localTranslator.tc_InsnCount))
+                if ((local_translator.tc_InsnCount - found - 1) > (var_EMU68_PPC_INSN_DEPTH - local_translator.tc_InsnCount))
                 {
                     break;
                 }
             }
         }
 
-        local_state[localTranslator.tc_InsnCount].pls_ARMOffset = localTranslator.tc_CodePtr - localTranslator.tc_CodeStart;
-        local_state[localTranslator.tc_InsnCount].pls_PPCPtr = localTranslator.tc_PPCCodePtr;
-        local_state[localTranslator.tc_InsnCount].pls_PCRel = localTranslator._pc_rel;
+        local_state[local_translator.tc_InsnCount].pls_ARMOffset = local_translator.tc_CodePtr - local_translator.tc_CodeStart;
+        local_state[local_translator.tc_InsnCount].pls_PPCPtr = local_translator.tc_PPCCodePtr;
+        local_state[local_translator.tc_InsnCount].pls_PCRel = local_translator._pc_rel;
         for (unsigned i=0; i < sizeof(INT_REG_MAPPING); i++)
         {
             uint8_t map = INT_REG_MAPPING[i];
@@ -3805,42 +3805,42 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
                     }
                 }
             }
-            local_state[localTranslator.tc_InsnCount].pls_RegMap[i] = map;
+            local_state[local_translator.tc_InsnCount].pls_RegMap[i] = map;
         }
 
-        insn_consumed = EmitINSN(&localTranslator);
+        insn_consumed = EmitINSN(&local_translator);
 
-        if (localTranslator.tc_PPCCodePtr < ppc_low)
-            ppc_low = localTranslator.tc_PPCCodePtr;
-        if (localTranslator.tc_PPCCodePtr + 16 > ppc_high)
-            ppc_high = localTranslator.tc_PPCCodePtr + 16;
+        if (local_translator.tc_PPCCodePtr < ppc_low)
+            ppc_low = local_translator.tc_PPCCodePtr;
+        if (local_translator.tc_PPCCodePtr + 16 > ppc_high)
+            ppc_high = local_translator.tc_PPCCodePtr + 16;
 
-        localTranslator.tc_InsnCount += insn_consumed;
+        local_translator.tc_InsnCount += insn_consumed;
         
         int process_markers = 1;
 
         while(process_markers)
         {
-            if (localTranslator.tc_CodePtr[-1] == INSN_TO_LE(MARKER_STOP))
+            if (local_translator.tc_CodePtr[-1] == INSN_TO_LE(MARKER_STOP))
             {
-                localTranslator.tc_CodePtr--;
+                local_translator.tc_CodePtr--;
                 break_loop = TRUE;
             }
-            else if (localTranslator.tc_CodePtr[-1] == INSN_TO_LE(MARKER_BREAK))
+            else if (local_translator.tc_CodePtr[-1] == INSN_TO_LE(MARKER_BREAK))
             {
-                localTranslator.tc_CodePtr--;
+                local_translator.tc_CodePtr--;
                 soft_break = TRUE;
             }
-            else if (localTranslator.tc_CodePtr[-1] == INSN_TO_LE(MARKER_EXIT_BLOCK))
+            else if (local_translator.tc_CodePtr[-1] == INSN_TO_LE(MARKER_EXIT_BLOCK))
             {
                 struct ExitBlock *eb;
                 
-                localTranslator.tc_CodePtr -= 3;
+                local_translator.tc_CodePtr -= 3;
 
-                uint32_t insn_count = localTranslator.tc_CodePtr[1];
-                uint32_t fixup_count = localTranslator.tc_CodePtr[0];
+                uint32_t insn_count = local_translator.tc_CodePtr[1];
+                uint32_t fixup_count = local_translator.tc_CodePtr[0];
 
-                localTranslator.tc_CodePtr -= 2 * fixup_count;
+                local_translator.tc_CodePtr -= 2 * fixup_count;
 
                 eb = (ExitBlock *)tlsf_malloc(tlsf, sizeof(struct ExitBlock) + 4 * insn_count + sizeof(eb->eb_Fixup[0]) * fixup_count);
 
@@ -3850,45 +3850,45 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
                 eb->eb_Fixup = (typeof(eb->eb_Fixup[0]) *)((uintptr_t)eb + sizeof(ExitBlock) + 4 * insn_count);
 
                 for (uint32_t i=0; i < fixup_count; i++) {
-                    uint32_t fixup_type = localTranslator.tc_CodePtr[2 * i + 1];
-                    uint32_t fixup_target = localTranslator.tc_CodePtr[2 * i];
+                    uint32_t fixup_type = local_translator.tc_CodePtr[2 * i + 1];
+                    uint32_t fixup_target = local_translator.tc_CodePtr[2 * i];
 
                     eb->eb_Fixup[i].type = fixup_type;
-                    eb->eb_Fixup[i].location = localTranslator.tc_CodePtr - fixup_target;
+                    eb->eb_Fixup[i].location = local_translator.tc_CodePtr - fixup_target;
                 }
 
-                localTranslator.tc_CodePtr -= insn_count;
+                local_translator.tc_CodePtr -= insn_count;
 
                 for (unsigned i=0; i < insn_count; i++) {
-                    eb->eb_ARMCode[i] = localTranslator.tc_CodePtr[i];
+                    eb->eb_ARMCode[i] = local_translator.tc_CodePtr[i];
                 }
 
                 exitList.addTail(eb);
             }
-            else if (localTranslator.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
+            else if (local_translator.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
             {
                 uint32_t *tmpptr;
                 uint32_t *branch_mod[10];
                 uint32_t branch_cnt;
                 int local_branch_done = 0;
-                localTranslator.tc_CodePtr--;
-                localTranslator.tc_CodePtr--;  /* Remove branch target (unused!) */
-                branch_cnt = *--localTranslator.tc_CodePtr;
+                local_translator.tc_CodePtr--;
+                local_translator.tc_CodePtr--;  /* Remove branch target (unused!) */
+                branch_cnt = *--local_translator.tc_CodePtr;
 
                 for (unsigned i=0; i < branch_cnt; i++)
                 {
-                    uintptr_t ptr = *(uint32_t *)--localTranslator.tc_CodePtr;
-                    ptr |= (uintptr_t)localTranslator.tc_CodePtr & 0xffffffff00000000;
+                    uintptr_t ptr = *(uint32_t *)--local_translator.tc_CodePtr;
+                    ptr |= (uintptr_t)local_translator.tc_CodePtr & 0xffffffff00000000;
                     branch_mod[i] = (uint32_t *)ptr;
                 }
 
-                tmpptr = localTranslator.tc_CodePtr;
+                tmpptr = local_translator.tc_CodePtr;
 
                 if (!local_branch_done)
                 {
-                    localTranslator.LocalExit(0);
+                    local_translator.emitLocalExit(0);
                 }
-                int distance = localTranslator.tc_CodePtr - tmpptr;
+                int distance = local_translator.tc_CodePtr - tmpptr;
 
                 for (unsigned i=0; i < branch_cnt; i++) {
                     //kprintf("[PPC] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
@@ -3905,30 +3905,30 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
             disasm_ptr->do_PPCAddr = in_code;
             disasm_ptr->do_ArmAddr = out_code;
             disasm_ptr->do_PPCCount = insn_consumed;
-            disasm_ptr->do_ArmCount = localTranslator.tc_CodePtr - out_code;
+            disasm_ptr->do_ArmCount = local_translator.tc_CodePtr - out_code;
             disasm_ptr++;
         }
 
-        if (in_code >= localTranslator.tc_PPCCodePtr)
+        if (in_code >= local_translator.tc_PPCCodePtr)
         {
-            if (last_rev_jump == localTranslator.tc_PPCCodePtr) {
+            if (last_rev_jump == local_translator.tc_PPCCodePtr) {
                 if (--max_rev_jumps == 0) {
                     break;
                 }
             }
             else {
-                last_rev_jump = localTranslator.tc_PPCCodePtr;
+                last_rev_jump = local_translator.tc_PPCCodePtr;
                 max_rev_jumps = var_EMU68_MAX_LOOP_COUNT;
             }
         }
 
-        if (!break_loop && (orig_ppccodeptr == localTranslator.tc_PPCCodePtr))
+        if (!break_loop && (orig_ppccodeptr == local_translator.tc_PPCCodePtr))
         {
             inner_loop = TRUE;
 
             if (inner_loop_length == 0) {
-                inner_loop_length = localTranslator.tc_InsnCount;
-                int capacity = var_EMU68_PPC_INSN_DEPTH / localTranslator.tc_InsnCount;
+                inner_loop_length = local_translator.tc_InsnCount;
+                int capacity = var_EMU68_PPC_INSN_DEPTH / local_translator.tc_InsnCount;
                 if (capacity > var_EMU68_MAX_LOOP_COUNT) capacity = var_EMU68_MAX_LOOP_COUNT;
 
                 if (capacity <= 1) break;
@@ -3942,59 +3942,59 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
         }
     }
 
-    if (inner_loop && localTranslator.tc_InsnCount == 1 && localTranslator.tc_PPCCodePtr[0] == 0x48000000) {
-        kprintf("Replacing ARM opcode %08x for the endless PPC loop\n", localTranslator.tc_CodePtr[-1]);
+    if (inner_loop && local_translator.tc_InsnCount == 1 && local_translator.tc_PPCCodePtr[0] == 0x48000000) {
+        kprintf("Replacing ARM opcode %08x for the endless PPC loop\n", local_translator.tc_CodePtr[-1]);
         
         /* This is an endless loop, intentional or not. Change it to WFI/WFE loop to conserve power */
-        localTranslator.tc_CodePtr--;
-        localTranslator.EMIT(wfe());
+        local_translator.tc_CodePtr--;
+        local_translator.emit(wfe());
     }
 
-    uint32_t *out_code = localTranslator.tc_CodePtr;
+    uint32_t *out_code = local_translator.tc_CodePtr;
 
 #if EMU68_INSN_COUNTER
-    uint8_t icnt_reg = AllocARMRegister(&localTranslator);
-    localTranslator.EMIT(mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
+    uint8_t icnt_reg = AllocARMRegister(&local_translator);
+    local_translator.emit(mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
 #endif
-    FlushAllFPRs(&localTranslator);
-    FlushAllGPRs(&localTranslator);
-    localTranslator.FlushPC();
+    FlushAllFPRs(&local_translator);
+    FlushAllGPRs(&local_translator);
+    local_translator.flushPC();
 
 #if EMU68_INSN_COUNTER
-    localTranslator.EMIT(add64_immed(icnt_reg, icnt_reg, localTranslator.tc_InsnCount & 0xfff));
+    local_translator.emit(add64_immed(icnt_reg, icnt_reg, local_translator.tc_InsnCount & 0xfff));
 #endif
 
-    uint8_t tmp2 = AllocARMRegister(&localTranslator);
+    uint8_t tmp2 = AllocARMRegister(&local_translator);
     if (inner_loop)
     {
-        uint8_t cpuctx = GetCTX(&localTranslator);
-        localTranslator.EMIT(ldr64_offset(cpuctx, tmp2, __builtin_offsetof(struct PPCState, INT64)));
+        uint8_t cpuctx = GetCTX(&local_translator);
+        local_translator.emit(ldr64_offset(cpuctx, tmp2, __builtin_offsetof(PPCState, INT64)));
     }
 
 #if EMU68_INSN_COUNTER
-    localTranslator.EMIT(mov_reg_to_simd(CTX_INSN_COUNT, icnt_reg));
-    FreeARMRegister(&localTranslator, icnt_reg);
+    local_translator.emit(mov_reg_to_simd(CTX_INSN_COUNT, icnt_reg));
+    FreeARMRegister(&local_translator, icnt_reg);
 #endif
 
     if (inner_loop)
     {
-        uint32_t *tmpptr = localTranslator.tc_CodePtr;
-        localTranslator.EMIT(cbz_64(tmp2, localTranslator.tc_CodeStart - tmpptr));
+        uint32_t *tmpptr = local_translator.tc_CodePtr;
+        local_translator.emit(cbz_64(tmp2, local_translator.tc_CodeStart - tmpptr));
     }
-    localTranslator.EMIT(bx_lr());
+    local_translator.emit(bx_lr());
     
-    uint32_t *main_block_end = localTranslator.tc_CodePtr;
+    uint32_t *main_block_end = local_translator.tc_CodePtr;
 
-    uint32_t *_tmpptr = localTranslator.tc_CodePtr;
-    FreeARMRegister(&localTranslator, tmp2);
-    FlushCTX(&localTranslator);
-    localTranslator.tc_CodePtr = _tmpptr;
+    uint32_t *_tmpptr = local_translator.tc_CodePtr;
+    FreeARMRegister(&local_translator, tmp2);
+    FlushCTX(&local_translator);
+    local_translator.tc_CodePtr = _tmpptr;
 
     if (disasm) {
         disasm_ptr->do_PPCAddr = nullptr;
         disasm_ptr->do_PPCCount = 0;
         disasm_ptr->do_ArmAddr = out_code;
-        disasm_ptr->do_ArmCount = localTranslator.tc_CodePtr - out_code;
+        disasm_ptr->do_ArmCount = local_translator.tc_CodePtr - out_code;
         disasm_ptr++;
     }
 
@@ -4003,12 +4003,12 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
     //int exit_num = 0;
     while ((eb = exitList.remHead()))
     {
-        uint32_t *old_end = localTranslator.tc_CodePtr;
+        uint32_t *old_end = local_translator.tc_CodePtr;
         uint32_t op;
 
         for (unsigned i = 0; i < eb->eb_InstructionCount; i++)
         {
-            localTranslator.EMIT(eb->eb_ARMCode[i]);
+            local_translator.emit(eb->eb_ARMCode[i]);
         }
 
         for (uint32_t i=0; i < eb->eb_FixupCount; i++)
@@ -4038,7 +4038,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
             disasm_ptr->do_PPCAddr = nullptr;
             disasm_ptr->do_PPCCount = 0;
             disasm_ptr->do_ArmAddr = old_end;
-            disasm_ptr->do_ArmCount = localTranslator.tc_CodePtr - old_end;
+            disasm_ptr->do_ArmCount = local_translator.tc_CodePtr - old_end;
             disasm_ptr++;
         }
 
@@ -4061,31 +4061,31 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
             }
             disasm_print_ppc(
                 disasm_ptr->do_PPCAddr, disasm_ptr->do_PPCCount,
-                disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, localTranslator.tc_CodeStart);
+                disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, local_translator.tc_CodeStart);
         }
         disasm_close();
     }
 
     if (debug)
     {
-        kprintf("[PPC] Translated %d PPC instructions to %d ARM instructions\n", localTranslator.tc_InsnCount, (int)(localTranslator.tc_CodePtr - localTranslator.tc_CodeStart));
+        kprintf("[PPC] Translated %d PPC instructions to %d ARM instructions\n", local_translator.tc_InsnCount, (int)(local_translator.tc_CodePtr - local_translator.tc_CodeStart));
         //kprintf("[PPC] Prologue size: %d, Epilogue size: %d, Conditionals: %d\n",
         //    prologue_size, epilogue_size, conditionals_count);
         //kprintf("[PPC]   Mean epilogue size pro exit point: %d\n", epilogue_size / (1 + conditionals_count));
-        uint32_t mean = 100 * (main_block_end - localTranslator.tc_CodeStart); // - (prologue_size + epilogue_size));
-        mean = mean / localTranslator.tc_InsnCount;
+        uint32_t mean = 100 * (main_block_end - local_translator.tc_CodeStart); // - (prologue_size + epilogue_size));
+        mean = mean / local_translator.tc_InsnCount;
         uint32_t mean_n = mean / 100;
         uint32_t mean_f = mean % 100;
         kprintf("[PPC] Mean ARM instructions per PPC instruction: %d.%02d\n", mean_n, mean_f);
     }
 
     // Put a marker at the end of translation unit
-    localTranslator.EMIT(0xffffffff);
+    local_translator.emitStop();
 
     if (InsnCount != nullptr)
-        *InsnCount = localTranslator.tc_InsnCount;
+        *InsnCount = local_translator.tc_InsnCount;
 
-    return (uintptr_t)localTranslator.tc_CodePtr - (uintptr_t)localTranslator.tc_CodeStart;
+    return (uintptr_t)local_translator.tc_CodePtr - (uintptr_t)local_translator.tc_CodeStart;
 }
 
 /*
@@ -4094,10 +4094,10 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
 
     If the code was found, update its position in the LRU cache.
 */
-struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
+PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
 {
     struct PPCState *ctx = getHostCTX();
-    struct PPCTranslationUnit *unit = nullptr;
+    PPCTranslationUnit *unit = nullptr;
     uintptr_t hash = (uintptr_t)ppccodeptr;
     uint32_t *orig_ppccodeptr = ppccodeptr;
     uint64_t time_start, time_end;
@@ -4118,7 +4118,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     uint32_t insn_count = 0;
     uintptr_t line_length = PPC_Translate(ppccodeptr, &insn_count);
     uintptr_t arm_insn_count = line_length/4 - 1;
-    uintptr_t unit_length = (line_length + 63 + sizeof(struct PPCTranslationUnit)) & ~63;
+    uintptr_t unit_length = (line_length + 63 + sizeof(PPCTranslationUnit)) & ~63;
     asm volatile("mrs %0, CNTPCT_EL0":"=r"(time_end));
 
     do {
@@ -4129,7 +4129,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
         if (unit == NULL)
         {
             if (debug > 0) {
-                kprintf("[PPC] Requested block was %d bytes long\n", sizeof(struct PPCTranslationUnit));
+                kprintf("[PPC] Requested block was %d bytes long\n", sizeof(PPCTranslationUnit));
             }
 
             for (int i=0; i < 8; i++) {
@@ -4161,7 +4161,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
     unit->ptu_ARMEntryPoint = (void *)((uintptr_t)unit->ptu_ARMEntryPoint | 0x0000001000000000ULL);
 
     /* Copy the code to the new location */
-    DuffCopy(&unit->ptu_ARMCode[0], localTranslator.tc_CodeStart, line_length/4);
+    DuffCopy(&unit->ptu_ARMCode[0], local_translator.tc_CodeStart, line_length/4);
 
     /* The code is ready, so flush the caches*/
     arm_flush_cache((uintptr_t)&unit->ptu_ARMCode, line_length);
@@ -4253,7 +4253,7 @@ struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
 
     The function returns poitner to verified unit or NULL if the unit changed
 */
-struct PPCTranslationUnit *PPC_VerifyUnit(struct PPCTranslationUnit *unit)
+PPCTranslationUnit *PPC_VerifyUnit(PPCTranslationUnit *unit)
 {
     if (unit)
     {

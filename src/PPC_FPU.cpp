@@ -6,7 +6,7 @@
 
 namespace Emu68::PPC {
 
-int EMIT_fsubx(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fsubx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x000007c0) return -1;
@@ -25,14 +25,14 @@ int EMIT_fsubx(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT(fsubd(reg_rd, reg_ra, reg_rb));
+    tc->emit(fsubd(reg_rd, reg_ra, reg_rb));
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_faddx(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_faddx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x000007c0) return -1;
@@ -51,14 +51,14 @@ int EMIT_faddx(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT(faddd(reg_rd, reg_ra, reg_rb));
+    tc->emit(faddd(reg_rd, reg_ra, reg_rb));
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_fmulx(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fmulx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x0000f800) return -1;
@@ -77,14 +77,14 @@ int EMIT_fmulx(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT(fmuld(reg_rd, reg_ra, reg_rb));
+    tc->emit(fmuld(reg_rd, reg_ra, reg_rb));
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_fdivx(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fdivx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x000007c0) return -1;
@@ -103,14 +103,14 @@ int EMIT_fdivx(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT(fdivd(reg_rd, reg_ra, reg_rb));
+    tc->emit(fdivd(reg_rd, reg_ra, reg_rb));
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_fctiwzx(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fctiwzx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x001f07c0) return -1;
@@ -128,7 +128,7 @@ int EMIT_fctiwzx(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT({
+    tc->emit({
         fcvtzs_Dto32(tmp, reg_rb),
         mov_reg_to_simd(reg_rd, TS_S, 0, tmp)
     });
@@ -136,11 +136,11 @@ int EMIT_fctiwzx(struct PPCTranslatorContext *tc, uint32_t opcode)
     FreeARMRegister(tc, tmp);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_fmrx(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fmrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x001f0000) return -1;
@@ -157,14 +157,14 @@ int EMIT_fmrx(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT(fcpyd(reg_rd, reg_rb));
+    tc->emit(fcpyd(reg_rd, reg_rb));
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_fcmpu(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fcmpu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x00600001) return -1;
@@ -176,16 +176,16 @@ int EMIT_fcmpu(struct PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t reg_rb = MapFPRForRead(tc, rb);
     uint8_t reg_ra = MapFPRForRead(tc, ra);
 
-    tc->EMIT(fcmpd(reg_ra, reg_rb));
+    tc->emit(fcmpd(reg_ra, reg_rb));
 
     EMIT_set_crn_signed(tc, crn);
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 
-int EMIT_fmadd(struct PPCTranslatorContext *tc, uint32_t opcode)
+int EMIT_fmadd(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -203,10 +203,10 @@ int EMIT_fmadd(struct PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    tc->EMIT(fmaddd(reg_rd, reg_ra, reg_rc, reg_rb));
+    tc->emit(fmaddd(reg_rd, reg_ra, reg_rc, reg_rb));
 
     tc->tc_PPCCodePtr++;
-    tc->AdvancePC(4);
+    tc->advancePC(4);
     return 1;
 }
 

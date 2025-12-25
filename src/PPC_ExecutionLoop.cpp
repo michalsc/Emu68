@@ -43,12 +43,12 @@ __attribute__((aligned(4096)))
 Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE] __attribute__((aligned(256)));
 Emu68::List<TranslationUnitLRU> LRU;
 extern TLSF jit_ppc;
-extern TranslatorContext localTranslator;
+extern TranslatorContext local_translator;
 extern struct PPCLocalState *local_state;
 extern Emu68::List<RegisterNode> FreePool;
 
-struct PPCTranslationUnit *PPC_VerifyUnit(struct PPCTranslationUnit *unit);
-struct PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr);
+PPCTranslationUnit *PPC_VerifyUnit(PPCTranslationUnit *unit);
+PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr);
 
 register uint32_t PC __asm__("w18");
 register void (*ARMCode)() __asm__("x12");
@@ -329,7 +329,7 @@ void PPCMainLoop()
             uint32_t copyPC = getCTX()->PC;
 
             /* Perform search without testing Epoch */
-            struct PPCTranslationUnit *node = nullptr;
+            PPCTranslationUnit *node = nullptr;
             uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
             auto bucket = &ICache[hash];
 
@@ -387,8 +387,8 @@ extern "C" void InitPPC()
 
     kprintf("[PPC] Setting up ICache\n");
 
-    Emu68::PPC::localTranslator.tc_CodeStart = (uint32_t *)Emu68::PPC::jit_ppc.malloc((JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
-    kprintf("[PPC] Temporary code at %p\n", Emu68::PPC::localTranslator.tc_CodeStart);
+    Emu68::PPC::local_translator.tc_CodeStart = (uint32_t *)Emu68::PPC::jit_ppc.malloc((JCCB_INSN_DEPTH_MASK + 1) * 16 * 64);
+    kprintf("[PPC] Temporary code at %p\n", Emu68::PPC::local_translator.tc_CodeStart);
     Emu68::PPC::local_state = (struct Emu68::PPC::PPCLocalState *)tlsf_malloc(tlsf, sizeof(Emu68::PPC::PPCLocalState)*(JCCB_INSN_DEPTH_MASK + 1)*2);
     kprintf("[PPC] ICache array at %p\n", Emu68::PPC::ICache);
 
