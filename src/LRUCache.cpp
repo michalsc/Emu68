@@ -5,13 +5,13 @@
 
 namespace Emu68 {
 
-uint32_t *LRUCache::findBlock(uint32_t address)
+uint32_t* LRUCache::findBlock(uint32_t address)
 {
     const uint32_t set = addressToSet(address);
-    struct Entry *e = &cache[set * WAY_COUNT];
+    struct Entry* e = &cache[set * WAY_COUNT];
     uint32_t mask = 0x80000000;
     
-    for (int i=0; i < EMU68_LRU_WAY_COUNT; i++, mask >>= 1)
+    for (int i = 0; i < EMU68_LRU_WAY_COUNT; i++, mask >>= 1)
     {
         if (likely(e[i].ppc == address))
         {
@@ -19,7 +19,7 @@ uint32_t *LRUCache::findBlock(uint32_t address)
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
             uint32_t current = alloc[set] & ~mask; 
-            if (current == 0) current = ~mask;
+            if (current == 0) { current = ~mask; }
             alloc[set] = current;
 
             return e[i].arm;
@@ -29,7 +29,7 @@ uint32_t *LRUCache::findBlock(uint32_t address)
     return nullptr;
 }
 
-void LRUCache::invalidateByARMAddress(uint32_t *addr)
+void LRUCache::invalidateByARMAddress(uint32_t* addr)
 {
     for (unsigned i = 0; i < SET_COUNT * WAY_COUNT; i++)
     {
@@ -45,13 +45,13 @@ void LRUCache::invalidateByARMAddress(uint32_t *addr)
 void LRUCache::invalidateByAddress(uint32_t addr)
 {
     const uint32_t set = addressToSet(addr);
-    struct Entry *e = &cache[set * WAY_COUNT];
+    struct Entry* e = &cache[set * WAY_COUNT];
 
     for (unsigned i = 0; i < WAY_COUNT; i++)
     {
         if (e[i].ppc == addr)
         {
-            e[i].arm= nullptr;
+            e[i].arm = nullptr;
             e[i].ppc = 0xffffffff;
             alloc[set] |= (0x80000000 >> i);
             break;
@@ -73,10 +73,10 @@ void LRUCache::invalidateAll()
     }
 }
 
-void LRUCache::insertBlock(uint32_t address, uint32_t *entryPoint)
+void LRUCache::insertBlock(uint32_t address, uint32_t* entryPoint)
 {
     const uint32_t set = addressToSet(address);
-    struct Entry *e = &cache[set * WAY_COUNT];
+    struct Entry* e = &cache[set * WAY_COUNT];
     int loc = __builtin_clz(alloc[set]);
     uint32_t mask = 0x80000000 >> loc;
 
@@ -86,9 +86,8 @@ void LRUCache::insertBlock(uint32_t address, uint32_t *entryPoint)
 
     // Touch the last used
     uint32_t current = alloc[set] & ~mask; 
-    if (current == 0) current = ~mask;
+    if (current == 0) { current = ~mask; }
     alloc[set] = current;
 }
-
 
 } // namespace Emu68
