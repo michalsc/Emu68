@@ -1,24 +1,37 @@
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #define restrict __restrict__
+
+#include <emu68/FPR>
+#include <emu68/GPR>
+#include <emu68/ppc/Opcode>
 
 #include "config.h"
 #include "PPC.h"
 #include "A64.h"
 
-namespace Emu68::PPC {
+namespace Emu68::PPC::Emit {
 
-int EMIT_fsubx(PPCTranslatorContext *tc, uint32_t opcode)
+int fsubx(PPCTranslatorContext *tc, Opcode opcode)
 {
     /* Sanity check */
-    if (opcode & 0x000007c0) return -1;
+    if (opcode.illegal(0x000007c0)) return -1;
 
-    uint8_t rd = (opcode >> 21) & 31;
-    uint8_t ra = (opcode >> 16) & 31;
-    uint8_t rb = (opcode >> 11) & 31;
-    uint8_t rc = opcode & 1;
+    uint8_t rd = opcode.u8(6, 10);
+    uint8_t ra = opcode.u8(11, 15);
+    uint8_t rb = opcode.u8(16, 20);
+    uint8_t rc = opcode.u8(31, 31);
 
-    uint8_t reg_ra = MapFPRForRead(tc, ra);
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+    FPR reg_ra = tc->mapFPRForRead(ra);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
 
     if (rc) {
         kprintf("fsub. not supported yet!");
@@ -27,12 +40,12 @@ int EMIT_fsubx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit(fsubd(reg_rd, reg_ra, reg_rb));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+    
     return 1;
 }
 
-int EMIT_faddx(PPCTranslatorContext *tc, uint32_t opcode)
+int faddx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x000007c0) return -1;
@@ -42,9 +55,9 @@ int EMIT_faddx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapFPRForRead(tc, ra);
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+    FPR reg_ra = tc->mapFPRForRead(ra);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
 
     if (rc) {
         kprintf("fadd. not supported yet!");
@@ -53,12 +66,12 @@ int EMIT_faddx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit(faddd(reg_rd, reg_ra, reg_rb));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_fmulx(PPCTranslatorContext *tc, uint32_t opcode)
+int fmulx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x0000f800) return -1;
@@ -68,9 +81,9 @@ int EMIT_fmulx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 6) & 31;
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapFPRForRead(tc, ra);
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+    FPR reg_ra = tc->mapFPRForRead(ra);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
 
     if (rc) {
         kprintf("fmul. not supported yet!");
@@ -79,12 +92,12 @@ int EMIT_fmulx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit(fmuld(reg_rd, reg_ra, reg_rb));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_fdivx(PPCTranslatorContext *tc, uint32_t opcode)
+int fdivx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x000007c0) return -1;
@@ -94,9 +107,9 @@ int EMIT_fdivx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_ra = MapFPRForRead(tc, ra);
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+    FPR reg_ra = tc->mapFPRForRead(ra);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
 
     if (rc) {
         kprintf("fdiv. not supported yet!");
@@ -105,12 +118,12 @@ int EMIT_fdivx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit(fdivd(reg_rd, reg_ra, reg_rb));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_fctiwzx(PPCTranslatorContext *tc, uint32_t opcode)
+int fctiwzx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x001f07c0) return -1;
@@ -119,9 +132,9 @@ int EMIT_fctiwzx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
-    uint8_t tmp = AllocARMRegister(tc);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
+    GPR tmp = GPR::allocate();
 
     if (rc) {
         kprintf("fctiwzx. not supported yet!");
@@ -133,14 +146,12 @@ int EMIT_fctiwzx(PPCTranslatorContext *tc, uint32_t opcode)
         mov_reg_to_simd(reg_rd, TS_S, 0, tmp)
     });
 
-    FreeARMRegister(tc, tmp);
-
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_fmrx(PPCTranslatorContext *tc, uint32_t opcode)
+int fmrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x001f0000) return -1;
@@ -149,8 +160,8 @@ int EMIT_fmrx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
     uint8_t rc = opcode & 1;
 
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
 
     if (rc) {
         kprintf("fmr. not supported yet!");
@@ -159,12 +170,12 @@ int EMIT_fmrx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit(fcpyd(reg_rd, reg_rb));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_fcmpu(PPCTranslatorContext *tc, uint32_t opcode)
+int fcmpu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x00600001) return -1;
@@ -173,19 +184,19 @@ int EMIT_fcmpu(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_ra = MapFPRForRead(tc, ra);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_ra = tc->mapFPRForRead(ra);
 
     tc->emit(fcmpd(reg_ra, reg_rb));
 
-    EMIT_set_crn_signed(tc, crn);
+    setCRnSigned(tc, crn);
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_fmadd(PPCTranslatorContext *tc, uint32_t opcode)
+int fmadd(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -193,10 +204,10 @@ int EMIT_fmadd(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rc = (opcode >> 6) & 31;
     uint8_t c = opcode & 1;
 
-    uint8_t reg_ra = MapFPRForRead(tc, ra);
-    uint8_t reg_rb = MapFPRForRead(tc, rb);
-    uint8_t reg_rc = MapFPRForRead(tc, rc);
-    uint8_t reg_rd = MapFPRForWrite(tc, rd);
+    FPR reg_ra = tc->mapFPRForRead(ra);
+    FPR reg_rb = tc->mapFPRForRead(rb);
+    FPR reg_rc = tc->mapFPRForRead(rc);
+    FPR reg_rd = tc->mapFPRForWrite(rd);
 
     if (c) {
         kprintf("fmadd. not supported yet!");
@@ -205,9 +216,9 @@ int EMIT_fmadd(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit(fmaddd(reg_rd, reg_ra, reg_rc, reg_rb));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-} // Emu68::PPC
+} // Emu68::PPC::Emit
