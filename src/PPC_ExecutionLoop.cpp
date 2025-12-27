@@ -1,5 +1,5 @@
 /*
-    Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -32,8 +32,6 @@
 
 namespace Emu68::PPC {
 
-
-
 LRUCache __used__ cache __attribute__((aligned(64)));
 
 __attribute__((aligned(4096))) uint8_t ppc_tmp_stack[65536];
@@ -43,17 +41,16 @@ __attribute__((aligned(4096)))
 Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE] __attribute__((aligned(256)));
 Emu68::List<TranslationUnitLRU> LRU;
 extern TLSF jit_ppc;
-extern TranslatorContext local_translator;
+extern PPCTranslatorContext local_translator;
 extern struct PPCLocalState *local_state;
-extern Emu68::List<RegisterNode> FreePool;
 
-PPCTranslationUnit *PPC_VerifyUnit(PPCTranslationUnit *unit);
+PPCTranslationUnit *ppcVerifyUnit(PPCTranslationUnit *unit);
 PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr);
 
 register uint32_t PC __asm__("w18");
 register void (*ARMCode)() __asm__("x12");
 
-void LoadContext(struct PPCState *ctx)
+void loadContext(struct PPCState *ctx)
 {
     __asm__ volatile("mov " CTX_POINTER_ASM ", %0\n"::"r"(ctx));
 
@@ -90,7 +87,7 @@ void LoadContext(struct PPCState *ctx)
     __asm__ volatile("ldr d%0, %1"::"i"(REG_FPR31),"m"(ctx->FPR[31]));
 }
 
-void SaveContext(struct PPCState *ctx)
+void saveContext(struct PPCState *ctx)
 {
     __asm__ volatile("mov x1, " CTX_INSN_COUNT_ASM "; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
     __asm__ volatile("mov w1, " REG_FPSCR_ASM "; str w1, %0"::"m"(ctx->FPSCR):"x1");
@@ -174,7 +171,7 @@ static inline uint32_t * FindUnitQuick()
         uint64_t        ptu_Key;            /*     1 x 8 bytes - match key, the two above combined */
     } u;
 
-    u.ptu_Epoch = getEPOCH();
+    u.ptu_Epoch = GET_EPOCH();
     u.ptu_PPCAddress = PC;
 
     uint64_t key = u.ptu_Key;
@@ -224,22 +221,22 @@ static inline void setLastPC(uint32_t pc)
 void PPCMainLoop()
 {
     uint32_t LastPC;
-    struct PPCState *ctx = getHostCTX();
+    struct PPCState *ctx = GET_HOST_CTX();
 
     cache.invalidateAll();
 
-    LoadContext(ctx);
+    loadContext(ctx);
 
     /* The JIT loop is running forever */
     while(1)
     {   
         /* Load m68k context and last used PC counter into temporary register */ 
         LastPC = getLastPC();
-        ctx = getHostCTX();
+        ctx = GET_HOST_CTX();
 
 #ifndef PISTORM_ANY_MODEL
         if (unlikely(PC == 0)) {
-            SaveContext(ctx);
+            saveContext(ctx);
             return;
         }
 #endif
@@ -324,7 +321,7 @@ void PPCMainLoop()
             }
 
             /* If we are that far there was no JIT unit found */
-            SaveContext(ctx);
+            saveContext(ctx);
 
             uint32_t copyPC = getCTX()->PC;
 
@@ -340,7 +337,7 @@ void PPCMainLoop()
                 if (n->ptu_PPCAddress == copyPC)
                 {
                     /* Node found, most likely Epoch broken */
-                    node = PPC_VerifyUnit(n);
+                    node = ppcVerifyUnit(n);
                     break;
                 }
             }
@@ -354,7 +351,7 @@ void PPCMainLoop()
             cache.insertBlock(node->ptu_PPCAddress, (uint32_t *)node->ptu_ARMEntryPoint);
 #endif
             /* Load CPU context */
-            LoadContext(getHostCTX());
+            loadContext(GET_HOST_CTX());
             __asm__ volatile("mov " CTX_LAST_PC_ASM ", %w0": :"r"(PC));
             /* Prepare ARM pointer in x12 and call it */
             ARMCode = (void (*)())node->ptu_ARMEntryPoint;
@@ -371,13 +368,12 @@ spinlock_t PPCStart;
 
 extern "C" void InitPPC()
 {
-    static struct Emu68::PPC::RegisterNode rn[64];
     
     kprintf("[PPC] InitPPC()\n");
 
     kprintf("[PPC] JIT memory at %p\n", (void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)));
 
-    for (int i=0; i < 64; i++) Emu68::PPC::FreePool.addHead(&rn[i]);
+    
 
     kprintf("[PPC] Setting up LRU\n");
 
