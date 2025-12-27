@@ -85,12 +85,14 @@ set(EMU68_FILES
     src/M68k_ExceptionEntry.c
     src/M68k_CC.c
     src/ExecutionLoop.c
+    src/TranslatorContext.cpp
     src/PPC_Translator.cpp
     src/PPC_ExecutionLoop.cpp
     src/PPC_TranslatorContext.cpp
     src/PPC_LoadStore.cpp
     src/PPC_FPU.cpp
     src/PPC_SystemInstructions.cpp
+    src/PPC_Arithmetic.cpp
     src/LRUCache.cpp
     src/ReturnStack.cpp
     
@@ -287,6 +289,10 @@ add_executable(Emu68.elf
     ${TARGET_FILES}
     ${BASE_FILES}
     ${EMU68_FILES}
+)
+
+target_compile_options(Emu68.elf
+  PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions>
 )
 
 add_custom_command(
