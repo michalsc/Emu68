@@ -1,22 +1,34 @@
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #define restrict __restrict__
+
+#include <emu68/FPR>
+#include <emu68/GPR>
 
 #include "config.h"
 #include "PPC.h"
 #include "A64.h"
 
-namespace Emu68::PPC {
+namespace Emu68::PPC::Emit {
 
-int EMIT_stb(PPCTranslatorContext *tc, uint32_t opcode)
+int stb(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForRead(tc, rs);
+    GPR reg = tc->mapGPRForRead(rs);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -24,11 +36,10 @@ int EMIT_stb(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit( mov_immed_u16(ea, d, 0));
         }
 
-        tc->emit( strb_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
+        tc->emit(strb_offset(ea, reg, 0));
     } else {
-        uint8_t base = MapGPRForRead(tc, ra);
+        GPR base = tc->mapGPRForRead(ra);
+
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0xfff) {
             tc->emit( strb_offset(base, reg, d));
@@ -36,27 +47,25 @@ int EMIT_stb(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit( sturb_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
+            GPR ea = GPR::allocate();
 
             if (d < 0) {
-                tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
+                tc->emit(movn_immed_u16(ea, ~d & 0xffff, 0));
             }
             else {
-                tc->emit( mov_immed_u16(ea, d, 0));
+                tc->emit(mov_immed_u16(ea, d, 0));
             }
             
-            tc->emit( strb_regoffset(base, reg, ea, SXTX));
-
-            FreeARMRegister(tc, ea);
+            tc->emit(strb_regoffset(base, reg, ea, SXTX));
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stbu(PPCTranslatorContext *tc, uint32_t opcode)
+int stbu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -67,8 +76,8 @@ int EMIT_stbu(PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    uint8_t reg = MapGPRForRead(tc, rs);
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    GPR reg = tc->mapGPRForRead(rs);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
 
     /* Ra is a register, check if displacement can be used for store directly */
     if (d >= -256 && d <= 255) {
@@ -81,7 +90,7 @@ int EMIT_stbu(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -94,27 +103,24 @@ int EMIT_stbu(PPCTranslatorContext *tc, uint32_t opcode)
             strb_regoffset(base, reg, ea, SXTX),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_sth(PPCTranslatorContext *tc, uint32_t opcode)
+int sth(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForRead(tc, rs);
+    GPR reg = tc->mapGPRForRead(rs);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
-
+        GPR ea = GPR::allocate();
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
         } else {
@@ -122,21 +128,19 @@ int EMIT_sth(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( strh_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x1ffe && (d & 1) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit( strh_offset(base, reg, d));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit( sturh_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR ea = GPR::allocate();
+            GPR base = tc->mapGPRForRead(ra);
 
             if (d < 0) {
                 tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -146,17 +150,15 @@ int EMIT_sth(PPCTranslatorContext *tc, uint32_t opcode)
             }
             
             tc->emit( strh_regoffset(base, reg, ea, SXTX, 0));
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stbx(PPCTranslatorContext *tc, uint32_t opcode)
+int stbx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -165,23 +167,23 @@ int EMIT_stbx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    GPR reg_rd = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( strb_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        GPR reg_ra = tc->mapGPRForRead(ra);
         tc->emit( strb_regoffset(reg_ra, reg_rd, reg_rb, SXTX));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stbux(PPCTranslatorContext *tc, uint32_t opcode)
+int stbux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -192,21 +194,21 @@ int EMIT_stbux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rs) return -1;
 
-    uint8_t reg_rd = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+    GPR reg_rd = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
 
     tc->emit({ 
         strb_regoffset(reg_ra, reg_rd, reg_rb, SXTX),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_sthx(PPCTranslatorContext *tc, uint32_t opcode)
+int sthx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -215,23 +217,23 @@ int EMIT_sthx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    GPR reg_rd = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( strh_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        GPR reg_ra = tc->mapGPRForRead(ra);
         tc->emit( strh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_sthux(PPCTranslatorContext *tc, uint32_t opcode)
+int sthux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -242,21 +244,21 @@ int EMIT_sthux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rs) return -1;
 
-    uint8_t reg_rd = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+    GPR reg_rd = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
 
     tc->emit({ 
         strh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stwx(PPCTranslatorContext *tc, uint32_t opcode)
+int stwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -265,23 +267,23 @@ int EMIT_stwx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rd = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    GPR reg_rd = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( str_offset(reg_rb, reg_rd, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        GPR reg_ra = tc->mapGPRForRead(ra);
         tc->emit( str_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+    
     return 1;
 }
 
-int EMIT_stwux(PPCTranslatorContext *tc, uint32_t opcode)
+int stwux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -292,32 +294,31 @@ int EMIT_stwux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rs) return -1;
 
-    uint8_t reg_rd = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
+    GPR reg_rd = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
 
     tc->emit({ 
         str_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stw(PPCTranslatorContext *tc, uint32_t opcode)
+int stw(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForRead(tc, rs);
+    GPR reg = tc->mapGPRForRead(rs);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
-
+        GPR ea = GPR::allocate();
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
         } else {
@@ -325,21 +326,19 @@ int EMIT_stw(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( str_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 3) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit( str_offset(base, reg, d));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit( stur_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR ea = GPR::allocate();
+            GPR base = tc->mapGPRForRead(ra);
 
             if (d < 0) {
                 tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -349,17 +348,15 @@ int EMIT_stw(PPCTranslatorContext *tc, uint32_t opcode)
             }
             
             tc->emit( str_regoffset(base, reg, ea, SXTX, 0));
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stwu(PPCTranslatorContext *tc, uint32_t opcode)
+int stwu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -370,8 +367,8 @@ int EMIT_stwu(PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    uint8_t reg = MapGPRForRead(tc, rs);
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    GPR reg = tc->mapGPRForRead(rs);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
 
     /* Ra is a register, check if displacement can be used for store directly */
     if (d >= -256 && d <= 255) {
@@ -384,7 +381,7 @@ int EMIT_stwu(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -397,16 +394,14 @@ int EMIT_stwu(PPCTranslatorContext *tc, uint32_t opcode)
             str_regoffset(base, reg, ea, SXTX, 0),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_sthu(PPCTranslatorContext *tc, uint32_t opcode)
+int sthu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
@@ -417,8 +412,8 @@ int EMIT_sthu(PPCTranslatorContext *tc, uint32_t opcode)
         return -1;
     }
 
-    uint8_t reg = MapGPRForRead(tc, rs);
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
+    GPR reg = tc->mapGPRForRead(rs);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
 
     /* Ra is a register, check if displacement can be used for store directly */
     if (d >= -256 && d <= 255) {
@@ -431,7 +426,7 @@ int EMIT_sthu(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -444,16 +439,14 @@ int EMIT_sthu(PPCTranslatorContext *tc, uint32_t opcode)
             strh_regoffset(base, reg, ea, SXTX, 0),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stwcx_dot(PPCTranslatorContext *tc, uint32_t opcode)
+int stwcx_dot(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if ((opcode & 1) == 0) return -1;
@@ -462,16 +455,16 @@ int EMIT_stwcx_dot(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rs = MapGPRForWrite(tc, rs);
-    uint8_t reg_cr = MapGPRForReadAndWrite(tc, CRn);
-    uint8_t tmp = AllocARMRegister(tc);
-    uint8_t base = reg_rb;
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rs = tc->mapGPRForWrite(rs);
+    GPR reg_cr = tc->mapGPRForReadAndWrite(CRn);
+    GPR tmp = GPR::allocate();
+    GPR base(reg_rb.get());
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra != 0) {
-        base = AllocARMRegister(tc);
+        base = GPR::allocate();
         tc->emit(add_reg(base, reg_rb, reg_ra, LSL, 0));
     }
 
@@ -483,18 +476,12 @@ int EMIT_stwcx_dot(PPCTranslatorContext *tc, uint32_t opcode)
         csel(reg_cr, tmp, reg_cr, A64_CC_EQ)
     });
 
-    if (ra != 0) {
-        FreeARMRegister(tc, base);
-    }
-
-    FreeARMRegister(tc, tmp);
-
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_sthbrx(PPCTranslatorContext *tc, uint32_t opcode)
+int sthbrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -503,9 +490,9 @@ int EMIT_sthbrx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rs = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t tmp = AllocARMRegister(tc);
+    GPR reg_rs = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR tmp = GPR::allocate();
     
     tc->emit( rev16(tmp, reg_rs));
 
@@ -513,18 +500,16 @@ int EMIT_sthbrx(PPCTranslatorContext *tc, uint32_t opcode)
     if (ra == 0) {
         tc->emit( strh_offset(reg_rb, tmp, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        GPR reg_ra = tc->mapGPRForRead(ra);
         tc->emit( strh_regoffset(reg_ra, tmp, reg_rb, SXTX, 0));
     }
 
-    FreeARMRegister(tc, tmp);
-
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stwbrx(PPCTranslatorContext *tc, uint32_t opcode)
+int stwbrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -533,39 +518,37 @@ int EMIT_stwbrx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rs = MapGPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t tmp = AllocARMRegister(tc);
-    
+    GPR reg_rs = tc->mapGPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR tmp = GPR::allocate();
+
     tc->emit( rev(tmp, reg_rs));
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( str_offset(reg_rb, tmp, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        GPR reg_ra = tc->mapGPRForRead(ra);
         tc->emit( str_regoffset(reg_ra, tmp, reg_rb, SXTX, 0));
     }
 
-    FreeARMRegister(tc, tmp);
-
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lbz(PPCTranslatorContext *tc, uint32_t opcode)
+int lbz(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -574,8 +557,6 @@ int EMIT_lbz(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( ldrb_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0xfff) {
@@ -585,7 +566,7 @@ int EMIT_lbz(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit( ldurb_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
+            GPR ea = GPR::allocate();
 
             if (d < 0) {
                 tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -595,24 +576,22 @@ int EMIT_lbz(PPCTranslatorContext *tc, uint32_t opcode)
             }
             
             tc->emit( ldrb_regoffset(base, reg, ea, SXTX));
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lbzu(PPCTranslatorContext *tc, uint32_t opcode)
+int lbzu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -625,7 +604,7 @@ int EMIT_lbzu(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -638,16 +617,14 @@ int EMIT_lbzu(PPCTranslatorContext *tc, uint32_t opcode)
             ldrb_regoffset(base, reg, ea, SXTX),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lbzux(PPCTranslatorContext *tc, uint32_t opcode)
+int lbzux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -658,21 +635,21 @@ int EMIT_lbzux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rd) return -1;
 
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
 
     tc->emit({ 
         ldrb_regoffset(reg_ra, reg_rd, reg_rb, SXTX),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lbzx(PPCTranslatorContext *tc, uint32_t opcode)
+int lbzx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -681,9 +658,9 @@ int EMIT_lbzx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
@@ -692,23 +669,23 @@ int EMIT_lbzx(PPCTranslatorContext *tc, uint32_t opcode)
         tc->emit( ldrb_regoffset(reg_ra, reg_rd, reg_rb, SXTX));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lha(PPCTranslatorContext *tc, uint32_t opcode)
+int lha(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -717,8 +694,6 @@ int EMIT_lha(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( ldrsh_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x1ffe && (d & 1) == 0) {
@@ -728,7 +703,7 @@ int EMIT_lha(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit( ldursh_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
+            GPR ea = GPR::allocate();
 
             if (d < 0) {
                 tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -738,24 +713,22 @@ int EMIT_lha(PPCTranslatorContext *tc, uint32_t opcode)
             }
             
             tc->emit( ldrsh_regoffset(base, reg, ea, SXTX, 0));
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhau(PPCTranslatorContext *tc, uint32_t opcode)
+int lhau(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -768,7 +741,7 @@ int EMIT_lhau(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -781,16 +754,14 @@ int EMIT_lhau(PPCTranslatorContext *tc, uint32_t opcode)
             ldrsh_regoffset(base, reg, ea, SXTX, 0),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhax(PPCTranslatorContext *tc, uint32_t opcode)
+int lhax(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -799,10 +770,10 @@ int EMIT_lhax(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
-    
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
+
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( ldrsh_offset(reg_rb, reg_rd, 0));
@@ -810,12 +781,12 @@ int EMIT_lhax(PPCTranslatorContext *tc, uint32_t opcode)
         tc->emit( ldrsh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhaux(PPCTranslatorContext *tc, uint32_t opcode)
+int lhaux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -826,31 +797,31 @@ int EMIT_lhaux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || rd == ra) return -1;
 
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
 
     tc->emit({ 
         ldrsh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhz(PPCTranslatorContext *tc, uint32_t opcode)
+int lhz(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapGPRForRead(tc, rd);
+    GPR reg = tc->mapGPRForRead(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -859,21 +830,19 @@ int EMIT_lhz(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( ldrh_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x1ffe && (d & 1) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit( ldrh_offset(base, reg, d));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit( ldurh_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR ea = GPR::allocate();
+            GPR base = tc->mapGPRForRead(ra);
 
             if (d < 0) {
                 tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -883,17 +852,15 @@ int EMIT_lhz(PPCTranslatorContext *tc, uint32_t opcode)
             }
             
             tc->emit( ldrh_regoffset(base, reg, ea, SXTX, 0));
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhzx(PPCTranslatorContext *tc, uint32_t opcode)
+int lhzx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -902,9 +869,9 @@ int EMIT_lhzx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
@@ -913,19 +880,19 @@ int EMIT_lhzx(PPCTranslatorContext *tc, uint32_t opcode)
         tc->emit( ldrh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhzu(PPCTranslatorContext *tc, uint32_t opcode)
+int lhzu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -938,7 +905,7 @@ int EMIT_lhzu(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -951,16 +918,14 @@ int EMIT_lhzu(PPCTranslatorContext *tc, uint32_t opcode)
             ldrh_regoffset(base, reg, ea, SXTX, 0),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhzux(PPCTranslatorContext *tc, uint32_t opcode)
+int lhzux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -971,21 +936,21 @@ int EMIT_lhzux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rd) return -1;
 
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
     
     tc->emit({ 
         ldrh_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0),
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lhbrx(PPCTranslatorContext *tc, uint32_t opcode)
+int lhbrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -994,9 +959,9 @@ int EMIT_lhbrx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
@@ -1007,23 +972,23 @@ int EMIT_lhbrx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit( rev16(reg_rd, reg_rd));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lwz(PPCTranslatorContext *tc, uint32_t opcode)
+int lwz(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1032,8 +997,6 @@ int EMIT_lwz(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( ldr_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 3) == 0) {
@@ -1043,7 +1006,7 @@ int EMIT_lwz(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit( ldur_offset(base, reg, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
+            GPR ea = GPR::allocate();
 
             if (d < 0) {
                 tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1053,24 +1016,22 @@ int EMIT_lwz(PPCTranslatorContext *tc, uint32_t opcode)
             }
             
             tc->emit( ldr_regoffset(base, reg, ea, SXTX, 0));
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lwzu(PPCTranslatorContext *tc, uint32_t opcode)
+int lwzu(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg = MapGPRForWrite(tc, rd);
+    GPR base = tc->mapGPRForReadAndWrite(ra);
+    GPR reg = tc->mapGPRForWrite(rd);
 
     /* Ra is a register, check if displacement can be used for load directly */
     if (d >= -256 && d <= 255) {
@@ -1083,7 +1044,7 @@ int EMIT_lwzu(PPCTranslatorContext *tc, uint32_t opcode)
         });
     }
     else {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1096,16 +1057,14 @@ int EMIT_lwzu(PPCTranslatorContext *tc, uint32_t opcode)
             ldr_regoffset(base, reg, ea, SXTX, 0),
             add_reg(base, base, ea, LSL, 0)
         });
-
-        FreeARMRegister(tc, ea);
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lwzx(PPCTranslatorContext *tc, uint32_t opcode)
+int lwzx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1114,11 +1073,10 @@ int EMIT_lwzx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
 
-    
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( ldr_offset(reg_rb, reg_rd, 0));
@@ -1126,12 +1084,12 @@ int EMIT_lwzx(PPCTranslatorContext *tc, uint32_t opcode)
         tc->emit( ldr_regoffset(reg_ra, reg_rd, reg_rb, SXTX, 0));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lwzux(PPCTranslatorContext *tc, uint32_t opcode)
+int lwzux(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1142,9 +1100,9 @@ int EMIT_lwzux(PPCTranslatorContext *tc, uint32_t opcode)
 
     if (ra == 0 || ra == rd) return -1;
 
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_ra = MapGPRForReadAndWrite(tc, ra);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_ra = tc->mapGPRForReadAndWrite(ra);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     
@@ -1153,12 +1111,12 @@ int EMIT_lwzux(PPCTranslatorContext *tc, uint32_t opcode)
         add_reg(reg_ra, reg_ra, reg_rb, LSL, 0)
     });
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lwbrx(PPCTranslatorContext *tc, uint32_t opcode)
+int lwbrx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1167,10 +1125,10 @@ int EMIT_lwbrx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
-    
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
+
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit( ldr_offset(reg_rb, reg_rd, 0));
@@ -1180,12 +1138,12 @@ int EMIT_lwbrx(PPCTranslatorContext *tc, uint32_t opcode)
 
     tc->emit( rev(reg_rd, reg_rd));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lwarx(PPCTranslatorContext *tc, uint32_t opcode)
+int lwarx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1194,41 +1152,36 @@ int EMIT_lwarx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_ra = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
-    uint8_t reg_rd = MapGPRForWrite(tc, rd);
-    uint8_t base = reg_rb;
+    GPR reg_ra = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = tc->mapGPRForRead(rb);
+    GPR reg_rd = tc->mapGPRForWrite(rd);
+    GPR base(reg_rb.get());
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra != 0) {
-        base = AllocARMRegister(tc);
+        base = GPR::allocate();
         tc->emit(add_reg(base, reg_rb, reg_ra, LSL, 0));
     }
 
     tc->emit(ldxr(base, reg_rd));
 
-    if (ra != 0) {
-        FreeARMRegister(tc, base);
-    }
-
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
 /* FPU loads and stores */
-int EMIT_stfd(PPCTranslatorContext *tc, uint32_t opcode)
+int stfd(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapFPRForRead(tc, rs);
+    FPR reg = tc->mapFPRForRead(rs);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
-
+        GPR ea = GPR::allocate();
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
         } else {
@@ -1236,21 +1189,19 @@ int EMIT_stfd(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit(fstd(reg, ea, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 7) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit(fstd_pimm(reg, base, d >> 3));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit(fstd(reg, base, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR ea = GPR::allocate();
+            GPR base = tc->mapGPRForRead(ra);
 
             if (d < 0) {
                 tc->emit(movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1263,29 +1214,27 @@ int EMIT_stfd(PPCTranslatorContext *tc, uint32_t opcode)
                 add_reg(ea, ea, base, LSL, 0),
                 fstd(reg, ea, 0)
             });
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stfs(PPCTranslatorContext *tc, uint32_t opcode)
+int stfs(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rs = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t reg = MapFPRForRead(tc, rs);
-    uint8_t tmp = AllocFPRegister(tc);
+    FPR reg = tc->mapFPRForRead(rs);
+    FPR tmp = FPR::allocate();
     tc->emit(fcvtsd(tmp, reg));
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1294,21 +1243,19 @@ int EMIT_stfs(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit( str_offset(ea, reg, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 3) == 0) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit(fsts_pimm(tmp, base, d >> 2));
         }
         else if (d >= -256 && d <= 255) {
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR base = tc->mapGPRForRead(ra);
             tc->emit(fsts(tmp, base, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
-            uint8_t base = MapGPRForRead(tc, ra);
+            GPR ea = GPR::allocate();
+            GPR base = tc->mapGPRForRead(ra);
 
             if (d < 0) {
                 tc->emit(movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1321,19 +1268,15 @@ int EMIT_stfs(PPCTranslatorContext *tc, uint32_t opcode)
                 add_reg(ea, ea, base, LSL, 0),
                 fsts(tmp, ea, 0)
             });
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    FreeFPRegister(tc, tmp);
-
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_stfiwx(PPCTranslatorContext *tc, uint32_t opcode)
+int stfiwx(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 1) return -1;
@@ -1342,34 +1285,34 @@ int EMIT_stfiwx(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t ra = (opcode >> 16) & 31;
     uint8_t rb = (opcode >> 11) & 31;
 
-    uint8_t reg_rs = MapFPRForRead(tc, rs);
-    uint8_t reg_rb = MapGPRForRead(tc, rb);
+    FPR reg_rs = tc->mapFPRForRead(rs);
+    GPR reg_rb = tc->mapGPRForRead(rb);
     
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
         tc->emit(fsts(reg_rs, reg_rb, 0));
     } else {
-        uint8_t reg_ra = MapGPRForRead(tc, ra);
+        GPR reg_ra = tc->mapGPRForRead(ra);
         tc->emit(fsts_regoffset(reg_rs, reg_ra, reg_rb, SXTX, 0));
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lfd(PPCTranslatorContext *tc, uint32_t opcode)
+int lfd(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg = MapFPRForWrite(tc, rd);
+    GPR base = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    FPR reg = tc->mapFPRForWrite(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1378,8 +1321,6 @@ int EMIT_lfd(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit(fldd(reg, ea, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 7) == 0) {
@@ -1389,7 +1330,7 @@ int EMIT_lfd(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit(fldd(reg, base, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
+            GPR ea = GPR::allocate();
 
             if (d < 0) {
                 tc->emit(movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1402,28 +1343,26 @@ int EMIT_lfd(PPCTranslatorContext *tc, uint32_t opcode)
                 add_reg(ea, ea, base, LSL, 0),
                 fldd(reg, ea, 0)
             });
-
-            FreeARMRegister(tc, ea);
         }
     }
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
-int EMIT_lfs(PPCTranslatorContext *tc, uint32_t opcode)
+int lfs(PPCTranslatorContext *tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
     uint8_t ra = (opcode >> 16) & 31;
     int16_t d = opcode & 0xffff;
 
-    uint8_t base = ra != 0 ? MapGPRForRead(tc, ra) : 0xff;
-    uint8_t reg = MapFPRForWrite(tc, rd);
+    GPR base = ra != 0 ? tc->mapGPRForRead(ra) : GPR();
+    FPR reg = tc->mapFPRForWrite(rd);
 
     /* If Ra is 0, then address is the displacement, only */
     if (ra == 0) {
-        uint8_t ea = AllocARMRegister(tc);
+        GPR ea = GPR::allocate();
 
         if (d < 0) {
             tc->emit( movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1432,8 +1371,6 @@ int EMIT_lfs(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         tc->emit(fldd(reg, ea, 0));
-
-        FreeARMRegister(tc, ea);
     } else {
         /* Ra is a register, check if displacement can be used for store directly */
         if (d >= 0 && d <= 0x3ffc && (d & 7) == 0) {
@@ -1443,7 +1380,7 @@ int EMIT_lfs(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emit(flds(reg, base, d));
         }
         else {
-            uint8_t ea = AllocARMRegister(tc);
+            GPR ea = GPR::allocate();
 
             if (d < 0) {
                 tc->emit(movn_immed_u16(ea, ~d & 0xffff, 0));
@@ -1456,15 +1393,13 @@ int EMIT_lfs(PPCTranslatorContext *tc, uint32_t opcode)
                 add_reg(ea, ea, base, LSL, 0),
                 flds(reg, ea, 0)
             });
-
-            FreeARMRegister(tc, ea);
         }
     }
 
     tc->emit(fcvtds(reg, reg));
 
-    tc->tc_PPCCodePtr++;
     tc->advancePC(4);
+
     return 1;
 }
 
