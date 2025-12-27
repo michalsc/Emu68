@@ -10,7 +10,8 @@
 #pragma once
 
 #include <cstdint>
-#include <initializer_list>
+#include <concepts>
+#include <iterator>
 
 // A64.h is not entirely c++ compliant
 extern "C" {
@@ -27,19 +28,59 @@ struct TranslatorContext {
     uint32_t  tc_InsnCount;
     bool tc_SupervisorChecked;
 
-    uint32_t* emitStop() { return emit(INSN_TO_LE(MARKER_STOP)); }
-    uint32_t* emitBreak() { return emit(INSN_TO_LE(MARKER_BREAK)); }
+    TranslatorContext() : tc_CodeStart(nullptr), tc_CodePtr(nullptr),
+                          tc_InsnCount(0), tc_SupervisorChecked(false) {}
+    TranslatorContext(uint32_t* start) : tc_CodeStart(start), tc_CodePtr(start),
+                                        tc_InsnCount(0), tc_SupervisorChecked(false) {}
 
-    uint32_t* emit(std::initializer_list<uint32_t> list) {
-        for (auto insn : list) {
-            *tc_CodePtr++ = insn;
-        }
-        return tc_CodePtr;
+    virtual uint8_t allocARMRegister() = 0;
+    virtual uint8_t allocFPRegister() = 0;
+    virtual void freeARMRegister(uint8_t arm_reg) = 0;
+    virtual void freeFPRegister(uint8_t fp_reg) = 0;
+
+    void emitStop() { emit(INSN_TO_LE(MARKER_STOP)); }
+    void emitBreak() { emit(INSN_TO_LE(MARKER_BREAK)); }
+
+    TranslatorContext& emit(uint32_t insn) {
+        *tc_CodePtr++ = insn;
+        return *this;
     }
 
-    uint32_t* emit(uint32_t insn) {
-        *tc_CodePtr++ = insn;
-        return tc_CodePtr;
+    TranslatorContext& emit(std::initializer_list<uint32_t> list) {
+        for(uint32_t insn : list) {
+            *tc_CodePtr++ = insn;
+        }
+        return *this;
+    }
+
+    template<typename Iterator>
+    TranslatorContext& emit(Iterator begin, Iterator end) {
+        while(begin != end) {
+            *tc_CodePtr++ = *begin++;
+        }
+        return *this;
+    }
+
+    template<typename Container>
+    requires (!std::same_as<std::decay_t<Container>, uint32_t> &&
+              !std::same_as<std::decay_t<Container>, std::initializer_list<uint32_t>>)
+    TranslatorContext& emit(const Container& container) {
+        return emit(std::begin(container), std::end(container));
+    }
+
+    TranslatorContext& operator<<(uint32_t insn) {
+        return emit(insn);
+    }
+
+    TranslatorContext& operator<<(std::initializer_list<uint32_t> list) {
+        return emit(list);
+    }
+
+    template<typename Container>
+    requires (!std::same_as<std::decay_t<Container>, uint32_t> &&
+              !std::same_as<std::decay_t<Container>, std::initializer_list<uint32_t>>)
+    TranslatorContext& operator<<(const Container& container) {
+        return emit(container);
     }
 
     void emitLoadImmediate(uint8_t rd, uint32_t immed) {
