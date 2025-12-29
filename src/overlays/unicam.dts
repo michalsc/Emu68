@@ -46,7 +46,10 @@
         aspect = <&unicam>,"aspect-ratio:0";
         smooth = <&unicam>,"smoothing?";
         integer = <&unicam>,"integer-scaling?";
-        type = <&unicam>,"type:0{framethrower=0,c790=1,=0}";
         order = <&unicam>,"pixel-order:0{rgb=0,bgr=1,=0}";
+        type = <&unicam>,"type:0{framethrower=0,c790=1,=0}",
+               <&unicam>,"pixel-order:0{framethrower=0,c790=1,=0}",
+               <&unicam>,"bpp:0{framethrower=16,c790=24,=16}",
+               <&unicam>,"mode:0{framethrower=34,c790=36,=34}";
     };
 };
