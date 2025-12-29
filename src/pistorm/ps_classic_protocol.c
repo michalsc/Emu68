@@ -797,6 +797,11 @@ volatile int ignore_reset = 0;
 
 void ps_pulse_reset()
 {
+    /* Wait until RESET line is free */
+    while ((LE32(*(gpio + 13)) & (1 << PIN_RESET)) == 0) {
+        asm volatile("yield");
+    }
+    
     ignore_reset = 1;
 
     ps_write_status_reg(0);

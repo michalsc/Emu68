@@ -789,6 +789,298 @@ void parse_cmdline(const char *cmdline)
                 break;
         }
     }
+
+    /* UNICAM section */
+    of_node_t *unicam = dt_find_node("/emu68/unicam");
+
+    if (unicam == NULL) {
+        uint32_t val;
+        unicam = dt_make_node("unicam");
+        of_node_t *emu68 = dt_find_node("/emu68");
+        if (emu68 == NULL) {
+            emu68 = dt_make_node("emu68");
+            dt_add_node(NULL, emu68);
+        }
+        dt_add_node(emu68, unicam);
+
+        dt_add_property(unicam, "status", "disabled", 9);
+        val = (720 << 16) | 576;
+        dt_add_property(unicam, "full-size", &val, 4);
+        dt_add_property(unicam, "size", &val, 4);
+        val = 16;
+        dt_add_property(unicam, "bpp", &val, 4);
+        val = 34;
+        dt_add_property(unicam, "mode", &val, 4);
+        val = 0;
+        dt_add_property(unicam, "offset", &val, 4);
+        val = 1;
+        dt_add_property(unicam, "lanes", &val, 4);
+        val = 1000;
+        dt_add_property(unicam, "aspect-ratio", &val, 4);
+        val = (3 << 16) | 64;
+        dt_add_property(unicam, "scaler", &val, 4);
+        val = (250 << 16) | 750;
+        dt_add_property(unicam, "kernel", &val, 4);
+        val = 0;
+        dt_add_property(unicam, "type", &val, 4);
+    }
+
+    if (find_token(cmdline, "unicam.boot")) {
+        of_property_t *p = dt_find_property(unicam, "status");
+        p->op_value = "okay";
+        p->op_length = 5;
+    }
+
+    if (find_token(cmdline, "unicam.smooth")) {
+        dt_add_property(unicam, "smoothing", NULL, 0);
+    }
+
+    if (find_token(cmdline, "unicam.integer")) {
+        dt_add_property(unicam, "integer-scaling", NULL, 0);
+    }
+
+    if ((tok = find_token(cmdline, "unicam.b="))) {
+        tok += 9;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        if (c < 0) c = 0;
+        if (c > 1000) c = 1000;
+
+        of_property_t *p = dt_find_property(unicam, "kernel");
+        uint32_t val = *(uint32_t *)p->op_value;
+        val = (val & 0xffff) | c << 16;
+        *(uint32_t *)p->op_value = val;
+    }
+
+    if ((tok = find_token(cmdline, "unicam.c="))) {
+        tok += 9;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        if (c < 0) c = 0;
+        if (c > 1000) c = 1000;
+
+        of_property_t *p = dt_find_property(unicam, "kernel");
+        uint32_t val = *(uint32_t *)p->op_value;
+        val = (val & 0xffff0000) | c;
+        *(uint32_t *)p->op_value = val;
+    }
+
+    if ((tok = find_token(cmdline, "unicam.aspect="))) {
+        tok += 14;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        if (c < 333) c = 333;
+        if (c > 3000) c = 3000;
+
+        of_property_t *p = dt_find_property(unicam, "aspect-ratio");
+        uint32_t val = *(uint32_t *)p->op_value;
+        val = (val & 0xffff0000) | c;
+        *(uint32_t *)p->op_value = val;
+    }
+
+    if ((tok = find_token(cmdline, "unicam.scaler="))) {
+        tok += 14;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        if (c < 0) c = 0;
+        if (c > 3) c = 3;
+
+        of_property_t *p = dt_find_property(unicam, "scaler");
+        uint32_t val = *(uint32_t *)p->op_value;
+        val = (val & 0xffff) | (c << 16);
+        *(uint32_t *)p->op_value = val;
+    }
+    
+    if ((tok = find_token(cmdline, "unicam.phase="))) {
+        tok += 13;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        if (c < 0) c = 0;
+        if (c > 255) c = 255;
+
+        of_property_t *p = dt_find_property(unicam, "scaler");
+        uint32_t val = *(uint32_t *)p->op_value;
+        val = (val & 0xffff0000) | c;
+        *(uint32_t *)p->op_value = val;
+    }
+
+    if ((tok = find_token(cmdline, "unicam.mode=")))
+    {
+        uint32_t w = 0, h = 0, m = 0, bpp = 0;
+        const char *c = &tok[12];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (*c < '0' || *c > '9')
+            {
+                break;
+            }
+            w = w * 10 + *c++ - '0';
+        }
+
+        if (w != 0 && *c++ == ',')
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (*c < '0' || *c > '9')
+                {
+                    break;
+                }
+                h = h * 10 + *c++ - '0';
+            }
+        }
+
+        if (*c++ == ',')
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (*c < '0' || *c > '9')
+                {
+                    break;
+                }
+                m = m * 10 + *c++ - '0';
+            }
+        }
+
+        if (*c++ == ',')
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (*c < '0' || *c > '9')
+                {
+                    break;
+                }
+                bpp = bpp * 10 + *c++ - '0';
+            }
+        }
+
+        if (w != 0 && h != 0)
+        {
+            of_property_t *p = dt_find_property(unicam, "full-size");
+            uint32_t val = (w << 16) | h;
+            *(uint32_t *)p->op_value = val;
+        }
+
+        if (m != 0)
+        {
+            of_property_t *p = dt_find_property(unicam, "mode");
+            uint32_t val = m;
+            *(uint32_t *)p->op_value = val;
+        }
+
+        if (bpp != 0)
+        {
+            of_property_t *p = dt_find_property(unicam, "bpp");
+            uint32_t val = bpp;
+            *(uint32_t *)p->op_value = val;
+        }
+    }
+
+    if ((tok = find_token(cmdline, "unicam.size="))) {
+        uint32_t x = 0, y = 0;
+        const char *c = &tok[12];
+                
+        for (int i=0; i < 4; i++)
+        {
+            if (*c < '0' || *c > '9')
+            {
+                break;
+            }
+            x = x * 10 + *c++ - '0';
+        }
+
+        if (x != 0 && *c++ == ',')
+        {
+            for (int i=0; i < 4; i++)
+            {
+                if (*c < '0' || *c > '9')
+                {
+                    break;
+                }
+                y = y * 10 + *c++ - '0';
+            }   
+        }
+
+        if (x != 0 && y != 0)
+        {
+            of_property_t *p = dt_find_property(unicam, "size");
+            uint32_t val = (x << 16) | y;
+            *(uint32_t *)p->op_value = val;
+        }
+    }
+
+    if ((tok = find_token(cmdline, "unicam.offset="))) {
+        uint32_t x = 0, y = 0;
+        const char *c = &tok[14];
+                
+        for (int i=0; i < 4; i++)
+        {
+            if (*c < '0' || *c > '9')
+            {
+                break;
+            }
+            x = x * 10 + *c++ - '0';
+        }
+
+        if (*c++ == ',')
+        {
+            for (int i=0; i < 4; i++)
+            {
+                if (*c < '0' || *c > '9')
+                {
+                    break;
+                }
+                y = y * 10 + *c++ - '0';
+            }   
+        }
+
+        of_property_t *p = dt_find_property(unicam, "offset");
+        uint32_t val = (x << 16) | y;
+        *(uint32_t *)p->op_value = val;
+    }
+
+    // unicam.mode
+
 #endif
 }
 
