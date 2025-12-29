@@ -33,5 +33,5 @@ SECTIONS
     } > ROM = -1
 
     .bss : { *(.bss) } > INV
-    .data : { *(.data)             } > INV
+    .data : { *(.data) } > INV
 }
