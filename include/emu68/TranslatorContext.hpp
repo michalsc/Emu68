@@ -27,6 +27,7 @@ struct TranslatorContext {
     uint32_t* tc_CodePtr;
     uint32_t  tc_InsnCount;
     bool tc_SupervisorChecked;
+    bool tc_FPUChecked;
 
     TranslatorContext() : tc_CodeStart(nullptr), tc_CodePtr(nullptr),
                           tc_InsnCount(0), tc_SupervisorChecked(false) {}
