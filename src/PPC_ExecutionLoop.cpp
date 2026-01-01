@@ -394,7 +394,7 @@ extern "C" void InitPPC()
     mmu_map(mmu_virt2phys((uintptr_t)Emu68::PPC::ppc_tmp_stack), 0xfff00000 - sizeof(Emu68::PPC::ppc_tmp_stack), sizeof(Emu68::PPC::ppc_tmp_stack), MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
 }
 
-void * __PPCContext;
+
 extern struct M68KState * volatile __m68k_state;
 uint32_t ppc_boot_addr;
 
@@ -474,8 +474,8 @@ extern "C" void StartupPPC()
 
 extern "C" void PPCReportInterrupt(int interrupt)
 {
-    struct Emu68::PPC::PPCState * ctx = (struct Emu68::PPC::PPCState *)__PPCContext;
-    
+    struct Emu68::PPC::PPCState * ctx = Emu68::PPC::GET_HOST_CTX();
+
     switch (interrupt)
     {
         case 0x900:
