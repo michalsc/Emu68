@@ -1,5 +1,6 @@
 #pragma pack(push,2)
 #include <exec/types.h>
+#include "powerpc/powerpc.h"
 #pragma pack(pop)
 
 /* On AArch64 we do not have so many constraints regarding the alignment */

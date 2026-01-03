@@ -108,7 +108,11 @@ extern "C" {
 #define __constexpr static inline
 #endif
 
+#ifdef __cplusplus
+static inline constexpr void RESET_FLAGS()
+#else
 static inline void RESET_FLAGS()
+#endif
 {
     extern uint8_t host_flags;
     host_flags = 0;
