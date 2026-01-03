@@ -250,6 +250,13 @@ if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
                 add_compile_definitions(PISTORM_CLASSIC)
                 list(APPEND BASE_FILES
                     src/pistorm/ps_classic_protocol.c
+                    src/pistorm/cpld.c
+                    src/pistorm/libxsvf/xsvf.c
+                    src/pistorm/libxsvf/tap.c
+                    src/pistorm/libxsvf/svf.c
+                    src/pistorm/libxsvf/statename.c
+                    src/pistorm/libxsvf/scan.c
+                    src/pistorm/libxsvf/play.c
                 )
             endif()
             include_directories(src/pistorm)

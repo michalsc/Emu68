@@ -1353,10 +1353,11 @@ void boot(void *dtree)
             break;
     }
 #elif defined(PISTORM_CLASSIC)
+    const uint8_t pistorm_model = 0;
     dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm") + 1);
 #endif
 
-#if defined(PISTORM)
+#if defined(PISTORM_ANY_MODEL)
     /* Test if the image begins with gzip header. If yes, then this is the firmware blob */
     if (initramfs_size != 0 && ((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
     {
@@ -1429,9 +1430,10 @@ void boot(void *dtree)
             libdeflate_free_decompressor(decomp);
         }
     }
-
+#if defined(PISTORM)
     ps_efinix_setup(pistorm_model);
     ps_efinix_load(firmware_file, firmware_size);
+#endif
 #endif
 
 #ifdef PISTORM_ANY_MODEL
