@@ -365,18 +365,15 @@ void platform_post_init()
 #ifdef PISTORM_ANY_MODEL
 
 #if defined(PISTORM_CLASSIC)
- kprintf_pc(__putc, NULL, "CPLD FLASH ");
-//#ifdef PISTORM_CLASSIC
     int usercode = 0;
 
     if (firmware_file && firmware_size) {
- kprintf_pc(__putc, NULL, "CPLD FLASH2 ");
         kprintf("[BOOT] Flashing CPLD firmware...\n");
         ps_cpld_load(firmware_file, firmware_size, 1, 0);
     }
     usercode =ps_cpld_load(firmware_file, firmware_size, 0, 0);
 
-    (void)usercode; //suppress warning for now...
+    (void)usercode; //suppress warning for now...for later inclusion in DT
 #endif
 
     kprintf("[BOOT] sending RESET signal to Amiga\n");
