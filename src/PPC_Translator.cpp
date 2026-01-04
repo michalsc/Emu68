@@ -450,7 +450,7 @@ static __used__ int EMIT_bcx(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         /* Now insert the other code path - this will be treated as exit code */
-        uint32_t *exit_code_start = tc->tc_CodePtr;
+        uint32_t *exit_code_start = tc->save();
 
         if (!take_branch)
         {
@@ -469,7 +469,9 @@ static __used__ int EMIT_bcx(PPCTranslatorContext *tc, uint32_t opcode)
 
         /* Insert local exit */
         tc->emitLocalExit(1);
-        uint32_t *exit_code_end = tc->tc_CodePtr;
+        
+        uint32_t *exit_code_end = tc->restore();
+        tc->tc_CodePtr = exit_code_end;
 
         /* Insert fixup location */
         tc->emit({ 
@@ -808,6 +810,7 @@ static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
         return_stack.reset();
 
         tc->getOffsetPC(&pc_offset);
+        tc->resetOffsetPC();
 
         /* BO[2] == 0 - decrement CTR and set condition */
         if (dec_ctr) {
@@ -890,8 +893,8 @@ static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
         }
 
         /* Now insert the other code path - this will be treated as exit code */
-        uint32_t *exit_code_start = tc->tc_CodePtr;
-
+        uint32_t *exit_code_start = tc->save();
+        
         if (!take_branch)
         {
             /* if LR needs to be updated, do it now */
@@ -926,7 +929,9 @@ static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
 
         /* Insert local exit */
         tc->emitLocalExit(1);
-        uint32_t *exit_code_end = tc->tc_CodePtr;
+        
+        uint32_t *exit_code_end = tc->restore();
+        tc->tc_CodePtr = exit_code_end;
 
         /* Insert fixup location */
         tc->emit({ 
@@ -938,10 +943,6 @@ static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
         });
 
         #if 0
-
-
-        
-
         
         if (take_branch)
         {
@@ -1594,6 +1595,10 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
             }
             else if (local_translator.tc_CodePtr[-1] == INSN_TO_LE(0xfffffffe))
             {
+                kprintf("[PPC] Special marker 0xfffffffe unsupported\n");
+                while(1) asm volatile("wfi");
+
+                #if 0
                 uint32_t *tmpptr;
                 uint32_t *branch_mod[10];
                 uint32_t branch_cnt;
@@ -1621,6 +1626,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
                     //kprintf("[PPC] Branch modification at %p : distance increase by %d\n", (void*) branch_mod[i], distance);
                     *(branch_mod[i]) = INSN_TO_LE((INSN_TO_LE(*(branch_mod[i])) + (distance << 5)));
                 }
+                #endif
             }
             else
             {
@@ -1670,7 +1676,7 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
     }
 
     if (inner_loop && local_translator.tc_InsnCount == 1 && local_translator.getPC()[0] == 0x48000000) {
-        kprintf("Replacing ARM opcode %08x for the endless PPC loop\n", local_translator.tc_CodePtr[-1]);
+        kprintf("[PPC] Replacing ARM opcode %08x for the endless PPC loop\n", local_translator.tc_CodePtr[-1]);
         
         /* This is an endless loop, intentional or not. Change it to WFI/WFE loop to conserve power */
         local_translator.tc_CodePtr--;
