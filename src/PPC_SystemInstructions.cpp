@@ -9,6 +9,8 @@
 
 #define restrict __restrict__
 
+#include <span>
+
 #include <emu68/LRUCache>
 #include <emu68/ReturnStack>
 #include <emu68/GPR>
@@ -25,9 +27,81 @@ extern LRUCache cache;
 
 namespace Emit {
 
+class SupervisorCheck {
+    PPCTranslatorContext *tc;
+    std::span<uint32_t> exception;
+    uint32_t* fixup_location;
+    uint32_t fixup_type;
+public:
+    SupervisorCheck(PPCTranslatorContext *t);
+    ~SupervisorCheck();
+};
+
+SupervisorCheck::SupervisorCheck(PPCTranslatorContext *t) : tc(t)
+{
+    uint32_t* exception_data;
+
+    if (!tc->tc_SupervisorChecked)
+    {
+        GPR ctx = tc->getCTX();
+        GPR tmp = GPR::allocate();
+
+        /* We need to flush PC now, just in case */
+        tc->flushPC();
+
+        /* 
+            Fetch MSR and check if exceptions are enabled - it is illegal to call
+            RFI from user
+        */
+        tc->emit({
+            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
+            tbnz(tmp, 14, 0)
+        });
+
+        /* Remember jump location and fixup type */
+        fixup_type = FIXUP_TBZ;
+        fixup_location = tc->tc_CodePtr - 1;
+
+        /* Now insert the program exception path - raise exception if RFI was not allowed */
+        uint32_t *exit_code_start = tc->save();
+        tc->emitException(0x700);
+        uint32_t *exit_code_end = tc->restore();
+        std::size_t exception_size = exit_code_end - exit_code_start;
+
+        exception_data = new uint32_t[exception_size];
+        exception = std::span<uint32_t>(exception_data, exception_size);
+
+        for (size_t i=0; i < exception_size; i++) {
+            exception_data[i] = tc->tc_CodePtr[i];
+        }
+        
+        tc->tc_SupervisorChecked = true;
+    }
+}
+
+SupervisorCheck::~SupervisorCheck()
+{
+    if (!exception.empty())
+    {
+        tc->emit(exception);
+        
+        uint32_t *exit_code_end = tc->tc_CodePtr;
+
+        tc->emit({
+            (uint32_t)(exit_code_end - fixup_location),
+            fixup_type,
+            1,
+            (uint32_t)(exception.size()),
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        });
+        
+        delete exception.data();
+    }
+}
+
 int mftb(PPCTranslatorContext *tc, uint32_t opcode)
 {
-    /* Stanity check */
+    /* Sanity check */
     if (opcode & 1) return -1;
 
     uint32_t tbr = (opcode >> 11) & 0x3ff;
@@ -55,58 +129,17 @@ int mftb(PPCTranslatorContext *tc, uint32_t opcode)
 
 int mfmsr(PPCTranslatorContext *tc, uint32_t opcode)
 {
-    /* Stanity check */
+    /* Sanity check */
     if (opcode & 0x001ff801) return -1;
+
+    SupervisorCheck sc(tc);
 
     uint8_t rd = (opcode >> 21) & 31;
 
     GPR reg_rd = tc->mapGPRForWrite(rd);
     GPR ctx = tc->getCTX();
-    GPR tmp = GPR::allocate();
-
-    /* 
-        This fetches must not be context synchronizing and one supervisor check per
-        code block is sufficient.
-    */
-    if (!tc->tc_SupervisorChecked)
-    {
-        /* We need to flush PC now, just in case */
-        tc->flushPC();
-
-        /* 
-            Fetch MSR and check if exceptions are enabled - it is illegal to call
-            RFI from user
-        */
-        tc->emit({
-            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-            tbnz(tmp, 14, 0)
-        });
-    }
-
-    /* Emit jump, remember its location and fixup type */
-    uint32_t fixup_type = FIXUP_TBZ;
-    uint32_t *jump_location = tc->tc_CodePtr - 1;
 
     tc->emit(ldr_offset(ctx, reg_rd, __builtin_offsetof(PPCState, MSR)));
-
-    if (!tc->tc_SupervisorChecked)
-    {
-        /* Now insert the program exception path - raise exception if RFI was not allowed */
-        uint32_t *exit_code_start = tc->tc_CodePtr;
-        tc->emitException(0x700);
-        uint32_t *exit_code_end = tc->tc_CodePtr;
-
-        /* Insert fixup location */
-        tc->emit({ 
-            (uint32_t)(exit_code_end - jump_location),
-            fixup_type,
-            1,
-            (uint32_t)(exit_code_end - exit_code_start),
-            INSN_TO_LE(MARKER_EXIT_BLOCK)
-        });
-
-        tc->tc_SupervisorChecked = true;
-    }
 
     tc->advancePC(4);
 
@@ -115,37 +148,16 @@ int mfmsr(PPCTranslatorContext *tc, uint32_t opcode)
 
 int mtmsr(PPCTranslatorContext *tc, uint32_t opcode)
 {
-    /* Stanity check */
+    /* Sanity check */
     if (opcode & 0x001ff801) return -1;
+
+    SupervisorCheck sc(tc);
 
     uint8_t rs = (opcode >> 21) & 31;
 
     GPR reg_rs = tc->mapGPRForRead(rs);
     GPR ctx = tc->getCTX();
     GPR tmp = GPR::allocate();
-
-    /* 
-        This fetches must not be context synchronizing and one supervisor check per
-        code block is sufficient.
-    */
-    if (!tc->tc_SupervisorChecked)
-    {
-        /* We need to flush PC now, just in case */
-        tc->flushPC();
-
-        /* 
-            Fetch MSR and check if exceptions are enabled - it is illegal to call
-            RFI from user
-        */
-        tc->emit({
-            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-            tbnz(tmp, 14, 0)
-        });
-    }
-
-    /* Emit jump, remember its location and fixup type */
-    uint32_t fixup_type = FIXUP_TBZ;
-    uint32_t *jump_location = tc->tc_CodePtr - 1;
 
     tc->emit({
         /* Clear top + POW, ILE */
@@ -157,25 +169,6 @@ int mtmsr(PPCTranslatorContext *tc, uint32_t opcode)
         str_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR))
     });
 
-    if (!tc->tc_SupervisorChecked)
-    {
-        /* Now insert the program exception path - raise exception if RFI was not allowed */
-        uint32_t *exit_code_start = tc->tc_CodePtr;
-        tc->emitException(0x700);
-        uint32_t *exit_code_end = tc->tc_CodePtr;
-
-        /* Insert fixup location */
-        tc->emit({ 
-            (uint32_t)(exit_code_end - jump_location),
-            fixup_type,
-            1,
-            (uint32_t)(exit_code_end - exit_code_start),
-            INSN_TO_LE(MARKER_EXIT_BLOCK)
-        });
-
-        tc->tc_SupervisorChecked = true;
-    }
-
     /* Stop here */
     tc->advancePC(4);
     tc->emitStop();
@@ -185,7 +178,7 @@ int mtmsr(PPCTranslatorContext *tc, uint32_t opcode)
 
 int mtspr(PPCTranslatorContext *tc, uint32_t opcode)
 {
-    /* Stanity check */
+    /* Sanity check */
     if (opcode & 1) return -1;
 
     uint32_t spr = (opcode >> 11) & 0x3ff;
@@ -196,32 +189,11 @@ int mtspr(PPCTranslatorContext *tc, uint32_t opcode)
     GPR reg_rs = tc->mapGPRForRead(rs);
 
     if (spr & 0x10) {
+        SupervisorCheck sc(tc);
+
         GPR ctx = tc->getCTX();
         GPR tmp = GPR::allocate();
         GPR tmp2;
-
-        /* 
-            This fetches must not be context synchronizing and one supervisor check per
-            code block is sufficient.
-        */
-        if (!tc->tc_SupervisorChecked)
-        {
-            /* We need to flush PC now, just in case */
-            tc->flushPC();
-
-            /* 
-                Fetch MSR and check if exceptions are enabled - it is illegal to call
-                RFI from user
-            */
-            tc->emit({
-                ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-                tbnz(tmp, 14, 0)
-            });
-        }
-
-        /* Emit jump, remember its location and fixup type */
-        uint32_t fixup_type = FIXUP_TBZ;
-        uint32_t *jump_location = tc->tc_CodePtr - 1;
 
         switch(spr) {
             case 18:   /* DSISR */
@@ -300,25 +272,6 @@ int mtspr(PPCTranslatorContext *tc, uint32_t opcode)
                 break;
         }
 
-        if (!tc->tc_SupervisorChecked)
-        {
-            /* Now insert the program exception path - raise exception if RFI was not allowed */
-            uint32_t *exit_code_start = tc->tc_CodePtr;
-            tc->emitException(0x700);
-            uint32_t *exit_code_end = tc->tc_CodePtr;
-
-            /* Insert fixup location */
-            tc->emit({ 
-                (uint32_t)(exit_code_end - jump_location),
-                fixup_type,
-                1,
-                (uint32_t)(exit_code_end - exit_code_start),
-                INSN_TO_LE(MARKER_EXIT_BLOCK)
-            });
-
-            tc->tc_SupervisorChecked = true;
-        }
-
         tc->advancePC(4);
 
         return 1;
@@ -355,7 +308,7 @@ int mtspr(PPCTranslatorContext *tc, uint32_t opcode)
 
 int mfspr(PPCTranslatorContext *tc, uint32_t opcode)
 {
-    /* Stanity check */
+    /* Sanity check */
     if (opcode & 1) return -1;
 
     uint32_t spr = (opcode >> 11) & 0x3ff;
@@ -363,35 +316,13 @@ int mfspr(PPCTranslatorContext *tc, uint32_t opcode)
     /* tbr is a split field, fix it */
     spr = ((spr >> 5) & 0x1f) | ((spr & 0x1f) << 5);
 
-    GPR reg_rd = tc->mapGPRForWrite(rd);
-
     if (spr & 0x10)
     {
+        SupervisorCheck sc(tc);
+
+        GPR reg_rd = tc->mapGPRForWrite(rd);
         GPR ctx = tc->getCTX();
         GPR tmp = GPR::allocate();
-
-        /* 
-            This fetches must not be context synchronizing and one supervisor check per
-            code block is sufficient.
-        */
-        if (!tc->tc_SupervisorChecked)
-        {
-            /* We need to flush PC now, just in case */
-            tc->flushPC();
-
-            /* 
-                Fetch MSR and check if exceptions are enabled - it is illegal to call
-                RFI from user
-            */
-            tc->emit({
-                ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-                tbnz(tmp, 14, 0)
-            });
-        }
-
-        /* Emit jump, remember its location and fixup type */
-        uint32_t fixup_type = FIXUP_TBZ;
-        uint32_t *jump_location = tc->tc_CodePtr - 1;
 
         switch(spr) {
             case 18:    /* DSISR */
@@ -462,25 +393,6 @@ int mfspr(PPCTranslatorContext *tc, uint32_t opcode)
                 break;
         }
 
-        if (!tc->tc_SupervisorChecked)
-        {
-            /* Now insert the program exception path - raise exception if RFI was not allowed */
-            uint32_t *exit_code_start = tc->tc_CodePtr;
-            tc->emitException(0x700);
-            uint32_t *exit_code_end = tc->tc_CodePtr;
-
-            /* Insert fixup location */
-            tc->emit({ 
-                (uint32_t)(exit_code_end - jump_location),
-                fixup_type,
-                1,
-                (uint32_t)(exit_code_end - exit_code_start),
-                INSN_TO_LE(MARKER_EXIT_BLOCK)
-            });
-
-            tc->tc_SupervisorChecked = true;
-        }
-
         tc->advancePC(4);
     
         return 1;
@@ -488,6 +400,7 @@ int mfspr(PPCTranslatorContext *tc, uint32_t opcode)
     else
     {
         GPR tmp;
+        GPR reg_rd = tc->mapGPRForWrite(rd);
 
         /* Accessing user level SPRs */
         switch(spr) {
@@ -562,9 +475,14 @@ int tw(PPCTranslatorContext *tc, uint32_t opcode)
     else if (to == 31)
     {
         /* All bits set, trap always */
+        tc->flushPC();
         tc->emitException(0x700);
         tc->emitStop();
         return 1;
+    }
+    else
+    {
+        tc->flushPC();
     }
 
     uint8_t ra = (opcode >> 16) & 31;
@@ -636,9 +554,14 @@ int twi(PPCTranslatorContext *tc, uint32_t opcode)
     else if (to == 31)
     {
         /* All bits set, trap always */
+        tc->flushPC();
         tc->emitException(0x700);
         tc->emitStop();
         return 1;
+    }
+    else
+    {
+        tc->flushPC();
     }
 
     uint8_t ra = (opcode >> 16) & 31;
@@ -990,6 +913,8 @@ int dcbi(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
+    SupervisorCheck sc(tc);
+
     uint8_t ra = (opcode >> 21) & 31;
     uint8_t rb = (opcode >> 16) & 31;
     
@@ -998,27 +923,6 @@ int dcbi(PPCTranslatorContext *tc, uint32_t opcode)
 
     GPR ctx = tc->getCTX();
     GPR tmp = GPR::allocate();
-    /* 
-        This fetches must not be context synchronizing and one supervisor check per
-        code block is sufficient.
-    */
-    if (!tc->tc_SupervisorChecked)
-    {
-        /* We need to flush PC now, just in case */
-        tc->flushPC();
-
-        /* 
-            Fetch MSR and check if exceptions are enabled - it is illegal to call
-            RFI from user
-        */
-        tc->emit({
-            ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-            tbnz(tmp, 14, 0)
-        });
-    }
-
-    uint32_t fixup_type = FIXUP_TBZ;
-    uint32_t *jump_location = tc->tc_CodePtr - 1;
 
     if (ra == 0) {
         base = GPR(reg_rb.get());
@@ -1031,25 +935,6 @@ int dcbi(PPCTranslatorContext *tc, uint32_t opcode)
     tc->emit({
         dc_ivac(base)
     });
-
-    if (!tc->tc_SupervisorChecked)
-    {
-        /* Now insert the program exception path - raise exception if RFI was not allowed */
-        uint32_t *exit_code_start = tc->tc_CodePtr;
-        tc->emitException(0x700);
-        uint32_t *exit_code_end = tc->tc_CodePtr;
-
-        /* Insert fixup location */
-        tc->emit({ 
-            (uint32_t)(exit_code_end - jump_location),
-            fixup_type,
-            1,
-            (uint32_t)(exit_code_end - exit_code_start),
-            INSN_TO_LE(MARKER_EXIT_BLOCK)
-        });
-
-        tc->tc_SupervisorChecked = true;
-    }
     
     tc->advancePC(4);
     
@@ -1098,21 +983,10 @@ int rfi(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode != 0x4c000064) return -1;
 
+    SupervisorCheck sc(tc);
+
     GPR ctx = tc->getCTX();
     GPR tmp = GPR::allocate();
-
-    /* 
-        Fetch MSR and check if exceptions are enabled - it is illegal to call
-        RFI from user
-    */
-    tc->emit({
-        ldr_offset(ctx, tmp, __builtin_offsetof(PPCState, MSR)),
-        tbnz(tmp, 14, 0)
-    });
-
-    /* Emit jump, remember its location and fixup type */
-    uint32_t fixup_type = FIXUP_TBZ;
-    uint32_t *jump_location = tc->tc_CodePtr - 1;
 
     tc->emit({
         /* Load SRR1, clear POW bit, store into MSR */
@@ -1125,22 +999,10 @@ int rfi(PPCTranslatorContext *tc, uint32_t opcode)
         bic_immed(REG_PC, REG_PC, 2, 0),
     });
 
+    tc->resetOffsetPC();
+
     /* This instruction exits the JIT loop */
     tc->emitStop();
-
-    /* Now insert the program exception path - raise exception if RFI was not allowed */
-    uint32_t *exit_code_start = tc->tc_CodePtr;
-    tc->emitException(0x700);
-    uint32_t *exit_code_end = tc->tc_CodePtr;
-
-    /* Insert fixup location */
-    tc->emit({ 
-        (uint32_t)(exit_code_end - jump_location),
-        fixup_type,
-        1,
-        (uint32_t)(exit_code_end - exit_code_start),
-        INSN_TO_LE(MARKER_EXIT_BLOCK)
-    });
 
     return 1;
 }
