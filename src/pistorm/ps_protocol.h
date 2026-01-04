@@ -157,5 +157,6 @@ void wb_push(uint32_t address, uint32_t value, uint8_t size);
 void ps_efinix_load(char* buffer, long length);
 void ps_efinix_setup(uint8_t);
 void ps_efinix_reset();
+int ps_cpld_load(const uint8_t *data, int data_len, int play_mode, int verbose);
 
 #endif /* _PS_PROTOCOL_H */

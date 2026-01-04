@@ -42,6 +42,9 @@ uint32_t fb_height;
 extern const uint32_t topaz8_charloc[];
 extern const uint8_t topaz8_chardata[];
 
+extern void *firmware_file;
+extern uint32_t firmware_size;
+
 uint32_t text_x = 0;
 uint32_t text_y = 0;
 const int modulo = 192;
@@ -261,11 +264,10 @@ void display_logo()
     /* Reset test coordinates for further text printing (e.g. buptest) */
     text_x = 0;
     text_y = 0;
+
     #if 0
 extern unsigned char pistorm_get_model();
     kprintf_pc(__putc, NULL, "PiStorm model: %d\n", pistorm_get_model());
-extern void *firmware_file;
-extern uint32_t firmware_size;
     kprintf_pc(__putc, NULL, "Firmware file: %p\n", firmware_file);
     kprintf_pc(__putc, NULL, "Firmware size: %d\n", firmware_size);
     #endif
@@ -361,6 +363,19 @@ void platform_post_init()
     display_logo();
 
 #ifdef PISTORM_ANY_MODEL
+
+#if defined(PISTORM_CLASSIC)
+    int usercode = 0;
+
+    if (firmware_file && firmware_size) {
+        kprintf("[BOOT] Flashing CPLD firmware...\n");
+        ps_cpld_load(firmware_file, firmware_size, 1, 0);
+    }
+    usercode =ps_cpld_load(firmware_file, firmware_size, 0, 0);
+
+    (void)usercode; //suppress warning for now...for later inclusion in DT
+#endif
+
     kprintf("[BOOT] sending RESET signal to Amiga\n");
     ps_pulse_reset();
 
