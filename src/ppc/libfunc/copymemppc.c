@@ -2,9 +2,15 @@
 #include <exec/types.h>
 #pragma pack(pop)
 
+#include "../support.h"
+
+#define DFUNC(x) x
+
 /* On AArch64 we do not have so many constraints regarding the alignment */
 void L_CopyMemPPC(struct PPCBase *, void * source, void * dest, ULONG size)
 {
+    DFUNC(kprintf("[PPC] powerpc.library/CopyMemPPC(%08x, %08x, %d)\n", source, dest, size));
+    
     union {
         ULONG *u32;
         UBYTE *u8;

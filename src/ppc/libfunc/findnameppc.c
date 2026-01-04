@@ -9,8 +9,12 @@
 #include <stddef.h>
 #include "../support.h"
 
+#define DFUNC(x) x
+
 struct Node * L_FindNamePPC(struct PPCBase *, struct List *list, STRPTR name)
 {
+    DFUNC(kprintf("[PPC] powerpc.library/FindNamePPC(%08x, '%s')\n", list, name));
+
     struct Node *next;
     struct Node *node = list->lh_Head;
 

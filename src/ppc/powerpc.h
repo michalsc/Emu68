@@ -1,6 +1,7 @@
 #ifndef _234234_POWERPC_H
 #define _234234_POWERPC_H
 
+#include <exec/lists.h>
 #include <powerpc/powerpc.h>
 
 #include "doorbell.h"
@@ -11,7 +12,11 @@
 
 struct PrivatePPCBase {
     struct PPCBase      pp_Public;
+
+    /* Task management */
     struct TaskPPC *    pp_ThisPPCProc;
+    struct List         pp_PPCTaskReady;
+    struct List         pp_PPCTaskWait;
 
     /* Two doorbells used for communication - subject of change in future */
     doorbell_t          M68k_to_PPC;
@@ -19,12 +24,16 @@ struct PrivatePPCBase {
 
     /* Placeholder for NULL-Task context */
     APTR                pp_iFrame;
+    ULONG               pp_pvr;
 
     /* Task waiting for a signal */
     struct Task *       pp_WaitingTask;
     UBYTE               pp_WaitingTaskBit;
 
 };
+
+#define RED_ZONE_SIZE           256
+#define STACK_ALLOC_SIZE        (RED_ZONE_SIZE + 32)
 
 #define LIB_POSSIZE             sizeof(struct PrivatePPCBase)
 #define NUM_OF_68K_FUNCS        49
@@ -56,5 +65,8 @@ struct XMessage {
         } SignalTask;
     };
 };
+
+#define SC_BASE     0x4F09
+#define SC_CAUSE    (SC_BASE + 1)
 
 #endif /* _234234_POWERPC_H */

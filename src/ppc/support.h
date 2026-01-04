@@ -73,11 +73,14 @@ static inline void setMSR(ULONG msr)
     asm volatile("mtmsr %0; isync"::"r"(msr));
 }
 
-static inline ULONG SystemCall(APTR sc)
+static inline ULONG SystemCall(ULONG sc, APTR args)
 {
     register ULONG ret asm("r3");
+    register ULONG nr asm("r3") = sc;
+    register APTR a1 asm("r4") = args;
 
-    asm volatile("sc":"=r"(ret):"0"(sc));
+    asm volatile("sc":"+r"(ret):"r"(nr),"r"(a1):"cr0", "memory");
+
     return ret;
 }
 

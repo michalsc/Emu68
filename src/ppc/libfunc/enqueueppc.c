@@ -6,8 +6,14 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
+#include "../support.h"
+
+#define DFUNC(x) x
+
 void L_EnqueuePPC(struct PPCBase *, struct List *list, struct Node *node)
 {
+    DFUNC(kprintf("[PPC] powerpc.library/EnqueuePPC(%08x, %08x)\n", list, node));
+
     LONG pri = node->ln_Pri;
     struct Node *next = list->lh_Head;
 

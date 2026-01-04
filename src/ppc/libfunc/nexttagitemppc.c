@@ -4,8 +4,14 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
+#include "../support.h"
+
+#define DFUNC(x) x
+
 struct TagItem * L_NextTagItemPPC(struct PPCBase *, struct TagItem **tagList)
 {
+    DFUNC(kprintf("[PPC] powerpc.library/NextTagItemPPC(%08x)\n", tagList));
+    
     if (*tagList == NULL) return NULL;
 
     while(1) {

@@ -68,13 +68,6 @@ __asm__(
 
 "       .org 0x900,0                    \n"
 "Decrementer:                           \n"
-#if 0
-"       mtsprg3 %r1                     \n"
-"       lis %r1, 0x262                  \n"
-"       mtdec %r1                       \n"
-"       mfsprg3 %r1                     \n"
-"       rfi                             \n"
-#endif
 "       mtsprg3 %r0                     \n"
 "       mflr %r0                        \n"
 "       bl ExceptionEntry               \n"
@@ -119,28 +112,26 @@ asm volatile(
 "       sync                                            \n" // Also reenable FPU
 "       isync                                           \n"
 
-"       stwu    %%r1, -256(%%r1)                        \n" // Create frame on stack large enough to store the context
+"       stwu    %%r1, -%[STACK_ALLOC](%%r1)             \n" // Create frame on stack large enough to skip red zone
 
 "       mfcr    %%r0                                    \n" // Back-up CR on stack
-"       stw     %%r0, 104(%%r1)                         \n"
-"       stw     %%r4, 108(%%r1)                         \n" // Back-up r4 on stack
+"       stw     %%r0, 4(%%r1)                           \n"
+"       stw     %%r4, 8(%%r1)                           \n" // Back-up r4 on stack
 
-"       mfspr   %%r4, %[BASEREG]                        \n"
-"       lwz     %%r4, %[POWERPCBASE_THISPPCTASK](%%r4)  \n"
-"       mr.     %%r4, %%r4                              \n"
+"       mfspr   %%r4, %[BASEREG]                        \n" // Load PowerPC base from special SPR
+"       lwz     %%r4, %[POWERPCBASE_THISPPCTASK](%%r4)  \n" // Get PowerPC ThisTask
+"       mr.     %%r4, %%r4                              \n" // Check if null
 "       bne     .NoIdl                                  \n" // If ThisPPCTask is not null, we are not idling
 
 /* PPC's ThisTask is not set (NULL), so store iframe on the stack instead of Task's context */
 
-"       mfspr   %%r4, %[BASEREG]                        \n"
-"       lwz     %%r4, %[NULL_FRAME](%%r4)               \n"
-"       stw     %%r4, 0(%%r1)                           \n"
-"       mr      %%r4, %%r3                              \n"
-"       b       .DoExc                                  \n"
+"       mfspr   %%r4, %[BASEREG]                        \n" // Get PowerPC base again, it was overwritten
+"       lwz     %%r4, %[NULL_FRAME](%%r4)               \n" // Get pointer of null frame
+"       b       1f                                      \n"
 
 ".NoIdl:                                                \n"
 "       lwz     %%r4, %[PPCTASK_CONTEXMEM](%%r4)        \n" // iFrame
-"       lwz     %%r0, 108(%%r1)                         \n"
+"1:     lwz     %%r0, 8(%%r1)                           \n"
 "       stw     %%r0, %[IF_CONTEXT_GPR4](%%r4)          \n"
 "       stw     %%r3, %[IF_CONTEXT_GPR3](%%r4)          \n"
 "       mfsprg3 %%r0                                    \n"
@@ -158,7 +149,7 @@ asm volatile(
 "       mfspr   %%r31, %[BASEREG]                       \n"
 "       lwz     %%r31, %[POWERPCBASE_THISPPCTASK](%%r31)\n"
 "       mr.     %%r31, %%r31                            \n"
-"       bne     .NI2                                    \n" // trash everything, is idle task.
+"       bne+    .NI2                                    \n" // trash everything, is idle task.
 
 "       mfspr   %%r31, %[BASEREG]                       \n"
 "       lwz     %%r31, %[NULL_FRAME](%%r31)             \n" // go to idle, don't care about registers
@@ -175,6 +166,7 @@ asm volatile(
  [IF_CONTEXT_GPR4]"i"(__builtin_offsetof(struct iframe, if_Context.ec_GPR[4])),
  [MSR_FLAGS]"i"(MSR_IR|MSR_DR|MSR_FP),
  [BASEREG]"i"(SPR_BASEREG),
+ [STACK_ALLOC]"i"(STACK_ALLOC_SIZE),
  [NULL_FRAME]"i"(__builtin_offsetof(struct PrivatePPCBase, pp_iFrame))
 );
 }
@@ -227,33 +219,34 @@ asm volatile(
 #if HAVE_FPU
 "       stfd    %%f0,[IF_CONTEXT_FPR](r3)   \n"
 #endif
-"       mfsprg0 %%r0                        \n"
+"       mfsprg0 %%r0                        \n" // SRR0
+"       stwu    %%r0, 4(%%r3)               \n" 
+"       mfsprg1 %%r0                        \n" // SRR1
 "       stwu    %%r0, 4(%%r3)               \n"
-"       mfsprg1 %%r0                        \n"
+"       mfdar   %%r0                        \n" // DAR
 "       stwu    %%r0, 4(%%r3)               \n"
-"       mfdar   %%r0                        \n"
+"       mfdsisr %%r0                        \n" // DSISR
 "       stwu    %%r0, 4(%%r3)               \n"
-"       mfdsisr %%r0                        \n"
+"       lwz     %%r0, 4(%%r1)               \n" // CR from stack
 "       stwu    %%r0, 4(%%r3)               \n"
-"       lwz     %%r0, 104(%%r1)             \n" // cr - change to number!!!
+"       mfctr   %%r0                        \n" // CTR
 "       stwu    %%r0, 4(%%r3)               \n"
-"       mfctr   %%r0                        \n"
+"       mfsprg2 %%r0                        \n" // LR
 "       stwu    %%r0, 4(%%r3)               \n"
-"       mfsprg2 %%r0                        \n"
-"       stwu    %%r0, 4(%%r3)               \n" // lr
 #if HAVE_FPU
-"       mffs    f0                          \n"
-"       stfdu   f0,4(r3)                    \n"
-"       mfxer   r0                          \n"
-"       stw     r0,0(r3)                    \n"
+// TODO: store f0 first!
+"       mffs    f0                          \n" // FPSCR is stored as 64 bit!!!
+"       stfdu   f0,4(r3)                    \n" // Store and advance R3 by 4 bytes
+"       mfxer   r0                          \n" // XER
+"       stw     r0,0(r3)                    \n" // r3 points to XER
 #else
-"       mfxer   %%r0                        \n"
-"       stwu    %%r0, 4(%%r3)               \n"
+"       mfxer   %%r0                        \n" // XER
+"       stwu    %%r0, 4(%%r3)               \n" // Store with skipping FPSCR, r3 points to XER
 #endif
 "       lwz     %%r0, 0(%%r1)               \n" //
 "       stwu    %%r0, 12(%%r3)              \n" // r1, skipped r0
 "       stwu    %%r2, 4(%%r3)               \n"
-"       stwu    %%r5, 12(%%r3)              \n" // skipped r3 and r4. Need to be stored seperately
+"       stwu    %%r5, 12(%%r3)              \n" // skipped r3 and r4. Were stored seperately
 "       stwu    %%r6, 4(%%r3)               \n"
 "       stwu    %%r7, 4(%%r3)               \n"
 "       stwu    %%r8, 4(%%r3)               \n"

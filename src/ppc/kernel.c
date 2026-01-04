@@ -35,7 +35,7 @@ void Start()
 {
     /* We start in C as soon as possible. Reset MSR to known state first */
     uint32_t msr = getMSR();
-    setMSR(msr & MSR_IP);
+    setMSR((msr & MSR_IP) | MSR_EE);
 
     /* Reset SPRG0..3 */
     asm volatile("mtsprg0 %0; mtsprg1 %0; mtsprg2 %0; mtsprg3 %0"::"r"(0));
@@ -45,6 +45,39 @@ void Start()
 
     kprintf("[PPC] Waiting for powerpc.library to come up\n");
 
+{
+
+struct PrivatePPCBase *PowerPCBase = (void*)0x10000000;
+struct EXCContext *ctx = (void*)0x10008000;
+
+PowerPCBase->pp_iFrame = ctx;
+
+PatchLVOTable(&PowerPCBase->pp_Public);
+
+asm volatile("eieio");
+NewListPPC(&PowerPCBase->pp_PPCTaskReady);
+NewListPPC(&PowerPCBase->pp_PPCTaskWait);
+asm volatile("eieio");
+
+asm volatile("mfpvr %0":"=r"(PowerPCBase->pp_pvr));
+
+kprintf("[PPC] PPCBase = %08lx\n[PPC] null context = %0lx\n", PowerPCBase, ctx);
+setBASE(PowerPCBase);
+asm volatile("mtdec %0"::"r"(50000000));
+
+kprintf("[PPC] MSR=%08x\n", getMSR());
+kprintf("[PPC] Switching to user mode\n");
+User(0);
+
+CauseInterrupt();
+
+kprintf("[PPC] trying to read MSR again\n");
+kprintf("[PPC] MSR=%08x\n", getMSR());
+}
+
+
+while(1);
+#if 0
     uint32_t msg = doorbell_wait((doorbell_t *)0xffefff80);
 
     kprintf("[PPC] PPCBase = %08x\n", msg);
@@ -72,6 +105,7 @@ void Start()
     kprintf("[PPC] Packet sent\n");
 
     while(1);
+#endif
 }
 
 void SendPacketMessage(struct PrivatePPCBase * PPCBase, APTR message)
@@ -110,30 +144,81 @@ void EndReceivingMessage(struct PrivatePPCBase * PPCBase)
     doorbell_send(&PPCBase->PPC_to_M68k, STATUS_ACK);
 }
 
-void Exception_Entry(struct PrivatePPCBase * PPCBase, struct iframe *iframe)
+void Exception_Entry(struct PrivatePPCBase * PowerPCBase, struct iframe *iframe)
 {
     /* Get the vector we are in, recaltulate the fields to match what's expected */
     ULONG ExceptionVector = iframe->if_Context.ec_ExcID & 0xfff0;
     iframe->if_ExcNum = ExceptionVector >> 8;
     iframe->if_Context.ec_ExcID = 1 << iframe->if_ExcNum;
 
-    kprintf("[PPC] ExceptionEntry if_ExcNum=%x, excid=%d\n", iframe->if_ExcNum, iframe->if_Context.ec_ExcID);
+//    kprintf("[PPC] ExceptionEntry if_ExcNum=%x, excid=%d\n", iframe->if_ExcNum, iframe->if_Context.ec_ExcID);
+
+//asm volatile("\n1: b 1b");
 
 
     switch(iframe->if_ExcNum) {
         case 5:
         {
-            struct XMessage *msg = StartRecievingMessage(PPCBase);
+            struct XMessage *msg = StartRecievingMessage(PowerPCBase);
             if (msg->id == XMSG_CAUSE) {
                 kprintf("[PPC] Cause() triggered from m68k\n");
             }
-            EndReceivingMessage(PPCBase);
+            EndReceivingMessage(PowerPCBase);
+            break;
+        }
+
+        case 7:
+        {
+            extern void* L_Super_Addr;
+            
+            if (iframe->if_Context.ec_GPR[4] == SUPERKEY && iframe->if_Context.ec_UPC.ec_SRR0 == (ULONG)&L_Super_Addr) {
+                iframe->if_Context.ec_UPC.ec_SRR0 += 4;
+                iframe->if_Context.ec_SRR1 &= ~MSR_PR;
+                iframe->if_Context.ec_GPR[3] = 0;
+            }
+            else {
+                kprintf("[PPC] Program exception @ %08x\n", iframe->if_Context.ec_UPC.ec_SRR0, &L_Super_Addr);
+                for (int i=0; i < 32; i+=4) {
+                    kprintf("[PPC]    r%02d = 0x%08x   r%02d = 0x%08x   r%02d = 0x%08x   r%02d = 0x%08x\n",
+                    i, iframe->if_Context.ec_GPR[i], i+1, iframe->if_Context.ec_GPR[i+1],
+                    i+2, iframe->if_Context.ec_GPR[i+2], i+3, iframe->if_Context.ec_GPR[i+3]);
+                }
+                kprintf("[PPC]\n[PPC]     LR = 0x%08x    CR = 0x%08x   CTR = 0x%08x   XER = 0x%08x\n",
+                    iframe->if_Context.ec_LR, iframe->if_Context.ec_CR, iframe->if_Context.ec_CTR, iframe->if_Context.ec_XER);
+                kprintf("[PPC]  SPRG0 = 0x%08x SPRG1 = 0x%08x\n",
+                    iframe->if_Context.ec_UPC.ec_SRR0, iframe->if_Context.ec_SRR1);
+                while(1);
+            }
+            
+            break;
+        }
+
+        case 9:
+        {
+            kprintf("[PPC] Decrementer\n");
+            asm volatile("mtdec %0"::"r"( 19200000 * 2));
+            break;
+        }
+
+        case 12:
+        {
+            kprintf("[PPC] SystemCall(%d)\n", iframe->if_Context.ec_GPR[3]);
+            switch (iframe->if_Context.ec_GPR[3])
+            {
+                case SC_CAUSE:
+                    kprintf("[PPC]   SC_CAUSE\n");
+                    break;
+            
+                default:
+                    kprintf("[PPC]   Unknown system call\n");
+                    break;
+            }
         }
     }
 
-    kprintf("[PPC] End of kernel... waiting for more to come ;)\n");
+//    kprintf("[PPC] End of kernel... waiting for more to come ;)\n");
 
-    while(1);
+//    while(1);
 }
 
 #if 0

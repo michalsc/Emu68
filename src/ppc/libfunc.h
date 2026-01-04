@@ -10,6 +10,7 @@
 #include <powerpc/powerpc.h>
 #pragma pack(pop)
 
+void L_SPrintF(struct PPCBase *, STRPTR format_string, APTR args);
 void L_AddHeadPPC(struct PPCBase *, struct List *list, struct Node *node);
 void L_AddTailPPC(struct PPCBase *, struct List *list, struct Node *node);
 void L_AddTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source);
@@ -26,5 +27,11 @@ struct Node * L_RemHeadPPC(struct PPCBase *, struct List *list);
 struct Node * L_RemTailPPC(struct PPCBase *, struct List *list);
 void L_RemovePPC(struct PPCBase *, struct Node *node);
 void L_SubTimePPC(struct PPCBase *, struct timeval *dest, struct timeval *source);
+void L_InsertPPC(struct PPCBase *, struct List *list, struct Node *node, struct Node *pred);
+void L_GetInfo(struct PPCBase *PowerPCBase, struct TagItem *tagList);
+void L_GetHALInfo(struct PPCBase *PowerPCBase, struct TagItem *tagList);
+ULONG L_Super(struct PPCBase *);
+void L_User(struct PPCBase *, ULONG key);
+void L_CauseInterrupt(struct PPCBase *PowerPCBase);
 
 #endif /* __LIBFUNC_H */

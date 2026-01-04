@@ -5,24 +5,33 @@
 **powerpc.library/AddHeadPPC**
 **powerpc.library/AddTailPPC**
 **powerpc.library/AddTimePPC**
-**powerpc.library/CopyMemPPC**
-**powerpc.library/RemovePPC**
-**powerpc.library/SubTimePPC**
 **powerpc.library/CmpTimePPC**
-**powerpc.library/NewListPPC**
-**powerpc.library/RemHeadPPC**
-**powerpc.library/RemTailPPC**
+**powerpc.library/CopyMemPPC**
 **powerpc.library/EnqueuePPC**
 **powerpc.library/FindNamePPC**
-**powerpc.library/NextTagItemPPC**
 **powerpc.library/FindTagItemPPC**
+**powerpc.library/GetHALInfo**
 **powerpc.library/GetTagDataPPC**
+**powerpc.library/InsertPPC**
+**powerpc.library/NewListPPC**
+**powerpc.library/NextTagItemPPC**
+**powerpc.library/RemHeadPPC**
+**powerpc.library/RemovePPC**
+**powerpc.library/RemTailPPC**
+**powerpc.library/SubTimePPC**
+**powerpc.library/Super**
+**powerpc.library/User**
+
+### Partially implemented
+
+**powerpc.library/GetInfo**
 
 ### Intentionally not implemented
+
 ~~powerpc.library/ChangeMMU~~
 
 
-powerpc.library/InsertPPC
+
 
 powerpc.library/AddPortPPC
 powerpc.library/AddSemaphorePPC
@@ -51,8 +60,6 @@ powerpc.library/FreeSemaphorePPC
 powerpc.library/FreeSignalPPC
 powerpc.library/FreeVecPPC
 powerpc.library/FreeXMsgPPC
-powerpc.library/GetHALInfo
-powerpc.library/GetInfo
 powerpc.library/GetMsgPPC
 powerpc.library/GetSysTimePPC
 powerpc.library/InitSemaphorePPC
@@ -83,10 +90,10 @@ powerpc.library/Signal68K
 powerpc.library/SignalPPC
 powerpc.library/SnoopTask
 powerpc.library/SPrintF
-powerpc.library/Super
+
 powerpc.library/TrySemaphorePPC
 powerpc.library/UnLockTaskList
-powerpc.library/User
+
 powerpc.library/VacatePPC
 powerpc.library/WaitFor68K
 powerpc.library/WaitPortPPC

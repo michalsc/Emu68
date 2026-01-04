@@ -8,8 +8,14 @@
 
 #include <stddef.h>
 
+#include "../support.h"
+
+#define DFUNC(x) x
+
 struct Node * L_RemHeadPPC(struct PPCBase *, struct List *list)
 {
+    DFUNC(kprintf("[PPC] powerpc.library/RemHeadPPC(%08x)\n", list));
+    
     if (list->lh_Head->ln_Succ == NULL) return NULL;
 
     struct Node *node = list->lh_Head;

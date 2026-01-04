@@ -33,12 +33,19 @@ add_executable(ppc_rom
   libfunc/removeppc.c
   libfunc/remheadppc.c
   libfunc/remtailppc.c
+  libfunc/sprintf.c
+  libfunc/insertppc.c
+  libfunc/getinfo.c
+  libfunc/gethalinfo.c
+  libfunc/super.c
+  libfunc/user.c
+  libfunc/causeinterrupt.c
 )
 
 get_verstring(VERSTRING)
 
 target_link_options(ppc_rom PRIVATE -Wl,--build-id=none -nostdlib -nostartfiles -static -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/ppc_rom.map -T ${LINKER_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/ldscript-ppc.lds)
-target_compile_options(ppc_rom PRIVATE -fno-delete-null-pointer-checks -fpack-struct=2 -falign-functions=32 -O2 -mcpu=G3 -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-exceptions -ffreestanding -fcall-saved-r2 -fcall-saved-r12 -fcall-saved-r13 -Wall -Wextra -Werror)
+target_compile_options(ppc_rom PRIVATE -fno-delete-null-pointer-checks -fpack-struct=2 -falign-functions=32 -O2 -mcpu=G3 -fno-asynchronous-unwind-tables -fno-dwarf2-cfi-asm -fno-strict-aliasing -fno-exceptions -ffreestanding -fcall-saved-r2 -fcall-saved-r12 -fcall-saved-r13 -Wall -Wextra -Werror)
 target_include_directories(ppc_rom PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR})
 target_compile_definitions(ppc_rom PRIVATE __PPC__)
 

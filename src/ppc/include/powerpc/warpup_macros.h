@@ -33,7 +33,7 @@
         APTR * __funcPtr = (APTR*)(2+((ULONG)baseName)+lvo);                            \
         if((arg1Reg)!=3) __ARGUMENT_ERROR(PPCLP2,1,arg1Reg);                            \
         if((arg2Reg)!=4) __ARGUMENT_ERROR(PPCLP2,2,arg2Reg);                            \
-        reurnType (*__lvo_func)(APTR,arg2Type) = (reurnType (*)(APTR,arg2Type))*__funcPtr; \
+        returnType (*__lvo_func)(APTR,arg2Type) = (returnType (*)(APTR,arg2Type))*__funcPtr; \
         __lvo_func(__a1,__a2);                                                          \
     })
 
