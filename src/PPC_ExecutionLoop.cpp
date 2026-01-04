@@ -151,7 +151,8 @@ static __used__ void PrintContext(struct PPCState *ppc)
         kprintf("   fr%02d = %08x%08x (%f)", i, u.u[0], u.u[1], u.d);
     }
     kprintf("\n[PPC]\n[PPC]    SRR0 = 0x%08x   SRR1 = 0x%08x   MSR = 0x%08x\n", BE32(ppc->SRR0), BE32(ppc->SRR1), BE32(ppc->MSR));
-    kprintf("[PPC]    SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
+    kprintf("[PPC]    SPRG = { 0x%08x, 0x%08x, 0x%08x, 0x%08x,\n", BE32(ppc->SPRG[0]), BE32(ppc->SPRG[1]), BE32(ppc->SPRG[2]), BE32(ppc->SPRG[3]));
+    kprintf("[PPC]             0x%08x, 0x%08x, 0x%08x, 0x%08x }\n", BE32(ppc->SPRG[4]), BE32(ppc->SPRG[5]), BE32(ppc->SPRG[6]), BE32(ppc->SPRG[7]));
 }
 
 static inline uint32_t * FindUnitQuick()
