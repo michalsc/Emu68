@@ -7,6 +7,8 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#include <cstddef>
+
 /* Don't include A64.h */
 #define _A64_H
 #include "support.h"
@@ -75,6 +77,71 @@ extern "C" void __cxa_finalize(void (*f)(void*))
         }
     }
 }
+
+void *operator new(std::size_t sz)
+{
+    extern void *tlsf;
+    void *ptr = nullptr;
+
+    if (sz > 0x80000000) {
+        kprintf("[CPP] operator ::new called with size 0x%llx above limits!", sz);
+        while(1) { asm volatile("wfe"); }
+    } else {
+        ptr = tlsf_malloc(tlsf, sz);
+        if (ptr == nullptr) {
+            kprintf("[CPP] operator ::new: tlsf_malloc returned NULL!");
+            while(1) { asm volatile("wfe"); }
+        }
+    }
+
+    return ptr;
+}
+
+void *operator new[](std::size_t sz)
+{
+    extern void *tlsf;
+    void *ptr = nullptr;
+
+    if (sz > 0x80000000) {
+        kprintf("[CPP] operator ::new[] called with size 0x%llx above limits!", sz);
+        while(1) { asm volatile("wfe"); }
+    } else {
+        ptr = tlsf_malloc(tlsf, sz);
+        if (ptr == nullptr) {
+            kprintf("[CPP] operator ::new[]: tlsf_malloc returned NULL!");
+            while(1) { asm volatile("wfe"); }
+        }
+    }
+
+    return ptr;
+}
+
+void operator delete(void *p)
+{
+    if (p != nullptr) {
+        extern void *tlsf;
+        tlsf_free(tlsf, p);
+    }
+}
+
+void operator delete(void *p, std::size_t)
+{
+    operator delete(p);
+}
+
+void operator delete[](void *p)
+{
+    if (p != nullptr) {
+        extern void *tlsf;
+        tlsf_free(tlsf, p);
+    }
+}
+
+void operator delete[](void *p, std::size_t)
+{
+    operator delete(p);
+}
+
 #if 0
 [[maybe_unused]] static bool table_initialized = []() {
     //while(1);
