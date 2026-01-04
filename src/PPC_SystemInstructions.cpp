@@ -447,7 +447,10 @@ int mfspr(PPCTranslatorContext *tc, uint32_t opcode)
                     lsr64(reg_rd, tmp, 32)
                 });
                 break;
-
+            case 904: /* CNTFRQ - Decrementer counter frequency */
+                tc->emit(mrs(reg_rd, sys_CNTFRQ_EL0));
+                break;
+                
             default:
                 return -1;
         }
