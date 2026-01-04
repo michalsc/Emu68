@@ -21,8 +21,8 @@ namespace Emu68::PPC {
 void PPCTranslatorContext::emitException(uint16_t type)
 {
     /* When entering exception, all dirty registers must be stored! */
-    storeDirtyFPRs();
-    storeDirtyGPRs();
+    flushAllFPRs();
+    flushAllGPRs();
 
     /* Flush program counter */
     flushPC();
@@ -30,6 +30,13 @@ void PPCTranslatorContext::emitException(uint16_t type)
     /* Get PPCState to shuffle regs */
     uint8_t ctx = getCTX();
     uint8_t tmp = allocARMRegister();
+
+#if EMU68_INSN_COUNTER
+    uint8_t icnt_reg = allocARMRegister();
+    if (tc_InsnCount != 0) {
+        emit(mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
+    }
+#endif
 
     emit({
         /* Store MSR into SRR1, Store PC into SRR0 */
@@ -48,18 +55,29 @@ void PPCTranslatorContext::emitException(uint16_t type)
 
     freeARMRegister(tmp);
 
-    emitLocalExit(0);
+#if EMU68_INSN_COUNTER
+    if (tc_InsnCount != 0) {
+        emit({
+            add64_immed(icnt_reg, icnt_reg, tc_InsnCount & 0xfff),
+            mov_reg_to_simd(CTX_INSN_COUNT, icnt_reg)
+        });
+    }
+    freeARMRegister(icnt_reg);
+#endif
+
+    emit(bx_lr());
 }
 
 void PPCTranslatorContext::emitLocalExit(uint32_t insn_fixup)
 {
+    flushAllGPRs();
+
 #if EMU68_INSN_COUNTER
     uint8_t icnt_reg = allocARMRegister();
     emit(mov_simd_to_reg(icnt_reg, CTX_INSN_COUNT));
 #endif
 
-    storeDirtyFPRs();
-    storeDirtyGPRs();
+    flushAllFPRs();
 
     flushPC();
 
@@ -112,23 +130,23 @@ void PPCTranslatorContext::storeDirtyFPRs()
 
 GPR PPCTranslatorContext::getCTX()
 {
-    if (reg_CTX == 0xff)
+    if (reg_ctx == 0xff)
     {
-        reg_CTX = allocARMRegister();
-        emit(mov_simd_to_reg(reg_CTX, CTX_POINTER));
+        reg_ctx = allocARMRegister();
+        emit(mov_simd_to_reg(reg_ctx, CTX_POINTER));
     }
 
-    return GPR(reg_CTX);
+    return GPR(reg_ctx);
 }
 
 void PPCTranslatorContext::flushCTX()
 {
-    if (reg_CTX != 0xff)
+    if (reg_ctx != 0xff)
     {
-        freeARMRegister(reg_CTX);
+        freeARMRegister(reg_ctx);
     }
 
-    reg_CTX = 0xff;
+    reg_ctx = 0xff;
 }
 
 
@@ -140,9 +158,9 @@ uint8_t PPCTranslatorContext::allocARMRegister()
     {
         int reg = (last_allocated + i) % 12;
 
-        if (((ARMTmpPool) & (1 << reg)) == 0)
+        if (((gpr_tmp_pool) & (1 << reg)) == 0)
         {
-            ARMTmpPool |= 1 << reg;
+            gpr_tmp_pool |= 1 << reg;
             last_allocated = reg;
             return reg;
         }
@@ -191,7 +209,7 @@ void PPCTranslatorContext::freeARMRegister(uint8_t arm_reg)
     if (arm_reg > 11)
         return;
 
-    ARMTmpPool &= ~(1 << arm_reg);
+    gpr_tmp_pool &= ~(1 << arm_reg);
 }
 
 uint8_t PPCTranslatorContext::allocFPRegister()
@@ -202,9 +220,9 @@ uint8_t PPCTranslatorContext::allocFPRegister()
     {
         int reg = (last_allocated + i) % 8;
 
-        if (((FPTmpPool) & (1 << reg)) == 0)
+        if ((fpr_tmp_pool & (1 << reg)) == 0)
         {
-            FPTmpPool |= 1 << reg;
+            fpr_tmp_pool |= 1 << reg;
             last_allocated = reg;
             return reg;
         }
@@ -239,7 +257,7 @@ void PPCTranslatorContext::freeFPRegister(uint8_t fp_reg)
     if (fp_reg > 7)
         return;
 
-    FPTmpPool &= ~(1 << fp_reg);
+    fpr_tmp_pool &= ~(1 << fp_reg);
 }
 
 
@@ -672,6 +690,69 @@ void PPCTranslatorContext::putToLocalState(PPCLocalState *local_state)
         }
         local_state->pls_RegMap[i] = map;
     }
+}
+#if 0
+static const char* regs[] = { 
+    "r00", "r01", "r02", "r03", "r04", "r05", "r06", "r07",
+    "r08", "r09", "r10", "r11", "r12", "r13", "r14", "r15",
+    "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23",
+    "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31",
+    "cr", "xer", "lr", "ctr", "fpscr" };
+#endif
+uint32_t* PPCTranslatorContext::save()
+{
+    RegisterSnapshot *snap = new RegisterSnapshot();
+
+    snap->tc_pc_rel = tc_pc_rel;
+    snap->reg_ctx = reg_ctx;
+    snap->gpr_tmp_pool = gpr_tmp_pool;
+    snap->fpr_tmp_pool = fpr_tmp_pool;
+
+    snap->code_ptr = tc_CodePtr;
+
+    memcpy(&snap->rn, &rn, sizeof(rn));
+    memcpy(&snap->free_pool, &free_pool, sizeof(free_pool));
+    memcpy(&snap->gpr_lru, &gpr_lru, sizeof(gpr_lru));
+    memcpy(&snap->fpr_lru, &fpr_lru, sizeof(fpr_lru));
+#if 0
+    kprintf("[PPC] save() dirty regs: ");
+    for (auto rn : gpr_lru) {
+        if (rn->rn_Dirty) {
+            kprintf("%s(w%02d)  ", regs[rn->rn_RegNum], rn->rn_ARM);
+        }
+    }
+    kprintf("\n");
+#endif
+    snapshots.addHead(snap);
+
+    return tc_CodePtr;
+}
+
+uint32_t* PPCTranslatorContext::restore()
+{
+    RegisterSnapshot *snap = snapshots.remHead();
+
+    if (snap == nullptr) {
+        kprintf("[PPC] PPCTranslatorContext: restore() attempted without previous save()\n");
+        while(1) asm volatile("wfi");
+    }
+
+    uint32_t* old_ptr = tc_CodePtr;
+
+    memcpy(&rn, &snap->rn, sizeof(rn));
+    memcpy(&free_pool, &snap->free_pool, sizeof(free_pool));
+    memcpy(&gpr_lru, &snap->gpr_lru, sizeof(gpr_lru));
+    memcpy(&fpr_lru, &snap->fpr_lru, sizeof(fpr_lru));
+
+    tc_pc_rel = snap->tc_pc_rel;
+    reg_ctx = snap->reg_ctx;
+    gpr_tmp_pool = snap->gpr_tmp_pool;
+    fpr_tmp_pool = snap->fpr_tmp_pool;
+    tc_CodePtr = snap->code_ptr;
+
+    delete snap;
+
+    return old_ptr;
 }
 
 } // namespace Emu68::PPC

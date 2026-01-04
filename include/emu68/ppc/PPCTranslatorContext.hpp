@@ -22,20 +22,33 @@
 
 namespace Emu68::PPC {
 
+struct RegisterSnapshot : public Node {
+    RegisterNode rn[64];
+    List<RegisterNode> free_pool;
+    List<RegisterNode> gpr_lru;
+    List<RegisterNode> fpr_lru;
+    int32_t tc_pc_rel;
+    uint8_t reg_ctx;
+    uint32_t gpr_tmp_pool;
+    uint32_t fpr_tmp_pool;
+    uint32_t* code_ptr;
+};
+
 class PPCTranslatorContext : public TranslatorContext {
     uint32_t* tc_PPCCodeStart;
     uint32_t* tc_PPCCodePtr;
 
-    struct Emu68::PPC::RegisterNode rn[64];
+    RegisterNode rn[64];
 
     int32_t tc_pc_rel;
-    uint8_t reg_CTX;
-    uint32_t ARMTmpPool;
-    uint32_t FPTmpPool;
+    uint8_t reg_ctx;
+    uint32_t gpr_tmp_pool;
+    uint32_t fpr_tmp_pool;
 
     List<RegisterNode> free_pool;
     List<RegisterNode> gpr_lru;
     List<RegisterNode> fpr_lru;
+    List<RegisterSnapshot> snapshots;
 
     struct FlushItem {
         uint8_t Vn, Size, Pos, ARM;
@@ -54,16 +67,9 @@ class PPCTranslatorContext : public TranslatorContext {
     void purgeFlushStore();
 
 public:
-    PPCTranslatorContext() : TranslatorContext(), tc_pc_rel(0), reg_CTX(0xff) {
+    PPCTranslatorContext() : TranslatorContext(), tc_pc_rel(0), reg_ctx(0xff) {
         for (int i=0; i < 64; i++) free_pool.addHead(&rn[i]);
     }
-/*
-    PPCTranslatorContext(uint32_t* ppc_start) :  PPCTranslatorContext() { 
-        tc_PPCCodeStart = ppc_start; 
-        tc_PPCCodePtr = ppc_start;
-    }
-    PPCTranslatorContext(uint32_t* ppc_start, uint32_t* arm_start) :  PPCTranslatorContext(arm_start), tc_PPCCodeStart(ppc_start), tc_PPCCodePtr(ppc_start), tc_pc_rel(0), reg_CTX(0xff) {}
-*/
 
     virtual uint8_t allocARMRegister() override;
     virtual uint8_t allocFPRegister() override;
@@ -87,10 +93,10 @@ public:
     void emitLocalExit(uint32_t insn_fixup);
     void storeDirtyGPRs();
     void storeDirtyFPRs();
-    GPR tryCTX() const { return GPR(reg_CTX); }
+    GPR tryCTX() const { return GPR(reg_ctx); }
     GPR getCTX();
     void flushCTX();
-    uint32_t getTempAllocMask() const { return ARMTmpPool; }
+    uint32_t getTempAllocMask() const { return gpr_tmp_pool; }
     void emitAddImmediate(uint8_t rd, int32_t delta);
     GPR mapGPRForRead(uint8_t reg) { return GPR(intMapGPR(reg, 1, 0)); }
     GPR mapGPRForReadAndWrite(uint8_t reg) { return GPR(intMapGPR(reg, 1, 1)); }
@@ -105,6 +111,9 @@ public:
     void flushAllFPRs();
     void flushAllGPRs();
     void putToLocalState(PPCLocalState *ls);
+
+    uint32_t* save();
+    uint32_t* restore();
 };
 
 inline void PPCTranslatorContext::getOffsetPC(int8_t *offset) {
