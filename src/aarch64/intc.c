@@ -88,6 +88,16 @@ void gic_local_init()
     kprintf("[GIC] CPU local enabled, Version %08x\n", rd32le(gic_base_cpu + GICC_IIDR));
 }
 
+void gic_local_disable()
+{
+    kprintf("[GIC] gic_local_disable()\n");
+
+    /* Disable CPU interface */
+    uint32_t reg = rd32le(gic_base_cpu + GICC_CTLR);
+    reg &= ~1;
+    wr32le(gic_base_cpu + GICC_CTLR, reg);
+}
+
 void gic_irq_eanble(unsigned int id)
 {
     uint32_t reg = id / 32;

@@ -19,6 +19,7 @@ extern "C" {
 
 int gic_available();
 void gic_local_init();
+void gic_local_disable();
 void gic_irq_eanble(unsigned int id);
 void gic_irq_disable(unsigned int id);
 void gic_set_priority(unsigned int id, uint8_t prio);
