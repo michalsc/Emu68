@@ -284,6 +284,8 @@ extern int block_c0;
 // Helper function to map peripheral ranges
 void map_peripheral_ranges(char *node_name, uint32_t *start_map)
 {
+    int is_scb = strcmp(node_name, "/scb") == 0;
+
     of_node_t *e = dt_find_node(node_name);
     if (!e)
         return;
@@ -313,7 +315,7 @@ void map_peripheral_ranges(char *node_name, uint32_t *start_map)
         addr_len = BE32(ranges[pos_sbus]);
 
         /* Ignore large identity mappings in /scb branch */
-        if(addr_bus == addr_cpu)
+        if(is_scb && addr_bus == addr_cpu)
         {
             len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
             ranges += addr_bus_len + addr_cpu_len + size_bus_len;
