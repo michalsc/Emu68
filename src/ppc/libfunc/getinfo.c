@@ -40,6 +40,7 @@ void L_GetInfo(struct PPCBase *PowerPCBase, struct TagItem *tagList)
                 tagItem->ti_Data = 0;   /* No user available MMU */
                 break;
             case GETINFO_BUSCLOCK:
+                asm volatile("mfspr %0, 904":"=r"(tagItem->ti_Data));
                 /* TODO */
                 break;
             case GETINFO_CPUCLOCK:
