@@ -195,8 +195,13 @@ void Exception_Entry(struct PrivatePPCBase * PowerPCBase, struct iframe *iframe)
 
         case 9:
         {
-            kprintf("[PPC] Decrementer\n");
-            asm volatile("mtdec %0"::"r"( 19200000 * 2));
+            ULONG tbl, tbu;
+            asm volatile("mftbl %0; mftbu %1":"=r"(tbl),"=r"(tbu));
+            kprintf("[PPC] Decrementer, tb=%08x%08x\n", tbu, tbl);
+            ULONG dec;
+            asm volatile("mfspr %0, 904":"=r"(dec));
+            kprintf("[PPC]   programming next decrementer to %d (1 second)\n", dec);
+            asm volatile("mtdec %0"::"r"(dec));
             break;
         }
 
