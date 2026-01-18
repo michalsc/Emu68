@@ -15,6 +15,10 @@
 
 namespace Emu68 {
 
+#if WAY_COUNT >= 32
+#error "EMU68_LRU_WAY_COUNT too high"
+#endif
+
 constexpr uint32_t WAY_COUNT = EMU68_LRU_WAY_COUNT;
 constexpr uint32_t SET_COUNT = EMU68_LRU_SET_COUNT;
 
