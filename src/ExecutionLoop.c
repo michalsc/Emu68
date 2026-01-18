@@ -79,7 +79,7 @@ uint32_t *LRU_FindBlock(uint32_t address)
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
             uint32_t current = LRU_alloc[set] & ~mask; 
-            if (current == 0) current = ~mask;
+            if (current >> (32 - EMU68_LRU_WAY_COUNT) == 0) current = ~mask;
             LRU_alloc[set] = current;
             
             return e[i].arm;
@@ -161,7 +161,7 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
 
     // Touch the last used
     uint32_t current = LRU_alloc[set] & ~mask; 
-    if (current == 0) current = ~mask;
+    if (current >> (32 - EMU68_LRU_WAY_COUNT) == 0) current = ~mask;
     LRU_alloc[set] = current;
 }
 

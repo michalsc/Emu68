@@ -28,7 +28,7 @@ uint32_t* LRUCache::findBlock(uint32_t address)
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
             uint32_t current = alloc[set] & ~mask; 
-            if (current == 0) { current = ~mask; }
+            if ((current >> WAY_COUNT) == 0) { current = ~mask; }
             alloc[set] = current;
 
             return e[i].arm;
@@ -95,7 +95,7 @@ void LRUCache::insertBlock(uint32_t address, uint32_t* entryPoint)
 
     // Touch the last used
     uint32_t current = alloc[set] & ~mask; 
-    if (current == 0) { current = ~mask; }
+    if ((current >> WAY_COUNT) == 0) { current = ~mask; }
     alloc[set] = current;
 }
 
