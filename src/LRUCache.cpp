@@ -20,7 +20,7 @@ uint32_t* LRUCache::findBlock(uint32_t address)
     struct Entry* e = &cache[set * WAY_COUNT];
     uint32_t mask = 0x80000000;
     
-    for (int i = 0; i < WAY_COUNT; i++, mask >>= 1)
+    for (uint32_t i = 0; i < WAY_COUNT; i++, mask >>= 1)
     {
         if (likely(e[i].ppc == address))
         {
