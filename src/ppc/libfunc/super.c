@@ -15,7 +15,10 @@ ULONG L_Super(struct PPCBase *)
 
     DFUNC(kprintf("[PPC] powerpc.library/Super()\n"));
 
-    asm volatile(".globl L_Super_Addr\n\tlis 4, %1; ori 4, 4, %2;\nL_Super_Addr: mfpvr %0":"=r"(key):"i"(SUPERKEY >> 16), "i"(SUPERKEY & 0xffff):"r4");
+    asm volatile(".globl L_Super_Addr\n\tlis 4, %1; ori 4, 4, %2;\nL_Super_Addr: mfpvr %0":
+                    "=r"(key):
+                    "i"(SUPERKEY >> 16), "i"(SUPERKEY & 0xffff):
+                    "r4");
 
     return key;
 }

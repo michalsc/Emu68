@@ -22,7 +22,7 @@ void L_GetInfo(struct PPCBase *PowerPCBase, struct TagItem *tagList)
     {
         switch(tagItem->ti_Tag) {
             case GETINFO_CPU:
-                tagItem->ti_Data = -1;  /* No CPU type for Emu68 defined! */
+                tagItem->ti_Data = CPUF_EMU68;
                 break;
             case GETINFO_PVR:
                 tagItem->ti_Data = base->pp_pvr;
@@ -41,7 +41,6 @@ void L_GetInfo(struct PPCBase *PowerPCBase, struct TagItem *tagList)
                 break;
             case GETINFO_BUSCLOCK:
                 asm volatile("mfspr %0, 904":"=r"(tagItem->ti_Data));
-                /* TODO */
                 break;
             case GETINFO_CPUCLOCK:
                 /* TODO */

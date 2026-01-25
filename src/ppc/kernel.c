@@ -45,39 +45,6 @@ void Start()
 
     kprintf("[PPC] Waiting for powerpc.library to come up\n");
 
-{
-
-struct PrivatePPCBase *PowerPCBase = (void*)0x10000000;
-struct EXCContext *ctx = (void*)0x10008000;
-
-PowerPCBase->pp_iFrame = ctx;
-
-PatchLVOTable(&PowerPCBase->pp_Public);
-
-asm volatile("eieio");
-NewListPPC(&PowerPCBase->pp_PPCTaskReady);
-NewListPPC(&PowerPCBase->pp_PPCTaskWait);
-asm volatile("eieio");
-
-asm volatile("mfpvr %0":"=r"(PowerPCBase->pp_pvr));
-
-kprintf("[PPC] PPCBase = %08lx\n[PPC] null context = %0lx\n", PowerPCBase, ctx);
-setBASE(PowerPCBase);
-asm volatile("mtdec %0"::"r"(50000000));
-
-kprintf("[PPC] MSR=%08x\n", getMSR());
-kprintf("[PPC] Switching to user mode\n");
-User(0);
-
-CauseInterrupt();
-
-kprintf("[PPC] trying to read MSR again\n");
-kprintf("[PPC] MSR=%08x\n", getMSR());
-}
-
-
-while(1);
-#if 0
     uint32_t msg = doorbell_wait((doorbell_t *)0xffefff80);
 
     kprintf("[PPC] PPCBase = %08x\n", msg);
@@ -105,7 +72,6 @@ while(1);
     kprintf("[PPC] Packet sent\n");
 
     while(1);
-#endif
 }
 
 void SendPacketMessage(struct PrivatePPCBase * PPCBase, APTR message)

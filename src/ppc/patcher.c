@@ -119,12 +119,7 @@ const struct {
 #define	SetExcHandler(v1)	PPCLP2	(PowerPCBase,-516,APTR,		struct Library *,3,PowerPCBase,struct TagItem *,4,v1)
 #define	SetExcMMU()		PPCLP1NR(PowerPCBase,-576,		struct Library *,3,PowerPCBase)
 #define	ClearExcMMU()		PPCLP1NR(PowerPCBase,-582,		struct Library *,3,PowerPCBase)
-#define	CauseInterrupt()	PPCLP1NR(PowerPCBase,-810,		struct Library *,3,PowerPCBase)
 #define IsExceptionMode()	PPCLP1(PowerPCBase,-864,BOOL,struct Library *,3,PowerPCBase)
-
-        /* *** supervisor */
-
-#define User(v1)		PPCLP2NR(PowerPCBase,-534,		struct Library *,3,PowerPCBase,ULONG,4,v1)
 
         /* *** 68K connection */
 #define Signal68K(v1,v2)	PPCLP3NR(PowerPCBase,-504,		struct Library *,3,PowerPCBase,struct Task *,4,v1,ULONG,5,v2)

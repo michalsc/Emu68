@@ -68,15 +68,17 @@ struct PPCBase {
 #define CPUB_G3    21
 #define CPUB_G4    22
 #define CPUB_G5    23
+#define CPUB_EMU68 28
 
-#define CPUF_603  (1L<<4)
-#define CPUF_603E (1L<<8)
-#define CPUF_604  (1L<<12)
-#define CPUF_604E (1L<<16)
-#define CPUF_620  (1L<<20)
-#define CPUF_G3   (1L<<21)
-#define CPUF_G4   (1L<<22)
-#define CPUF_G5   (1L<<23)
+#define CPUF_603   (1L<<4)
+#define CPUF_603E  (1L<<8)
+#define CPUF_604   (1L<<12)
+#define CPUF_604E  (1L<<16)
+#define CPUF_620   (1L<<20)
+#define CPUF_G3    (1L<<21)
+#define CPUF_G4    (1L<<22)
+#define CPUF_G5    (1L<<23)
+#define CPUF_EMU68 (1L<<28)
 
 struct PPCArgs {
         APTR  PP_Code;          /* Code Entry / Basevariable (OS Callback) */
