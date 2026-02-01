@@ -7,7 +7,10 @@
 extern "C" {
 #endif
 
+#define TLSF_MULTITHREADING 1
+
 void* tlsf_init();
+void tlsf_set_flags(void *handle, uint32_t flags);
 void tlsf_add_memory(void* t, void* memory, uintptr_t size);
 
 void* tlsf_malloc(void* handle, uintptr_t size);

@@ -1109,6 +1109,9 @@ void boot(void *dtree)
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
 
+    /* Main tlsf is multithreaded */
+    tlsf_set_flags(tlsf, TLSF_MULTITHREADING);
+
     /* Initialize memory management for libdeflate */
     libdeflate_set_memory_allocator(my_malloc, my_free);
 
