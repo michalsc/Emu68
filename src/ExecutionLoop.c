@@ -242,6 +242,30 @@ static inline struct M68KTranslationUnit *FindUnit()
     return NULL;
 }
 
+static inline struct M68KTranslationUnit *FindUnitNoLRU()
+{
+    union {
+        struct Node * node;
+        struct M68KTranslationUnit * unit;
+    } un;
+
+    /* Perform search */
+    uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+    struct List *bucket = &ICache[hash];
+
+    /* Go through the list of translated units */
+    ForeachNode(bucket, un.node)
+    {
+        /* Check if unit is found */
+        if (un.unit->mt_M68kAddress == PC)
+        {
+            return un.unit;
+        }
+    }
+
+    return NULL;
+}
+
 #ifdef PISTORM_CLASSIC
 
 extern volatile unsigned char bus_lock;
@@ -500,11 +524,12 @@ void MainLoop()
             M68K_SaveContext(ctx);
 
             /* Find the unit */
-            node = FindUnit();
+            node = FindUnitNoLRU();
+
             /* If node is found verify it */
             if (likely(node != NULL))
             {
-                node = M68K_VerifyUnit(node);
+                node = M68K_VerifyUnitCRC32(node);
             }
             /* If node was not found or invalidated, translate code */
             if (unlikely(node == NULL))
