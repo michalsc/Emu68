@@ -52,17 +52,32 @@ struct PrivatePPCBase {
 #define STATUS_ACK              0x0061636b
 
 enum XMsgType {
-    XMSG_SIGNAL_TASK = 1,
-    XMSG_CAUSE
+    XMSG_SIGNAL_M68K_TASK = 1,
+    XMSG_CAUSE,
+    XMSG_CALL_M68K_IN_SUPERSTATE,
+    XMSG_KPRINTF,
 };
 
 struct XMessage {
     enum XMsgType id;
     union {
         struct {
-            struct Task*    task;
-            ULONG           sigset;
-        } SignalTask;
+            struct Task*        task;
+            ULONG               sigset;
+        } xmSignalM68kTask;
+        struct {
+            struct Interrupt*   interrupt;
+        } xmCause;
+        struct {
+            ULONG               code;
+            ULONG               offset;
+            ULONG               dn[8];
+            ULONG               an[7];
+        } xmCallM68kInSuperstate;
+        struct {
+            const char *        msg;
+            void *              args;
+        } xmKPrintF;
     };
 };
 

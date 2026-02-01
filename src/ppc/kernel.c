@@ -58,9 +58,9 @@ void Start()
     kprintf("[PPC] Ringing m68k back\n");
 
     struct XMessage m;
-    m.id = XMSG_SIGNAL_TASK;
-    m.SignalTask.task = PPCBase->pp_WaitingTask;
-    m.SignalTask.sigset = 1 << PPCBase->pp_WaitingTaskBit;
+    m.id = XMSG_SIGNAL_M68K_TASK;
+    m.xmSignalM68kTask.task = PPCBase->pp_WaitingTask;
+    m.xmSignalM68kTask.sigset = 1 << PPCBase->pp_WaitingTaskBit;
 
     msr = getMSR();
     setMSR(msr | MSR_EE);
