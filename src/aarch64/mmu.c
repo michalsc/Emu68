@@ -46,7 +46,12 @@ static void *get_4k_page()
     /* Check if there is a free 4k page */
     if (!mmu_free_pages)
     {
-        /* No more 4K pages to use? Grab topmost 2MB of RAM */
+        kprintf("Out of 4K pages for MMU tables!\n");
+        while(1);
+        #if 0
+        if (serial_up)
+            kprintf("No more 4K pages to use? Grab topmost 2MB of RAM\n");
+
         of_node_t *e = dt_find_node("/memory");
         if (e)
         {
@@ -104,6 +109,7 @@ static void *get_4k_page()
                 mmu_free_pages->mp_next = last;
             }
         }
+        #endif
     }
 
     /* Now try to grab new 4K page */
@@ -115,7 +121,11 @@ static void *get_4k_page()
         /* Update pointer to free pages */
         mmu_free_pages = p->mp_next;
     }
-
+    else 
+    {
+        kprintf("Failed to get 4K page!\n");
+        while(1);
+    }
     return p;
 }
 
@@ -226,6 +236,8 @@ void mmu_init()
         mapped, but the rest will come very soon.
     */
 
+    uintptr_t mmu_ploc = 0;
+
     of_node_t *e = dt_find_node("/memory");
 
     if (e)
@@ -240,6 +252,7 @@ void mmu_init()
         sys_memory = tlsf_malloc(tlsf, (1 + block_count) * sizeof(struct MemoryBlock));
         for (int block=0; block < block_count; block++)
         {
+            int last_block = (block == block_count - 1);
             uintptr_t addr = 0;
             uintptr_t size = 0;
             int update_needed = 0;
@@ -251,6 +264,13 @@ void mmu_init()
             for (int i=0; i < size_cells; i++)
             {
                 size = (size << 32) | BE32(range[i + address_cells]);
+            }
+
+            /* If this is the last block, borrow 2MB from there for initial MMU page pool */
+            if (last_block) {
+                size -= 2*1024*1024;
+                update_needed = 1;
+                mmu_ploc = addr + size;
             }
 
             if (vid_memory != 0 && vid_base == 0) {
@@ -313,6 +333,15 @@ void mmu_init()
     mmu_user_L1.mp_entries[1] = 0;
     mmu_user_L1.mp_entries[2] = 0;
     mmu_user_L1.mp_entries[3] = 0;
+
+    /* Initialize the MMU page pool */
+    mmu_ploc += PHYS_VIRT_OFFSET;
+    for (int i=0; i < 512; i++)
+    {
+        struct mmu_page *p = (struct mmu_page *)(mmu_ploc + i * sizeof(struct mmu_page));
+        p->mp_next = mmu_free_pages;
+        mmu_free_pages = p;
+    }
 
     arm_flush_cache((intptr_t)&mmu_user_L1, sizeof(mmu_user_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L1, sizeof(mmu_kernel_L1));
