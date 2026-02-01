@@ -16,7 +16,7 @@
                     lanes = <1>;
                     aspect-ratio = <1000>;
                     scaler = /bits/ 16 <3 64>;
-                    kernel = /bits/ 16 <250 750>;
+                    kernel = /bits/ 16 <200 400>;
                     type = <0>;                 // framethrower=0, c790=1
                     pixel-order = <0>;          // rgb=0, bgr=1
                     framethrower-mode = <1>;    // a1000=0, ocs=1, ecs=2
