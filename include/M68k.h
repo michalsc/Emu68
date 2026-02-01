@@ -656,6 +656,7 @@ void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void *M68K_TranslateNoCache(uint16_t *m68kcodeptr);
 struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit);
+struct M68KTranslationUnit *M68K_VerifyUnitCRC32(struct M68KTranslationUnit *unit);
 void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);

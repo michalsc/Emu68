@@ -785,7 +785,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
 
 /*
     Verify if the translated code has changed since the unit was created. In order
-    to do this MD5 sum of the block is compared with the previousy calculated one.
+    to do this fingerprint and crc32 of the block is compared with the previousy calculated one.
 
     If th sums are not same, the block is removed form LRU cache and hashtable and memory
     is released.
@@ -826,9 +826,18 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
 
         /* 
             First check fingerprint - if this one changed then there is no need to calculate CRC32
-            of the whole block
+            of the whole block.
+
+            HOWEVER - calculate fingerprint **only** if CRC32 block would take longer, i.e. block 
+            is larger than 8 bytes!
         */
-        uint32_t fp = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
+        uint32_t fp = 0;
+
+        if (unit->mt_M68kHigh - unit->mt_M68kLow > 8) {
+            fp = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
+        } else {
+            fp = unit->mt_Fingerprint;
+        }
 
         /* If FP matches, calculate CRC32 */
         if (fp == unit->mt_Fingerprint)
@@ -862,6 +871,38 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
             uint32_t hash = (unit->mt_M68kAddress >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
             REMOVE(&unit->mt_HashNode);
             ADDHEAD(&ICache[hash], &unit->mt_HashNode);
+        }
+    }
+
+    return unit;
+}
+
+/*
+    Verify if the translated code has changed since the unit was created. In order
+    to do this, only crc32 of the block is compared with the previousy calculated one.
+
+    If th sums are not same, the block is removed form LRU cache and hashtable and memory
+    is released.
+
+    The function returns poitner to verified unit or NULL if the unit changed
+*/
+struct M68KTranslationUnit *M68K_VerifyUnitCRC32(struct M68KTranslationUnit *unit)
+{
+    if (unit)
+    {
+        uint32_t crc = CalcCRC32((void *)(uintptr_t)unit->mt_M68kLow, (void*)(uintptr_t)unit->mt_M68kHigh);
+
+        /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
+        if (crc != unit->mt_CRC32)
+        {
+            REMOVE(&unit->mt_LRUNode);
+            REMOVE(&unit->mt_HashNode);
+            tlsf_free(jit_tlsf, unit);
+
+            __m68k_state->JIT_UNIT_COUNT--;
+            __m68k_state->JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
+
+            unit = NULL;
         }
     }
 
