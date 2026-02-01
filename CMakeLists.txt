@@ -273,7 +273,7 @@ else()
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
+add_compile_options(-mbig-endian -fno-exceptions -fno-unwind-tables -fno-stack-protector -fno-asynchronous-unwind-tables -fno-pic -fno-pie -no-pie -ffreestanding -Wall -Wextra -Werror)
 
 list(APPEND ARCH_FILES
     src/aarch64/start.c
