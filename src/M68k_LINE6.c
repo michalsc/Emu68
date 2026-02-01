@@ -130,10 +130,8 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
     /* use 32-bit offset */
     else if ((opcode & 0x00ff) == 0xff)
     {
-        uint16_t lo16, hi16;
-        hi16 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
-        lo16 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
-        branch_offset = lo16 | (hi16 << 16);
+        branch_offset = (int32_t)cache_read_32(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
+        ctx->tc_M68kCodePtr += 2;
     }
     else
     /* otherwise use 8-bit offset */
