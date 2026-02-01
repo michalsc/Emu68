@@ -1145,6 +1145,26 @@ void boot(void *dtree)
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
 
+    /* Verify the unicam buffer has necessary size */
+    if ((e = dt_find_node("/emu68/unicam")) != NULL)
+    {
+        of_property_t *sz = dt_find_property(e, "size");
+        of_property_t *bp = dt_find_property(e, "bpp");
+        uint32_t bpp = *(uint32_t *)bp->op_value;
+        uint32_t val = *(uint32_t *)sz->op_value;
+        uint32_t w = (val >> 16) & 0xffff;
+        uint32_t h = val & 0xffff;
+        
+        /* Necessary size is width * height * depth, doubled, incase unicam fires DMA at wrong address */
+        uint32_t necessary_size = ((bpp * w * h * 2) + 7) / 8;
+
+        /* Roundup size to multiple of 2MB */
+        necessary_size = (necessary_size + 2 * 1024 * 1024) & ~(2 * 1024 * 1024 - 1);
+
+        if (unicam_size < necessary_size)
+            unicam_size = necessary_size;
+    }
+
     /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
     if ((e = dt_find_node("/emu68/defaults")) == NULL)
     {
