@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 1.0.999)
-set(PROJECT_VERSION 1.0.999)
+project(Emu68 VERSION 1.1.0)
+set(PROJECT_VERSION 1.1.0-alpha.1)
 
 #set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 include(ExternalProject)
