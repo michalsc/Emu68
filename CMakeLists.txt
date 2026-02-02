@@ -32,7 +32,22 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 23)
 
-set(CONTEXT_RESERVE_FLAGS "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21 -ffixed-v22 -ffixed-d22 -ffixed-v23 -ffixed-d23 -ffixed-v24 -ffixed-d24 -ffixed-v25 -ffixed-d25 -ffixed-v26 -ffixed-d26")
+set(CONTEXT_RESERVE_FLAGS 
+        "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 \
+         -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21 -ffixed-v22 \
+         -ffixed-d22 -ffixed-v23 -ffixed-d23 -ffixed-v24 -ffixed-d24 \
+         -ffixed-v25 -ffixed-d25 -ffixed-v26 -ffixed-d26")
+
+set(M68K_FIXED_REGS 
+        "-ffixed-x12 -ffixed-x18 -ffixed-x19 -ffixed-x20 -ffixed-x21 \
+         -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+         -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 \
+         -ffixed-x27 -ffixed-x28 -ffixed-x29")
+
+set(M68K_SAVED_TEMPS
+        "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 \
+         -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11"
+)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
@@ -138,39 +153,24 @@ set(OVERLAY_FILES
 build_devicetree(OVERLAY_FILES)
 
 set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
-    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
-    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
-    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18 ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
-    "-Wno-error=maybe-uninitialized \
-    -fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
-    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
-    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18 ${CONTEXT_RESERVE_FLAGS}")
+    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 set_source_files_properties(src/math/__rem_pio2.c PROPERTIES COMPILE_FLAGS
-    "-Wno-error=maybe-uninitialized \
-    -fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
-    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
-    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18 ${CONTEXT_RESERVE_FLAGS}")
+    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
-    "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
-     -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
-     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 
+
+# TODO: PPC need a check which regs need really to be saved here...
 set_source_files_properties(src/PPC_Translator.cpp PROPERTIES COMPILE_FLAGS 
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
      -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
-
-#set_source_files_properties(src/PPC_ExecutionLoop.cpp PROPERTIES COMPILE_FLAGS 
-#    "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
-#     -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
-#     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-#     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
 
 set_source_files_properties(src/PPC_ExecutionLoop.cpp PROPERTIES COMPILE_FLAGS 
     "-ffixed-x12 -ffixed-x18  \
@@ -187,11 +187,7 @@ set_source_files_properties(src/LRUCache.cpp PROPERTIES COMPILE_FLAGS
 # All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/M68k_ExceptionEntry.c PROPERTIES COMPILE_FLAGS 
-    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
-     -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -ffixed-x12 -ffixed-x13 \
-     -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x18  \
-     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
