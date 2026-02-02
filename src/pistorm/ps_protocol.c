@@ -907,7 +907,7 @@ static void ps32_do_write_access_2s(unsigned int address, unsigned int data, uns
 
     next_slot = (next_slot + 1) & 1;
 
-    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline void ps32_do_write_access_64_2s(unsigned int address, uint64_t data)
@@ -965,7 +965,7 @@ static inline void ps32_do_write_access_64_2s(unsigned int address, uint64_t dat
 
     next_slot = (next_slot + 1) & 1;
 
-    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t data)
@@ -1061,7 +1061,7 @@ static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t d
 
     next_slot = (next_slot + 1) & 1;
 
-    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static int ps32_do_read_access_2s(unsigned int address, unsigned int size)
@@ -1228,7 +1228,7 @@ static inline void ps32_do_write_access(unsigned int address, unsigned int data,
 
     set_input();
 
-    if (address > 0x00200000)
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         wait_txn();
 
@@ -1236,6 +1236,8 @@ static inline void ps32_do_write_access(unsigned int address, unsigned int data,
     }
     else
         write_pending = 1;
+
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline void ps32_do_write_access_64(unsigned int address, uint64_t data)
@@ -1271,7 +1273,7 @@ static inline void ps32_do_write_access_64(unsigned int address, uint64_t data)
 
     set_input();
 
-    if (address > 0x00200000)
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         wait_txn();
 
@@ -1279,6 +1281,8 @@ static inline void ps32_do_write_access_64(unsigned int address, uint64_t data)
     }
     else
         write_pending = 1;
+    
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline void ps32_do_write_access_128(unsigned int address, uint128_t data)
@@ -1344,7 +1348,7 @@ static inline void ps32_do_write_access_128(unsigned int address, uint128_t data
 
     set_input();
 
-    if (address > 0x00200000)
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         wait_txn();
 
@@ -1352,6 +1356,8 @@ static inline void ps32_do_write_access_128(unsigned int address, uint128_t data
     }
     else
         write_pending = 1;
+    
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps_read_32(0x00f80000);
 }
 
 static inline int ps32_do_read_access(unsigned int address, unsigned int size)
@@ -1617,7 +1623,7 @@ static inline void ps16_write_access(unsigned int address, unsigned int data, un
 
     set_input();
 
-    if (address > 0x00200000)
+    if (address >= 0x00bf0000 && address <= 0x00dfffff)
     {
         wait_txn();
 
@@ -1626,7 +1632,7 @@ static inline void ps16_write_access(unsigned int address, unsigned int data, un
     else
         write_pending = 1;
     
-    if (address >= 0x00bf0000 && address <= 0x00dfffff) ps16_read_access(0x00f80000, SIZE_WORD);
+    if (address >= 0x00dff000 && address <= 0x00dfffff) ps16_read_access(0x00f80000, SIZE_WORD);
 }
 
 unsigned int ps16_read_8_int(unsigned int address)
