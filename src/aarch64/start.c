@@ -789,7 +789,7 @@ void parse_cmdline(const char *cmdline)
                 break;
         }
     }
-
+#if 0
     /* UNICAM section */
     of_node_t *unicam = dt_find_node("/emu68/unicam");
 
@@ -1080,7 +1080,7 @@ void parse_cmdline(const char *cmdline)
     }
 
     // unicam.mode
-
+#endif
 #endif
 }
 
