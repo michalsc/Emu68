@@ -267,14 +267,9 @@ static inline void set_output()
     GPIO->GPFSEL2 = OUTPUT[2];
 }
 
-volatile uint8_t gpio_busy;
-volatile uint32_t gpio_lev0;
-
 static inline void wait_txn()
 {
-    gpio_busy = 1;
-    while ((gpio_lev0 = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
-    gpio_busy = 0;
+    while (GPIO->GPLEV0 & LE32(1 << PIN_TXN)) {}
 }
 
 static inline uint32_t read_ps_reg_ps16(uint32_t address)
@@ -286,11 +281,9 @@ static inline uint32_t read_ps_reg_ps16(uint32_t address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
 
-    gpio_busy = 1;
     // More conservative behavior - read the GPLEV0 twice
-    uint32_t data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    gpio_busy = 0;
+    uint32_t data = LE32(GPIO->GPLEV0);
+    //data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = CLEAR_BITS;
@@ -309,10 +302,8 @@ static inline uint32_t read_ps_reg_ps32(uint32_t address)
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = LE32(1 << PIN_RD);
 
-    gpio_busy = 1;
-    uint32_t data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    gpio_busy = 0;
+    uint32_t data = LE32(GPIO->GPLEV0);
+    data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = CLEAR_BITS;
@@ -333,11 +324,9 @@ static inline uint32_t read_ps_reg_with_wait_ps16(uint32_t address)
 
     wait_txn();
 
-    gpio_busy = 1;
     // More conservative behavior - read the GPLEV0 twice
-    uint32_t data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    gpio_busy = 0;
+    uint32_t data = LE32(GPIO->GPLEV0);
+    //data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = CLEAR_BITS;
@@ -358,10 +347,8 @@ static inline uint32_t read_ps_reg_with_wait_ps32(uint32_t address)
 
     wait_txn();
 
-    gpio_busy = 1;
-    uint32_t data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    data = LE32(gpio_lev0 = GPIO->GPLEV0);
-    gpio_busy = 0;
+    uint32_t data = LE32(GPIO->GPLEV0);
+    data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = CLEAR_BITS;
@@ -389,9 +376,7 @@ static inline void write_ps_reg_ps16(uint32_t address, uint16_t data)
     // give firmware time to start rolling!
     if (address == REG_ADDR_HI)
     {
-        gpio_busy = 1;
-        gpio_lev0 = GPIO->GPLEV0;
-        gpio_busy = 0;
+        (void)GPIO->GPLEV0;
     }
 }
 
@@ -879,18 +864,18 @@ static void ps32_do_write_access_2s(unsigned int address, unsigned int data, uns
 {
     set_output();
 
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
-    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, data & 0xffff);
     if (size == SIZE_LONG)
-        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+        write_ps_reg_ps32(REG_DATA_HI, (data >> 16) & 0xffff);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
    
@@ -914,24 +899,24 @@ static inline void ps32_do_write_access_64_2s(unsigned int address, uint64_t dat
 {
     set_output();
 
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
     /* Set first long word to write */
-    write_ps_reg(REG_DATA_LO, (data >> 32) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data >> 48) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data >> 32) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data >> 48) & 0xffff);
 
     /* Set address and start transaction */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
 
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
@@ -941,14 +926,14 @@ static inline void ps32_do_write_access_64_2s(unsigned int address, uint64_t dat
     address += 4;
 
     /* Set second long word to write */
-    write_ps_reg(REG_DATA_LO, (data) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data >> 16) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     /* Start second transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
    
@@ -971,23 +956,23 @@ static inline void ps32_do_write_access_64_2s(unsigned int address, uint64_t dat
 static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t data)
 {
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
     /* Set first long word to write */
-    write_ps_reg(REG_DATA_LO, (data.hi >> 32) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.hi >> 48) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.hi >> 32) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.hi >> 48) & 0xffff);
 
     /* Set address and start transaction */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
@@ -997,18 +982,18 @@ static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t d
     address += 4;
 
     /* Set second long word to write */
-    write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.hi >> 16) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.hi) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.hi >> 16) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     /* Start second transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
@@ -1017,34 +1002,34 @@ static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t d
     address += 4;
 
     /* Set third long word to write */
-    write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.lo >> 48) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.lo >> 32) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.lo >> 48) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     /* Start third transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     address += 4;
 
     slot_active[next_slot] = 1;
     next_slot = (next_slot + 1) & 1;
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
     /* Set second long word to write */
-    write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.lo >> 16) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.lo) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.lo >> 16) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     /* Start fourth transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1067,25 +1052,25 @@ static inline void ps32_do_write_access_128_2s(unsigned int address, uint128_t d
 static int ps32_do_read_access_2s(unsigned int address, unsigned int size)
 {
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
     unsigned int data;
 
     wait_txn();
 
-    data = read_ps_reg(REG_DATA_LO);
+    data = read_ps_reg_ps32(REG_DATA_LO);
     if (size == SIZE_BYTE)
         data &= 0xff;
     else if (size == SIZE_LONG)
-        data |= read_ps_reg(REG_DATA_HI) << 16;
+        data |= read_ps_reg_ps32(REG_DATA_HI) << 16;
 
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
@@ -1098,14 +1083,14 @@ static inline uint64_t ps32_do_read_access_64_2s(unsigned int address)
     uint64_t data;
 
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1113,16 +1098,16 @@ static inline uint64_t ps32_do_read_access_64_2s(unsigned int address)
 
     address += 4;
 
-    data = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
-    data |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    data = (uint64_t)read_ps_reg_ps32(REG_DATA_HI) << 48;
+    data |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO) << 32;
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
 
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1131,8 +1116,8 @@ static inline uint64_t ps32_do_read_access_64_2s(unsigned int address)
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
 
-    data |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
-    data |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    data |= (uint64_t)read_ps_reg_ps32(REG_DATA_HI) << 16;
+    data |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO);
 
     return data;
 }
@@ -1142,69 +1127,69 @@ static inline uint128_t ps32_do_read_access_128_2s(unsigned int address)
     uint128_t data;
 
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
     if (slot_active[next_slot])
     {
         wait_txn();
     }
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     wait_txn();
 
     address += 4;
-    data.hi = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
-    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    data.hi = (uint64_t)read_ps_reg_ps32(REG_DATA_HI) << 48;
+    data.hi |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO) << 32;
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
 
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     wait_txn();
 
     address += 4;
-    data.hi |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
-    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    data.hi |= (uint64_t)read_ps_reg_ps32(REG_DATA_HI) << 16;
+    data.hi |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO);
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
 
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     wait_txn();
 
     address += 4;
-    data.lo = (uint64_t)read_ps_reg(REG_DATA_HI) << 48;
-    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    data.lo = (uint64_t)read_ps_reg_ps32(REG_DATA_HI) << 48;
+    data.lo |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO) << 32;
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
 
     set_output();
-    write_ps_reg(REG_SLOT, next_slot);
+    write_ps_reg_ps32(REG_SLOT, next_slot);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     wait_txn();
 
-    data.lo |= (uint64_t)read_ps_reg(REG_DATA_HI) << 16;
-    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    data.lo |= (uint64_t)read_ps_reg_ps32(REG_DATA_HI) << 16;
+    data.lo |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO);
 
     slot_active[next_slot] = 0;
     next_slot = (next_slot + 1) & 1;
@@ -1216,15 +1201,15 @@ static inline void ps32_do_write_access(unsigned int address, unsigned int data,
 {
     set_output();
 
-    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, data & 0xffff);
     if (size == SIZE_LONG)
-        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+        write_ps_reg_ps32(REG_DATA_HI, (data >> 16) & 0xffff);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) wait_txn();
 
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1245,15 +1230,15 @@ static inline void ps32_do_write_access_64(unsigned int address, uint64_t data)
     set_output();
 
     /* Set first long word to write */
-    write_ps_reg(REG_DATA_LO, (data >> 32) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data >> 48) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data >> 32) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data >> 48) & 0xffff);
 
     /* Set address and start transaction */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) wait_txn();
 
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     /* Advance the address, set second long word to write */
     address += 4;
@@ -1262,14 +1247,14 @@ static inline void ps32_do_write_access_64(unsigned int address, uint64_t data)
     wait_txn();
 
     /* Set second long word to write */
-    write_ps_reg(REG_DATA_LO, (data) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data >> 16) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
    
     /* Start second transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1290,15 +1275,15 @@ static inline void ps32_do_write_access_128(unsigned int address, uint128_t data
     set_output();
 
     /* Set first long word to write */
-    write_ps_reg(REG_DATA_LO, (data.hi >> 32) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.hi >> 48) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.hi >> 32) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.hi >> 48) & 0xffff);
 
     /* Set address and start transaction */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) wait_txn();
 
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     /* Advance the address, set second long word to write */
     address += 4;
@@ -1307,14 +1292,14 @@ static inline void ps32_do_write_access_128(unsigned int address, uint128_t data
     wait_txn();
 
     /* Set second long word to write */
-    write_ps_reg(REG_DATA_LO, (data.hi) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.hi >> 16) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.hi) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.hi >> 16) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
     
     /* Start second transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     address += 4;
 
@@ -1322,14 +1307,14 @@ static inline void ps32_do_write_access_128(unsigned int address, uint128_t data
     wait_txn();
 
     /* Set third long word to write */
-    write_ps_reg(REG_DATA_LO, (data.lo >> 32) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.lo >> 48) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.lo >> 32) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.lo >> 48) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
     
     /* Start third transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     address += 4;
 
@@ -1337,14 +1322,14 @@ static inline void ps32_do_write_access_128(unsigned int address, uint128_t data
     wait_txn();
 
     /* Set second long word to write */
-    write_ps_reg(REG_DATA_LO, (data.lo) & 0xffff);
-    write_ps_reg(REG_DATA_HI, (data.lo >> 16) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_LO, (data.lo) & 0xffff);
+    write_ps_reg_ps32(REG_DATA_HI, (data.lo >> 16) & 0xffff);
 
     /* Set address */
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
     
     /* Start fourth transaction */
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1364,20 +1349,20 @@ static inline int ps32_do_read_access(unsigned int address, unsigned int size)
 {
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) wait_txn();
 
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
     unsigned int data;
 
-    data = read_ps_reg_with_wait(REG_DATA_LO);
+    data = read_ps_reg_with_wait_ps32(REG_DATA_LO);
     if (size == SIZE_BYTE)
         data &= 0xff;
     else if (size == SIZE_LONG)
-        data |= read_ps_reg(REG_DATA_HI) << 16;
+        data |= read_ps_reg_ps32(REG_DATA_HI) << 16;
 
     write_pending = 0;
 
@@ -1390,27 +1375,27 @@ static inline uint64_t ps32_do_read_access_64(unsigned int address)
 
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) wait_txn();
 
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     address += 4;
-    data = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
-    data |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    data = (uint64_t)read_ps_reg_with_wait_ps32(REG_DATA_HI) << 48;
+    data |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO) << 32;
 
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
-    data |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
-    data |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    data |= (uint64_t)read_ps_reg_with_wait_ps32(REG_DATA_HI) << 16;
+    data |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO);
 
     write_pending = 0;
 
@@ -1423,49 +1408,49 @@ static inline uint128_t ps32_do_read_access_128(unsigned int address)
 
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
     
     if (write_pending) wait_txn();
 
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     address += 4;
-    data.hi = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
-    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    data.hi = (uint64_t)read_ps_reg_with_wait_ps32(REG_DATA_HI) << 48;
+    data.hi |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO) << 32;
 
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     address += 4;
-    data.hi |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
-    data.hi |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    data.hi |= (uint64_t)read_ps_reg_with_wait_ps32(REG_DATA_HI) << 16;
+    data.hi |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO);
 
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
     address += 4;
-    data.lo = (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 48;
-    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO) << 32;
+    data.lo = (uint64_t)read_ps_reg_with_wait_ps32(REG_DATA_HI) << 48;
+    data.lo |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO) << 32;
 
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps32(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps32(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (SIZE_LONG << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
-    data.lo |= (uint64_t)read_ps_reg_with_wait(REG_DATA_HI) << 16;
-    data.lo |= (uint64_t)read_ps_reg(REG_DATA_LO);
+    data.lo |= (uint64_t)read_ps_reg_with_wait_ps32(REG_DATA_HI) << 16;
+    data.lo |= (uint64_t)read_ps_reg_ps32(REG_DATA_LO);
 
     write_pending = 0;
 
@@ -1575,14 +1560,14 @@ static inline int ps16_read_access(unsigned int address, unsigned int size)
 {
     set_output();
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps16(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending)
     {
         wait_txn();
     }
 
-    write_ps_reg(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps16(REG_ADDR_HI, TXN_READ | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
     unsigned int data = 0;
@@ -1591,13 +1576,13 @@ static inline int ps16_read_access(unsigned int address, unsigned int size)
     {
         // First half of data is HI word. When reading this register TXN will show status of this word,
         // not the entire transfer
-        data = read_ps_reg_with_wait(REG_DATA_HI) << 16;
+        data = read_ps_reg_with_wait_ps16(REG_DATA_HI) << 16;
         // Second half of data will be fetched once whole transfer is completed
-        data |= read_ps_reg_with_wait(REG_DATA_LO);
+        data |= read_ps_reg_with_wait_ps16(REG_DATA_LO);
     }
     else
     {
-        data = read_ps_reg_with_wait(REG_DATA_LO);
+        data = read_ps_reg_with_wait_ps16(REG_DATA_LO);
     }
 
     write_pending = 0;
@@ -1609,17 +1594,17 @@ static inline void ps16_write_access(unsigned int address, unsigned int data, un
 {
     set_output();
 
-    write_ps_reg(REG_DATA_LO, data & 0xffff);
+    write_ps_reg_ps16(REG_DATA_LO, data & 0xffff);
     if (size == SIZE_LONG)
-        write_ps_reg(REG_DATA_HI, (data >> 16) & 0xffff);
+        write_ps_reg_ps16(REG_DATA_HI, (data >> 16) & 0xffff);
 
-    write_ps_reg(REG_ADDR_LO, address & 0xffff);
+    write_ps_reg_ps16(REG_ADDR_LO, address & 0xffff);
 
     if (write_pending) {
         wait_txn();
     }
 
-    write_ps_reg(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
+    write_ps_reg_ps16(REG_ADDR_HI, TXN_WRITE | (g_fc << TXN_FC_SHIFT) | (size << TXN_SIZE_SHIFT) | ((address >> 16) & 0xff));
 
     set_input();
 
@@ -1648,7 +1633,7 @@ unsigned int ps16_read_8(unsigned int address)
 
 unsigned int ps16_read_16_int(unsigned int address)
 {
-    if (address & 1)
+    if (unlikely(address & 1))
         return (ps16_read_8_int(address) << 8) | ps16_read_8_int(address + 1);
     else
         return ps16_read_access(address, SIZE_WORD);
@@ -1662,7 +1647,7 @@ unsigned int ps16_read_16(unsigned int address)
 unsigned int ps16_read_32_int(unsigned int address)
 {
     unsigned int data = 0;
-    if (address & 1)
+    if (unlikely(address & 1))
     {
         data = ps16_read_8_int(address) << 24;
         data |= ps16_read_16_int(address + 1) << 8;
@@ -1683,7 +1668,7 @@ unsigned int ps16_read_32(unsigned int address)
 uint64_t ps16_read_64_int(unsigned int address)
 {
     uint64_t data = 0;
-    if (address & 1)
+    if (unlikely(address & 1))
     {
         data = (uint64_t)ps16_read_8(address) << 56;
         data |= (uint64_t)ps16_read_32_int(address + 1) << 24;
@@ -1708,7 +1693,7 @@ uint128_t ps16_read_128_int(unsigned int address)
 {
     uint128_t data;
 
-    if (address & 1)
+    if (unlikely(address & 1))
     {
         uint16_t d;
         data.hi = (uint64_t)ps16_read_8(address) << 56;
@@ -1758,9 +1743,9 @@ void ps16_write_8(unsigned int address, unsigned int data)
 
 void ps16_write_16_int(unsigned int address, unsigned int data)
 {
-    if (address & 1) {
-        ps_write_8_int(address, data >> 8);
-        ps_write_8_int(address + 1, data);
+    if (unlikely(address & 1)) {
+        ps16_write_8_int(address, data >> 8);
+        ps16_write_8_int(address + 1, data);
     }
     else {
         ps16_write_access(address, data, SIZE_WORD);
@@ -1783,7 +1768,7 @@ void ps16_write_16(unsigned int address, unsigned int data)
 
 void ps16_write_32_int(unsigned int address, unsigned int data)
 {
-    if (address & 1) {
+    if (unlikely(address & 1)) {
         ps16_write_8_int(address, data >> 24);
         ps16_write_16_int(address + 1, data >> 8);
         ps16_write_8_int(address + 3, data);
@@ -1798,7 +1783,7 @@ void ps16_write_32(unsigned int address, unsigned int data)
     check_blit_active(address, 4);
     
     ps16_write_32_int(address, data);
-    
+
     if (SLOW_IO(address))
     {
         ps16_read_access(0x00f00000, SIZE_BYTE);
@@ -1806,10 +1791,9 @@ void ps16_write_32(unsigned int address, unsigned int data)
     cache_invalidate_range(ICACHE, address, 4);
 }
 
-
 void ps16_write_64_int(unsigned int address, uint64_t data)
 {
-    if (address & 1) {
+    if (unlikely(address & 1)) {
         ps16_write_8_int(address, data >> 56);
         ps16_write_32_int(address + 1, data >> 24);
         ps16_write_16_int(address + 5, data >> 8);
@@ -1836,7 +1820,7 @@ void ps16_write_64(unsigned int address, uint64_t data)
 
 void ps16_write_128_int(unsigned int address, uint128_t data)
 {
-    if (address & 1) {
+    if (unlikely(address & 1)) {
         ps16_write_8_int(address, data.hi >> 56);
         ps16_write_32_int(address + 1, data.hi >> 24);
         ps16_write_16_int(address + 5, data.hi >> 8);
@@ -2180,11 +2164,11 @@ void ps_housekeeper()
 
     if (freq > 20000000)
     {
-        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (5 << 4)));
+        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
     }
     else
     {
-        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
+        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
     }
 
     uint8_t pin_prev = LE32(GPIO->GPLEV0);
@@ -2199,10 +2183,7 @@ void ps_housekeeper()
 
         if (housekeeper_enabled)
         {
-            uint32_t pin = LE32(gpio_lev0);
-            
-            if (gpio_busy == 0)
-                pin = LE32(GPIO->GPLEV0);
+            uint32_t pin = LE32(GPIO->GPLEV0);
 #if 1
             static uint64_t last_stats_shown = 0;
             uint64_t now;
