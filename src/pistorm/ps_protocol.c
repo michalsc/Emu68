@@ -2184,7 +2184,7 @@ void ps_housekeeper()
         if (housekeeper_enabled)
         {
             uint32_t pin = LE32(GPIO->GPLEV0);
-#if 1
+#if 0
             static uint64_t last_stats_shown = 0;
             uint64_t now;
 
