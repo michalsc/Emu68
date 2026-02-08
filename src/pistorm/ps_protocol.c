@@ -212,7 +212,7 @@ static inline void ticksleep_wfe(uint64_t ticks)
 #define GPIO_ADDR 0x200000
 #define GPCLK_ADDR 0x101000
 
-volatile struct
+volatile struct GPIO_s
 {
     uint32_t GPFSEL0;
     uint32_t GPFSEL1;
@@ -255,16 +255,16 @@ static int slot_active[2] = {0, 0};
 
 static inline void set_input()
 {
-    GPIO->GPFSEL0 = LE32(INPUT[0]);
-    GPIO->GPFSEL1 = LE32(INPUT[1]);
-    GPIO->GPFSEL2 = LE32(INPUT[2]);
+    GPIO->GPFSEL0 = INPUT[0];
+    GPIO->GPFSEL1 = INPUT[1];
+    GPIO->GPFSEL2 = INPUT[2];
 }
 
 static inline void set_output()
 {
-    GPIO->GPFSEL0 = LE32(OUTPUT[0]);
-    GPIO->GPFSEL1 = LE32(OUTPUT[1]);
-    GPIO->GPFSEL2 = LE32(OUTPUT[2]);
+    GPIO->GPFSEL0 = OUTPUT[0];
+    GPIO->GPFSEL1 = OUTPUT[1];
+    GPIO->GPFSEL2 = OUTPUT[2];
 }
 
 volatile uint8_t gpio_busy;
@@ -293,7 +293,7 @@ static inline uint32_t read_ps_reg_ps16(uint32_t address)
     gpio_busy = 0;
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 
     data = (data >> PIN_D(0)) & 0xffff;
 
@@ -315,7 +315,7 @@ static inline uint32_t read_ps_reg_ps32(uint32_t address)
     gpio_busy = 0;
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 
     data = (data >> PIN_D(0)) & 0xffff;
 
@@ -340,7 +340,7 @@ static inline uint32_t read_ps_reg_with_wait_ps16(uint32_t address)
     gpio_busy = 0;
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 
     data = (data >> PIN_D(0)) & 0xffff;
 
@@ -364,7 +364,7 @@ static inline uint32_t read_ps_reg_with_wait_ps32(uint32_t address)
     gpio_busy = 0;
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 
     data = (data >> PIN_D(0)) & 0xffff;
 
@@ -383,7 +383,7 @@ static inline void write_ps_reg_ps16(uint32_t address, uint16_t data)
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
 
     GPIO->GPSET0 = LE32(1 << PIN_WR);
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 
     // If writing to REG_ADDR_HI then issue one extra read from GPIO to
     // give firmware time to start rolling!
@@ -405,7 +405,7 @@ static inline void write_ps_reg_ps32(uint32_t address, uint16_t data)
     GPIO->GPCLR0 = LE32(1 << PIN_WR);
 
     GPIO->GPSET0 = LE32(1 << PIN_WR);
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 }
 
 // Pointers to functions talking with PiStorm - selected depending on detected
@@ -805,27 +805,27 @@ static void pistorm_setup_io()
 
     if (tmp > 20000000)
     {
-        CLEAR_BITS = CLEAR_BITS_PI4;
+        CLEAR_BITS = LE32(CLEAR_BITS_PI4);
         
-        OUTPUT[0] = GPFSEL0_OUTPUT_PI4;
-        OUTPUT[1] = GPFSEL1_OUTPUT_PI4;
-        OUTPUT[2] = GPFSEL2_OUTPUT_PI4;
+        OUTPUT[0] = LE32(GPFSEL0_OUTPUT_PI4);
+        OUTPUT[1] = LE32(GPFSEL1_OUTPUT_PI4);
+        OUTPUT[2] = LE32(GPFSEL2_OUTPUT_PI4);
         
-        INPUT[0] = GPFSEL0_INPUT_PI4;
-        INPUT[1] = GPFSEL1_INPUT_PI4;
-        INPUT[2] = GPFSEL2_INPUT_PI4;
+        INPUT[0] = LE32(GPFSEL0_INPUT_PI4);
+        INPUT[1] = LE32(GPFSEL1_INPUT_PI4);
+        INPUT[2] = LE32(GPFSEL2_INPUT_PI4);
     }
     else
     {
-        CLEAR_BITS = CLEAR_BITS_PI3;
+        CLEAR_BITS = LE32(CLEAR_BITS_PI3);
         
-        OUTPUT[0] = GPFSEL0_OUTPUT_PI3;
-        OUTPUT[1] = GPFSEL1_OUTPUT_PI3;
-        OUTPUT[2] = GPFSEL2_OUTPUT_PI3;
+        OUTPUT[0] = LE32(GPFSEL0_OUTPUT_PI3);
+        OUTPUT[1] = LE32(GPFSEL1_OUTPUT_PI3);
+        OUTPUT[2] = LE32(GPFSEL2_OUTPUT_PI3);
         
-        INPUT[0] = GPFSEL0_INPUT_PI3;
-        INPUT[1] = GPFSEL1_INPUT_PI3;
-        INPUT[2] = GPFSEL2_INPUT_PI3;
+        INPUT[0] = LE32(GPFSEL0_INPUT_PI3);
+        INPUT[1] = LE32(GPFSEL1_INPUT_PI3);
+        INPUT[2] = LE32(GPFSEL2_INPUT_PI3);
     }
 }
 
@@ -1893,7 +1893,7 @@ void ps_setup_protocol()
     pistorm_setup_io();
     pistorm_setup_serial();
 
-    GPIO->GPCLR0 = LE32(CLEAR_BITS);
+    GPIO->GPCLR0 = CLEAR_BITS;
 
     set_input();
 
