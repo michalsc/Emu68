@@ -267,9 +267,11 @@ static inline void set_output()
     GPIO->GPFSEL2 = OUTPUT[2];
 }
 
-static inline void wait_txn()
+static inline uint32_t wait_txn()
 {
-    while (GPIO->GPLEV0 & LE32(1 << PIN_TXN)) {}
+    uint32_t data;
+    while ((data = GPIO->GPLEV0) & LE32(1 << PIN_TXN)) {}
+    return LE32(data);
 }
 
 static inline uint32_t read_ps_reg_ps16(uint32_t address)
@@ -326,7 +328,6 @@ static inline uint32_t read_ps_reg_with_wait_ps16(uint32_t address)
 
     // More conservative behavior - read the GPLEV0 twice
     uint32_t data = LE32(GPIO->GPLEV0);
-    //data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = CLEAR_BITS;
@@ -348,7 +349,6 @@ static inline uint32_t read_ps_reg_with_wait_ps32(uint32_t address)
     wait_txn();
 
     uint32_t data = LE32(GPIO->GPLEV0);
-    data = LE32(GPIO->GPLEV0);
 
     GPIO->GPSET0 = LE32(1 << PIN_RD);
     GPIO->GPCLR0 = CLEAR_BITS;
