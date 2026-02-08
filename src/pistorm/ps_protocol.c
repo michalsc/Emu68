@@ -2180,17 +2180,23 @@ void ps_housekeeper()
 
     if (freq > 20000000)
     {
-        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (4 << 4)));
+        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (5 << 4)));
     }
     else
     {
-        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (2 << 4)));
+        asm volatile("msr CNTKCTL_EL1, %0" ::"r"(3 | (1 << 2) | (3 << 8) | (3 << 4)));
     }
 
     uint8_t pin_prev = LE32(GPIO->GPLEV0);
 
     for (;;)
     {
+        /*
+              Wait for event. It can happen that the CPU is flooded with them for some reason, but
+              nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
+        */
+        asm volatile("wfe");
+
         if (housekeeper_enabled)
         {
             uint32_t pin = LE32(gpio_lev0);
@@ -2269,12 +2275,6 @@ void ps_housekeeper()
                 kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
                 pi_reset();
             }
-
-            /*
-              Wait for event. It can happen that the CPU is flooded with them for some reason, but
-              nevertheless, thanks for the event stream set up above, they will appear at 1.2MHz in worst case
-            */
-            asm volatile("wfe");
         }
     }
 }
