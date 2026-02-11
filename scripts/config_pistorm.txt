@@ -12,13 +12,37 @@ avoid_warnings=2
 
 # Enable the options below to increase speed of ARM cpu to 1.5GHz
 # Keep in mind this may render your RasPi3 unstable and eventually void the warranty!
+# Pi4 and CM4 relates overclocking settings
+[pi4]
 force_turbo=1
 over_voltage=4
 arm_freq=1800
 
-# CM4 users may use dtparam=ant2 to select external antenna. Otherwise
-# internal antenna is selected (equals to: dtparam=ant1)
+[pi3]
+force_turbo=1
+over_voltage=4
+arm_freq=1500
+core_freq=350
+
+# Back to settings for all Pi models
+[all]
+
+# CM4 users may use dtparam=ant2 to select external antenna. Otherwise, if this option is
+# commented out, internal antenna is selected (equals to: dtparam=ant1)
+# IMPORTANT: The line with "dtoverlay=" may be omitted if this is the first overlay-related
+# option in the config file.
+[cm4]
+dtoverlay=
 dtparam=ant2
+
+[all]
+# If you have framethrower and want to use it, enable this overlay. After overlay name you
+# may specify following coma-separated options:
+# boot - enable framethrower on boot and automatically activate it in VideoCore P96 driver
+# smooth - enable smoothing of scaled image, when not specified, neares neighbour is used
+# integer - enable only integer scaling factors (x1, x2, x3 etc)
+# 
+dtoverlay=unicam,boot,smooth,type=c790
 
 # Force HDMI signal even if nothing is connected
 hdmi_force_hotplug=1
@@ -46,3 +70,4 @@ hdmi_mode=82
 # for test/development purposes **ONLY**
 #initramfs firmware.bin.gz,DiagROM
 initramfs kick.rom
+
