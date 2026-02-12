@@ -2674,6 +2674,144 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
         );
         #endif
     }
+    /* FDBcc */
+    else if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0)
+    {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FDBcc\n");
+            shown = 1;
+        }
+        
+        /* Extract predicate ignoring signalling flags*/
+        uint8_t predicate = opcode2 & 0x0f;
+
+        ctx->tc_M68kCodePtr += ext_count;
+
+        /* Seldom case of FDBT which does nothing */
+        if (predicate == F_CC_T)
+        {
+            /* Emu68 needs to emit at least one aarch64 opcode, push nop */
+            EMIT(ctx, nop());
+            EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        }
+        else
+        {
+            uint16_t *bra_rel_ptr = ctx->tc_M68kCodePtr - 2;
+            uint8_t counter_reg = RA_MapM68kRegister(ctx, opcode & 7);
+            uint32_t *branch_1 = NULL;
+            uint32_t *branch_2 = NULL;
+            uint32_t branch_1_type = 0;
+            uint32_t branch_2_type = 0;
+            int8_t off8 = 0;
+            int32_t off = 6;
+            int32_t branch_offset = 4 + (int16_t)cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
+
+            EMIT_GetOffsetPC(ctx, &off8);
+            off += off8;
+            EMIT_ResetOffsetPC(ctx);
+
+            int32_t true_pc_addend = off;
+
+            off = branch_offset + off8;
+
+            int32_t false_pc_addend = off;
+
+            /* If condition was not false check the condition and eventually break the loop */
+            if (predicate != F_CC_F)
+            {
+                //arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
+
+                ///* Adjust PC, negated CC is loop condition, CC is loop break condition */
+                //*ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
+
+                /* conditionally exit loop */
+                EMIT_JumpOnFPUCondition(ctx, predicate, 0, &branch_1_type);
+                branch_1 = ctx->tc_CodePtr - 1;
+            }
+
+
+            /* Copy register to temporary, shift 16 bits left */
+            uint8_t reg = RA_AllocARMRegister(ctx);
+
+            EMIT(ctx, 
+                /* Extract counter to 32-bit */
+                uxth(reg, counter_reg),
+                
+                /* Substract 0x10000 from temporary, compare with 0xffff0000 */
+                subs_immed(reg, reg, 1)
+            );
+
+            RA_SetDirtyM68kRegister(ctx, opcode & 7);
+
+            /* Insert register back */
+            EMIT(ctx, bfi(counter_reg, reg, 0, 16));
+
+            branch_2 = ctx->tc_CodePtr;
+            branch_2_type = FIXUP_BCC;
+            EMIT(ctx, b_cc(A64_CC_MI, 0));
+            
+            RA_FreeARMRegister(ctx, reg);
+
+            off = false_pc_addend;
+            if (off > -4096 && off < 0)
+            {
+                EMIT(ctx, sub_immed(REG_PC, REG_PC, -off));
+            }
+            else if (off > 0 && off < 4096)
+            {
+                EMIT(ctx, add_immed(REG_PC, REG_PC, off));
+            }
+            else if (off != 0)
+            {
+                uint8_t reg = RA_AllocARMRegister(ctx);
+                EMIT_LoadImmediate(ctx, reg, off);
+                EMIT(ctx, 
+                    add_reg(REG_PC, REG_PC, reg, LSL, 0)
+                );
+                RA_FreeARMRegister(ctx, reg);
+            }
+
+            ctx->tc_M68kCodePtr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
+
+            uint32_t *exit_code_start = ctx->tc_CodePtr;
+
+            EMIT(ctx, add_immed(REG_PC, REG_PC, true_pc_addend));
+
+            /* Insert local exit */
+            EMIT_LocalExit(ctx, 1);
+            uint32_t *exit_code_end = ctx->tc_CodePtr;
+
+            /* Insert fixup location - if branch_1 is not NULL, insert double exit, otherwise single one */
+            if (branch_1) {
+                /* Insert fixup location */
+                EMIT(ctx, 
+                    exit_code_end - branch_1,
+                    branch_1_type,
+                    exit_code_end - branch_2,
+                    branch_2_type,
+                    exit_code_end - exit_code_start,
+                    INSN_TO_LE(MARKER_DOUBLE_EXIT)
+                );
+            }
+            else {
+                EMIT(ctx, 
+                    exit_code_end - branch_2,
+                    branch_2_type,
+                    exit_code_end - exit_code_start,
+                    INSN_TO_LE(MARKER_EXIT_BLOCK)
+                );
+            }
+
+            RA_FreeARMRegister(ctx, counter_reg);
+
+            /* Branch backwards further than the code start pointer, break here and in next run auto-aligh the start */
+            if (ctx->tc_M68kCodeStart > ctx->tc_M68kCodePtr)
+            {
+                EMIT(ctx, INSN_TO_LE(MARKER_BREAK));
+            }
+        }
+    }
     /* FCMP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0038)
     {
