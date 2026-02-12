@@ -563,6 +563,7 @@ void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, u
 void EMIT_Exception(struct TranslatorContext *ctx, uint16_t exception, uint8_t format, ...);
 void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_count_fixup);
 void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition, uint32_t distance, uint32_t *type);
+void EMIT_JumpOnFPUCondition(struct TranslatorContext *ctx, uint8_t fpu_condition, uint32_t distance, uint32_t *jump_type);
 
 uint32_t EMIT_line0(struct TranslatorContext *ctx);
 uint32_t EMIT_line4(struct TranslatorContext *ctx);

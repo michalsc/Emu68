@@ -327,6 +327,161 @@ uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition
     return success_condition;
 }
 
+void EMIT_JumpOnFPUCondition(struct TranslatorContext *ctx, uint8_t fpu_condition, uint32_t distance, uint32_t *jump_type)
+{
+    uint8_t cond_tmp = 0xff;
+    uint8_t fpsr = RA_GetFPSR(ctx);
+
+    switch (fpu_condition)
+    {
+        case F_CC_EQ: /* Z == 0 */
+            EMIT(ctx, tbnz(fpsr, FPSRB_Z, distance));
+            if (jump_type) *jump_type = FIXUP_TBZ;
+            break;
+
+        case F_CC_NE: /* Z == 1 */
+            EMIT(ctx, tbz(fpsr, FPSRB_Z, distance));
+            if (jump_type) *jump_type = FIXUP_TBZ;
+            break;
+
+        case F_CC_OGT: /* NAN == 0 && Z == 0 && N == 0 */
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                mov_immed_u16(cond_tmp, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                tst_reg(fpsr, cond_tmp, LSL, 0),
+                b_cc(A64_CC_EQ, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_ULE: /* NAN == 1 || Z == 1 || N == 1 */
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                mov_immed_u16(cond_tmp, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                tst_reg(fpsr, cond_tmp, LSL, 0),
+                b_cc(A64_CC_NE, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                b_cc(A64_CC_NE, 4),
+                orr_reg(cond_tmp, fpsr, fpsr, LSL, 3), // N | NAN -> N (== 0 only if N=0 && NAN=0)
+                eor_immed(cond_tmp, cond_tmp, 1, 31 & (32 - FPSRB_N)), // !N -> N
+                tst_immed(cond_tmp, 1, 31 & (32 - FPSRB_N)),
+                b_cc(A64_CC_NE, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)),
+                b_cc(A64_CC_NE, 4),
+                eor_immed(cond_tmp, fpsr, 1, 31 & (32 - FPSRB_Z)), // Invert Z
+                and_reg(cond_tmp, cond_tmp, cond_tmp, LSL, 1), // !Z & N -> N
+                tst_immed(cond_tmp, 1, 31 & (32 - FPSRB_N)),
+                b_cc(A64_CC_NE, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+
+        case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                b_cc(A64_CC_NE, 4),
+                eor_immed(cond_tmp, fpsr, 1, 31 & (32 - FPSRB_NAN)), // Invert NAN
+                and_reg(cond_tmp, cond_tmp, cond_tmp, LSL, 3),   // !NAN & N -> N
+                tst_immed(cond_tmp, 1, 31 & (32 - FPSRB_N)),
+                b_cc(A64_CC_NE, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)),
+                b_cc(A64_CC_NE, 4),
+                orr_reg(cond_tmp, fpsr, fpsr, LSR, 1),
+                mvn_reg(cond_tmp, cond_tmp, LSL, 0), //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                tst_immed(cond_tmp, 1, 31 & (32 - FPSRB_Z)),
+                b_cc(A64_CC_NE, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                bic_immed(cond_tmp, fpsr, 1, 31 & (32 - FPSRB_I)),
+                orr_reg(cond_tmp, cond_tmp, cond_tmp, LSL, 2), // NAN | Z -> Z
+                eor_immed(cond_tmp, cond_tmp, 1, 31 & (32 - FPSRB_N)), // Invert N
+                tst_immed(cond_tmp, 2, 31 & (32 - FPSRB_Z)), // Test N==0 && Z == 0
+                b_cc(A64_CC_EQ, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                eor_immed(cond_tmp, fpsr, 1, 31 & (32 - FPSRB_N)),
+                bic_immed(cond_tmp, cond_tmp, 1, 31 & (32 - FPSRB_I)),
+                tst_immed(cond_tmp, 4, 31 & (32 - FPSRB_NAN)),
+                b_cc(A64_CC_NE, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_OGL:
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                mov_immed_u16(cond_tmp, (FPSR_Z | FPSR_NAN) >> 16, 1),
+                tst_reg(fpsr, cond_tmp, LSL, 0),
+                b_cc(A64_CC_EQ, 0)
+            );
+            if (jump_type) *jump_type = FIXUP_BCC;
+            break;
+
+        case F_CC_UEQ:
+            cond_tmp = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                mov_immed_u16(cond_tmp, (FPSR_Z | FPSR_NAN) >> 16, 1),
+                tst_reg(fpsr, cond_tmp, LSL, 0),
+                b_cc(A64_CC_NE, 0)
+            );
+            break;
+
+        case F_CC_OR:
+            EMIT(ctx, tbz(fpsr, FPSRB_NAN, distance));
+            if (jump_type) *jump_type = FIXUP_TBZ;
+            break;
+
+        case F_CC_UN:
+            EMIT(ctx, tbnz(fpsr, FPSRB_NAN, distance));
+            if (jump_type) *jump_type = FIXUP_TBZ;
+            break;
+
+        default:
+            kprintf("Default CC called! Can't be!\n");
+            EMIT(ctx, udf(0x0bcc));
+            break;
+
+
+
+
+    }
+
+    RA_FreeARMRegister(ctx, cond_tmp);
+}
+
 uint8_t EMIT_TestFPUCondition(struct TranslatorContext *ctx, uint8_t predicate)
 {
     uint8_t success_condition = 0;
