@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct fdt_header {
     uint32_t magic;
     uint32_t totalsize;
@@ -54,11 +58,15 @@ of_node_t *dt_parse(void *ptr);
 long dt_total_size();
 void * dt_fdt_base();
 of_node_t *dt_find_node_by_phandle(uint32_t phandle);
-of_node_t *dt_find_node(char *key);
-of_property_t *dt_find_property(void *key, char *propname);
-uint32_t dt_get_property_value_u32(void *key, char *propname, uint32_t def_val, int check_parent);
+of_node_t *dt_find_node(const char *key);
+of_property_t *dt_find_property(void *key, const char *propname);
+uint32_t dt_get_property_value_u32(void *key, const char *propname, uint32_t def_val, int check_parent);
 of_node_t * dt_make_node(const char *name);
 void dt_add_node(of_node_t *parent, of_node_t *node);
 void dt_add_property(of_node_t *node, const char *propname, const void *propvalue, uint32_t proplen);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _DEVICETREE_H */

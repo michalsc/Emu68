@@ -262,7 +262,7 @@ int _dt_strcmp(const char *s1, const char *s2)
     return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
 
-of_node_t * dt_find_node(char *key)
+of_node_t * dt_find_node(const char *key)
 {
     int i;
     of_node_t *node, *ret = NULL;
@@ -306,7 +306,7 @@ of_node_t * dt_find_node(char *key)
     return ret;
 }
 
-of_property_t *dt_find_property(void *key, char *propname)
+of_property_t *dt_find_property(void *key, const char *propname)
 {
     of_node_t *node = (of_node_t *)key;
     of_property_t *p, *prop = NULL;
@@ -325,7 +325,7 @@ of_property_t *dt_find_property(void *key, char *propname)
     return prop;
 }
 
-uint32_t dt_get_property_value_u32(void *key, char *propname, uint32_t def_val, int check_parent)
+uint32_t dt_get_property_value_u32(void *key, const char *propname, uint32_t def_val, int check_parent)
 {
     uint32_t ret = def_val;
     of_node_t *node = (of_node_t *)key;
