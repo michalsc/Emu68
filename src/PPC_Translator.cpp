@@ -30,6 +30,9 @@
 #include "doorbell.h"
 #include "cache.h"
 #include "mmu.h"
+#include "devicetree.h"
+
+extern void* ppc_jit_virt_base;
 
 namespace Emu68::PPC {
 
@@ -38,7 +41,8 @@ register void (*ARMCode)() __asm__("x12");
 
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
-TLSF jit_ppc((void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)), (KERNEL_JIT_PAGES / 2) << 21);
+TLSF jit_ppc(ppc_jit_virt_base, dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20);
+
 PPCTranslatorContext local_translator;
 ReturnStack return_stack;
 

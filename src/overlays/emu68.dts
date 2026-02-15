@@ -7,7 +7,12 @@
         __overlay__ {
             emu68: emu68 {
                 args = "";
+                m68k-jit-size = <0x00000040>;
+                ppc-jit-size = <0x00000040>;
 
+                // THESE BOOLS ARE OFF BY DEFAULT!
+                // ppc-enable
+                
                 defs: defaults {
                     insn-count = <0xffffffff>;
                     ccr-scan-depth = <0xffffffff>;
@@ -26,6 +31,9 @@
 
     __overrides__ {
         args = <&emu68>,"args";
+        ppc_enable = <&emu68>,"ppc-enable?";
+        ppc_jit_size = <&emu68>,"ppc-jit-size:0";
+        m68k_jit_size = <&emu68>,"m68k-jit-size:0";
         ICNT = <&defs>,"insn-count:0";
         CCRD = <&defs>,"ccr-scan-depth:0";
         IRNG = <&defs>,"branch-inline-distance:0";

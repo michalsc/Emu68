@@ -303,6 +303,11 @@ void print_build_id()
     kprintf("\n");
 }
 
+void* m68k_jit_phys_base = NULL;
+void* ppc_jit_phys_base = NULL;
+void* m68k_jit_virt_base = NULL;
+void* ppc_jit_virt_base = NULL;
+
 void M68K_StartEmu(void *addr, void *fdt);
 void __vectors_start(void);
 extern int debug_cnt;
@@ -1148,6 +1153,25 @@ void boot(void *dtree)
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
 
+    if (ppc_enable) {
+        if (!dt_find_property(e, "ppc-enable"))
+        {
+            dt_add_property(e, "ppc-enable", NULL, 0);
+        }
+    }
+
+    if ((p = dt_find_property(e, "m68k-jit-size")) == NULL)
+    {
+        uint32_t size = KERNEL_JIT_PAGES * 2;
+        dt_add_property(e, "m68k-jit-size", &size, 4);
+    }
+
+    if ((p = dt_find_property(e, "ppc-jit-size")) == NULL)
+    {
+        uint32_t size = KERNEL_JIT_PAGES * 2;
+        dt_add_property(e, "ppc-jit-size", &size, 4);
+    }
+
     /* Verify the unicam buffer has necessary size */
     if ((e = dt_find_node("/emu68/unicam")) != NULL)
     {
@@ -1598,15 +1622,34 @@ void boot(void *dtree)
             mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+        uint32_t m68k_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "m68k-jit-size", 0, FALSE) << 20;
+        uint32_t ppc_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20;
 
-        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, (KERNEL_JIT_PAGES / 2) << 21);
+        m68k_jit_virt_base = (void*)0xffffffe000000000ULL;
+        mmu_map((uintptr_t)m68k_jit_phys_base, (uintptr_t)m68k_jit_virt_base, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+        mmu_map((uintptr_t)m68k_jit_phys_base, (uintptr_t)m68k_jit_virt_base | 0x0000001000000000ULL, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+
+        jit_tlsf = tlsf_init_with_memory((void*)m68k_jit_virt_base, m68k_jit_size);
+
+        /* If PPC was enabled, create proper MMU map here */
+        if (dt_find_property(dt_find_node("/emu68"), "ppc-enable"))
+        {
+            ppc_jit_virt_base = (void*)0xffffffe200000000ULL;
+            mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+            mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base | 0x0000001000000000ULL, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+        }
+
+        kprintf("[BOOT] JIT physical location: %p\n", m68k_jit_phys_base);
+        kprintf("[BOOT] PPC JIT physical location: %p\n", ppc_jit_phys_base);
 
         kprintf("[BOOT] Local memory pools:\n");
-        kprintf("[BOOT]    SYS: %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT: %p - %p (size: %5d KiB)\n", 0xffffffe000000000,
-                    0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
+        kprintf("[BOOT]    SYS:        %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
+        kprintf("[BOOT]    JIT (m68k): %p - %p (size: %5d KiB)\n", m68k_jit_virt_base,
+                    m68k_jit_virt_base + m68k_jit_size - 1, m68k_jit_size / 1024);
+        if (ppc_jit_virt_base) {
+            kprintf("[BOOT]    JIT (ppc):  %p - %p (size: %5d KiB)\n", ppc_jit_virt_base,
+                    ppc_jit_virt_base + ppc_jit_size - 1, ppc_jit_size / 1024);
+        }
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
         kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);

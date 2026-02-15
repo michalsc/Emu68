@@ -369,12 +369,7 @@ spinlock_t PPCStart;
 
 extern "C" void InitPPC()
 {
-    
     kprintf("[PPC] InitPPC()\n");
-
-    kprintf("[PPC] JIT memory at %p\n", (void*)(0xffffffe000000000 + ((KERNEL_JIT_PAGES / 2) << 21)));
-
-    
 
     kprintf("[PPC] Setting up LRU\n");
 

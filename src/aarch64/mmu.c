@@ -227,6 +227,8 @@ extern uint32_t vid_memory;
 extern uintptr_t vid_base;
 extern uintptr_t unicam_base;
 extern uintptr_t unicam_size;
+extern void* m68k_jit_phys_base;
+extern void* ppc_jit_phys_base;
 
 void mmu_init()
 {
@@ -266,11 +268,27 @@ void mmu_init()
                 size = (size << 32) | BE32(range[i + address_cells]);
             }
 
-            /* If this is the last block, borrow 2MB from there for initial MMU page pool */
+            /* 
+                If this is the last block, borrow 2MB from there for initial MMU page pool, then take 
+                memory from there for m68k and PPC jit, too.
+            */
             if (last_block) {
+                of_node_t *e = dt_find_node("/emu68");
+
                 size -= 2*1024*1024;
                 update_needed = 1;
                 mmu_ploc = addr + size;
+
+                uint32_t m68k_jit_size = dt_get_property_value_u32(e, "m68k-jit-size", 0, FALSE) << 20;
+                size -= m68k_jit_size;
+                m68k_jit_phys_base = (void *)(addr + size);
+
+                if (dt_find_property(e, "ppc-enable"))
+                {
+                    uint32_t ppc_jit_size = dt_get_property_value_u32(e, "ppc-jit-size", 0, FALSE) << 20;
+                    size -= ppc_jit_size;
+                    ppc_jit_phys_base = (void *)(addr + size);
+                }
             }
 
             if (vid_memory != 0 && vid_base == 0) {
