@@ -1639,9 +1639,6 @@ void boot(void *dtree)
             mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base | 0x0000001000000000ULL, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
         }
 
-        kprintf("[BOOT] JIT physical location: %p\n", m68k_jit_phys_base);
-        kprintf("[BOOT] PPC JIT physical location: %p\n", ppc_jit_phys_base);
-
         kprintf("[BOOT] Local memory pools:\n");
         kprintf("[BOOT]    SYS:        %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
         kprintf("[BOOT]    JIT (m68k): %p - %p (size: %5d KiB)\n", m68k_jit_virt_base,
