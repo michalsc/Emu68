@@ -29,7 +29,7 @@ namespace Emu68 {
 
 class TLSF {
 public:
-    TLSF(void* memory, uintptr_t size) { handle = tlsf_init_with_memory(memory, size); }
+    TLSF(void* memory, uintptr_t size) { if (memory != NULL) { handle = tlsf_init_with_memory(memory, size); } }
     TLSF(void* handle) : handle(handle) {}
 
     void* malloc(uintptr_t size) { return tlsf_malloc(handle, size); }
