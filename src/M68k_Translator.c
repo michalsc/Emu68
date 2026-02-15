@@ -959,6 +959,11 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
                 void *ptr = (char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode);
                 REMOVE((struct Node *)ptr);
+
+                // Fush the unit from LRU cache in case it was there
+                struct M68KTranslationUnit *u = ptr;
+                LRU_InvalidateByM68kAddress(u->mt_M68kAddress);
+
                 if (debug > 0)
                 {    
                     kprintf("[ICache] Run out of cache. Removing least recently used cache line node @ %p\n", ptr);
