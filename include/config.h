@@ -62,24 +62,6 @@
 /* Speed for bitbang RS232... */
 #define PISTORM_BITBANG_SPEED   921600
 
-#ifdef PISTORM_CLASSIC
-
-#define PISTORM_BITBANG_DELAY   21
-#define PISTORM_CHIPSET_DELAY   12
-#define PISTORM_CIA_DELAY       0
-#define PISTORM_WRITE_BUFFER    0
-#define PISTORM_WRITE_BUFFER_SIZE 32
-
-#elif defined(PISTORM)
-
-#define PISTORM_BITBANG_DELAY   59
-#define PISTORM_CHIPSET_DELAY   12
-#define PISTORM_CIA_DELAY       0
-#define PISTORM_WRITE_BUFFER    0
-#define PISTORM_WRITE_BUFFER_SIZE 32
-
-#endif
-
 #endif
 
 #ifndef VERSION_STRING_DATE

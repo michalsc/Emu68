@@ -563,7 +563,7 @@ uint8_t pistorm_get_model()
     return pistorm_model;
 }
 
-#define BITBANG_DELAY PISTORM_BITBANG_DELAY
+uint64_t bitbang_delay;
 
 void bitbang_putByte(uint8_t byte)
 {
@@ -575,7 +575,7 @@ void bitbang_putByte(uint8_t byte)
     do
     {
         asm volatile("mrs %0, CNTPCT_EL0" : "=r"(t1));
-    } while (t1 < (t0 + BITBANG_DELAY));
+    } while (t1 < (t0 + bitbang_delay));
 
     for (int i = 0; i < 8; i++)
     {
@@ -590,7 +590,7 @@ void bitbang_putByte(uint8_t byte)
         do
         {
             asm volatile("mrs %0, CNTPCT_EL0" : "=r"(t1));
-        } while (t1 < (t0 + BITBANG_DELAY));
+        } while (t1 < (t0 + bitbang_delay));
     }
     asm volatile("mrs %0, CNTPCT_EL0" : "=r"(t0));
 
@@ -599,7 +599,7 @@ void bitbang_putByte(uint8_t byte)
     do
     {
         asm volatile("mrs %0, CNTPCT_EL0" : "=r"(t1));
-    } while (t1 < (t0 + 3 * BITBANG_DELAY / 2));
+    } while (t1 < (t0 + 3 * bitbang_delay / 2));
 }
 
 void (*fs_putByte)(uint8_t);
@@ -785,6 +785,14 @@ static void pistorm_setup_io()
 {
     uint64_t tmp;
     pistorm_setup_serial();
+
+    uint64_t clock;
+    uint64_t delay;
+
+    /* Setup bitbang RS232 delay based on the RS232 speed and CPU tick frequency */
+    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(clock));
+    delay = (clock + PISTORM_BITBANG_SPEED / 2) / PISTORM_BITBANG_SPEED;
+    bitbang_delay = delay;
 
     asm volatile("mrs %0, CNTFRQ_EL0" : "=r"(tmp));
 
