@@ -334,7 +334,13 @@ void map_peripheral_ranges(char *node_name, uint32_t *start_map)
             local_intc_base = *start_map << 21;
         }
 
-        *start_map += addr_len >> 21;
+        // Round up length to nearest 2 MiB and calculate addend for next mapping
+        uint32_t addend = addr_len >> 21;
+        
+        if (addend << 21 < addr_len)
+            addend++;
+
+        *start_map += addend;
 
         len -= sizeof(int32_t) * (addr_bus_len + addr_cpu_len + size_bus_len);
         ranges += addr_bus_len + addr_cpu_len + size_bus_len;
