@@ -411,8 +411,8 @@ static void map_pcie_mmio_window(uint32_t *start_map)
             }
             ranges[addr_bus_len + addr_cpu_len + size_bus_len - 1] = BE32(map_size);
 
-            /* Map into low virtual 0xF2xxxxxx area */
-            if (*start_map + (map_size >> 21) >= 0x1000 / 2)
+            /* Map into low virtual 0xF2xxxxxx area - it must fit below 0xff00xxxx which is Zorro3 config space */
+            if (*start_map + (map_size >> 21) >= 0xff0 / 2)
             {
                 kprintf("[PCIE] FATAL: Out of low-virt address space for PCIe MMIO!\n");
                 break;
