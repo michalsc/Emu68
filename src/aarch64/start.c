@@ -1390,18 +1390,18 @@ void boot(void *dtree)
     switch(pistorm_model)
     {
         case PISTORM_MODEL_16:
-            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16") + 1);
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16"));
             break;
         case PISTORM_MODEL_32:
-            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32lite", sizeof("pistorm32lite") + 1);
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32lite", sizeof("pistorm32lite"));
             break;
         default:
-            dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown") + 1);
+            dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown"));
             break;
     }
 #elif defined(PISTORM_CLASSIC)
     const uint8_t pistorm_model = 0;
-    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm") + 1);
+    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm"));
 #endif
 
 #if defined(PISTORM_ANY_MODEL)
@@ -2081,7 +2081,7 @@ void boot(void *dtree)
 
     }
 
-    //dt_dump_tree();
+    dt_dump_tree();
 
 #ifdef PISTORM_ANY_MODEL
     if (recalc_checksum) {
