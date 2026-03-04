@@ -2081,7 +2081,7 @@ void boot(void *dtree)
 
     }
 
-    dt_dump_tree();
+    //dt_dump_tree();
 
 #ifdef PISTORM_ANY_MODEL
     if (recalc_checksum) {
