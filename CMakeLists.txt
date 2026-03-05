@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.0)
 project(Emu68 VERSION 1.1.0)
-set(PROJECT_VERSION 1.1.0-alpha.1)
+set(PROJECT_VERSION 1.1.0-alpha.2)
 
 #set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 include(ExternalProject)
@@ -70,7 +70,6 @@ set(BASE_FILES
     src/tlsf.c
     src/devicetree.c
     src/cpp_support.cpp
-    src/EmuLogo.c
     src/HunkLoader.c
     src/ElfLoader.c
     src/md5.c
