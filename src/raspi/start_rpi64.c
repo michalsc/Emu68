@@ -22,6 +22,9 @@
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 #include "version.h"
+#include "logo/logo_emu68.h"
+#include "logo/logo_ppc.h"
+#include "logo/logo_pistorm.h"
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
 #endif
@@ -98,109 +101,59 @@ static void __putc(void *data, char c)
     put_char(c);
 }
 
-void display_logo()
+struct EmuLogo *rle_decode(uint8_t *logo_rle, uint32_t length)
 {
-    uint16_t *fb;
-    struct Size sz = get_display_size();
-    uint32_t start_x, start_y;
-    uint16_t *buff;
-    int32_t pix_cnt = (uint32_t)EmuLogo.el_Width * (uint32_t)EmuLogo.el_Height;
-    uint8_t *rle = EmuLogo.el_Data;
-    int x = 0;
-    of_node_t *e = NULL;
+    uint32_t w = logo_rle[0] << 8 | logo_rle[1];
+    uint32_t h = logo_rle[2] << 8 | logo_rle[3];
 
-    e = dt_find_node("/chosen");
-    if (e)
-    {
-        of_property_t * prop = dt_find_property(e, "bootargs");
-        if (prop)
-        {
-            const char *tok;
-            if ((tok = find_token(prop->op_value, "logo=")))
-            {
-                tok += 5;
+    struct EmuLogo *logo = (struct EmuLogo *)tlsf_malloc(tlsf, sizeof(struct EmuLogo) + w * h);
+    logo->el_Width = w;
+    logo->el_Height = h;
+    logo->el_Data = (uint8_t *)((uintptr_t)logo + sizeof(struct EmuLogo));
 
-                if (strncmp(tok, "purple", 6) == 0)
-                    purple = 1;
-                else if (strncmp(tok, "black", 5) == 0)
-                    black = 1;
+    uint32_t pos = 4;
+    uint32_t outpos = 0;
+    while(pos < length) {
+        int count = 0;
+        int diff = 0;
+        unsigned char c = logo_rle[pos++];
+        if (c & 0x40) diff = 1;
+        count = c & 0x3f;
+        while (c & 0x80) {
+            count <<= 7;
+            c = logo_rle[pos++];
+            count |= c & 0x7f;
+        }
+        if (diff) {
+            for (int i = 0; i < count; i++) {
+                logo->el_Data[outpos] = logo_rle[pos++];
+                outpos++;
+            }
+        } else {
+            uint8_t pix = logo_rle[pos++];
+
+            for (int i=0; i < count; i++) {
+                logo->el_Data[outpos] = pix;
+                outpos++;
             }
         }
     }
 
-    kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
-    fb_width = sz.width;
-    fb_height = sz.height;
-    init_display(sz, (void**)&framebuffer, &pitch);
-    kprintf("[BOOT] Framebuffer @ %08x\n", framebuffer);
-    fb = framebuffer;
+    kprintf("decoded %d into %d, expected %d\n", pos, outpos, w * h);
+    kprintf("logo at %p, data at %p\n", logo, logo->el_Data);
+    return logo;
+}
 
-    start_x = (sz.width - EmuLogo.el_Width) / 2;
-    start_y = (sz.height - EmuLogo.el_Height) / 2;
-
-    kprintf("[BOOT] Logo start coordinate: %dx%d, size: %dx%d\n", start_x, start_y, EmuLogo.el_Width, EmuLogo.el_Height);
-
-    /* Calculate text coordinate for version string */
-    text_y = (fb_height - 16 - 5) / 16;
-    text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
-
-#if defined(PISTORM)
-    const uint8_t pistorm_model = pistorm_get_model();
-    switch(pistorm_model)
-    {
-        case PISTORM_MODEL_16:
-            text_x -= strlen("PiStorm16, ");
-            break;
-        case PISTORM_MODEL_32:
-            text_x -= strlen("PiStorm32lite, ");
-            break;
-    }
-#elif defined(PISTORM_CLASSIC)
-    text_x -= strlen("PiStorm Classic, ");
-#endif
-
-    /* First clear the screen. Use color in top left corner of RLE image for that */
-    {
-        uint8_t gray = rle[0];
-        uint16_t color;
-
-        if (purple)
-        {
-            gray = 240 - gray;
-            int r=-330,g=-343,b=-91;
-            r += (gray * 848) >> 8;
-            g += (gray * 768) >> 8;
-            b += (gray * 341) >> 8;
-
-            if (r < 0) r = 0;
-            if (g < 0) g = 0;
-            if (b < 0) b = 0;
-            if (r > 255) r = 255;
-            if (g > 255) g = 255;
-            if (b > 255) b = 255;
-            color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
-        }
-        else if (black)
-        {
-            gray = 0;
-            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
-        }
-        else
-        {
-            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
-        }
-
-        for (int i=0; i < sz.width * sz.height; i++)
-            fb[i] = LE16(color);
-    }
-
-    /* Now decode RLE and draw it on the screen */
-    buff = (uint16_t *)((uintptr_t)framebuffer + pitch*start_y);
+void draw_logo(struct EmuLogo *logo, uint32_t start_x, uint32_t start_y)
+{
+    uint32_t pix_cnt = logo->el_Width * logo->el_Height;
+    uint32_t x = 0;
+    uint8_t *data = logo->el_Data;
+    uint16_t *buff = (uint16_t *)((uintptr_t)framebuffer + pitch*start_y);
     buff += start_x;
 
     while(pix_cnt > 0) {
-        uint8_t gray = *rle++;
-        uint8_t cnt = *rle++;
+        uint8_t gray = *data++;
         uint16_t color;
 
         if (purple)
@@ -234,18 +187,129 @@ void display_logo()
             color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
         }
 
-        pix_cnt -= cnt;
-        while(cnt--) {
-            buff[x++] = LE16(color);
-            /* If new line, advance the buffer by pitch and reset x counter */
-            if (x >= EmuLogo.el_Width) {
-                buff += pitch / 2;
-                x = 0;
+        pix_cnt--;
+        buff[x++] = LE16(color);
+        /* If new line, advance the buffer by pitch and reset x counter */
+        if (x >= logo->el_Width) {
+            buff += pitch / 2;
+            x = 0;
+        }
+    }
+}
+
+void display_logo()
+{
+    uint16_t *fb;
+    struct Size sz = get_display_size();
+    uint32_t start_x, start_y;
+    of_node_t *e = NULL;
+
+    e = dt_find_node("/chosen");
+    if (e)
+    {
+        of_property_t * prop = dt_find_property(e, "bootargs");
+        if (prop)
+        {
+            const char *tok;
+            if ((tok = find_token(prop->op_value, "logo=")))
+            {
+                tok += 5;
+
+                if (strncmp(tok, "purple", 6) == 0)
+                    purple = 1;
+                else if (strncmp(tok, "black", 5) == 0)
+                    black = 1;
             }
         }
     }
 
+    kprintf("[BOOT] Display size is %dx%d\n", sz.width, sz.height);
+    fb_width = sz.width;
+    fb_height = sz.height;
+    init_display(sz, (void**)&framebuffer, &pitch);
+    kprintf("[BOOT] Framebuffer @ %08x\n", framebuffer);
+    fb = framebuffer;
+
+    struct EmuLogo *emu68logo = rle_decode(logo_emu68, logo_emu68_len);
+    uint8_t *data = emu68logo->el_Data;
+    start_x = (sz.width - emu68logo->el_Width) / 2;
+    start_y = (sz.height - emu68logo->el_Height) / 2;
+
+    kprintf("[BOOT] Logo start coordinate: %dx%d, size: %dx%d\n", start_x, start_y, emu68logo->el_Width, emu68logo->el_Height);
+
+    /* Calculate text coordinate for version string */
+    text_y = (fb_height - 16 - 5) / 16;
+    text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
+
 #if defined(PISTORM)
+    struct EmuLogo *pistormlogo = rle_decode(logo_pistorm, logo_pistorm_len);
+    start_y -= (pistormlogo->el_Height + 10) / 2;
+    
+    const uint8_t pistorm_model = pistorm_get_model();
+    switch(pistorm_model)
+    {
+        case PISTORM_MODEL_16:
+            text_x -= strlen("PiStorm16, ");
+            break;
+        case PISTORM_MODEL_32:
+            text_x -= strlen("PiStorm32lite, ");
+            break;
+    }
+#elif defined(PISTORM_CLASSIC)
+    text_x -= strlen("PiStorm Classic, ");
+#endif
+
+    /* First clear the screen. Use color in top left corner of RLE image for that */
+    {
+        uint8_t gray = data[0];
+        uint16_t color;
+
+        if (purple)
+        {
+            gray = 240 - gray;
+            int r=-330,g=-343,b=-91;
+            r += (gray * 848) >> 8;
+            g += (gray * 768) >> 8;
+            b += (gray * 341) >> 8;
+
+            if (r < 0) r = 0;
+            if (g < 0) g = 0;
+            if (b < 0) b = 0;
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+            color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+        }
+        else if (black)
+        {
+            gray = 0;
+            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        }
+        else
+        {
+            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+        }
+
+        for (int i=0; i < sz.width * sz.height; i++)
+            fb[i] = LE16(color);
+    }
+
+    /* Then draw logos according to current settings */
+    draw_logo(emu68logo, start_x, start_y);
+
+    if (dt_find_property(dt_find_node("/emu68"), "ppc-enable"))
+    {
+        struct EmuLogo *ppclogo = rle_decode(logo_ppc, logo_ppc_len);
+        draw_logo(ppclogo, start_x + emu68logo->el_Width, start_y + 62);
+        tlsf_free(tlsf, ppclogo);
+    }
+    start_y += emu68logo->el_Height + 10;
+    tlsf_free(tlsf, emu68logo);
+
+#if defined(PISTORM)
+    draw_logo(pistormlogo, (sz.width - pistormlogo->el_Width) / 2, start_y);
+    tlsf_free(tlsf, pistormlogo);
+
     switch(pistorm_model)
     {
         case PISTORM_MODEL_16:
@@ -1086,7 +1150,12 @@ void platform_report_stealth()
         uint32_t last_x = text_x;
         uint32_t last_y = text_y;
 
-        uint32_t start_y = (sz.height + EmuLogo.el_Height) / 2;
+        /* Get the logo height for stealth mode. Assume PiStorm */
+        uint32_t logo_h = 10;
+        logo_h += (logo_emu68[2] << 8) + logo_emu68[3];
+        logo_h += logo_pistorm[2] << 8 | logo_pistorm[3];
+
+        uint32_t start_y = (sz.height + logo_h) / 2;
         
         text_y = start_y / 16;
         text_x = (sz.width - 20 * 8) / 16;
