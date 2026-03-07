@@ -241,10 +241,10 @@ void display_logo()
     text_y = (fb_height - 16 - 5) / 16;
     text_x = (fb_width - strlen(&VERSION_STRING[6]) * 8 - 1) / 8;
 
-#if defined(PISTORM)
+#if defined(PISTORM_ANY_MODEL)
     struct EmuLogo *pistormlogo = rle_decode(logo_pistorm, logo_pistorm_len);
     start_y -= (pistormlogo->el_Height + 10) / 2;
-    
+#if defined(PISTORM)
     const uint8_t pistorm_model = pistorm_get_model();
     switch(pistorm_model)
     {
@@ -257,6 +257,7 @@ void display_logo()
     }
 #elif defined(PISTORM_CLASSIC)
     text_x -= strlen("PiStorm Classic, ");
+#endif
 #endif
 
     /* First clear the screen. Use color in top left corner of RLE image for that */
@@ -306,10 +307,10 @@ void display_logo()
     start_y += emu68logo->el_Height + 10;
     tlsf_free(tlsf, emu68logo);
 
-#if defined(PISTORM)
+#if defined(PISTORM_ANY_MODEL)
     draw_logo(pistormlogo, (sz.width - pistormlogo->el_Width) / 2, start_y);
     tlsf_free(tlsf, pistormlogo);
-
+#if defined(PISTORM)
     switch(pistorm_model)
     {
         case PISTORM_MODEL_16:
@@ -321,6 +322,7 @@ void display_logo()
     }
 #elif defined(PISTORM_CLASSIC)
     kprintf_pc(__putc, NULL, "PiStorm Classic, ");
+#endif
 #endif
     /* Print EMu68 version number and git sha. */
     kprintf_pc(__putc, NULL, &VERSION_STRING[6]);
