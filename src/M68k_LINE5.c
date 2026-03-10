@@ -849,8 +849,11 @@ uint32_t EMIT_DBcc(struct TranslatorContext *ctx, uint16_t opcode)
 
         RA_FreeARMRegister(ctx, counter_reg);
 
-        /* Branch backwards further than the code start pointer, break here and in next run auto-aligh the start */
-        if (ctx->tc_M68kCodeStart > ctx->tc_M68kCodePtr)
+        /* 
+            Branch backwards further than the code start pointer, break here and in next run auto-aligh the start,
+            Also break always if DBF slowdown is enabled.
+        */
+        if ((__m68k_state->JIT_CONTROL2 & JC2F_DBF_SLOWDOWN) || (ctx->tc_M68kCodeStart > ctx->tc_M68kCodePtr))
         {
             EMIT(ctx, INSN_TO_LE(MARKER_BREAK));
         }
