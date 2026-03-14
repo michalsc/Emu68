@@ -139,8 +139,6 @@ struct EmuLogo *rle_decode(uint8_t *logo_rle, uint32_t length)
         }
     }
 
-    kprintf("decoded %d into %d, expected %d\n", pos, outpos, w * h);
-    kprintf("logo at %p, data at %p\n", logo, logo->el_Data);
     return logo;
 }
 
