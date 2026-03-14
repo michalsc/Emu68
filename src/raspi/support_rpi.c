@@ -14,6 +14,7 @@
 #include "support_rpi.h"
 #include "mmu.h"
 #include "tlsf.h"
+#include "spinlock.h"
 
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
@@ -28,16 +29,20 @@ static int serial_up = 0;
 uint8_t *q_buffer;
 volatile uint64_t q_head;
 volatile uint64_t q_tail;
+spinlock_t q_lock;
 #define Q_SIZE (16*1024*1024)
 
 void q_push(uint8_t data)
 {
+    spinlock_acquire(&q_lock);
+
     while(q_tail + Q_SIZE <= q_head)
         __asm__ volatile("yield");
-    
+
     q_buffer[q_head & (Q_SIZE - 1)] = data;
     __sync_add_and_fetch(&q_head, 1);
-    __asm__ volatile("sev");
+
+    spinlock_release(&q_lock);
 }
 
 uint8_t q_pop()
