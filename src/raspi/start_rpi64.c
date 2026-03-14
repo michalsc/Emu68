@@ -1119,29 +1119,20 @@ void unicam_run(uintptr_t address , uint8_t lanes, uint8_t datatype, uint32_t wi
 void platform_report_stealth()
 {
     int unicam_initialized = 0;
+    of_property_t *prop = dt_find_property(dt_find_node("/emu68/unicam"), "status");
 
-    of_node_t *e = dt_find_node("/chosen");
-    if (e)
+    if (prop && strcmp(prop->op_value, "okay") == 0)
     {
-        of_property_t *prop = dt_find_property(e, "bootargs");
-        if (prop)
-        {
-            const char *cmdline = prop->op_value;
-            
-            if (!!find_token(cmdline, "unicam.boot"))
-            {
-                struct Size sz = { 720, 576 };
-                void *framebuffer = NULL;
-                uint32_t pitch = 0;
+        struct Size sz = { 720, 576 };
+        void *framebuffer = NULL;
+        uint32_t pitch = 0;
 
-                init_display(sz, &framebuffer, &pitch);
+        init_display(sz, &framebuffer, &pitch);
 
-                setup_csiclk();
-                unicam_run((uintptr_t)framebuffer, 1, UNICAM_MODE, 720, 576, UNICAM_BPP);
-                
-                unicam_initialized = 1;
-            }
-        }
+        setup_csiclk();
+        unicam_run((uintptr_t)framebuffer, 1, UNICAM_MODE, 720, 576, UNICAM_BPP);
+        
+        unicam_initialized = 1;
     }
 
     if (!unicam_initialized)
