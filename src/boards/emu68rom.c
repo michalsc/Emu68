@@ -25,7 +25,7 @@ __attribute__((aligned(4096)))
 #include "./68040.library.h"
 #include "./mailbox.resource.h"
 #include "./powerpc.library.h"
-//#include "./gic.resource.h"
+#include "./gic400.library.h"
 
 static struct { 
     void *rom_base;
@@ -39,7 +39,7 @@ static struct {
     { __68040_library, sizeof(__68040_library), 0 },
     { mailbox_resource, sizeof(mailbox_resource), 0},
     { powerpc_library, sizeof(powerpc_library), 0 },
-    //{ gic_resource, sizeof(gic_resource), 0 },
+    { gic400_library, sizeof(gic400_library), 0 },
     { NULL, 0, 0 }
 };
 
