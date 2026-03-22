@@ -321,6 +321,7 @@ int debug_not_implemented = 0;
 int emu68_icnt = EMU68_M68K_INSN_DEPTH;
 int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
 int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
+int dcache_mask_bits;
 
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
@@ -1100,6 +1101,10 @@ void boot(void *dtree)
     void *initramfs_loc = NULL;
     uintptr_t initramfs_size = 0;    
     boot_lock = 0;
+
+    /* Get CTR_EL0 */
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(dcache_mask_bits));
+    dcache_mask_bits = 2 + ((dcache_mask_bits >> 16) & 15);
 
     /* Enable caches and cache maintenance instructions from EL0 */
     __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));

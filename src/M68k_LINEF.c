@@ -5327,10 +5327,10 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400 && (opcode & 0x0018) != 0)
     {
+        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
-        uint8_t tmp3 = 0xff;
-        uint8_t tmp4 = 0xff;
+        uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
 
         EMIT_FlushPC(ctx);
 
@@ -5339,45 +5339,28 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
             /* Get the scope */
             switch (opcode & 0x18) {
                 case 0x08:  /* Line */
-                    tmp = RA_CopyFromM68kRegister(ctx, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(ctx);
-                    tmp3 = RA_AllocARMRegister(ctx);
+                    tmp = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
-                        mov_immed_u8(tmp3, 4),
-                        mrs(tmp2, sys_CTR_EL0), // Get CTR_EL0
-                        ubfx(tmp2, tmp2, 16, 4),
-                        lslv(tmp2, tmp3, tmp2),
-                        sub_immed(tmp2, tmp2, 1),
                         dsb_sy(),
-                        bic_reg(tmp, tmp, tmp2, LSL, 0),
+                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
                         dc_ivac(tmp),
                         dsb_sy()
                     );
-                    RA_FreeARMRegister(ctx, tmp2);
-                    RA_FreeARMRegister(ctx, tmp3);
                     RA_FreeARMRegister(ctx, tmp);
                     break;
                 case 0x10:  /* Page */
-                    tmp = RA_CopyFromM68kRegister(ctx, 8 + (opcode & 7));
+                    tmp = RA_AllocARMRegister(ctx);
                     tmp2 = RA_AllocARMRegister(ctx);
-                    tmp3 = RA_AllocARMRegister(ctx);
-                    tmp4 = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
-                        mrs(tmp3, sys_CTR_EL0), // Get CTR_EL0
-                        ubfx(tmp3, tmp3, 16, 4),
-                        mov_immed_u16(tmp2, 1024, 0),
-                        lsrv(tmp2, tmp2, tmp3),
-                        bic_immed(tmp, tmp, 12, 0),
-                        mov_immed_u8(tmp4, 4),
-                        lslv(tmp4, tmp4, tmp3),
+                        dsb_sy(),
+                        bic_immed(tmp, reg_An, 12, 0),
+                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
                         dc_ivac(tmp),
-                        add_reg(tmp, tmp, tmp4, LSL, 0),
+                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
                         subs_immed(tmp2, tmp2, 1),
                         b_cc(A64_CC_NE, -3),
                         dsb_sy()
                     );
-                    RA_FreeARMRegister(ctx, tmp3);
-                    RA_FreeARMRegister(ctx, tmp4);
                     RA_FreeARMRegister(ctx, tmp);
                     RA_FreeARMRegister(ctx, tmp2);
                     break;
@@ -5459,10 +5442,10 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     /* CPUSH */
     else if ((opcode & 0xff20) == 0xf420 && (opcode & 0x0018) != 0)
     {
+        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
-        uint8_t tmp3 = 0xff;
-        uint8_t tmp4 = 0xff;
+        uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
 
         EMIT_FlushPC(ctx);
 
@@ -5471,45 +5454,28 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
             /* Get the scope */
             switch (opcode & 0x18) {
                 case 0x08:  /* Line */
-                    tmp = RA_CopyFromM68kRegister(ctx, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(ctx);
-                    tmp3 = RA_AllocARMRegister(ctx);
+                    tmp = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
-                        mov_immed_u8(tmp3, 4),
-                        mrs(tmp2, sys_CTR_EL0), // Get CTR_EL0
-                        ubfx(tmp2, tmp2, 16, 4),
-                        lslv(tmp2, tmp3, tmp2),
-                        sub_immed(tmp2, tmp2, 1),
                         dsb_sy(),
-                        bic_reg(tmp, tmp, tmp2, LSL, 0),
+                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
                         dc_civac(tmp),
                         dsb_sy()
                     );
-                    RA_FreeARMRegister(ctx, tmp2);
-                    RA_FreeARMRegister(ctx, tmp3);
                     RA_FreeARMRegister(ctx, tmp);
                     break;
                 case 0x10:  /* Page */
-                    tmp = RA_CopyFromM68kRegister(ctx, 8 + (opcode & 7));
+                    tmp = RA_AllocARMRegister(ctx);
                     tmp2 = RA_AllocARMRegister(ctx);
-                    tmp3 = RA_AllocARMRegister(ctx);
-                    tmp4 = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
-                        mrs(tmp3, sys_CTR_EL0), // Get CTR_EL0
-                        ubfx(tmp3, tmp3, 16, 4),
-                        mov_immed_u16(tmp2, 1024, 0),
-                        lsrv(tmp2, tmp2, tmp3),
-                        bic_immed(tmp, tmp, 12, 0),
-                        mov_immed_u8(tmp4, 4),
-                        lslv(tmp4, tmp4, tmp3),
+                        dsb_sy(),
+                        bic_immed(tmp, reg_An, 12, 0),
+                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
                         dc_civac(tmp),
-                        add_reg(tmp, tmp, tmp4, LSL, 0),
+                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
                         subs_immed(tmp2, tmp2, 1),
                         b_cc(A64_CC_NE, -3),
                         dsb_sy()
                     );
-                    RA_FreeARMRegister(ctx, tmp3);
-                    RA_FreeARMRegister(ctx, tmp4);
                     RA_FreeARMRegister(ctx, tmp);
                     RA_FreeARMRegister(ctx, tmp2);
                     break;
