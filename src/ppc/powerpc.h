@@ -30,6 +30,8 @@ struct PrivatePPCBase {
     struct Task *       pp_WaitingTask;
     UBYTE               pp_WaitingTaskBit;
 
+    /* main process */
+    struct Process *    pp_PPCProcess;
 };
 
 #define RED_ZONE_SIZE           256
