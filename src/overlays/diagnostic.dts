@@ -32,6 +32,21 @@
         };
     };
 
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            emu68 {
+                diag: diag {
+                    // BOOLS are off by default
+                    // debug-not-implemented
+                    // enable-debug
+                    // enable-disassembe
+                    // dump-device-tree
+                };
+            };
+        };
+    };
+
     __overrides__ {
         buptest = <&bup>,"status";
         bupiter = <&bup>,"iterations:0";
@@ -40,5 +55,10 @@
         membench = <&mem>,"status";
         membase = <&mem>,"base:0";
         memsize = <&mem>,"size:0";
+
+        debug_not_implemented = <&diag>,"debug-not-implemented?";
+        debug = <&diag>,"enable-debug?";
+        disassemble = <&diag>,"enable-disassemble?";
+        dump_dt = <&diag>,"dump-device-tree?";
     };
 };
