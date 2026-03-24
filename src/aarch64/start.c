@@ -1177,6 +1177,36 @@ void boot(void *dtree)
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
+    /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
+    if ((e = dt_find_node("/emu68/brcm-emmc")) == NULL)
+    {
+        e = dt_make_node("brcm-emmc");
+        dt_add_node(dt_find_node("/emu68"), e);
+
+        uint32_t speed = 50;
+        uint32_t access = 1;
+        uint32_t verbose = 0;
+        dt_add_property(e, "status", "okay", 5);
+        dt_add_property(e, "hs-clock-mhz", &speed, 4);
+        dt_add_property(e, "whole-drive-access", &access, 4);
+        dt_add_property(e, "verbose", &verbose, 4);
+    }
+
+    /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
+    if ((e = dt_find_node("/emu68/brcm-sdhc")) == NULL)
+    {
+        e = dt_make_node("brcm-sdhc");
+        dt_add_node(dt_find_node("/emu68"), e);
+
+        uint32_t speed = 50;
+        uint32_t access = 1;
+        uint32_t verbose = 0;
+        dt_add_property(e, "status", "okay", 5);
+        dt_add_property(e, "hs-clock-mhz", &speed, 4);
+        dt_add_property(e, "whole-drive-access", &access, 4);
+        dt_add_property(e, "verbose", &verbose, 4);
+    }
+
     /* Verify the unicam buffer has necessary size */
     if ((e = dt_find_node("/emu68/unicam")) != NULL)
     {
