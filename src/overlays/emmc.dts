@@ -1,0 +1,36 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68 {
+                emmc: brcm-emmc {
+                    status = "okay";
+                    hs-clock-mhz = <50>;
+                    whole-drive-access = <1>;
+                    verbose = <0>;
+
+                    // THESE BOOLS ARE OFF BY DEFAULT!
+                    // low-speed
+                    // use-dma
+                    // use-irq
+                    // use-rawputchar
+                };
+            };
+        };
+    };
+
+    __overrides__ {
+        disable = <&emmc>,"status=disabled";
+        low_speed = <&emmc>,"low-speed?";
+        clock = <&emmc>,"hs-clock-mhz:0";
+        dma = <&emmc>,"use-dma?",
+              <&emmc>,"use-irq?";
+        irq = <&emmc>,"use-irq?";
+        unit0 = <&emmc>,"whole-drive-access:0{off=0,ro=1,rw=2,=1}";
+        verbose = <&emmc>,"verbose:0";
+        rawputchar = <&emmc>,"use-rawputchar?";
+    };
+};

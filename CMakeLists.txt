@@ -147,6 +147,8 @@ set(OVERLAY_FILES
     src/overlays/emu68.dts
     src/overlays/diagnostic.dts
     src/overlays/unicam.dts
+    src/overlays/emmc.dts
+    src/overlays/sdhc.dts
 )
 
 build_devicetree(OVERLAY_FILES)
