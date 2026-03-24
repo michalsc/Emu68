@@ -2116,7 +2116,9 @@ void boot(void *dtree)
 
     }
 
-    //dt_dump_tree();
+    if (dt_find_property(dt_find_node("/emu68/diag"), "dump-device-tree")) {
+        dt_dump_tree();
+    }
 
 #ifdef PISTORM_ANY_MODEL
     if (recalc_checksum) {
