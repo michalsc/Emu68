@@ -1526,7 +1526,7 @@ uint32_t EMIT_LSR_L_reg(struct TranslatorContext *ctx, uint16_t opcode)
 
         if (update_mask & SR_NZ) {
             EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 0));
-            EMIT_GetNZxx(ctx, cc, &update_mask);
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
         }
     } else {
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -1589,7 +1589,7 @@ uint32_t EMIT_LSR_L_reg(struct TranslatorContext *ctx, uint16_t opcode)
 
         if (update_mask & SR_NZ) {
             EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 0));
-            EMIT_GetNZxx(ctx, cc, &update_mask);
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
         }
 
         RA_FreeARMRegister(ctx, tmp);
@@ -1627,8 +1627,8 @@ uint32_t EMIT_LSR_W_reg(struct TranslatorContext *ctx, uint16_t opcode)
         );
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 16));
-            EMIT_GetNZxx(ctx, cc, &update_mask);
+            EMIT(ctx, tst_immed(result, 16, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
         }
     } else {
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -1694,8 +1694,8 @@ uint32_t EMIT_LSR_W_reg(struct TranslatorContext *ctx, uint16_t opcode)
         *branch_if_zero_shift = b_cc(A64_CC_EQ, ctx->tc_CodePtr - branch_if_zero_shift);
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 16));
-            EMIT_GetNZxx(ctx, cc, &update_mask);
+            EMIT(ctx, tst_immed(reg, 16, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
         }
 
         RA_FreeARMRegister(ctx, tmp);
@@ -1733,8 +1733,8 @@ uint32_t EMIT_LSR_B_reg(struct TranslatorContext *ctx, uint16_t opcode)
         );
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 24));
-            EMIT_GetNZxx(ctx, cc, &update_mask);
+            EMIT(ctx, tst_immed(result, 8, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
         }
     } else {
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -1800,8 +1800,8 @@ uint32_t EMIT_LSR_B_reg(struct TranslatorContext *ctx, uint16_t opcode)
         *branch_if_zero_shift = b_cc(A64_CC_EQ, ctx->tc_CodePtr - branch_if_zero_shift);
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 24));
-            EMIT_GetNZxx(ctx, cc, &update_mask);
+            EMIT(ctx, tst_immed(reg, 8, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
         }
 
         RA_FreeARMRegister(ctx, tmp);
