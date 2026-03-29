@@ -909,6 +909,32 @@ void EMIT_GetNZxx(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 }
 
 static inline __attribute__((always_inline))
+void EMIT_Get0Zxx(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
+{
+    extern uint8_t host_flags;
+
+    host_flags = *not_done & (SR_Z);
+
+    if (*not_done == 0)
+        return;
+
+    uint8_t tmp_reg = RA_AllocARMRegister(ctx);
+
+    if ((*not_done & SR_NZ) == SR_N) {
+        EMIT(ctx, bic_immed(cc, cc, 1, 31 & (32 - SRB_N)));
+        (*not_done) &= ~SR_N;
+    }
+    else {
+        EMIT(ctx, 
+            cset(tmp_reg, A64_CC_EQ),
+            bfi(cc, tmp_reg, 2, 2)
+        );
+        (*not_done) &= ~SR_NZ;
+    }
+    RA_FreeARMRegister(ctx, tmp_reg);
+}
+
+static inline __attribute__((always_inline))
 void EMIT_GetNZCV(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
 {
     extern uint8_t host_flags;
