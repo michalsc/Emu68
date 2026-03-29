@@ -1816,162 +1816,367 @@ uint32_t EMIT_LSR_B_reg(struct TranslatorContext *ctx, uint16_t opcode)
     return 1;
 }
 
-static uint32_t EMIT_LSR(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_LSL")));
-static uint32_t EMIT_LSL(struct TranslatorContext *ctx, uint16_t opcode)
+uint32_t EMIT_LSL_L_imm(struct TranslatorContext *ctx, uint16_t opcode)
 {
-
     uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
-    uint8_t direction = (opcode >> 8) & 1;
     uint8_t shift = (opcode >> 9) & 7;
-    uint8_t size = 1 << ((opcode >> 6) & 3);
     uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
-    uint8_t tmp = RA_AllocARMRegister(ctx);
+    uint8_t cc = 0xff;
 
-    RA_SetDirtyM68kRegister(ctx, opcode & 7);
+    if (shift == 0) { shift = 8; }
 
-    if (!shift)
-        shift = 8;
+    if (update_mask) { cc = RA_ModifyCC(ctx); }
+    
+    /* Easy route - X, V and C not needed */
+    if ((update_mask & SR_XVC) == 0) {
+        EMIT(ctx, lsl(reg, reg, shift));
 
-    if (update_mask & (SR_C | SR_X)) {
-        if (direction) {
-            switch (size) {
-                case 4:
-                    EMIT(ctx, tst_immed(reg, 1, shift));
-                    break;
-                case 2:
-                    EMIT(ctx, tst_immed(reg, 1, 16 + shift));
-                    break;
-                case 1:
-                    EMIT(ctx, tst_immed(reg, 1, 31 & (24 + shift)));
-                    break;
-            }
-        }
-        else {
-            EMIT(ctx, tst_immed(reg, 1, 31 & (33 - shift)));
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 0));
+            EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
-
-    if (direction)
-    {
-        switch (size)
-        {
-        case 4:
-            EMIT(ctx, lsl(reg, reg, shift));
-            break;
-        case 2:
-            EMIT(ctx, 
-                lsl(tmp, reg, shift),
-                bfi(reg, tmp, 0, 16)
-            );
-            break;
-        case 1:
-            EMIT(ctx, 
-                lsl(tmp, reg, shift),
-                bfi(reg, tmp, 0, 8)
-            );
-            break;
+    else {
+        if (update_mask & SR_X) {
+            EMIT_ClearFlags(ctx, cc, SR_CCR);
+        } else {
+            EMIT_ClearFlags(ctx, cc, SR_VC);
         }
-    }
-    else
-    {
-        switch (size)
-        {
-        case 4:
-            EMIT(ctx, lsr(reg, reg, shift));
-            break;
-        case 2:
-            EMIT(ctx, 
-                uxth(tmp, reg),
-                lsr(tmp, tmp, shift),
-                bfi(reg, tmp, 0, 16)
-            );
-            break;
-        case 1:
-            EMIT(ctx, 
-                uxtb(tmp, reg),
-                lsr(tmp, tmp, shift),
-                bfi(reg, tmp, 0, 8)
-            );
-            break;
+
+        if (update_mask & SR_XC) {
+            EMIT(ctx, tst_immed(reg, 1, shift));
+        }
+
+        EMIT(ctx, lsl(reg, reg, shift));
+
+        if (update_mask & SR_XC) {
+            if (update_mask & SR_XC) {
+            uint8_t alt_flags = update_mask & SR_XC;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+            EMIT_SetFlagsConditional(ctx, cc, alt_flags, A64_CC_NE);
+        }
+        }
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 0));
+            EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
 
     EMIT_AdvancePC(ctx, 2);
+    
+    return 1;
+}
 
-    if (update_mask)
-    {
-        uint8_t cc = RA_ModifyCC(ctx);
+uint32_t EMIT_LSL_W_imm(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t shift = (opcode >> 9) & 7;
+    uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
+    uint8_t cc = 0xff;
+    uint8_t result = RA_AllocARMRegister(ctx);
 
-        uint8_t alt_flags = update_mask;
-        if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
-            alt_flags ^= 3;
+    if (shift == 0) { shift = 8; }
 
-        EMIT_ClearFlags(ctx, cc, alt_flags);
+    if (update_mask) { cc = RA_ModifyCC(ctx); }
+    
+    /* Easy route - X, V and C not needed */
+    if ((update_mask & SR_XVC) == 0) {
+        EMIT(ctx, 
+            lsl(result, reg, shift),
+            bfi(reg, result, 0, 16)
+        );
 
-        uint8_t tmp2 = RA_AllocARMRegister(ctx);
-
-        /* C/X condition is already pre-computed. Insert the flags now! */       
-        if (update_mask & (SR_C | SR_X)) {
-            if ((update_mask & SR_XC) == SR_XC)
-            {
-                EMIT(ctx, 
-                    mov_immed_u16(tmp2, SR_Calt | SR_X, 0),
-                    orr_reg(tmp2, cc, tmp2, LSL, 0),
-                    csel(cc, cc, tmp2, A64_CC_EQ)
-                );
-            }
-            else if ((update_mask & SR_XC) == SR_X)
-            {
-                EMIT(ctx, 
-                    cset(0, A64_CC_NE),
-                    bfi(cc, 0, SRB_X, 1)
-                );
-            }
-            else
-            {
-                EMIT(ctx, 
-                    cset(0, A64_CC_NE),
-                    bfi(cc, 0, SRB_Calt, 1)
-                );
-            }
-
-            /* Done with C and/or X */
-            update_mask &= ~(SR_XC);
-        }
-
-        RA_FreeARMRegister(ctx, tmp2);
-
-        if (update_mask & (SR_Z | SR_N))
-        {
-            switch(size)
-            {
-                case 4:
-                    EMIT(ctx, cmn_reg(31, reg, LSL, 0));
-                    break;
-                case 2:
-                    EMIT(ctx, cmn_reg(31, tmp, LSL, 16));
-                    break;
-                case 1:
-                    EMIT(ctx, cmn_reg(31, tmp, LSL, 24));
-                    break;
-            }
-
-            if (update_mask & SR_Z) {
-                EMIT(ctx, 
-                    orr_immed(0, cc, 1, (32 - SRB_Z) & 31),
-                    csel(cc, 0, cc, A64_CC_EQ)
-                );
-            }
-            if (update_mask & SR_N) {
-                EMIT(ctx, 
-                    orr_immed(0, cc, 1, (32 - SRB_N) & 31),
-                    csel(cc, 0, cc, A64_CC_MI)
-                );
-            }
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 16));
+            EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
-    RA_FreeARMRegister(ctx, tmp);
+    else {
+        if (update_mask & SR_X) {
+            EMIT_ClearFlags(ctx, cc, SR_CCR);
+        } else {
+            EMIT_ClearFlags(ctx, cc, SR_VC);
+        }
 
+        if (update_mask & SR_XC) {
+            EMIT(ctx, tst_immed(reg, 1, 16 + shift));
+        }
+
+        EMIT(ctx, 
+            lsl(result, reg, shift),
+            bfi(reg, result, 0, 16)
+        );
+
+        if (update_mask & SR_XC) {
+            if (update_mask & SR_XC) {
+            uint8_t alt_flags = update_mask & SR_XC;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+            EMIT_SetFlagsConditional(ctx, cc, alt_flags, A64_CC_NE);
+        }
+        }
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 16));
+            EMIT_GetNZxx(ctx, cc, &update_mask);
+        }
+    }
+
+    RA_FreeARMRegister(ctx, result);
+
+    EMIT_AdvancePC(ctx, 2);
+    
+    return 1;
+}
+
+uint32_t EMIT_LSL_B_imm(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t shift = (opcode >> 9) & 7;
+    uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
+    uint8_t cc = 0xff;
+    uint8_t result = RA_AllocARMRegister(ctx);
+
+    if (shift == 0) { shift = 8; }
+
+    if (update_mask) { cc = RA_ModifyCC(ctx); }
+    
+    /* Easy route - X, V and C not needed */
+    if ((update_mask & SR_XVC) == 0) {
+        EMIT(ctx, 
+            lsl(result, reg, shift),
+            bfi(reg, result, 0, 8)
+        );
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 24));
+            EMIT_GetNZxx(ctx, cc, &update_mask);
+        }
+    }
+    else {
+        if (update_mask & SR_X) {
+            EMIT_ClearFlags(ctx, cc, SR_CCR);
+        } else {
+            EMIT_ClearFlags(ctx, cc, SR_VC);
+        }
+
+        if (update_mask & SR_XC) {
+            EMIT(ctx, tst_immed(reg, 1, 16 + shift));
+        }
+
+        EMIT(ctx, 
+            lsl(result, reg, shift),
+            bfi(reg, result, 0, 8)
+        );
+
+        if (update_mask & SR_XC) {
+            if (update_mask & SR_XC) {
+            uint8_t alt_flags = update_mask & SR_XC;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+            EMIT_SetFlagsConditional(ctx, cc, alt_flags, A64_CC_NE);
+        }
+        }
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 24));
+            EMIT_GetNZxx(ctx, cc, &update_mask);
+        }
+    }
+
+    RA_FreeARMRegister(ctx, result);
+
+    EMIT_AdvancePC(ctx, 2);
+    
+    return 1;
+}
+
+uint32_t EMIT_LSR_L_imm(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t shift = (opcode >> 9) & 7;
+    uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
+    uint8_t cc = 0xff;
+
+    if (shift == 0) { shift = 8; }
+
+    if (update_mask) { cc = RA_ModifyCC(ctx); }
+    
+    /* Easy route - X, V and C not needed */
+    if ((update_mask & SR_XVC) == 0) {
+        EMIT(ctx, lsr(reg, reg, shift));
+
+        /* 
+            Special version of NZ setting - N is **always** cleared because right shift LSR
+            cannot be negative - MSB is always filled with zero.
+        */
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
+        }
+    }
+    else {
+        if (update_mask & SR_X) {
+            EMIT_ClearFlags(ctx, cc, SR_CCR);
+        } else {
+            EMIT_ClearFlags(ctx, cc, SR_VC);
+        }
+
+        if (update_mask & SR_XC) {
+            EMIT(ctx, tst_immed(reg, 1, 33 - shift));
+        }
+
+        EMIT(ctx, lsr(reg, reg, shift));
+
+        if (update_mask & SR_XC) {
+            if (update_mask & SR_XC) {
+            uint8_t alt_flags = update_mask & SR_XC;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+            EMIT_SetFlagsConditional(ctx, cc, alt_flags, A64_CC_NE);
+        }
+        }
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
+        }
+    }
+
+    EMIT_AdvancePC(ctx, 2);
+    
+    return 1;
+}
+
+uint32_t EMIT_LSR_W_imm(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t shift = (opcode >> 9) & 7;
+    uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
+    uint8_t cc = 0xff;
+    uint8_t tmp = RA_AllocARMRegister(ctx);
+
+    if (shift == 0) { shift = 8; }
+
+    if (update_mask) { cc = RA_ModifyCC(ctx); }
+    
+    /* Easy route - X, V and C not needed */
+    if ((update_mask & SR_XVC) == 0) {
+        EMIT(ctx, 
+            and_immed(tmp, reg, 16, 0),
+            lsr(tmp, tmp, shift),
+            bfi(reg, tmp, 0, 16)
+        );
+
+        /* 
+            Special version of NZ setting - N is **always** cleared because right shift LSR
+            cannot be negative - MSB is always filled with zero.
+        */
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, tst_immed(tmp, 16, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
+        }
+    }
+    else {
+        /* Just clear flags, we will use that later to set X, C and Z eventually */
+        EMIT_ClearFlags(ctx, cc, SR_CCR);
+
+        if (update_mask & SR_XC) {
+            EMIT(ctx, tst_immed(reg, 1, 33 - shift));
+        }
+
+        EMIT(ctx, 
+            and_immed(tmp, reg, 16, 0),
+            lsr(tmp, tmp, shift),
+            bfi(reg, tmp, 0, 16)
+        );
+
+        if (update_mask & SR_XC) {
+            uint8_t alt_flags = update_mask & SR_XC;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+            EMIT_SetFlagsConditional(ctx, cc, alt_flags, A64_CC_NE);
+        }
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, tst_immed(tmp, 16, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
+        }
+    }
+
+    RA_FreeARMRegister(ctx, tmp);
+    EMIT_AdvancePC(ctx, 2);
+    
+    return 1;
+}
+
+uint32_t EMIT_LSR_B_imm(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+    uint8_t shift = (opcode >> 9) & 7;
+    uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
+    uint8_t cc = 0xff;
+    uint8_t tmp = RA_AllocARMRegister(ctx);
+
+    if (shift == 0) { shift = 8; }
+
+    if (update_mask) { cc = RA_ModifyCC(ctx); }
+    
+    /* Easy route - X, V and C not needed */
+    if ((update_mask & SR_XVC) == 0) {
+        EMIT(ctx, 
+            and_immed(tmp, reg, 8, 0),
+            lsr(tmp, tmp, shift),
+            bfi(reg, tmp, 0, 8)
+        );
+
+        /* 
+            Special version of NZ setting - N is **always** cleared because right shift LSR
+            cannot be negative - MSB is always filled with zero.
+        */
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, tst_immed(tmp, 8, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
+        }
+    }
+    else {
+        /* Just clear flags, we will use that later to set X, C and Z eventually */
+        EMIT_ClearFlags(ctx, cc, SR_CCR);
+
+        if (update_mask & SR_XC) {
+            EMIT(ctx, tst_immed(reg, 1, 33 - shift));
+        }
+
+        EMIT(ctx, 
+            and_immed(tmp, reg, 16, 0),
+            lsr(tmp, tmp, shift),
+            bfi(reg, tmp, 0, 16)
+        );
+
+        if (update_mask & SR_XC) {
+            uint8_t alt_flags = update_mask & SR_XC;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+            alt_flags ^= 3;
+
+            EMIT_SetFlagsConditional(ctx, cc, alt_flags, A64_CC_NE);
+        }
+
+        if (update_mask & SR_NZ) {
+            EMIT(ctx, tst_immed(tmp, 8, 0));
+            EMIT_Get0Zxx(ctx, cc, &update_mask);
+        }
+    }
+
+    RA_FreeARMRegister(ctx, tmp);
+    EMIT_AdvancePC(ctx, 2);
+    
     return 1;
 }
 
@@ -6030,7 +6235,7 @@ static uint32_t EMIT_BFINS(struct TranslatorContext *ctx, uint16_t opcode)
 
 static struct OpcodeDef InsnTable[4096] = {
 	[00000 ... 00007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 8, Byte, Dn
-	[00010 ... 00017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[00010 ... 00017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[00020 ... 00027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[00030 ... 00037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[00040 ... 00047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D0
@@ -6038,7 +6243,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00060 ... 00067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[00070 ... 00077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[00100 ... 00107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 8, Word, Dn
-	[00110 ... 00117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[00110 ... 00117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[00120 ... 00127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[00130 ... 00137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[00140 ... 00147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D0
@@ -6046,7 +6251,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00160 ... 00167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[00170 ... 00177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[00200 ... 00207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 8, Long, Dn
-	[00210 ... 00217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[00210 ... 00217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[00220 ... 00227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[00230 ... 00237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[00240 ... 00247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D0
@@ -6055,7 +6260,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00270 ... 00277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[01000 ... 01007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 1, Byte, Dn
-	[01010 ... 01017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[01010 ... 01017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[01020 ... 01027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[01030 ... 01037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[01040 ... 01047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D1
@@ -6063,7 +6268,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01060 ... 01067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[01070 ... 01077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[01100 ... 01107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 1, Word, Dn
-	[01110 ... 01117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[01110 ... 01117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[01120 ... 01127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[01130 ... 01137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[01140 ... 01147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D1
@@ -6071,7 +6276,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01160 ... 01167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[01170 ... 01177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[01200 ... 01207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 1, Long, Dn
-	[01210 ... 01217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[01210 ... 01217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[01220 ... 01227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[01230 ... 01237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[01240 ... 01247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D1
@@ -6080,7 +6285,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01270 ... 01277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[02000 ... 02007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 2, Byte, Dn
-	[02010 ... 02017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[02010 ... 02017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[02020 ... 02027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[02030 ... 02037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[02040 ... 02047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D2
@@ -6088,7 +6293,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[02060 ... 02067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[02070 ... 02077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[02100 ... 02107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 2, Word, Dn
-	[02110 ... 02117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[02110 ... 02117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[02120 ... 02127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[02130 ... 02137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[02140 ... 02147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D2
@@ -6096,7 +6301,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[02160 ... 02167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[02170 ... 02177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[02200 ... 02207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 2, Long, Dn
-	[02210 ... 02217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[02210 ... 02217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[02220 ... 02227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[02230 ... 02237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[02240 ... 02247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D2
@@ -6105,7 +6310,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[02270 ... 02277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[03000 ... 03007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 3, Byte, Dn
-	[03010 ... 03017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[03010 ... 03017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[03020 ... 03027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[03030 ... 03037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[03040 ... 03047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D3
@@ -6113,7 +6318,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03060 ... 03067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[03070 ... 03077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[03100 ... 03107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 3, Word, Dn
-	[03110 ... 03117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[03110 ... 03117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[03120 ... 03127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[03130 ... 03137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[03140 ... 03147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D3
@@ -6121,7 +6326,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03160 ... 03167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[03170 ... 03177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[03200 ... 03207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 3, Long, Dn
-	[03210 ... 03217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[03210 ... 03217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[03220 ... 03227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[03230 ... 03237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[03240 ... 03247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D3
@@ -6130,7 +6335,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03270 ... 03277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[04000 ... 04007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 4, Byte, Dn
-	[04010 ... 04017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[04010 ... 04017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[04020 ... 04027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[04030 ... 04037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[04040 ... 04047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D4
@@ -6138,7 +6343,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[04060 ... 04067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[04070 ... 04077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[04100 ... 04107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 4, Word, Dn
-	[04110 ... 04117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[04110 ... 04117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[04120 ... 04127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[04130 ... 04137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[04140 ... 04147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D4
@@ -6146,7 +6351,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[04160 ... 04167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[04170 ... 04177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[04200 ... 04207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 4, Long, Dn
-	[04210 ... 04217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[04210 ... 04217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[04220 ... 04227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[04230 ... 04237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[04240 ... 04247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D4
@@ -6155,7 +6360,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[04270 ... 04277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[05000 ... 05007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 5, Byte, Dn
-	[05010 ... 05017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[05010 ... 05017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[05020 ... 05027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[05030 ... 05037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[05040 ... 05047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D5
@@ -6163,7 +6368,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[05060 ... 05067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[05070 ... 05077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[05100 ... 05107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 5, Word, Dn
-	[05110 ... 05117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[05110 ... 05117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[05120 ... 05127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[05130 ... 05137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[05140 ... 05147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D5
@@ -6171,7 +6376,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[05160 ... 05167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[05170 ... 05177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[05200 ... 05207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 5, Long, Dn
-	[05210 ... 05217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[05210 ... 05217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[05220 ... 05227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[05230 ... 05237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[05240 ... 05247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D5
@@ -6180,7 +6385,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[05270 ... 05277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[06000 ... 06007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 6, Byte, Dn
-	[06010 ... 06017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[06010 ... 06017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[06020 ... 06027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[06030 ... 06037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[06040 ... 06047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D6
@@ -6188,7 +6393,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[06060 ... 06067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[06070 ... 06077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[06100 ... 06107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 6, Word, Dn
-	[06110 ... 06117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[06110 ... 06117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[06120 ... 06127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[06130 ... 06137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[06140 ... 06147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D6
@@ -6196,7 +6401,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[06160 ... 06167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[06170 ... 06177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[06200 ... 06207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 6, Long, Dn
-	[06210 ... 06217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[06210 ... 06217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[06220 ... 06227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[06230 ... 06237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[06240 ... 06247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D6
@@ -6205,7 +6410,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[06270 ... 06277] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[07000 ... 07007] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 7, Byte, Dn
-	[07010 ... 07017] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 1 },
+	[07010 ... 07017] = { EMIT_LSR_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[07020 ... 07027] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[07030 ... 07037] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[07040 ... 07047] = { EMIT_ASR_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D7
@@ -6213,7 +6418,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07060 ... 07067] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[07070 ... 07077] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[07100 ... 07107] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 7, Word, Dn
-	[07110 ... 07117] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 2 },
+	[07110 ... 07117] = { EMIT_LSR_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[07120 ... 07127] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[07130 ... 07137] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[07140 ... 07147] = { EMIT_ASR_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D7
@@ -6221,7 +6426,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07160 ... 07167] = { EMIT_ROXR_reg, NULL, SR_X, SR_CCR , 1, 0, 2},
 	[07170 ... 07177] = { EMIT_ROR_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[07200 ... 07207] = { EMIT_ASR, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 7, Long, Dn
-	[07210 ... 07217] = { EMIT_LSR, NULL, 0, SR_CCR, 1, 0, 4 },
+	[07210 ... 07217] = { EMIT_LSR_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[07220 ... 07227] = { EMIT_ROXR, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[07230 ... 07237] = { EMIT_ROR, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[07240 ... 07247] = { EMIT_ASR_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D7
@@ -6235,7 +6440,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03320 ... 03371] = { EMIT_ROR_mem, NULL, 0, SR_NZVC, 1, 1, 2 },
 
 	[00400 ... 00407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 8, Byte, Dn
-	[00410 ... 00417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[00410 ... 00417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[00420 ... 00427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[00430 ... 00437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[00440 ... 00447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D0
@@ -6243,7 +6448,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00460 ... 00467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[00470 ... 00477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[00500 ... 00507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 8, Word, Dn
-	[00510 ... 00517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[00510 ... 00517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[00520 ... 00527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[00530 ... 00537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[00540 ... 00547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D0
@@ -6251,7 +6456,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00560 ... 00567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[00570 ... 00577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[00600 ... 00607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 8, Long, Dn
-	[00610 ... 00617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[00610 ... 00617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[00620 ... 00627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[00630 ... 00637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[00640 ... 00647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D0
@@ -6260,7 +6465,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[00670 ... 00677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[01400 ... 01407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 1, Byte, Dn
-	[01410 ... 01417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[01410 ... 01417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[01420 ... 01427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[01430 ... 01437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[01440 ... 01447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D1
@@ -6268,7 +6473,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01460 ... 01467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[01470 ... 01477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[01500 ... 01507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 1, Word, Dn
-	[01510 ... 01517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[01510 ... 01517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[01520 ... 01527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[01530 ... 01537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[01540 ... 01547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D1
@@ -6276,7 +6481,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01560 ... 01567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[01570 ... 01577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[01600 ... 01607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 1, Long, Dn
-	[01610 ... 01617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[01610 ... 01617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[01620 ... 01627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[01630 ... 01637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[01640 ... 01647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D1
@@ -6285,7 +6490,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[01670 ... 01677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[02400 ... 02407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 2, Byte, Dn
-	[02410 ... 02417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[02410 ... 02417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[02420 ... 02427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[02430 ... 02437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[02440 ... 02447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D2
@@ -6293,7 +6498,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[02460 ... 02467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[02470 ... 02477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[02500 ... 02507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 2, Word, Dn
-	[02510 ... 02517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[02510 ... 02517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[02520 ... 02527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[02530 ... 02537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[02540 ... 02547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D2
@@ -6301,7 +6506,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[02560 ... 02567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[02570 ... 02577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[02600 ... 02607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 2, Long, Dn
-	[02610 ... 02617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[02610 ... 02617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[02620 ... 02627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[02630 ... 02637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[02640 ... 02647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D2
@@ -6310,7 +6515,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[02670 ... 02677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[03400 ... 03407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 3, Byte, Dn
-	[03410 ... 03417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[03410 ... 03417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[03420 ... 03427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[03430 ... 03437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[03440 ... 03447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D3
@@ -6318,7 +6523,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03460 ... 03467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[03470 ... 03477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[03500 ... 03507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 3, Word, Dn
-	[03510 ... 03517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[03510 ... 03517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[03520 ... 03527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[03530 ... 03537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[03540 ... 03547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D3
@@ -6326,7 +6531,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03560 ... 03567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[03570 ... 03577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[03600 ... 03607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 3, Long, Dn
-	[03610 ... 03617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[03610 ... 03617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[03620 ... 03627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[03630 ... 03637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[03640 ... 03647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D3
@@ -6335,7 +6540,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[03670 ... 03677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[04400 ... 04407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 4, Byte, Dn
-	[04410 ... 04417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[04410 ... 04417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[04420 ... 04427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[04430 ... 04437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[04440 ... 04447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D4
@@ -6343,7 +6548,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[04460 ... 04467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[04470 ... 04477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[04500 ... 04507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 4, Word, Dn
-	[04510 ... 04517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[04510 ... 04517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[04520 ... 04527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[04530 ... 04537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[04540 ... 04547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D4
@@ -6351,7 +6556,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[04560 ... 04567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[04570 ... 04577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[04600 ... 04607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 4, Long, Dn
-	[04610 ... 04617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[04610 ... 04617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[04620 ... 04627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[04630 ... 04637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[04640 ... 04647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D4
@@ -6360,7 +6565,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[04670 ... 04677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[05400 ... 05407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 5, Byte, Dn
-	[05410 ... 05417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[05410 ... 05417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[05420 ... 05427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[05430 ... 05437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[05440 ... 05447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D5
@@ -6368,7 +6573,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[05460 ... 05467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[05470 ... 05477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[05500 ... 05507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 5, Word, Dn
-	[05510 ... 05517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[05510 ... 05517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[05520 ... 05527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[05530 ... 05537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[05540 ... 05547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D5
@@ -6376,7 +6581,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[05560 ... 05567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[05570 ... 05577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[05600 ... 05607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 5, Long, Dn
-	[05610 ... 05617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[05610 ... 05617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[05620 ... 05627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[05630 ... 05637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[05640 ... 05647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D5
@@ -6385,7 +6590,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[05670 ... 05677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[06400 ... 06407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 6, Byte, Dn
-	[06410 ... 06417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[06410 ... 06417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[06420 ... 06427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[06430 ... 06437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[06440 ... 06447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D6
@@ -6393,7 +6598,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[06460 ... 06467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[06470 ... 06477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[06500 ... 06507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 6, Word, Dn
-	[06510 ... 06517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[06510 ... 06517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[06520 ... 06527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[06530 ... 06537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[06540 ... 06547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D6
@@ -6401,7 +6606,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[06560 ... 06567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[06570 ... 06577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[06600 ... 06607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 6, Long, Dn
-	[06610 ... 06617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[06610 ... 06617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[06620 ... 06627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[06630 ... 06637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[06640 ... 06647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D6
@@ -6410,7 +6615,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[06670 ... 06677] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 4 },
 
 	[07400 ... 07407] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 1 },  //immediate 7, Byte, Dn
-	[07410 ... 07417] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 1 },
+	[07410 ... 07417] = { EMIT_LSL_B_imm, NULL, 0, SR_CCR, 1, 0, 1 },
 	[07420 ... 07427] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[07430 ... 07437] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[07440 ... 07447] = { EMIT_ASL_B_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },  //D7
@@ -6418,7 +6623,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07460 ... 07467] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 1 },
 	[07470 ... 07477] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 1 },
 	[07500 ... 07507] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 2 },  //immediate 7, Word, Dn
-	[07510 ... 07517] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 2 },
+	[07510 ... 07517] = { EMIT_LSL_W_imm, NULL, 0, SR_CCR, 1, 0, 2 },
 	[07520 ... 07527] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[07530 ... 07537] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[07540 ... 07547] = { EMIT_ASL_W_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },  //D7
@@ -6426,7 +6631,7 @@ static struct OpcodeDef InsnTable[4096] = {
 	[07560 ... 07567] = { EMIT_ROXL_reg, NULL, SR_X, SR_CCR, 1, 0, 2 },
 	[07570 ... 07577] = { EMIT_ROL_reg, NULL, 0, SR_NZVC, 1, 0, 2 },
 	[07600 ... 07607] = { EMIT_ASL, NULL, 0, SR_CCR, 1, 0, 4 },  //immediate 7, Long, Dn
-	[07610 ... 07617] = { EMIT_LSL, NULL, 0, SR_CCR, 1, 0, 4 },
+	[07610 ... 07617] = { EMIT_LSL_L_imm, NULL, 0, SR_CCR, 1, 0, 4 },
 	[07620 ... 07627] = { EMIT_ROXL, NULL, SR_X, SR_CCR, 1, 0, 4 },
 	[07630 ... 07637] = { EMIT_ROL, NULL, 0, SR_NZVC, 1, 0, 4 },
 	[07640 ... 07647] = { EMIT_ASL_L_reg, NULL, SR_X, SR_CCR, 1, 0, 4 },  //D7
