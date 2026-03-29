@@ -2356,6 +2356,13 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
             elr += 8;
             __asm__ volatile("msr ELR_EL1, %0"::"r"(elr));
         }
+
+        if ((esr & 0xff00) == 0x200) {
+            uint8_t regnum = esr & 0xff;
+            if (regnum < 32) {
+                kprintf("[JIT:SYS] X%02d=%p\n", regnum, SYSGetValueFromReg(regnum, ctx));
+            }
+        }
     }
 
     if (!handled)
