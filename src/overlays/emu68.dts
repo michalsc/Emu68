@@ -25,6 +25,7 @@
                     // blitter-wait
                     // dbf-slowdown
                     // chip-slowdown
+                    // move-vbr
                 };
             };
         };
@@ -36,6 +37,7 @@
         ppc_jit_size = <&emu68>,"ppc-jit-size:0";
         m68k_jit_size = <&emu68>,"m68k-jit-size:0";
         no_fpu = <&emu68>,"disable-fpu?";
+        vbr_move = <&defs>,"move-vbr?";
         ICNT = <&defs>,"insn-count:0";
         CCRD = <&defs>,"ccr-scan-depth:0";
         IRNG = <&defs>,"branch-inline-distance:0";
