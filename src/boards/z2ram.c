@@ -31,7 +31,6 @@ static void map(struct ExpansionBoard *board)
 
 /* No real ROM is used, so synthesize your own here */
 
-
 static uint16_t z2_ram[32] = {
     0xe000, 0x0000,                             // Z2 board, link it to memory list, // Size: 8MB
     (uint16_t)~(PRODUCT_ID << 8) & 0xf000, (uint16_t)~(PRODUCT_ID << 12) & 0xf000,
@@ -65,43 +64,46 @@ static void init()
 {
     of_node_t *e = NULL;
 
-    kprintf("[BOOT] Initlializing Z2 RAM expansion\n");
-
-    e = dt_find_node("/chosen");
+    e = dt_find_node("/emu68/z2ram");
     if (e)
     {
-        of_property_t * prop = dt_find_property(e, "bootargs");
-        if (prop)
+        of_property_t *p = dt_find_property(e, "status");
+        
+        if (p && strcmp(p->op_value, "okay") == 0)
         {
-            if (strstr(prop->op_value, "z2_ram_size=8")) {
-                board.rom_size = 8*1024*1024;
-                board.enabled = 1;
-                kprintf("[BOOT]   use 8MB expansion RAM\n");
-            }
-            if (strstr(prop->op_value, "z2_ram_size=4")) {
-                board.rom_size = 4*1024*1024;
-                z2_ram[1] = 0x7000;
-                board.enabled = 1;
-                kprintf("[BOOT]   use 4MB expansion RAM\n");
-            }
-            else if (strstr(prop->op_value, "z2_ram_size=2")) {
-                board.rom_size = 2*1024*1024;
-                z2_ram[1] = 0x6000;
-                board.enabled = 1;
-                kprintf("[BOOT]   use 2MB expansion RAM\n");
-            }
-            else if (strstr(prop->op_value, "z2_ram_size=1")) {
-                board.rom_size = 1*1024*1024;
-                z2_ram[1] = 0x5000;
-                board.enabled = 1;
-                kprintf("[BOOT]   use 1MB expansion RAM\n");
-            }
-            else if (strstr(prop->op_value, "z2_ram_size=0")) {
-                board.enabled = 0;
-                kprintf("[BOOT]   disable ZorroII expansion RAM\n");
-            }
-            else {
-                kprintf("[BOOT]   Z2 expansion disabled\n");
+            kprintf("[BOOT] Initlializing Z2 RAM expansion\n");
+
+            board.enabled = 1;
+            
+            uint32_t sz = dt_get_property_value_u32(e, "size", 4, 0);
+            switch (sz) {
+                case 1:
+                    board.rom_size = 1*1024*1024;
+                    z2_ram[1] = 0x5000;
+                    board.enabled = 1;
+                    kprintf("[BOOT]   use 1MB expansion RAM\n");
+                    break;
+                case 2:
+                    board.rom_size = 2*1024*1024;
+                    z2_ram[1] = 0x6000;
+                    board.enabled = 1;
+                    kprintf("[BOOT]   use 2MB expansion RAM\n");
+                    break;
+                case 4:
+                    board.rom_size = 4*1024*1024;
+                    z2_ram[1] = 0x7000;
+                    board.enabled = 1;
+                    kprintf("[BOOT]   use 4MB expansion RAM\n");
+                    break;
+                case 8:
+                    board.rom_size = 8*1024*1024;
+                    board.enabled = 1;
+                    kprintf("[BOOT]   use 8MB expansion RAM\n");
+                    break;
+                default:
+                    board.enabled = 0;
+                    kprintf("[BOOT]   illegal RAM size selected\n");
+                    break;
             }
         }
     }
