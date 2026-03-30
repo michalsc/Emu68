@@ -537,6 +537,45 @@ void arm_flush_cache(uintptr_t addr, uint32_t length)
     __asm__ __volatile__("dsb sy");
 }
 
+void arm_flush_dcache_for_jit(uintptr_t addr, uint32_t length)
+{
+    uintptr_t ctr_el0;
+    __asm__ volatile("mrs %0, CTR_EL0" : "=r"(ctr_el0));
+
+    /* D-cache line size: CTR_EL0[19:16], encoded as log2(words) */
+    uintptr_t dline = 4 << ((ctr_el0 >> 16) & 0xf);
+
+    /* Pass 1: clean D-cache to PoU */
+    uintptr_t a = addr & ~(dline - 1);
+    uintptr_t top = addr + length;
+    while (a < top) {
+        __asm__ volatile("dc cvau, %0" :: "r"(a));
+        a += dline;
+    }
+
+    __asm__ volatile("dsb ish");   /* wait for all DC CVAU to complete */
+}
+
+void arm_flush_icache_for_jit(uintptr_t addr, uint32_t length)
+{
+    uintptr_t ctr_el0;
+    __asm__ volatile("mrs %0, CTR_EL0" : "=r"(ctr_el0));
+
+    /* I-cache line size: CTR_EL0[3:0], encoded as log2(words) */
+    uintptr_t iline = 4 << ((ctr_el0 >>  0) & 0xf);
+    uintptr_t top = addr + length;
+
+    /* Pass 2: invalidate I-cache to PoU */
+    uintptr_t a = addr & ~(iline - 1);
+    while (a < top) {
+        __asm__ volatile("ic ivau, %0" :: "r"(a));
+        a += iline;
+    }
+
+    __asm__ volatile("dsb ish");
+    __asm__ volatile("isb");
+}
+
 void arm_icache_invalidate(uintptr_t addr, uint32_t length)
 {
     int line_size = 0;
