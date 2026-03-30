@@ -2155,9 +2155,9 @@ uint32_t EMIT_LSR_B_imm(struct TranslatorContext *ctx, uint16_t opcode)
         }
 
         EMIT(ctx, 
-            and_immed(tmp, reg, 16, 0),
+            and_immed(tmp, reg, 8, 0),
             lsr(tmp, tmp, shift),
-            bfi(reg, tmp, 0, 16)
+            bfi(reg, tmp, 0, 8)
         );
 
         if (update_mask & SR_XC) {

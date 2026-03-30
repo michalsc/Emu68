@@ -125,6 +125,8 @@ void kprintf(const char * format, ...);
 void arm_flush_cache(uintptr_t addr, uint32_t length);
 void arm_icache_invalidate(uintptr_t addr, uint32_t length);
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length);
+void arm_flush_dcache_for_jit(uintptr_t addr, uint32_t length);
+void arm_flush_icache_for_jit(uintptr_t addr, uint32_t length);
 void clear_entire_dcache();
 const char *remove_path(const char *in);
 size_t strlen(const char *c);

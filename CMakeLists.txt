@@ -149,6 +149,7 @@ set(OVERLAY_FILES
     src/overlays/unicam.dts
     src/overlays/emmc.dts
     src/overlays/sdhc.dts
+    src/overlays/z2ram.dts
 )
 
 build_devicetree(OVERLAY_FILES)

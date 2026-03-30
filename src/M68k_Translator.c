@@ -999,8 +999,8 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 //    DuffCopy(&unit->mt_ARMCode[0], temporary_arm_code, line_length/4);
 
     /* The code is ready, so flush the caches*/
-    arm_flush_cache((uintptr_t)&unit->mt_ARMCode, line_length);
-    arm_icache_invalidate((intptr_t)unit->mt_ARMEntryPoint, line_length);
+    arm_flush_dcache_for_jit((uintptr_t)&unit->mt_ARMCode[0], line_length);
+    arm_flush_icache_for_jit((uintptr_t)unit->mt_ARMEntryPoint, line_length);
 
     /* Tell CPU we are going to execute the code soon, give it time to prefetch while CRC is still calculated */
     asm volatile ("prfm plil1keep, [%0]"::"r"(unit->mt_ARMEntryPoint));
