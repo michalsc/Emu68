@@ -484,7 +484,7 @@ static void map_pcie_mmio_window(uint32_t *start_map)
             kprintf("[PCIE] Next low-virt addr: %08x\n", (*start_map) << 21);
 
             mmu_map(phys, virt, (uintptr_t)map_size,
-                    MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
+                    MMU_ACCESS | MMU_ALLOW_EL0 | MMU_ATTR_DEVICE, 0);
 
             kprintf("[PCIE] MMIO: phys=%08x%08x virt=%08x size=%08x\n",
                     (uint32_t)(phys >> 32), (uint32_t)phys, (uint32_t)virt, (uint32_t)map_size);
@@ -552,7 +552,7 @@ void platform_post_init()
     if (base_vcmem && size_vcmem)
     {
         mmu_map((uintptr_t)base_vcmem, (uintptr_t)base_vcmem, size_vcmem,
-                MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+                MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
     }
 
     display_logo();

@@ -96,7 +96,7 @@ __asm__("   .section .startup           \n"
 "2:                                 \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
-"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
 "       add     x9, x9, x10         \n"
@@ -1353,7 +1353,7 @@ void boot(void *dtree)
             };
             dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
 
-            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
         if (unicam_base) {
@@ -1362,7 +1362,7 @@ void boot(void *dtree)
             };
             dt_add_property(dt_find_node("/emu68"), "unicam-mem", reg, 8);
 
-            mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+            mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
         uint32_t m68k_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "m68k-jit-size", 0, FALSE) << 20;
