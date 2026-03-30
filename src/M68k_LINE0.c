@@ -1712,7 +1712,7 @@ uint32_t EMIT_EORI(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t immed = RA_AllocARMRegister(ctx);
     uint8_t dest = 0xff;
     uint8_t size = 0;
-    int16_t lo16 = 0;
+    uint16_t lo16 = 0;
     uint32_t u32;
     uint32_t mask32 = 0;
 
