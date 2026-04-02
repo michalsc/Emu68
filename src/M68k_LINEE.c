@@ -1890,7 +1890,7 @@ uint32_t EMIT_LSL_W_imm(struct TranslatorContext *ctx, uint16_t opcode)
         );
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 16));
+            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 16));
             EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
@@ -1921,7 +1921,7 @@ uint32_t EMIT_LSL_W_imm(struct TranslatorContext *ctx, uint16_t opcode)
         }
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 16));
+            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 16));
             EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
@@ -1953,7 +1953,7 @@ uint32_t EMIT_LSL_B_imm(struct TranslatorContext *ctx, uint16_t opcode)
         );
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 24));
+            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 24));
             EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
@@ -1984,7 +1984,7 @@ uint32_t EMIT_LSL_B_imm(struct TranslatorContext *ctx, uint16_t opcode)
         }
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 24));
+            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 24));
             EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     }
