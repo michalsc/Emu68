@@ -1965,7 +1965,7 @@ uint32_t EMIT_LSL_B_imm(struct TranslatorContext *ctx, uint16_t opcode)
         }
 
         if (update_mask & SR_XC) {
-            EMIT(ctx, tst_immed(reg, 1, 16 + shift));
+            EMIT(ctx, tst_immed(reg, 1, 24 + shift));
         }
 
         EMIT(ctx, 
