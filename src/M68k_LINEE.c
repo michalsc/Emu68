@@ -388,6 +388,16 @@ uint32_t EMIT_ASL_L_reg(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t result = RA_AllocARMRegister(ctx);
     uint8_t masked_shift = 0xff;
     uint32_t *branch_if_zero_shift = NULL;
+    int shift_reg_copied = 0;
+
+    /* 
+        If the same register is used as shift register and source/destination, 
+        make a shift reg copy
+    */
+    if (reg == shift_reg) {
+        shift_reg = RA_CopyFromM68kRegister(ctx, (opcode >> 9) & 7);
+        shift_reg_copied = 1;
+    }
 
     /* Easy route - X, V and C not needed */
     if ((update_mask & SR_XVC) == 0) {
@@ -490,6 +500,10 @@ uint32_t EMIT_ASL_L_reg(struct TranslatorContext *ctx, uint16_t opcode)
         RA_FreeARMRegister(ctx, mask);
     }
 
+    if (shift_reg_copied) {
+        RA_FreeARMRegister(ctx, shift_reg);
+    }
+
     RA_FreeARMRegister(ctx, result);
     RA_FreeARMRegister(ctx, masked_shift);
 
@@ -507,6 +521,16 @@ uint32_t EMIT_ASL_W_reg(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t result = RA_AllocARMRegister(ctx);
     uint8_t masked_shift = 0xff;
     uint32_t *branch_if_zero_shift = NULL;
+    int shift_reg_copied = 0;
+
+    /* 
+        If the same register is used as shift register and source/destination, 
+        make a shift reg copy
+    */
+    if (reg == shift_reg) {
+        shift_reg = RA_CopyFromM68kRegister(ctx, (opcode >> 9) & 7);
+        shift_reg_copied = 1;
+    }
 
     /* Easy route - X, V and C not needed */
     if ((update_mask & SR_XVC) == 0) {
@@ -609,6 +633,10 @@ uint32_t EMIT_ASL_W_reg(struct TranslatorContext *ctx, uint16_t opcode)
         RA_FreeARMRegister(ctx, mask);
     }
 
+    if (shift_reg_copied) {
+        RA_FreeARMRegister(ctx, shift_reg);
+    }
+
     RA_FreeARMRegister(ctx, result);
     RA_FreeARMRegister(ctx, masked_shift);
 
@@ -626,6 +654,16 @@ uint32_t EMIT_ASL_B_reg(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t result = RA_AllocARMRegister(ctx);
     uint8_t masked_shift = 0xff;
     uint32_t *branch_if_zero_shift = NULL;
+    int shift_reg_copied = 0;
+
+    /* 
+        If the same register is used as shift register and source/destination, 
+        make a shift reg copy
+    */
+    if (reg == shift_reg) {
+        shift_reg = RA_CopyFromM68kRegister(ctx, (opcode >> 9) & 7);
+        shift_reg_copied = 1;
+    }
 
     /* Easy route - X, V and C not needed */
     if ((update_mask & SR_XVC) == 0) {
@@ -726,6 +764,10 @@ uint32_t EMIT_ASL_B_reg(struct TranslatorContext *ctx, uint16_t opcode)
 
         RA_FreeARMRegister(ctx, tmp);
         RA_FreeARMRegister(ctx, mask);
+    }
+
+    if (shift_reg_copied) {
+        RA_FreeARMRegister(ctx, shift_reg);
     }
 
     RA_FreeARMRegister(ctx, result);
