@@ -123,6 +123,8 @@ uint32_t EMIT_MULS_L(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t src = 0xff;
     uint8_t ext_words = 1;
     uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
+    uint8_t signed_mul = (opcode2 & (1 << 11)) != 0;
+    uint8_t result64 = (opcode2 & (1 << 10)) != 0;
 
     // Fetch 32-bit register: source and destination
     reg_dl = RA_MapM68kRegister(ctx, (opcode2 >> 12) & 7);
@@ -131,7 +133,7 @@ uint32_t EMIT_MULS_L(struct TranslatorContext *ctx, uint16_t opcode)
     // Fetch 32-bit multiplicant
     EMIT_LoadFromEffectiveAddress(ctx, 4, &src, opcode & 0x3f, &ext_words, 1, NULL);
 
-    if (opcode2 & (1 << 10))
+    if (result64)
     {
         reg_dh = RA_MapM68kRegisterForWrite(ctx, (opcode2 & 7));
     }
@@ -140,13 +142,14 @@ uint32_t EMIT_MULS_L(struct TranslatorContext *ctx, uint16_t opcode)
         reg_dh = RA_AllocARMRegister(ctx);
     }
 
-    if (opcode2 & (1 << 11))
+    if (signed_mul)
         EMIT(ctx, smull(reg_dl, reg_dl, src));
     else
         EMIT(ctx, umull(reg_dl, reg_dl, src));
-    if (opcode2 & (1 << 10) && (reg_dh != reg_dl))
+    
+    if (result64 && (reg_dh != reg_dl))
     {
-        EMIT(ctx, add64_reg(reg_dh, 31, reg_dl, LSR, 32));
+        EMIT(ctx, lsr64(reg_dh, reg_dl, 32));
     }
 
     RA_FreeARMRegister(ctx, src);
@@ -157,41 +160,47 @@ uint32_t EMIT_MULS_L(struct TranslatorContext *ctx, uint16_t opcode)
     if (update_mask)
     {
         uint8_t cc = RA_ModifyCC(ctx);
+        uint8_t orig_mask = update_mask;
 
-        if (opcode2 & (1 << 10)) { 
-            EMIT(ctx, cmn64_reg(31, reg_dl, LSL, 0));
-        }
-        else {
-            EMIT(ctx, cmn_reg(31, reg_dl, LSL, 0));
-        }
-
-        uint8_t old_mask = update_mask & SR_V;
-        EMIT_GetNZ00(ctx, cc, &update_mask);
-        update_mask |= old_mask;
-
-        if (update_mask & SR_Z) {
-            EMIT_SetFlagsConditional(ctx, cc, SR_Z, ARM_CC_EQ);
-        }
-        if (update_mask & SR_N) {
-            EMIT_SetFlagsConditional(ctx, cc, SR_N, ARM_CC_MI);
-        }
-        if ((update_mask & SR_V) && 0 == (opcode2 & (1 << 10))) {
-            EMIT_ClearFlags(ctx, cc, SR_Valt);
-
-            uint8_t tmp = RA_AllocARMRegister(ctx);
-            /* If signed multiply check higher 32bit against 0 or -1. For unsigned multiply upper 32 bit must be zero */
-            if (opcode2 & (1 << 11)) {
-                EMIT(ctx, 
-                    cmn_reg(reg_dl, 31, LSL, 0),
-                    csetm(tmp, A64_CC_MI)
-                );
-            } else {
-                EMIT(ctx, mov_immed_u16(tmp, 0, 0));
+        if (update_mask & SR_NZ) {
+            if (result64) { 
+                EMIT(ctx, adds64_reg(31, 31, reg_dl, LSL, 0));
             }
-            EMIT(ctx, cmp64_reg(tmp, reg_dl, LSR, 32));
-            RA_FreeARMRegister(ctx, tmp);
+            else {
+                EMIT(ctx, adds_reg(31, 31, reg_dl, LSL, 0));
+            }
 
-            EMIT_SetFlagsConditional(ctx, cc, SR_Valt, ARM_CC_NE);
+            EMIT_GetNZ00(ctx, cc, &update_mask);
+        }
+        
+        if (orig_mask & SR_VC) {
+            /*  
+                If original mask contained N or Z flags, the VC are cleared too (we used GetNZ00),
+                so there is no need to clear them again
+            */
+            if ((orig_mask & SR_NZ) == 0) {
+                EMIT_ClearFlags(ctx, cc, SR_VC);
+            }
+
+            update_mask = orig_mask & SR_VC;
+
+            if ((update_mask & SR_V) && !result64) {
+                uint8_t tmp = RA_AllocARMRegister(ctx);
+                
+                /* Signed multiply, 32-bit result. Upper half must match signd extension*/
+                if (signed_mul) {
+                    EMIT(ctx, asr(tmp, reg_dl, 31));
+                }
+                else {
+                    RA_FreeARMRegister(ctx, tmp);
+                    tmp = WZR;
+                }
+
+                EMIT(ctx, cmp64_reg(tmp, reg_dl, LSR, 32));
+                EMIT_SetFlagsConditional(ctx, cc, SR_Valt, ARM_CC_NE);
+                
+                RA_FreeARMRegister(ctx, tmp);
+            }
         }
     }
 
