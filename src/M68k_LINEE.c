@@ -1567,7 +1567,7 @@ uint32_t EMIT_LSR_L_reg(struct TranslatorContext *ctx, uint16_t opcode)
         );
 
         if (update_mask & SR_NZ) {
-            EMIT(ctx, adds_reg(WZR, WZR, result, LSL, 0));
+            EMIT(ctx, adds_reg(WZR, WZR, reg, LSL, 0));
             EMIT_GetNZxx(ctx, cc, &update_mask);
         }
     } else {
