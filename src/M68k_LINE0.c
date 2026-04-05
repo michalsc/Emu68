@@ -26,8 +26,11 @@ uint32_t EMIT_CMPI(struct TranslatorContext *ctx, uint16_t opcode)
     int lsl12 = 0;
     uint8_t tmpreg = RA_AllocARMRegister(ctx);
 
-    /* Simple tests are much faster to perform */
-    uint8_t simple_test = ((update_mask & 0x13) == 0);
+    /* 
+        Simple tests are much faster to perform 
+        BUT: temporarly disabled since they misbehaved in some cases!
+    */
+    uint8_t simple_test = 0; //((update_mask & 0x13) == 0);
 
     /* Preload SR */
     uint8_t cc = RA_ModifyCC(ctx);
