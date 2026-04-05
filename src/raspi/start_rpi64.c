@@ -311,7 +311,7 @@ void display_logo()
     if (dt_find_property(dt_find_node("/emu68"), "ppc-enable"))
     {
         struct EmuLogo *ppclogo = rle_decode(logo_ppc, logo_ppc_len);
-        draw_logo(ppclogo, start_x + emu68logo->el_Width, start_y + 62);
+        draw_logo(ppclogo, start_x + emu68logo->el_Width, start_y + 49);
         tlsf_free(tlsf, ppclogo);
     }
     start_y += emu68logo->el_Height + 10;
