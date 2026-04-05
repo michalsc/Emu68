@@ -103,15 +103,27 @@ static void __putc(void *data, char c)
 
 struct EmuLogo *rle_decode(uint8_t *logo_rle, uint32_t length)
 {
-    uint32_t w = logo_rle[0] << 8 | logo_rle[1];
-    uint32_t h = logo_rle[2] << 8 | logo_rle[3];
+    uint32_t w = 0;
+    uint32_t h = 0;
+
+    while (1) {
+        w = (w << 7) | (*logo_rle & 0x7f);
+        if ((*logo_rle++ & 0x80) == 0)
+            break;
+    }
+
+    while (1) {
+        h = (h << 7) | (*logo_rle & 0x7f);
+        if ((*logo_rle++ & 0x80) == 0)
+            break;
+    }
 
     struct EmuLogo *logo = (struct EmuLogo *)tlsf_malloc(tlsf, sizeof(struct EmuLogo) + w * h);
     logo->el_Width = w;
     logo->el_Height = h;
     logo->el_Data = (uint8_t *)((uintptr_t)logo + sizeof(struct EmuLogo));
 
-    uint32_t pos = 4;
+    uint32_t pos = 0;
     uint32_t outpos = 0;
     while(pos < length) {
         int count = 0;
