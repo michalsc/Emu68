@@ -853,6 +853,9 @@ void EMIT_GetNZ00(struct TranslatorContext *ctx, uint8_t cc, uint8_t *not_done)
                 orr_immed(tmp_reg, cc, 1, 29),
                 csel(cc, tmp_reg, cc, A64_CC_MI)
             );
+        else if ((*not_done & SR_NZ) == 0 && (*not_done & SR_VC) != 0) {
+            EMIT(ctx, bic_immed(cc, cc, 2, 0));
+        }
 
         RA_FreeARMRegister(ctx, tmp_reg_2);
         (*not_done) &= 0x10;
