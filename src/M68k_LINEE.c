@@ -2741,17 +2741,19 @@ static uint32_t EMIT_ROXL(struct TranslatorContext *ctx, uint16_t opcode)
         }
 
         if (update_mask & SR_NZV) {
-            switch (size)
-            {
-                case 0:
-                    EMIT(ctx, cmn_reg(31, tmp, LSL, 24));
-                    break;
-                case 1:
-                    EMIT(ctx, cmn_reg(31, tmp, LSL, 16));
-                    break;
-                case 2:
-                    EMIT(ctx, cmn_reg(31, tmp, LSL, 0));
-                    break;
+            if (update_mask & SR_NZ) {
+                switch (size)
+                {
+                    case 0:
+                        EMIT(ctx, cmn_reg(31, tmp, LSL, 24));
+                        break;
+                    case 1:
+                        EMIT(ctx, cmn_reg(31, tmp, LSL, 16));
+                        break;
+                    case 2:
+                        EMIT(ctx, cmn_reg(31, tmp, LSL, 0));
+                        break;
+                }
             }
 
             uint8_t tmp_mask = update_mask;
