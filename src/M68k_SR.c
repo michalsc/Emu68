@@ -889,13 +889,29 @@ extern struct M68KState *__m68k_state;
 uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 {
     uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream);
-    int scan_depth = 0;
-    const int max_scan_depth = (__m68k_state->JIT_CONTROL2 >> JC2B_CCR_SCAN_DEPTH) & JC2_CCR_SCAN_MASK;
+    uint32_t scan_depth = 0;
+    uint32_t max_scan_depth = (__m68k_state->JIT_CONTROL2 >> JC2B_CCR_SCAN_DEPTH) & JC2_CCR_SCAN_MASK;
     uint8_t mask = 0;
     uint8_t needed = 0;
     uint8_t tmp_sets = 0;
     uint8_t tmp_needs = 0;
 
+#if EMU68_CCR_BREAK_AT_UNIT_END
+    // Reduce CCR scanner depth at the end of translation unit
+    // so that it does not exceed the JIT block
+    extern uint32_t insn_count;
+    uint32_t var_EMU68_M68K_INSN_DEPTH = (__m68k_state->JIT_CONTROL >> JCCB_INSN_DEPTH) & JCCB_INSN_DEPTH_MASK;
+    if (var_EMU68_M68K_INSN_DEPTH == 0)
+        var_EMU68_M68K_INSN_DEPTH = JCCB_INSN_DEPTH_MASK + 1;
+
+    uint32_t remaining = var_EMU68_M68K_INSN_DEPTH - insn_count - 1;
+
+    if (remaining > 256) remaining = 0;
+
+    if (max_scan_depth > remaining) {
+        max_scan_depth = remaining;
+    }
+#endif
     D(kprintf("[JIT] GetSRMask, opcode %04x @ %08x, ", opcode, insn_stream));
 
     uint32_t flags = SRCheck[opcode >> 12](opcode);
