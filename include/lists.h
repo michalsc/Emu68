@@ -114,15 +114,15 @@ static inline void NEWLIST(struct List *l)
 #define ForeachNode(list, node)                                 \
 for                                                             \
 (                                                               \
-    node = (&((struct List *)(list))->lh_Head);   \
+    node = (typeof(node))((list)->lh_Head.ln_Next);             \
     ((struct Node *)(node))->ln_Next;                           \
-    node = (((struct Node *)(node))->ln_Next)     \
+    node = (typeof(node))(((struct Node *)(node))->ln_Next)     \
 )
 
 #define ForeachNodeSafe(list, current, next)                    \
 for                                                             \
 (                                                               \
-    node = (typeof(node))(&((struct List *)(list))->lh_Head);   \
+    current = (typeof(current))((list)->lh_Head.ln_Next);       \
     (next = (typeof(next))((struct Node *)(current))->ln_Next); \
     current = (typeof(current))next                             \
 )
