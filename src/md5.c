@@ -161,7 +161,7 @@ uint32_t CalcCRC32(void *_start, void *_end)
     if (e != s) {
         uint16_t val;
         if (s > 0x01000000)
-            val = *(uint16_t *)s;
+            val = *(uint8_t *)s;
         else
             val = cache_read_8(ICACHE, s);
         __asm__ volatile("crc32b %w0, %w0, %w2":"=r"(crc):"0"(crc),"r"(val));
