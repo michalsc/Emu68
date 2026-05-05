@@ -150,6 +150,9 @@ set(OVERLAY_FILES
     src/overlays/emmc.dts
     src/overlays/sdhc.dts
     src/overlays/z2ram.dts
+    src/overlays/pal.dts
+    src/overlays/ntsc.dts
+    src/overlays/noscsi.dts
 )
 
 build_devicetree(OVERLAY_FILES)
