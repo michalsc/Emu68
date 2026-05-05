@@ -336,6 +336,7 @@ enum
     CIAAPRA = 0xBFE001,
     CIABPRB = 0xBFD100,
 
+    VPOSR   = 0xDFF004,
     INTENA  = 0xDFF09A,
     INTENAR = 0xDFF01C,
     INTREQ  = 0xDFF09C,
@@ -344,6 +345,9 @@ enum
 
 int block_c0;
 extern int zorro_disable;
+extern int disable_scsi;
+extern int beamcon0_pal_clear;
+extern int beamcon0_pal_set;
 
 int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
@@ -360,6 +364,12 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
     if ((far >> 32) != 0) {
         kprintf("Write in high memory with far %p, size %d, value %08x\n", far, size, value);
         return 0;
+    }
+
+    if (disable_scsi) {
+        if (far >= 0x00da0000 && far <= 0x00da7fff) {
+            return 1;
+        }
     }
 
     if (far == INTENA) {
@@ -523,6 +533,14 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     if ((far >> 32) != 0) {
         kprintf("Read from high memory with far %p, size %d\n", far, size);
         return 0;
+    }
+
+    if (disable_scsi) {
+        if (far >= 0x00da0000 && far <= 0x00da7fff) {
+            if (value) { *value = 0xffffffff; }
+            if (value2) { *value2 = 0xffffffff; }
+            return 1;
+        }
     }
 
     if (far >= 0x1000000) {
@@ -689,6 +707,16 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
             }
         }
     }
+
+    if (far == VPOSR && size == 2)
+    {
+        if (beamcon0_pal_set) {
+            *value &= 0xef00;
+        }
+        else if (beamcon0_pal_clear) {
+            *value |= 0x1000;
+        }
+    } 
 
     return 1;
 }

@@ -322,6 +322,9 @@ int emu68_icnt = EMU68_M68K_INSN_DEPTH;
 int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
 int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
 int dcache_mask_bits;
+int disable_scsi = 0;
+int beamcon0_pal_clear = 0;
+int beamcon0_pal_set = 0;
 
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
@@ -1380,6 +1383,21 @@ void boot(void *dtree)
             ppc_jit_virt_base = (void*)0xffffffe200000000ULL;
             mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
             mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base | 0x0000001000000000ULL, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+        }
+
+        /* If user requests scsi.device to be disabled, do it now */
+        if (dt_find_property(dt_find_node("/emu68"), "disable-scsi"))
+        {
+            disable_scsi = 1;
+        }
+
+        /* Check if PAL/NTSC overrides are set */
+        of_node_t *emu = dt_find_node("/emu68");
+        if (dt_find_property(emu, "beamcon0-pal-clear")) {
+            beamcon0_pal_clear = 1;
+        }
+        else if (dt_find_property(emu, "beamcon0-pal-set")) {
+            beamcon0_pal_set = 1;
         }
 
         kprintf("[BOOT] Local memory pools:\n");
