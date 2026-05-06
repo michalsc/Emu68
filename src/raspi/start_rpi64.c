@@ -609,6 +609,17 @@ void platform_post_init()
         kprintf("[BOOT] Gayle not detected\n");
     }
 
+    of_node_t *e = dt_find_node("/emu68");
+    if (e)
+    {
+        if (dt_find_property(e, "beamcon0-pal-clear")) {
+            ps_write_16_int(0xdff1dc, 0x00);
+        }
+        else if (dt_find_property(e, "beamcon0-pal-set")) {
+            ps_write_16_int(0xdff1dc, 0x20);
+        }
+    }
+
 #endif
 
     //*(volatile uint32_t *)0xf3000034 = LE32((7680000) | 0x30000000);
