@@ -55,7 +55,7 @@
                <&unicam>,"mode:0{framethrower=34,c790=36,=34}",
                <&unicam>,"pixel-order:0{framethrower=1,c790=0,=1}";
         ftmode = <&unicam>,"framethrower-mode:0{a1000=0,ocs=1,ecs=2,=1}";
-        scanlines = <&unicam>,"scanlines:0";
-        laced_scanlines = <&unicam>,"laced-scanlines:0";
+        sc = <&unicam>,"scanlines:0";
+        scl = <&unicam>,"laced-scanlines:0";
     };
 };
