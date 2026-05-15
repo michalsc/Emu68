@@ -302,7 +302,8 @@ void mmu_init()
             if (unicam_size != 0 && unicam_base == 0) {
                 if (addr + size <= 0x40000000) {
                     size -= (unicam_size + 0x1fffff) & ~0x1fffff;
-                    unicam_base = addr + size;
+                    size -= 2 << 20;
+                    unicam_base = addr + size + (2 << 20);
                     update_needed = 1;
                 }
             }
