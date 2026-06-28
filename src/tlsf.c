@@ -675,8 +675,6 @@ void *tlsf_realloc(void *t, void *ptr, uintptr_t new_size)
         return ptr;
     }
 
-    spinlock_acquire(&tlsf->lock);
-
     bnext = GET_NEXT_BHDR(b, GET_SIZE(b));
 
     /* Shrink: only if we can create a valid free block */
