@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "RegLock.h"
+
 /* Get the more significant 32 bit int from a double.  */
 
 typedef union
@@ -108,13 +110,13 @@ static __inline unsigned long long __DOUBLE_BITS(double __f)
 
 static inline double sqrt(double x)
 {
-    asm volatile("fsqrt %d0, %d0":"+w"(x):"0"(x));
+    __asm__ volatile("fsqrt %d0, %d0":"+w"(x):"0"(x));
     return x;
 }
 
 static inline double fabs(double x)
 {
-    asm volatile("fabs %d0, %d0":"+w"(x):"0"(x));
+    __asm__ volatile("fabs %d0, %d0":"+w"(x):"0"(x));
     return x;
 }
 

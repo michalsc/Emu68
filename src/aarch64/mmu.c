@@ -11,6 +11,7 @@
 #include "mmu.h"
 #include "support.h"
 #include "tlsf.h"
+#include "A64.h"
 #include "devicetree.h"
 
 #define DV2P(x) /* x */
@@ -45,7 +46,12 @@ static void *get_4k_page()
     /* Check if there is a free 4k page */
     if (!mmu_free_pages)
     {
-        /* No more 4K pages to use? Grab topmost 2MB of RAM */
+        kprintf("Out of 4K pages for MMU tables!\n");
+        while(1);
+        #if 0
+        if (serial_up)
+            kprintf("No more 4K pages to use? Grab topmost 2MB of RAM\n");
+
         of_node_t *e = dt_find_node("/memory");
         if (e)
         {
@@ -103,6 +109,7 @@ static void *get_4k_page()
                 mmu_free_pages->mp_next = last;
             }
         }
+        #endif
     }
 
     /* Now try to grab new 4K page */
@@ -114,7 +121,11 @@ static void *get_4k_page()
         /* Update pointer to free pages */
         mmu_free_pages = p->mp_next;
     }
-
+    else 
+    {
+        kprintf("Failed to get 4K page!\n");
+        while(1);
+    }
     return p;
 }
 
@@ -138,11 +149,11 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
 
     if (addr & 0xffff000000000000) {
         DV2P(kprintf("selecting kernel tables\n"));
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
         tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
         DV2P(kprintf("selecting user tables\n"));
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
         tbl = (uint64_t *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
@@ -214,6 +225,10 @@ struct MemoryBlock *sys_memory;
 
 extern uint32_t vid_memory;
 extern uintptr_t vid_base;
+extern uintptr_t unicam_base;
+extern uintptr_t unicam_size;
+extern void* m68k_jit_phys_base;
+extern void* ppc_jit_phys_base;
 
 void mmu_init()
 {
@@ -222,6 +237,8 @@ void mmu_init()
         space, so it is safe to adjust the MMU tables for lower region. Here, only peripherals are
         mapped, but the rest will come very soon.
     */
+
+    uintptr_t mmu_ploc = 0;
 
     of_node_t *e = dt_find_node("/memory");
 
@@ -234,9 +251,10 @@ void mmu_init()
         int block_size = 4 * (size_cells + address_cells);
         int block_count = p->op_length / block_size;
 
-        sys_memory = tlsf_malloc(tlsf, (1 + block_count) * block_size);
+        sys_memory = tlsf_malloc(tlsf, (1 + block_count) * sizeof(struct MemoryBlock));
         for (int block=0; block < block_count; block++)
         {
+            int last_block = (block == block_count - 1);
             uintptr_t addr = 0;
             uintptr_t size = 0;
             int update_needed = 0;
@@ -250,6 +268,29 @@ void mmu_init()
                 size = (size << 32) | BE32(range[i + address_cells]);
             }
 
+            /* 
+                If this is the last block, borrow 2MB from there for initial MMU page pool, then take 
+                memory from there for m68k and PPC jit, too.
+            */
+            if (last_block) {
+                of_node_t *e = dt_find_node("/emu68");
+
+                size -= 2*1024*1024;
+                update_needed = 1;
+                mmu_ploc = addr + size;
+
+                uint32_t m68k_jit_size = dt_get_property_value_u32(e, "m68k-jit-size", 0, FALSE) << 20;
+                size -= m68k_jit_size;
+                m68k_jit_phys_base = (void *)(addr + size);
+
+                if (dt_find_property(e, "ppc-enable"))
+                {
+                    uint32_t ppc_jit_size = dt_get_property_value_u32(e, "ppc-jit-size", 0, FALSE) << 20;
+                    size -= ppc_jit_size;
+                    ppc_jit_phys_base = (void *)(addr + size);
+                }
+            }
+
             if (vid_memory != 0 && vid_base == 0) {
                 if (addr + size <= 0x40000000) {
                     size -= (vid_memory + 2) << 20;
@@ -258,7 +299,16 @@ void mmu_init()
                 }
             }
 
-#ifdef PISTORM
+            if (unicam_size != 0 && unicam_base == 0) {
+                if (addr + size <= 0x40000000) {
+                    size -= (unicam_size + 0x1fffff) & ~0x1fffff;
+                    size -= 2 << 20;
+                    unicam_base = addr + size + (2 << 20);
+                    update_needed = 1;
+                }
+            }
+
+#ifdef PISTORM_ANY_MODEL
             // Adjust base and size of the memory block
             if (addr < 0x01000000) {
                 size -= 0x01000000 - addr;
@@ -303,11 +353,20 @@ void mmu_init()
     mmu_user_L1.mp_entries[2] = 0;
     mmu_user_L1.mp_entries[3] = 0;
 
+    /* Initialize the MMU page pool */
+    mmu_ploc += PHYS_VIRT_OFFSET;
+    for (int i=0; i < 512; i++)
+    {
+        struct mmu_page *p = (struct mmu_page *)(mmu_ploc + i * sizeof(struct mmu_page));
+        p->mp_next = mmu_free_pages;
+        mmu_free_pages = p;
+    }
+
     arm_flush_cache((intptr_t)&mmu_user_L1, sizeof(mmu_user_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L1, sizeof(mmu_kernel_L1));
     arm_flush_cache((intptr_t)&mmu_kernel_L2, sizeof(mmu_kernel_L2));
 
-    asm volatile(
+    __asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
@@ -326,12 +385,12 @@ void mirror_page(uintptr_t virt)
             struct mmu_page *tbl;
 
             /* Update user space area */
-            asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+            __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
             tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
             tbl->mp_entries[idx_l1 + 4] = tbl->mp_entries[idx_l1];
             
             /* Now fetch kernel table and update the topmost region, too */
-            asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl_kernel));
+            __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl_kernel));
             tbl_kernel = (struct mmu_page *)((uintptr_t)tbl_kernel + PHYS_VIRT_OFFSET);
             tbl_kernel->mp_entries[508 + idx_l1] = tbl->mp_entries[idx_l1];
         }
@@ -344,10 +403,10 @@ void put_2m_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     int idx_l2, idx_l1;
 
     if (virt & 0xffff000000000000) {
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
@@ -414,10 +473,10 @@ void put_4k_page(uintptr_t phys, uintptr_t virt, uint32_t attr_low, uint32_t att
     int idx_l3, idx_l2, idx_l1;
 
     if (virt & 0xffff000000000000) {
-        asm volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR1_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     } else {
-        asm volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
+        __asm__ volatile("mrs %0, TTBR0_EL1":"=r"(tbl));
         tbl = (struct mmu_page *)((uintptr_t)tbl + PHYS_VIRT_OFFSET);
     }
 
@@ -541,7 +600,7 @@ void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low
         length -= 4096;
     }
 
-        asm volatile(
+        __asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"

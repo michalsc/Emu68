@@ -389,9 +389,9 @@ extern func_ptr __CTOR_LIST__;
 void do_global_ctors(void)
 {
   func_ptr *p;
-
+/*
   for (p = (&__CTOR_LIST__)+1 ; *p != (func_ptr) 0; p++)
-    (*p) ();
+    (*p) ();*/
 }
 
 void *memcpy(void *d, const void *s, long unsigned int l)
@@ -410,7 +410,7 @@ void *memset(void *d, int c, long unsigned int l)
 }
 
 uint16_t *framebuffer;
-uint32_t pitch;
+uint32_t _pitch;
 
 extern const uint32_t topaz8_charloc[];
 extern const uint8_t topaz8_chardata[];
@@ -424,7 +424,7 @@ uint32_t fb_height = 0;
 void init_screen(uint16_t *fb, uint32_t p, uint32_t w, uint32_t h)
 {
     framebuffer = fb;
-    pitch = p;
+    _pitch = p;
     text_y = 0;
     text_x = 0;
     fb_width = w;
@@ -438,7 +438,7 @@ uint16_t *get_fb()
 
 uint32_t get_pitch()
 {
-    return pitch;
+    return _pitch;
 }
 
 uint32_t get_width()
@@ -455,9 +455,9 @@ void put_char(uint8_t c)
 {
     //kprintf("put_char(%d), fb=%08x, pitch=%d\n", (int)c, framebuffer, pitch);
 
-    if (framebuffer && pitch)
+    if (framebuffer && _pitch)
     {
-    uint16_t *pos_in_image = (uint16_t*)((uint32_t)framebuffer + (text_y * 16 + 5)* pitch);
+    uint16_t *pos_in_image = (uint16_t*)((uint32_t)framebuffer + (text_y * 16 + 5)* _pitch);
     pos_in_image += 4 + text_x * 8;
 
     if (c == 10) {
@@ -479,7 +479,7 @@ void put_char(uint8_t c)
 
             if (y & 1)
                 data += modulo;
-            pos_in_image += pitch / 2;
+            pos_in_image += _pitch / 2;
         }
     text_x++;
     }

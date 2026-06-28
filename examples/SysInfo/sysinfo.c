@@ -676,16 +676,16 @@ uint32_t	Number_Of_Runs;
 uint32_t    Clock_Frequency;
 void _main (int n)
 {
-  asm volatile("movec #0xc00,%0":"=r"(Clock_Frequency));
+  asm volatile("movec #0xe0,%0":"=r"(Clock_Frequency));
   Clock_Frequency = (Clock_Frequency + HZ / 2) / HZ;
   Number_Of_Runs = 256000000;
   kprintf("[SysInfo] Clock frequency: %d MHz\n", Clock_Frequency);
   kprintf("[SysInfo] Running BUSTEST (%d bytes)\n", Number_Of_Runs);
   kprintf("[SysInfo] Execution starts\n");
-  asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
+  asm volatile("movec #0xe1,%0":"=r"(Begin_Time));
   //SI_BusTest(Number_Of_Runs / 128);
   SI_BusTest2(Number_Of_Runs / 1000000, (void*)0);
-  asm volatile("movec #0xc01,%0":"=r"(End_Time));
+  asm volatile("movec #0xe1,%0":"=r"(End_Time));
   kprintf("[SysInfo] Execution ends\n");
   User_Time = End_Time - Begin_Time;
   kprintf("[SysInfo] Begin time: %d\n", Begin_Time / Clock_Frequency);
@@ -708,9 +708,9 @@ void _main (int n)
     do {
         Number_Of_Runs = Number_Of_Runs << 1;
 
-        asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
+        asm volatile("movec #0xe1,%0":"=r"(Begin_Time));
         pjit_bogomips(Number_Of_Runs);
-        asm volatile("movec #0xc01,%0":"=r"(End_Time));
+        asm volatile("movec #0xe1,%0":"=r"(End_Time));
 
         User_Time = End_Time - Begin_Time;
     } while (User_Time/Clock_Frequency < HZ);
@@ -729,9 +729,9 @@ void _main (int n)
   do {
     Number_Of_Runs = Number_Of_Runs << 2;
 
-    asm volatile("movec #0xc01,%0":"=r"(Begin_Time));
+    asm volatile("movec #0xe1,%0":"=r"(Begin_Time));
     SI_Start_Nr(Number_Of_Runs);
-    asm volatile("movec #0xc01,%0":"=r"(End_Time));
+    asm volatile("movec #0xe1,%0":"=r"(End_Time));
 
     User_Time = End_Time - Begin_Time;
   } while (User_Time/Clock_Frequency < Too_Small_Time);

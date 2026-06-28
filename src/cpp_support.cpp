@@ -1,61 +1,18 @@
-extern "C" {
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
 
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
+#include <cstddef>
+
+/* Don't include A64.h */
+#define _A64_H
 #include "support.h"
 #include "tlsf.h"
-
-}
-
-void * AllocMem(int size, int type)
-{
-    (void)type;
-    int req_size = (size + 3) & ~3;
-    int *ptr = reinterpret_cast<int *>(tlsf_malloc(tlsf, req_size + 32));
-    ptr[0] = size;
-    ptr[1] = 0xdeadbeef;
-    ptr[2] = 0xdeadbeef;
-    ptr[3] = 0xdeadbeef;
-
-    ptr[4 + req_size/4] = 0xcafebabe;
-    ptr[5 + req_size/4] = 0xcafebabe;
-    ptr[6 + req_size/4] = 0xcafebabe;
-    ptr[7 + req_size/4] = 0xcafebabe;
-
-    bzero(&ptr[4], size);
-
-    return &ptr[4];
-}
-
-void FreeMem(void *ptr, int size)
-{
-    unsigned int *p = reinterpret_cast<unsigned int *>(ptr);
-
-    p -= 4;
-
-    if (*p != (unsigned int)size)
-        kprintf("[C++] Size mismatch at FreeMem!! %d != %d\n", *p, size);
-
-    size = (size + 3) & ~3;
-    if (p[1] != 0xdeadbeef || p[2] != 0xdeadbeef || p[3] != 0xdeadbeef)
-    {
-        kprintf("FreeMem(): left wall damaged %08x%08x%08x\n", p[1], p[2], p[3]);
-    }
-    if (p[4 + size/4] != 0xcafebabe || p[5+size/4] != 0xcafebabe || p[6+size/4] != 0xcafebabe || p[7+size/4] != 0xcafebabe)
-    {
-        kprintf("FreeMem(): right wall damaged %08x%08x%08x%08x\n", p[4 + size/4], p[5+size/4], p[6+size/4],p[7+size/4]);
-    }
-
-    tlsf_free(tlsf, p);
-}
-
-void CopyMem(const void *src, void *dst, int size)
-{
-    memmove(dst, src, size);
-}
-
-void SetMem(void *dst, int size, char fill)
-{
-    memset(dst, (int)fill, size);
-}
 
 // C++ support stuff necessary when linked without libstdc++
 extern "C" void __cxa_pure_virtual()
@@ -64,7 +21,7 @@ extern "C" void __cxa_pure_virtual()
 
 void * __dso_handle __attribute__((weak));
 
-#define __MAX_GLOBAL_OBJECTS 256
+#define __MAX_GLOBAL_OBJECTS 1024
 
 namespace {
 
@@ -120,3 +77,75 @@ extern "C" void __cxa_finalize(void (*f)(void*))
         }
     }
 }
+
+void *operator new(std::size_t sz)
+{
+    extern void *tlsf;
+    void *ptr = nullptr;
+
+    if (sz > 0x80000000) {
+        kprintf("[CPP] operator ::new called with size 0x%llx above limits!", sz);
+        while(1) { asm volatile("wfe"); }
+    } else {
+        ptr = tlsf_malloc(tlsf, sz);
+        if (ptr == nullptr) {
+            kprintf("[CPP] operator ::new: tlsf_malloc returned NULL!");
+            while(1) { asm volatile("wfe"); }
+        }
+    }
+
+    return ptr;
+}
+
+void *operator new[](std::size_t sz)
+{
+    extern void *tlsf;
+    void *ptr = nullptr;
+
+    if (sz > 0x80000000) {
+        kprintf("[CPP] operator ::new[] called with size 0x%llx above limits!", sz);
+        while(1) { asm volatile("wfe"); }
+    } else {
+        ptr = tlsf_malloc(tlsf, sz);
+        if (ptr == nullptr) {
+            kprintf("[CPP] operator ::new[]: tlsf_malloc returned NULL!");
+            while(1) { asm volatile("wfe"); }
+        }
+    }
+
+    return ptr;
+}
+
+void operator delete(void *p)
+{
+    if (p != nullptr) {
+        extern void *tlsf;
+        tlsf_free(tlsf, p);
+    }
+}
+
+void operator delete(void *p, std::size_t)
+{
+    operator delete(p);
+}
+
+void operator delete[](void *p)
+{
+    if (p != nullptr) {
+        extern void *tlsf;
+        tlsf_free(tlsf, p);
+    }
+}
+
+void operator delete[](void *p, std::size_t)
+{
+    operator delete(p);
+}
+
+#if 0
+[[maybe_unused]] static bool table_initialized = []() {
+    //while(1);
+    kprintf("lambda\n");
+    return true;
+}();
+#endif

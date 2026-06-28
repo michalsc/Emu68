@@ -1,3 +1,12 @@
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #include <capstone/capstone.h>
 #include <tlsf.h>
 #include <support.h>
@@ -77,12 +86,15 @@ void disasm_init()
 
 csh h_m68k;
 csh h_arm;
+csh h_ppc;
 
 void disasm_open()
 {
     cs_err err;
     err = cs_open(CS_ARCH_M68K, CS_MODE_BIG_ENDIAN | CS_MODE_M68K_040, &h_m68k);
     err = cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &h_arm);
+    err = cs_open(CS_ARCH_PPC, CS_MODE_32 | CS_MODE_BIG_ENDIAN, &h_ppc);
+
     (void)err;
 }
 
@@ -90,6 +102,7 @@ void disasm_close()
 {
     cs_close(&h_m68k);
     cs_close(&h_arm);
+    cs_close(&h_ppc);
 }
 
 void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
@@ -184,6 +197,81 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
 
     if (count_m68k)
         cs_free(insn_m68k, count_m68k);
+    if (count_arm)
+        cs_free(insn_arm, count_arm);
+}
+
+void disasm_print_ppc_only(uint32_t *ppc_addr)
+{
+    cs_insn *insn_ppc;
+    size_t count_ppc = 0;
+
+    count_ppc = cs_disasm(h_ppc, (const uint8_t *)(ppc_addr-2), 128, (uintptr_t)ppc_addr-8, 7, &insn_ppc);
+
+    for (size_t i=0; i < count_ppc; i++)
+    {
+        if (insn_ppc[i].address == (uintptr_t)ppc_addr)
+            kprintf("[PPC] %08x: --> %7s %21s", insn_ppc[i].address, insn_ppc[i].mnemonic, insn_ppc[i].op_str);
+        else
+            kprintf("[PPC] %08x:     %7s %21s", insn_ppc[i].address, insn_ppc[i].mnemonic, insn_ppc[i].op_str);
+        kprintf("\n");
+    }
+
+    if (count_ppc)
+        cs_free(insn_ppc, count_ppc);
+}
+
+void disasm_print_arm_only(uint32_t *arm_addr)
+{
+    cs_insn *insn_arm;
+    size_t count_arm = 0;
+
+    count_arm = cs_disasm(h_arm, (const uint8_t *)(arm_addr-4), 128, (uintptr_t)arm_addr-16, 9, &insn_arm);
+
+    for (size_t i=0; i < count_arm; i++)
+    {
+        if (insn_arm[i].address == (uintptr_t)arm_addr)
+            kprintf("[JIT:SYS] %p: --> %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+        else
+            kprintf("[JIT:SYS] %p:     %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+        kprintf("\n");
+    }
+
+    if (count_arm)
+        cs_free(insn_arm, count_arm);
+}
+
+void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
+{
+    cs_insn *insn_ppc;
+    cs_insn *insn_arm;
+    size_t count_ppc = 0;
+    size_t count_arm = 0;
+
+    if (ppc_addr)
+        count_ppc = cs_disasm(h_ppc, (const uint8_t *)ppc_addr, 20*ppc_count, (uintptr_t)ppc_addr, ppc_count, &insn_ppc);
+    if (arm_addr)
+        count_arm = cs_disasm(h_arm, (const uint8_t *)arm_addr, arm_size, (uintptr_t)arm_addr - (uintptr_t)arm_start, 0, &insn_arm);
+
+    for (size_t i=0; i < count_ppc; i++)
+    {
+        kprintf("[PPC] %08x: %7s %21s", insn_ppc[i].address, insn_ppc[i].mnemonic, insn_ppc[i].op_str);
+        if (i != count_ppc - 1)
+            kprintf("\n");
+    }
+
+    if (count_ppc == 0)
+        kprintf("[PPC]                                        ");
+
+    for (size_t i=0; i < count_arm; i++)
+    {
+        if (i > 0)
+            kprintf("[PPC]                                        ");
+        kprintf("-> %08x: %7s %s\n", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+    }
+
+    if (count_ppc)
+        cs_free(insn_ppc, count_ppc);
     if (count_arm)
         cs_free(insn_arm, count_arm);
 }

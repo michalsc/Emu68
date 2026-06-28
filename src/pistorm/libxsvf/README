@@ -1,0 +1,365 @@
+
+Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
+******************************************************************
+
+Please check the subversion repository for updates:
+http://svn.clifford.at/libxsvf/trunk/
+
+You also might want to have a look at the project homepage:
+http://www.clifford.at/libxsvf/
+
+In papers and reports, please refer to Lib(X)SVF as follows: "Clifford Wolf,
+Lib(X)SVF: A library for implementing SVF and XSVF JTAG players.
+http://www.clifford.at/libxsvf/", e.g. using the following BibTeX code:
+
+@MISC{LibXSVF,
+  author = {Clifford Wolf},
+  title = {Lib(X)SVF: A library for implementing SVF and XSVF JTAG players},
+  howpublished = "\url{http://www.clifford.at/libxsvf/}"
+}
+
+Please send bug reports and fixes to <clifford@clifford.at>.
+
+
+Copyright and Disclaimer
+------------------------
+
+Copyright (C) 2009  RIEGL Research ForschungsGmbH
+Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+
+Introduction
+------------
+
+JTAG (IEEE 1149.1, aka "Boundary Scan", [1], [2]) is a standard IC
+testing, debugging and programming port.
+
+SVF (Serial Vector Format, [3], [4]) is a file format for storing the
+patterns that should be sent to the JTAG interface, as well as the
+expected response. It is used as an exchange format between programms
+that generate the JTAG input/output patterns and devices that can
+physically talk to a JTAG interface.
+
+XSVF (Xilinx Serial Vector Format, [5]) is a binary variant of the SVF
+file format, optimized but not limited to programming Xilinx FPGA and
+CPLD devices.
+
+Often one wants to use an embedded host processor or microcontroller
+to access the JTAG interface on an embedded device instead of using
+an external JTAG probe. This library can be used to implement such a
+solution. In addition to playing SVF and XSVF files this library is
+also capable of scanning the devices in the JTAG chain.
+
+Lib(X)SVF is free software licensed under the ISC license (a licence
+that is functionally equivalent to the 2-clause BSD license).
+
+[1] http://en.wikipedia.org/wiki/JTAG
+[2] http://www.fpga4fun.com/JTAG.html
+[3] http://en.wikipedia.org/wiki/Serial_Vector_Format
+[4] http://www.asset-intertech.com/support/svf.pdf
+[5] http://www.xilinx.com/bvdocs/appnotes/xapp503.pdf
+
+
+Limitations and non-standard extensions
+---------------------------------------
+
+The SVF commands 'PIO' and 'PIOMAP' are unsupported. Any use of this
+commands in an SVF input file is reported as error.
+
+The SVF 'RUNTEST' command is implemented in a limited manner: The
+'MAXIMUM' time parameter is ignored. Combining 'SCK' with a time
+parameter results in first executing the specified number of clock
+pulses followed by a delay of the specified timespan, instead of
+performing the clock cycles and the delay in parallel.
+
+The SVF commands 'HDR', 'HIR', 'SDR', 'SIR', 'TDR' and 'TIR' support
+an additional non-standard 'RMASK' parameter. This is a mask for the
+TDO bits, simmilar to the standard 'MASK' parameter. All TDO bits
+marked using a '1' in 'RMASK' are reported back to the host application
+using the the ret_tdo() callback function. This can be used to read
+data (such as device serial numbers) using JTAG by providing SVF
+templates.
+
+
+Using and Porting
+-----------------
+
+The library itself is written in plain C and does not depend on any
+library calls or headers, not even from the standard C library. So it
+can be ported easily even to restricted environment, such as embedded
+systems.
+
+So far the libary has only been tested on 32 bit hosts. Using it on
+16 bit processors might not be possible without performing some minor
+fixes in the code.
+
+The program 'xsvftool-gpio' (see xsvftool-gpio.c) is a good example
+of how to use the library. Please have a look at this program first.
+
+Note: See 'Host accessor macros' below for an alternative way of
+integrating libxsvf into your host environment.
+
+The host application must provide an libxsvf_host struct as defined
+in libxsvf.h. This struct contains some function pointers that must
+be set to implementations of the following functions:
+
+  int setup(struct libxsvf_host *h);
+
+	This function is called by libxsvf to setup/initialize the
+	jtag interface. It is executed before any other libxsvf_host
+	callback function is called.
+
+	This function should return 0 when setting up the jtag
+	interface went fine and -1 on an error.
+
+  int shutdown(struct libxsvf_host *h);
+
+	This function is called by libxsvf to shutdown the jtag
+	interface. No other libxsvf_host callback function will
+	be called after this function has been executed.
+
+	This function should return 0 when shutting down the jtag
+	interface went fine and -1 on an error.
+
+  void udelay(struct libxsvf_host *h, long usecs, int tms, long num_tck)
+
+	A function that delays execution for at least the specified
+	number of microseconds.
+
+	When the 'num_tck' argument is not 0 also the specified number tck
+	clock cycles (i.e. 1-0-1 transitions) must be generated with TMS set
+	to the value specified in the 'tms' argument.
+
+	A simple implementation may perform the delay and the clock cycles
+	after another instead of parallel. This only has an impact on the
+	runtime of the player, not on its functionality.
+
+  int getbyte(struct libxsvf_host *h);
+
+	A function that returns the next byte from the input file
+	or -1 on end of file.
+
+  int sync(struct libxsvf_host *h);
+
+	This function is only needed when writing bindings for an asynchronous
+	hardware interface (see 'Using libxsvf with asynchronous interfaces' below).
+
+	This function is optional and the function pointer may be set to a NULL
+	pointer on implementations using the simple synchronous interface.
+
+  void pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync)
+
+	This is the main JTAG I/O callback function.
+	It must perform the following tasks:
+
+	* Set the tms line to the value specified in the 'tms' argument.
+
+	* Set the tdi line to the value specified in the 'tdi' argument.
+	  This argument may be '-1' to indicate that the value of the tdi
+	  line is not important. In this case the tdi line may be set to
+	  any value or may be left unchanged.
+
+	* Create a negative pulse (1-0-1) on the JTAG TCK line.
+
+	* Check the tdo line against the should-be value specified in
+	  the 'tdo' argument. This argument may be '-1' to indicate that
+	  the value of the tdo line doesn't need to be checked.
+
+	* Store the current tdo value if the 'rmask' value is set to '1'.
+	  This step may be ignored if the RMASK feature (see "Limitations
+	  and non-standard extensions" above) is not used.
+
+	The function must return the current value of the tdo line, or -1 on
+	a TDO-mismatch-error.
+
+	A simple implementation of this function would look like this:
+
+	--snip--
+	int my_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync) {
+		int line_tdo;
+		setPort(TMS, tms);
+		if (tdi >= 0)
+			setPort(TDI, tdi);
+		setPort(TCK, 0);
+		setPort(TCK, 1);
+		line_tdo = getPort(TDO);
+		return tdo < 0 || line_tdo == tdo ? line_tdo : -1;
+	}
+	--snap--
+
+	The 'sync' argument can safely be ignored unless you are writing
+	bindings for an asynchronous hardware interface (see 'Using libxsvf
+	with asynchronous interfaces' below).
+
+  void pulse_sck(struct libxsvf_host *h);
+
+	A function to create a pulse on the JTAG SCK line.
+
+	This function is optional and the function pointer may
+	be set to a NULL pointer on implementations without an
+	SCK line. In this cases an SVF 'RUNTEST n SCK' command
+	has no effect.
+
+  void set_trst(struct libxsvf_host *h, int v);
+
+	A function to set the JTAG TRST line to the specified
+        value:
+		 1 ... drive the line high
+		 0 ... drive the line low
+		-1 ... do not drive the line (high impedance)
+		-2 ... got SVF 'TRST ABSENT' command
+
+	This function is optional and the function pointer may
+	be set to a NULL pointer on implementations without an
+	TRST line. In this cases an SVF 'TRST' command has no
+	effect.
+
+  int set_frequency(struct libxsvf_host *h, int v);
+
+	A function to set the JTAG CLK frequency to the specified
+	value in Hz. This function should return 0 when setting
+	the frequency was successful and -1 on error. 
+
+	This function pointer is optional (may be set to NULL).
+	In this case an SVF FREQUENCY command always results in
+	an error.
+
+  void report_tapstate(struct libxsvf_host *h);
+
+	This function is called whenever the state of the TAP
+	state machine has changed. The TAP state can be read
+	using the h->tap_state enum.
+
+	This function pointer is optional (may be set to NULL)
+	and is for debugging purposes only.
+
+  void report_device(struct libxsvf_host *h, unsigned long idcode);
+
+	This function is called in scan mode for each device found
+	in the JTAG chain.
+
+	This function pointer is optional (may be set to NULL)
+	and is only called in the SCAN mode.
+
+  void report_status(struct libxsvf_host *h, const char *message);
+
+	This function is called each time before an SVF or XSVF
+	command is executed.
+
+	This function pointer is optional (may be set to NULL)
+	and is for debugging purposes only.
+
+  void report_error(struct libxsvf_host *h, const char *file, int line, const char *message);
+
+	This function is called whenever an error is detected
+	in libxsvf. It is not optional and should provide a
+	way to notify a user about the error.
+
+  void *realloc(struct libxsvf_host *h, void *ptr, int size, enum libxsvf_mem which);
+
+	This function must provide a way to allocate dynamic
+	memory. In cases where there is a standard c library
+	it may be a simple wrapper for the realloc() function.
+
+	The xsvftool-gpio command line option '-r' can be used to
+	auto-generate a realloc function for static buffers, based
+	on the requirements from an example svf or xsvf file.
+	Example given:
+
+		./xsvftool-gpio -r my_host_realloc -s demo.svf
+
+	(Re-)allocation may fail. In this cases a NULL pointer
+	must be returned. The library then generates an error,
+	frees all resources and returns.
+
+After such a struct is prepared, the function libxsvf_play()
+can be called, passing the libxsvf_host struct as first and the
+mode (LIBXSVF_MODE_SVF, LIBXSVF_MODE_XSVF or LIBXSVF_MODE_SCAN)
+as second argument.
+
+Example given:
+
+	if (libxsvf_play(&h, LIBXSVF_MODE_XSVF) < 0) {
+		/* Error handling */
+	}
+
+The libxsvf_host struct is passed back to all callback functions
+and the 'user_data' member (a void pointer) can be used to pass
+additional data (such as a file handle) to the callbacks.
+
+
+Host accessor macros
+--------------------
+
+Despite its great flexibility, APIs based on callback functions
+as the one used by libxsvf are unusual in the embedded community.
+Basically because they introduce a slight overhead in the memory
+footprint.
+
+For those who prefer a more direct integration with their host
+environments libxsvf also provides 'host accessor macros' in the
+libxsvf.h header file. Simply remove the callback functions from
+the libxsvf_host struct and modify the LIBXSVF_HOST_ macros
+to fit your needs.
+
+
+Using libxsvf with asynchronous interfaces
+------------------------------------------
+
+This library has been designed at first for a register mapped bit banging
+interface as it can be found on many microcontrollers or host CPUs. But
+some interfaces might require the JTAG data to be send and recivied in
+blocks and/or asynchronously. This is not trivial with this library because the
+pulse_tck() callback function is expected to transfer one single bit at a time.
+The solution to this is to buffer all data sent to pulse_tck() and always
+return a valid status (i.e. 'tdo < 0 ? 1 : tdo') and do the transfers when the
+buffer is full or when an interface shutdown is requested.
+
+However, some JTAG transaction must be performed synchronously (e.g. the last
+transaction in an XSVF XREPEAT data shift. In this cases pulse_tck() is called
+with the 'sync' argument set to 1. The pulse_tck() function must then perform
+all buffered JTAG transactions and return the actual tdo value for this last
+JTAG transaction or -1 if an error was detected before.
+
+An asynchronous interface binding also must implement the sync() function. It
+must perform all buffered JTAG transactions and return -1 if a TDO error was
+detected an 0 otherwise.
+
+Note: The returncode of pulse_tck is not checked in all conditions! So whenever
+an error is detected all further calls to pulse_tck() up to and including
+the next call of pulse_tck() with the 'sync' argument set or the next call to
+sync() or shutdown() must return -1.
+
+Have a look at the example program 'xsvftool-ft232h.c' for a reference
+implementation.
+
+
+Stripping down libxsvf
+----------------------
+
+It is possible to disable SVF, XSVF and/or SCAN support by setting the
+LIBXSVF_WITHOUT_SVF, LIBXSVF_WITHOUT_XSVF or LIBXSVF_WITHOUT_SCAN
+defines. In this cases one would not want to link against svf.o, xsvf.o
+or scan.o.
+
+One does not need to link agains statename.o and memname.o if the
+libxsvf_state2str() and libxsvf_mem2str() functions are not needed.
+Usually this functions are used for debugging purposes only.
+
+It is possible to modify the LIBXSVF_HOST_REPORT_STATUS() and
+LIBXSVF_HOST_REPORT_ERROR() macros in libxsvf.h to be empty
+instructions. This drastically reduces the number of string
+constants in the code.
+

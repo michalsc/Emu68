@@ -93,8 +93,7 @@ uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size)
     return word_count;
 }
 
-
-/* Check if opcode is of branch kind or may result in a */
+/* Check if opcode is of branch kind or may result in a branch */
 int M68K_IsBranch(uint16_t *insn_stream)
 {
     uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)&insn_stream[0]);
@@ -124,6 +123,36 @@ int M68K_IsBranch(uint16_t *insn_stream)
         return 1;
     else
         return 0;
+}
+
+/* Try to follow a branch given by insn_stream pointer. If not possible, return NULL */
+uint16_t *M68K_TryFollowBranch(uint16_t *insn_stream)
+{
+    uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream++);
+    
+    /* Branch is BRA */
+    if ((opcode & 0xff00) == 0x6000) {
+        int32_t bra_off;
+        /* use 16-bit offset */
+        if ((opcode & 0x00ff) == 0x00)
+        {
+            bra_off = (int16_t)(cache_read_16(ICACHE, (uintptr_t)insn_stream));
+        }
+        /* use 32-bit offset */
+        else if ((opcode & 0x00ff) == 0xff)
+        {
+            bra_off = (int32_t)(cache_read_32(ICACHE, (uintptr_t)insn_stream));
+        }
+        else
+        /* otherwise use 8-bit offset */
+        {
+            bra_off = (int8_t)(opcode & 0xff);
+        }
+
+        return (uint16_t *)((uintptr_t)insn_stream + bra_off);
+    }
+
+    return NULL;
 }
 
 int M68K_GetMoveLength(uint16_t *insn_stream)
@@ -763,8 +792,6 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
         length += SR_GetEALength(&insn_stream[length], opcode & 0x3f, opsize * 2);
     }
 
-    kprintf("GetLineFLength for opcode %04x returns %d\n", opcode, 2*length);
-
     return length;
 }
 
@@ -862,13 +889,29 @@ extern struct M68KState *__m68k_state;
 uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 {
     uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream);
-    int scan_depth = 0;
-    const int max_scan_depth = (__m68k_state->JIT_CONTROL2 >> JC2B_CCR_SCAN_DEPTH) & JC2_CCR_SCAN_MASK;
+    uint32_t scan_depth = 0;
+    uint32_t max_scan_depth = (__m68k_state->JIT_CONTROL2 >> JC2B_CCR_SCAN_DEPTH) & JC2_CCR_SCAN_MASK;
     uint8_t mask = 0;
     uint8_t needed = 0;
     uint8_t tmp_sets = 0;
     uint8_t tmp_needs = 0;
 
+#if EMU68_CCR_BREAK_AT_UNIT_END
+    // Reduce CCR scanner depth at the end of translation unit
+    // so that it does not exceed the JIT block
+    extern uint32_t insn_count;
+    uint32_t var_EMU68_M68K_INSN_DEPTH = (__m68k_state->JIT_CONTROL >> JCCB_INSN_DEPTH) & JCCB_INSN_DEPTH_MASK;
+    if (var_EMU68_M68K_INSN_DEPTH == 0)
+        var_EMU68_M68K_INSN_DEPTH = JCCB_INSN_DEPTH_MASK + 1;
+
+    uint32_t remaining = var_EMU68_M68K_INSN_DEPTH - insn_count - 1;
+
+    if (remaining > 256) remaining = 0;
+
+    if (max_scan_depth > remaining) {
+        max_scan_depth = remaining;
+    }
+#endif
     D(kprintf("[JIT] GetSRMask, opcode %04x @ %08x, ", opcode, insn_stream));
 
     uint32_t flags = SRCheck[opcode >> 12](opcode);
@@ -1027,9 +1070,95 @@ uint8_t M68K_GetSRMask(uint16_t *insn_stream)
 
                 return mask1 | needed1 | mask2 | needed2;
             }
+            else if ((opcode & 0xf0f8) == 0x50c8)
+            {
+                int32_t branch_offset = (int16_t)(insn_stream[1]);
+                uint16_t *insn_stream_2 = insn_stream + 2;
+
+                // Mark the flags which conditional jump needs by itself
+                needed |= mask & (SRCheck[opcode >> 12](opcode) >> 16);
+
+                insn_stream = insn_stream + 1 + (branch_offset >> 1);
+
+                uint8_t mask1 = mask;
+                uint8_t mask2 = mask;
+                uint8_t needed1 = needed;
+                uint8_t needed2 = needed;
+                int scan_depth_tmp = scan_depth;
+
+                while (mask1 && scan_depth < max_scan_depth)
+                {
+                    scan_depth++;
+
+                    /* If instruction is a branch break the scan */
+                    if (M68K_IsBranch(insn_stream))
+                        break;
+
+                    /* Get opcode */
+                    opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream);
+
+                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    tmp_sets = flags & 0x1f;
+                    tmp_needs = (flags >> 16) & 0x1f;
+
+                    /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                    if (mask1 & tmp_needs)
+                    {
+                        needed1 |= (mask1 & tmp_needs);
+                    }
+
+                    /* Clear flags which this instruction sets */
+                    mask1 = mask1 & ~tmp_sets;
+
+                    if ((mask1 & tmp_needs) == mask1)
+                    {
+                        break;
+                    }
+
+                    /* Advance to subsequent instruction */
+                    insn_stream += M68K_GetINSNLength(insn_stream);
+                }
+
+                scan_depth = scan_depth_tmp;
+
+                while (mask2 && scan_depth < max_scan_depth)
+                {
+                    scan_depth++;
+
+                    /* If instruction is a branch break the scan */
+                    if (M68K_IsBranch(insn_stream_2))
+                        break;
+
+                    /* Get opcode */
+                    opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)insn_stream_2);
+
+                    uint32_t flags = SRCheck[opcode >> 12](opcode);
+                    tmp_sets = flags & 0x1f;
+                    tmp_needs = (flags >> 16) & 0x1f;
+
+                    /* If instruction *needs* one of flags from current opcode, break the check and return mask */
+                    if (mask2 & tmp_needs)
+                    {
+                        needed2 |= (mask2 & tmp_needs);
+                    }
+
+                    /* Clear flags which this instruction sets */
+                    mask2 = mask2 & ~tmp_sets;
+
+                    if ((mask2 & tmp_needs) == mask2)
+                    {
+                        break;
+                    }
+
+                    /* Advance to subsequent instruction */
+                    insn_stream_2 += M68K_GetINSNLength(insn_stream_2);
+                }
+
+                return mask1 | needed1 | mask2 | needed2;
+            }
             else 
             {
-                D(kprintf("[JIT]   %02d: check breaks on branch\n", scan_depth));
+                D(kprintf("[JIT]   %02d: check breaks on branch for opcode %04x\n", scan_depth, opcode));
                 break;
             }
         }

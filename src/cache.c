@@ -1,3 +1,12 @@
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #include "config.h"
 #include "tlsf.h"
 #include "support.h"
@@ -60,6 +69,15 @@ int cache_get_way(struct Cache *cache, int set)
 
 void cache_setup()
 {
+    if (IC != NULL && DC != NULL) {
+        kprintf("[CACHE] Cache was alraedy set up, invalidating only\n");
+        
+        cache_invalidate_all(ICACHE);
+        cache_invalidate_all(DCACHE);
+        
+        return;
+    }
+    
     (kprintf("[CACHE] Cache setup. Cache sizeof=%lu\n", sizeof(struct Cache)));
     (kprintf("[CACHE] Way count: %d, Set count: %d\n", CACHE_WAY_COUNT, CACHE_SET_COUNT));
 
@@ -207,24 +225,6 @@ uint128_t cache_read_128(enum CacheType type, uint32_t address)
     if (address >= 0x01000000)
         return *(uint128_t *)(uintptr_t)address;
 
-#if 0
-
-    if (type == DCACHE) return 0;
-    
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE && (cacr & CACR_IE) == 0)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-
-#endif
-
     D(kprintf("[CACHE] %cCache read_128(%08lx)\n", type == ICACHE ? 'I':'D', address));
 
     D(kprintf("[CACHE]   set = %u, ", set));
@@ -301,22 +301,6 @@ uint64_t cache_read_64(enum CacheType type, uint32_t address)
 
     if (address >= 0x01000000)
         return *(uint64_t *)(uintptr_t)address;
-
-#if 0
-    if (type == DCACHE) return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE && (cacr & CACR_IE) == 0)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
 
     D(kprintf("[CACHE] %cCache read_64(%08lx)\n", type == ICACHE ? 'I':'D', address));
 
@@ -433,22 +417,6 @@ uint32_t cache_read_32(enum CacheType type, uint32_t address)
     if (address >= 0x01000000)
         return *(uint32_t *)(uintptr_t)address;
 
-#if 0
-    if (type == DCACHE) return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE && (cacr & CACR_IE) == 0)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
-
     D(kprintf("[CACHE] %cCache read_32(%08lx)\n", type == ICACHE ? 'I':'D', address));
 
     D(kprintf("[CACHE]   set = %u, ", set));
@@ -541,23 +509,6 @@ uint16_t cache_read_16(enum CacheType type, uint32_t address)
     if (address >= 0x01000000)
         return *(uint16_t *)(uintptr_t)address;
 
-#if 0
-
-    if (type == DCACHE) return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE && (cacr & CACR_IE) == 0)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
-
     D(kprintf("[CACHE] %cCache read_16(%08lx)\n", type == ICACHE ? 'I':'D', address));
 
     D(kprintf("[CACHE]   set = %u, ", set));
@@ -634,23 +585,6 @@ uint8_t cache_read_8(enum CacheType type, uint32_t address)
     if (address >= 0x01000000)
         return *(uint8_t *)(uintptr_t)address;
 
-#if 0
-
-    if (type == DCACHE) return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE && (cacr & CACR_IE) == 0)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
-
     D(kprintf("[CACHE] %cCache read_8(%08lx)\n", type == ICACHE ? 'I':'D', address));
 
     D(kprintf("[CACHE]   set = %u, ", set));
@@ -716,22 +650,6 @@ int cache_write_128(enum CacheType type, uint32_t address, uint128_t data, uint8
     const uint32_t tag = GET_TAG(address);
     const uint32_t set = GET_SET(address);
     int way = -1;
-
-#if 0
-    return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
 
     D(kprintf("[CACHE] %cCache write_128(%08lx, %016lx%016lx, %x)\n", type == ICACHE ? 'I':'D', address, data.hi, data.lo, write_back));
 
@@ -816,22 +734,6 @@ int cache_write_64(enum CacheType type, uint32_t address, uint64_t data, uint8_t
     const uint32_t tag = GET_TAG(address);
     const uint32_t set = GET_SET(address);
     int way = -1;
-
-#if 0
-    return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
 
     D(kprintf("[CACHE] %cCache write_64(%08lx, %016lx, %x)\n", type == ICACHE ? 'I':'D', address, data, write_back));
 
@@ -933,22 +835,6 @@ int cache_write_32(enum CacheType type, uint32_t address, uint32_t data, uint8_t
     const uint32_t tag = GET_TAG(address);
     const uint32_t set = GET_SET(address);
     int way = -1;
-
-#if 0
-    return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
 
     D(kprintf("[CACHE] %cCache write_32(%08lx, %08x, %x)\n", type == ICACHE ? 'I':'D', address, data, write_back));
 
@@ -1057,22 +943,6 @@ int cache_write_16(enum CacheType type, uint32_t address, uint16_t data, uint8_t
     const uint32_t set = GET_SET(address);
     int way = -1;
 
-#if 0
-    return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
-
     D(kprintf("[CACHE] %cCache write_16(%08lx, %04x, %x)\n", type == ICACHE ? 'I':'D', address, data, write_back));
 
     D(kprintf("[CACHE]   set = %u, ", set));
@@ -1178,22 +1048,6 @@ int cache_write_8(enum CacheType type, uint32_t address, uint8_t data, uint8_t w
     const uint32_t tag = GET_TAG(address);
     const uint32_t set = GET_SET(address);
     int way = -1;
-
-#if 0
-    return 0;
-
-    /* Exit if given cache is disabled in CACR */
-    uint32_t cacr;
-    asm volatile("mov %w0, v31.s[0]":"=r"(cacr));
-    if (type == ICACHE)
-        return 0;
-    else if (type == DCACHE && (cacr & CACR_DE) == 0)
-        return 0;
-
-    /* Only ROM is cacheable! */
-    if (!((address >= 0x00e00000 && address < 0x00e80000) || (address >= 0x00f00000 && address < 0x01000000)))
-        return 0;
-#endif
 
     D(kprintf("[CACHE] %cCache write_8(%08lx, %02x, %x)\n", type == ICACHE ? 'I':'D', address, data, write_back));
 

@@ -14,17 +14,17 @@ In order to maintain good execution speed of M68k code, Emu68 keeps most importa
 | ``A0...A4``, ``A5...A7`` | ``W13...W17``, ``W27...W29`` | General purpose address register                 |
 | ``PC``                   | ``W18``                      | Program counter                                  |
 | ``FP0...FP7``            | ``D8...D15``                 | Floating point register                          |
-| ``SR``                   | ``TPIDR_EL0``                | Status register                                  |
-| ``FPSR``                 | ``V29.S[0]``                 | FPU Status register                              |
-| ``FPIAR``                | ``V29.S[1]``                 | FPU Instruction address register                 |
-| ``FPCR``                 | ``V29.H[4]``                 | FPU Control register                             |
-| ``CACR``                 | ``V31.S[0]``                 | Cache control register                           |
-| ``USP``                  | ``V31.S[1]``                 | User mode stack pointer                          |
-| ``ISP``                  | ``V31.S[2]``                 | Interrupt stack pointer                          |
-| ``MSP``                  | ``V31.S[3]``                 | Master stack pointer                             |
-| ``INSN_COUNT``           | ``V30.D[0]``                 | 64-bit M68k instruction counter                  |
-| *last PC*                | ``TPIDR_EL1``                | Program counter of previously executed JIT block |
-| *m68k context*           | ``TPIDRRO_EL0``              | Pointer to M68k context of JIT machine           |
+| ``FPSR``                 | ``V19.S[0]``                 | FPU Status register                              |
+| ``FPIAR``                | ``V19.S[1]``                 | FPU Instruction address register                 |
+| ``FPCR``                 | ``V19.H[4]``                 | FPU Control register                             |
+| ``SR``                   | ``V19.H[5]``                 | Status register                                  |
+| *last PC*                | ``V19.S[3]``                 | Program counter of previously executed JIT block |
+| ``INSN_COUNT``           | ``V20.D[0]``                 | 64-bit M68k instruction counter                  |
+| *m68k context*           | ``V20.D[1]``                 | Pointer to M68k context of JIT machine           |
+| ``CACR``                 | ``V21.S[0]``                 | Cache control register                           |
+| ``USP``                  | ``V21.S[1]``                 | User mode stack pointer                          |
+| ``ISP``                  | ``V21.S[2]``                 | Interrupt stack pointer                          |
+| ``MSP``                  | ``V21.S[3]``                 | Master stack pointer                             |
 
 
 

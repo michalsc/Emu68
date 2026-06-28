@@ -1,3 +1,5 @@
+#ifndef __DHRY_H
+#define __DHRY_H
 /*
  ****************************************************************************
  *
@@ -427,3 +429,5 @@ typedef struct record
                   } var_3;
           } variant;
       } Rec_Type, *Rec_Pointer;
+
+#endif

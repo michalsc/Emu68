@@ -1,0 +1,19 @@
+services:
+  amigadev:
+    build: ./amigadev/
+    stdin_open: true
+    tty: true
+    entrypoint: sh
+    volumes:
+      - emu68:/work/emu68
+
+  armdev:
+    build: ./ubuntu/
+    stdin_open: true
+    tty: true
+    entrypoint: sh
+    volumes:
+      - emu68:/work/emu68
+
+volumes:
+  emu68:

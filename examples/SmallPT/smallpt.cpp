@@ -58,22 +58,9 @@ struct Sphere
     }
 };
 
-Sphere spheres[] = {//Scene: radius, position, emission, color, material
-   Sphere(600, Vec(50,681.6-.27,81.6),Vec(12,12,12),  Vec(), DIFF), //Lite
-   Sphere(1e5, Vec( 1e5+1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left
-   Sphere(1e5, Vec(-1e5+99,40.8,81.6),Vec(),Vec(.25,.25,.75),DIFF),//Rght
-   Sphere(1e5, Vec(50,40.8, 1e5),     Vec(),Vec(.55,.55,.55),DIFF),//Back
-   Sphere(1e5, Vec(50,40.8,-1e5+170), Vec(),Vec(),           DIFF),//Frnt
-   Sphere(1e5, Vec(50, 1e5, 81.6),    Vec(),Vec(.75,.75,.75),DIFF),//Botm
-   Sphere(1e5, Vec(50,-1e5+81.6,81.6),Vec(),Vec(.75,.75,.75),DIFF),//Top
-   Sphere(16.5,Vec(27,16.5,47),       Vec(),Vec(.4,.4,.3)*.999, SPEC),//Mirr
-   Sphere(16.5,Vec(73,16.5,78),       Vec(),Vec(.8,.7,.95)*.999, REFR),//Glas
-   Sphere(10.5,Vec(23,10.5,98),       Vec(),Vec(.6,1,0.7)*.999, REFR),//Glas
-   Sphere(8.,Vec(50,8.,108),       Vec(),Vec(1,0.6,0.7)*.999, REFR),//Glas
-   Sphere(6.5, Vec(53,6.5,48),       Vec(),Vec(0.3,.4,.4)*.999, SPEC),//Mirr
- };
+Sphere *spheres;
 
-const int numSpheres = sizeof(spheres)/sizeof(Sphere);
+int numSpheres;
 
 static inline double clamp(double x)
 {
@@ -288,6 +275,25 @@ void SmallPT()
     pitch = get_pitch();
     width = get_width();
     height = get_height();
+
+    Sphere scene[] = {
+        // Scene: radius, position, emission, color, material
+        Sphere(600, Vec(50, 681.6 - .27, 81.6), Vec(12, 12, 12), Vec(), DIFF),    // Lite
+        Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), Vec(), Vec(.75, .25, .25), DIFF),   // Left
+        Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), DIFF), // Rght
+        Sphere(1e5, Vec(50, 40.8, 1e5), Vec(), Vec(.55, .55, .55), DIFF),         // Back
+        Sphere(1e5, Vec(50, 40.8, -1e5 + 170), Vec(), Vec(), DIFF),               // Frnt
+        Sphere(1e5, Vec(50, 1e5, 81.6), Vec(), Vec(.75, .75, .75), DIFF),         // Botm
+        Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(), Vec(.75, .75, .75), DIFF), // Top
+        Sphere(16.5, Vec(27, 16.5, 47), Vec(), Vec(.4, .4, .3) * .999, SPEC),     // Mirr
+        Sphere(16.5, Vec(73, 16.5, 78), Vec(), Vec(.8, .7, .95) * .999, REFR),    // Glas
+        Sphere(10.5, Vec(23, 10.5, 98), Vec(), Vec(.6, 1, 0.7) * .999, REFR),     // Glas
+        Sphere(8., Vec(50, 8., 108), Vec(), Vec(1, 0.6, 0.7) * .999, REFR),       // Glas
+        Sphere(6.5, Vec(53, 6.5, 48), Vec(), Vec(0.3, .4, .4) * .999, SPEC),      // Mirr
+    };
+
+    spheres = scene;
+    numSpheres = sizeof(scene) / sizeof(Sphere);
 
     kprintf("[SmallPT] Starting SmallPT Path Tracer\n");
     kprintf("[SmallPT] Screen %dx%d at 0x%08x\n", width, height, fb);

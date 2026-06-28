@@ -23,31 +23,28 @@ extern uint32_t val_FPIAR;
 uint64_t Load96bit(uintptr_t __ignore, uintptr_t base);
 uint64_t Store96bit(uintptr_t value, uintptr_t base);
 
-uint32_t * get_Load96(uint32_t *ptr)
+void get_Load96(struct TranslatorContext *ctx)
 {
     if (reg_Load96 == 0xff) {
-        reg_Load96 = RA_AllocARMRegister(&ptr);
+        reg_Load96 = RA_AllocARMRegister(ctx);
         uint32_t val = (uintptr_t)Load96bit;
-
-        *ptr++ = mov_immed_u16(reg_Load96, val & 0xffff, 0);
-        *ptr++ = movk_immed_u16(reg_Load96, val >> 16, 1);
-        *ptr++ = orr64_immed(reg_Load96, reg_Load96, 25, 25, 1);
+        EMIT_LoadImmediate(ctx, reg_Load96, val);
+        EMIT(ctx, 
+            orr64_immed(reg_Load96, reg_Load96, 25, 25, 1)
+        );
     }
-
-    return ptr;
 }
 
-uint32_t * get_Save96(uint32_t *ptr)
+void get_Save96(struct TranslatorContext *ctx)
 {
     if (reg_Save96 == 0xff) {
-        reg_Save96 = RA_AllocARMRegister(&ptr);
+        reg_Save96 = RA_AllocARMRegister(ctx);
         uint32_t val = (uintptr_t)Store96bit;
-
-        *ptr++ = mov_immed_u16(reg_Save96, val & 0xffff, 0);
-        *ptr++ = movk_immed_u16(reg_Save96, val >> 16, 1);
-        *ptr++ = orr64_immed(reg_Save96, reg_Save96, 25, 25, 1);
+        EMIT_LoadImmediate(ctx, reg_Save96, val);
+        EMIT(ctx, 
+            orr64_immed(reg_Save96, reg_Save96, 25, 25, 1)
+        );
     }
-    return ptr;
 }
 
 enum {
@@ -328,10 +325,11 @@ double TrimDoubleRange(double a)
     return out.d;
 }
 
+#if 0
 void PolySine(void);
 void  __attribute__((used)) stub_PolySine(void)
 {
-    asm volatile(
+    __asm__ volatile(
         "   .align 4                \n"
         "   .globl PolySine         \n"
         "PolySine:                  \n"
@@ -366,7 +364,7 @@ void  __attribute__((used)) stub_PolySine(void)
 void PolySineSingle(void);
 void  __attribute__((used)) stub_PolySineSingle(void)
 {
-    asm volatile(
+    __asm__ volatile(
         "   .align 4                \n"
         "   .globl PolySineSingle   \n"
         "PolySineSingle:            \n"
@@ -395,7 +393,7 @@ void  __attribute__((used)) stub_PolySineSingle(void)
 void PolyCosine(void);
 void  __attribute__((used)) stub_PolyCosine(void)
 {
-    asm volatile(
+    __asm__ volatile(
         "   .align 4                \n"
         "   .globl PolyConsine      \n"
         "PolyCosine:                \n"
@@ -429,7 +427,7 @@ void  __attribute__((used)) stub_PolyCosine(void)
 void PolyCosineSingle(void);
 void  __attribute__((used)) stub_PolyCosineSingle(void)
 {
-    asm volatile(
+    __asm__ volatile(
         "   .align 4                \n"
         "   .globl PolyCosineSingle \n"
         "PolyCosineSingle:          \n"
@@ -451,6 +449,7 @@ void  __attribute__((used)) stub_PolyCosineSingle(void)
         "   .ltorg                  \n"::"i"(C_COS_COEFF_SINGLE*8)
     );
 }
+#endif
 
 enum FPUOpSize {
     SIZE_L = 0,
@@ -478,12 +477,23 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
 {
     int cnt = 0;
 
+    /* Break on recursion level too high */
+    if (level > 10) {
+        return 1;
+    } 
+
     while((cache_read_16(ICACHE, (uintptr_t)ptr) & 0xfe00) != 0xf200)
     {
-        if (cnt++ > 15)
+        if (cnt++ > 200)
             return 1;
         if (M68K_IsBranch(ptr))
-            return 1;
+        {
+            ptr = M68K_TryFollowBranch(ptr);
+            if (ptr != NULL)
+                continue;
+            else
+                return 1;
+        }
         
         int len = M68K_GetINSNLength(ptr);
         if (len <= 0)
@@ -505,6 +515,15 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
     }
 
     /*
+        If FMOVE to MEM skip this instruction and repeat check.
+    */
+    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
+    {
+        ptr += 2 + SR_GetEALength(ptr + 2, opcode & 0x3f, 0);
+        return FPSR_Update_Needed(ptr, level + 1);
+    }
+
+    /*
         Update FPSR condition codes only if subsequent FPU instruction
         is one of following: FBcc, FDBcc, FMOVEM, FScc, FTRAPcc
     */
@@ -521,8 +540,6 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
         return 1;
     if ((opcode & 0xfff8) == 0xf278 && (opcode2 & 0xffc0) == 0) /* FTRAPcc */
         return 1;
-    if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe000) == 0x6000) /* FMOVE to MEM */
-        return 1;
     if ((opcode & 0xffc0) == 0xf340) /* FRESTORE */
         return 1;
     if ((opcode & 0xffc0) == 0xf300) /* FSAVE */
@@ -531,8 +548,42 @@ int FPSR_Update_Needed(uint16_t *ptr, int level)
     return 0;
 }
 
+static const uint8_t IntTable[32] = {
+    [1] = 0b1110000,
+    [2] = 0b0000000,
+    [3] = 0b0001000,
+    [4] = 0b0010000,
+    [5] = 0b0010100,
+    [6] = 0b0011000,
+    [7] = 0b0011100,
+    [8] = 0b0100000,
+    [9] = 0b0100010,
+    [10]= 0b0100100,
+    [11]= 0b0100110,
+    [12]= 0b0101000,
+    [13]= 0b0101010,
+    [14]= 0b0101100,
+    [15]= 0b0101110,
+    [16]= 0b0110000,
+    [17]= 0b0110001,
+    [18]= 0b0110010,
+    [19]= 0b0110011,
+    [20]= 0b0110100,
+    [21]= 0b0110101,
+    [22]= 0b0110110,
+    [23]= 0b0110111,
+    [24]= 0b0111000,
+    [25]= 0b0111001,
+    [26]= 0b0111010,
+    [27]= 0b0111011,
+    [28]= 0b0111100,
+    [29]= 0b0111101,
+    [30]= 0b0111110,
+    [31]= 0b0111111,
+};
+
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
-uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16_t opcode,
+void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count, uint8_t single)
 {
     union {
@@ -545,7 +596,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
     /* IF R/M is zero, then source identifier is FPU reg number. */
     if ((opcode2 & 0x4000) == 0)
     {
-        *reg = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
+        *reg = RA_MapFPURegister(ctx, (opcode2 >> 10) & 7);
     }
     else
     {
@@ -559,7 +610,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
         /* The regtister was not yet assigned? assign it to a temporary reg now */
         if (*reg == 0xff)
-            *reg = RA_AllocFPURegister(&ptr);
+            *reg = RA_AllocFPURegister(ctx);
 
         uint8_t ea = opcode & 0x3f;
         enum FPUOpSize size = (opcode2 >> 10) & 7;
@@ -574,32 +625,34 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             {
                 /* Single - move to single half of the reg, convert to double */
                 case SIZE_S:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-                    *ptr++ = fmsr(*reg, int_reg);
-                    *ptr++ = fcvtds(*reg, *reg);
-                    RA_FreeARMRegister(&ptr, int_reg);
+                    EMIT_LoadFromEffectiveAddress(ctx, 4, &int_reg, ea, ext_count, 1, NULL);
+                    EMIT(ctx, 
+                        fmsr(*reg, int_reg),
+                        fcvtds(*reg, *reg)
+                    );
+                    RA_FreeARMRegister(ctx, int_reg);
                     break;
 
                 case SIZE_L:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-                    *ptr++ = scvtf_32toD(*reg, int_reg);
-                    RA_FreeARMRegister(&ptr, int_reg);
+                    EMIT_LoadFromEffectiveAddress(ctx, 4, &int_reg, ea, ext_count, 1, NULL);
+                    EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                    RA_FreeARMRegister(ctx, int_reg);
                     break;
 
                 case SIZE_W:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 2, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-                    *ptr++ = scvtf_32toD(*reg, int_reg);
-                    RA_FreeARMRegister(&ptr, int_reg);
+                    EMIT_LoadFromEffectiveAddress(ctx, 0x80 | 2, &int_reg, ea, ext_count, 1, NULL);
+                    EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                    RA_FreeARMRegister(ctx, int_reg);
                     break;
 
                 case SIZE_B:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 1, &int_reg, ea, *m68k_ptr, ext_count, 1, NULL);
-                    *ptr++ = scvtf_32toD(*reg, int_reg);
-                    RA_FreeARMRegister(&ptr, int_reg);
+                    EMIT_LoadFromEffectiveAddress(ctx, 0x80 | 1, &int_reg, ea, ext_count, 1, NULL);
+                    EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                    RA_FreeARMRegister(ctx, int_reg);
                     break;
 
                 default:
-                    kprintf("[JIT] LineF: wrong argument size %d for Dn access at %08x\n", (int)size, *m68k_ptr-1);
+                    kprintf("[JIT] LineF: wrong argument size %d for Dn access at %08x\n", (int)size, ctx->tc_M68kCodePtr - 1);
             }
         }
         /* Case 2: mode 111:100 - immediate */
@@ -612,53 +665,127 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             switch (size)
             {
                 case SIZE_S:
-                {
-                    int8_t off = 4;
-                    ptr = EMIT_GetOffsetPC(ptr, &off);
-                    *ptr++ = flds(*reg, REG_PC, off);
-                    *ptr++ = fcvtds(*reg, *reg);
+                    union {
+                        uint32_t i;
+                        float f;
+                    } u;
+                    u.i = (uint32_t)cache_read_32(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    /* Check if immediate constant is possible */
+                    if ((u.i & 0x7ffff) == 0 && ((u.i & 0x7e000000) == 0x40000000 || (u.i & 0x7e000000) == 0x3e000000)) {
+                        uint8_t imm = (u.i >> 19) & 0x7f;
+                        if (u.i & 0x80000000) imm |= 0x80;
+                        EMIT(ctx, fmov(*reg, imm));
+                    } else {
+                        int8_t off = 4;
+                        EMIT_GetOffsetPC(ctx, &off);
+                        EMIT(ctx, 
+                            flds(*reg, REG_PC, off),
+                            fcvtds(*reg, *reg)
+                        );
+                    }
                     *ext_count += 2;
                     break;
-                }
 
                 case SIZE_L:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
-                    *ptr++ = scvtf_32toD(*reg, int_reg);
+                    int32_t imm32 = (uint32_t)cache_read_32(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    switch (imm32) {
+                        case 0:
+                            EMIT(ctx, fmov_0(*reg));
+                            break;
+                        case 1:
+                            EMIT(ctx, fmov_1(*reg));
+                            break;
+                        default:
+                            if (_abs(imm32) < 32) {
+                                uint8_t sign = imm32 < 0 ? 1 : 0;
+                                if (sign) imm32 = -imm32;
+                                uint8_t constval = IntTable[imm32] | sign << 7;
+                                EMIT(ctx, fmov(*reg, constval));
+                            }
+                            else {
+                                int_reg = RA_AllocARMRegister(ctx);
+                                EMIT_LoadImmediate(ctx, int_reg, imm32);
+                                EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                            }
+                    }
+                    *ext_count += 2;
                     break;
                 
                 case SIZE_W:
-                {
-                    int_reg = RA_AllocARMRegister(&ptr);
-                    int16_t imm = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
-                    *ptr++ = movw_immed_u16(int_reg, imm & 0xffff);
-                    if (imm < 0)
-                        *ptr++ = movt_immed_u16(int_reg, 0xffff);
-                    *ptr++ = scvtf_32toD(*reg, int_reg);
+                    int16_t imm = (int16_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    switch (imm) {
+                        case 0:
+                            EMIT(ctx, fmov_0(*reg));
+                            break;
+                        case 1:
+                            EMIT(ctx, fmov_1(*reg));
+                            break;
+                        default:
+                            if (_abs(imm) < 32) {
+                                uint8_t sign = imm < 0 ? 1 : 0;
+                                if (sign) imm = -imm;
+                                uint8_t constval = IntTable[imm] | sign << 7;
+                                EMIT(ctx, fmov(*reg, constval));
+                            }
+                            else {
+                                int_reg = RA_AllocARMRegister(ctx);
+                                EMIT_LoadImmediate(ctx, int_reg, imm);
+                                EMIT(ctx, scvtf_32toD(*reg, int_reg));
+                            }
+                    }
                     *ext_count += 1;
                     break;
-                }
 
                 case SIZE_B:
-                {
-                    int_reg = RA_AllocARMRegister(&ptr);
-                    int8_t imm = (int8_t)cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
-                    *ptr++ = mov_immed_s8(int_reg, imm);
-                    *ptr++ = scvtf_32toD(*reg, int_reg);
+                    int8_t imm8 = (int8_t)cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    switch (imm8) {
+                        case 0:
+                            EMIT(ctx, fmov_0(*reg));
+                            break;
+                        case 1:
+                            EMIT(ctx, fmov_1(*reg));
+                            break;
+                        default:
+                            if (_abs(imm8) < 32) {
+                                uint8_t sign = imm8 < 0 ? 1 : 0;
+                                if (sign) imm8 = -imm8;
+                                uint8_t constval = IntTable[imm8] | sign << 7;
+                                EMIT(ctx, fmov(*reg, constval));
+                            }
+                            else {
+                                int_reg = RA_AllocARMRegister(ctx);
+                                EMIT(ctx, 
+                                    mov_immed_s8(int_reg, imm8),
+                                    scvtf_32toD(*reg, int_reg)
+                                );
+                            }
+                    }
                     *ext_count += 1;
                     break;
-                }
 
                 case SIZE_D:
-                {
-                    int8_t off = 4;
-                    ptr = EMIT_GetOffsetPC(ptr, &off);
-                    *ptr++ = fldd(*reg, REG_PC, off);
+                    union {
+                        uint64_t i;
+                        double f;
+                    } ud;
+                    ud.i = (uint64_t)cache_read_64(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+                    /* Check if immediate constant is possible */
+                    if ((ud.i & 0xffffffffffULL) == 0 && 
+                            ((ud.i & 0x7fc0000000000000ULL) == 0x4000000000000000ULL || 
+                             (ud.i & 0x7fc0000000000000ULL) == 0x3fc0000000000000ULL)) {
+                        uint8_t imm = (ud.i >> 48) & 0x7f;
+                        if (ud.i & 0x8000000000000000ULL) imm |= 0x80;
+                        EMIT(ctx, fmov(*reg, imm));
+                    } else {
+                        int8_t off = 4;
+                        EMIT_GetOffsetPC(ctx, &off);
+                        EMIT(ctx, fldd(*reg, REG_PC, off));
+                    }
                     *ext_count += 4;
                     break;
-                }
 
                 default:
-                    ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, ea, *m68k_ptr, ext_count, 0, NULL);
+                    EMIT_LoadFromEffectiveAddress(ctx, 0, &int_reg, ea, ext_count, 0, NULL);
                     not_yet_done = 1;
                     break;
             }
@@ -669,38 +796,42 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 switch(size)
                 {
                     case SIZE_D:
-                        *ptr++ = fldd(*reg, int_reg, 0);
+                        EMIT(ctx, fldd(*reg, int_reg, 0));
                         *ext_count += 4;
                         break;
 
                     case SIZE_X:
-                        ptr = get_Load96(ptr);
-                        *ptr++ = str64_offset_preindex(31, 30, -16);
-                        *ptr++ = mov_reg(1, int_reg);
-                        *ptr++ = blr(reg_Load96);
-                        *ptr++ = mov_reg_to_simd(*reg, TS_D, 0, 0);
-                        *ptr++ = ldr64_offset_postindex(31, 30, 16);
+                        get_Load96(ctx);
+                        EMIT(ctx, 
+                            str64_offset_preindex(31, 30, -16),
+                            mov_reg(1, int_reg),
+                            blr(reg_Load96),
+                            mov_reg_to_simd(*reg, TS_D, 0, 0),
+                            ldr64_offset_postindex(31, 30, 16)
+                        );
                         *ext_count += 6;
                         break;
 
                     case SIZE_P:
                         u.u64 = (uintptr_t)PackedToDouble;
 
-                        ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+                        EMIT_SaveRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 7));
 
-                        *ptr++ = ldr64_offset(int_reg, 0, 0);
-                        *ptr++ = ldr64_offset(int_reg, 1, 8);
+                        EMIT(ctx, 
+                            ldr64_offset(int_reg, 0, 0),
+                            ldr64_offset(int_reg, 1, 8),
                         
-                        *ptr++ = mov64_immed_u16(2, u.u16[3], 0);
-                        *ptr++ = movk64_immed_u16(2, u.u16[2], 1);
-                        *ptr++ = movk64_immed_u16(2, u.u16[1], 2);
-                        *ptr++ = movk64_immed_u16(2, u.u16[0], 3);
+                            mov64_immed_u16(2, u.u16[3], 0),
+                            movk64_immed_u16(2, u.u16[2], 1),
+                            movk64_immed_u16(2, u.u16[1], 2),
+                            movk64_immed_u16(2, u.u16[0], 3),
 
-                        *ptr++ = blr(2);
+                            blr(2),
 
-                        *ptr++ = fcpyd(*reg, 0);
+                            fcpyd(*reg, 0)
+                        );
 
-                        ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+                        EMIT_RestoreRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 7));
                         *ext_count += 6;
                         break;
 
@@ -709,7 +840,7 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                 }
             }
 
-            RA_FreeARMRegister(&ptr, int_reg);
+            RA_FreeARMRegister(ctx, int_reg);
         }
         /* Case 3: get pointer to data (EA) and fetch yourself */
         else
@@ -721,9 +852,9 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
             int8_t post_sz = 0;
 
             if (mode == 4 || mode == 3)
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &int_reg, opcode & 0x3f, ext_count, 0, NULL);
             else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 1, &imm_offset);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &int_reg, opcode & 0x3f, ext_count, 1, &imm_offset);
 
             /* Pre index? Adjust base register accordingly */
             if (mode == 4) {
@@ -748,53 +879,52 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     {
                         if (pre_sz)
                         {
-                            *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                            EMIT(ctx, sub_immed(int_reg, int_reg, -pre_sz));
                         }
                         if (imm_offset < -255 || imm_offset > 251) {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
+                            uint8_t off = RA_AllocARMRegister(ctx);
 
                             if (imm_offset > -4096 && imm_offset < 0)
                             {
-                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                                EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                             }
                             else if (imm_offset >= 0 && imm_offset < 4096)
                             {
-                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                                EMIT(ctx, add_immed(off, int_reg, imm_offset));
                             }
                             else
                             {
-                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                                EMIT_LoadImmediate(ctx, off, imm_offset);
+                                EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                             }
-                            RA_FreeARMRegister(&ptr, int_reg);
+                            RA_FreeARMRegister(ctx, int_reg);
                             int_reg = off;
                             imm_offset = 0;
                         }
 
                         u.u64 = (uintptr_t)PackedToDouble;
 
-                        ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+                        EMIT_SaveRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 7));
 
-                        *ptr++ = ldur64_offset(int_reg, 0, imm_offset);
-                        *ptr++ = ldur64_offset(int_reg, 1, imm_offset + 8);
+                        EMIT(ctx, 
+                            ldur64_offset(int_reg, 0, imm_offset),
+                            ldur64_offset(int_reg, 1, imm_offset + 8),
                         
-                        *ptr++ = mov64_immed_u16(2, u.u16[3], 0);
-                        *ptr++ = movk64_immed_u16(2, u.u16[2], 1);
-                        *ptr++ = movk64_immed_u16(2, u.u16[1], 2);
-                        *ptr++ = movk64_immed_u16(2, u.u16[0], 3);
+                            mov64_immed_u16(2, u.u16[3], 0),
+                            movk64_immed_u16(2, u.u16[2], 1),
+                            movk64_immed_u16(2, u.u16[1], 2),
+                            movk64_immed_u16(2, u.u16[0], 3),
 
-                        *ptr++ = blr(2);
+                            blr(2),
                         
-                        *ptr++ = fcpyd(*reg, 0);
+                            fcpyd(*reg, 0)
+                        );
 
-                        ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 7));
+                        EMIT_RestoreRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 7));
 
                         if (post_sz)
                         {
-                            *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                            EMIT(ctx, add_immed(int_reg, int_reg, post_sz));
                         }
                     }
                     break;
@@ -803,47 +933,46 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     {
                         if (pre_sz)
                         {
-                            *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                            EMIT(ctx, sub_immed(int_reg, int_reg, -pre_sz));
                         }
                         if (imm_offset < -255 || imm_offset > 251) {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
+                            uint8_t off = RA_AllocARMRegister(ctx);
 
                             if (imm_offset > -4096 && imm_offset < 0)
                             {
-                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                                EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                             }
                             else if (imm_offset >= 0 && imm_offset < 4096)
                             {
-                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                                EMIT(ctx, add_immed(off, int_reg, imm_offset));
                             }
                             else
                             {
-                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                                EMIT_LoadImmediate(ctx, off, imm_offset);
+                                EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                             }
-                            RA_FreeARMRegister(&ptr, int_reg);
+                            RA_FreeARMRegister(ctx, int_reg);
                             int_reg = off;
                             imm_offset = 0;
                         }
 
-                        ptr = get_Load96(ptr);
-                        *ptr++ = str64_offset_preindex(31, 30, -16);
+                        get_Load96(ctx);
+                        EMIT(ctx, str64_offset_preindex(31, 30, -16));
                         if (imm_offset < 0)
-                            *ptr++ = sub_immed(1, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(1, int_reg, -imm_offset));
                         else
-                            *ptr++ = add_immed(1, int_reg, imm_offset);
-                        *ptr++ = blr(reg_Load96);
-                        *ptr++ = mov_reg_to_simd(*reg, TS_D, 0, 0);
-                        *ptr++ = ldr64_offset_postindex(31, 30, 16);
+                            EMIT(ctx, add_immed(1, int_reg, imm_offset));
+                        EMIT(ctx, 
+                            blr(reg_Load96),
+                            mov_reg_to_simd(*reg, TS_D, 0, 0),
+                            ldr64_offset_postindex(31, 30, 16)
+                        );
 
-                        //ptr = EMIT_Load96bitFP(ptr, *reg, int_reg, imm_offset);
+                        //EMIT_Load96bitFP(ctx, *reg, int_reg, imm_offset);
 
                         if (post_sz)
                         {
-                            *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                            EMIT(ctx, add_immed(int_reg, int_reg, post_sz));
                         }
                     }
                     break;
@@ -851,213 +980,198 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
                     {
                         if (pre_sz)
                         {
-                            *ptr++ = fldd_preindex(*reg, int_reg, pre_sz);
+                            EMIT(ctx, fldd_preindex(*reg, int_reg, pre_sz));
                         }
                         else if (post_sz)
                         {
-                            *ptr++ = fldd_postindex(*reg, int_reg, post_sz);
+                            EMIT(ctx, fldd_postindex(*reg, int_reg, post_sz));
                         }
                         else if (imm_offset >= -255 && imm_offset <= 255)
                         {
-                            *ptr++ = fldd(*reg, int_reg, imm_offset);
+                            EMIT(ctx, fldd(*reg, int_reg, imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 32760 && !(imm_offset & 7))
                         {
-                            *ptr++ = fldd_pimm(*reg, int_reg, imm_offset >> 3);
+                            EMIT(ctx, fldd_pimm(*reg, int_reg, imm_offset >> 3));
                         }
                         else
                         {
-                            uint8_t off = RA_AllocARMRegister(&ptr);
+                            uint8_t off = RA_AllocARMRegister(ctx);
                             if (imm_offset > -4096 && imm_offset < 0)
                             {
-                                *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                                EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                             }
                             else if (imm_offset >= 0 && imm_offset < 4096)
                             {
-                                *ptr++ = add_immed(off, int_reg, imm_offset);
+                                EMIT(ctx, add_immed(off, int_reg, imm_offset));
                             }
                             else
                             {
-                                *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                                imm_offset >>= 16;
-                                if (imm_offset)
-                                    *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                                *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                                EMIT_LoadImmediate(ctx, off, imm_offset);
+                                EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                             }
-                            *ptr++ = fldd(*reg, off, 0);
-                            RA_FreeARMRegister(&ptr, off);
+                            EMIT(ctx, fldd(*reg, off, 0));
+                            RA_FreeARMRegister(ctx, off);
                         }
                     }
                     break;
                 case SIZE_S:
                     if (pre_sz)
                     {
-                        *ptr++ = flds_preindex(*reg, int_reg, pre_sz);
+                        EMIT(ctx, flds_preindex(*reg, int_reg, pre_sz));
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = flds_postindex(*reg, int_reg, post_sz);
+                        EMIT(ctx, flds_postindex(*reg, int_reg, post_sz));
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = flds(*reg, int_reg, imm_offset);
+                        EMIT(ctx, flds(*reg, int_reg, imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
                     {
-                        *ptr++ = flds_pimm(*reg, int_reg, imm_offset >> 2);
+                        EMIT(ctx, flds_pimm(*reg, int_reg, imm_offset >> 2));
                     }
                     else
                     {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        uint8_t off = RA_AllocARMRegister(ctx);
                         if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                            EMIT(ctx, add_immed(off, int_reg, imm_offset));
                         }
                         else
                         {
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
+                            EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
-                        *ptr++ = flds(*reg, off, 0);
-                        RA_FreeARMRegister(&ptr, off);
+                        EMIT(ctx, flds(*reg, off, 0));
+                        RA_FreeARMRegister(ctx, off);
                     }
-                    *ptr++ = fcvtds(*reg, *reg);
+                    EMIT(ctx, fcvtds(*reg, *reg));
                     break;
                 case SIZE_L:
-                    val_reg = RA_AllocARMRegister(&ptr);
+                    val_reg = RA_AllocARMRegister(ctx);
 
                     if (pre_sz)
                     {
-                        *ptr++ = ldr_offset_preindex(int_reg, val_reg, pre_sz);
+                        EMIT(ctx, ldr_offset_preindex(int_reg, val_reg, pre_sz));
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldr_offset_postindex(int_reg, val_reg, post_sz);
+                        EMIT(ctx, ldr_offset_postindex(int_reg, val_reg, post_sz));
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = ldur_offset(int_reg, val_reg, imm_offset);
+                        EMIT(ctx, ldur_offset(int_reg, val_reg, imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
                     {
-                        *ptr++ = ldr_offset(int_reg, val_reg, imm_offset);
+                        EMIT(ctx, ldr_offset(int_reg, val_reg, imm_offset));
                     }
                     else
                     {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        uint8_t off = RA_AllocARMRegister(ctx);
                         if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                            EMIT(ctx, add_immed(off, int_reg, imm_offset));
                         }
                         else
                         {
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
+                            EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
-                        *ptr++ = ldr_offset(off, val_reg, 0);
-                        RA_FreeARMRegister(&ptr, off);
+                        EMIT(ctx, ldr_offset(off, val_reg, 0));
+                        RA_FreeARMRegister(ctx, off);
                     }
-                    *ptr++ = scvtf_32toD(*reg, val_reg);
+                    EMIT(ctx, scvtf_32toD(*reg, val_reg));
                     break;
                 case SIZE_W:
-                    val_reg = RA_AllocARMRegister(&ptr);
+                    val_reg = RA_AllocARMRegister(ctx);
 
                     if (pre_sz)
                     {
-                        *ptr++ = ldrsh_offset_preindex(int_reg, val_reg, pre_sz);
+                        EMIT(ctx, ldrsh_offset_preindex(int_reg, val_reg, pre_sz));
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldrsh_offset_postindex(int_reg, val_reg, post_sz);
+                        EMIT(ctx, ldrsh_offset_postindex(int_reg, val_reg, post_sz));
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = ldursh_offset(int_reg, val_reg, imm_offset);
+                        EMIT(ctx, ldursh_offset(int_reg, val_reg, imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 8190 && !(imm_offset & 1))
                     {
-                        *ptr++ = ldrsh_offset(int_reg, val_reg, imm_offset);
+                        EMIT(ctx, ldrsh_offset(int_reg, val_reg, imm_offset));
                     }
                     else
                     {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        uint8_t off = RA_AllocARMRegister(ctx);
                         if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                            EMIT(ctx, add_immed(off, int_reg, imm_offset));
                         }
                         else
                         {
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
+                            EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
-                        *ptr++ = ldrsh_offset(off, val_reg, 0);
-                        RA_FreeARMRegister(&ptr, off);
+                        EMIT(ctx, ldrsh_offset(off, val_reg, 0));
+                        RA_FreeARMRegister(ctx, off);
                     }
-                    *ptr++ = scvtf_32toD(*reg, val_reg);
+                    EMIT(ctx, scvtf_32toD(*reg, val_reg));
                     break;
                 case SIZE_B:
-                    val_reg = RA_AllocARMRegister(&ptr);
+                    val_reg = RA_AllocARMRegister(ctx);
 
                     if (pre_sz)
                     {
-                        *ptr++ = ldrsb_offset_preindex(int_reg, val_reg, pre_sz);
+                        EMIT(ctx, ldrsb_offset_preindex(int_reg, val_reg, pre_sz));
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = ldrsb_offset_postindex(int_reg, val_reg, post_sz);
+                        EMIT(ctx, ldrsb_offset_postindex(int_reg, val_reg, post_sz));
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = ldursb_offset(int_reg, val_reg, imm_offset);
+                        EMIT(ctx, ldursb_offset(int_reg, val_reg, imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = ldrsb_offset(int_reg, val_reg, imm_offset);
+                        EMIT(ctx, ldrsb_offset(int_reg, val_reg, imm_offset));
                     }
                     else
                     {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        uint8_t off = RA_AllocARMRegister(ctx);
                         if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                            EMIT(ctx, add_immed(off, int_reg, imm_offset));
                         }
                         else
                         {
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
+                            EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
-                        *ptr++ = ldrsb_offset(off, val_reg, 0);
-                        RA_FreeARMRegister(&ptr, off);
+                        EMIT(ctx, ldrsb_offset(off, val_reg, 0));
+                        RA_FreeARMRegister(ctx, off);
                     }
-                    *ptr++ = scvtf_32toD(*reg, val_reg);
+                    EMIT(ctx, scvtf_32toD(*reg, val_reg));
                     break;
                 default:
                     break;
@@ -1065,19 +1179,17 @@ uint32_t *FPU_FetchData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t *reg, uint16
 
             if ((mode == 4) || (mode == 3))
             {
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
 
-            RA_FreeARMRegister(&ptr, int_reg);
-            RA_FreeARMRegister(&ptr, val_reg);
+            RA_FreeARMRegister(ctx, int_reg);
+            RA_FreeARMRegister(ctx, val_reg);
         }
     }
-
-    return ptr;
 }
 
 /* Allocates FPU register and fetches data according to the R/M field of the FPU opcode */
-uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_t opcode,
+void FPU_StoreData(struct TranslatorContext *ctx, uint8_t reg, uint16_t opcode,
         uint16_t opcode2, uint8_t *ext_count)
 {
     /*
@@ -1099,69 +1211,77 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         uint8_t int_reg = 0xff;
         uint8_t tmp_reg = 0xff;
         uint8_t tmp_reg_2 = 0xff;
-        uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
+        uint8_t vfp_reg = RA_AllocFPURegister(ctx);
 
         switch (size)
         {
             case SIZE_S:
-                int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
-                *ptr++ = fcvtsd(vfp_reg, reg);                  // Convert double to single
-                *ptr++ = fmrs(int_reg, vfp_reg);                // Move single to destination ARM reg
-                RA_FreeARMRegister(&ptr, int_reg);
+                int_reg = RA_MapM68kRegisterForWrite(ctx, ea & 7); // Destination for write only, discard contents
+                EMIT(ctx, 
+                    fcvtsd(vfp_reg, reg),                  // Convert double to single
+                    fmrs(int_reg, vfp_reg)                 // Move single to destination ARM reg
+                );
+                RA_FreeARMRegister(ctx, int_reg);
                 break;
 
             case SIZE_L:
-                int_reg = RA_MapM68kRegisterForWrite(&ptr, ea & 7); // Destination for write only, discard contents
-                *ptr++ = frint64x(vfp_reg, reg);
-                *ptr++ = fcvtzs_Dto32(int_reg, vfp_reg);
-                RA_FreeARMRegister(&ptr, int_reg);
+                int_reg = RA_MapM68kRegisterForWrite(ctx, ea & 7); // Destination for write only, discard contents
+                EMIT(ctx, 
+                    frint64x(vfp_reg, reg),
+                    fcvtzs_Dto32(int_reg, vfp_reg)
+                );
+                RA_FreeARMRegister(ctx, int_reg);
                 break;
 
             case SIZE_W:
-                int_reg = RA_MapM68kRegister(&ptr, ea & 7);
-                tmp_reg = RA_AllocARMRegister(&ptr);
-                tmp_reg_2 = RA_AllocARMRegister(&ptr);
-                *ptr++ = frint64x(vfp_reg, reg);
-                *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
-                /* Saturate the result to match in 16 bits */
-                *ptr++ = cmn_immed_lsl12(tmp_reg, 8);
-                *ptr++ = movn_immed_u16(tmp_reg_2, 0x7fff, 0);
-                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_GE);
-                *ptr++ = mov_immed_u16(tmp_reg_2, 0x7fff, 0);
-                *ptr++ = cmp_reg(tmp_reg, tmp_reg_2, LSL, 0);
-                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_LE);
-                *ptr++ = bfi(int_reg, tmp_reg, 0, 16);
-                RA_SetDirtyM68kRegister(&ptr, ea & 7);
-                RA_FreeARMRegister(&ptr, tmp_reg);
-                RA_FreeARMRegister(&ptr, tmp_reg_2);
-                RA_FreeARMRegister(&ptr, int_reg);
+                int_reg = RA_MapM68kRegister(ctx, ea & 7);
+                tmp_reg = RA_AllocARMRegister(ctx);
+                tmp_reg_2 = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    frint64x(vfp_reg, reg),
+                    fcvtzs_Dto32(tmp_reg, vfp_reg),
+                    /* Saturate the result to match in 16 bits */
+                    cmn_immed_lsl12(tmp_reg, 8),
+                    movn_immed_u16(tmp_reg_2, 0x7fff, 0),
+                    csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_GE),
+                    mov_immed_u16(tmp_reg_2, 0x7fff, 0),
+                    cmp_reg(tmp_reg, tmp_reg_2, LSL, 0),
+                    csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_LE),
+                    bfi(int_reg, tmp_reg, 0, 16)
+                );
+                RA_SetDirtyM68kRegister(ctx, ea & 7);
+                RA_FreeARMRegister(ctx, tmp_reg);
+                RA_FreeARMRegister(ctx, tmp_reg_2);
+                RA_FreeARMRegister(ctx, int_reg);
                 break;
 
             case SIZE_B:
-                int_reg = RA_MapM68kRegister(&ptr, ea & 7);
-                tmp_reg = RA_AllocARMRegister(&ptr);
-                tmp_reg_2 = RA_AllocARMRegister(&ptr);
-                *ptr++ = frint64x(vfp_reg, reg);
-                *ptr++ = fcvtzs_Dto32(tmp_reg, vfp_reg);
-                /* Saturate the result to match in 16 bits */
-                *ptr++ = cmn_immed(tmp_reg, 128);
-                *ptr++ = movn_immed_u16(tmp_reg_2, 0x7f, 0);
-                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_GE);
-                *ptr++ = mov_immed_u16(tmp_reg_2, 0x7f, 0);
-                *ptr++ = cmp_immed(tmp_reg, 127);
-                *ptr++ = csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_LE);
-                *ptr++ = bfi(int_reg, tmp_reg, 0, 8);
-                RA_SetDirtyM68kRegister(&ptr, ea & 7);
-                RA_FreeARMRegister(&ptr, tmp_reg);
-                RA_FreeARMRegister(&ptr, int_reg);
-                RA_FreeARMRegister(&ptr, tmp_reg_2);
+                int_reg = RA_MapM68kRegister(ctx, ea & 7);
+                tmp_reg = RA_AllocARMRegister(ctx);
+                tmp_reg_2 = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    frint64x(vfp_reg, reg),
+                    fcvtzs_Dto32(tmp_reg, vfp_reg),
+                    /* Saturate the result to match in 16 bits */
+                    cmn_immed(tmp_reg, 128),
+                    movn_immed_u16(tmp_reg_2, 0x7f, 0),
+                    csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_GE),
+                    mov_immed_u16(tmp_reg_2, 0x7f, 0),
+                    cmp_immed(tmp_reg, 127),
+                    csel(tmp_reg, tmp_reg, tmp_reg_2, A64_CC_LE),
+                    bfi(int_reg, tmp_reg, 0, 8)
+                );
+                RA_SetDirtyM68kRegister(ctx, ea & 7);
+                RA_FreeARMRegister(ctx, tmp_reg);
+                RA_FreeARMRegister(ctx, int_reg);
+                RA_FreeARMRegister(ctx, tmp_reg_2);
                 break;
 
             default:
                 kprintf("[JIT] LineF: wrong argument size %d for Dn access\n", (int)size);
         }
 
-        RA_FreeFPURegister(&ptr, vfp_reg);
+        RA_FreeFPURegister(ctx, vfp_reg);
     }
     /* Case 2: get pointer to data (EA) and store yourself */
     else
@@ -1169,20 +1289,20 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
         uint8_t int_reg = 0xff;
         uint8_t val_reg = 0xff;
         uint8_t mode = (opcode & 0x0038) >> 3;
-        uint8_t vfp_reg = RA_AllocFPURegister(&ptr);
+        uint8_t vfp_reg = RA_AllocFPURegister(ctx);
         int8_t pre_sz = 0;
         int8_t post_sz = 0;
         int8_t k = 0;
-        uint8_t tmp32 = RA_AllocARMRegister(&ptr);
+        uint8_t tmp32 = RA_AllocARMRegister(ctx);
         union {
             uint64_t u64;
             uint16_t u16[4];
         } u;
 
         if (mode == 4 || mode == 3)
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 0, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 0, &int_reg, opcode & 0x3f, ext_count, 0, NULL);
         else
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &int_reg, opcode & 0x3f, *m68k_ptr, ext_count, 1, &imm_offset);
+            EMIT_LoadFromEffectiveAddress(ctx, 0, &int_reg, opcode & 0x3f, ext_count, 1, &imm_offset);
 
         /* Pre index? Adjust base register accordingly */
         if (mode == 4) {
@@ -1209,153 +1329,155 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
                 if (pre_sz)
                 {
-                    *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                    EMIT(ctx, sub_immed(int_reg, int_reg, -pre_sz));
                 }
 
                 if (reg != 0) {
-                    *ptr++ = fcpyd(0, reg);
+                    EMIT(ctx, fcpyd(0, reg));
                 }
 
                 if (imm_offset >= -255 && imm_offset <= 251)
                 {
-                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_SaveRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
 
-                    *ptr++ = mov_reg(19, int_reg);
-                    *ptr++ = mov_immed_s8(0, k);
+                    EMIT(ctx, 
+                        mov_reg(19, int_reg),
+                        mov_immed_s8(0, k),
                     
-                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
-                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
-                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
-                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+                        mov64_immed_u16(1, u.u16[3], 0),
+                        movk64_immed_u16(1, u.u16[2], 1),
+                        movk64_immed_u16(1, u.u16[1], 2),
+                        movk64_immed_u16(1, u.u16[0], 3),
 
-                    *ptr++ = blr(1);
+                        blr(1),
                 
-                    *ptr++ = ror64(1, 1, 32);
-                    *ptr++ = stur64_offset(19, 0, imm_offset);
-                    *ptr++ = stur_offset(19, 1, imm_offset + 8);
+                        ror64(1, 1, 32),
+                        stur64_offset(19, 0, imm_offset),
+                        stur_offset(19, 1, imm_offset + 8)
+                    );
 
-                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_RestoreRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
                 }
                 else
                 {
                     uint8_t off = 19;
                     
-                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_SaveRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
 
                     if (imm_offset > -4096 && imm_offset < 0)
                     {
-                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                        EMIT(ctx, add_immed(off, int_reg, imm_offset));
                     }
                     else
                     {
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
+                        EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
 
-                    *ptr++ = mov_immed_s8(0, k);
+                    EMIT(ctx, 
+                        mov_immed_s8(0, k),
 
-                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
-                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
-                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
-                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+                        mov64_immed_u16(1, u.u16[3], 0),
+                        movk64_immed_u16(1, u.u16[2], 1),
+                        movk64_immed_u16(1, u.u16[1], 2),
+                        movk64_immed_u16(1, u.u16[0], 3),
 
-                    *ptr++ = blr(1);
+                        blr(1),
 
-                    *ptr++ = ror64(1, 1, 32);
-                    *ptr++ = stur64_offset(19, 0, 0);
-                    *ptr++ = stur_offset(19, 1, 8);
+                        ror64(1, 1, 32),
+                        stur64_offset(19, 0, 0),
+                        stur_offset(19, 1, 8)
+                    );
 
-                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_RestoreRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
                 }
 
                 if (post_sz)
                 {
-                    *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                    EMIT(ctx, add_immed(int_reg, int_reg, post_sz));
                 }
                 break;
             
             case SIZE_Pdyn:
                 u.u64 = (uintptr_t)DoubleToPacked;
-                k = RA_MapM68kRegister(&ptr, (opcode2 >> 4) & 7);
+                k = RA_MapM68kRegister(ctx, (opcode2 >> 4) & 7);
 
                 if (pre_sz)
                 {
-                    *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                    EMIT(ctx, sub_immed(int_reg, int_reg, -pre_sz));
                 }
 
                 if (reg != 0) {
-                    *ptr++ = fcpyd(0, reg);
+                    EMIT(ctx, fcpyd(0, reg));
                 }
 
                 if (imm_offset >= -255 && imm_offset <= 251)
                 {
-                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_SaveRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
 
-                    *ptr++ = mov_reg(0, k);
-                    *ptr++ = mov_reg(19, int_reg);
+                    EMIT(ctx, 
+                        mov_reg(0, k),
+                        mov_reg(19, int_reg),
 
-                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
-                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
-                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
-                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+                        mov64_immed_u16(1, u.u16[3], 0),
+                        movk64_immed_u16(1, u.u16[2], 1),
+                        movk64_immed_u16(1, u.u16[1], 2),
+                        movk64_immed_u16(1, u.u16[0], 3),
 
-                    *ptr++ = blr(1);
+                        blr(1),
 
-                    *ptr++ = ror64(1, 1, 32);
-                    *ptr++ = stur64_offset(19, 0, imm_offset);
-                    *ptr++ = stur_offset(19, 1, imm_offset + 8);
+                        ror64(1, 1, 32),
+                        stur64_offset(19, 0, imm_offset),
+                        stur_offset(19, 1, imm_offset + 8)
+                    );
 
-                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_RestoreRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
                 }
                 else
                 {
                     uint8_t off = 19;
                     
-                    ptr = EMIT_SaveRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_SaveRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
 
-                    *ptr++ = mov_reg(0, k);
+                    EMIT(ctx, mov_reg(0, k));
 
                     if (imm_offset > -4096 && imm_offset < 0)
                     {
-                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                        EMIT(ctx, add_immed(off, int_reg, imm_offset));
                     }
                     else
                     {
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
+                        EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
 
-                    *ptr++ = mov64_immed_u16(1, u.u16[3], 0);
-                    *ptr++ = movk64_immed_u16(1, u.u16[2], 1);
-                    *ptr++ = movk64_immed_u16(1, u.u16[1], 2);
-                    *ptr++ = movk64_immed_u16(1, u.u16[0], 3);
+                    EMIT(ctx, 
+                        mov64_immed_u16(1, u.u16[3], 0),
+                        movk64_immed_u16(1, u.u16[2], 1),
+                        movk64_immed_u16(1, u.u16[1], 2),
+                        movk64_immed_u16(1, u.u16[0], 3),
 
-                    *ptr++ = blr(1);
+                        blr(1),
 
-                    *ptr++ = ror64(1, 1, 32);
-                    *ptr++ = stur64_offset(19, 0, 0);
-                    *ptr++ = stur_offset(19, 1, 8);
+                        ror64(1, 1, 32),
+                        stur64_offset(19, 0, 0),
+                        stur_offset(19, 1, 8)
+                    );
 
-                    ptr = EMIT_RestoreRegFrame(ptr, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
+                    EMIT_RestoreRegFrame(ctx, (RA_GetTempAllocMask() | REG_PROTECT | 3 | (1 << 19)));
                 }
 
                 if (post_sz)
                 {
-                    *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                    EMIT(ctx, add_immed(int_reg, int_reg, post_sz));
                 }
                 break;
 
@@ -1363,55 +1485,56 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 {
                     if (pre_sz)
                     {
-                        *ptr++ = sub_immed(int_reg, int_reg, -pre_sz);
+                        EMIT(ctx, sub_immed(int_reg, int_reg, -pre_sz));
                     }
                     if (imm_offset >= -255 && imm_offset <= 251)
                     {
-                        ptr = get_Save96(ptr);
-                        *ptr++ = str64_offset_preindex(31, 30, -16);
+                        get_Save96(ctx);
+                        EMIT(ctx, str64_offset_preindex(31, 30, -16));
                         if (imm_offset < 0)
-                            *ptr++ = sub_immed(1, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(1, int_reg, -imm_offset));
                         else
-                            *ptr++ = add_immed(1, int_reg, imm_offset);
-                        *ptr++ = mov_simd_to_reg(0, reg, TS_D, 0);
-                        *ptr++ = blr(reg_Save96);
-                        *ptr++ = ldr64_offset_postindex(31, 30, 16);
+                            EMIT(ctx, add_immed(1, int_reg, imm_offset));
+                        EMIT(ctx, 
+                            mov_simd_to_reg(0, reg, TS_D, 0),
+                            blr(reg_Save96),
+                            ldr64_offset_postindex(31, 30, 16)
+                        );
 
-                        //ptr = EMIT_Store96bitFP(ptr, reg, int_reg, imm_offset);
+                        //EMIT_Store96bitFP(ctx, reg, int_reg, imm_offset);
                     }
                     else
                     {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        uint8_t off = RA_AllocARMRegister(ctx);
                         if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                            EMIT(ctx, add_immed(off, int_reg, imm_offset));
                         }
                         else
                         {
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
+                            EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
 
-                        ptr = get_Save96(ptr);
-                        *ptr++ = str64_offset_preindex(31, 30, -16);
-                        *ptr++ = mov_reg(1, off);
-                        *ptr++ = mov_simd_to_reg(0, reg, TS_D, 0);
-                        *ptr++ = blr(reg_Save96);
-                        *ptr++ = ldr64_offset_postindex(31, 30, 16);
+                        get_Save96(ctx);
+                        EMIT(ctx, 
+                            str64_offset_preindex(31, 30, -16),
+                            mov_reg(1, off),
+                            mov_simd_to_reg(0, reg, TS_D, 0),
+                            blr(reg_Save96),
+                            ldr64_offset_postindex(31, 30, 16)
+                        );
 
-                        //ptr = EMIT_Store96bitFP(ptr, reg, off, 0);
-                        RA_FreeARMRegister(&ptr, off);
+                        //EMIT_Store96bitFP(ctx, reg, off, 0);
+                        RA_FreeARMRegister(ctx, off);
                     }
                     if (post_sz)
                     {
-                        *ptr++ = add_immed(int_reg, int_reg, post_sz);
+                        EMIT(ctx, add_immed(int_reg, int_reg, post_sz));
                     }
                 }
                 break;
@@ -1419,231 +1542,222 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
                 {
                     if (pre_sz)
                     {
-                        *ptr++ = fstd_preindex(reg, int_reg, pre_sz);
+                        EMIT(ctx, fstd_preindex(reg, int_reg, pre_sz));
                     }
                     else if (post_sz)
                     {
-                        *ptr++ = fstd_postindex(reg, int_reg, post_sz);
+                        EMIT(ctx, fstd_postindex(reg, int_reg, post_sz));
                     }
                     else if (imm_offset >= -255 && imm_offset <= 255)
                     {
-                        *ptr++ = fstd(reg, int_reg, imm_offset);
+                        EMIT(ctx, fstd(reg, int_reg, imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 32760 && !(imm_offset & 7))
                     {
-                        *ptr++ = fstd_pimm(reg, int_reg, imm_offset >> 3);
+                        EMIT(ctx, fstd_pimm(reg, int_reg, imm_offset >> 3));
                     }
                     else
                     {
-                        uint8_t off = RA_AllocARMRegister(&ptr);
+                        uint8_t off = RA_AllocARMRegister(ctx);
                         if (imm_offset > -4096 && imm_offset < 0)
                         {
-                            *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                            EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                         }
                         else if (imm_offset >= 0 && imm_offset < 4096)
                         {
-                            *ptr++ = add_immed(off, int_reg, imm_offset);
+                            EMIT(ctx, add_immed(off, int_reg, imm_offset));
                         }
                         else
                         {
-                            *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                            imm_offset >>= 16;
-                            if (imm_offset)
-                                *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                            *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                            EMIT_LoadImmediate(ctx, off, imm_offset);
+                            EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                         }
-                        *ptr++ = fstd(reg, off, 0);
-                        RA_FreeARMRegister(&ptr, off);
+                        EMIT(ctx, fstd(reg, off, 0));
+                        RA_FreeARMRegister(ctx, off);
                     }
                 }
                 break;
             case SIZE_S:
-                *ptr++ = fcvtsd(vfp_reg, reg);
+                EMIT(ctx, fcvtsd(vfp_reg, reg));
                 if (pre_sz)
                 {
-                    *ptr++ = fsts_preindex(vfp_reg, int_reg, pre_sz);
+                    EMIT(ctx, fsts_preindex(vfp_reg, int_reg, pre_sz));
                 }
                 else if (post_sz)
                 {
-                    *ptr++ = fsts_postindex(vfp_reg, int_reg, post_sz);
+                    EMIT(ctx, fsts_postindex(vfp_reg, int_reg, post_sz));
                 }
                 else if (imm_offset >= -255 && imm_offset <= 255)
                 {
-                    *ptr++ = fsts(vfp_reg, int_reg, imm_offset);
+                    EMIT(ctx, fsts(vfp_reg, int_reg, imm_offset));
                 }
                 else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
                 {
-                    *ptr++ = fsts_pimm(vfp_reg, int_reg, imm_offset >> 2);
+                    EMIT(ctx, fsts_pimm(vfp_reg, int_reg, imm_offset >> 2));
                 }
                 else
                 {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
+                    uint8_t off = RA_AllocARMRegister(ctx);
                     if (imm_offset > -4096 && imm_offset < 0)
                     {
-                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                        EMIT(ctx, add_immed(off, int_reg, imm_offset));
                     }
                     else
                     {
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
+                        EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
-                    *ptr++ = fsts(vfp_reg, off, 0);
-                    RA_FreeARMRegister(&ptr, off);
+                    EMIT(ctx, fsts(vfp_reg, off, 0));
+                    RA_FreeARMRegister(ctx, off);
                 }
                 break;
             case SIZE_L:
-                val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = frint64x(vfp_reg, reg);
-                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
+                val_reg = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    frint64x(vfp_reg, reg),
+                    fcvtzs_Dto32(val_reg, vfp_reg)
+                );
 
                 if (pre_sz)
                 {
-                    *ptr++ = str_offset_preindex(int_reg, val_reg, pre_sz);
+                    EMIT(ctx, str_offset_preindex(int_reg, val_reg, pre_sz));
                 }
                 else if (post_sz)
                 {
-                    *ptr++ = str_offset_postindex(int_reg, val_reg, post_sz);
+                    EMIT(ctx, str_offset_postindex(int_reg, val_reg, post_sz));
                 }
                 else if (imm_offset >= -255 && imm_offset <= 255)
                 {
-                    *ptr++ = stur_offset(int_reg, val_reg, imm_offset);
+                    EMIT(ctx, stur_offset(int_reg, val_reg, imm_offset));
                 }
                 else if (imm_offset >= 0 && imm_offset < 16380 && !(imm_offset & 3))
                 {
-                    *ptr++ = str_offset(int_reg, val_reg, imm_offset);
+                    EMIT(ctx, str_offset(int_reg, val_reg, imm_offset));
                 }
                 else
                 {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
+                    uint8_t off = RA_AllocARMRegister(ctx);
                     if (imm_offset > -4096 && imm_offset < 0)
                     {
-                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                        EMIT(ctx, add_immed(off, int_reg, imm_offset));
                     }
                     else
                     {
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
+                        EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
-                    *ptr++ = str_offset(off, val_reg, 0);
-                    RA_FreeARMRegister(&ptr, off);
+                    EMIT(ctx, str_offset(off, val_reg, 0));
+                    RA_FreeARMRegister(ctx, off);
                 }
                 break;
             case SIZE_W:
-                val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = frint64x(vfp_reg, reg);
-                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
+                val_reg = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    frint64x(vfp_reg, reg),
+                    fcvtzs_Dto32(val_reg, vfp_reg),
                 
-                /* Saturate the result to match in 16 bits */
-                *ptr++ = cmn_immed_lsl12(val_reg, 8);
-                *ptr++ = movn_immed_u16(tmp32, 0x7fff, 0);
-                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_GE);
-                *ptr++ = mov_immed_u16(tmp32, 0x7fff, 0);
-                *ptr++ = cmp_reg(val_reg, tmp32, LSL, 0);
-                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_LE);
+                    /* Saturate the result to match in 16 bits */
+                    cmn_immed_lsl12(val_reg, 8),
+                    movn_immed_u16(tmp32, 0x7fff, 0),
+                    csel(val_reg, val_reg, tmp32, A64_CC_GE),
+                    mov_immed_u16(tmp32, 0x7fff, 0),
+                    cmp_reg(val_reg, tmp32, LSL, 0),
+                    csel(val_reg, val_reg, tmp32, A64_CC_LE)
+                );
 
                 if (pre_sz)
                 {
-                    *ptr++ = strh_offset_preindex(int_reg, val_reg, pre_sz);
+                    EMIT(ctx, strh_offset_preindex(int_reg, val_reg, pre_sz));
                 }
                 else if (post_sz)
                 {
-                    *ptr++ = strh_offset_postindex(int_reg, val_reg, post_sz);
+                    EMIT(ctx, strh_offset_postindex(int_reg, val_reg, post_sz));
                 }
                 else if (imm_offset >= -255 && imm_offset <= 255)
                 {
-                    *ptr++ = sturh_offset(int_reg, val_reg, imm_offset);
+                    EMIT(ctx, sturh_offset(int_reg, val_reg, imm_offset));
                 }
                 else if (imm_offset >= 0 && imm_offset < 8190 && !(imm_offset & 1))
                 {
-                    *ptr++ = strh_offset(int_reg, val_reg, imm_offset);
+                    EMIT(ctx, strh_offset(int_reg, val_reg, imm_offset));
                 }
                 else
                 {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
+                    uint8_t off = RA_AllocARMRegister(ctx);
                     if (imm_offset > -4096 && imm_offset < 0)
                     {
-                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                        EMIT(ctx, add_immed(off, int_reg, imm_offset));
                     }
                     else
                     {
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
+                        EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
-                    *ptr++ = strh_offset(off, val_reg, 0);
-                    RA_FreeARMRegister(&ptr, off);
+                    EMIT(ctx, strh_offset(off, val_reg, 0));
+                    RA_FreeARMRegister(ctx, off);
                 }
                 break;
             case SIZE_B:
-                val_reg = RA_AllocARMRegister(&ptr);
-                *ptr++ = frint64x(vfp_reg, reg);
-                *ptr++ = fcvtzs_Dto32(val_reg, vfp_reg);
+                val_reg = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    frint64x(vfp_reg, reg),
+                    fcvtzs_Dto32(val_reg, vfp_reg),
 
-                /* Saturate the result to match in 16 bits */
-                *ptr++ = cmn_immed(val_reg, 128);
-                *ptr++ = movn_immed_u16(tmp32, 0x7f, 0);
-                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_GE);
-                *ptr++ = mov_immed_u16(tmp32, 0x7f, 0);
-                *ptr++ = cmp_immed(val_reg, 127);
-                *ptr++ = csel(val_reg, val_reg, tmp32, A64_CC_LE);
+                    /* Saturate the result to match in 16 bits */
+                    cmn_immed(val_reg, 128),
+                    movn_immed_u16(tmp32, 0x7f, 0),
+                    csel(val_reg, val_reg, tmp32, A64_CC_GE),
+                    mov_immed_u16(tmp32, 0x7f, 0),
+                    cmp_immed(val_reg, 127),
+                    csel(val_reg, val_reg, tmp32, A64_CC_LE)
+                );
 
                 if (pre_sz)
                 {
-                    *ptr++ = strb_offset_preindex(int_reg, val_reg, pre_sz);
+                    EMIT(ctx, strb_offset_preindex(int_reg, val_reg, pre_sz));
                 }
                 else if (post_sz)
                 {
-                    *ptr++ = strb_offset_postindex(int_reg, val_reg, post_sz);
+                    EMIT(ctx, strb_offset_postindex(int_reg, val_reg, post_sz));
                 }
                 else if (imm_offset >= -255 && imm_offset <= 255)
                 {
-                    *ptr++ = sturb_offset(int_reg, val_reg, imm_offset);
+                    EMIT(ctx, sturb_offset(int_reg, val_reg, imm_offset));
                 }
                 else if (imm_offset >= 0 && imm_offset < 4096)
                 {
-                    *ptr++ = strb_offset(int_reg, val_reg, imm_offset);
+                    EMIT(ctx, strb_offset(int_reg, val_reg, imm_offset));
                 }
                 else
                 {
-                    uint8_t off = RA_AllocARMRegister(&ptr);
+                    uint8_t off = RA_AllocARMRegister(ctx);
                     if (imm_offset > -4096 && imm_offset < 0)
                     {
-                        *ptr++ = sub_immed(off, int_reg, -imm_offset);
+                        EMIT(ctx, sub_immed(off, int_reg, -imm_offset));
                     }
                     else if (imm_offset >= 0 && imm_offset < 4096)
                     {
-                        *ptr++ = add_immed(off, int_reg, imm_offset);
+                        EMIT(ctx, add_immed(off, int_reg, imm_offset));
                     }
                     else
                     {
-                        *ptr++ = movw_immed_u16(off, (imm_offset) & 0xffff);
-                        imm_offset >>= 16;
-                        if (imm_offset)
-                            *ptr++ = movt_immed_u16(off, (imm_offset) & 0xffff);
-                        *ptr++ = add_reg(off, int_reg, off, LSL, 0);
+                        EMIT_LoadImmediate(ctx, off, imm_offset);
+                        EMIT(ctx, add_reg(off, int_reg, off, LSL, 0));
                     }
-                    *ptr++ = strb_offset(off, val_reg, 0);
-                    RA_FreeARMRegister(&ptr, off);
+                    EMIT(ctx, strb_offset(off, val_reg, 0));
+                    RA_FreeARMRegister(ctx, off);
                 }
                 break;
             default:
@@ -1652,23 +1766,21 @@ uint32_t *FPU_StoreData(uint32_t *ptr, uint16_t **m68k_ptr, uint8_t reg, uint16_
 
         if ((mode == 4) || (mode == 3))
         {
-            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
         }
 
-        RA_FreeARMRegister(&ptr, tmp32);
-        RA_FreeFPURegister(&ptr, vfp_reg);
-        RA_FreeARMRegister(&ptr, int_reg);
-        RA_FreeARMRegister(&ptr, val_reg);
+        RA_FreeARMRegister(ctx, tmp32);
+        RA_FreeFPURegister(ctx, vfp_reg);
+        RA_FreeARMRegister(ctx, int_reg);
+        RA_FreeARMRegister(ctx, val_reg);
     }
-
-    return ptr;
 }
 
 void clear_entire_dcache(void);
 /* Clean and invalidate entire data cache, code after ARMv8 architecture reference manual */
 void  __attribute__((used)) __clear_entire_dcache(void)
 {
-    asm volatile(
+    __asm__ volatile(
 "       .globl clear_entire_dcache      \n"
 "clear_entire_dcache:                   \n"
 "       stp     x0, x1, [sp, #-112]!    \n"
@@ -1729,7 +1841,7 @@ void invalidate_entire_dcache(void);
 /* Invalidate entire data cache, code after ARMv8 architecture reference manual */
 void __attribute__((used)) __invalidate_entire_dcache(void)
 {
-    asm volatile(
+    __asm__ volatile(
 "       .globl  invalidate_entire_dcache\n"
 "invalidate_entire_dcache:              \n"
 "       stp     x0, x1, [sp, #-112]!    \n"
@@ -1791,16 +1903,20 @@ void __clear_cache(void *begin, void *end);
 
 #define MAX_EPILOGUE_LENGTH 256
 uint32_t icache_epilogue[MAX_EPILOGUE_LENGTH];
+uint32_t EPOCH;
 
 void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t *arm_pc)
 {
+    (void)target_addr;
+    (void)pc;
+    
     int i;
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
-    struct M68KTranslationUnit *u;
-    struct Node *n, *next;
-    extern struct List LRU;
+    //uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&pc[0]);
+    //struct M68KTranslationUnit *u;
+    //struct Node *n, *next;
+    //extern struct List LRU;
     extern void *jit_tlsf;
-    extern struct M68KState *__m68k_state;
+    //extern struct M68KState *__m68k_state;
 
     (void)jit_tlsf;
 
@@ -1823,8 +1939,13 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
     //kprintf("[LINEF] Copied %d instructions of epilogue\n", i);
     __clear_cache(&icache_epilogue[0], &icache_epilogue[i]);
 
-    asm volatile("msr tpidr_el1,%0"::"r"(0xffffffff));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM",%w0": :"r"(0xffffffff));
 
+    LRU_InvalidateAll();
+
+    EPOCH++;
+
+#if 0
     /* Get the scope */
     switch (opcode & 0x18) {
         case 0x08:  /* Line */
@@ -1950,6 +2071,7 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
             }
             break;
     }
+#endif
 
     return &icache_epilogue[0];
 }
@@ -1957,16 +2079,17 @@ void *invalidate_instruction_cache(uintptr_t target_addr, uint16_t *pc, uint32_t
 void trampoline_icache_invalidate(void);
 void __attribute__((used)) __trampoline_icache_invalidate(void)
 {
-    asm volatile(".globl trampoline_icache_invalidate\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
+    __asm__ volatile(".globl trampoline_icache_invalidate\ntrampoline_icache_invalidate: bl invalidate_instruction_cache\n\tbr x0");
 }
 
-uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+uint32_t EMIT_FPU(struct TranslatorContext *ctx)
 {
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
-    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
     uint8_t ext_count = 1;
-    (*m68k_ptr)++;
-    *insn_consumed = 1;
+    uint32_t insn_consumed = 1;
+    
+    ctx->tc_M68kCodePtr++;
 
     /* FMOVECR reg */
     if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
@@ -1986,46 +2109,50 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t offset = opcode2 & 0x7f;
 
         /* Alloc destination FP register for write */
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         /*
             Load pointer to constants into base register, then load the value from table into
             destination VFP register, finally skip the base address (which is not an ARM INSN)
         */
         if (offset == C_10P0) {
-            *ptr++ = fmov_1(fp_dst);
+            EMIT(ctx, fmov_1(fp_dst));
         }
         else if (offset == C_ZERO) {
-            *ptr++ = fmov_0(fp_dst);
+            EMIT(ctx, fmov_0(fp_dst));
         }
         else {
             u.u64 = (uintptr_t)constants;
-            *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-            *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-            *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-            *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
-            *ptr++ = fldd_pimm(fp_dst, 0, offset);
+            EMIT(ctx, 
+                mov64_immed_u16(0, u.u16[3], 0),
+                movk64_immed_u16(0, u.u16[2], 1),
+                movk64_immed_u16(0, u.u16[1], 2),
+                movk64_immed_u16(0, u.u16[0], 3),
+                fldd_pimm(fp_dst, 0, offset)
+            );
         }
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
             if (offset == C_ZERO)
             {
-                *ptr++ = bic_immed(fpsr, fpsr, 4, 32 - FPSRB_NAN);
-                *ptr++ = orr_immed(fpsr, fpsr, 1, 32 - FPSRB_Z);
+                EMIT(ctx, 
+                    bic_immed(fpsr, fpsr, 4, 32 - FPSRB_NAN),
+                    orr_immed(fpsr, fpsr, 1, 32 - FPSRB_Z)
+                );
             }
             else if (offset < C_ZERO || offset >= C_LN2)
             {
-                *ptr++ = bic_immed(fpsr, fpsr, 4, 32 - FPSRB_NAN);
+                EMIT(ctx, bic_immed(fpsr, fpsr, 4, 32 - FPSRB_NAN));
             }
             else
             {
-                *ptr++ = fcmpzd(fp_dst);
-                ptr = EMIT_GetFPUFlags(ptr, fpsr);
+                EMIT(ctx, fcmpzd(fp_dst));
+                EMIT_GetFPUFlags(ctx, fpsr);
             }
         }
     }
@@ -2038,7 +2165,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             shown = 1;
         }
 
-        val_FPIAR = (uintptr_t)&(*m68k_ptr)[-1];
+        val_FPIAR = (uintptr_t)&ctx->tc_M68kCodePtr[-1];
 
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -2053,22 +2180,22 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = fabsd(fp_dst, fp_src);
+        EMIT(ctx, fabsd(fp_dst, fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FADD */
@@ -2093,24 +2220,24 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = faddd(fp_dst, fp_dst, fp_src);
+        EMIT(ctx, faddd(fp_dst, fp_dst, fp_src));
 
-        RA_SetDirtyFPURegister(&ptr, fp_dst);
+        RA_SetDirtyFPURegister(ctx, fp_dst);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FNOP as well as FBF.W to *any* target */
@@ -2121,9 +2248,9 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             kprintf("FNOP\n");
             shown = 1;
         }
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
-        ptr = EMIT_FlushPC(ptr);
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
+        EMIT_FlushPC(ctx);
     }
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
@@ -2134,7 +2261,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             shown = 1;
         }
 
-        uint8_t fpsr = RA_GetFPSR(&ptr);
+        uint8_t fpsr = RA_GetFPSR(ctx);
         uint8_t predicate = opcode & 0x3f;
         uint8_t success_condition = 0;
         uint8_t tmp_cc = 0xff;
@@ -2144,95 +2271,171 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         switch (predicate & 0x0f)
         {
             case F_CC_EQ: /* Z == 0 */
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_EQ;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_NE: /* Z == 1 */
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
-                success_condition = A64_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_NE;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
+                    success_condition = A64_CC_EQ;
+                }
                 break;
             case F_CC_OGT: /* NAN == 0 && Z == 0 && N == 0 */
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
-                success_condition = ARM_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = ARM_CC_GT;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                        tst_reg(fpsr, tmp_cc, LSL, 0)
+                    );
+                    success_condition = ARM_CC_EQ;
+                }
                 break;
             case F_CC_ULE: /* NAN == 1 || Z == 1 || N == 1 */
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = ARM_CC_NE;
                 break;
             case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 3); // N | NAN -> N (== 0 only if N=0 && NAN=0)
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_GE;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                        b_cc(A64_CC_NE, 4),
+                        orr_reg(tmp_cc, fpsr, fpsr, LSL, 3), // N | NAN -> N (== 0 only if N=0 && NAN=0)
+                        eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // !N -> N
+                        tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                    );
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)); // Invert Z
-                *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 1); // !Z & N -> N
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)),
+                    b_cc(A64_CC_NE, 4),
+                    eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)), // Invert Z
+                    and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 1), // !Z & N -> N
+                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I));
-                *ptr++ = orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2); // NAN | Z -> Z
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // Invert N
-                *ptr++ = tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)); // Test N==0 && Z == 0
-                success_condition = A64_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_LT;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I)),
+                        orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2), // NAN | Z -> Z
+                        eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // Invert N
+                        tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)) // Test N==0 && Z == 0
+                    );
+                    success_condition = A64_CC_EQ;
+                }
                 break;
             case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N));
-                *ptr++ = bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I));
-                *ptr++ = tst_immed(tmp_cc, 4, 31 & (32 - FPSRB_NAN));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N)),
+                    bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I)),
+                    tst_immed(tmp_cc, 4, 31 & (32 - FPSRB_NAN))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)); // Invert NAN
-                *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3);   // !NAN & N -> N
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_LE;
+                }
+                else
+                {
+                    tmp_cc = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                        b_cc(A64_CC_NE, 4),
+                        eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)), // Invert NAN
+                        and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3),   // !NAN & N -> N
+                        tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                    );
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSR, 1);
-                *ptr++ = mvn_reg(tmp_cc, tmp_cc, LSL, 0); //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)),
+                    b_cc(A64_CC_NE, 4),
+                    orr_reg(tmp_cc, fpsr, fpsr, LSR, 1),
+                    mvn_reg(tmp_cc, tmp_cc, LSL, 0), //eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OGL:
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = A64_CC_EQ;
                 break;
             case F_CC_UEQ:
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OR:
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
-                success_condition = A64_CC_EQ;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_VC;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
+                    success_condition = A64_CC_EQ;
+                }
                 break;
             case F_CC_UN:
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
-                success_condition = A64_CC_NE;
+                if (host_flags == FP_FLAGS)
+                {
+                    success_condition = A64_CC_VS;
+                }
+                else
+                {
+                    EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
+                    success_condition = A64_CC_NE;
+                }
                 break;
             case F_CC_F:    // This is NOP - handled one "if" before
                 success_condition = A64_CC_NV;
@@ -2241,48 +2444,170 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 success_condition = A64_CC_AL;
                 break;
         }
-        RA_FreeARMRegister(&ptr, tmp_cc);
+        RA_FreeARMRegister(ctx, tmp_cc);
 
         int8_t local_pc_off = 2;
 
-        ptr = EMIT_GetOffsetPC(ptr, &local_pc_off);
-        ptr = EMIT_ResetOffsetPC(ptr);
+        EMIT_GetOffsetPC(ctx, &local_pc_off);
+        EMIT_ResetOffsetPC(ctx);
 
-        uint8_t reg = RA_AllocARMRegister(&ptr);
+        //uint8_t reg = RA_AllocARMRegister(ctx);
 
-        intptr_t branch_target = (intptr_t)(*m68k_ptr);
+        intptr_t branch_target = (intptr_t)(ctx->tc_M68kCodePtr);
         intptr_t branch_offset = 0;
 
         /* use 16-bit offset */
         if ((opcode & 0x0040) == 0x0000)
         {
-            branch_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
+            branch_offset = (int16_t)cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
         }
         /* use 32-bit offset */
         else
         {
             uint16_t lo16, hi16;
-            hi16 = cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
-            lo16 = cache_read_16(ICACHE, (uintptr_t)&(*(*m68k_ptr)++));
+            hi16 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
+            lo16 = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
             branch_offset = lo16 | (hi16 << 16);
         }
 
         branch_offset += local_pc_off;
 
-        uint8_t pc_yes = RA_AllocARMRegister(&ptr);
-        uint8_t pc_no = RA_AllocARMRegister(&ptr);
+        int take_branch = 0;
+
+#if EMU68_DEF_BRANCH_AUTO
+        /* Branch backward with distance up to EMU68_DEF_BRANCH_AUTO_RANGE bytes considered as taken */
+        if(branch_offset - local_pc_off < 0)
+            take_branch = 1;
+        else
+            take_branch = 0;
+#else
+#if EMU68_DEF_BRANCH_TAKEN
+        take_branch = 1;
+#else
+        take_branch = 0;
+#endif
+#endif
+
+        if (take_branch)
+        {
+            success_condition ^= 1;
+        }
+
+        /* Prepare fake jump on condition, assume def branch is taken */
+        uint32_t fixup_type = FIXUP_BCC;
+        EMIT(ctx, b_cc(success_condition, 1));
+        tmpptr = ctx->tc_CodePtr - 1;
+
+        branch_target += branch_offset - local_pc_off;
+
+        /* Insert the branch non-taken case here */
+        if (!take_branch)
+        {
+            intptr_t local_pc_off_16 = local_pc_off - 2;
+
+            /* Adjust PC accordingly */
+            if ((opcode & 0x0040) == 0x0000)
+            {
+                local_pc_off_16 += 4;
+            }
+            /* use 32-bit offset */
+            else
+            {
+                local_pc_off_16 += 6;
+            }
+
+            if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
+                EMIT(ctx, add_immed(REG_PC, REG_PC, local_pc_off_16));
+            else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
+                EMIT(ctx, sub_immed(REG_PC, REG_PC, -local_pc_off_16));
+            else if (local_pc_off_16 != 0) {
+                EMIT_LoadImmediate(ctx, 0, local_pc_off_16);
+                EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
+            }
+        }
+        else
+        {
+            if (branch_offset > 0 && branch_offset < 4096)
+                EMIT(ctx, add_immed(REG_PC, REG_PC, branch_offset));
+            else if (branch_offset > -4096 && branch_offset < 0)
+                EMIT(ctx, sub_immed(REG_PC, REG_PC, -branch_offset));
+            else if (branch_offset != 0) {
+                EMIT_LoadImmediate(ctx, 0, branch_offset);
+                EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
+            }
+
+            ctx->tc_M68kCodePtr = (uint16_t *)branch_target;
+        }
+
+        /* Now insert the branch taken case - this will be treated as exit code */
+        uint32_t *exit_code_start = ctx->tc_CodePtr;
+
+        /* Insert the first case here */
+        if (take_branch)
+        {
+            intptr_t local_pc_off_16 = local_pc_off - 2;
+
+            /* Adjust PC accordingly */
+            if ((opcode & 0x0040) == 0x0000)
+            {
+                local_pc_off_16 += 4;
+            }
+            /* use 32-bit offset */
+            else
+            {
+                local_pc_off_16 += 6;
+            }
+
+            if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
+                EMIT(ctx, add_immed(REG_PC, REG_PC, local_pc_off_16));
+            else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
+                EMIT(ctx, sub_immed(REG_PC, REG_PC, -local_pc_off_16));
+            else if (local_pc_off_16 != 0)
+            {
+                EMIT_LoadImmediate(ctx, 0, local_pc_off_16);
+                EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
+            }
+        }
+        else
+        {
+            if (branch_offset > 0 && branch_offset < 4096)
+                EMIT(ctx, add_immed(REG_PC, REG_PC, branch_offset));
+            else if (branch_offset > -4096 && branch_offset < 0)
+                EMIT(ctx, sub_immed(REG_PC, REG_PC, -branch_offset));
+            else if (branch_offset != 0)
+            {
+                EMIT_LoadImmediate(ctx, 0, branch_offset);
+                EMIT(ctx, add_reg(REG_PC, REG_PC, 0, LSL, 0));
+            }
+        }
+        /* Insert local exit */
+        EMIT_LocalExit(ctx, 1);
+        uint32_t *exit_code_end = ctx->tc_CodePtr;
+
+        /* Insert fixup location */
+        EMIT(ctx, 
+            exit_code_end - tmpptr,
+            fixup_type,
+            exit_code_end - exit_code_start,
+            INSN_TO_LE(MARKER_EXIT_BLOCK)
+        );
+        
+        #if 0
+
+        uint8_t pc_yes = RA_AllocARMRegister(ctx);
+        uint8_t pc_no = RA_AllocARMRegister(ctx);
 
         if (branch_offset > 0 && branch_offset < 4096)
-            *ptr++ = add_immed(pc_yes, REG_PC, branch_offset);
+            EMIT(ctx, add_immed(pc_yes, REG_PC, branch_offset));
         else if (branch_offset > -4096 && branch_offset < 0)
-            *ptr++ = sub_immed(pc_yes, REG_PC, -branch_offset);
+            EMIT(ctx, sub_immed(pc_yes, REG_PC, -branch_offset));
         else if (branch_offset != 0) {
-            *ptr++ = movw_immed_u16(reg, branch_offset);
+            EMIT(ctx, movw_immed_u16(reg, branch_offset));
             if ((branch_offset >> 16) & 0xffff)
-                *ptr++ = movt_immed_u16(reg, (branch_offset >> 16) & 0xffff);
-            *ptr++ = add_reg(pc_yes, REG_PC, reg, LSL, 0);
+                EMIT(ctx, movt_immed_u16(reg, (branch_offset >> 16) & 0xffff));
+            EMIT(ctx, add_reg(pc_yes, REG_PC, reg, LSL, 0));
         }
-        else { *ptr++ = mov_reg(pc_yes, REG_PC); }
+        else { EMIT(ctx, mov_reg(pc_yes, REG_PC)); }
 
         branch_target += branch_offset - local_pc_off;
 
@@ -2300,51 +2625,192 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
 
         if (local_pc_off_16 > 0 && local_pc_off_16 < 255)
-            *ptr++ = add_immed(pc_no, REG_PC, local_pc_off_16);
+            EMIT(ctx, add_immed(pc_no, REG_PC, local_pc_off_16));
         else if (local_pc_off_16 > -256 && local_pc_off_16 < 0)
-            *ptr++ = sub_immed(pc_no, REG_PC, -local_pc_off_16);
+            EMIT(ctx, sub_immed(pc_no, REG_PC, -local_pc_off_16));
         else if (local_pc_off_16 != 0) {
-            *ptr++ = movw_immed_u16(reg, local_pc_off_16);
+            EMIT(ctx, movw_immed_u16(reg, local_pc_off_16));
             if ((local_pc_off_16 >> 16) & 0xffff)
-                *ptr++ = movt_immed_u16(reg, local_pc_off_16 >> 16);
-            *ptr++ = add_reg(pc_no, REG_PC, reg, LSL, 0);
+                EMIT(ctx, movt_immed_u16(reg, local_pc_off_16 >> 16));
+            EMIT(ctx, add_reg(pc_no, REG_PC, reg, LSL, 0));
         }
-        *ptr++ = csel(REG_PC, pc_yes, pc_no, success_condition);
-        RA_FreeARMRegister(&ptr, pc_yes);
-        RA_FreeARMRegister(&ptr, pc_no);
-        tmpptr = ptr;
+        EMIT(ctx, csel(REG_PC, pc_yes, pc_no, success_condition));
+        RA_FreeARMRegister(ctx, pc_yes);
+        RA_FreeARMRegister(ctx, pc_no);
+        tmpptr = ctx->tc_CodePtr;
 #if EMU68_DEF_BRANCH_AUTO
         if(
-            branch_target < (intptr_t)*m68k_ptr &&
-            ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+            branch_target < (intptr_t)ctx->tc_M68kCodePtr /*&&
+            ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE  */
         )
-            *ptr++ = b_cc(success_condition, 1);
+            EMIT(ctx, b_cc(success_condition, 1));
         else
-            *ptr++ = b_cc(success_condition^1, 1);
+            EMIT(ctx, b_cc(success_condition^1, 1));
 #else
 #if EMU68_DEF_BRANCH_TAKEN
-        *ptr++ = b_cc(success_condition, 1);
+        EMIT(ctx, b_cc(success_condition, 1));
 #else
-        *ptr++ = b_cc(success_condition^1, 1);
+        EMIT(ctx, b_cc(success_condition^1, 1));
 #endif
 #endif
 
 #if EMU68_DEF_BRANCH_AUTO
         if(
-            branch_target < (intptr_t)*m68k_ptr &&
-            ((intptr_t)*m68k_ptr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE
+            branch_target < (intptr_t)ctx->tc_M68kCodePtr /*&&
+            ((intptr_t)ctx->tc_M68kCodePtr - branch_target) < EMU68_DEF_BRANCH_AUTO_RANGE*/
         )
-            *m68k_ptr = (uint16_t *)branch_target;
+            ctx->tc_M68kCodePtr = (uint16_t *)branch_target;
 #else
 #if EMU68_DEF_BRANCH_TAKEN
-        *m68k_ptr = (uint16_t *)branch_target;
+        cx->tc_M68kCodePtr = (uint16_t *)branch_target;
 #endif
 #endif
-        RA_FreeARMRegister(&ptr, reg);
-        *ptr++ = (uint32_t)(uintptr_t)tmpptr;
-        *ptr++ = 1;
-        *ptr++ = branch_target;
-        *ptr++ = INSN_TO_LE(0xfffffffe);
+        RA_FreeARMRegister(ctx, reg);
+        EMIT(ctx, 
+            (uint32_t)(uintptr_t)tmpptr,
+            1,
+            branch_target,
+            INSN_TO_LE(0xfffffffe)
+        );
+        #endif
+    }
+    /* FDBcc */
+    else if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0)
+    {
+        static int shown = 0;
+        if (!shown) {
+            kprintf("FDBcc\n");
+            shown = 1;
+        }
+        
+        /* Extract predicate ignoring signalling flags*/
+        uint8_t predicate = opcode2 & 0x0f;
+
+        ctx->tc_M68kCodePtr += ext_count;
+
+        /* Seldom case of FDBT which does nothing */
+        if (predicate == F_CC_T)
+        {
+            /* Emu68 needs to emit at least one aarch64 opcode, push nop */
+            EMIT(ctx, nop());
+            EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        }
+        else
+        {
+            uint16_t *bra_rel_ptr = ctx->tc_M68kCodePtr - 2;
+            uint8_t counter_reg = RA_MapM68kRegister(ctx, opcode & 7);
+            uint32_t *branch_1 = NULL;
+            uint32_t *branch_2 = NULL;
+            uint32_t branch_1_type = 0;
+            uint32_t branch_2_type = 0;
+            int8_t off8 = 0;
+            int32_t off = 6;
+            int32_t branch_offset = 4 + (int16_t)cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
+
+            EMIT_GetOffsetPC(ctx, &off8);
+            off += off8;
+            EMIT_ResetOffsetPC(ctx);
+
+            int32_t true_pc_addend = off;
+
+            off = branch_offset + off8;
+
+            int32_t false_pc_addend = off;
+
+            /* If condition was not false check the condition and eventually break the loop */
+            if (predicate != F_CC_F)
+            {
+                //arm_condition = EMIT_TestCondition(&ptr, m68k_condition);
+
+                ///* Adjust PC, negated CC is loop condition, CC is loop break condition */
+                //*ptr++ = csel(REG_PC, c_true, c_false, arm_condition);
+
+                /* conditionally exit loop */
+                EMIT_JumpOnFPUCondition(ctx, predicate, 0, &branch_1_type);
+                branch_1 = ctx->tc_CodePtr - 1;
+            }
+
+
+            /* Copy register to temporary, shift 16 bits left */
+            uint8_t reg = RA_AllocARMRegister(ctx);
+
+            EMIT(ctx, 
+                /* Extract counter to 32-bit */
+                uxth(reg, counter_reg),
+                
+                /* Substract 0x10000 from temporary, compare with 0xffff0000 */
+                subs_immed(reg, reg, 1)
+            );
+
+            RA_SetDirtyM68kRegister(ctx, opcode & 7);
+
+            /* Insert register back */
+            EMIT(ctx, bfi(counter_reg, reg, 0, 16));
+
+            branch_2 = ctx->tc_CodePtr;
+            branch_2_type = FIXUP_BCC;
+            EMIT(ctx, b_cc(A64_CC_MI, 0));
+            
+            RA_FreeARMRegister(ctx, reg);
+
+            off = false_pc_addend;
+            if (off > -4096 && off < 0)
+            {
+                EMIT(ctx, sub_immed(REG_PC, REG_PC, -off));
+            }
+            else if (off > 0 && off < 4096)
+            {
+                EMIT(ctx, add_immed(REG_PC, REG_PC, off));
+            }
+            else if (off != 0)
+            {
+                uint8_t reg = RA_AllocARMRegister(ctx);
+                EMIT_LoadImmediate(ctx, reg, off);
+                EMIT(ctx, 
+                    add_reg(REG_PC, REG_PC, reg, LSL, 0)
+                );
+                RA_FreeARMRegister(ctx, reg);
+            }
+
+            ctx->tc_M68kCodePtr = (void *)((uintptr_t)bra_rel_ptr + branch_offset);
+
+            uint32_t *exit_code_start = ctx->tc_CodePtr;
+
+            EMIT(ctx, add_immed(REG_PC, REG_PC, true_pc_addend));
+
+            /* Insert local exit */
+            EMIT_LocalExit(ctx, 1);
+            uint32_t *exit_code_end = ctx->tc_CodePtr;
+
+            /* Insert fixup location - if branch_1 is not NULL, insert double exit, otherwise single one */
+            if (branch_1) {
+                /* Insert fixup location */
+                EMIT(ctx, 
+                    exit_code_end - branch_1,
+                    branch_1_type,
+                    exit_code_end - branch_2,
+                    branch_2_type,
+                    exit_code_end - exit_code_start,
+                    INSN_TO_LE(MARKER_DOUBLE_EXIT)
+                );
+            }
+            else {
+                EMIT(ctx, 
+                    exit_code_end - branch_2,
+                    branch_2_type,
+                    exit_code_end - exit_code_start,
+                    INSN_TO_LE(MARKER_EXIT_BLOCK)
+                );
+            }
+
+            RA_FreeARMRegister(ctx, counter_reg);
+
+            /* Branch backwards further than the code start pointer, break here and in next run auto-aligh the start */
+            if (ctx->tc_M68kCodeStart > ctx->tc_M68kCodePtr)
+            {
+                EMIT(ctx, INSN_TO_LE(MARKER_BREAK));
+            }
+        }
     }
     /* FCMP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0038)
@@ -2358,20 +2824,20 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = fcmpd(fp_dst, fp_src);
+        EMIT(ctx, fcmpd(fp_dst, fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FDIV */
@@ -2385,24 +2851,24 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
+        EMIT(ctx, fdivd(fp_dst, fp_dst, fp_src));
 
-        RA_SetDirtyFPURegister(&ptr, fp_dst);
+        RA_SetDirtyFPURegister(ctx, fp_dst);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FSGLDIV */
@@ -2416,26 +2882,28 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = fdivd(fp_dst, fp_dst, fp_src);
-        *ptr++ = fcvtsd(fp_dst, fp_dst);
-        *ptr++ = fcvtds(fp_dst, fp_dst);
+        EMIT(ctx, 
+            fdivd(fp_dst, fp_dst, fp_src),
+            fcvtsd(fp_dst, fp_dst),
+            fcvtds(fp_dst, fp_dst)
+        );
 
-        RA_SetDirtyFPURegister(&ptr, fp_dst);
+        RA_SetDirtyFPURegister(ctx, fp_dst);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FSINCOS */
@@ -2450,9 +2918,9 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
         uint8_t fp_dst_cos = opcode2 & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst_sin = RA_MapFPURegisterForWrite(&ptr, fp_dst_sin);
-        fp_dst_cos = RA_MapFPURegisterForWrite(&ptr, fp_dst_cos);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst_sin = RA_MapFPURegisterForWrite(ctx, fp_dst_sin);
+        fp_dst_cos = RA_MapFPURegisterForWrite(ctx, fp_dst_cos);
 
         union {
             uint64_t u64;
@@ -2462,37 +2930,39 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)sincos;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst_cos, 1);
-        *ptr++ = fcpyd(fp_dst_sin, 0);
+            fcpyd(fp_dst_cos, 1),
+            fcpyd(fp_dst_sin, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst_sin);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst_sin));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FINT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
@@ -2505,22 +2975,22 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = frint64x(fp_dst, fp_src);
+        EMIT(ctx, frint64x(fp_dst, fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FGETEXP */
@@ -2533,29 +3003,31 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
-        *ptr++ = ror64(tmp, tmp, 52);
-        *ptr++ = and_immed(tmp, tmp, 11, 0);
-        *ptr++ = sub_immed(tmp, tmp, 0x3ff);
-        *ptr++ = scvtf_32toD(fp_dst, tmp);
+        EMIT(ctx, 
+            mov_simd_to_reg(tmp, fp_src, TS_D, 0),
+            ror64(tmp, tmp, 52),
+            and_immed(tmp, tmp, 11, 0),
+            sub_immed(tmp, tmp, 0x3ff),
+            scvtf_32toD(fp_dst, tmp)
+        );
 
-        RA_FreeFPURegister(&ptr, fp_src);
-        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeFPURegister(ctx, fp_src);
+        RA_FreeARMRegister(ctx, tmp);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FGETMAN */
@@ -2568,28 +3040,30 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = mov_simd_to_reg(tmp, fp_src, TS_D, 0);
-        *ptr++ = bic64_immed(tmp, tmp, 11, 12, 1);
-        *ptr++ = orr64_immed(tmp, tmp, 10, 12, 1);
-        *ptr++ = mov_reg_to_simd(fp_dst, TS_D, 0, tmp);
+        EMIT(ctx, 
+            mov_simd_to_reg(tmp, fp_src, TS_D, 0),
+            bic64_immed(tmp, tmp, 11, 12, 1),
+            orr64_immed(tmp, tmp, 10, 12, 1),
+            mov_reg_to_simd(fp_dst, TS_D, 0, tmp)
+        );
 
-        RA_FreeFPURegister(&ptr, fp_src);
-        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeFPURegister(ctx, fp_src);
+        RA_FreeARMRegister(ctx, tmp);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FINTRZ */
@@ -2603,22 +3077,22 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = frint64z(fp_dst, fp_src);
+        EMIT(ctx, frint64z(fp_dst, fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FSCALE */
@@ -2636,44 +3110,46 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         switch ((opcode2 >> 10) & 7)
         {
             case 0:
-                fp_src = RA_AllocFPURegister(&ptr);
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                fp_src = RA_AllocFPURegister(ctx);
+                EMIT_LoadFromEffectiveAddress(ctx, 4, &int_src, opcode & 0x3f, &ext_count, 0, NULL);
                 break;
             case 4:
-                fp_src = RA_AllocFPURegister(&ptr);
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 2, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                fp_src = RA_AllocFPURegister(ctx);
+                EMIT_LoadFromEffectiveAddress(ctx, 0x80 | 2, &int_src, opcode & 0x3f, &ext_count, 0, NULL);
                 break;
             case 6:
-                fp_src = RA_AllocFPURegister(&ptr);
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0x80 | 1, &int_src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                fp_src = RA_AllocFPURegister(ctx);
+                EMIT_LoadFromEffectiveAddress(ctx, 0x80 | 1, &int_src, opcode & 0x3f, &ext_count, 0, NULL);
                 break;
             default:
-                int_src = RA_AllocARMRegister(&ptr);
-                ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-                *ptr++ = fcvtzs_Dto32(int_src, fp_src);
+                int_src = RA_AllocARMRegister(ctx);
+                FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+                EMIT(ctx, fcvtzs_Dto32(int_src, fp_src));
                 break;
         }
       
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = add_immed(int_src, int_src, 0x3ff);
-        *ptr++ = lsl64(int_src, int_src, 52);
-        *ptr++ = bic64_immed(int_src, int_src, 1, 1, 1);
-        *ptr++ = mov_reg_to_simd(fp_src, TS_D, 0, int_src);
-        *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+        EMIT(ctx, 
+            add_immed(int_src, int_src, 0x3ff),
+            lsl64(int_src, int_src, 52),
+            bic64_immed(int_src, int_src, 1, 1, 1),
+            mov_reg_to_simd(fp_src, TS_D, 0, int_src),
+            fmuld(fp_dst, fp_dst, fp_src)
+        );
 
-        RA_FreeARMRegister(&ptr, int_src);
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeARMRegister(ctx, int_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FLOGN */
@@ -2687,8 +3163,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -2698,36 +3174,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)log;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FREM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0025)
@@ -2741,10 +3219,10 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 1;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = fcpyd(0, fp_dst);
+        EMIT(ctx, fcpyd(0, fp_dst));
 
         union {
             uint64_t u64;
@@ -2754,48 +3232,52 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)remquo;
 
         if (fp_src != 1) {
-            *ptr++ = fcpyd(1, fp_src);
+            EMIT(ctx, fcpyd(1, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        // Clear V0
-        *ptr++ = fmov_0(0);
-        // The result of remquo is not in FPU regiser, but rather integer. Put it into destination now
-        *ptr++ = mov_reg_to_simd(fp_dst, TS_D, 0, 0);
-        // Put quotient byte to the v0 first, before restoring register frame
-        *ptr++ = mov_reg_to_simd(0, TS_B, 2, 1);
+            // Clear V0
+            fmov_0(0),
+            // The result of remquo is not in FPU regiser, but rather integer. Put it into destination now
+            mov_reg_to_simd(fp_dst, TS_D, 0, 0),
+            // Put quotient byte to the v0 first, before restoring register frame
+            mov_reg_to_simd(0, TS_B, 2, 1)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        uint8_t fpsr = RA_ModifyFPSR(&ptr);
-        *ptr++ = bic_immed(fpsr, fpsr, 8, 16);
+        uint8_t fpsr = RA_ModifyFPSR(ctx);
+        EMIT(ctx, bic_immed(fpsr, fpsr, 8, 16));
 
         // Once frame is resotred, get quotient byte and put it into FPSR
-        uint8_t tmp_quot = RA_AllocARMRegister(&ptr);
-        *ptr++ = mov_simd_to_reg(tmp_quot, 0, TS_S, 0);
-        *ptr++ = orr_reg(fpsr, fpsr, tmp_quot, LSL, 0);
-        RA_FreeARMRegister(&ptr, tmp_quot);
+        uint8_t tmp_quot = RA_AllocARMRegister(ctx);
+        EMIT(ctx, 
+            mov_simd_to_reg(tmp_quot, 0, TS_S, 0),
+            orr_reg(fpsr, fpsr, tmp_quot, LSL, 0)
+        );
+        RA_FreeARMRegister(ctx, tmp_quot);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0021)
     {
@@ -2807,43 +3289,44 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        /* Need to check if this method is working... */
-        /* Compute FPn / Source */
-        *ptr++ = fdivd(0, fp_dst, fp_src);
-        /* Round to zero the result -> N */
-        *ptr++ = frint64z(0, 0);
-        /* And store for later */
-        *ptr++ = fcvtzs_Dto64(tmp, 0);
-        /* Get Source * N */
-        *ptr++ = fmuld(1, 0, fp_src);
-        /* Calculate reminder */
-        *ptr++ = fsubd(fp_dst, fp_dst, 1);
-        /* Test sign of result */
-        *ptr++ = fcmpzd(0);
-        *ptr++ = bic_immed(1, 0, 25, 25);
-        *ptr++ = orr_immed(0, 0, 25, 25);
-        *ptr++ = csel(0, 1, 0, A64_CC_PL);
+        EMIT(ctx, 
+            /* Compute FPn / Source */
+            fdivd(0, fp_dst, fp_src),
+            /* Round to zero the result -> N */
+            frint64z(0, 0),
+            /* And store for later */
+            fcvtzs_Dto64(tmp, 0),
+            /* Get Source * N */
+            fmuld(1, 0, fp_src),
+            /* Calculate reminder */
+            fsubd(fp_dst, fp_dst, 1),
+            /* Test sign of result */
+            fcmpzd(0),
+            bic_immed(1, 0, 25, 25),
+            orr_immed(0, 0, 25, 25),
+            csel(0, 1, 0, A64_CC_PL)
+        );
 
-        uint8_t fpsr = RA_ModifyFPSR(&ptr);
-        *ptr++ = bfi(fpsr, 0, 16, 8);
+        uint8_t fpsr = RA_ModifyFPSR(ctx);
+        EMIT(ctx, bfi(fpsr, 0, 16, 8));
 
-        RA_FreeFPURegister(&ptr, fp_src);
-        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeFPURegister(ctx, fp_src);
+        RA_FreeARMRegister(ctx, tmp);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FLOGNP1 */
@@ -2857,8 +3340,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -2868,36 +3351,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)log1p;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FLOG10 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0015)
@@ -2910,8 +3395,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -2921,36 +3406,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)log10;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FLOG2 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0016)
@@ -2963,8 +3450,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -2974,36 +3461,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)log2;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FETOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0010)
@@ -3016,8 +3505,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3027,36 +3516,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)exp;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FETOXM1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0008)
@@ -3069,8 +3560,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3080,36 +3571,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)expm1;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FSINH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0002)
@@ -3122,8 +3615,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3133,36 +3626,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)sinh;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FCOSH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0019)
@@ -3175,8 +3670,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3186,36 +3681,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)cosh;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FATAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000a)
@@ -3228,8 +3725,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3239,36 +3736,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)atan;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FATANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000d)
@@ -3281,8 +3780,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3292,36 +3791,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)atanh;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FACOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001c)
@@ -3334,8 +3835,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3345,36 +3846,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)acos;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FASIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000c)
@@ -3387,8 +3890,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3398,36 +3901,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)asin;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FTAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000f)
@@ -3440,8 +3945,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3451,36 +3956,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)tan;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FTANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0009)
@@ -3493,8 +4000,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3504,36 +4011,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)tanh;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FTENTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0012)
@@ -3546,8 +4055,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3557,36 +4066,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)exp10;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
         
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FTWOTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0011)
@@ -3599,8 +4110,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -3610,36 +4121,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)exp2;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FMOVE to REG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
@@ -3664,33 +4177,35 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         if ((opcode2 & 0x4000) == 0)
         {
-            fp_src = RA_MapFPURegister(&ptr, (opcode2 >> 10) & 7);
-            fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-            *ptr++ = fcpyd(fp_dst, fp_src);
+            fp_src = RA_MapFPURegister(ctx, (opcode2 >> 10) & 7);
+            fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
+            EMIT(ctx, fcpyd(fp_dst, fp_src));
         }
         else
         {
-            fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
-            ptr = FPU_FetchData(ptr, m68k_ptr, &fp_dst, opcode, opcode2, &ext_count, 0);
+            fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
+            FPU_FetchData(ctx, &fp_dst, opcode, opcode2, &ext_count, 0);
         }
 
         if (precision == 4)
         {
             // FSMOVE (Needed by e.g. https://www.pouet.net/prod.php?which=74668)
-            *ptr++ = fcvtsd(fp_dst, fp_dst);
-            *ptr++ = fcvtds(fp_dst, fp_dst);
+            EMIT(ctx, 
+                fcvtsd(fp_dst, fp_dst),
+                fcvtds(fp_dst, fp_dst)
+            );
         }
 
-        RA_FreeFPURegister(&ptr, fp_src);
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        RA_FreeFPURegister(ctx, fp_src);
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FMOVE to MEM */
@@ -3702,11 +4217,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             shown = 1;
         }
         uint8_t fp_src = (opcode2 >> 7) & 7;
-        fp_src = RA_MapFPURegister(&ptr, fp_src);
-        ptr = FPU_StoreData(ptr, m68k_ptr, fp_src, opcode, opcode2, &ext_count);
+        fp_src = RA_MapFPURegister(ctx, fp_src);
+        FPU_StoreData(ctx, fp_src, opcode, opcode2, &ext_count);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
     }
     /* FMOVE from special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
@@ -3722,18 +4237,18 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         // Handle move to Dn
         if ((opcode & 0x38) == 0)
         {
-            uint8_t dst = RA_MapM68kRegisterForWrite(&ptr, opcode & 7);
+            uint8_t dst = RA_MapM68kRegisterForWrite(ctx, opcode & 7);
 
             switch (opcode2 & 0x1c00)
             {
                 case 0x1000:    /* FPCR */
-                    reg = RA_GetFPCR(&ptr);
-                    *ptr++ = mov_reg(dst, reg);
+                    reg = RA_GetFPCR(ctx);
+                    EMIT(ctx, mov_reg(dst, reg));
                     reg = 0xff;
                     break;
                 case 0x0800:    /* FPSR */
-                    reg = RA_GetFPSR(&ptr);
-                    *ptr++ = mov_reg(dst, reg);
+                    reg = RA_GetFPSR(ctx);
+                    EMIT(ctx, mov_reg(dst, reg));
                     reg = 0xff;
                     break;
             }
@@ -3741,17 +4256,16 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         // Handle move from An
         else if ((opcode & 0x38) == 0x8)
         {
-            uint8_t dst = RA_MapM68kRegisterForWrite(&ptr, 8 + (opcode & 7));
+            uint8_t dst = RA_MapM68kRegisterForWrite(ctx, 8 + (opcode & 7));
 
             switch (opcode2 & 0x1c00)
             {
                 case 0x0400:    /* FPIAR */
                     if (val_FPIAR != 0xffffffff) {
-                        *ptr++ = mov_immed_u16(dst, val_FPIAR & 0xffff, 0);
-                        *ptr++ = movk_immed_u16(dst, val_FPIAR >> 16, 1);
+                        EMIT_LoadImmediate(ctx, dst, val_FPIAR);
                     }
                     else {
-                        *ptr++ = mov_simd_to_reg(dst, 29, TS_S, 1);
+                        EMIT(ctx, mov_simd_to_reg(dst, REG_FPIAR));
                     }
                     break;
             }
@@ -3763,11 +4277,11 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             int offset = 0;
 
             if ((opcode & 0x38) == 0x20 || (opcode & 0x38) == 0x18) {
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dst, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &dst, opcode & 0x3f, &ext_count, 0, NULL);
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &dst, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &dst, opcode & 0x3f, &ext_count, 1, NULL);
 
             if (opcode2 & 0x0400) regnum++;
             if (opcode2 & 0x0800) regnum++;
@@ -3776,50 +4290,49 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             // In predecrement mode reserve whole space first
             if ((opcode & 0x38) == 0x20)
             {
-                *ptr++ = sub_immed(dst, dst, 4 * regnum);
+                EMIT(ctx, sub_immed(dst, dst, 4 * regnum));
             }
 
             if (opcode2 & 0x1000)
             {
-                reg = RA_GetFPCR(&ptr);
+                reg = RA_GetFPCR(ctx);
                 
-                *ptr++ = str_offset(dst, reg, offset);
+                EMIT(ctx, str_offset(dst, reg, offset));
                 offset += 4;
             }
 
             if (opcode2 & 0x0800)
             {
-                reg = RA_GetFPSR(&ptr);
-                *ptr++ = str_offset(dst, reg, offset);
+                reg = RA_GetFPSR(ctx);
+                EMIT(ctx, str_offset(dst, reg, offset));
                 offset += 4;
             }
 
             if (opcode2 & 0x0400)
             {
-                reg = RA_AllocARMRegister(&ptr);
+                reg = RA_AllocARMRegister(ctx);
                 if (val_FPIAR != 0xffffffff) {
-                    *ptr++ = mov_immed_u16(reg, val_FPIAR & 0xffff, 0);
-                    *ptr++ = movk_immed_u16(reg, val_FPIAR >> 16, 1);
+                    EMIT_LoadImmediate(ctx, reg, val_FPIAR);
                 }
                 else {
-                    *ptr++ = mov_simd_to_reg(reg, 29, TS_S, 1);
+                    EMIT(ctx, mov_simd_to_reg(reg, REG_FPIAR));
                 }
-                *ptr++ = str_offset(dst, reg, offset);
-                RA_FreeARMRegister(&ptr, reg);
+                EMIT(ctx, str_offset(dst, reg, offset));
+                RA_FreeARMRegister(ctx, reg);
                 reg = 0xff;
             }
 
             // In postincrement mode adjust the value now
             if ((opcode & 0x38) == 0x18)
             {
-                *ptr++ = add_immed(dst, dst, 4 * regnum);
+                EMIT(ctx, add_immed(dst, dst, 4 * regnum));
             }
 
-            RA_FreeARMRegister(&ptr, dst);
+            RA_FreeARMRegister(ctx, dst);
         }
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
     }
     /* FMOVE to special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0x8000)
@@ -3836,57 +4349,59 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         // Handle move from Dn
         if ((opcode & 0x38) == 0)
         {
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 4, &src, opcode & 0x3f, &ext_count, 1, NULL);
             switch (opcode2 & 0x1c00)
             {
                 case 0x1000:    /* FPCR */
-                    tmp = RA_AllocARMRegister(&ptr);
-                    reg = RA_ModifyFPCR(&ptr);
-                    *ptr++ = mov_reg(reg, src);
+                    tmp = RA_AllocARMRegister(ctx);
+                    reg = RA_ModifyFPCR(ctx);
+                    EMIT(ctx, mov_reg(reg, src));
                     {
-                        uint8_t round = RA_AllocARMRegister(&ptr);
+                        uint8_t round = RA_AllocARMRegister(ctx);
 
-                        *ptr++ = get_fpcr(tmp);
-                        *ptr++ = ubfx(round, reg, 4, 2);
-                        *ptr++ = neg_reg(round, round, LSL, 0);
-                        *ptr++ = add_immed(round, round, 4);
-                        *ptr++ = bfi(tmp, round, 22, 2);
-                        *ptr++ = set_fpcr(tmp);
+                        EMIT(ctx, 
+                            get_fpcr(tmp),
+                            ubfx(round, reg, 4, 2),
+                            neg_reg(round, round, LSL, 0),
+                            add_immed(round, round, 4),
+                            bfi(tmp, round, 22, 2),
+                            set_fpcr(tmp)
+                        );
 
-                        RA_FreeARMRegister(&ptr, round);
+                        RA_FreeARMRegister(ctx, round);
                     }
                     break;
                 case 0x0800:    /* FPSR */
-                    reg = RA_ModifyFPSR(&ptr);
-                    *ptr++ = mov_reg(reg, src);
+                    reg = RA_ModifyFPSR(ctx);
+                    EMIT(ctx, mov_reg(reg, src));
                     break;
             }
         }
         // Handle move from An
         else if ((opcode & 0x38) == 0x8)
         {
-            ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+            EMIT_LoadFromEffectiveAddress(ctx, 4, &src, opcode & 0x3f, &ext_count, 1, NULL);
             switch (opcode2 & 0x1c00)
             {
                 case 0x0400:    /* FPIAR */
                     val_FPIAR = 0xffffffff;
-                    *ptr++ = mov_reg_to_simd(29, TS_S, 1, src);
+                    EMIT(ctx, mov_reg_to_simd(REG_FPIAR, src));
                     break;
             }
         }
         // Handle all other cases
         else
         {
-            tmp = RA_AllocARMRegister(&ptr);
+            tmp = RA_AllocARMRegister(ctx);
             int regnum = 0;
             int offset = 0;
 
             if ((opcode & 0x38) == 0x20 || (opcode & 0x38) == 0x18) {
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &src, opcode & 0x3f, &ext_count, 0, NULL);
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             }
             else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &src, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &src, opcode & 0x3f, &ext_count, 1, NULL);
 
             if (opcode2 & 0x0400) regnum++;
             if (opcode2 & 0x0800) regnum++;
@@ -3901,56 +4416,62 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             // In predecrement mode reserve whole space first
             if ((opcode & 0x38) == 0x20)
             {
-                *ptr++ = sub_immed(src, src, 4 * regnum);
+                EMIT(ctx, sub_immed(src, src, 4 * regnum));
             }
 
             if (opcode2 & 0x1000)
             {
-                uint8_t round = RA_AllocARMRegister(&ptr);
-                reg = RA_ModifyFPCR(&ptr);
+                uint8_t round = RA_AllocARMRegister(ctx);
+                reg = RA_ModifyFPCR(ctx);
                 
-                *ptr++ = ldr_offset(src, tmp, offset);
-                *ptr++ = mov_reg(reg, tmp);
+                EMIT(ctx, 
+                    ldr_offset(src, tmp, offset),
+                    mov_reg(reg, tmp),
 
-                *ptr++ = get_fpcr(tmp);
-                *ptr++ = ubfx(round, reg, 4, 2);
-                *ptr++ = neg_reg(round, round, LSL, 0);
-                *ptr++ = add_immed(round, round, 4);
-                *ptr++ = bfi(tmp, round, 22, 2);
-                *ptr++ = set_fpcr(tmp);
+                    get_fpcr(tmp),
+                    ubfx(round, reg, 4, 2),
+                    neg_reg(round, round, LSL, 0),
+                    add_immed(round, round, 4),
+                    bfi(tmp, round, 22, 2),
+                    set_fpcr(tmp)
+                );
 
-                RA_FreeARMRegister(&ptr, round);
+                RA_FreeARMRegister(ctx, round);
 
                 offset += 4;
             }
 
             if (opcode2 & 0x0800)
             {
-                reg = RA_ModifyFPSR(&ptr);
-                *ptr++ = ldr_offset(src, tmp, offset);
-                *ptr++ = mov_reg(reg, tmp);
+                reg = RA_ModifyFPSR(ctx);
+                EMIT(ctx, 
+                    ldr_offset(src, tmp, offset),
+                    mov_reg(reg, tmp)
+                );
                 offset += 4;
             }
 
             if (opcode2 & 0x0400)
             {
                 val_FPIAR = 0xffffffff;
-                *ptr++ = ldr_offset(src, tmp, offset);
-                *ptr++ = mov_reg_to_simd(29, TS_S, 1, tmp);
+                EMIT(ctx, 
+                    ldr_offset(src, tmp, offset),
+                    mov_reg_to_simd(REG_FPIAR, tmp)
+                );
             }
 
             // In postincrement mode adjust the value now
             if ((opcode & 0x38) == 0x18)
             {
-                *ptr++ = add_immed(src, src, 4 * regnum);
+                EMIT(ctx, add_immed(src, src, 4 * regnum));
             }
         }
 
-        RA_FreeARMRegister(&ptr, src);
-        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(ctx, src);
+        RA_FreeARMRegister(ctx, tmp);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
     }
     /* FMOVEM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000)
@@ -3967,9 +4488,9 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             uint8_t mode = (opcode & 0x0038) >> 3;
 
             if (mode == 4 || mode == 3)
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &base_reg, opcode & 0x3f, &ext_count, 0, NULL);
             else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &base_reg, opcode & 0x3f, &ext_count, 1, NULL);
 
             /* Pre index? Note - dynamic mode not supported yet! using double mode instead of extended! */
             if (mode == 4) {
@@ -3979,115 +4500,124 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
                 for (int i=0; i < 8; i++)
                     if ((opcode2 & (1 << i)))
                         size++;
-                *ptr++ = sub_immed(base_reg, base_reg, 12*size);
+                EMIT(ctx, sub_immed(base_reg, base_reg, 12*size));
 
-                ptr = get_Save96(ptr);
-                *ptr++ = str64_offset_preindex(31, 30, -16);
+                get_Save96(ctx);
+                EMIT(ctx, str64_offset_preindex(31, 30, -16));
 
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (1 << i)) != 0) {
-                        uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
-                        //*ptr++ = sub_immed(base_reg, base_reg, 12);
+                        uint8_t fp_reg = RA_MapFPURegister(ctx, i);
+                        //EMIT(ctx, sub_immed(base_reg, base_reg, 12);
 
-                        *ptr++ = add_immed(1, base_reg, 12*cnt);
-                        *ptr++ = mov_simd_to_reg(0, fp_reg, TS_D, 0);
-                        *ptr++ = blr(reg_Save96);
-                        //ptr = EMIT_Store96bitFP(ptr, fp_reg, base_reg, 12*cnt++);
-                        //*ptr++ = fstd(fp_reg, base_reg, 12*cnt++);
+                        EMIT(ctx, 
+                            add_immed(1, base_reg, 12*cnt),
+                            mov_simd_to_reg(0, fp_reg, TS_D, 0),
+                            blr(reg_Save96)
+                        );
+                        //ptr = EMIT_Store96bitFP(ctx, fp_reg, base_reg, 12*cnt++);
+                        //EMIT(ctx, fstd(fp_reg, base_reg, 12*cnt++);
 
                         cnt++;
-                        RA_FreeFPURegister(&ptr, fp_reg);
+                        RA_FreeFPURegister(ctx, fp_reg);
                     }
                 }
-                *ptr++ = ldr64_offset_postindex(31, 30, 16);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, ldr64_offset_postindex(31, 30, 16));
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             } else if (mode == 3) {
                 kprintf("[JIT] Unsupported FMOVEM operation (REG to MEM postindex)\n");
             } else {
-                ptr = get_Save96(ptr);
-                *ptr++ = str64_offset_preindex(31, 30, -16);
+                get_Save96(ctx);
+                EMIT(ctx, str64_offset_preindex(31, 30, -16));
 
                 int cnt = 0;
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (0x80 >> i)) != 0) {
-                        uint8_t fp_reg = RA_MapFPURegister(&ptr, i);
+                        uint8_t fp_reg = RA_MapFPURegister(ctx, i);
 
-                        *ptr++ = add_immed(1, base_reg, 12*cnt);
-                        *ptr++ = mov_simd_to_reg(0, fp_reg, TS_D, 0);
-                        *ptr++ = blr(reg_Save96);
+                        EMIT(ctx, 
+                            add_immed(1, base_reg, 12*cnt),
+                            mov_simd_to_reg(0, fp_reg, TS_D, 0),
+                            blr(reg_Save96)
+                        );
 
-                        //ptr = EMIT_Store96bitFP(ptr, fp_reg, base_reg, 12*cnt);
-                        //*ptr++ = fstd(fp_reg, base_reg, cnt*12);
+                        //ptr = EMIT_Store96bitFP(ctx, fp_reg, base_reg, 12*cnt);
+                        //EMIT(ctx, fstd(fp_reg, base_reg, cnt*12);
                         cnt++;
-                        RA_FreeFPURegister(&ptr, fp_reg);
+                        RA_FreeFPURegister(ctx, fp_reg);
                     }
                 }
 
-                *ptr++ = ldr64_offset_postindex(31, 30, 16);
+                EMIT(ctx, ldr64_offset_postindex(31, 30, 16));
             }
         } else { /* memory to FPn */
             uint8_t mode = (opcode & 0x0038) >> 3;
 
             if (mode == 4 || mode == 3)
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &base_reg, opcode & 0x3f, &ext_count, 0, NULL);
             else
-                ptr = EMIT_LoadFromEffectiveAddress(ptr, 0, &base_reg, opcode & 0x3f, *m68k_ptr, &ext_count, 1, NULL);
+                EMIT_LoadFromEffectiveAddress(ctx, 0, &base_reg, opcode & 0x3f, &ext_count, 1, NULL);
 
             /* Post index? Note - dynamic mode not supported yet! using double mode instead of extended! */
             if (mode == 3) {
-                ptr = get_Load96(ptr);
-                *ptr++ = str64_offset_preindex(31, 30, -16);
+                get_Load96(ctx);
+                EMIT(ctx, str64_offset_preindex(31, 30, -16));
 
                 int cnt = 0;
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (0x80 >> i)) != 0) {
-                        uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
+                        uint8_t fp_reg = RA_MapFPURegisterForWrite(ctx, i);
 
-                        *ptr++ = add_immed(1, base_reg, 12*cnt);
-                        *ptr++ = blr(reg_Load96);
-                        *ptr++ = mov_reg_to_simd(fp_reg, TS_D, 0, 0);
+                        EMIT(ctx, 
+                            add_immed(1, base_reg, 12*cnt),
+                            blr(reg_Load96),
+                            mov_reg_to_simd(fp_reg, TS_D, 0, 0)
+                        );
 
-                        //ptr = EMIT_Load96bitFP(ptr, fp_reg, base_reg, 12*cnt++);
-                        //*ptr++ = fldd(fp_reg, base_reg, 12*cnt++);
-                        //*ptr++ = add_immed(base_reg, base_reg, 12);
-                        RA_FreeFPURegister(&ptr, fp_reg);
+                        //ptr = EMIT_Load96bitFP(ctx, fp_reg, base_reg, 12*cnt++);
+                        //EMIT(ctx, fldd(fp_reg, base_reg, 12*cnt++);
+                        //EMIT(ctx, add_immed(base_reg, base_reg, 12);
+                        RA_FreeFPURegister(ctx, fp_reg);
                         cnt++;
                     }
                 }
 
-                *ptr++ = ldr64_offset_postindex(31, 30, 16);
-
-                *ptr++ = add_immed(base_reg, base_reg, 12*cnt);
-                RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+                EMIT(ctx, 
+                    ldr64_offset_postindex(31, 30, 16),
+                    add_immed(base_reg, base_reg, 12*cnt)
+                );
+                RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
             } else if (mode == 4) {
                 kprintf("[JIT] Unsupported FMOVEM operation (REG to MEM preindex)\n");
             } else {
-                ptr = get_Load96(ptr);
-                *ptr++ = str64_offset_preindex(31, 30, -16);
+                get_Load96(ctx);
+                EMIT(ctx, str64_offset_preindex(31, 30, -16));
 
                 int cnt = 0;
                 for (int i=0; i < 8; i++) {
                     if ((opcode2 & (0x80 >> i)) != 0) {
-                        uint8_t fp_reg = RA_MapFPURegisterForWrite(&ptr, i);
+                        uint8_t fp_reg = RA_MapFPURegisterForWrite(ctx, i);
 
-                        *ptr++ = add_immed(1, base_reg, 12*cnt);
-                        *ptr++ = blr(reg_Load96);
-                        *ptr++ = mov_reg_to_simd(fp_reg, TS_D, 0, 0);
-                        //ptr = EMIT_Load96bitFP(ptr, fp_reg, base_reg, 12*cnt);
-                        //*ptr++ = fldd(fp_reg, base_reg, cnt*12);
+                        EMIT(ctx, 
+                            add_immed(1, base_reg, 12*cnt),
+                            blr(reg_Load96),
+                            mov_reg_to_simd(fp_reg, TS_D, 0, 0)
+                        );
+                        //ptr = EMIT_Load96bitFP(ctx, fp_reg, base_reg, 12*cnt);
+                        //EMIT(ctx, fldd(fp_reg, base_reg, cnt*12);
                         cnt++;
-                        RA_FreeFPURegister(&ptr, fp_reg);
+                        RA_FreeFPURegister(ctx, fp_reg);
                     }
                 }
 
-                *ptr++ = ldr64_offset_postindex(31, 30, 16);
+                EMIT(ctx, ldr64_offset_postindex(31, 30, 16));
             }
         }
 
-        RA_FreeARMRegister(&ptr, base_reg);
+        RA_FreeARMRegister(ctx, base_reg);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
     }
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0023 || (opcode2 & 0xa07b) == 0x0063))
@@ -4110,24 +4640,24 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
+        EMIT(ctx, fmuld(fp_dst, fp_dst, fp_src));
 
-        RA_SetDirtyFPURegister(&ptr, fp_dst);
+        RA_SetDirtyFPURegister(ctx, fp_dst);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FSGLMUL */
@@ -4141,26 +4671,28 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = fmuld(fp_dst, fp_dst, fp_src);
-        *ptr++ = fcvtsd(fp_dst, fp_dst);
-        *ptr++ = fcvtds(fp_dst, fp_dst);
+        EMIT(ctx, 
+            fmuld(fp_dst, fp_dst, fp_src),
+            fcvtsd(fp_dst, fp_dst),
+            fcvtds(fp_dst, fp_dst)
+        );
 
-        RA_SetDirtyFPURegister(&ptr, fp_dst);
+        RA_SetDirtyFPURegister(ctx, fp_dst);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FNEG */
@@ -4184,22 +4716,22 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = fnegd(fp_dst, fp_src);
+        EMIT(ctx, fnegd(fp_dst, fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FTST */
@@ -4212,19 +4744,19 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         }
         uint8_t fp_src = 0xff;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
 
-        *ptr++ = fcmpzd(fp_src);
+        EMIT(ctx, fcmpzd(fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FScc */
@@ -4235,7 +4767,7 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             kprintf("FScc\n");
             shown = 1;
         }
-        uint8_t fpsr = RA_GetFPSR(&ptr);
+        uint8_t fpsr = RA_GetFPSR(ctx);
         uint8_t predicate = opcode2 & 0x3f;
         uint8_t success_condition = 0;
         uint8_t tmp_cc = 0xff;
@@ -4244,145 +4776,167 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         switch (predicate & 0x0f)
         {
             case F_CC_EQ:
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
+                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_NE:
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
+                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)));
                 success_condition = A64_CC_EQ;
                 break;
             case F_CC_OGT:
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = ARM_CC_EQ;
                 break;
             case F_CC_ULE:
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_N | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = ARM_CC_NE;
                 break;
             case F_CC_OGE: // Z == 1 || (N == 0 && NAN == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSL, 3); // N | NAN -> N (== 0 only if N=0 && NAN=0)
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // !N -> N
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                    b_cc(A64_CC_NE, 4),
+                    orr_reg(tmp_cc, fpsr, fpsr, LSL, 3), // N | NAN -> N (== 0 only if N=0 && NAN=0)
+                    eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // !N -> N
+                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_ULT: // NAN == 1 || (N == 1 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)); // Invert Z
-                *ptr++ = and_reg(tmp_cc, fpsr, tmp_cc, LSL, 1); // !Z & N -> N
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)),
+                    b_cc(A64_CC_NE, 4),
+                    eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_Z)), // Invert Z
+                    and_reg(tmp_cc, fpsr, tmp_cc, LSL, 1), // !Z & N -> N
+                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OLT: // N == 1 && (NAN == 0 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I));
-                *ptr++ = orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2); // NAN | Z -> Z
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)); // Invert N
-                *ptr++ = tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z)); // Test N==0 && Z == 0
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    bic_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_I)),
+                    orr_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 2), // NAN | Z -> Z
+                    eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_N)), // Invert N
+                    tst_immed(tmp_cc, 2, 31 & (32 - FPSRB_Z))  // Test N==0 && Z == 0
+                );
                 success_condition = A64_CC_EQ;
                 break;
             case F_CC_UGE: // NAN == 1 || (Z == 1 || N == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N));
-                *ptr++ = bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I));
-                *ptr++ = tst_immed(tmp_cc, 4, 31 & (32 - FPSRB_NAN));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_N)),
+                    bic_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_I)),
+                    tst_immed(tmp_cc, 4, 31 & (32 - FPSRB_NAN))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OLE: // Z == 1 || (N == 1 && NAN == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)); // Invert NAN
-                *ptr++ = and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3);   // !NAN & N -> N
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_Z)),
+                    b_cc(A64_CC_NE, 4),
+                    eor_immed(tmp_cc, fpsr, 1, 31 & (32 - FPSRB_NAN)), // Invert NAN
+                    and_reg(tmp_cc, tmp_cc, tmp_cc, LSL, 3),   // !NAN & N -> N
+                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_N))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_UGT: // NAN == 1 || (N == 0 && Z == 0)
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
-                *ptr++ = b_cc(A64_CC_NE, 4);
-                *ptr++ = orr_reg(tmp_cc, fpsr, fpsr, LSR, 1);
-                *ptr++ = eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z));
-                *ptr++ = tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z));
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)),
+                    b_cc(A64_CC_NE, 4),
+                    orr_reg(tmp_cc, fpsr, fpsr, LSR, 1),
+                    eor_immed(tmp_cc, tmp_cc, 1, 31 & (32 - FPSRB_Z)),
+                    tst_immed(tmp_cc, 1, 31 & (32 - FPSRB_Z))
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OGL:
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = A64_CC_EQ;
                 break;
             case F_CC_UEQ:
-                tmp_cc = RA_AllocARMRegister(&ptr);
-                *ptr++ = mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1);
-                *ptr++ = tst_reg(fpsr, tmp_cc, LSL, 0);
+                tmp_cc = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    mov_immed_u16(tmp_cc, (FPSR_Z | FPSR_NAN) >> 16, 1),
+                    tst_reg(fpsr, tmp_cc, LSL, 0)
+                );
                 success_condition = A64_CC_NE;
                 break;
             case F_CC_OR:
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
+                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
                 success_condition = A64_CC_EQ;
                 break;
             case F_CC_UN:
-                *ptr++ = tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN));
+                EMIT(ctx, tst_immed(fpsr, 1, 31 & (32 - FPSRB_NAN)));
                 success_condition = A64_CC_NE;
                 break;
         }
-        RA_FreeARMRegister(&ptr, tmp_cc);
+        RA_FreeARMRegister(ctx, tmp_cc);
 
         if ((opcode & 0x38) == 0)
         {
             /* FScc Dx case */
-            uint8_t dest = RA_MapM68kRegister(&ptr, opcode & 7);
-            RA_SetDirtyM68kRegister(&ptr, opcode & 7);
+            uint8_t dest = RA_MapM68kRegister(ctx, opcode & 7);
+            RA_SetDirtyM68kRegister(ctx, opcode & 7);
 
             if ((predicate & 0x0f) == F_CC_F)
             {
-                *ptr++ = bic_immed(dest, dest, 8, 0);
+                EMIT(ctx, bic_immed(dest, dest, 8, 0));
             }
             else if ((predicate & 0x0f) == F_CC_T)
             {
-                *ptr++ = orr_immed(dest, dest, 8, 0);
+                EMIT(ctx, orr_immed(dest, dest, 8, 0));
             }
             else
             {
-                uint8_t tmp = RA_AllocARMRegister(&ptr);
-                *ptr++ = csetm(tmp, success_condition);
-                *ptr++ = bfi(dest, tmp, 0, 8);
-                RA_FreeARMRegister(&ptr, tmp);
+                uint8_t tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    csetm(tmp, success_condition),
+                    bfi(dest, tmp, 0, 8)
+                );
+                RA_FreeARMRegister(ctx, tmp);
             }
         }
         else
         {
             /* Load effective address */
-            uint8_t tmp = RA_AllocARMRegister(&ptr);
+            uint8_t tmp = RA_AllocARMRegister(ctx);
 
             if ((predicate & 0x0f) == F_CC_F)
             {
-                *ptr++ = mov_immed_u16(tmp, 0, 0);
+                EMIT(ctx, mov_immed_u16(tmp, 0, 0));
             }
             else if ((predicate & 0x0f) == F_CC_T)
             {
-                *ptr++ = movn_immed_u16(tmp, 0, 0);
+                EMIT(ctx, movn_immed_u16(tmp, 0, 0));
             }
             else
             {
-                *ptr++ = csetm(tmp, success_condition);    
+                EMIT(ctx, csetm(tmp, success_condition)); 
             }
 
-            ptr = EMIT_StoreToEffectiveAddress(ptr, 1, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
-            RA_FreeARMRegister(&ptr, tmp);
+            EMIT_StoreToEffectiveAddress(ctx, 1, &tmp, opcode & 0x3f, &ext_count, 0);
+            RA_FreeARMRegister(ctx, tmp);
         }
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
     }
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
@@ -4405,22 +4959,22 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
-        *ptr++ = fsqrtd(fp_dst, fp_src);
+        EMIT(ctx, fsqrtd(fp_dst, fp_src));
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FSUB */
@@ -4444,24 +4998,24 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
 
         (void)precision;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegister(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegister(ctx, fp_dst);
 
-        *ptr++ = fsubd(fp_dst, fp_dst, fp_src);
+        EMIT(ctx, fsubd(fp_dst, fp_dst, fp_src));
 
-        RA_SetDirtyFPURegister(&ptr, fp_dst);
+        RA_SetDirtyFPURegister(ctx, fp_dst);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
     }
     /* FSIN */
@@ -4475,8 +5029,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -4486,36 +5040,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)sin;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
         
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
@@ -4528,8 +5084,8 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
-        ptr = FPU_FetchData(ptr, m68k_ptr, &fp_src, opcode, opcode2, &ext_count, 0);
-        fp_dst = RA_MapFPURegisterForWrite(&ptr, fp_dst);
+        FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
+        fp_dst = RA_MapFPURegisterForWrite(ctx, fp_dst);
 
         union {
             uint64_t u64;
@@ -4539,36 +5095,38 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         u.u64 = (uintptr_t)cos;
 
         if (fp_src != 0) {
-            *ptr++ = fcpyd(0, fp_src);
+            EMIT(ctx, fcpyd(0, fp_src));
         }
 
-        ptr = EMIT_SaveRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_SaveRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
+        EMIT(ctx, 
+            mov64_immed_u16(0, u.u16[3], 0),
+            movk64_immed_u16(0, u.u16[2], 1),
+            movk64_immed_u16(0, u.u16[1], 2),
+            movk64_immed_u16(0, u.u16[0], 3),
 
-        *ptr++ = blr(0);
+            blr(0),
 
-        *ptr++ = fcpyd(fp_dst, 0);
+            fcpyd(fp_dst, 0)
+        );
 
-        ptr = EMIT_RestoreRegFrame(ptr, RA_GetTempAllocMask() | REG_PROTECT);
+        EMIT_RestoreRegFrame(ctx, RA_GetTempAllocMask() | REG_PROTECT);
 
-        RA_FreeFPURegister(&ptr, fp_src);
+        RA_FreeFPURegister(ctx, fp_src);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
 
-        if (FPSR_Update_Needed(*m68k_ptr, 0))
+        if (FPSR_Update_Needed(ctx->tc_M68kCodePtr, 0))
         {
-            uint8_t fpsr = RA_ModifyFPSR(&ptr);
+            uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-            *ptr++ = fcmpzd(fp_dst);
-            ptr = EMIT_GetFPUFlags(ptr, fpsr);
+            EMIT(ctx, fcmpzd(fp_dst));
+            EMIT_GetFPUFlags(ctx, fpsr);
         }
 
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, INSN_TO_LE(0xfffffff0));
     }
     /* FRESTORE */
     else if ((opcode & ~0x3f) == 0xf340 && 
@@ -4584,53 +5142,56 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
         uint8_t tmp = -1;
         ext_count = 0;
         uint32_t *tmp_ptr;
-        uint8_t fpcr = RA_ModifyFPCR(&ptr);
-        uint8_t fpsr = RA_ModifyFPSR(&ptr);
+        uint8_t fpcr = RA_ModifyFPCR(ctx);
+        uint8_t fpsr = RA_ModifyFPSR(ctx);
 
-        ptr = EMIT_LoadFromEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0, NULL);
+        EMIT_LoadFromEffectiveAddress(ctx, 4, &tmp, opcode & 0x3f, &ext_count, 0, NULL);
 
         // If Postincrement mode, eventually skip rest of the frame if IDLE was fetched
         if ((opcode & 0x38) == 0x18)
         {
-            uint8_t An = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-            uint8_t tmp2 = RA_AllocARMRegister(&ptr);
-            *ptr++ = tst_immed(tmp, 8, 8);
-            *ptr++ = b_cc(A64_CC_EQ, 5);
-            *ptr++ = ubfx(tmp2, tmp, 16, 8);
-            *ptr++ = cmp_immed(tmp2, 0x18);
-            *ptr++ = b_cc(A64_CC_NE, 2);
-            *ptr++ = add_immed(An, An, 28 - 4);
-            RA_FreeARMRegister(&ptr, tmp2);
+            uint8_t An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+            uint8_t tmp2 = RA_AllocARMRegister(ctx);
+            EMIT(ctx, 
+                tst_immed(tmp, 8, 8),
+                b_cc(A64_CC_EQ, 5),
+                ubfx(tmp2, tmp, 16, 8),
+                cmp_immed(tmp2, 0x18),
+                b_cc(A64_CC_NE, 2),
+                add_immed(An, An, 28 - 4)
+            );
+            RA_FreeARMRegister(ctx, tmp2);
         }
 
         // In case of NULL frame, reset FPU to vanilla state
-        *ptr++ = tst_immed(tmp, 8, 8);
-        tmp_ptr = ptr;
-        *ptr++ = b_cc(A64_CC_NE, 0);
+        EMIT(ctx, tst_immed(tmp, 8, 8));
+        tmp_ptr = ctx->tc_CodePtr++;
 
-        uint8_t tmp_nan = RA_AllocARMRegister(&ptr);
-        *ptr++ = movn64_immed_u16(tmp_nan, 0x8000, 3);
+        uint8_t tmp_nan = RA_AllocARMRegister(ctx);
+        EMIT(ctx, movn64_immed_u16(tmp_nan, 0x8000, 3));
 
         for (int fp = 8; fp < 16; fp++)
-            *ptr++ = mov_reg_to_simd(fp, TS_D, 0, tmp_nan); //fmov_0(8);
+            EMIT(ctx, mov_reg_to_simd(fp, TS_D, 0, tmp_nan)); //fmov_0(8);
 
-        RA_FreeARMRegister(&ptr, tmp_nan);
+        RA_FreeARMRegister(ctx, tmp_nan);
 
-        *ptr++ = mov_immed_u16(fpcr, 0, 0);
-        *ptr++ = mov_immed_u16(fpsr, 0, 0);
+        EMIT(ctx, 
+            mov_immed_u16(fpcr, 0, 0),
+            mov_immed_u16(fpsr, 0, 0),
 
-        *ptr++ = get_fpcr(tmp);
-        *ptr++ = bic_immed(tmp, tmp, 2, 32 - 22);
-        *ptr++ = set_fpcr(tmp);
-        *ptr++ = mov_reg_to_simd(29, TS_S, 1, 31);
+            get_fpcr(tmp),
+            bic_immed(tmp, tmp, 2, 32 - 22),
+            set_fpcr(tmp),
+            mov_reg_to_simd(REG_FPIAR, 31)
+        );
 
-        *tmp_ptr = b_cc(A64_CC_NE, ptr - tmp_ptr);
+        *tmp_ptr = b_cc(A64_CC_NE, ctx->tc_CodePtr - tmp_ptr);
 
-        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(ctx, tmp);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
-        ptr = EMIT_FlushPC(ptr);
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
+        EMIT_FlushPC(ctx);
     }
     /* FSAVE */
     else if ((opcode & ~0x3f) == 0xf300 && 
@@ -4643,178 +5204,165 @@ uint32_t *EMIT_FPU(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
             kprintf("FSAVE\n");
             shown = 1;
         }
-        uint8_t tmp = RA_AllocARMRegister(&ptr);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
         
         ext_count = 0;
 
-        *ptr++ = mov_immed_u16(tmp, 0x4100, 1);
-        ptr = EMIT_StoreToEffectiveAddress(ptr, 4, &tmp, opcode & 0x3f, *m68k_ptr, &ext_count, 0);
+        EMIT(ctx, mov_immed_u16(tmp, 0x4100, 1));
+        EMIT_StoreToEffectiveAddress(ctx, 4, &tmp, opcode & 0x3f, &ext_count, 0);
 
-        RA_FreeARMRegister(&ptr, tmp);
+        RA_FreeARMRegister(ctx, tmp);
 
-        ptr = EMIT_AdvancePC(ptr, 2 * (ext_count + 1));
-        (*m68k_ptr) += ext_count;
+        EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
+        ctx->tc_M68kCodePtr += ext_count;
     }
     else
     {
-        ptr = EMIT_FlushPC(ptr);
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x:%04x at %08x not implemented\n", opcode, opcode2, *m68k_ptr - 1);
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+        EMIT_FlushPC(ctx);
+        EMIT_InjectDebugString(ctx, "[JIT] opcode %04x:%04x at %08x not implemented\n", opcode, opcode2, ctx->tc_M68kCodePtr - 1);
+        EMIT_Exception(ctx, VECTOR_LINE_F, 0);
+        EMIT(ctx, INSN_TO_LE(0xffffffff));
     }
 
-    return ptr;
+    return insn_consumed;
 }
 
 int DisableFPU = 0;
 
-uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed)
+uint32_t EMIT_lineF(struct TranslatorContext *ctx)
 {
-    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[0]);
-    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]);
+    uint32_t insn_consumed = 1;
+    uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[0]);
+    uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
 
     /* Check destination coprocessor - if it is FPU go to separate function */
     if (DisableFPU == 0 && (opcode & 0x0e00) == 0x0200)
     {
-        return EMIT_FPU(ptr, m68k_ptr, insn_consumed);
+        return EMIT_FPU(ctx);
     }
     /* PFLUSHA or PTEST - ignore */
     else if ((opcode & 0xffe0) == 0xf500 || (opcode & 0xffd8) == 0xf548)
     {
-        *ptr++ = nop();
-        (*m68k_ptr)+=1;
-        *insn_consumed = 1;
-        ptr = EMIT_AdvancePC(ptr, 2);
+        EMIT(ctx, nop());
+        ctx->tc_M68kCodePtr += 1;
+        EMIT_AdvancePC(ctx, 2);
     }
     /* MOVE16 (Ax)+, (Ay)+ */
     else if ((opcode & 0xfff8) == 0xf620) // && (opcode2 & 0x8fff) == 0x8000) <- don't test! Real m68k ignores that bit!
     {
-        uint8_t buf1 = RA_AllocARMRegister(&ptr);
-        uint8_t buf2 = RA_AllocARMRegister(&ptr);
-        uint8_t src = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-        uint8_t dst = RA_MapM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
+        uint8_t buf1 = RA_AllocARMRegister(ctx);
+        uint8_t buf2 = RA_AllocARMRegister(ctx);
+        uint8_t src = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+        uint8_t dst = RA_MapM68kRegister(ctx, 8 + ((opcode2 >> 12) & 7));
 
-        uint8_t aligned_src = RA_AllocARMRegister(&ptr);
-        uint8_t aligned_dst = RA_AllocARMRegister(&ptr);
+        uint8_t aligned_src = RA_AllocARMRegister(ctx);
+        uint8_t aligned_dst = RA_AllocARMRegister(ctx);
 
-        *ptr++ = bic_immed(aligned_src, src, 4, 0);
-        *ptr++ = bic_immed(aligned_dst, dst, 4, 0);
-        *ptr++ = ldp64(aligned_src, buf1, buf2, 0);
-        *ptr++ = add_immed(src, src, 16);
-        *ptr++ = stp64(aligned_dst, buf1, buf2, 0);
+        EMIT(ctx, 
+            bic_immed(aligned_src, src, 4, 0),
+            bic_immed(aligned_dst, dst, 4, 0),
+            ldp64(aligned_src, buf1, buf2, 0),
+            add_immed(src, src, 16),
+            stp64(aligned_dst, buf1, buf2, 0)
+        );
 
         // Update dst only if it is not the same as src!
         if (dst != src) {
-            *ptr++ = add_immed(dst, dst, 16);
+            EMIT(ctx, add_immed(dst, dst, 16));
         }
 
-        RA_FreeARMRegister(&ptr, aligned_src);
-        RA_FreeARMRegister(&ptr, aligned_dst);
+        RA_FreeARMRegister(ctx, aligned_src);
+        RA_FreeARMRegister(ctx, aligned_dst);
 
-        RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
-        RA_SetDirtyM68kRegister(&ptr, 8 + ((opcode2 >> 12) & 7));
+        RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
+        RA_SetDirtyM68kRegister(ctx, 8 + ((opcode2 >> 12) & 7));
 
-        RA_FreeARMRegister(&ptr, buf1);
-        RA_FreeARMRegister(&ptr, buf2);
+        RA_FreeARMRegister(ctx, buf1);
+        RA_FreeARMRegister(ctx, buf2);
 
-        (*m68k_ptr)+=2;
-        *insn_consumed = 1;
-        ptr = EMIT_AdvancePC(ptr, 4);
+        ctx->tc_M68kCodePtr += 2;
+        insn_consumed = 1;
+        EMIT_AdvancePC(ctx, 4);
     }
     /* MOVE16 other variations */
     else if ((opcode & 0xffe0) == 0xf600)
     {
-        uint8_t aligned_reg = RA_AllocARMRegister(&ptr);
-        uint8_t aligned_mem = RA_AllocARMRegister(&ptr);
-        uint8_t buf1 = RA_AllocARMRegister(&ptr);
-        uint8_t buf2 = RA_AllocARMRegister(&ptr);
-        uint8_t reg = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-        uint32_t mem = (cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[1]) << 16) | cache_read_16(ICACHE, (uintptr_t)&(*m68k_ptr)[2]);
+        uint8_t aligned_reg = RA_AllocARMRegister(ctx);
+        uint8_t aligned_mem = RA_AllocARMRegister(ctx);
+        uint8_t buf1 = RA_AllocARMRegister(ctx);
+        uint8_t buf2 = RA_AllocARMRegister(ctx);
+        uint8_t reg = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+        uint32_t mem = (cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]) << 16) | cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[2]);
 
         /* Align memory pointer */
         mem &= 0xfffffff0;
-        *ptr++ = movw_immed_u16(aligned_mem, mem & 0xffff);
-        if (mem & 0xffff0000)
-            *ptr++ = movt_immed_u16(aligned_mem, mem >> 16);
+        EMIT_LoadImmediate(ctx, aligned_mem, mem);
 
-        *ptr++ = bic_immed(aligned_reg, reg, 4, 0);
+        EMIT(ctx, bic_immed(aligned_reg, reg, 4, 0));
 
         if (opcode & 8) {
-            *ptr++ = ldp64(aligned_mem, buf1, buf2, 0);
-            *ptr++ = stp64(aligned_reg, buf1, buf2, 0);
+            EMIT(ctx, ldp64(aligned_mem, buf1, buf2, 0));
+            EMIT(ctx, stp64(aligned_reg, buf1, buf2, 0));
         }
         else {
-            *ptr++ = ldp64(aligned_reg, buf1, buf2, 0);
-            *ptr++ = stp64(aligned_mem, buf1, buf2, 0);
+            EMIT(ctx, ldp64(aligned_reg, buf1, buf2, 0));
+            EMIT(ctx, stp64(aligned_mem, buf1, buf2, 0));
         }
 
         if (!(opcode & 0x10))
         {
-            *ptr++ = add_immed(reg, reg, 16);
-            RA_SetDirtyM68kRegister(&ptr, 8 + (opcode & 7));
+            EMIT(ctx, add_immed(reg, reg, 16));
+            RA_SetDirtyM68kRegister(ctx, 8 + (opcode & 7));
         }
 
-        RA_FreeARMRegister(&ptr, aligned_reg);
-        RA_FreeARMRegister(&ptr, aligned_mem);
-        RA_FreeARMRegister(&ptr, buf1);
-        RA_FreeARMRegister(&ptr, buf2);
+        RA_FreeARMRegister(ctx, aligned_reg);
+        RA_FreeARMRegister(ctx, aligned_mem);
+        RA_FreeARMRegister(ctx, buf1);
+        RA_FreeARMRegister(ctx, buf2);
 
-        (*m68k_ptr)+=3;
-        *insn_consumed = 1;
-        ptr = EMIT_AdvancePC(ptr, 6);
+        ctx->tc_M68kCodePtr += 3;
+        insn_consumed = 1;
+        EMIT_AdvancePC(ctx, 6);
     }
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400 && (opcode & 0x0018) != 0)
     {
+        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
-        uint8_t tmp3 = 0xff;
-        uint8_t tmp4 = 0xff;
+        uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
 
-        ptr = EMIT_FlushPC(ptr);
+        EMIT_FlushPC(ctx);
 
         /* Invalidating data cache? */
         if (opcode & 0x40) {
             /* Get the scope */
             switch (opcode & 0x18) {
                 case 0x08:  /* Line */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(&ptr);
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mov_immed_u8(tmp3, 4);
-                    *ptr++ = mrs(tmp2, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp2, tmp2, 16, 4);
-                    *ptr++ = lslv(tmp2, tmp3, tmp2);
-                    *ptr++ = sub_immed(tmp2, tmp2, 1);
-                    *ptr++ = dsb_sy();
-                    *ptr++ = bic_reg(tmp, tmp, tmp2, LSL, 0);
-                    *ptr++ = dc_ivac(tmp);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    RA_FreeARMRegister(&ptr, tmp3);
-                    RA_FreeARMRegister(&ptr, tmp);
+                    tmp = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        dsb_sy(),
+                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
+                        dc_ivac(tmp),
+                        dsb_sy()
+                    );
+                    RA_FreeARMRegister(ctx, tmp);
                     break;
                 case 0x10:  /* Page */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(&ptr);
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    tmp4 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp3, tmp3, 16, 4);
-                    *ptr++ = mov_immed_u16(tmp2, 1024, 0);
-                    *ptr++ = lsrv(tmp2, tmp2, tmp3);
-                    *ptr++ = bic_immed(tmp, tmp, 12, 0);
-                    *ptr++ = mov_immed_u8(tmp4, 4);
-                    *ptr++ = lslv(tmp4, tmp4, tmp3);
-                    *ptr++ = dc_ivac(tmp);
-                    *ptr++ = add_reg(tmp, tmp, tmp4, LSL, 0);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(A64_CC_NE, -3);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp3);
-                    RA_FreeARMRegister(&ptr, tmp4);
-                    RA_FreeARMRegister(&ptr, tmp);
-                    RA_FreeARMRegister(&ptr, tmp2);
+                    tmp = RA_AllocARMRegister(ctx);
+                    tmp2 = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        dsb_sy(),
+                        bic_immed(tmp, reg_An, 12, 0),
+                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
+                        dc_ivac(tmp),
+                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
+                        subs_immed(tmp2, tmp2, 1),
+                        b_cc(A64_CC_NE, -3),
+                        dsb_sy()
+                    );
+                    RA_FreeARMRegister(ctx, tmp);
+                    RA_FreeARMRegister(ctx, tmp2);
                     break;
                 case 0x18:  /* All */
                     {
@@ -4825,13 +5373,15 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
                         u.u64 = (uintptr_t)invalidate_entire_dcache;
 
-                        *ptr++ = stp64_preindex(31, 0, 30, -16);
-                        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-                        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-                        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-                        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
-                        *ptr++ = blr(0);
-                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
+                        EMIT(ctx, 
+                            stp64_preindex(31, 0, 30, -16),
+                            mov64_immed_u16(0, u.u16[3], 0),
+                            movk64_immed_u16(0, u.u16[2], 1),
+                            movk64_immed_u16(0, u.u16[1], 2),
+                            movk64_immed_u16(0, u.u16[0], 3),
+                            blr(0),
+                            ldp64_postindex(31, 0, 30, 16)
+                        );
                     }
                     break;
             }
@@ -4839,7 +5389,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* Invalidating instruction cache? */
         if (opcode & 0x80) {
             int8_t off = 0;
-            ptr = EMIT_GetOffsetPC(ptr, &off);
+            EMIT_GetOffsetPC(ctx, &off);
 
             union {
                 uint64_t u64;
@@ -4847,94 +5397,87 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             } u;
             u.u64 = (uintptr_t)trampoline_icache_invalidate;
 
-            *ptr++ = stp64_preindex(31, 0, 1, -176);
+            EMIT(ctx, stp64_preindex(31, 0, 1, -176));
             for (int i=2; i < 20; i+=2)
-                *ptr++ = stp64(31, i, i + 1, i * 8);
-            *ptr++ = stp64(31, 29, 30, 160);
+                EMIT(ctx, stp64(31, i, i + 1, i * 8));
+            EMIT(ctx, stp64(31, 29, 30, 160));
             if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
             {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = mov_reg(0, tmp);
+                uint8_t tmp = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+                EMIT(ctx, mov_reg(0, tmp));
             }
             if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
+                EMIT(ctx, add_immed(1, REG_PC, off));
             else
-                *ptr++ = sub_immed(1, REG_PC, -off);
+                EMIT(ctx, sub_immed(1, REG_PC, -off));
 
-            *ptr++ = mov64_immed_u16(3, u.u16[3], 0);
-            *ptr++ = movk64_immed_u16(3, u.u16[2], 1);
-            *ptr++ = movk64_immed_u16(3, u.u16[1], 2);
-            *ptr++ = movk64_immed_u16(3, u.u16[0], 3);
-            *ptr++ = adr(2, 4*2);
-            *ptr++ = br(3);
+            EMIT(ctx, 
+                mov64_immed_u16(3, u.u16[3], 0),
+                movk64_immed_u16(3, u.u16[2], 1),
+                movk64_immed_u16(3, u.u16[1], 2),
+                movk64_immed_u16(3, u.u16[0], 3),
+                adr(2, 4*2),
+                br(3)
+            );
 
             for (int i=2; i < 20; i+=2)
-                *ptr++ = ldp64(31, i, i + 1, i * 8);
-            *ptr++ = ldp64(31, 29, 30, 160);
-            *ptr++ = ldp64_postindex(31, 0, 1, 176);
+                EMIT(ctx, ldp64(31, i, i + 1, i * 8));
+            EMIT(ctx, 
+                ldp64(31, 29, 30, 160),
+                ldp64_postindex(31, 0, 1, 176)
+            );
         }
 
-        (*m68k_ptr)++;
-        *insn_consumed = 1;
+        ctx->tc_M68kCodePtr++;
+        insn_consumed = 1;
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        EMIT(ctx, add_immed(REG_PC, REG_PC, 2));
 
         /* Cache flushing is context synchronizing. Stop translating code here */
-        *ptr++ = INSN_TO_LE(0xffffffff);
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, 
+            INSN_TO_LE(0xffffffff),
+            INSN_TO_LE(0xfffffff0)
+        );
     }
     /* CPUSH */
     else if ((opcode & 0xff20) == 0xf420 && (opcode & 0x0018) != 0)
     {
+        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
-        uint8_t tmp3 = 0xff;
-        uint8_t tmp4 = 0xff;
+        uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
 
-        ptr = EMIT_FlushPC(ptr);
+        EMIT_FlushPC(ctx);
 
         /* Flush data cache? */
         if (opcode & 0x40) {
             /* Get the scope */
             switch (opcode & 0x18) {
                 case 0x08:  /* Line */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(&ptr);
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mov_immed_u8(tmp3, 4);
-                    *ptr++ = mrs(tmp2, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp2, tmp2, 16, 4);
-                    *ptr++ = lslv(tmp2, tmp3, tmp2);
-                    *ptr++ = sub_immed(tmp2, tmp2, 1);
-                    *ptr++ = dsb_sy();
-                    *ptr++ = bic_reg(tmp, tmp, tmp2, LSL, 0);
-                    *ptr++ = dc_civac(tmp);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp2);
-                    RA_FreeARMRegister(&ptr, tmp3);
-                    RA_FreeARMRegister(&ptr, tmp);
+                    tmp = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        dsb_sy(),
+                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
+                        dc_civac(tmp),
+                        dsb_sy()
+                    );
+                    RA_FreeARMRegister(ctx, tmp);
                     break;
                 case 0x10:  /* Page */
-                    tmp = RA_CopyFromM68kRegister(&ptr, 8 + (opcode & 7));
-                    tmp2 = RA_AllocARMRegister(&ptr);
-                    tmp3 = RA_AllocARMRegister(&ptr);
-                    tmp4 = RA_AllocARMRegister(&ptr);
-                    *ptr++ = mrs(tmp3, 3, 3, 0, 0, 1); // Get CTR_EL0
-                    *ptr++ = ubfx(tmp3, tmp3, 16, 4);
-                    *ptr++ = mov_immed_u16(tmp2, 1024, 0);
-                    *ptr++ = lsrv(tmp2, tmp2, tmp3);
-                    *ptr++ = bic_immed(tmp, tmp, 12, 0);
-                    *ptr++ = mov_immed_u8(tmp4, 4);
-                    *ptr++ = lslv(tmp4, tmp4, tmp3);
-                    *ptr++ = dc_civac(tmp);
-                    *ptr++ = add_reg(tmp, tmp, tmp4, LSL, 0);
-                    *ptr++ = subs_immed(tmp2, tmp2, 1);
-                    *ptr++ = b_cc(A64_CC_NE, -3);
-                    *ptr++ = dsb_sy();
-                    RA_FreeARMRegister(&ptr, tmp3);
-                    RA_FreeARMRegister(&ptr, tmp4);
-                    RA_FreeARMRegister(&ptr, tmp);
-                    RA_FreeARMRegister(&ptr, tmp2);
+                    tmp = RA_AllocARMRegister(ctx);
+                    tmp2 = RA_AllocARMRegister(ctx);
+                    EMIT(ctx, 
+                        dsb_sy(),
+                        bic_immed(tmp, reg_An, 12, 0),
+                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
+                        dc_civac(tmp),
+                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
+                        subs_immed(tmp2, tmp2, 1),
+                        b_cc(A64_CC_NE, -3),
+                        dsb_sy()
+                    );
+                    RA_FreeARMRegister(ctx, tmp);
+                    RA_FreeARMRegister(ctx, tmp2);
                     break;
                 case 0x18:  /* All */
                     {
@@ -4945,13 +5488,15 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
 
                         u.u64 = (uintptr_t)clear_entire_dcache;
 
-                        *ptr++ = stp64_preindex(31, 0, 30, -16);
-                        *ptr++ = mov64_immed_u16(0, u.u16[3], 0);
-                        *ptr++ = movk64_immed_u16(0, u.u16[2], 1);
-                        *ptr++ = movk64_immed_u16(0, u.u16[1], 2);
-                        *ptr++ = movk64_immed_u16(0, u.u16[0], 3);
-                        *ptr++ = blr(0);
-                        *ptr++ = ldp64_postindex(31, 0, 30, 16);
+                        EMIT(ctx, 
+                            stp64_preindex(31, 0, 30, -16),
+                            mov64_immed_u16(0, u.u16[3], 0),
+                            movk64_immed_u16(0, u.u16[2], 1),
+                            movk64_immed_u16(0, u.u16[1], 2),
+                            movk64_immed_u16(0, u.u16[0], 3),
+                            blr(0),
+                            ldp64_postindex(31, 0, 30, 16)
+                        );
                     }
                     break;
             }
@@ -4959,7 +5504,7 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
         /* Invalidating instruction cache? */
         if (opcode & 0x80) {
             int8_t off = 0;
-            ptr = EMIT_GetOffsetPC(ptr, &off);
+            EMIT_GetOffsetPC(ctx, &off);
 
             union {
                 uint64_t u64;
@@ -4967,54 +5512,69 @@ uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed
             } u;
             u.u64 = (uintptr_t)trampoline_icache_invalidate;
 
-            *ptr++ = stp64_preindex(31, 0, 1, -176);
+            EMIT(ctx, stp64_preindex(31, 0, 1, -176));
             for (int i=2; i < 20; i+=2)
-                *ptr++ = stp64(31, i, i + 1, i * 8);
-            *ptr++ = stp64(31, 29, 30, 160);
+                EMIT(ctx, stp64(31, i, i + 1, i * 8));
+            EMIT(ctx, stp64(31, 29, 30, 160));
             if ((opcode & 0x18) == 0x08 || (opcode & 0x18) == 0x10)
             {
-                uint8_t tmp = RA_MapM68kRegister(&ptr, 8 + (opcode & 7));
-                *ptr++ = mov_reg(0, tmp);
+                uint8_t tmp = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+                EMIT(ctx, mov_reg(0, tmp));
             }
             if (off >= 0)
-                *ptr++ = add_immed(1, REG_PC, off);
+                EMIT(ctx, add_immed(1, REG_PC, off));
             else
-                *ptr++ = sub_immed(1, REG_PC, -off);
+                EMIT(ctx, sub_immed(1, REG_PC, -off));
 
-            *ptr++ = mov64_immed_u16(3, u.u16[3], 0);
-            *ptr++ = movk64_immed_u16(3, u.u16[2], 1);
-            *ptr++ = movk64_immed_u16(3, u.u16[1], 2);
-            *ptr++ = movk64_immed_u16(3, u.u16[0], 3);
-            *ptr++ = adr(2, 4*2);
-            *ptr++ = br(3);
+            EMIT(ctx, 
+                mov64_immed_u16(3, u.u16[3], 0),
+                movk64_immed_u16(3, u.u16[2], 1),
+                movk64_immed_u16(3, u.u16[1], 2),
+                movk64_immed_u16(3, u.u16[0], 3),
+                adr(2, 4*2),
+                br(3)
+            );
 
             for (int i=2; i < 20; i+=2)
-                *ptr++ = ldp64(31, i, i + 1, i * 8);
-            *ptr++ = ldp64(31, 29, 30, 160);
-            *ptr++ = ldp64_postindex(31, 0, 1, 176);
+                EMIT(ctx, ldp64(31, i, i + 1, i * 8));
+            
+            EMIT(ctx, 
+                ldp64(31, 29, 30, 160),
+                ldp64_postindex(31, 0, 1, 176)
+            );
         }
 
-        (*m68k_ptr)++;
-        *insn_consumed = 1;
+        ctx->tc_M68kCodePtr++;
+        insn_consumed = 1;
 
-        *ptr++ = add_immed(REG_PC, REG_PC, 2);
+        EMIT(ctx, add_immed(REG_PC, REG_PC, 2));
 
         /* Cache is context synchronizing. Break up here! */
-        *ptr++ = INSN_TO_LE(0xffffffff);
-        *ptr++ = INSN_TO_LE(0xfffffff0);
+        EMIT(ctx, 
+            INSN_TO_LE(0xffffffff),
+            INSN_TO_LE(0xfffffff0)
+        );
     }
     else
     {
-        ptr = EMIT_FlushPC(ptr);
-        ptr = EMIT_InjectDebugString(ptr, "[JIT] opcode %04x at %08x not implemented\n", opcode, *m68k_ptr - 1);
-        *ptr++ = svc(0x100);
-        *ptr++ = svc(0x101);
-        *ptr++ = svc(0x103);
-        *ptr++ = (uint32_t)(uintptr_t)(*m68k_ptr - 8);
-        *ptr++ = 48;
-        ptr = EMIT_Exception(ptr, VECTOR_LINE_F, 0);
-        *ptr++ = INSN_TO_LE(0xffffffff);
+        EMIT_FlushPC(ctx);
+        
+        extern int debug_not_implemented;
+        if (debug_not_implemented)
+        {
+            EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
+            EMIT(ctx, 
+                svc(0x100),
+                svc(0x101),
+                svc(0x103),
+                (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr - 8),
+                48
+            );
+        }
+
+        EMIT_Exception(ctx, VECTOR_LINE_F, 0);
+        EMIT(ctx, INSN_TO_LE(0xffffffff));
     }
 
-    return ptr;
+    return insn_consumed;
 }

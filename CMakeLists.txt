@@ -1,21 +1,65 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(Emu68 VERSION 1.0.7)
-set(PROJECT_VERSION 1.0.7)
+project(Emu68 VERSION 1.1.0)
+set(PROJECT_VERSION 1.1.0-alpha.2)
+
+#set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+include(ExternalProject)
+
+set(PPC_ROM_HEADER ${CMAKE_BINARY_DIR}/include/ppc_rom.h)
+
+ExternalProject_Add(
+    ppc_rom
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/ppc
+    CMAKE_ARGS 
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/toolchains/ppc-linux-gnu.cmake 
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/include
+    BUILD_IN_SOURCE 0
+    BUILD_ALWAYS TRUE
+    INSTALL_COMMAND "" 
+    BYPRODUCTS ${PPC_ROM_HEADER}
+)
 
 include(cmake/verstring.cmake)
 include(cmake/firmware_download.cmake)
+include(cmake/devicetree.cmake)
+
+find_program(GZIP gzip REQUIRED)
+
 get_verstring(VERSTRING)
 get_git_sha(GIT_SHA)
 
 set(CMAKE_C_EXTENSIONS ON)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_C_STANDARD 23)
+
+set(CONTEXT_RESERVE_FLAGS 
+        "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 \
+         -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21 -ffixed-v22 \
+         -ffixed-d22 -ffixed-v23 -ffixed-d23 -ffixed-v24 -ffixed-d24 \
+         -ffixed-v25 -ffixed-d25 -ffixed-v26 -ffixed-d26")
+
+set(M68K_FIXED_REGS 
+        "-ffixed-x12 -ffixed-x18 -ffixed-x19 -ffixed-x20 -ffixed-x21 \
+         -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+         -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 \
+         -ffixed-x27 -ffixed-x28 -ffixed-x29")
+
+set(M68K_SAVED_TEMPS
+        "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 \
+         -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11"
+)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
+    
+    # Optional: Add to all subdirectories
+#add_compile_options(${CONTEXT_RESERVE_FLAGS})
 
 set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
-set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm32lite")
+set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm-classic")
 set(VARIANT "none" CACHE STRING "Compilation variant: ${SUPPORTED_VARIANTS}")
 set_property(CACHE VARIANT PROPERTY STRINGS ${SUPPORTED_VARIANTS})
 
@@ -26,7 +70,6 @@ set(BASE_FILES
     src/tlsf.c
     src/devicetree.c
     src/cpp_support.cpp
-    src/EmuLogo.c
     src/HunkLoader.c
     src/ElfLoader.c
     src/md5.c
@@ -53,8 +96,19 @@ set(EMU68_FILES
     src/M68k_LINEE.c
     src/M68k_LINEF.c
     src/M68k_Exception.c
+    src/M68k_ExceptionEntry.c
     src/M68k_CC.c
     src/ExecutionLoop.c
+    src/TranslatorContext.cpp
+    src/PPC_Translator.cpp
+    src/PPC_ExecutionLoop.cpp
+    src/PPC_TranslatorContext.cpp
+    src/PPC_LoadStore.cpp
+    src/PPC_FPU.cpp
+    src/PPC_SystemInstructions.cpp
+    src/PPC_Arithmetic.cpp
+    src/LRUCache.cpp
+    src/ReturnStack.cpp
     
     src/math/__rem_pio2.c
     src/math/__rem_pio2_large.c
@@ -89,18 +143,62 @@ set(EMU68_FILES
     src/math/96bit.c
 )
 
+set(OVERLAY_FILES
+    src/overlays/emu68.dts
+    src/overlays/diagnostic.dts
+    src/overlays/unicam.dts
+    src/overlays/emmc.dts
+    src/overlays/sdhc.dts
+    src/overlays/z2ram.dts
+    src/overlays/pal.dts
+    src/overlays/ntsc.dts
+    src/overlays/noscsi.dts
+)
+
+build_devicetree(OVERLAY_FILES)
+
 set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
-    "-fcall-saved-x4 -fcall-saved-x5 -fcall-saved-x6 -fcall-saved-x7 -fcall-saved-x8 \
-    -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11 -fcall-saved-x12 -fcall-saved-x13 \
-    -fcall-saved-x14 -fcall-saved-x15 -fcall-saved-x16 -fcall-saved-x17 -fcall-saved-x18")
+    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
+    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+set_source_files_properties(src/math/__rem_pio2.c PROPERTIES COMPILE_FLAGS
+    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
+    "${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+
+
+# TODO: PPC need a check which regs need really to be saved here...
+set_source_files_properties(src/PPC_Translator.cpp PROPERTIES COMPILE_FLAGS 
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
-     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26  \
-     -ffixed-x13 -ffixed-x14 -ffixed-x15 -ffixed-x16 -ffixed-x17 -ffixed-x27 -ffixed-x28 -ffixed-x29")
+     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+
+set_source_files_properties(src/PPC_ExecutionLoop.cpp PROPERTIES COMPILE_FLAGS 
+    "-ffixed-x12 -ffixed-x18  \
+     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+
+
+set_source_files_properties(src/LRUCache.cpp PROPERTIES COMPILE_FLAGS 
+    "-ffixed-x12 -ffixed-x18  \
+     -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+
+# Exception entry may be called from translated code directly so it breaks the C ABI for aarch64. 
+# All m68k registers are fixed (x13-x29)
+# The temporary arm code and PC are fixed too (x12, x18)
+set_source_files_properties(src/M68k_ExceptionEntry.c PROPERTIES COMPILE_FLAGS 
+    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+
+# ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
+# The temporary arm code and PC are fixed too (x12, x18)
+set_source_files_properties(src/aarch64/vectors.c PROPERTIES COMPILE_FLAGS 
+     "-ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
+      -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
@@ -109,12 +207,12 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
         list(APPEND TARGET_FILES src/raspi/support_rpi.c)
         list(APPEND TARGET_FILES src/raspi/topaz.c)
         download_raspi_firmware()
-        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
+        if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm-classic")
             configure_file(scripts/config_pistorm.txt scripts/config.txt @ONLY)
-            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION . RENAME Emu68-${VARIANT})
+            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION . RENAME Emu68-${VARIANT}.gz)
             install(FILES ${CMAKE_BINARY_DIR}/scripts/config.txt DESTINATION .)
         else()
-            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
+            install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
             install(FILES ${CMAKE_SOURCE_DIR}/scripts/config.txt DESTINATION .)
         endif()
         add_compile_definitions(RASPI)
@@ -124,14 +222,14 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
             src/pine64/support_pbpro.c
         )
         install(FILES ${CMAKE_SOURCE_DIR}/blobs/rk3399-pinebookpro.dtb DESTINATION .)
-        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
+        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
         install(FILES ${CMAKE_SOURCE_DIR}/scripts/extlinux.conf DESTINATION extlinux/)
     elseif(${TARGET} STREQUAL "virt")
         list(APPEND TARGET_FILES
             src/virt/start_virt.c
             src/virt/support_virt.c
         )
-        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img DESTINATION .)
+        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
     endif()
 
     set(TARGET_ARCH "aarch64")
@@ -141,51 +239,54 @@ endif()
 
 if (${VARIANT} IN_LIST SUPPORTED_VARIANTS)
     message("-- Selected variant: ${VARIANT}")
-    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm32lite")
+    if(${VARIANT} STREQUAL "pistorm" OR ${VARIANT} STREQUAL "pistorm-classic")
         if(${TARGET} STREQUAL "raspi64")
-            add_compile_definitions(PISTORM)
-            if(${VARIANT} STREQUAL "pistorm32lite")
-                add_compile_definitions(PISTORM32LITE)
-                add_compile_definitions(PISTORM32)
-                list(APPEND BASE_FILES
-                    src/pistorm/ps32_protocol.c
-                )
-            else()
+            add_compile_definitions(PISTORM_ANY_MODEL)
+            if(${VARIANT} STREQUAL "pistorm")
+                add_compile_definitions(PISTORM)
                 list(APPEND BASE_FILES
                     src/pistorm/ps_protocol.c
+                )
+            else()
+                add_compile_definitions(PISTORM_CLASSIC)
+                list(APPEND BASE_FILES
+                    src/pistorm/ps_classic_protocol.c
+                    src/pistorm/cpld.c
+                    src/pistorm/libxsvf/xsvf.c
+                    src/pistorm/libxsvf/tap.c
+                    src/pistorm/libxsvf/svf.c
+                    src/pistorm/libxsvf/statename.c
+                    src/pistorm/libxsvf/scan.c
+                    src/pistorm/libxsvf/play.c
                 )
             endif()
             include_directories(src/pistorm)
             list(APPEND BASE_FILES
-                src/boards/devicetree.c
-                src/boards/z2ram.c                
-                src/boards/sdcard.c
-                src/boards/68040.c
-                src/boards/emmc.c
-                src/boards/unicam.c
+                src/boards/z2ram.c
+                src/boards/emu68rom.c
             )
         else()
             message(FATAL_ERROR "PiStorm variants are supported on raspi targets, only.")
         endif()
     endif()
-    
 else()
     message(FATAL_ERROR "Wrong variant selected: ${VARIANT}")
 endif()
 
 add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -ffreestanding -Wall -Wextra -Werror)
+add_compile_options(-mbig-endian -fno-exceptions -fno-unwind-tables -fno-stack-protector -fno-asynchronous-unwind-tables -fno-pic -fno-pie -no-pie -ffreestanding -Wall -Wextra -Werror)
 
 list(APPEND ARCH_FILES
     src/aarch64/start.c
     src/aarch64/mmu.c
     src/aarch64/RegisterAllocator64.c
     src/aarch64/vectors.c
+    src/aarch64/intc.c
 )
-set(CAPSTONE_ARM64_SUPPORT ON CACHE BOOL "CAPSTONE_ARM64_SUPPORT")
+
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
 add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-add_compile_options(-march=armv8-a+crc -mtune=cortex-a72 -fomit-frame-pointer -O3 -ffixed-x12 -ffixed-q31 -ffixed-q30 -ffixed-q29 -ffixed-q28)
+add_compile_options(-falign-functions=32 -march=armv8-a+crc -mtune=cortex-a76 -fomit-frame-pointer -O3 -ffixed-x12)
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
     add_compile_options(-mno-outline-atomics)
@@ -198,18 +299,28 @@ add_executable(Emu68.elf
     ${EMU68_FILES}
 )
 
+target_compile_options(Emu68.elf
+  PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions>
+)
+
 add_custom_command(
     TARGET Emu68.elf POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -v -O binary "${CMAKE_BINARY_DIR}/Emu68.elf" "${CMAKE_BINARY_DIR}/Emu68.img"
+    COMMAND ${GZIP} -f "${CMAKE_BINARY_DIR}/Emu68.img"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+add_dependencies(Emu68.elf ppc_rom)
+
 add_subdirectory(external)
 
-target_link_libraries(Emu68.elf capstone-static libdeflate_static)
+target_link_libraries(Emu68.elf capstone_static libdeflate_static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_BINARY_DIR}/include)
-target_compile_definitions(Emu68.elf PRIVATE)
+target_compile_definitions(Emu68.elf PRIVATE 
+    EMU68_VERSION_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}
+    EMU68_VERSION_MINOR=${CMAKE_PROJECT_VERSION_MINOR}
+)
 
 configure_file(include/version.h.in include/version.h @ONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/.git/index)

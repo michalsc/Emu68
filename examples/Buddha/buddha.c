@@ -6,8 +6,8 @@ static uint32_t pitch;
 static uint32_t width;
 static uint32_t height;
 
-#define render_width    800
-#define render_height   800
+#define render_width    400
+#define render_height   400
 #define max_work        4000
 #define oversample      4
 #define buddha          1

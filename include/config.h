@@ -28,14 +28,20 @@
 #define SET_OPTIONS_AT_RUNTIME  0
 #endif
 
+/* Set 1 to propagate SO bit from XER to CRn */
+#define PPC_SO_PROPAGATION      0
+
+#define EMU68_USE_LRU           1
+#define EMU68_LRU_WAY_COUNT     4
+#define EMU68_LRU_SET_COUNT     128
+
 #define EMU68_ARM_CACHE_SIZE    (4*1024*1024)
 #define EMU68_M68K_INSN_DEPTH   256
 #define EMU68_HOST_BIG_ENDIAN   1
 #define EMU68_HAS_SETEND        1
 #define EMU68_DEF_BRANCH_TAKEN  0
 #define EMU68_DEF_BRANCH_AUTO   1
-#define EMU68_DEF_BRANCH_AUTO_RANGE 32
-#define EMU68_DEF_BRANCH_BREAK  0
+#define EMU68_DEF_BRANCH_AUTO_RANGE 128
 #define EMU68_INSN_COUNTER      1
 #define EMU68_MAX_LOOP_COUNT    8
 #define EMU68_BRANCH_INLINE_DISTANCE 8191
@@ -46,33 +52,16 @@
 #define EMU68_WEAK_CFLUSH_SLOW  0
 #define EMU68_PC_REG_HISTORY    0
 #define EMU68_CCR_SCAN_DEPTH    20
+#define EMU68_CCR_BREAK_AT_UNIT_END 1
 
 #define EMU68_HASHSIZE          65536
 #define EMU68_HASHMASK          (EMU68_HASHSIZE - 1)
-#define EMU68_HASHSHIFT         5
+#define EMU68_HASHSHIFT         2
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 
 /* Speed for bitbang RS232... */
-#define PISTORM_BITBANG_SPEED       921600
-
-#ifdef PISTORM32
-
-#define PISTORM_BITBANG_DELAY       59
-#define PISTORM_CHIPSET_DELAY       12
-#define PISTORM_CIA_DELAY           0
-#define PISTORM_WRITE_BUFFER        0
-#define PISTORM_WRITE_BUFFER_SIZE   32  
-
-#else
-
-#define PISTORM_BITBANG_DELAY       21
-#define PISTORM_CHIPSET_DELAY       12
-#define PISTORM_CIA_DELAY           0
-#define PISTORM_WRITE_BUFFER        1
-#define PISTORM_WRITE_BUFFER_SIZE   32  
-
-#endif
+#define PISTORM_BITBANG_SPEED   921600
 
 #endif
 
@@ -82,7 +71,7 @@
 
 #define KERNEL_SYS_PAGES        16
 #define KERNEL_JIT_PAGES        32
-#define KERNEL_RSRVD_PAGES      ((KERNEL_JIT_PAGES) + (KERNEL_SYS_PAGES))
+#define KERNEL_RSRVD_PAGES      (KERNEL_SYS_PAGES)
 
 #define EMU68_LOG_FETCHES       0
 #define EMU68_LOG_USES          0

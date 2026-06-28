@@ -49,12 +49,20 @@ void dt_add_property(of_node_t *node, const char *propname, const void *propvalu
 
         of_property_t *prop = tlsf_malloc(tlsf, sizeof(of_property_t));
         prop->op_length = proplen;
-        prop->op_value = tlsf_malloc(tlsf, proplen);
         prop->op_name = tlsf_malloc(tlsf, strlen(propname) + 1);
         prop->op_next = node->on_properties;
 
         memcpy(prop->op_name, propname, strlen(propname) + 1);
-        memcpy(prop->op_value, propvalue, proplen);
+        if (propvalue != NULL && proplen > 0)
+        {
+            prop->op_value = tlsf_malloc(tlsf, proplen);
+            memcpy(prop->op_value, propvalue, proplen);
+        }
+        else
+        {
+            prop->op_length = 0;
+            prop->op_value = NULL;
+        }
 
         node->on_properties = prop;
     }
@@ -254,7 +262,7 @@ int _dt_strcmp(const char *s1, const char *s2)
     return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
 
-of_node_t * dt_find_node(char *key)
+of_node_t * dt_find_node(const char *key)
 {
     int i;
     of_node_t *node, *ret = NULL;
@@ -268,13 +276,14 @@ of_node_t * dt_find_node(char *key)
 
         while(*key)
         {
+            int found = 0;
+
             key++;
             for (i=0; i < 63; i++)
             {
                 if (*key == '/' || *key == 0)
                     break;
-                ptrbuf[i] = *key;
-                key++;
+                ptrbuf[i] = *key++;
             }
 
             ptrbuf[i] = 0;
@@ -283,16 +292,21 @@ of_node_t * dt_find_node(char *key)
             {
                 if (!_dt_strcmp(ptrbuf, node->on_name))
                 {
-                    return node;
+                    ret = node;
+                    found = 1;
+                    break;
                 }
             }
+
+            if (!found)
+                return NULL;
         }
     }
 
-    return NULL;
+    return ret;
 }
 
-of_property_t *dt_find_property(void *key, char *propname)
+of_property_t *dt_find_property(void *key, const char *propname)
 {
     of_node_t *node = (of_node_t *)key;
     of_property_t *p, *prop = NULL;
@@ -311,7 +325,7 @@ of_property_t *dt_find_property(void *key, char *propname)
     return prop;
 }
 
-uint32_t dt_get_property_value_u32(void *key, char *propname, uint32_t def_val, int check_parent)
+uint32_t dt_get_property_value_u32(void *key, const char *propname, uint32_t def_val, int check_parent)
 {
     uint32_t ret = def_val;
     of_node_t *node = (of_node_t *)key;

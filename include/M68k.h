@@ -17,19 +17,37 @@
 #include "md5.h"
 #include "lists.h"
 
-struct M68KLocalState {
+struct M68KLocalState
+{
     void *          mls_M68kPtr;
     uint32_t        mls_ARMOffset;
     uint8_t         mls_RegMap[16];
     int32_t         mls_PCRel;
 };
 
-struct M68KTranslationUnit {
-    struct Node     mt_HashNode;
-    struct Node     mt_LRUNode;
-    uint16_t *      mt_M68kAddress;
-    uint16_t *      mt_M68kLow;
-    uint16_t *      mt_M68kHigh;
+struct M68KTranslationUnit
+{
+    /* Hot part of the structure shall preferably reside in one or at most two cache lines */
+    struct Node         mt_HashNode;        /* 00: 2 x 8 bytes - prev and next pointer in the has table bucket */
+    union {
+        struct {
+            uint32_t    mt_Epoch;           /* 16: 2 x 4 bytes - first 32-bit epoch incremented after every cache flush */
+            uint32_t    mt_M68kAddress;     /*                   followed by 32-bit m68k entry address */
+        };
+        uint64_t        mt_Key;             /*     1 x 8 bytes - match key, the two above combined */
+    };
+    void *              mt_ARMEntryPoint;   /* 24: 1 x 8 bytes - entry point for AArch64 code */
+
+    /* Less hot part - in case cache line is 32 bytes long, only */
+    struct Node         mt_LRUNode;         /* 32: 2 x 8 bytes - LRU node */
+    uint32_t            mt_CRC32;           /* 48: 1 x 4 bytes - CRC32 of the whole block*/
+    uint32_t            mt_Fingerprint;     /* 52: 1 x 4 bytes - *mt_M68kAddress ^ *(mt_M68kAddress + 4) */
+    uint32_t            mt_M68kLow;         /* 56: 1 x 4 bytes - lowest m68k address in this block */
+    uint32_t            mt_M68kHigh;        /* 60: 1 x 4 bytes - highest m68k address in this block */
+
+    /* Cold part of the structure */
+    uint32_t        mt_JIT_CONTROL;
+    uint32_t        mt_JIT_CONTROL2;
     uint32_t        mt_PrologueSize;
     uint32_t        mt_EpilogueSize;
     uint32_t        mt_Conditionals;
@@ -37,15 +55,53 @@ struct M68KTranslationUnit {
     uint32_t        mt_ARMInsnCnt;
     uint64_t        mt_UseCount;
     uint64_t        mt_FetchCount;
-    void *          mt_ARMEntryPoint;
     struct M68KLocalState *  mt_LocalState;
-    uint32_t        mt_CRC32;
-    uint32_t        mt_ARMCode[]
-#ifdef __aarch64__
-    __attribute__((aligned(64)));
-#else
-     __attribute__((aligned(32)));
-#endif
+    
+    uint32_t        mt_ARMCode[] __attribute__((aligned(64)));
+};
+
+struct ExitBlock
+{
+    struct Node eb_Node;
+    uint32_t    eb_Type;
+    uint32_t    eb_InstructionCount;
+    uint32_t    eb_FixupType;
+    uint32_t *  eb_FixupLocation;
+    uint32_t    eb_ARMCode[];
+};
+
+struct DoubleExitBlock
+{
+    struct Node eb_Node;
+    uint32_t    eb_Type;
+    uint32_t    eb_InstructionCount;
+    uint32_t    eb_Fixup1Type;
+    uint32_t *  eb_Fixup1Location;
+    uint32_t    eb_Fixup2Type;
+    uint32_t *  eb_Fixup2Location;
+    uint32_t    eb_ARMCode[];
+};
+
+#define FIXUP_BCC           0x00000bcc
+#define FIXUP_TBZ           0x00000036
+
+#define MARKER_EXIT_BLOCK   0xffffaa55
+#define MARKER_DOUBLE_EXIT  0xffffaa56
+#define MARKER_STOP         0xffffffff
+#define MARKER_BREAK        0xfffffff1
+
+struct TranslatorContext {
+    uint32_t *      tc_CodeStart;
+    uint32_t *      tc_CodeEnd;
+    uint32_t *      tc_CodePtr;
+    union {
+        uint16_t *  tc_M68kCodeStart;
+        uint32_t *  tc_PPCCodeStart;
+    };
+    union {
+        uint16_t *  tc_M68kCodePtr;
+        uint32_t *  tc_PPCCodePtr;
+    };
 };
 
 struct M68KState
@@ -111,9 +167,10 @@ struct M68KState
             uint8_t ARM_err;
             uint8_t IPL;
             uint8_t RESET;
-        } INT;
-        uint32_t INT32;
-    };
+            uint8_t PPC;
+        } INTF;
+        uint64_t INT64;
+    } __attribute__((aligned(8)));
     uint64_t INSN_COUNT;
 
     uint32_t JIT_CACHE_MISS;
@@ -123,6 +180,8 @@ struct M68KState
     uint32_t JIT_SOFTFLUSH_THRESH;
     uint32_t JIT_CONTROL;
     uint32_t JIT_CONTROL2;
+
+    volatile uint8_t * PPC_EE_FLAG;
 };
 
 #define JCCB_SOFT               0
@@ -145,6 +204,13 @@ struct M68KState
 #define JC2_CHIP_SLOWDOWN_RATIO_MASK    0x07
 #define JC2B_BLITWAIT                   11
 #define JC2F_BLITWAIT                   (1 << JC2B_BLITWAIT)
+#define JC2B_INT_FROM_ARM               29
+#define JC2F_INT_FROM_ARM               (1 << JC2B_INT_FROM_ARM)
+#define JC2B_INT_FROM_PPC               30
+#define JC2F_INT_FROM_PPC               (1 << JC2B_INT_FROM_PPC)
+#define JC2B_CAUSE_PPCINT               31
+#define JC2F_CAUSE_PPCINT               (1 << JC2F_CAUSE_PPCINT)
+
 
 #define DCB_VERBOSE 0
 #define DCB_VERBOSE_MASK 0x3
@@ -299,6 +365,9 @@ struct M68KState
 #define FPSRB_I     25
 #define FPSRB_NAN   24
 
+// Set in host flags when NZCV aarch64 are synced with FPU flags
+#define FP_FLAGS    0x80
+
 //Condition Codes
 #define M_CC_T  0x00
 #define M_CC_F  0x01
@@ -384,33 +453,136 @@ struct M68KState
 #define VECTOR_OVERFLOW             0xD4
 #define VECTOR_SIGNALING_NAN        0xD8
 
-uint32_t *EMIT_GetOffsetPC(uint32_t *ptr, int8_t *offset);
-uint32_t *EMIT_AdvancePC(uint32_t *ptr, uint8_t offset);
-uint32_t *EMIT_FlushPC(uint32_t *ptr);
-uint32_t *EMIT_ResetOffsetPC(uint32_t *ptr);
-uint32_t *EMIT_LoadFromEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset);
-uint32_t *EMIT_StoreToEffectiveAddress(uint32_t *ptr, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint16_t *m68k_ptr, uint8_t *ext_words, int sign_extend);
-uint32_t *EMIT_Exception(uint32_t *ptr, uint16_t exception, uint8_t format, ...);
-uint32_t *EMIT_LocalExit(uint32_t *ptr, uint32_t insn_count_fixup);
-uint32_t *EMIT_JumpOnCondition(uint32_t *ptr, uint8_t m68k_condition, uint32_t distance);
 
-uint32_t *EMIT_line0(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line4(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line5(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line6(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_moveq(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line8(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line9(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineB(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineC(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineD(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineE(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_lineF(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_move(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line7(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line1(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line2(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
-uint32_t *EMIT_line3(uint32_t *ptr, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+#define REG_PC    18
+
+#define REG_D0    19
+#define REG_D1    20
+#define REG_D2    21
+#define REG_D3    22
+#define REG_D4    23
+#define REG_D5    24
+#define REG_D6    25
+#define REG_D7    26
+
+#define REG_A0    13
+#define REG_A1    14
+#define REG_A2    15
+#define REG_A3    16
+#define REG_A4    17
+#define REG_A5    27
+#define REG_A6    28
+#define REG_A7    29
+
+#define REG_PROTECT ((1 << 30) | (1 << (REG_A0)) | (1 << (REG_A1)) | (1 << (REG_A2)) | (1 << (REG_A3)) | (1 << (REG_A4)) | (1 << (REG_PC)))
+
+#define REG_FP0   8
+#define REG_FP1   9
+#define REG_FP2   10
+#define REG_FP3   11
+#define REG_FP4   12
+#define REG_FP5   13
+#define REG_FP6   14
+#define REG_FP7   15
+
+#define REG_FPSR_VN 19
+#define REG_FPSR_SIZE TS_S
+#define REG_FPSR_POS 0
+#define REG_FPSR_ASM "v19.s[0]"
+
+#define REG_FPIAR_VN 19
+#define REG_FPIAR_SIZE TS_S
+#define REG_FPIAR_POS 1
+#define REG_FPIAR_ASM "v19.s[1]"
+
+#define REG_FPCR_VN 19
+#define REG_FPCR_SIZE TS_H
+#define REG_FPCR_POS 4
+#define REG_FPCR_ASM "v19.h[4]"
+
+#define REG_FPSR    REG_FPSR_VN,REG_FPSR_SIZE,REG_FPSR_POS
+#define REG_FPIAR   REG_FPIAR_VN,REG_FPIAR_SIZE,REG_FPIAR_POS
+#define REG_FPCR    REG_FPCR_VN,REG_FPCR_SIZE,REG_FPCR_POS
+
+#define REG_CACR_VN 21
+#define REG_CACR_SIZE TS_S
+#define REG_CACR_POS 0
+#define REG_CACR_ASM "v21.s[0]"
+
+#define REG_USP_VN 21
+#define REG_USP_SIZE TS_S
+#define REG_USP_POS 1
+#define REG_USP_ASM "v21.s[1]"
+
+#define REG_ISP_VN 21
+#define REG_ISP_SIZE TS_S
+#define REG_ISP_POS 2
+#define REG_ISP_ASM "v21.s[2]"
+
+#define REG_MSP_VN 21
+#define REG_MSP_SIZE TS_S
+#define REG_MSP_POS 3
+#define REG_MSP_ASM "v21.s[3]"
+
+#define CTX_POINTER_VN 20
+#define CTX_POINTER_SIZE TS_D
+#define CTX_POINTER_POS 1
+#define CTX_POINTER_ASM "v20.d[1]"
+
+#define CTX_INSN_COUNT_VN 20
+#define CTX_INSN_COUNT_SIZE TS_D
+#define CTX_INSN_COUNT_POS 0
+#define CTX_INSN_COUNT_ASM "v20.d[0]"
+
+#define REG_SR_VN 19
+#define REG_SR_SIZE TS_H
+#define REG_SR_POS 5
+#define REG_SR_ASM "v19.h[5]"
+
+#define CTX_LAST_PC_VN 19
+#define CTX_LAST_PC_SIZE TS_S
+#define CTX_LAST_PC_POS 3
+#define CTX_LAST_PC_ASM "v19.s[3]"
+
+#define REG_CACR        REG_CACR_VN,REG_CACR_SIZE,REG_CACR_POS
+#define REG_USP         REG_USP_VN,REG_USP_SIZE,REG_USP_POS
+#define REG_ISP         REG_ISP_VN,REG_ISP_SIZE,REG_ISP_POS
+#define REG_MSP         REG_MSP_VN,REG_MSP_SIZE,REG_MSP_POS
+#define REG_SR          REG_SR_VN,REG_SR_SIZE,REG_SR_POS
+
+#define CTX_POINTER     CTX_POINTER_VN,CTX_POINTER_SIZE,CTX_POINTER_POS
+#define CTX_INSN_COUNT  CTX_INSN_COUNT_VN,CTX_INSN_COUNT_SIZE,CTX_INSN_COUNT_POS
+#define CTX_LAST_PC     CTX_LAST_PC_VN,CTX_LAST_PC_SIZE,CTX_LAST_PC_POS
+
+void EMIT_GetOffsetPC(struct TranslatorContext *ctx, int8_t *offset);
+void EMIT_AdvancePC(struct TranslatorContext *ctx, uint8_t offset);
+void EMIT_FlushPC(struct TranslatorContext *ctx);
+void EMIT_ResetOffsetPC(struct TranslatorContext *ctx);
+void EMIT_LoadFromEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint8_t *ext_words, uint8_t read_only, int32_t *imm_offset);
+void EMIT_StoreToEffectiveAddress(struct TranslatorContext *ctx, uint8_t size, uint8_t *arm_reg, uint8_t ea, uint8_t *ext_words, int sign_extend);
+void EMIT_Exception(struct TranslatorContext *ctx, uint16_t exception, uint8_t format, ...);
+void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_count_fixup);
+void EMIT_JumpOnCondition(struct TranslatorContext *ctx, uint8_t m68k_condition, uint32_t distance, uint32_t *type);
+void EMIT_JumpOnFPUCondition(struct TranslatorContext *ctx, uint8_t fpu_condition, uint32_t distance, uint32_t *jump_type);
+
+uint32_t EMIT_line0(struct TranslatorContext *ctx);
+uint32_t EMIT_line4(struct TranslatorContext *ctx);
+uint32_t EMIT_line5(struct TranslatorContext *ctx);
+uint32_t EMIT_line6(struct TranslatorContext *ctx);
+uint32_t EMIT_moveq(struct TranslatorContext *ctx);
+uint32_t EMIT_line8(struct TranslatorContext *ctx);
+uint32_t EMIT_line9(struct TranslatorContext *ctx);
+uint32_t EMIT_lineB(struct TranslatorContext *ctx);
+uint32_t EMIT_lineC(struct TranslatorContext *ctx);
+uint32_t EMIT_lineD(struct TranslatorContext *ctx);
+uint32_t EMIT_lineE(struct TranslatorContext *ctx);
+uint32_t EMIT_lineF(struct TranslatorContext *ctx);
+uint32_t EMIT_move (struct TranslatorContext *ctx);
+uint32_t EMIT_line7(struct TranslatorContext *ctx);
+uint32_t EMIT_line1(struct TranslatorContext *ctx);
+uint32_t EMIT_line2(struct TranslatorContext *ctx);
+uint32_t EMIT_line3(struct TranslatorContext *ctx);
+uint32_t EMIT_MUL_DIV(struct TranslatorContext *ctx, uint16_t opcode);
 
 uint32_t GetSR_Line0(uint16_t opcode);
 uint32_t GetSR_Line1(uint16_t opcode);
@@ -444,14 +616,10 @@ int M68K_GetLineELength(uint16_t *insn_stream);
 int M68K_GetLineFLength(uint16_t *insn_stream);
 uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
 
-typedef uint32_t * (*EMIT_Function)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr);
-typedef uint32_t * (*EMIT_MultiFunction)(uint32_t *ptr, uint16_t opcode, uint16_t **m68k_ptr, uint16_t *insn_consumed);
+typedef uint32_t (*EMIT_Function)(struct TranslatorContext *ctx, uint16_t opcode);
 
 struct OpcodeDef {
-    union {
-        EMIT_Function       od_Emit;
-        EMIT_MultiFunction  od_EmitMulti;
-    };
+    EMIT_Function   od_Emit;
     void *          od_Interpret;   // Not used yet.
     uint16_t        od_SRNeeds;
     uint16_t        od_SRSets;
@@ -470,26 +638,38 @@ struct FPUOpcodeDef {
     uint8_t         od_OpSize;
 };
 
-uint32_t *EMIT_InjectPrintContext(uint32_t *ptr);
-uint32_t *EMIT_InjectDebugStringV(uint32_t *ptr, const char * restrict format, va_list args);
-uint32_t *EMIT_InjectDebugString(uint32_t *ptr, const char * restrict format, ...);
+void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
+void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
+void EMIT_InjectDebugStringV(struct TranslatorContext *ctx, const char * restrict format, va_list args);
+void EMIT_InjectDebugString(struct TranslatorContext *ctx, const char * restrict format, ...);
 
 void M68K_PushReturnAddress(uint16_t *ret_addr);
 uint16_t *M68K_PopReturnAddress(uint8_t *success);
 void M68K_ResetReturnStack();
 int M68K_GetINSNLength(uint16_t *insn_stream);
 int M68K_IsBranch(uint16_t *insn_stream);
+uint16_t *M68K_TryFollowBranch(uint16_t *insn_stream);
 
-uint8_t EMIT_TestCondition(uint32_t **pptr, uint8_t m68k_condition);
-uint8_t EMIT_TestFPUCondition(uint32_t **pptr, uint8_t m68k_condition);
+uint8_t EMIT_TestCondition(struct TranslatorContext *ctx, uint8_t m68k_condition);
+uint8_t EMIT_TestFPUCondition(struct TranslatorContext *ctx, uint8_t m68k_condition);
 uint8_t M68K_GetSRMask(uint16_t *m68k_stream);
 void M68K_InitializeCache();
 struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *ptr);
 void *M68K_TranslateNoCache(uint16_t *m68kcodeptr);
 struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit);
+struct M68KTranslationUnit *M68K_VerifyUnitCRC32(struct M68KTranslationUnit *unit);
 void M68K_DumpStats();
 uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
+
+void LRU_InsertBlock(struct M68KTranslationUnit *unit);
+void LRU_InvalidateAll();
+void LRU_InvalidateByM68kAddress(uint32_t addr);
+void LRU_InvalidateByARMAddress(uint32_t *addr);
+uint32_t *LRU_FindBlock(uint32_t address);
+void LRU_MarkForVerify(uint32_t *addr);
+
+extern uint8_t host_flags;
 
 #endif /* _M68K_H */

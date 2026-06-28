@@ -522,7 +522,7 @@ void arm_flush_cache(uintptr_t addr, uint32_t length)
     int line_size = 0;
     uintptr_t top_addr = addr + length;
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(line_size));
 
     line_size = (line_size >> 16) & 15;
     line_size = 4 << line_size;
@@ -537,12 +537,51 @@ void arm_flush_cache(uintptr_t addr, uint32_t length)
     __asm__ __volatile__("dsb sy");
 }
 
+void arm_flush_dcache_for_jit(uintptr_t addr, uint32_t length)
+{
+    uintptr_t ctr_el0;
+    __asm__ volatile("mrs %0, CTR_EL0" : "=r"(ctr_el0));
+
+    /* D-cache line size: CTR_EL0[19:16], encoded as log2(words) */
+    uintptr_t dline = 4 << ((ctr_el0 >> 16) & 0xf);
+
+    /* Pass 1: clean D-cache to PoU */
+    uintptr_t a = addr & ~(dline - 1);
+    uintptr_t top = addr + length;
+    while (a < top) {
+        __asm__ volatile("dc cvau, %0" :: "r"(a));
+        a += dline;
+    }
+
+    __asm__ volatile("dsb ish");   /* wait for all DC CVAU to complete */
+}
+
+void arm_flush_icache_for_jit(uintptr_t addr, uint32_t length)
+{
+    uintptr_t ctr_el0;
+    __asm__ volatile("mrs %0, CTR_EL0" : "=r"(ctr_el0));
+
+    /* I-cache line size: CTR_EL0[3:0], encoded as log2(words) */
+    uintptr_t iline = 4 << ((ctr_el0 >>  0) & 0xf);
+    uintptr_t top = addr + length;
+
+    /* Pass 2: invalidate I-cache to PoU */
+    uintptr_t a = addr & ~(iline - 1);
+    while (a < top) {
+        __asm__ volatile("ic ivau, %0" :: "r"(a));
+        a += iline;
+    }
+
+    __asm__ volatile("dsb ish");
+    __asm__ volatile("isb");
+}
+
 void arm_icache_invalidate(uintptr_t addr, uint32_t length)
 {
     int line_size = 0;
     uintptr_t top_addr = addr + length;
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(line_size));
 
     line_size = line_size & 15;
     line_size = 4 << line_size;
@@ -563,7 +602,7 @@ void arm_dcache_invalidate(uintptr_t addr, uint32_t length)
     int line_size = 0;
     uintptr_t top_addr = addr + length;
 
-    asm volatile("mrs %0, CTR_EL0":"=r"(line_size));
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(line_size));
 
     line_size = (line_size >> 16) & 15;
     line_size = 4 << line_size;
@@ -631,12 +670,20 @@ char * strcpy(char * dst, const char * src)
     return dst;
 }
 
+char *__strcpy_chk(char *dst, const char *src, int destlen)
+{
+    int len = strlen(src) + 1;
+    if (len > destlen) len = destlen;
+    memcpy(dst, src, len);
+    return dst;
+}
+
 int strcmp(const char *s1, const char *s2)
 {
-	while (*s1 == *s2++)
-		if (*s1++ == '\0')
-			return (0);
-	return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
+    while (*s1 == *s2++)
+        if (*s1++ == '\0')
+            return (0);
+    return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
 
 int strncmp(const char *s1, const char *s2, size_t n)
@@ -644,13 +691,13 @@ int strncmp(const char *s1, const char *s2, size_t n)
     if (n == 0) {
         return 0;
     }
-	while (*s1 == *s2++) {
+    while (*s1 == *s2++) {
         if (--n == 0)
             return 0;
-		if (*s1++ == '\0')
-			return 0;
+        if (*s1++ == '\0')
+            return 0;
     }
-	return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
+    return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
 
 const char *remove_path(const char *in)
@@ -690,7 +737,7 @@ void *memcpy(void *dst, const void *src, size_t sz)
     const uint8_t *s = src;
 
     while(sz--)
-	*d++ = *s++;
+        *d++ = *s++;
 
     return dst;
 }
@@ -702,15 +749,15 @@ void *memmove(void *dst, const void *src, size_t sz)
 
     if (d > s)
     {
-	d += sz;
-	s += sz;
+        d += sz;
+        s += sz;
 
-	while(sz--)
-	    *--d = *--s;
+        while(sz--)
+            *--d = *--s;
     }
     else
-	while(sz--)
-	    *d++ = *s++;
+        while(sz--)
+            *d++ = *s++;
 
     return dst;
 }
@@ -718,19 +765,47 @@ void *memmove(void *dst, const void *src, size_t sz)
 char * strstr(const char *s, const char *find)
 {
     char c, sc;
-	size_t len;
+    size_t len;
 
-	if ((c = *find++) != '\0') {
-		len = strlen(find);
-		do {
-			do {
-				if ((sc = *s++) == '\0')
-					return (NULL);
-			} while (sc != c);
-		} while (strncmp(s, find, len) != 0);
-		s--;
-	}
-	return ((char *)s);
+    if ((c = *find++) != '\0') {
+        len = strlen(find);
+        do {
+            do {
+                if ((sc = *s++) == '\0')
+                    return (NULL);
+            } while (sc != c);
+        } while (strncmp(s, find, len) != 0);
+        s--;
+    }
+    return ((char *)s);
+}
+
+char * strchr(char *s, int c)
+{
+    while(1) {
+        if (*s == c)
+            return s;
+        
+        if (*s++ == 0)
+            break;
+    }
+
+    return NULL;
+}
+
+char * strrchr(char *s, int c)
+{
+    char *retval = NULL;
+
+    while(1) {
+        if (*s == c)
+            retval = s;
+        
+        if (*s++ == 0)
+            break;
+    }
+
+    return retval;
 }
 
 char * strchr(char *s, int c)
@@ -978,4 +1053,144 @@ char *strcat(char *s1, const char *s2)
 {
     strcpy(s1 + strlen(s1), s2);
     return s1;
+}
+
+char *__strcat_chk(char *s1, const char *s2, int destlen)
+{
+    (void)destlen;
+    strcpy(s1 + strlen(s1), s2);
+    return s1;
+}
+
+void __attribute__((noreturn)) __assert_fail()
+{
+    kprintf("[ERR] Assertion failed!\n");
+    while (1)
+        __asm__ volatile("wfi");
+}
+
+/* Attempt to convert 32-bit number to bitmask encoding, returns 0 if it failed. Always assume N=0 (32-bit mask) */
+uint32_t number_to_mask(uint32_t value)
+{
+    /* Handle special cases */
+    if (value == 0 || value == 0xFFFFFFFF) {
+        return 0;
+    }
+
+    /* Find repeating pattern */
+    uint32_t pattern = value;
+    int pattern_len = 32;
+
+    // Try pattern lengths: 16, 8, 4, 2 (powers of 2)
+    for (int len = 16; len >= 2; len >>= 1) {
+        uint32_t mask = (1U << len) - 1;
+        uint32_t chunk = pattern & mask;
+        uint32_t test_pattern = value;
+        uint32_t stop = 0xffffffff;
+
+        int is_repeating = 1;
+        do {
+            if ((test_pattern & mask) != chunk) {
+                is_repeating = 0;
+                break;
+            }
+            test_pattern >>= len;
+            stop >>= len;
+        } while(stop != 0);
+
+        if (is_repeating) {
+            pattern = chunk;
+            pattern_len = len;
+        }
+        else break;
+    }
+
+    int ones_count = __builtin_popcount(pattern);
+    if (ones_count == 0 || ones_count == pattern_len) {
+        return 0; // All zeros or all ones in pattern
+    }
+
+    uint32_t rotated = pattern;
+    int rotation = 0;
+
+    for (int r = 0; r < pattern_len; r++) {
+        // Check if current rotation has contiguous 1s
+        uint32_t temp = rotated;
+
+        rotated = (rotated << 1) | (rotated >> (pattern_len - 1));
+        rotated &= (1ULL << pattern_len) - 1;
+
+        /* The last bit of the pattern must be 0 and the first bit of the pattern must be 1 */
+        if (temp & 1 && !(temp & (1 << (pattern_len - 1))))
+        {
+            /* The patter position might be correct now. Check if the ones are in a single sequence */
+            int first_one = __builtin_ctz(temp);
+            int last_one = 31 - __builtin_clz(temp);
+            int width = 1 + last_one - first_one;
+            rotation = r;
+
+            if (width == ones_count)
+                break;
+            else
+            {
+                return 0;
+            }
+        }
+    }
+
+    // Encode imms: unary prefix for pattern length + (ones_count - 1)
+    uint32_t imms_val = 0;
+    switch (pattern_len) {
+        case 32: imms_val = 0x00 | (ones_count); break;  // 0xxxxx
+        case 16: imms_val = 0x20 | (ones_count); break;  // 10xxxx  
+        case 8:  imms_val = 0x30 | (ones_count); break;  // 110xxx
+        case 4:  imms_val = 0x38 | (ones_count); break;  // 1110xx
+        case 2:  imms_val = 0x3C | (ones_count); break;  // 11110x
+        default: return 0;
+    }
+
+    return (imms_val << 16) | rotation;
+}
+
+/* Load 32-bit immediate into destination register. If possible, construct it from mask, otherwise use movk combinations */
+void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed)
+{
+    /* Handle special cases */
+    if (immed == 0) {
+        EMIT(ctx, mov_reg(rd, WZR));
+        return;
+    }
+
+    if (immed == 0xffffffff) {
+        EMIT(ctx, mvn_reg(rd, WZR, LSL, 0));
+        return;
+    }
+
+    /* Try to use bitmask immediate */
+    uint32_t mask = number_to_mask(immed);
+
+    if (mask) {
+        EMIT(ctx, orr_immed(rd, 31, (mask >> 16) & 0x3f, mask & 0x3f));
+        return;
+    }
+
+    /* All shortcuts so far failed, test if it is possible to generate 32-bit immediate with one move */
+    if ((immed & 0xffff) == 0) {
+        EMIT(ctx, mov_immed_u16(rd, (immed >> 16) & 0xffff, 1));
+    }
+    else if ((immed & 0xffff) == 0xffff) {
+        EMIT(ctx, movn_immed_u16(rd, (~immed >> 16) & 0xffff, 1));
+    }
+    else if ((immed & 0xffff0000) == 0) {
+        EMIT(ctx, mov_immed_u16(rd, immed & 0xffff, 0));
+    }
+    else if ((immed & 0xffff0000) == 0xffff0000) {
+        EMIT(ctx, movn_immed_u16(rd, ~immed & 0xffff, 0));
+    }
+    else {
+        EMIT(ctx, 
+            mov_immed_u16(rd, immed & 0xffff, 0),
+            movk_immed_u16(rd, (immed >> 16) & 0xffff, 1)
+        );
+    }
 }

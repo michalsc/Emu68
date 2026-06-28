@@ -1,0 +1,6 @@
+#ifndef _VERSION_H
+#define _VERSION_H
+
+#define VERSION_STRING  "@VERSTRING@"
+
+#endif /* _VERSION_H */

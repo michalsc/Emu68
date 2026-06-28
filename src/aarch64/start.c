@@ -28,11 +28,16 @@
 #include "version.h"
 #include "cache.h"
 #include "sponsoring.h"
+#include "spinlock.h"
+#include "intc.h"
+#ifdef PISTORM_ANY_MODEL
+#include "ps_protocol.h"
+#endif
 
 void _start();
 void _boot();
 
-asm("   .section .startup           \n"
+__asm__("   .section .startup           \n"
 "       .globl _start               \n"
 "       .globl _boot                \n"
 "       .type _start,%function      \n" /* Our kernel image starts with a standard header */
@@ -91,7 +96,7 @@ asm("   .section .startup           \n"
 "2:                                 \n"
 
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
-"       mov     x9, #" xstr(MMU_OSHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
 "       str     x9, [x16, #0]       \n"
 "       add     x9, x9, x10         \n"
@@ -141,7 +146,7 @@ asm("   .section .startup           \n"
 "       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
+"       ldr     x10, =0x1b5193519   \n" /* Upper and lower enabled, both 39bit in size, 36bit IPS */
 "       msr     TCR_EL1, x10        \n"
 
 "       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
@@ -199,7 +204,7 @@ asm("   .section .startup           \n"
 );
 
 void move_kernel(intptr_t from, intptr_t to);
-asm(
+__asm__(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
 "move_kernel:                       \n" /* x0: from, x1: to */
@@ -283,6 +288,7 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
 #endif
 
+extern uintptr_t local_intc_base;
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
 
@@ -297,29 +303,40 @@ void print_build_id()
     kprintf("\n");
 }
 
+void* m68k_jit_phys_base = NULL;
+void* ppc_jit_phys_base = NULL;
+void* m68k_jit_virt_base = NULL;
+void* ppc_jit_virt_base = NULL;
+
 void M68K_StartEmu(void *addr, void *fdt);
 void __vectors_start(void);
 extern int debug_cnt;
 int enable_cache = 0;
 int limit_2g = 0;
 int zorro_disable = 0;
+int ppc_enable = 0;
 int chip_slowdown;
 int dbf_slowdown;
+int debug_not_implemented = 0;
 int emu68_icnt = EMU68_M68K_INSN_DEPTH;
 int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
 int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
+int dcache_mask_bits;
+int disable_scsi = 0;
+int beamcon0_pal_clear = 0;
+int beamcon0_pal_set = 0;
 
-#ifdef PISTORM
-static int blitwait;
-#endif
-extern const char _verstring_object[];
-
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
+static int blitwait;
+static int membench = 0;
 #endif
+
+extern const char _verstring_object[];
+uint32_t _vernumber_object[3] = { VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH };
 
 void _secondary_start();
-asm(
+__asm__(
 "       .balign  32                 \n"
 "       .globl  _secondary_start    \n"
 "_secondary_start:                  \n"
@@ -377,7 +394,7 @@ asm(
 "       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0xb5193519    \n" /* Upper and lower enabled, both 39bit in size */
+"       ldr     x10, =0x1b5193519    \n" /* Upper and lower enabled, both 39bit in size, 36bit IPS */
 "       msr     TCR_EL1, x10        \n"
 
 "       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
@@ -405,26 +422,26 @@ void secondary_boot(void)
     of_node_t *e = NULL;
     int async_log = 0;
 
-    asm volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
+    __asm__ volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
    
     cpu_id &= 3;
     
     /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    __asm__ volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
 
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
 
-    asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
     tmp |= 5; // Enable event counting and reset cycle counter
-    asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
     tmp = 0x80000000; // Enable cycle counter
-    asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
     kprintf("[BOOT] Started CPU%d\n", cpu_id);
     
@@ -442,9 +459,19 @@ void secondary_boot(void)
         }
     }
 
+    if (cpu_id == 3 && ppc_enable) {
+        extern void InitPPC();
+        InitPPC();
+    }
+
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-#ifdef PISTORM
+    if (cpu_id == 3 && ppc_enable) {
+        extern void StartupPPC();
+        StartupPPC();
+    }
+
+#ifdef PISTORM_ANY_MODEL
     if (cpu_id == 1)
     {
         if (async_log)
@@ -454,20 +481,16 @@ void secondary_boot(void)
     {
         ps_housekeeper();
     }
-    else if (cpu_id == 3)
-    {
-        wb_init();
-        wb_task();
-    }
 #else
     (void)async_log;
 #endif
 
-    while(1) { asm volatile("wfe"); }
+    while(1) { __asm__ volatile("wfe"); }
 }
-
-uint32_t vid_memory;
 uintptr_t vid_base;
+
+uintptr_t unicam_base;
+uintptr_t unicam_size = 2 * 1024 * 1024;
 
 /* Amiga checksum, taken from AROS source code */
 int amiga_checksum(uint8_t *mem, uintptr_t size, uintptr_t chkoff, int update)
@@ -522,7 +545,261 @@ static void my_free(void *ptr)
 void *firmware_file = NULL;
 uint32_t firmware_size = 0;
 uint32_t cs_dist = 1;
+uint32_t vid_memory = 16;
+#ifdef PISTORM_ANY_MODEL
+int rom_copy = 0;
+int recalc_checksum = 0;
+int buptest = 0;
+int bupiter = 5;
 int fast_page0 = 0;
+#endif
+
+uint8_t slot_set = 0;
+
+void force_pistorm_model(uint8_t model);
+
+void parse_cmdline(const char *cmdline)
+{
+    const char *tok;
+
+    debug_not_implemented = !!find_token(cmdline, "debug_not_implemented");
+    ppc_enable = !!find_token(cmdline, "ppc_enable");
+    enable_cache = !!find_token(cmdline, "enable_cache");
+    limit_2g = !!find_token(cmdline, "limit_2g");
+
+#ifdef PISTORM_ANY_MODEL
+    int force_ps16 = !!find_token(cmdline, "ps16");
+    int force_ps32 = !!find_token(cmdline, "ps32");
+
+    if (force_ps16) force_pistorm_model(PISTORM_MODEL_16);
+    else if (force_ps32) force_pistorm_model(PISTORM_MODEL_32);
+#endif
+
+    extern int disasm;
+    extern int debug;
+    extern int DisableFPU;
+
+    DisableFPU = !!find_token(cmdline, "nofpu");
+    debug = !!find_token(cmdline, "debug");
+    disasm = !!find_token(cmdline, "disassemble");
+
+    if ((tok = find_token(cmdline, "ICNT=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val == 0)
+            val = 1;
+        if (val > 256)
+            val = 256;
+
+        emu68_icnt = val;
+    }
+    if ((tok = find_token(cmdline, "CCRD=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val > 31)
+            val = 31;
+
+        emu68_ccrd = val;
+    }
+    if ((tok = find_token(cmdline, "IRNG=")))
+    {
+        uint32_t val = 0;
+        const char *c = &tok[5];
+
+        for (int i = 0; i < 7; i++)
+        {
+            if (c[i] < '0' || c[i] > '9')
+                break;
+
+            val = val * 10 + c[i] - '0';
+        }
+
+        if (val > 65535)
+            val = 65535;
+
+        emu68_irng = val;
+    }
+
+    if ((tok = find_token(cmdline, "cs_dist=")) || (tok = find_token(cmdline, "SCS=")))
+    {
+        uint32_t cs = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            cs = cs * 10 + tok[8 + i] - '0';
+        }
+
+        if (cs == 0)
+            cs = 1;
+
+        if (cs > 8)
+        {
+            cs = 8;
+        }
+
+        cs_dist = cs;
+    }
+
+#ifdef PISTORM_ANY_MODEL
+
+#if !defined(PISTORM_CLASSIC)
+    if (find_token(cmdline, "two_slot"))
+    {
+        extern uint32_t use_2slot;
+        use_2slot = 1;
+        slot_set = 1;
+    }
+    else if (find_token(cmdline, "one_slot"))
+    {
+        extern uint32_t use_2slot;
+        use_2slot = 0;
+        slot_set = 1;
+    }
+#endif
+
+    fast_page0 = !!find_token(cmdline, "fast_page_zero");
+
+    zorro_disable = !!find_token(cmdline, "z3_disable");
+
+    chip_slowdown = find_token(cmdline, "chip_slowdown") || find_token(cmdline, "SC");
+
+    dbf_slowdown = find_token(cmdline, "dbf_slowdown") || find_token(cmdline, "DBF");
+
+    blitwait = find_token(cmdline, "blitwait") || find_token(cmdline, "BW");
+
+    if ((tok = find_token(cmdline, "membench=")))
+    {
+        uint32_t bench = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[9 + i] < '0' || tok[9 + i] > '9')
+                break;
+
+            bench = bench * 10 + tok[9 + i] - '0';
+        }
+
+        if (bench > 2047)
+        {
+            bench = 2047;
+        }
+
+        membench = bench;
+    }
+    if ((tok = find_token(cmdline, "buptest=")))
+    {
+        uint32_t bup = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            bup = bup * 10 + tok[8 + i] - '0';
+        }
+
+        if (bup > 2048)
+        {
+            bup = 2048;
+        }
+
+        buptest = bup;
+    }
+    if ((tok = find_token(cmdline, "bupiter=")))
+    {
+        uint32_t iter = 0;
+
+        for (int i = 0; i < 2; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            iter = iter * 10 + tok[8 + i] - '0';
+        }
+
+        if (iter > 9)
+        {
+            iter = 9;
+        }
+
+        bupiter = iter;
+    }
+    if ((tok = find_token(cmdline, "vc4.mem=")))
+    {
+        uint32_t vmem = 0;
+
+        for (int i = 0; i < 3; i++)
+        {
+            if (tok[8 + i] < '0' || tok[8 + i] > '9')
+                break;
+
+            vmem = vmem * 10 + tok[8 + i] - '0';
+        }
+
+        if (vmem <= 256)
+        {
+            vid_memory = vmem & ~1;
+        }
+    }
+    if ((tok = find_token(cmdline, "checksum_rom")))
+    {
+        recalc_checksum = 1;
+    }
+    if ((tok = find_token(cmdline, "copy_rom=")))
+    {
+        tok += 9;
+        int c = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (tok[i] < '0' || tok[i] > '9')
+                break;
+
+            c = c * 10 + tok[i] - '0';
+        }
+
+        switch (c)
+        {
+            case 256:
+                rom_copy = 256;
+                break;
+            case 512:
+                rom_copy = 512;
+                break;
+            case 1024:
+                rom_copy = 1024;
+                break;
+            case 2048:
+                rom_copy = 2048;
+                break;
+            default:
+                break;
+        }
+    }
+#endif
+}
 
 void boot(void *dtree)
 {
@@ -536,23 +813,25 @@ void boot(void *dtree)
     uintptr_t initramfs_size = 0;    
     boot_lock = 0;
 
-#ifdef PISTORM
-    int rom_copy = 0;
-    int recalc_checksum = 0;
-    int buptest = 0;
-    int bupiter = 5;
-    vid_memory = 16;
-#endif
+    /* Get CTR_EL0 */
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(dcache_mask_bits));
+    dcache_mask_bits = 2 + ((dcache_mask_bits >> 16) & 15);
 
     /* Enable caches and cache maintenance instructions from EL0 */
-    asm volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
-    asm volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+
+    /* Set default VID memory size */
+    vid_memory = 16;
 
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
+
+    /* Main tlsf is multithreaded */
+    tlsf_set_flags(tlsf, TLSF_MULTITHREADING);
 
     /* Initialize memory management for libdeflate */
     libdeflate_set_memory_allocator(my_malloc, my_free);
@@ -563,267 +842,263 @@ void boot(void *dtree)
     e = dt_find_node("/chosen");
     if (e)
     {
-        of_property_t * prop = dt_find_property(e, "bootargs");
+        of_property_t *prop = dt_find_property(e, "bootargs");
         if (prop)
         {
-#ifdef PISTORM
-            const char *tok;
-#endif
-
-            if (find_token(prop->op_value, "enable_cache"))
-                enable_cache = 1;
-            if (find_token(prop->op_value, "limit_2g"))
-                limit_2g = 1;
-#ifdef PISTORM
-#ifdef PISTORM32LITE
-            if (find_token(prop->op_value, "two_slot"))
-            {
-                extern uint32_t use_2slot;
-                use_2slot = 1;
-            }
-            else if (find_token(prop->op_value, "one_slot"))
-            {
-                extern uint32_t use_2slot;
-                use_2slot = 0;
-            }
-#endif
-            fast_page0 = !!find_token(prop->op_value, "fast_page_zero");
-
-            zorro_disable = !!find_token(prop->op_value, "z3_disable");
-
-            if (find_token(prop->op_value, "chip_slowdown") || find_token(prop->op_value, "SC"))
-            {
-                chip_slowdown = 1;
-            }
-            else
-            {
-                chip_slowdown = 0;
-            }
-
-            if ((tok = find_token(prop->op_value, "cs_dist=")))
-            {
-                uint32_t cs = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    cs = cs * 10 + tok[8 + i] - '0';
-                }
-
-                if (cs == 0) cs = 1;
-
-                if (cs > 8) {
-                    cs = 8;
-                }
-                
-                cs_dist = cs;
-            }
-
-            if ((tok = find_token(prop->op_value, "SCS=")))
-            {
-                uint32_t cs = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[4 + i] < '0' || tok[4 + i] > '9')
-                        break;
-
-                    cs = cs * 10 + tok[4 + i] - '0';
-                }
-
-                if (cs == 0) cs = 1;
-
-                if (cs > 8) {
-                    cs = 8;
-                }
-                
-                cs_dist = cs;
-            }
-
-
-            if (find_token(prop->op_value, "dbf_slowdown") || find_token(prop->op_value, "DBF"))
-            {
-                dbf_slowdown = 1;
-            }
-            else
-            {
-                dbf_slowdown = 0;
-            }
-
-            blitwait = !(!find_token(prop->op_value, "blitwait") && !find_token(prop->op_value, "BW"));
-
-            if ((tok = find_token(prop->op_value, "ICNT=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val == 0) val = 1;
-                if (val > 256) val = 256;
-
-                emu68_icnt = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "CCRD=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val > 31) val = 31;
-
-                emu68_ccrd = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "IRNG=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 7; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val > 65535) val = 65535;
-
-                emu68_irng = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "ICNT=")))
-            {
-                uint32_t val = 0;
-                const char *c = &tok[5];
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (c[i] < '0' || c[i] > '9')
-                        break;
-
-                    val = val * 10 + c[i] - '0';
-                }
-
-                if (val == 0) val = 1;
-                if (val > 256) val = 256;
-
-                emu68_icnt = val;
-            }
-
-            if ((tok = find_token(prop->op_value, "buptest=")))
-            {
-                uint32_t bup = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    bup = bup * 10 + tok[8 + i] - '0';
-                }
-
-                if (bup > 2048) {
-                    bup = 2048;
-                }
-                
-                buptest = bup;
-            }
-            if ((tok = find_token(prop->op_value, "bupiter=")))
-            {
-                uint32_t iter = 0;
-
-                for (int i=0; i < 2; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    iter = iter * 10 + tok[8 + i] - '0';
-                }
-
-                if (iter > 9) {
-                    iter = 9;
-                }
-                
-                bupiter = iter;
-            }
-            if ((tok = find_token(prop->op_value, "vc4.mem=")))
-            {
-                uint32_t vmem = 0;
-
-                for (int i=0; i < 3; i++)
-                {
-                    if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                        break;
-
-                    vmem = vmem * 10 + tok[8 + i] - '0';
-                }
-
-                if (vmem <= 256) {
-                    vid_memory = vmem & ~1;
-                }
-            }
-            if ((tok = find_token(prop->op_value, "checksum_rom")))
-            {
-                recalc_checksum = 1;
-            } 
-            if ((tok = find_token(prop->op_value, "copy_rom=")))
-            {
-                tok += 9;
-                int c = 0;
-
-                for (int i=0; i < 4; i++)
-                {
-                    if (tok[i] < '0' || tok[i] > '9')
-                        break;
-
-                    c = c * 10 + tok[i] - '0';
-                }
-
-                switch (c) {
-                    case 256:
-                        rom_copy = 256;
-                        break;
-                    case 512:
-                        rom_copy = 512;
-                        break;
-                    case 1024:
-                        rom_copy = 1024;
-                        break;
-                    case 2048:
-                        rom_copy = 2048;
-                        break;
-                    default:
-                        break;
-                }
-            }
-#endif
+            parse_cmdline(prop->op_value);
         }
     }
 
-    e = dt_make_node("emu68");
-    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object));
-    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA));
-    dt_add_property(e, "variant", BUILD_VARIANT, strlen(BUILD_VARIANT));
+    /* If /emu68 node is not existing yet, create it now, otherwise it was there loaded from overlay */
+    if ((e = dt_find_node("/emu68")) == NULL)
+    {
+        e = dt_make_node("emu68");
+        dt_add_node(NULL, e);
+    }
+    else
+    {
+        /* If /emu68 has args property, parse it as if was a cmdline */
+        of_property_t *prop = dt_find_property(e, "args");
+        if (prop)
+        {
+            parse_cmdline(prop->op_value);
+        }
+    }
+    dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object) + 1);
+    dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
+    dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
-    dt_add_node(NULL, e);
+
+    if (ppc_enable) {
+        if (!dt_find_property(e, "ppc-enable"))
+        {
+            dt_add_property(e, "ppc-enable", NULL, 0);
+        }
+    }
+
+    if ((p = dt_find_property(e, "m68k-jit-size")) == NULL)
+    {
+        uint32_t size = KERNEL_JIT_PAGES * 2;
+        dt_add_property(e, "m68k-jit-size", &size, 4);
+    }
+
+    if ((p = dt_find_property(e, "ppc-jit-size")) == NULL)
+    {
+        uint32_t size = KERNEL_JIT_PAGES * 2;
+        dt_add_property(e, "ppc-jit-size", &size, 4);
+    }
+
+    /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
+    if ((e = dt_find_node("/emu68/brcm-emmc")) == NULL)
+    {
+        e = dt_make_node("brcm-emmc");
+        dt_add_node(dt_find_node("/emu68"), e);
+
+        uint32_t speed = 50;
+        uint32_t access = 1;
+        uint32_t verbose = 0;
+        dt_add_property(e, "status", "okay", 5);
+        dt_add_property(e, "hs-clock-mhz", &speed, 4);
+        dt_add_property(e, "whole-drive-access", &access, 4);
+        dt_add_property(e, "verbose", &verbose, 4);
+    }
+
+    /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
+    if ((e = dt_find_node("/emu68/brcm-sdhc")) == NULL)
+    {
+        e = dt_make_node("brcm-sdhc");
+        dt_add_node(dt_find_node("/emu68"), e);
+
+        uint32_t speed = 50;
+        uint32_t access = 1;
+        uint32_t verbose = 0;
+        dt_add_property(e, "status", "okay", 5);
+        dt_add_property(e, "hs-clock-mhz", &speed, 4);
+        dt_add_property(e, "whole-drive-access", &access, 4);
+        dt_add_property(e, "verbose", &verbose, 4);
+    }
+
+    /* Verify the unicam buffer has necessary size */
+    if ((e = dt_find_node("/emu68/unicam")) != NULL)
+    {
+        of_property_t *sz = dt_find_property(e, "size");
+        of_property_t *bp = dt_find_property(e, "bpp");
+        uint32_t bpp = *(uint32_t *)bp->op_value;
+        uint32_t val = *(uint32_t *)sz->op_value;
+        uint32_t w = (val >> 16) & 0xffff;
+        uint32_t h = val & 0xffff;
+        
+        /* Necessary size is width * height * depth, doubled, incase unicam fires DMA at wrong address */
+        uint32_t necessary_size = ((bpp * w * h * 2) + 7) / 8;
+
+        /* Roundup size to multiple of 2MB */
+        necessary_size = (necessary_size + 2 * 1024 * 1024) & ~(2 * 1024 * 1024 - 1);
+
+        if (unicam_size < necessary_size)
+            unicam_size = necessary_size;
+    }
+
+    /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
+    if ((e = dt_find_node("/emu68/defaults")) == NULL)
+    {
+        e = dt_make_node("defaults");
+        dt_add_node(dt_find_node("/emu68"), e);
+    }
+
+    /* Fill in either compile time defaults or overriden parameters */
+    if ((p = dt_find_property(e, "insn-count")) == NULL)
+    {
+        dt_add_property(e, "insn-count", &emu68_icnt, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_icnt, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = emu68_icnt;
+    }
+
+    if ((p = dt_find_property(e, "ccr-scan-depth")) == NULL)
+    {
+        dt_add_property(e, "ccr-scan-depth", &emu68_ccrd, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = emu68_ccrd;
+    }
+    if ((p = dt_find_property(e, "branch-inline-distance")) == NULL)
+    {
+        dt_add_property(e, "branch-inline-distance", &emu68_irng, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = emu68_irng;
+    }
+
+    if ((p = dt_find_property(e, "chip-slowdown-distance")) == NULL)
+    {
+        dt_add_property(e, "chip-slowdown-distance", &cs_dist, 4);
+    }
+    else
+    {
+        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
+        if (*(uint32_t *)p->op_value == 0xffffffff)
+            *(uint32_t *)p->op_value = cs_dist;
+    }
+#ifdef PISTORM_ANY_MODEL
+    if (blitwait && dt_find_property(e, "blitter-wait") == NULL)
+    {
+        dt_add_property(e, "blitter-wait", NULL, 0);
+    }
+
+    if (dbf_slowdown && dt_find_property(e, "dbf-slowdown") == NULL)
+    {
+        dt_add_property(e, "dbf-slowdown", NULL, 0);
+    }
+
+    if (fast_page0 && dt_find_property(e, "fast-page-zero") == NULL)
+    {
+        dt_add_property(e, "fast-page-zero", NULL, 0);
+    }
+
+    if (chip_slowdown && dt_find_property(e, "chip-slowdown") == NULL)
+    {
+        dt_add_property(e, "chip-slowdown", NULL, 0);
+    }
+
+    of_node_t *diag = dt_find_node("/emu68/diag");
+    if (diag == NULL)
+    {
+        diag = dt_make_node("diag");
+        dt_add_node(dt_find_node("/emu68"), diag);
+    }
+
+    if (buptest)
+    {
+        of_node_t *bup = dt_find_node("/emu68/diag/buptest");
+        if (bup == NULL)
+        {
+            bup = dt_make_node("buptest");
+            dt_add_node(diag, bup);
+        }
+
+        if ((p = dt_find_property(bup, "status")) == NULL)
+        {
+            dt_add_property(bup, "status", "okay", 5);
+        }
+        else
+        {
+            tlsf_free(tlsf, p->op_value);
+            p->op_value = tlsf_malloc(tlsf, 5);
+            p->op_length = 5;
+            memcpy(p->op_value, "okay", 5);
+        }
+
+        if ((p = dt_find_property(bup, "size")) == NULL)
+        {
+            uint32_t sz = buptest * 1024;
+            dt_add_property(bup, "size", &sz, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = buptest * 1024;
+        }
+
+        if ((p = dt_find_property(bup, "iterations")) == NULL)
+        {
+            dt_add_property(bup, "iterations", &bupiter, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = bupiter;
+        }
+    }
+
+    if (membench)
+    {
+        of_node_t *mem = dt_find_node("/emu68/diag/membench");
+        if (mem == NULL)
+        {
+            mem = dt_make_node("membench");
+            dt_add_node(diag, mem);
+        }
+
+        if ((p = dt_find_property(mem, "status")) == NULL)
+        {
+            dt_add_property(mem, "status", "okay", 5);
+        }
+        else
+        {
+            tlsf_free(tlsf, p->op_value);
+            p->op_value = tlsf_malloc(tlsf, 5);
+            p->op_length = 5;
+            memcpy(p->op_value, "okay", 5);
+        }
+
+        if ((p = dt_find_property(mem, "size")) == NULL)
+        {
+            uint32_t sz = membench * 1024;
+            dt_add_property(mem, "size", &sz, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = membench * 1024;
+        }
+
+        if ((p = dt_find_property(mem, "base")) == NULL)
+        {
+            uint32_t sz = 0;
+            dt_add_property(mem, "base", &sz, 4);
+        }
+        else
+        {
+            *(uint32_t *)p->op_value = 0;
+        }
+    }
+#endif
 
     /*
         At this place we have local memory manager but no MMU set up yet. 
@@ -843,7 +1118,7 @@ void boot(void *dtree)
             image_end = (void*)(intptr_t)BE32(*(uint32_t*)p->op_value);
 
             initramfs_size = (uintptr_t)image_end - (uintptr_t)image_start;
-            initramfs_loc = tlsf_malloc(tlsf, initramfs_size);
+            initramfs_loc = tlsf_malloc(tlsf, (initramfs_size + 3) & ~3);
 
             /* Align the length of image up to nearest 4 byte boundary */
             DuffCopy(initramfs_loc, (void*)(0xffffff9000000000 + (uintptr_t)image_start), (initramfs_size + 3)/ 4);
@@ -856,6 +1131,26 @@ void boot(void *dtree)
     /* Setup platform (peripherals etc) */
     platform_init();
 
+#if defined(PISTORM)
+    const uint8_t pistorm_model = pistorm_get_model();
+    switch(pistorm_model)
+    {
+        case PISTORM_MODEL_16:
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm16", sizeof("pistorm16"));
+            break;
+        case PISTORM_MODEL_32:
+            dt_add_property(dt_find_node("/emu68"), "variant", "pistorm32lite", sizeof("pistorm32lite"));
+            break;
+        default:
+            dt_add_property(dt_find_node("/emu68"), "variant", "unknown", sizeof("unknown"));
+            break;
+    }
+#elif defined(PISTORM_CLASSIC)
+    const uint8_t pistorm_model = 0;
+    dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm"));
+#endif
+
+#if defined(PISTORM_ANY_MODEL)
     /* Test if the image begins with gzip header. If yes, then this is the firmware blob */
     if (initramfs_size != 0 && ((uint8_t *)initramfs_loc)[0] == 0x1f && ((uint8_t *)initramfs_loc)[1] == 0x8b)
     {
@@ -863,12 +1158,12 @@ void boot(void *dtree)
         
         if (decomp != NULL)
         {
-            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            void *out_buffer = tlsf_malloc(tlsf, 3*1024*1024);
             size_t in_size = 0;
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 8*1024*1024, &in_size, &out_size);
+            result = libdeflate_gzip_decompress_ex(decomp, initramfs_loc, initramfs_size, out_buffer, 3*1024*1024, &in_size, &out_size);
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
@@ -889,19 +1184,30 @@ void boot(void *dtree)
     }
     else
     {
-#ifdef PISTORM32LITE
-        #include "../pistorm/efinix_firmware.h"
-        
+        #include "../pistorm/efinix_firmware_ps32.h"
+        #include "../pistorm/efinix_firmware_ps16.h"
+
         struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
         
         if (decomp != NULL)
         {
-            void *out_buffer = tlsf_malloc(tlsf, 8*1024*1024);
+            void *out_buffer = tlsf_malloc(tlsf, 3*1024*1024);
             size_t in_size = 0;
             size_t out_size = 0;
             enum libdeflate_result result;
 
-            result = libdeflate_gzip_decompress_ex(decomp, firmware_bin_gz, firmware_bin_gz_len, out_buffer, 8*1024*1024, &in_size, &out_size);
+            switch (pistorm_model)
+            {
+                case PISTORM_MODEL_16:
+                    result = libdeflate_gzip_decompress_ex(decomp, firmware_ps16_bin_gz, firmware_ps16_bin_gz_len, out_buffer, 3 * 1024 * 1024, &in_size, &out_size);
+                    break;
+                case PISTORM_MODEL_32:
+                    result = libdeflate_gzip_decompress_ex(decomp, firmware_ps32_bin_gz, firmware_ps32_bin_gz_len, out_buffer, 3 * 1024 * 1024, &in_size, &out_size);
+                    break;
+                default:
+                    result = LIBDEFLATE_BAD_DATA;
+                    break;
+            }
 
             if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
             {
@@ -916,12 +1222,16 @@ void boot(void *dtree)
 
             libdeflate_free_decompressor(decomp);
         }
-#endif
     }
-
-#ifdef PISTORM32LITE
-    ps_efinix_setup();
+#if defined(PISTORM)
+    ps_efinix_setup(pistorm_model);
     ps_efinix_load(firmware_file, firmware_size);
+#endif
+#endif
+
+#ifdef PISTORM_ANY_MODEL
+    ps_setup_protocol();
+    ps_reset_state_machine();
 #endif
 
     /* Setup debug console on serial port */
@@ -974,6 +1284,14 @@ void boot(void *dtree)
                 vid_base,
                 vid_base + (vid_memory << 20) - 1, 
                 vid_memory);
+        }
+
+        if (unicam_base)
+        {
+            kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
+                unicam_base,
+                unicam_base + unicam_size - 1, 
+                unicam_size >> 20);
         }
 
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
@@ -1029,24 +1347,67 @@ void boot(void *dtree)
             }
         }
 
+        /* Make a hole for 0xdeadbeef */
+        mmu_map(0xdeadbeef & ~4095, 0xdeadbeef & ~4095, 4096, 0, 0);
+
         if (vid_base) {
             uint32_t reg[] = {
                 vid_base, vid_memory * 1024*1024
             };
             dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
 
-            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_OSHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xffffffe000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
-        mmu_map(kernel_new_loc + (KERNEL_SYS_PAGES << 21), 0xfffffff000000000, KERNEL_JIT_PAGES << 21, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+        if (unicam_base) {
+            uint32_t reg[] = { 
+                (uint32_t)unicam_base, (uint32_t)unicam_size
+            };
+            dt_add_property(dt_find_node("/emu68"), "unicam-mem", reg, 8);
 
-        jit_tlsf = tlsf_init_with_memory((void*)0xffffffe000000000, KERNEL_JIT_PAGES << 21);
+            mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        }
+
+        uint32_t m68k_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "m68k-jit-size", 0, FALSE) << 20;
+        uint32_t ppc_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20;
+
+        m68k_jit_virt_base = (void*)0xffffffe000000000ULL;
+        mmu_map((uintptr_t)m68k_jit_phys_base, (uintptr_t)m68k_jit_virt_base, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+        mmu_map((uintptr_t)m68k_jit_phys_base, (uintptr_t)m68k_jit_virt_base | 0x0000001000000000ULL, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+
+        jit_tlsf = tlsf_init_with_memory((void*)m68k_jit_virt_base, m68k_jit_size);
+
+        /* If PPC was enabled, create proper MMU map here */
+        if (dt_find_property(dt_find_node("/emu68"), "ppc-enable"))
+        {
+            ppc_jit_virt_base = (void*)0xffffffe200000000ULL;
+            mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+            mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base | 0x0000001000000000ULL, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+        }
+
+        /* If user requests scsi.device to be disabled, do it now */
+        if (dt_find_property(dt_find_node("/emu68"), "disable-scsi"))
+        {
+            disable_scsi = 1;
+        }
+
+        /* Check if PAL/NTSC overrides are set */
+        of_node_t *emu = dt_find_node("/emu68");
+        if (dt_find_property(emu, "beamcon0-pal-clear")) {
+            beamcon0_pal_clear = 1;
+        }
+        else if (dt_find_property(emu, "beamcon0-pal-set")) {
+            beamcon0_pal_set = 1;
+        }
 
         kprintf("[BOOT] Local memory pools:\n");
-        kprintf("[BOOT]    SYS: %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT: %p - %p (size: %5d KiB)\n", 0xffffffe000000000,
-                    0xffffffe000000000 + (KERNEL_JIT_PAGES << 21) - 1, KERNEL_JIT_PAGES << 11);
+        kprintf("[BOOT]    SYS:        %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
+        kprintf("[BOOT]    JIT (m68k): %p - %p (size: %5d KiB)\n", m68k_jit_virt_base,
+                    m68k_jit_virt_base + m68k_jit_size - 1, m68k_jit_size / 1024);
+        if (ppc_jit_virt_base) {
+            kprintf("[BOOT]    JIT (ppc):  %p - %p (size: %5d KiB)\n", ppc_jit_virt_base,
+                    ppc_jit_virt_base + ppc_jit_size - 1, ppc_jit_size / 1024);
+        }
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
         kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);
@@ -1068,7 +1429,7 @@ void boot(void *dtree)
 
         uint64_t TTBR0, TTBR1;
 
-        asm volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
+        __asm__ volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
 
         kprintf("[BOOT] MMU tables at %p and %p\n", TTBR0, TTBR1);
 
@@ -1096,7 +1457,18 @@ void boot(void *dtree)
         kprintf("[BOOT] TLB invalidated\n");
     }
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) asm volatile("yield");
+    extern void (*__init_start)();
+    void (**InitFunctions)() = &__init_start;
+    while(*InitFunctions)
+    {
+        kprintf("[BOOT] Calling init function @ %p\n", *InitFunctions);
+        (*InitFunctions)();
+        InitFunctions++;
+    }
+
+    intc_global_init();
+
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
     kprintf("[BOOT] Waking up CPU 1\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
     *(uint64_t *)0xffffff90000000e0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
@@ -1104,9 +1476,9 @@ void boot(void *dtree)
         
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
 
-    asm volatile("sev");
+    __asm__ volatile("sev");
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
     kprintf("[BOOT] Waking up CPU 2\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -1115,9 +1487,9 @@ void boot(void *dtree)
         
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e8), temp_stack);
 
-    asm volatile("sev");
+    __asm__ volatile("sev");
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
     kprintf("[BOOT] Waking up CPU 3\n");
     temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
@@ -1126,70 +1498,61 @@ void boot(void *dtree)
         
     kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000f0), temp_stack);
 
-    asm volatile("sev");
+    __asm__ volatile("sev");
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { asm volatile("yield"); }
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-    asm volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    __asm__ volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
     kprintf("[BOOT] Timer frequency: %d kHz\n", (tmp + 500) / 1000);
 
-    asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+    __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
     tmp |= 5; // Enable event counting and reset cycle counter
-    asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+    __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
     kprintf("[BOOT] PMCR=%08x\n", tmp);
     tmp = 0x80000000; // Enable cycle counter
-    asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
-   
+    __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
     if (debug_cnt)
     {
         uint64_t tmp;
         kprintf("[BOOT] Performance counting requested\n");
         
-        asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
         kprintf("[BOOT] Number of counters implemented: %d\n", (tmp >> 11) & 31);
 
         kprintf("[BOOT] Enabling performance counters\n");
         tmp |= 3;
-        asm volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
 
-        asm volatile("mrs %0, PMCR_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCR=%08x\n", tmp);
 
-        asm volatile("mrs %0, PMCEID0_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCEID0_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCEID0=%08x\n", tmp);
 
         tmp = 0x00000000;
-        asm volatile("msr PMEVTYPER0_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMEVTYPER2_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMEVTYPER1_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
-        asm volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
+        __asm__ volatile("msr PMEVTYPER0_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMEVTYPER2_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMEVTYPER1_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
 
-        asm volatile("mrs %0, PMCNTENSET_EL0; isb":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCNTENSET_EL0; isb":"=r"(tmp));
         tmp |= 15;
-        asm volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+        __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
-        asm volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
         kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
     }
 
     platform_post_init();
 
-    extern void (*__init_start)();
-    void (**InitFunctions)() = &__init_start;
-    while(*InitFunctions)
-    {
-        (*InitFunctions)();
-        InitFunctions++;
-    }
-
-#ifndef PISTORM
+#ifndef PISTORM_ANY_MODEL
     if (initramfs_loc != NULL && initramfs_size != 0)
     {
         void *image_start, *image_end;
@@ -1212,7 +1575,7 @@ void boot(void *dtree)
                 top_of_ram &= ~0x1fffff;
                 top_of_ram -= 8;
 
-                void *hunks = LoadHunkFile(image_start, (void*)top_of_ram);
+                void *hunks = LoadHunkFile(image_start, (void*)top_of_ram, NULL);
                 (void)hunks;
                 ptr = (void *)((intptr_t)hunks + 4);
             }
@@ -1293,8 +1656,22 @@ void boot(void *dtree)
 
             tlsf_free(tlsf, initramfs_loc);
 
-            if (ptr)
-                M68K_StartEmu(ptr, fdt);
+            if (ptr) {
+                if (GetELFMachine() == 20) {
+                    /* Fire PPC */
+                    extern spinlock_t PPCStart;
+                    extern uint32_t ppc_boot_addr;
+                    ppc_boot_addr = (uint32_t)(uintptr_t)ptr;
+                    spinlock_release(&PPCStart);
+                }
+                else
+                {
+                    M68K_StartEmu(ptr, fdt);
+                }
+            }
+                
+            
+            while(1) __asm__ volatile("wfi");
         }
         else
         {
@@ -1428,6 +1805,7 @@ void boot(void *dtree)
         tlsf_free(tlsf, initramfs_loc);
     }
 
+#endif
 
     if (0)
     {
@@ -1435,169 +1813,174 @@ void boot(void *dtree)
         const uint64_t iter_count = 1000000;
         uint64_t calib = 0;
         uint64_t tmp=0, res;
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
-        for (uint64_t i=0; i < iter_count; i++) asm volatile("");
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        for (uint64_t i=0; i < iter_count; i++) __asm__ volatile("");
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
         calib = cnt2 - cnt1;
         kprintf("Calibration loop took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1), (double)(cnt2-cnt1) / (double)iter_count);
 
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
         for (uint64_t i=0; i < iter_count; i++)
-            asm volatile("mrs %1, nzcv; bfxil %0, %1, 28, 4; bic %0, %0, #3":"=r"(res):"r"(tmp));
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+            __asm__ volatile("mrs %1, nzcv; bfxil %0, %1, 28, 4; bic %0, %0, #3":"=r"(res):"r"(tmp));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
         for (uint64_t i=0; i < iter_count; i++)
-            asm volatile("mrs %1, nzcv; ror %1, %1, #30; bfi %0, %1, #2, #2":"=r"(res):"r"(tmp));
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+            __asm__ volatile("mrs %1, nzcv; ror %1, %1, #30; bfi %0, %1, #2, #2":"=r"(res):"r"(tmp));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
         for (uint64_t i=0; i < iter_count; i++)
-            asm volatile("mrs %1, nzcv; bic %0, %0, #3; lsr %1, %1, 28; and %1, %1, #0xc; orr %0, %0, %1":"=r"(res):"r"(tmp));
-        asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+            __asm__ volatile("mrs %1, nzcv; bic %0, %0, #3; lsr %1, %1, 28; and %1, %1, #0xc; orr %0, %0, %1":"=r"(res):"r"(tmp));
+        __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
 
         kprintf("Test took %lld cycles, %f cycle per iteration\n", (cnt2 - cnt1 - calib), (double)(cnt2-cnt1 - calib) / (double)iter_count);
 
     }
 
-    kprintf("[BOOT] Setting IRQ routing to core 0\n");
-    wr32le(0xf300000c, 0);
-    
-    kprintf("[BOOT] Enabling PMU and Timer interrupts on core 0\n");
-    wr32le(0xf3000010, 1);      // Enable PMU IRQ on core 0
-    wr32le(0xf3000014, 0xfe);   // Disable PMU IRQ on all otehr cores
+    if (dt_find_property(dt_find_node("/emu68/diag"), "dump-device-tree")) {
+        dt_dump_tree();
+    }
 
-    wr32le(0xf3000040, 0x0f);   // Enable all CNT IRQs on core 0
-    wr32le(0xf3000044, 0x00);   // Disable all CNT IRQs on core 1
-    wr32le(0xf3000048, 0x00);   // Disable all CNT IRQs on core 2
-    wr32le(0xf300004c, 0x00);   // Disable all CNT IRQs on core 3
-
-    kprintf("[BOOT] Disabling mailbox interrupts\n");
-    wr32le(0xf3000050, 0x00);   // Disable Mailbox IRQs on core 0
-    wr32le(0xf3000054, 0x00);   // Disable Mailbox IRQs on core 1
-    wr32le(0xf3000058, 0x00);   // Disable Mailbox IRQs on core 2
-    wr32le(0xf300005c, 0x00);   // Disable Mailbox IRQs on core 3
-
-    //dt_dump_tree();
-
-#ifdef PISTORM
-    //amiga_checksum((void*)0xffffff9000e00000, 524288, 524288-24, 1);
-    if (recalc_checksum)
+#ifdef PISTORM_ANY_MODEL
+    if (recalc_checksum) {
         amiga_checksum((void*)0xffffff9000f80000, 524288, 524288-24, 1);
-
-    if (buptest)
-    {
-        ps_buptest(buptest, bupiter);
     }
-#endif
+
+    of_node_t *n = dt_find_node("/emu68/diag/buptest");
+    if (n != NULL)
+    {
+        of_property_t * prop = dt_find_property(n, "status");
+        if (prop && strcmp(prop->op_value, "okay") == 0)
+        {
+            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
+            uint32_t iter = dt_get_property_value_u32(n, "iterations", 1, 0);
+            kprintf("[BOOT] Calling buptest with size %d and iterations %d\n", size, iter);
+            ps_buptest(size, iter);
+        }
+    }
+    
+
+    n = dt_find_node("/emu68/diag/membench");
+    if (n != NULL)
+    {
+        of_property_t * prop = dt_find_property(n, "status");
+        if (prop && strcmp(prop->op_value, "okay") == 0)
+        {
+            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
+            kprintf("[BOOT] Calling membench with size %d\n", size);
+            ps_memtest(size / 1024);
+        }
+
+    }
 
     /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
-    if (fast_page0) {
+    if (dt_find_property(dt_find_node("/emu68/defaults"), "fast-page-zero"))
+    {
         mmu_map(0xf80000, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
     }
-    
-    M68K_StartEmu(0, NULL);
-
 #endif
 
-    while(1) asm volatile("wfe");
+    M68K_StartEmu(0, NULL);
+
+    while(1) __asm__ volatile("wfe");
 }
 
 
 void M68K_LoadContext(struct M68KState *ctx)
 {
-    asm volatile("msr TPIDRRO_EL0, %0\n"::"r"(ctx));
+    __asm__ volatile("mov "CTX_POINTER_ASM", %0\n"::"r"(ctx));
 
-    asm volatile("mov v31.s[0], %w0"::"r"(ctx->CACR));
-    asm volatile("mov v31.s[1], %w0"::"r"(ctx->USP));
-    asm volatile("mov v31.s[2], %w0"::"r"(ctx->ISP));
-    asm volatile("mov v31.s[3], %w0"::"r"(ctx->MSP));
-    asm volatile("mov v30.d[0], %0"::"r"(ctx->INSN_COUNT));
-    asm volatile("mov v29.s[0], %w0"::"r"(ctx->FPSR));
-    asm volatile("mov v29.s[1], %w0"::"r"(ctx->FPIAR));
-    asm volatile("mov v29.h[4], %w0"::"r"(ctx->FPCR));
+    __asm__ volatile("mov "REG_USP_ASM", %w0"::"r"(ctx->USP));
+    __asm__ volatile("mov "REG_MSP_ASM", %w0"::"r"(ctx->MSP));
+    __asm__ volatile("mov "REG_ISP_ASM", %w0"::"r"(ctx->ISP));
+    __asm__ volatile("mov "CTX_INSN_COUNT_ASM", %0"::"r"(ctx->INSN_COUNT));
+    __asm__ volatile("mov "REG_CACR_ASM", %w0"::"r"(ctx->CACR));
+    __asm__ volatile("mov "REG_FPSR_ASM", %w0"::"r"(ctx->FPSR));
+    __asm__ volatile("mov "REG_FPIAR_ASM", %w0"::"r"(ctx->FPIAR));
+    __asm__ volatile("mov "REG_FPCR_ASM", %w0"::"r"(ctx->FPCR));
 
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
 
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
-    asm volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
+    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
 
-    asm volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+    __asm__ volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
-    asm volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
-    asm volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("ldrh w1, %0; rbit w2, w1; bfxil w1, w2, 30, 2; msr tpidr_EL0, x1"::"m"(ctx->SR):"x1","x2");
+    __asm__ volatile("ldrh w1, %0; rbit w2, w1; bfxil w1, w2, 30, 2; mov "REG_SR_ASM", w1"::"m"(ctx->SR):"x1","x2");
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
-            asm volatile("mov w%0, v31.S[3]"::"i"(REG_A7));
+            __asm__ volatile("mov w%0, "REG_MSP_ASM::"i"(REG_A7));
         else
-            asm volatile("mov w%0, v31.S[2]"::"i"(REG_A7));
+            __asm__ volatile("mov w%0, "REG_ISP_ASM::"i"(REG_A7));
     }
     else
-        asm volatile("mov w%0, V31.S[1]"::"i"(REG_A7));
+        __asm__ volatile("mov w%0, "REG_USP_ASM::"i"(REG_A7));
 }
 
 void M68K_SaveContext(struct M68KState *ctx)
 {
-    asm volatile("mov w1, v31.s[0]; str w1, %0"::"m"(ctx->CACR):"x1");
-    asm volatile("mov x1, v30.d[0]; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
+    __asm__ volatile("mov w1, "REG_CACR_ASM"; str w1, %0"::"m"(ctx->CACR):"x1");
+    __asm__ volatile("mov x1, "CTX_INSN_COUNT_ASM"; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
     
-    asm volatile("mov w1, v29.s[0]; str w1, %0"::"m"(ctx->FPSR):"x1");
-    asm volatile("mov w1, v29.s[1]; str w1, %0"::"m"(ctx->FPIAR):"x1");
-    asm volatile("umov w1, v29.h[4]; strh w1, %0"::"m"(ctx->FPCR):"x1");
+    __asm__ volatile("mov w1, "REG_FPSR_ASM"; str w1, %0"::"m"(ctx->FPSR):"x1");
+    __asm__ volatile("mov w1, "REG_FPIAR_ASM"; str w1, %0"::"m"(ctx->FPIAR):"x1");
+    __asm__ volatile("umov w1, "REG_FPCR_ASM"; strh w1, %0"::"m"(ctx->FPCR):"x1");
     
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
 
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
-    asm volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
+    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
 
-    asm volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
+    __asm__ volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
 
-    asm volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
-    asm volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
-    asm volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
-    asm volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
-    asm volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
-    asm volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
-    asm volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
-    asm volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
+    __asm__ volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
 
-    asm volatile("mrs x1, tpidr_EL0; rbit w2, w1; bfxil w1, w2, 30, 2; strh w1, %0"::"m"(ctx->SR):"x1","x2");
+    __asm__ volatile("umov w1, "REG_SR_ASM"; rbit w2, w1; bfxil w1, w2, 30, 2; strh w1, %0"::"m"(ctx->SR):"x1","x2");
     if (ctx->SR & SR_S)
     {
         if (ctx->SR & SR_M)
-            asm volatile("mov v31.S[3], w%0"::"i"(REG_A7));
+            __asm__ volatile("mov "REG_MSP_ASM", w%0"::"i"(REG_A7));
         else
-            asm volatile("mov v31.S[2], w%0"::"i"(REG_A7));
+            __asm__ volatile("mov "REG_ISP_ASM", w%0"::"i"(REG_A7));
     }
     else
-        asm volatile("mov v31.S[1], w%0"::"i"(REG_A7));
+        __asm__ volatile("mov "REG_USP_ASM", w%0"::"i"(REG_A7));
     
-    asm volatile("mov w1, v31.s[1]; str w1, %0"::"m"(ctx->USP):"x1");
-    asm volatile("mov w1, v31.s[2]; str w1, %0"::"m"(ctx->ISP):"x1");
-    asm volatile("mov w1, v31.s[3]; str w1, %0"::"m"(ctx->MSP):"x1");
+    __asm__ volatile("mov w1, "REG_USP_ASM"; str w1, %0"::"m"(ctx->USP):"x1");
+    __asm__ volatile("mov w1, "REG_MSP_ASM"; str w1, %0"::"m"(ctx->MSP):"x1");
+    __asm__ volatile("mov w1, "REG_ISP_ASM"; str w1, %0"::"m"(ctx->ISP):"x1");
 }
 
 void M68K_PrintContext(struct M68KState *m68k)
@@ -1678,17 +2061,22 @@ void M68K_PrintContext(struct M68KState *m68k)
 
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 }
-
+/*
 uint16_t *framebuffer __attribute__((weak)) = NULL;
 uint32_t pitch  __attribute__((weak))= 0;
 uint32_t fb_width  __attribute__((weak))= 0;
 uint32_t fb_height  __attribute__((weak))= 0;
+*/
+extern uint16_t *framebuffer;
+extern uint32_t pitch;
+extern uint32_t fb_width;
+extern uint32_t fb_height;
 
 void ExecutionLoop(struct M68KState *ctx);
 
 void  __attribute__((used)) stub_FindUnit()
 {
-    asm volatile(
+    __asm__ volatile(
 "       .align  8                           \n"
 "FindUnit:                                  \n"
 "       adrp    x4, ICache                  \n"
@@ -1718,345 +2106,16 @@ void  __attribute__((used)) stub_FindUnit()
 ::[reg_pc]"i"(REG_PC));
 }
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
 extern volatile unsigned char bus_lock;
 #endif
-
-void  __attribute__((used)) stub_ExecutionLoop()
-{
-    asm volatile(
-"       .globl ExecutionLoop                \n"
-"       .align 8                            \n"
-"ExecutionLoop:                             \n"
-"       stp     x29, x30, [sp, #-128]!      \n"
-"       stp     x27, x28, [sp, #1*16]       \n"
-"       stp     x25, x26, [sp, #2*16]       \n"
-"       stp     x23, x24, [sp, #3*16]       \n"
-"       stp     x21, x22, [sp, #4*16]       \n"
-"       stp     x19, x20, [sp, #5*16]       \n"
-"       mov     v28.d[0], xzr               \n"
-"       bl      M68K_LoadContext            \n"
-"       b       1f                          \n"
-"       .align 8                            \n"
-"1:                                         \n"
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       sub     v28.2d, v28.2d, v0.2d       \n"
-*/
-#ifndef PISTORM
-"       cbz     w%[reg_pc], 4f              \n"
-#endif
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       mrs     x2, TPIDR_EL1               \n"
-
-"       ldr     w10, [x0, #%[intreq]]       \n"     // Interrupt request (either from ARM, ARM_err or IPL) is pending
-"       cbnz    w10, 9f                     \n"
-
-"99:    mov     w3, v31.s[0]                \n"
-"       tbz     w3, #%[cacr_ie_bit], 2f     \n"
-"       cmp     w2, w%[reg_pc]              \n"
-"       b.ne    13f                         \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-"       .align  6                           \n"
-"13:                                        \n"
-"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
-"       adrp    x4, ICache                  \n"
-"       add     x4, x4, :lo12:ICache        \n"
-"       ldr     x0, [x4, x0]                \n"
-"       b       51f                         \n"
-"53:                                        \n" // 2 -> 5
-"       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    52f                         \n"
-"       mov     x0, x4                      \n"
-"51:    ldr     x4, [x0]                    \n"
-"       ldr     x5, [x0, #32]               \n" // Fetch PC address now, we assume that the search was successful
-"       cbnz    x4, 53b                     \n"
-"       b 5f                                \n"
-"52:    ldp     x6, x4, [x0, #16]           \n"
-"       ldr     x5, [x4, #8]                \n"
-"       cbz     x5, 55f                     \n"
-"       stp     x4, x5, [x0, #16]           \n"
-"       add     x7, x0, #0x10               \n" // 4 -> 7
-"       str     x7, [x5]                    \n"
-"       stp     x6, x7, [x4]                \n"
-"       str     x4, [x6, #8]                \n"
-
-"55:                                        \n"
-"       ldr     x12, [x0, #%[offset]]       \n"
-#if EMU68_LOG_FETCHES
-"       ldr     x1, [x0, #%[fcount]]        \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #%[fcount]]        \n"
-#endif
-"       msr     TPIDR_EL1, x%[reg_pc]       \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-
-"       .align  6                           \n"
-"5:     mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_SaveContext            \n"
-"       mov     w0, w%[reg_pc]              \n"
-"       msr     TPIDR_EL1, x%[reg_pc]       \n"
-"       bl      M68K_GetTranslationUnit     \n"
-"       ldr     x12, [x0, #%[offset]]       \n"
-#if EMU68_LOG_FETCHES
-"       ldr     x1, [x0, #%[fcount]]        \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #%[fcount]]        \n"
-#endif
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_LoadContext            \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-
-"       .align  6                           \n"
-"2:                                         \n"
-"23:    bl      M68K_SaveContext            \n"
-"       mvn     w0, wzr                     \n"
-"       msr     TPIDR_EL1, x0               \n"
-"       mov     w20, w%[reg_pc]             \n"
-"       bl      FindUnit                    \n"
-"       bl      M68K_VerifyUnit             \n"
-"       cbnz    x0, 223f                    \n"
-"       mov     w0, w20                     \n"
-"       bl      M68K_GetTranslationUnit     \n"
-"223:   ldr     x12, [x0, #%[offset]]       \n"
-#if EMU68_LOG_FETCHES
-"       ldr     x1, [x0, #%[fcount]]        \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #%[fcount]]        \n"
-#endif
-"       mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_LoadContext            \n"
-#if EMU68_LOG_USES
-"       bic     x0, x12, #0x0000001000000000\n"
-"       ldr     x1, [x0, #-%[diff]]         \n"
-"       add     x1, x1, #1                  \n"
-"       str     x1, [x0, #-%[diff]]         \n"
-#endif
-/*
-"       mrs     x0, PMCCNTR_EL0             \n"
-"       mov     v0.d[0], x0                 \n"
-"       add     v28.2d, v28.2d, v0.2d       \n"
-*/
-"       blr     x12                         \n"
-"       b       1b                          \n"
-
-"4:     mrs     x0, TPIDRRO_EL0             \n"
-"       bl      M68K_SaveContext            \n"
-"       ldp     x27, x28, [sp, #1*16]       \n"
-"       ldp     x25, x26, [sp, #2*16]       \n"
-"       ldp     x23, x24, [sp, #3*16]       \n"
-"       ldp     x21, x22, [sp, #4*16]       \n"
-"       ldp     x19, x20, [sp, #5*16]       \n"
-"       ldp     x29, x30, [sp], #128        \n"
-"       ret                                 \n"
-
-#ifdef PISTORM
-"9:                                         \n"
-"       ldrb    w10, [x0, #%[err]]          \n" // If INT.ARM_err is set then it is serror, map it to NMI
-"       cbz     w10, 991f                   \n"
-"       strb    wzr, [x0, #%[err]]          \n"
-"       mov     w1, w10                     \n" // Set IRQ level 7, go further skipping higher selection
-"       b       999f                        \n"
-"991:   ldrb    w10, [x0, #%[arm]]          \n" // If bit 1 of INT.ARM is set then it is IRQ/FIQ. Map to IPL6
-"       strb    wzr, [x0, #%[arm]]          \n"
-"       ldrb    w1, [x0, #%[ipl]]           \n" // If IPL was 0 then there is no m68k interrupt pending, skip reading
-"       cbz     w1, 998f                    \n" // IPL in that case
-"992:                                       \n"
-
-// No need to do anything on PiStorm32 - the w1 contains the IPL value already (see few lines above)
-#ifndef PISTORM32
-
-#if PISTORM_WRITE_BUFFER
-"       adrp    x5, bus_lock                \n"
-"       add     x5, x5, :lo12:bus_lock      \n"
-"       mov     w1, 1                       \n"
-".lock: ldaxrb	w2, [x5]                    \n" // Obtain exclusive lock to the PiStorm bus
-"       stxrb	w3, w1, [x5]                \n"
-"       cbnz	w3, .lock                   \n"
-"       cbz     w2, .lock_acquired          \n"
-"       yield                               \n"
-"       b       .lock                       \n"
-".lock_acquired:                            \n"
-#endif
-"       mov     x2, #0xf2200000             \n" // GPIO base address
-"       mov     w1, #0x0c000000             \n"
-"       mov     w3, #0x40000000             \n"
-
-"       str     w1, [x2, #28]               \n" // Read status register
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-"       str     w3, [x2, #28]               \n"
-
-"       ldr     w3, [x2, 4*13]              \n" // Get status register into w3 - note! value read was little endian
-
-"       mov     w1, #0xff00                 \n"
-"       movk    w1, #0xecff, lsl #16        \n"
-"       str     w1, [x2, 4*10]              \n"
-#if PISTORM_WRITE_BUFFER
-"       stlrb   wzr, [x5]                   \n" // Release exclusive lock to PiStorm bus
-#endif
-"       rev     w3, w3                      \n"
-"       ubfx    w1, w3, #21, #3             \n" // Extract IPL to w1
-#endif
-
-// We have w10 with ARM IPL here and w1 with m68k IPL, select higher, in case of ARM clear pending bit
-"998:   cmp     w1, w10                     \n" 
-"       csel    w1, w1, w10, hi             \n" // if W1 was higher, select it 
-"       csel    w10, wzr, w10, hi           \n" // In that case clear w10
-"999:                                       \n"
-"       mrs     x2, TPIDR_EL0               \n" // Get SR
-"       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
-"       cmp     w1, #7                      \n" // Was it level 7 interrpt?
-
-"       b.eq    91f                         \n" // Yes - process immediately
-"       cmp     w1, w3                      \n" // Check highest masked level
-"       b.gt    91f                         \n" // IPL higher than IPM? Make an interrupt
-
-"92:    mrs     x2, TPIDR_EL1               \n" // Only masked interrupts. Restore old contents of x2 and
-"       b       99b                         \n" // branch back
-
-// Process the interrupt here
-"91: \n"
-"911:   tbnz    w2, #%[srb_s], 93f          \n" // Check if m68k was in supervisor mode already
-"       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
-"       tbnz    w2, #%[srb_m], 94f          \n" // Check if MSP is active
-"       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
-"       b       93f                         \n"
-"94:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
-
-"93:    mov     w5, w2                      \n" // Make a copy of SR
-"       rbit    w3, w2                      \n" // Reverse C and V!
-"       bfxil   w2, w3, 30, 2               \n" // Put reversed C and V into old SR (to be pushed on stack)
-"       bfi     w5, w1, %[srb_ipm], 3       \n" // Insert IPL level to SR register IPM field
-"       lsl     w3, w1, #2                  \n" // Calculate vector offset
-"       add     w3, w3, #0x60               \n" 
-"       strh    w2, [x%[reg_sp], #-8]!      \n" // Push old SR
-"       str     w%[reg_pc], [x%[reg_sp], #2]\n" // Push address of next instruction
-"       strh    w3, [x%[reg_sp], #6]        \n" // Push frame format 0
-"       bic     w5, w5, #%[sr_t01]          \n" // Clear T0 and T1
-"       orr     w5, w5, #%[sr_s]            \n" // Set S bit
-"       msr     TPIDR_EL0, x5               \n" // Update SR
-"       ldr     w1, [x0, #%[vbr]]           \n"
-"       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
-
-"       mrs     x2, TPIDR_EL1               \n" // Restore old contents of x2 and
-"       b       99b                         \n" // branch back
-#else
-"9:     ldrb    w1, [x0, #%[arm]]           \n"
-"       mrs     x2, TPIDR_EL0               \n" // Get SR
-"       ubfx    w3, w2, %[srb_ipm], 3       \n" // Extract IPM
-"       mov     w4, #2                      \n"
-"       lsl     w4, w4, w3                  \n"
-"       sub     w4, w4, #1                  \n" // Build mask to clear PINT fields
-"       bic     w4, w4, #0x80               \n" // Always allow INT7 (NMI) !
-"       bic     w3, w1, w4                  \n" // Clear PINT bits in a copy!
-"       cbz     w3, 93f                     \n" // Leave interrupt calling of no unmasked IRQs left
-"       tbnz    w2, #%[srb_s], 91f          \n" // Check if m68k was in supervisor mode already
-"       mov     v31.S[1], w%[reg_sp]        \n" // Store USP
-"       tbnz    w2, #%[srb_m], 92f          \n" // Check if MSP is active
-"       mov     w%[reg_sp], v31.S[2]        \n" // Load ISP
-"       b       91f                         \n"
-"92:    mov     w%[reg_sp], V31.S[3]        \n" // Load MSP
-"91:    clz     w3, w3                      \n" // Count number of zeros before first set bit is there
-"       neg     w3, w3                      \n" // 24 for level 7, 25 for level 6 and so on
-"       add     w3, w3, #31                 \n" // level = 31 - clz(w1)
-"       mov     w4, #1                      \n" // Make a mask for bit clear in PINT
-"       lsl     w4, w4, w3                  \n"
-"94:    bic     w1, w1, w4                  \n" // Clear pending interrupt flag
-"       strb     w1, [x0, #%[arm]]          \n" // Store PINT
-"       mov     w5, w2                      \n" // Make a copy of SR
-"       rbit    w3, w2                      \n" // Reverse C and V!
-"       bfxil   w2, w3, 30, 2               \n" // Put reversed C and V into old SR (to be pushed on stack)
-"       bfi     w5, w3, %[srb_ipm], 3       \n" // Insert level to SR register
-"       lsl     w3, w3, #2                  \n"
-"       add     w3, w3, #0x60               \n" // Calculate vector offset
-"       strh    w2, [x%[reg_sp], #-8]!      \n" // Push old SR
-"       str     w%[reg_pc], [x%[reg_sp], #2] \n" // Push address of next instruction
-"       strh    w3, [x%[reg_sp], #6]        \n" // Push frame format 0
-"       bic     w5, w5, #0xc000             \n" // Clear T0 and T1
-"       orr     w5, w5, #0x2000             \n" // Set S bit
-"       msr     TPIDR_EL0, x5               \n" // Update SR
-"       ldr     w1, [x0, #%[vbr]]           \n"
-"       ldr     w%[reg_pc], [x1, x3]        \n" // Load new PC
-"93:                                        \n"
-//"       mrs     x0, TPIDRRO_EL0             \n" // Reload old values of x0 and x2
-"       mrs     x2, TPIDR_EL1               \n" // And branch back
-"       b       99b                         \n"
-#endif
-:
-:[reg_pc]"i"(REG_PC),
- [reg_sp]"i"(REG_A7),
- [cacr_ie]"i"(CACR_IE),
- [cacr_ie_bit]"i"(CACRB_IE),
- [sr_ipm]"i"(SR_IPL),
- [srb_ipm]"i"(SRB_IPL),
- [srb_m]"i"(SRB_M),
- [srb_s]"i"(SRB_S),
- [sr_s]"i"(SR_S),
- [sr_t01]"i"(SR_T0 | SR_T1),
- [fcount]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_FetchCount)),
- [cacr]"i"(__builtin_offsetof(struct M68KState, CACR)),
- [offset]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMEntryPoint)),
- [diff]"i"(__builtin_offsetof(struct M68KTranslationUnit, mt_ARMCode) - 
-        __builtin_offsetof(struct M68KTranslationUnit, mt_UseCount)),
- [intreq]"i"(__builtin_offsetof(struct M68KState, INT)),
- [arm]"i"(__builtin_offsetof(struct M68KState, INT.ARM)),
- [err]"i"(__builtin_offsetof(struct M68KState, INT.ARM_err)),
- [ipl]"i"(__builtin_offsetof(struct M68KState, INT.IPL)),
- [sr]"i"(__builtin_offsetof(struct M68KState, SR)),
- [usp]"i"(__builtin_offsetof(struct M68KState, USP)),
- [isp]"i"(__builtin_offsetof(struct M68KState, ISP)),
- [msp]"i"(__builtin_offsetof(struct M68KState, MSP)),
- [vbr]"i"(__builtin_offsetof(struct M68KState, VBR))
-    );
-
-
-}
 
 struct M68KState *__m68k_state;
 void MainLoop();
 
 void M68K_StartEmu(void *addr, void *fdt)
 {
-    void (*arm_code)();
+    //void (*arm_code)();
     struct M68KTranslationUnit * unit = (void*)0;
     struct M68KState __m68k;
     uint64_t t1=0, t2=0;
@@ -2070,6 +2129,10 @@ void M68K_StartEmu(void *addr, void *fdt)
     bzero(&__m68k, sizeof(__m68k));
     //bzero((void *)4, 1020);
 
+    extern uint32_t EPOCH;
+
+    EPOCH = 0;
+    
     __m68k_state = &__m68k;
 
     //*(uint32_t*)4 = 0;
@@ -2078,10 +2141,10 @@ void M68K_StartEmu(void *addr, void *fdt)
         __m68k.FP[fp].u64 = 0x7fffffffffffffffULL;
     }
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     (void)fdt;
     
-    asm volatile("mov %0, #0":"=r"(addr));
+    __asm__ volatile("mov %0, #0":"=r"(addr));
 
     __m68k.ISP.u32 = BE32(*((uint32_t*)addr));
     __m68k.PC = BE32(*((uint32_t*)addr+1));
@@ -2100,7 +2163,6 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CONTROL2 |= (emu68_ccrd  << JC2B_CCR_SCAN_DEPTH); 
     __m68k.JIT_CONTROL2 |= ((cs_dist - 1) << JC2B_CHIP_SLOWDOWN_RATIO);
     __m68k.JIT_CONTROL2 |= blitwait ? JC2F_BLITWAIT : 0;
-
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
@@ -2118,10 +2180,11 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_UNIT_COUNT = 0;
     __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
     __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
-    __m68k.JIT_CONTROL |= (EMU68_M68K_INSN_DEPTH & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
-    __m68k.JIT_CONTROL |= (EMU68_BRANCH_INLINE_DISTANCE & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
+    __m68k.JIT_CONTROL |= (emu68_icnt & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
+    __m68k.JIT_CONTROL |= (emu68_irng & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
-    *(uint32_t*)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
+    __m68k.JIT_CONTROL2 = (emu68_ccrd << JC2B_CCR_SCAN_DEPTH);
+    *(uint32_t *)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 #endif
     of_node_t *node = dt_find_node("/chosen");
     if (node)
@@ -2131,6 +2194,8 @@ void M68K_StartEmu(void *addr, void *fdt)
         {
             if (strstr(prop->op_value, "enable_cache"))
                 __m68k.CACR = BE32(0x80008000);
+
+#ifdef PISTORM_ANY_MODEL
             if (strstr(prop->op_value, "enable_c0_slow"))
                 mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
             if (strstr(prop->op_value, "enable_c8_slow"))
@@ -2138,20 +2203,6 @@ void M68K_StartEmu(void *addr, void *fdt)
             if (strstr(prop->op_value, "enable_d0_slow"))
                 mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
 
-            extern int disasm;
-            extern int debug;
-            extern int DisableFPU;
-
-            if (strstr(prop->op_value, "nofpu"))
-                DisableFPU = 1;
-
-            if (strstr(prop->op_value, "debug"))
-                debug = 1;
-
-            if (strstr(prop->op_value, "disassemble"))
-                disasm = 1;
-
-#ifdef PISTORM
             extern uint32_t swap_df0_with_dfx;
             extern uint32_t move_slow_to_chip;
 
@@ -2173,39 +2224,54 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     kprintf("[JIT] Let it go...\n");
 
-
     clear_entire_dcache();
 
-asm volatile(
+__asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */
 "       dsb     sy                  \n"
 "       isb                         \n");
 
-#ifdef PISTORM
+#ifdef PISTORM_ANY_MODEL
     extern volatile int housekeeper_enabled;
     housekeeper_enabled = 1;
 #endif
 
-    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
-    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
-    asm volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
-    asm volatile("msr tpidr_el1, %0"::"r"(0xffffffff));
+    __asm__ volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+    __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt1));
+    __asm__ volatile("mov %0, x%1":"=r"(m68k_pc):"i"(REG_PC));
+    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0"::"r"(0xffffffff));
 
-    *(void**)(&arm_code) = NULL;
+    //arm_code = NULL;
+    //*(void**)(&arm_code) = NULL;
 
     (void)unit;
 
-    /* Save the context to TPIDRRO_EL0, it will be fetched in main loop */
-    asm volatile("msr TPIDRRO_EL0, %0"::"r"(&__m68k));
+    /* Save the context to CTX_POINTER_ASM, it will be fetched in main loop */
+    __asm__ volatile("mov "CTX_POINTER_ASM", %0"::"r"(&__m68k));
+
+    /* Fire PPC */
+    extern spinlock_t PPCStart;
+    spinlock_release(&PPCStart);
 
     /* Start M68k now */
+#ifndef PISTORM_ANY_MODEL
+    __asm__ volatile("bl MainLoop" ::: "x0", "x1", "x2", "x3",
+                                   "x4", "x5", "x6", "x7",
+                                   "x8", "x9", "x10", "x11",
+                                   "x12", "x13", "x14", "x15",
+                                   "x16", "x17", "x18", "x19",
+                                   "x20", "x21", "x22", "x23",
+                                   "x24", "x25", "x26", "x27",
+                                   "x28", "x29", "x30");
+#else
     MainLoop();
+#endif
 
-    asm volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
+    __asm__ volatile("mrs %0, CNTPCT_EL0":"=r"(t2));
     uint64_t frq;
-    asm volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
-    asm volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(frq));
+    __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(cnt2));
     frq = frq & 0xffffffff;
     kprintf("[JIT] Time spent in m68k mode: %lld us\n", 1000000 * (t2-t1) / frq);
 
@@ -2222,15 +2288,14 @@ asm volatile(
     if (debug_cnt & 1)
     {
         uint64_t tmp;
-        asm volatile("mrs %0, PMEVCNTR0_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMEVCNTR0_EL0":"=r"(tmp));
         kprintf("[JIT] Number of m68k instructions executed: %lld\n", tmp);
     }
     if (debug_cnt & 2)
     {
         uint64_t tmp;
-        asm volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
+        __asm__ volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
         kprintf("[JIT] Number of m68k JIT blocks executed: %lld\n", tmp);
     }
         //kprintf("[BOOT] reg 0xf3000034 = %08x\n", LE32(*(volatile uint32_t *)0xf3000034));
 }
-

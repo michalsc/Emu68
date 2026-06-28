@@ -45,6 +45,7 @@ typedef uint32_t    Elf32_Word;
 #define ET_EXEC 2
 
 #define EM_68K  4
+#define EM_PPC  20
 
 #define R_68K_NONE  0
 #define R_68K_32    1
@@ -53,6 +54,15 @@ typedef uint32_t    Elf32_Word;
 #define R_68K_PC32  4
 #define R_68K_PC16  5
 #define R_68K_PC8   6
+
+#define R_PPC_NONE      0
+#define R_PPC_ADDR32    1
+#define R_PPC_ADDR16_LO 4
+#define R_PPC_ADDR16_HA 6
+#define R_PPC_REL24     10
+#define R_PPC_REL32     26
+#define R_PPC_REL16_LO  250
+#define R_PPC_REL16_HA  252
 
 #define EV_CURRENT  1
 
@@ -72,6 +82,20 @@ typedef struct {
     Elf32_Half      e_shnum;
     Elf32_Half      e_shstrndx;
 } Elf32_Ehdr;
+
+#define PT_NULL         0
+#define PT_LOAD         1
+
+typedef struct {
+    Elf32_Word      p_type;
+    Elf32_Off       p_offset;
+    Elf32_Addr      p_vaddr;
+    Elf32_Addr      p_paddr;
+    Elf32_Word      p_filesz;
+    Elf32_Word      p_memsz;
+    Elf32_Word      p_flags;
+    Elf32_Word      p_align;
+} ELF32_Phdr;
 
 #define SHN_UNDEF       0
 #define SHN_LORESERVE   0xff00
@@ -160,6 +184,8 @@ typedef struct {
 #define ELF32_R_TYPE(i) ((unsigned char)(i))
 #define ELF32_R_INFO(s,t) (((s)<<8)+(unsigned char)(t))
 
+static uint32_t machine;
+
 static int checkHeader(Elf32_Ehdr *eh)
 {
     if (
@@ -177,13 +203,15 @@ static int checkHeader(Elf32_Ehdr *eh)
         eh->e_ident[EI_VERSION] != EV_CURRENT ||
         !(eh->e_type == ET_REL || eh->e_type == ET_EXEC) ||
         eh->e_ident[EI_DATA] != ELFDATA2MSB ||
-        eh->e_machine != EM_68K
+        (eh->e_machine != EM_68K && eh->e_machine != EM_PPC)
     )
     {
         return 0;
     }
     else
     {
+        machine = eh->e_machine;
+
         return 1;
     }
 }
@@ -346,29 +374,95 @@ static int relocate(Elf32_Ehdr *eh, Elf32_Shdr *sh, int shrel_idx)
         }
 
         D(kprintf("[ELF] Relocating symbol %s, type ", sym->st_name ? (char*)(uintptr_t)(sh[shsymtab->sh_link].sh_addr) + sym->st_name : "<unknown>"));
-        switch (ELF32_R_TYPE(rel->r_info))
+        if (machine == EM_68K)
         {
-            case R_68K_32:
-                D(kprintf("R_68K_32"));
-                *p = s + rel->r_addend;
-                break;
+            switch (ELF32_R_TYPE(rel->r_info))
+            {
+                case R_68K_32:
+                    D(kprintf("R_68K_32"));
+                    *p = s + rel->r_addend;
+                    break;
 
-            case R_68K_PC32:
-                D(kprintf("R_68K_PC32"));
-                *p = s + rel->r_addend - (uintptr_t)p;
-                break;
+                case R_68K_PC32:
+                    D(kprintf("R_68K_PC32"));
+                    *p = s + rel->r_addend - (uintptr_t)p;
+                    break;
 
-            case R_68K_NONE:
-                D(kprintf("R_68K_NONE"));
-                break;
+                case R_68K_NONE:
+                    D(kprintf("R_68K_NONE"));
+                    break;
 
-            default:
-                kprintf("[ELF] Unknown relocation #%d type %ld\n", i, (long)ELF32_R_TYPE(rel->r_info));
-                return 0;
+                default:
+                    kprintf("[ELF] Unknown relocation #%d type %ld\n", i, (long)ELF32_R_TYPE(rel->r_info));
+                    return 0;
+            }
+        }
+        else
+        {
+            union { unsigned short *u16; uint32_t *u32; } u;
+            u.u32 = p;
+
+            switch (ELF32_R_TYPE(rel->r_info))
+            {
+                case R_PPC_ADDR32:
+                    *p = s + rel->r_addend;
+                    break;
+
+                case R_PPC_ADDR16_LO:
+                    {
+                        unsigned short *c = u.u16;
+                        *c = (s + rel->r_addend) & 0xffff;
+                    }
+                    break;
+
+                case R_PPC_ADDR16_HA:
+                    {
+                        unsigned short *c = u.u16;
+                        uint32_t temp = s + rel->r_addend;
+                        *c = temp >> 16;
+                        if ((temp & 0x8000) != 0)
+                            (*c)++;
+                    }
+                    break;
+
+                case R_PPC_REL16_LO:
+                    {
+                        unsigned short *c = u.u16;
+                        *c = (s + rel->r_addend - (uint32_t)(uintptr_t) p) & 0xffff;
+                    }
+                    break;
+
+                case R_PPC_REL16_HA:
+                    {
+                        unsigned short *c = u.u16;
+                        uint32_t temp = s + rel->r_addend - (uint32_t)(uintptr_t) p;
+                        *c = temp >> 16;
+                        if ((temp & 0x8000) != 0)
+                            (*c)++;
+                    }
+                    break;
+
+                case R_PPC_REL24:
+                    *p &= ~0x3fffffc;
+                    *p |= (s + rel->r_addend - (uint32_t)(uintptr_t) p) & 0x3fffffc;
+                    break;
+
+                case R_PPC_REL32:
+                    *p = s + rel->r_addend - (uint32_t)(uintptr_t) p;
+                    break;
+
+                case R_PPC_NONE:
+                    break;
+            }
         }
         D(kprintf(" -> %08x\n", (intptr_t)BE32(*p)));
     }
     return 1;
+}
+
+uint32_t GetELFMachine()
+{
+    return machine;
 }
 
 void * LoadELFFile(void *mem, void *load_address)
@@ -379,47 +473,67 @@ void * LoadELFFile(void *mem, void *load_address)
 
     if (GetElfSize(elf, &size_rw, &size_ro))
     {
-        Elf32_Shdr *sh = (Elf32_Shdr *)((intptr_t)mem + elf->e_shoff);
-        ptr_ro = (uintptr_t)load_address;
-        ptr_rw = ptr_ro + ((size_ro + 4095) & ~4095);
-
-        for (int i = 0; i < elf->e_shnum; i++)
+        if (elf->e_type == ET_REL)
         {
-            /* Load the symbol and string tables */
-            if (sh[i].sh_type == SHT_SYMTAB || sh[i].sh_type == SHT_STRTAB)
+            Elf32_Shdr *sh = (Elf32_Shdr *)((intptr_t)mem + elf->e_shoff);
+            ptr_ro = (uintptr_t)load_address;
+            ptr_rw = ptr_ro + ((size_ro + 4095) & ~4095);
+
+            for (int i = 0; i < elf->e_shnum; i++)
             {
-                sh[i].sh_addr = ((uintptr_t)elf + sh[i].sh_offset);
-            }
-            /* Does the section require memoy allcation? */
-            else if (sh[i].sh_flags & SHF_ALLOC)
-            {
-                /* Yup, it does. Load the hunk */
-                if (!loadHunk(mem, &sh[i]))
+                /* Load the symbol and string tables */
+                if (sh[i].sh_type == SHT_SYMTAB || sh[i].sh_type == SHT_STRTAB)
                 {
-                        return 0;
+                    sh[i].sh_addr = ((uintptr_t)elf + sh[i].sh_offset);
                 }
-                else
+                /* Does the section require memoy allcation? */
+                else if (sh[i].sh_flags & SHF_ALLOC)
                 {
-                    if (sh[i].sh_size)
+                    /* Yup, it does. Load the hunk */
+                    if (!loadHunk(mem, &sh[i]))
                     {
-                        D(kprintf("[ELF] %s section loaded at %08x\n", 
-                                  sh[i].sh_flags & SHF_WRITE ? "RW":"RO",
-                                  (void*)(intptr_t)(sh[i].sh_addr)));
+                            return 0;
+                    }
+                    else
+                    {
+                        if (sh[i].sh_size)
+                        {
+                            D(kprintf("[ELF] %s section loaded at %08x\n", 
+                                    sh[i].sh_flags & SHF_WRITE ? "RW":"RO",
+                                    (void*)(intptr_t)(sh[i].sh_addr)));
+                        }
+                    }
+                }
+            }
+
+            /* For every loaded section perform the relocations */
+            for (int i = 0; i < elf->e_shnum; i++)
+            {
+                if (sh[i].sh_type == SHT_RELA && sh[sh[i].sh_info].sh_addr)
+                {
+                    sh[i].sh_addr = ((intptr_t)elf + sh[i].sh_offset);
+                    if (!sh[i].sh_addr || !relocate(elf, sh, i))
+                    {
+                        return 0;
                     }
                 }
             }
         }
-
-        /* For every loaded section perform the relocations */
-        for (int i = 0; i < elf->e_shnum; i++)
+        else if (elf->e_type == ET_EXEC)
         {
-            if (sh[i].sh_type == SHT_RELA && sh[sh[i].sh_info].sh_addr)
-            {
-                sh[i].sh_addr = ((intptr_t)elf + sh[i].sh_offset);
-                if (!sh[i].sh_addr || !relocate(elf, sh, i))
-                {
-                    return 0;
+            if (elf->e_phoff != 0) {
+                for (int i=0; i < elf->e_phnum; i++) {
+                    ELF32_Phdr *phdr = (ELF32_Phdr *)(elf->e_phoff + i * elf->e_phentsize + (uintptr_t)elf);
+                    if (phdr->p_type == PT_LOAD) {
+                        void *from = (void *)((uintptr_t)mem + phdr->p_offset);
+                        void *to = (void *)(uintptr_t)(phdr->p_vaddr);
+                        uint32_t sz = phdr->p_filesz;
+
+                        kprintf("[ELF] Loading from %p to %p size %d\n", from, to, sz);
+                        memcpy(to, from, sz);
+                    }
                 }
+                load_address = (void*)(uintptr_t)elf->e_entry;
             }
         }
     }

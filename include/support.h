@@ -10,9 +10,14 @@
 #ifndef _SUPPORT_H
 #define _SUPPORT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdarg.h>
 
+#include "RegLock.h"
 #include "A64.h"
 
 #ifdef NULL
@@ -105,11 +110,11 @@ static inline void wr8(uintptr_t iobase, uint8_t value) {
 }
 
 static inline void dsb() {
-    asm volatile ("dsb sy");
+    __asm__ volatile ("dsb sy");
 }
 
 static inline void dmb() {
-    asm volatile ("dmb sy");
+    __asm__ volatile ("dmb sy");
 }
 
 typedef void (*putc_func)(void *data, char c);
@@ -120,6 +125,8 @@ void kprintf(const char * format, ...);
 void arm_flush_cache(uintptr_t addr, uint32_t length);
 void arm_icache_invalidate(uintptr_t addr, uint32_t length);
 void arm_dcache_invalidate(uintptr_t addr, uint32_t length);
+void arm_flush_dcache_for_jit(uintptr_t addr, uint32_t length);
+void arm_flush_icache_for_jit(uintptr_t addr, uint32_t length);
 void clear_entire_dcache();
 const char *remove_path(const char *in);
 size_t strlen(const char *c);
@@ -132,6 +139,7 @@ char *strstr(const char *str, const char *find);
 void bzero(void *ptr, size_t sz);
 void platform_init();
 void platform_post_init();
+void platform_report_stealth();
 void setup_serial();
 const char * find_token(const char * string, const char * token);
 
@@ -173,7 +181,12 @@ struct Result64 sldiv(int64_t n, int64_t d);
 #include "support_rpi.h"
 #endif
 
-#define likely(x)      __builtin_expect(!!(x), 1) 
-#define unlikely(x)    __builtin_expect(!!(x), 0)
+#define likely(x)       __builtin_expect(!!(x), 1) 
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#define __used__        __attribute__((used))
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _SUPPORT_H */

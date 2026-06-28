@@ -29,7 +29,7 @@ uint32_t GetHunkFileSize(void *buffer)
     uint32_t last_to_load = 0;
     uint32_t *words = buffer;
 
-    kprintf("[HUNK] Loading Hunk file from address %p\n", buffer);
+    D(kprintf("[HUNK] Loading Hunk file from address %p\n", buffer));
 
     if (BE32(words[0]) != 0x3f3 || BE32(words[1]) != 0)
     {
@@ -54,7 +54,7 @@ uint32_t GetHunkFileSize(void *buffer)
     return total_size;
 }
 
-void * LoadHunkFile(void *buffer, void *p)
+void * LoadHunkFile(void *buffer, void *p, void *virt)
 {
     uint32_t *words = buffer;
     struct SegList * hunks = NULL;
@@ -66,9 +66,11 @@ void * LoadHunkFile(void *buffer, void *p)
     intptr_t ref_base = 0;
     intptr_t base = 0;
 
+    if (virt == NULL) virt = p;
+
     pool = (char *)p;
 
-    kprintf("[HUNK] Loading Hunk file from address %p\n", buffer);
+    D(kprintf("[HUNK] Loading Hunk file from address %p\n", buffer));
 
     if (BE32(words[0]) != 0x3f3 || BE32(words[1]) != 0)
     {
@@ -84,7 +86,7 @@ void * LoadHunkFile(void *buffer, void *p)
 
     words = &words[5];
 
-    D(kprintf("[HUNK] Memory pool starts at %08x\n", pool));
+    D(kprintf("[HUNK] Memory pool starts at %p, virtual base %p\n", pool, virt));
 
     /* Pre-allocate memory for all loadable hunks */
     for (unsigned i = 0; i < last_to_load - first_to_load + 1; i++)
@@ -98,20 +100,20 @@ void * LoadHunkFile(void *buffer, void *p)
         if (hunks == NULL)
             hunks = h;
         if (prevhunk != NULL)
-            *(uint32_t*)prevhunk = (uint32_t)((intptr_t)&h->h_Next);
+            *(uint32_t*)prevhunk = (uint32_t)((intptr_t)&h->h_Next - (intptr_t)p + (intptr_t)virt);
         prevhunk = &h->h_Next;
     }
 
-    if (1)
+    if (0)
     {
         void *segments = &hunks->h_Next;
 
         kprintf("[HUNK] Dumping hunk list:\n");
         while (segments != NULL)
         {
-            kprintf("[HUNK]   Hunk %08x, size %d, next %08x\n",
+            kprintf("[HUNK]   Hunk %p, size %d, next %p\n",
                 segments, ((uint32_t*)segments)[-1], *(uint32_t*)segments);
-            segments = (void*)(intptr_t)(*(uint32_t*)segments);
+            segments = (void*)((intptr_t)(*(uint32_t*)segments));
         }
     }
 
@@ -127,7 +129,7 @@ void * LoadHunkFile(void *buffer, void *p)
             case 0x3e9:
                 if (current_block >= first_to_load)
                 {
-                    D(kprintf("[HUNK] Loading block %d (code hunk) to %08x with size of %d words\n",
+                    D(kprintf("[HUNK] Loading block %d (code hunk) to %p with size of %d words\n",
                         current_block, (void*)&h->h_Data, BE32(words[1])));
                     DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
@@ -140,8 +142,8 @@ void * LoadHunkFile(void *buffer, void *p)
             case 0x3ea:
                 if (current_block >= first_to_load)
                 {
-                    D(kprintf("[HUNK] Loading block %d (data hunk) to %08x with size of %d words\n",
-                        current_block, (void*)h->h_Data, BE32(words[1])));
+                    D(kprintf("[HUNK] Loading block %d (data hunk) to %p with size of %d words\n",
+                        current_block, (void*)&h->h_Data, BE32(words[1])));
                     DuffCopy((void*)&h->h_Data, &words[2], BE32(words[1]));
                 }
                 else {
@@ -182,10 +184,10 @@ void * LoadHunkFile(void *buffer, void *p)
                         {
                             segments = (void *)(intptr_t)*(uint32_t*)segments;
                         }
-                        ref_base = (intptr_t)segments + 4;
+                        ref_base = (intptr_t)segments + 4 + (intptr_t)virt - (intptr_t)p;
                         words += 2;
 
-                        D(kprintf("[HUNK]   section %d (base %08x):\n", refcnt, ref_base));
+                        D(kprintf("[HUNK] section %d (base phys %p virt %p):\n", refcnt, ref_base - (intptr_t)virt + (intptr_t)p, ref_base));
 
                         while(count--)
                         {

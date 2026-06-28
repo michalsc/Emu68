@@ -10,10 +10,18 @@
 #ifndef _MMU_H
 #define _MMU_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 void mmu_init();
 uintptr_t mmu_virt2phys(uintptr_t addr);
 void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low, uint32_t attr_high);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _MMU_H */

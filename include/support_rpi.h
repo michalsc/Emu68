@@ -85,5 +85,6 @@ struct Size { uint16_t width; uint16_t height; };
 struct Size get_display_size();
 void init_display(struct Size dimensions, void **framebuffer, uint32_t *pitch);
 void get_vc_memory(void **base, uint32_t *size);
+uint32_t enable_unicam_domain();
 
 #endif // _SUPPORT_RPI_H
