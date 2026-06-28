@@ -808,34 +808,6 @@ char * strrchr(char *s, int c)
     return retval;
 }
 
-char * strchr(char *s, int c)
-{
-    while(1) {
-        if (*s == c)
-            return s;
-        
-        if (*s++ == 0)
-            break;
-    }
-
-    return NULL;
-}
-
-char * strrchr(char *s, int c)
-{
-    char *retval = NULL;
-
-    while(1) {
-        if (*s == c)
-            retval = s;
-        
-        if (*s++ == 0)
-            break;
-    }
-
-    return retval;
-}
-
 void * tlsf;
 void * jit_tlsf;
 
