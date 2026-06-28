@@ -287,8 +287,6 @@ static inline __attribute__((always_inline)) void REMOVE_HEADER(tlsf_t *tlsf, bh
 
     tlsf->free_size -= GET_SIZE(b);
 
-    tlsf->free_size -= GET_SIZE(b);
-
     if (tlsf->matrix[fl][sl] == b)
     {
         tlsf->matrix[fl][sl] = b->free_node.next;
