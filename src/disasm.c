@@ -233,7 +233,7 @@ void disasm_print_arm_only(uint32_t *arm_addr)
         if (insn_arm[i].address == (uintptr_t)arm_addr)
             kprintf("[JIT:SYS] %p: --> %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
         else
-            kprintf("[JIT_SYS] %p:     %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
+            kprintf("[JIT:SYS] %p:     %7s %21s", insn_arm[i].address, insn_arm[i].mnemonic, insn_arm[i].op_str);
         kprintf("\n");
     }
 
