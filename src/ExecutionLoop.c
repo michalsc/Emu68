@@ -110,8 +110,13 @@ void LRU_InvalidateByARMAddress(uint32_t *addr)
     {
         if (LRU_cache[i].arm == addr)
         {
+            const uint32_t set = i / EMU68_LRU_WAY_COUNT;
+            const uint32_t way = i % EMU68_LRU_WAY_COUNT;
+
             LRU_cache[i].arm = (void*)0;
             LRU_cache[i].m68k = 0xffffffff;
+            
+            LRU_alloc[set] |= (0x80000000 >> way);
             break;
         }
     }
