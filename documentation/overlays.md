@@ -160,3 +160,25 @@ It controls the device driver through following parameters:
 | ``irq``         | Enables using of IRQs by the driver                                        |
 | ``dma``         | Enables using of DMA by the driver, auto-enables IRQs too                  |
 
+### unicam.dtbo
+
+This is the overlay to enable and control unicam interface which allows using either Framethrower
+or C790 compatible HDMI to CSI converters. Please note that due to large number of parameters, this
+overlay may eventually need the ``dtparam=`` entries. Following parameters are most important:
+
+| Parameter   | Description                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| ``boot``    | Enable Framethrower/c790 on boot                                                                   |
+| ``w=num``   | Limit visible width of the image to ``num`` pixels                                                 |
+| ``h=num``   | Limit visible height of the image to ``num`` pixels                                                |
+| ``x=num``   | If visible image width is smaller than the full width, define horizontal offset to ``num`` pixels  |
+| ``y=num``   | If visible image height is smaller than the full heightz, define vertical offset to ``num`` pixels |
+| ``asp=num`` | Correct aspect ratio of the image, 1000 is default, other values stretch the image                 |
+| ``smooth``  | Enable smooth upscaling of the image                                                               |
+| ``int``     | Allow only integer upscaling (x1, x2, etc)                                                         |
+| ``ph=num``  | Adjust phase parameter for upscaler with ``num`` between 0 and 255                                 |
+| ``b=num``   | Adjust B parameter of Mitchell-Netravali upscaler with ``num`` between 0 and 1000                  |
+| ``c=num``   | Adjust C parameter of Mitchell-Netravali upscaler with ``num`` between 0 and 1000                  |
+| ``sc=num``  | Adjust Framethrower scanlines for non-laced modes with ``num`` between 0 and 4                     |
+| ``scl=num`` | Adjust Framethrower scanlines for laced modes with ``num`` between 0 and 4                         |
+| ``type=x``  | Allows to switch from default Framethrower mode (``ft``) to C790 mode (``c790``)                   |
