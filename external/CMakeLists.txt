@@ -36,5 +36,4 @@ set(LIBDEFLATE_USE_SHARED_LIB OFF CACHE BOOL
        of the static library")
 
 add_subdirectory(capstone EXCLUDE_FROM_ALL)
-#add_subdirectory(tiny-stl EXCLUDE_FROM_ALL)
 add_subdirectory(libdeflate EXCLUDE_FROM_ALL)
