@@ -888,6 +888,8 @@ void boot(void *dtree)
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
+    int is_bcm2711 = !!strstr(dt_find_property(NULL, "compatible")->op_value, "bcm2711");
+
     /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
     if ((e = dt_find_node("/emu68/brcm-emmc")) == NULL)
     {
@@ -899,7 +901,7 @@ void boot(void *dtree)
         uint32_t verbose = 0;
 
         /* If not injected by user, make brcm-emmc enabled on bcm2711 (Pi4, CM4, Pi400), disabled otherwise */
-        if (strstr(dt_find_property(NULL, "compatible")->op_value, "bcm2711") != NULL)
+        if (is_bcm2711)
         {
             dt_add_property(e, "status", "okay", 5);
         }
@@ -924,7 +926,7 @@ void boot(void *dtree)
         uint32_t verbose = 0;
 
         /* If not injected by user, make brcm-sdhc disabled on bcm2711 (Pi4, CM4, Pi400), enabled otherwise */
-        if (strstr(dt_find_property(NULL, "compatible")->op_value, "bcm2711") == NULL)
+        if (!is_bcm2711)
         {
             dt_add_property(e, "status", "okay", 5);
         }
