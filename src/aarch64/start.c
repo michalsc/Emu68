@@ -888,6 +888,8 @@ void boot(void *dtree)
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
+    int is_bcm2711 = !!strstr(dt_find_property(NULL, "compatible")->op_value, "bcm2711");
+
     /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
     if ((e = dt_find_node("/emu68/brcm-emmc")) == NULL)
     {
@@ -897,13 +899,23 @@ void boot(void *dtree)
         uint32_t speed = 50;
         uint32_t access = 1;
         uint32_t verbose = 0;
-        dt_add_property(e, "status", "okay", 5);
+
+        /* If not injected by user, make brcm-emmc enabled on bcm2711 (Pi4, CM4, Pi400), disabled otherwise */
+        if (is_bcm2711)
+        {
+            dt_add_property(e, "status", "okay", 5);
+        }
+        else
+        {
+            dt_add_property(e, "status", "disabled", 9);
+        }
+        
         dt_add_property(e, "hs-clock-mhz", &speed, 4);
         dt_add_property(e, "whole-drive-access", &access, 4);
         dt_add_property(e, "verbose", &verbose, 4);
     }
 
-    /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
+    /* If /emu68/brcm-sdhc does not exist yet (was not loaded from overlay) create it now with sane defaults */
     if ((e = dt_find_node("/emu68/brcm-sdhc")) == NULL)
     {
         e = dt_make_node("brcm-sdhc");
@@ -912,7 +924,17 @@ void boot(void *dtree)
         uint32_t speed = 50;
         uint32_t access = 1;
         uint32_t verbose = 0;
-        dt_add_property(e, "status", "okay", 5);
+
+        /* If not injected by user, make brcm-sdhc disabled on bcm2711 (Pi4, CM4, Pi400), enabled otherwise */
+        if (!is_bcm2711)
+        {
+            dt_add_property(e, "status", "okay", 5);
+        }
+        else
+        {
+            dt_add_property(e, "status", "disabled", 9);
+        }
+
         dt_add_property(e, "hs-clock-mhz", &speed, 4);
         dt_add_property(e, "whole-drive-access", &access, 4);
         dt_add_property(e, "verbose", &verbose, 4);
