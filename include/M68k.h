@@ -617,25 +617,26 @@ int M68K_GetLineFLength(uint16_t *insn_stream);
 uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
 
 typedef uint32_t (*EMIT_Function)(struct TranslatorContext *ctx, uint16_t opcode);
+typedef uint32_t (*INTERPRET_Function)(uint16_t opcode, struct M68KState *state);
 
 struct OpcodeDef {
-    EMIT_Function   od_Emit;
-    void *          od_Interpret;   // Not used yet.
-    uint16_t        od_SRNeeds;
-    uint16_t        od_SRSets;
-    uint8_t         od_BaseLength;
-    uint8_t         od_HasEA;
-    uint8_t         od_OpSize;
+    EMIT_Function       od_Emit;
+    INTERPRET_Function  od_Interpret;   // Not used yet.
+    uint16_t            od_SRNeeds;
+    uint16_t            od_SRSets;
+    uint8_t             od_BaseLength;
+    uint8_t             od_HasEA;
+    uint8_t             od_OpSize;
 };
 
 struct FPUOpcodeDef {
-    EMIT_Function   od_Emit;
-    void *          od_Interpret;   // Not used yet.
-    uint32_t        od_FPSRNeeds;
-    uint32_t        od_FPSRSets;
-    uint8_t         od_BaseLength;
-    uint8_t         od_HasEA;
-    uint8_t         od_OpSize;
+    EMIT_Function       od_Emit;
+    INTERPRET_Function  od_Interpret;   // Not used yet.
+    uint32_t            od_FPSRNeeds;
+    uint32_t            od_FPSRSets;
+    uint8_t             od_BaseLength;
+    uint8_t             od_HasEA;
+    uint8_t             od_OpSize;
 };
 
 void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
