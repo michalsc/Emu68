@@ -110,6 +110,52 @@ uint32_t EMIT_BRA(struct TranslatorContext *ctx, uint16_t opcode)
 
 uint32_t EMIT_BSR(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_BRA")));
 
+uint32_t INTERPRET_BRA(uint16_t opcode, struct M68KState *state)
+{
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+    }
+
+    pc += bra_off;
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BSR(uint16_t opcode, struct M68KState *state)
+{
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t ret_pc = pc;
+    uint32_t * a7 = (uint32_t*)(uintptr_t)state->A[7].u32;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        ret_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        ret_pc += 4;
+    }
+
+    pc += bra_off;
+    state->PC = pc;
+    *--a7 = ret_pc;
+    state->A[7].u32 = (uint32_t)(uintptr_t)a7;
+
+    return pc;
+}
+
 uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
 {
     uint32_t *tmpptr;
@@ -283,23 +329,415 @@ uint32_t EMIT_Bcc(struct TranslatorContext *ctx, uint16_t opcode)
     return 1;
 }
 
+uint32_t INTERPRET_BEQ(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_Z) != 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BNE(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_Z) == 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BMI(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_N) != 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BPL(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_N) == 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BCS(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_C) != 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BCC(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_C) == 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BVS(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_V) != 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BVC(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & SR_V) == 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BHI(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & (SR_C | SR_Z)) == 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BLS(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if ((cc & (SR_C | SR_Z)) != 0) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BGE(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if (((cc & SR_N) >> 3) == ((cc & SR_V) >> 2)) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BLT(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if (((cc & SR_N) >> 3) != ((cc & SR_V) >> 2)) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BGT(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if (((cc & SR_Z) == 0) && (((cc & SR_N) >> 3) == ((cc & SR_V) >> 2))) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
+uint32_t INTERPRET_BLE(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t cc = state->SR & 0x0f;
+    int32_t bra_off = (int8_t)(opcode & 0xff);
+    uint32_t pc = state->PC + 2;
+    uint32_t next_pc = pc;
+
+    if (bra_off == 0)
+    {
+        bra_off = *(int16_t*)(uintptr_t)pc;
+        next_pc += 2;
+    }
+    else if (bra_off == -1)
+    {
+        bra_off = *(int32_t*)(uintptr_t)pc;
+        next_pc += 4;
+    }
+
+    if (((cc & SR_Z) != 0) || (((cc & SR_N) >> 3) != ((cc & SR_V) >> 2))) {
+        pc += bra_off;
+    } else {
+        pc = next_pc;
+    }
+    state->PC = pc;
+
+    return pc;
+}
+
 static struct OpcodeDef InsnTable[16] = {
-    [0]         = { EMIT_BRA, NULL, 0, 0, 0, 0, 0 },
-    [1]         = { EMIT_BSR, NULL, 0, 0, 0, 0, 0 },
-    [M_CC_HI]   = { EMIT_Bcc, NULL, SR_ZC, 0, 0, 0, 0 },
-    [M_CC_LS]   = { EMIT_Bcc, NULL, SR_ZC, 0, 0, 0, 0 },
-    [M_CC_CC]   = { EMIT_Bcc, NULL, SR_C, 0, 0, 0, 0 },
-    [M_CC_CS]   = { EMIT_Bcc, NULL, SR_C, 0, 0, 0, 0 },
-    [M_CC_NE]   = { EMIT_Bcc, NULL, SR_Z, 0, 0, 0, 0 },
-    [M_CC_EQ]   = { EMIT_Bcc, NULL, SR_Z, 0, 0, 0, 0 },
-    [M_CC_VC]   = { EMIT_Bcc, NULL, SR_V, 0, 0, 0, 0 },
-    [M_CC_VS]   = { EMIT_Bcc, NULL, SR_V, 0, 0, 0, 0 },
-    [M_CC_PL]   = { EMIT_Bcc, NULL, SR_N, 0, 0, 0, 0 },
-    [M_CC_MI]   = { EMIT_Bcc, NULL, SR_N, 0, 0, 0, 0 },
-    [M_CC_GE]   = { EMIT_Bcc, NULL, SR_NV, 0, 0, 0, 0 },
-    [M_CC_LT]   = { EMIT_Bcc, NULL, SR_NV, 0, 0, 0, 0 },
-    [M_CC_GT]   = { EMIT_Bcc, NULL, SR_NZV, 0, 0, 0, 0 },
-    [M_CC_LE]   = { EMIT_Bcc, NULL, SR_NZV, 0, 0, 0, 0 }
+    [0]         = { EMIT_BRA, INTERPRET_BRA, 0, 0, 0, 0, 0 },
+    [1]         = { EMIT_BSR, INTERPRET_BSR, 0, 0, 0, 0, 0 },
+    [M_CC_HI]   = { EMIT_Bcc, INTERPRET_BHI, SR_ZC, 0, 0, 0, 0 },
+    [M_CC_LS]   = { EMIT_Bcc, INTERPRET_BLS, SR_ZC, 0, 0, 0, 0 },
+    [M_CC_CC]   = { EMIT_Bcc, INTERPRET_BCC, SR_C, 0, 0, 0, 0 },
+    [M_CC_CS]   = { EMIT_Bcc, INTERPRET_BCS, SR_C, 0, 0, 0, 0 },
+    [M_CC_NE]   = { EMIT_Bcc, INTERPRET_BNE, SR_Z, 0, 0, 0, 0 },
+    [M_CC_EQ]   = { EMIT_Bcc, INTERPRET_BEQ, SR_Z, 0, 0, 0, 0 },
+    [M_CC_VC]   = { EMIT_Bcc, INTERPRET_BVC, SR_V, 0, 0, 0, 0 },
+    [M_CC_VS]   = { EMIT_Bcc, INTERPRET_BVS, SR_V, 0, 0, 0, 0 },
+    [M_CC_PL]   = { EMIT_Bcc, INTERPRET_BPL, SR_N, 0, 0, 0, 0 },
+    [M_CC_MI]   = { EMIT_Bcc, INTERPRET_BMI, SR_N, 0, 0, 0, 0 },
+    [M_CC_GE]   = { EMIT_Bcc, INTERPRET_BGE, SR_NV, 0, 0, 0, 0 },
+    [M_CC_LT]   = { EMIT_Bcc, INTERPRET_BLT, SR_NV, 0, 0, 0, 0 },
+    [M_CC_GT]   = { EMIT_Bcc, INTERPRET_BGT, SR_NZV, 0, 0, 0, 0 },
+    [M_CC_LE]   = { EMIT_Bcc, INTERPRET_BLE, SR_NZV, 0, 0, 0, 0 }
 };
 
 uint32_t EMIT_line6(struct TranslatorContext *ctx)

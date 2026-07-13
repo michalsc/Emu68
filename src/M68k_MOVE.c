@@ -66,6 +66,26 @@ uint32_t EMIT_moveq(struct TranslatorContext *ctx)
     return insn_consumed;
 }
 
+uint32_t INTERPRET_MOVEQ(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t dn = (opcode >> 9) & 7;
+    int8_t imm = opcode & 0xff;
+    uint8_t sr = 0;
+
+    if (imm == 0) {
+        sr = SR_Z;
+    } else if (imm < 0) {
+        sr = SR_N;
+    }
+
+    state->D[dn].s32 = imm;
+
+    state->SR = (state->SR & 0xfff0) | sr;
+    state->PC += 2;
+
+    return state->PC;
+}
+
 uint32_t GetSR_Line7(uint16_t opcode)
 {
     /* Line7 is moveq, if bit8 == 0, otherwise illegal */

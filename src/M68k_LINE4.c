@@ -15,6 +15,86 @@
 
 extern uint32_t insn_count;
 
+uint32_t EMIT_CLR_B_REG(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+
+    uint8_t dn = RA_MapM68kRegister(ctx, opcode & 7);
+    RA_SetDirtyM68kRegister(ctx, opcode & 7);
+    EMIT(ctx, bic_immed(dn, dn, 8, 0));
+
+    EMIT_AdvancePC(ctx, 2);
+
+    if (update_mask)
+    {
+        uint8_t cc = RA_ModifyCC(ctx);
+        if (update_mask & ~SR_Z)
+        {
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            EMIT_ClearFlags(ctx, cc, alt_flags);
+        }
+        if (update_mask & SR_Z)
+            EMIT_SetFlags(ctx, cc, SR_Z);
+    }
+
+    return 1;
+}
+
+uint32_t EMIT_CLR_W_REG(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+
+    uint8_t dn = RA_MapM68kRegister(ctx, opcode & 7);
+    RA_SetDirtyM68kRegister(ctx, opcode & 7);
+    EMIT(ctx, bic_immed(dn, dn, 16, 0));
+
+    EMIT_AdvancePC(ctx, 2);
+
+    if (update_mask)
+    {
+        uint8_t cc = RA_ModifyCC(ctx);
+        if (update_mask & ~SR_Z)
+        {
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            EMIT_ClearFlags(ctx, cc, alt_flags);
+        }
+        if (update_mask & SR_Z)
+            EMIT_SetFlags(ctx, cc, SR_Z);
+    }
+
+    return 1;
+}
+
+uint32_t EMIT_CLR_L_REG(struct TranslatorContext *ctx, uint16_t opcode)
+{
+    uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+
+    uint8_t dn = RA_MapM68kRegisterForWrite(ctx, opcode & 7);
+    EMIT(ctx, mov_reg(dn, WZR));
+
+    EMIT_AdvancePC(ctx, 2);
+
+    if (update_mask)
+    {
+        uint8_t cc = RA_ModifyCC(ctx);
+        if (update_mask & ~SR_Z)
+        {
+            uint8_t alt_flags = update_mask;
+            if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
+                alt_flags ^= 3;
+            EMIT_ClearFlags(ctx, cc, alt_flags);
+        }
+        if (update_mask & SR_Z)
+            EMIT_SetFlags(ctx, cc, SR_Z);
+    }
+
+    return 1;
+}
+
 uint32_t EMIT_CLR(struct TranslatorContext *ctx, uint16_t opcode)
 {
     uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
@@ -77,6 +157,42 @@ uint32_t EMIT_CLR(struct TranslatorContext *ctx, uint16_t opcode)
     }
 
     return 1;
+}
+
+uint32_t INTERPRET_CLR_B_REG(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t dn = opcode & 7;
+
+    state->D[dn].u8[3] = 0;
+    state->SR &= ~(SR_N | SR_Z | SR_V | SR_C);
+    state->SR |= SR_Z;
+    state->PC += 2;
+    
+    return state->PC;
+}
+
+uint32_t INTERPRET_CLR_W_REG(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t dn = opcode & 7;
+
+    state->D[dn].u16[1] = 0;
+    state->SR &= ~(SR_N | SR_Z | SR_V | SR_C);
+    state->SR |= SR_Z;
+    state->PC += 2;
+    
+    return state->PC;
+}
+
+uint32_t INTERPRET_CLR_L_REG(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t dn = opcode & 7;
+
+    state->D[dn].u32 = 0;
+    state->SR &= ~(SR_N | SR_Z | SR_V | SR_C);
+    state->SR |= SR_Z;
+    state->PC += 2;
+    
+    return state->PC;
 }
 
 uint32_t EMIT_NOT(struct TranslatorContext *ctx, uint16_t opcode)
@@ -1396,6 +1512,28 @@ static uint32_t EMIT_SWAP(struct TranslatorContext *ctx, uint16_t opcode)
     return 1;
 }
 
+uint32_t INTERPRET_SWAP(uint16_t opcode, struct M68KState *state)
+{
+    uint8_t dn = opcode & 7;
+    uint8_t sr = 0;
+    uint32_t reg = state->D[dn].u32;
+    
+    if (reg == 0) {
+        sr = SR_Z;
+    } else {
+        reg = (reg >> 16) | (reg << 16);
+        if (reg & 0x80000000) {
+            sr = SR_N;
+        }
+        state->D[dn].u32 = reg;
+    }
+
+    state->SR = (state->SR & 0xfff0) | sr;
+    state->PC += 2;
+
+    return state->PC;
+}
+
 static uint32_t EMIT_ILLEGAL(struct TranslatorContext *ctx, uint16_t opcode)
 {
     (void)opcode;
@@ -1536,6 +1674,13 @@ static uint32_t EMIT_NOP(struct TranslatorContext *ctx, uint16_t opcode)
     EMIT_FlushPC(ctx);
 
     return 1;
+}
+
+uint32_t INTERPRET_NOP(uint16_t opcode, struct M68KState *state)
+{
+    (void)opcode;
+    state->PC += 2;
+    return state->PC;
 }
 
 static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
@@ -1851,6 +1996,22 @@ static uint32_t EMIT_RTS(struct TranslatorContext *ctx, uint16_t opcode)
         EMIT(ctx, INSN_TO_LE(0xffffffff));
 
     return 1;
+}
+
+uint32_t INTERPRET_RTS(uint16_t opcode, struct M68KState *state)
+{
+    (void)opcode;
+
+    uint32_t pc;
+    uint32_t a7 = state->A[7].u32;
+
+    pc = *(uint32_t *)(uintptr_t)a7;
+    a7 += 4;
+
+    state->PC = pc;
+    state->A[7].u32 = a7;
+
+    return pc;
 }
 
 static uint32_t EMIT_TRAPV(struct TranslatorContext *ctx, uint16_t opcode)
@@ -2964,16 +3125,16 @@ static struct OpcodeDef InsnTable[4096] = {
     [04010 ... 04017] = { EMIT_LINK32, NULL, 0, 0, 3, 0, 0 },
     [07120 ... 07127] = { EMIT_LINK16, NULL, 0, 0, 2, 0, 0 },
 
-    [04100 ... 04107] = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04100 ... 04107] = { EMIT_SWAP, INTERPRET_SWAP, 0, SR_NZVC, 1, 0, 0 },
     [0xafc]           = { EMIT_ILLEGAL, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
     [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
     [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
-    [0xe71]           = { EMIT_NOP, NULL, 0, 0, 1, 0, 0 },
+    [0xe71]           = { EMIT_NOP, INTERPRET_NOP, 0, 0, 1, 0, 0 },
     [0xe72]           = { EMIT_STOP, NULL, SR_S, SR_ALL, 2, 0, 0 },
     [0xe73]           = { EMIT_RTE, NULL, SR_S, SR_ALL, 1, 0, 0 },
     [0xe74]           = { EMIT_RTD, NULL, 0, 0, 2, 0, 0 },
-    [0xe75]           = { EMIT_RTS, NULL, 0, 0, 1, 0, 0 },
+    [0xe75]           = { EMIT_RTS, INTERPRET_RTS, 0, 0, 1, 0, 0 },
     [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe77]           = { EMIT_RTR, NULL, 0, SR_CCR, 1, 0, 0 },
     [0xe7a ... 0xe7b] = { EMIT_MOVEC, NULL, SR_S, 0, 2, 0, 4 },
@@ -2998,9 +3159,9 @@ static struct OpcodeDef InsnTable[4096] = {
     [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
     [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
 
-    [01000 ... 01007] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [01100 ... 01107] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [01200 ... 01207] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [01000 ... 01007] = { EMIT_CLR_B_REG, INTERPRET_CLR_B_REG, 0, SR_NZVC, 1, 0, 1 },
+    [01100 ... 01107] = { EMIT_CLR_W_REG, INTERPRET_CLR_W_REG, 0, SR_NZVC, 1, 0, 2 },
+    [01200 ... 01207] = { EMIT_CLR_L_REG, INTERPRET_CLR_L_REG, 0, SR_NZVC, 1, 0, 4 },
 
     [01020 ... 01047] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 1 },
     [01120 ... 01147] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 2 },
@@ -3148,6 +3309,17 @@ static struct OpcodeDef InsnTable[4096] = {
     [07450 ... 07474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
 
 };
+
+uint32_t INTERPRET_line4(struct M68KState *state)
+{
+    uint16_t opcode = *(uint16_t *)(uintptr_t)state->PC;
+
+    if (InsnTable[opcode & 0xfff].od_Interpret) {
+        return InsnTable[opcode & 0xfff].od_Interpret(opcode, state);
+    } else {
+        return -1;
+    }
+}
 
 uint32_t EMIT_line4(struct TranslatorContext *ctx)
 {
