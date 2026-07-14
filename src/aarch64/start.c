@@ -888,7 +888,7 @@ void boot(void *dtree)
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
-    int is_bcm2711 = !!strstr(dt_find_property(NULL, "compatible")->op_value, "bcm2711");
+    int is_bcm2711 = !!dt_find_node("/scb");
 
     /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
     if ((e = dt_find_node("/emu68/brcm-emmc")) == NULL)
