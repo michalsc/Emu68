@@ -602,9 +602,9 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
 #endif
     if (val_FPIAR != 0xffffffff)
     {
-        EMIT_LoadImmediate(&ctx, 0, val_FPIAR);
+        EMIT_LoadImmediate(&ctx, 1, val_FPIAR);
         EMIT(&ctx,
-            mov_reg_to_simd(REG_FPIAR, 0)
+            mov_reg_to_simd(REG_FPIAR, 1)
         );
     }
 
