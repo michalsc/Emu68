@@ -641,6 +641,9 @@ struct FPUOpcodeDef {
 
 void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
+#ifdef __cplusplus
+#define restrict __restrict__
+#endif
 void EMIT_InjectDebugStringV(struct TranslatorContext *ctx, const char * restrict format, va_list args);
 void EMIT_InjectDebugString(struct TranslatorContext *ctx, const char * restrict format, ...);
 
@@ -664,11 +667,11 @@ uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
 
-void LRU_InsertBlock(struct M68KTranslationUnit *unit);
+//void LRU_InsertBlock(struct M68KTranslationUnit *unit);
 void LRU_InvalidateAll();
 void LRU_InvalidateByM68kAddress(uint32_t addr);
 void LRU_InvalidateByARMAddress(uint32_t *addr);
-uint32_t *LRU_FindBlock(uint32_t address);
+//uint32_t *LRU_FindBlock(uint32_t address);
 void LRU_MarkForVerify(uint32_t *addr);
 
 extern uint8_t host_flags;

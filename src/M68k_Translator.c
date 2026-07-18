@@ -283,6 +283,7 @@ void EMIT_LocalExit(struct TranslatorContext *ctx, uint32_t insn_fixup)
 
 uint16_t * m68k_entry_point;
 uint8_t host_flags;
+uint32_t cacr_modified;
 
 struct DisasmOut {
     uint16_t *do_M68kAddr;
@@ -322,6 +323,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
     reg_Load96 = 0xff;
     reg_Save96 = 0xff;
     val_FPIAR = 0xffffffff;
+    cacr_modified = 0;
 
     int debug = 0;
     int disasm = 0;
@@ -612,6 +614,11 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
     {
         uint32_t *tmpptr = ctx.tc_CodePtr;
         EMIT(&ctx, cbz_64(tmp2, ctx.tc_CodeStart - tmpptr));
+    }
+    
+    if (cacr_modified)
+    {
+        EMIT_LoadImmediate(&ctx, 0, 0);
     }
     EMIT(&ctx, bx_lr());
     

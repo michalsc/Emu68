@@ -10,21 +10,25 @@
 #include <M68k.h>
 #include <support.h>
 #include <config.h>
+
+#include "RegisterMapping.h"
+
 #ifdef PISTORM_CLASSIC
 #define PS_PROTOCOL_IMPL
 #include "pistorm/ps_protocol.h"
 #endif
 
-register uint32_t PC __asm__("w18");
-register void (*ARMCode)() __asm__("x12");
+register uint64_t (*ARMCode)() __asm__("x12");
 extern uint32_t EPOCH;
 
+#if 0
 static inline uint32_t getLastPC()
 {
     uint32_t lastPC;
     __asm__ volatile("mov %w0, "CTX_LAST_PC_ASM"":"=r"(lastPC));
     return lastPC;
 }
+#endif
 
 static inline struct M68KState *getCTX()
 {
@@ -65,7 +69,7 @@ uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT];
 #define ADDR_2_SET(addr) (((addr) >> 4) % EMU68_LRU_SET_COUNT)
 #define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
 
-uint32_t *LRU_FindBlock(uint32_t address)
+static void LRU_FindBlock(uint32_t address)
 {
     const uint32_t set = ADDR_2_SET(address);
     struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
@@ -75,18 +79,20 @@ uint32_t *LRU_FindBlock(uint32_t address)
     {
         if (likely(e[i].m68k == address))
         {
+            ARMCode = (void*)e[i].arm;
+
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
-            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
+            asm volatile ("prfm plil1keep, [%0]"::"r"(ARMCode));
 
             uint32_t current = LRU_alloc[set] & ~mask; 
             if (current >> (32 - EMU68_LRU_WAY_COUNT) == 0) current = ~mask;
             LRU_alloc[set] = current;
             
-            return e[i].arm;
+            return;
         }
     }
 
-    return NULL;
+    ARMCode = NULL;
 }
 
 void LRU_MarkForVerify(uint32_t *addr)
@@ -170,13 +176,13 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
     LRU_alloc[set] = current;
 }
 
-static inline uint32_t * FindUnitQuick()
+static void FindUnitQuick()
 {
 #if EMU68_USE_LRU
-    uint32_t *code = LRU_FindBlock(PC);
+    LRU_FindBlock(PC);
 
-    if (likely(code != NULL))
-        return code;
+    if (likely(ARMCode != NULL))
+        return;
 #endif
 
     union {
@@ -213,11 +219,12 @@ static inline uint32_t * FindUnitQuick()
 #if EMU68_USE_LRU
             LRU_InsertBlock(un.unit);
 #endif
-            return un.unit->mt_ARMEntryPoint;
+            ARMCode = (void*)un.unit->mt_ARMEntryPoint;
+            return;
         }
     }
 
-    return NULL;
+    ARMCode = NULL;
 }
 
 static inline struct M68KTranslationUnit *FindUnit()
@@ -296,9 +303,228 @@ static inline int GetIPLLevel()
 static inline int GetIPLLevel() { return 0; }
 #endif
 
+void ProcessIRQ(struct M68KState *ctx)
+{
+    uint32_t SR, SRcopy;
+    int level = 0;
+    uint32_t vector;
+    uint32_t vbr;
+
+    /* Find out requested IPL level based on ARM state and real IPL line */
+    if (ctx->INTF.ARM_err)
+    {
+        level = 7;
+        ctx->INTF.ARM_err = 0;
+    }
+    else
+    {
+        /* Assert one of external interrupts if ARM or PPC flag was active */
+        if (ctx->INTF.ARM)
+        {
+            level = 6;
+        }
+        else if (ctx->INTF.PPC)
+        {
+            level = 2;
+        }
+
+        /* Now, if Higher-level interrupt was coming from Paula, report it */
+#if defined(PISTORM)
+        /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
+        if (ctx->INTF.IPL > level)
+        {
+            level = ctx->INTF.IPL;
+        }
+#else
+        /* On classic pistorm we need to obtain IPL from PiStorm status register */
+        if (ctx->INTF.IPL)
+        {
+            int ipl_level;
+
+#if PISTORM_WRITE_BUFFER
+            while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
+#endif
+
+            ipl_level = GetIPLLevel();
+
+#if PISTORM_WRITE_BUFFER
+            __atomic_clear(&bus_lock, __ATOMIC_RELEASE);
+#endif
+            /* Obtained IPL level higher than until now detected? */
+            if (ipl_level > level)
+            {
+                level = ipl_level;
+            }
+        }           
+#endif
+    }
+
+    /* Get SR and test the IPL mask value */
+    SR = getSR();
+
+    int IPL_mask = (SR & SR_IPL) >> SRB_IPL;
+
+    /* Any unmasked interrupts? Proceess them */
+    if (level == 7 || level > IPL_mask)
+    {
+        register uint64_t sp __asm__("r29");
+
+        if (likely((SR & SR_S) == 0))
+        {
+            /* If we are not yet in supervisor mode, the USP needs to be updated */
+            __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(sp));
+
+            /* Load eiter ISP or MSP */
+            if (unlikely((SR & SR_M) != 0))
+            {
+                __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(sp));
+            }
+            else
+            {
+                __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(sp));
+            }
+        }
+        
+        SRcopy = SR;
+        /* Swap C and V flags in the copy */
+        if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3)
+        SRcopy ^= 3;
+        vector = 0x60 + (level << 2);
+
+        /* Set supervisor mode */
+        SR |= SR_S;
+
+        /* Clear Trace mode */
+        SR &= ~(SR_T0 | SR_T1);
+
+        /* Insert current level into SR */
+        SR &= ~SR_IPL;
+        SR |= ((level & 7) << SRB_IPL);
+
+        /* Push exception frame */
+        __asm__ volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
+        __asm__ volatile("str %w1, [%0, #2]": :"r"(sp),"r"(PC));
+        __asm__ volatile("strh %w1, [%0, #6]": :"r"(sp),"r"(vector));
+
+        /* Set SR */
+        setSR(SR);
+
+        /* Get VBR */
+        vbr = ctx->VBR;
+
+        /* Load PC */
+        __asm__ volatile("ldr %w0, [%1, %2]":"=r"(PC):"r"(vbr),"r"(vector)); 
+    }
+
+    
+}
+
+void InterpreterLoop()
+{
+    struct M68KState *ctx = getCTX();
+
+    kprintf("[INT] Starting interpreter loop\n");
+
+    while(1)
+    {
+#ifndef PISTORM_ANY_MODEL
+        if (unlikely(PC == 0)) {
+            return;
+        }
+#endif
+        /* Check if any interrupts are pending, modify PC and stack if necessary */
+        if (unlikely(ctx->INT64 != 0))
+        {
+            ProcessIRQ(ctx);
+        }
+        
+        /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
+        
+    }
+}
+
+void JITLoop()
+{
+    struct M68KState *ctx = getCTX();
+
+    kprintf("[JIT] Starting JIT loop\n");
+
+    while(1)
+    {
+#ifndef PISTORM_ANY_MODEL
+        if (unlikely(PC == 0)) {
+            return;
+        }
+#endif
+        /* Check if any interrupts are pending, modify PC and stack if necessary */
+        if (unlikely(ctx->INT64 != 0))
+        {
+            ProcessIRQ(ctx);
+        }
+
+        /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
+        /* Find unit in the hashtable based on the PC value */
+        FindUnitQuick();
+
+        /* Unit exists ? */
+        if (likely(ARMCode != NULL))
+        {
+            if (unlikely(ARMCode() == 0)) return;
+
+            /* Go back to beginning of the loop */
+            continue;
+        }
+
+        /* If we are that far there was no JIT unit found */
+        M68K_SaveContext(ctx);
+
+        uint32_t copyPC = getCTX()->PC;
+
+        /* Perform search without testing Epoch */
+        struct M68KTranslationUnit __attribute__((may_alias)) *node = NULL;
+        struct Node *n;
+        uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+        struct List *bucket = &ICache[hash];
+
+        /* Go through the list of translated units */
+        ForeachNode(bucket, n)
+        {
+            union {
+                struct Node *n;
+                struct M68KTranslationUnit *u;
+            } conv;
+
+            conv.n = n;
+            struct M68KTranslationUnit *u = conv.u;
+
+            /* Check if unit is found */
+            if (u->mt_M68kAddress == copyPC)
+            {
+                /* Node found, most likely Epoch broken */
+                node = M68K_VerifyUnit(u);
+                break;
+            }
+        }
+
+        if (node == NULL) {
+            /* Get the code. This never fails */
+            node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
+        }
+
+#if EMU68_USE_LRU
+        LRU_InsertBlock(node);
+#endif
+        /* Load CPU context */
+        M68K_LoadContext(getCTX());
+
+        /* Prepare ARM pointer in x12 and call it */
+        ARMCode = node->mt_ARMEntryPoint;
+        if (unlikely(ARMCode() == 0)) return;
+    }
+}
+
 void MainLoop()
 {
-    uint32_t LastPC;
     struct M68KState *ctx = getCTX();
 
     LRU_InvalidateAll();
@@ -309,7 +535,27 @@ void MainLoop()
 
     /* The JIT loop is running forever */
     while(1)
-    {   
+    {
+#ifndef PISTORM_ANY_MODEL
+        if (unlikely(PC == 0)) {
+            return;
+        }
+#endif
+
+        /* Check if JIT cache is enabled */
+        uint32_t cacr;
+        __asm__ volatile("mov %w0, "REG_CACR_ASM:"=r"(cacr));
+
+        if (likely(cacr & CACR_IE))
+        {
+            JITLoop();
+        }
+        else
+        {
+            InterpreterLoop();
+        }
+#if 0
+
         /* Load m68k context and last used PC counter into temporary register */ 
         LastPC = getLastPC();
         ctx = getCTX();
@@ -324,118 +570,7 @@ void MainLoop()
         /* If (unlikely) there was interrupt pending, check if it needs to be processed */
         if (unlikely(ctx->INT64 != 0))
         {
-            uint32_t SR, SRcopy;
-            int level = 0;
-            uint32_t vector;
-            uint32_t vbr;
-
-            /* Find out requested IPL level based on ARM state and real IPL line */
-            if (ctx->INTF.ARM_err)
-            {
-                level = 7;
-                ctx->INTF.ARM_err = 0;
-            }
-            else
-            {
-                /* Assert one of external interrupts if ARM or PPC flag was active */
-                if (ctx->INTF.ARM)
-                {
-                    level = 6;
-                }
-                else if (ctx->INTF.PPC)
-                {
-                    level = 2;
-                }
-
-                /* Now, if Higher-level interrupt was coming from Paula, report it */
-#if defined(PISTORM)
-                /* On PiStorm32 IPL level is obtained by second CPU core from the GPIO directly */
-                if (ctx->INTF.IPL > level)
-                {
-                    level = ctx->INTF.IPL;
-                }
-#else
-                /* On classic pistorm we need to obtain IPL from PiStorm status register */
-                if (ctx->INTF.IPL)
-                {
-                    int ipl_level;
-
-#if PISTORM_WRITE_BUFFER
-                    while(__atomic_test_and_set(&bus_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
-#endif
-
-                    ipl_level = GetIPLLevel();
-
-#if PISTORM_WRITE_BUFFER
-                    __atomic_clear(&bus_lock, __ATOMIC_RELEASE);
-#endif
-                    /* Obtained IPL level higher than until now detected? */
-                    if (ipl_level > level)
-                    {
-                        level = ipl_level;
-                    }
-                }           
-#endif
-            }
-
-            /* Get SR and test the IPL mask value */
-            SR = getSR();
-
-            int IPL_mask = (SR & SR_IPL) >> SRB_IPL;
-
-            /* Any unmasked interrupts? Proceess them */
-            if (level == 7 || level > IPL_mask)
-            {
-                register uint64_t sp __asm__("r29");
-
-                if (likely((SR & SR_S) == 0))
-                {
-                    /* If we are not yet in supervisor mode, the USP needs to be updated */
-                    __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(sp));
-
-                    /* Load eiter ISP or MSP */
-                    if (unlikely((SR & SR_M) != 0))
-                    {
-                        __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(sp));
-                    }
-                    else
-                    {
-                        __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(sp));
-                    }
-                }
-                
-                SRcopy = SR;
-                /* Swap C and V flags in the copy */
-                if ((SRcopy & 3) != 0 && (SRcopy & 3) != 3)
-                SRcopy ^= 3;
-                vector = 0x60 + (level << 2);
-
-                /* Set supervisor mode */
-                SR |= SR_S;
-
-                /* Clear Trace mode */
-                SR &= ~(SR_T0 | SR_T1);
-
-                /* Insert current level into SR */
-                SR &= ~SR_IPL;
-                SR |= ((level & 7) << SRB_IPL);
-
-                /* Push exception frame */
-                __asm__ volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
-                __asm__ volatile("str %w1, [%0, #2]": :"r"(sp),"r"(PC));
-                __asm__ volatile("strh %w1, [%0, #6]": :"r"(sp),"r"(vector));
-
-                /* Set SR */
-                setSR(SR);
-
-                /* Get VBR */
-                vbr = ctx->VBR;
-
-                /* Load PC */
-                __asm__ volatile("ldr %w0, [%1, %2]":"=r"(PC):"r"(vbr),"r"(vector)); 
-            }
-
-            /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
+            ProcessIRQ(ctx);
         }
 
         /* Check if JIT cache is enabled */
@@ -547,6 +682,7 @@ void MainLoop()
             ARMCode = node->mt_ARMEntryPoint;
             ARMCode();
         }
+#endif
     }
 }
 
