@@ -150,10 +150,10 @@ uint32_t INTERPRET_CLR_L_REG(uint16_t opcode, struct M68KState *state)
     
     return state->PC;
 }
+#endif
 
-void INTERPRET_RTS_(uint16_t)
+void INTERPRET_RTS(uint16_t)
 {
     PC = *(uint32_t *)(uintptr_t)A7;
     A7 += 4;
 }
-#endif

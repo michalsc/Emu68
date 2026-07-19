@@ -84,7 +84,7 @@ set(EMU68_FILES
     src/M68k_MULDIV.c
     src/M68k_MOVE.c
     src/M68k_EA.c
-    src/I68k_LINE4.cpp
+    src/M68k_INT_LINE4.cpp
     src/M68k_LINE0.c
     src/M68k_LINE4.c
     src/M68k_LINE5.c
@@ -165,7 +165,7 @@ set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
 set_source_files_properties(src/math/__rem_pio2.c PROPERTIES COMPILE_FLAGS
     "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 
-set_source_files_properties(src/I68k_LINE4.cpp PROPERTIES COMPILE_FLAGS 
+set_source_files_properties(src/M68k_INT_LINE4.cpp PROPERTIES COMPILE_FLAGS 
     "${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
