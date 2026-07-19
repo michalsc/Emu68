@@ -57,7 +57,7 @@ uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT];
 #define ADDR_2_SET(addr) (((addr) >> 4) % EMU68_LRU_SET_COUNT)
 #define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
 
-static void LRU_FindBlock(uint32_t address)
+static uint32_t* LRU_FindBlock(uint32_t address)
 {
     const uint32_t set = ADDR_2_SET(address);
     struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
@@ -67,20 +67,18 @@ static void LRU_FindBlock(uint32_t address)
     {
         if (likely(e[i].m68k == address))
         {
-            ARMCode = (void*)e[i].arm;
-
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
-            asm volatile ("prfm plil1keep, [%0]"::"r"(ARMCode));
+            asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
             uint32_t current = LRU_alloc[set] & ~mask; 
             if (current >> (32 - EMU68_LRU_WAY_COUNT) == 0) current = ~mask;
             LRU_alloc[set] = current;
             
-            return;
+            return e[i].arm;
         }
     }
 
-    ARMCode = NULL;
+    return NULL;
 }
 
 void LRU_MarkForVerify(uint32_t *addr)
@@ -164,13 +162,13 @@ void LRU_InsertBlock(struct M68KTranslationUnit *unit)
     LRU_alloc[set] = current;
 }
 
-static void FindUnitQuick()
+static uint32_t* FindUnitQuick()
 {
 #if EMU68_USE_LRU
-    LRU_FindBlock(PC);
+    uint32_t *code = LRU_FindBlock(PC);
 
-    if (likely(ARMCode != NULL))
-        return;
+    if (likely(code != NULL))
+        return code;
 #endif
 
     union {
@@ -207,12 +205,11 @@ static void FindUnitQuick()
 #if EMU68_USE_LRU
             LRU_InsertBlock(un.unit);
 #endif
-            ARMCode = (void*)un.unit->mt_ARMEntryPoint;
-            return;
+            return (void*)un.unit->mt_ARMEntryPoint;
         }
     }
 
-    ARMCode = NULL;
+    return NULL;
 }
 
 static inline struct M68KTranslationUnit *FindUnit()
@@ -403,8 +400,6 @@ void ProcessIRQ(struct M68KState *ctx)
         /* Load PC */
         __asm__ volatile("ldr %w0, [%1, %2]":"=r"(PC):"r"(vbr),"r"(vector)); 
     }
-
-    
 }
 
 void InterpreterLoop()
