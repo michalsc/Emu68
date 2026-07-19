@@ -477,61 +477,57 @@ void JITLoop()
 
         /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
         /* Find unit in the hashtable based on the PC value */
-        FindUnitQuick();
+        uint32_t *code = FindUnitQuick();
 
-        /* Unit exists ? */
-        if (likely(ARMCode != NULL))
+        /* Unit does not exists ? */
+        if (unlikely(code == NULL))
         {
-            if (unlikely(ARMCode() == 0)) return;
+            /* If we are that far there was no JIT unit found */
+            M68K_SaveContext(ctx);
 
-            /* Go back to beginning of the loop */
-            continue;
-        }
+            uint32_t copyPC = getCTX()->PC;
 
-        /* If we are that far there was no JIT unit found */
-        M68K_SaveContext(ctx);
+            /* Perform search without testing Epoch */
+            struct M68KTranslationUnit __attribute__((may_alias)) *node = NULL;
+            struct Node *n;
+            uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
+            struct List *bucket = &ICache[hash];
 
-        uint32_t copyPC = getCTX()->PC;
-
-        /* Perform search without testing Epoch */
-        struct M68KTranslationUnit __attribute__((may_alias)) *node = NULL;
-        struct Node *n;
-        uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-        struct List *bucket = &ICache[hash];
-
-        /* Go through the list of translated units */
-        ForeachNode(bucket, n)
-        {
-            union {
-                struct Node *n;
-                struct M68KTranslationUnit *u;
-            } conv;
-
-            conv.n = n;
-            struct M68KTranslationUnit *u = conv.u;
-
-            /* Check if unit is found */
-            if (u->mt_M68kAddress == copyPC)
+            /* Go through the list of translated units */
+            ForeachNode(bucket, n)
             {
-                /* Node found, most likely Epoch broken */
-                node = M68K_VerifyUnit(u);
-                break;
-            }
-        }
+                union {
+                    struct Node *n;
+                    struct M68KTranslationUnit *u;
+                } conv;
 
-        if (node == NULL) {
-            /* Get the code. This never fails */
-            node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
-        }
+                conv.n = n;
+                struct M68KTranslationUnit *u = conv.u;
+
+                /* Check if unit is found */
+                if (u->mt_M68kAddress == copyPC)
+                {
+                    /* Node found, most likely Epoch broken */
+                    node = M68K_VerifyUnit(u);
+                    break;
+                }
+            }
+
+            if (node == NULL) {
+                /* Get the code. This never fails */
+                node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
+            }
 
 #if EMU68_USE_LRU
-        LRU_InsertBlock(node);
+            LRU_InsertBlock(node);
 #endif
-        /* Load CPU context */
-        M68K_LoadContext(getCTX());
+            /* Load CPU context */
+            M68K_LoadContext(getCTX());
+            code = node->mt_ARMEntryPoint;
+        }
 
         /* Prepare ARM pointer in x12 and call it */
-        ARMCode = node->mt_ARMEntryPoint;
+        ARMCode = (void*)code;
         if (unlikely(ARMCode() == 0)) return;
     }
 }
