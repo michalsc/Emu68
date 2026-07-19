@@ -722,7 +722,7 @@ uint32_t INTERPRET_BLE(uint16_t opcode, struct M68KState *state)
 }
 
 static struct OpcodeDef InsnTable[16] = {
-    [0]         = { EMIT_BRA, INTERPRET_BRA, 0, 0, 0, 0, 0 },
+    /*[0]         = { EMIT_BRA, INTERPRET_BRA, 0, 0, 0, 0, 0 },
     [1]         = { EMIT_BSR, INTERPRET_BSR, 0, 0, 0, 0, 0 },
     [M_CC_HI]   = { EMIT_Bcc, INTERPRET_BHI, SR_ZC, 0, 0, 0, 0 },
     [M_CC_LS]   = { EMIT_Bcc, INTERPRET_BLS, SR_ZC, 0, 0, 0, 0 },
@@ -737,7 +737,7 @@ static struct OpcodeDef InsnTable[16] = {
     [M_CC_GE]   = { EMIT_Bcc, INTERPRET_BGE, SR_NV, 0, 0, 0, 0 },
     [M_CC_LT]   = { EMIT_Bcc, INTERPRET_BLT, SR_NV, 0, 0, 0, 0 },
     [M_CC_GT]   = { EMIT_Bcc, INTERPRET_BGT, SR_NZV, 0, 0, 0, 0 },
-    [M_CC_LE]   = { EMIT_Bcc, INTERPRET_BLE, SR_NZV, 0, 0, 0, 0 }
+    [M_CC_LE]   = { EMIT_Bcc, INTERPRET_BLE, SR_NZV, 0, 0, 0, 0 }*/
 };
 
 uint32_t EMIT_line6(struct TranslatorContext *ctx)

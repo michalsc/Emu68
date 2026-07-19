@@ -1,7 +1,11 @@
-#include <stdint.h>
+#include <cstdint>
 #include <arm_neon.h>
+#include <array>
+
+#include <emu68/interpreter/Line4.hpp>
 
 #include "RegisterMapping.h"
+
 
 #define _REGLOCK_H
 extern "C" {
@@ -27,19 +31,8 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-#if 0
-
-static inline uint16_t getSR(void) {
-    return vgetq_lane_u16(vreinterpretq_u16_u32(reg_v19), 5);
-}
-static inline void setSR(uint16_t v) {
-    reg_v19 = vreinterpretq_u32_u16(vsetq_lane_u16(v, vreinterpretq_u16_u32(reg_v19), 5));
-}
-
-#endif
-
 #define INTERPRET_SWAP_Dn(dn) \
-uint32_t INTERPRET_SWAP_D##dn(uint16_t) \
+void INTERPRET_SWAP_D##dn(uint16_t) \
 { \
     uint16_t sr = SR & 0xfff0; \
     \
@@ -53,7 +46,6 @@ uint32_t INTERPRET_SWAP_D##dn(uint16_t) \
     } \
     SR = sr; \
     PC += 2; \
-    return 1; \
 }
 
 INTERPRET_SWAP_Dn(0)
@@ -64,59 +56,15 @@ INTERPRET_SWAP_Dn(4)
 INTERPRET_SWAP_Dn(5)
 INTERPRET_SWAP_Dn(6)
 INTERPRET_SWAP_Dn(7)
-#if 0
-template <int N> inline uint32_t getD();
-template <int N> inline void    setD(uint32_t v);
-
-template <> inline uint32_t getD<0>()          { return D0; }
-template <> inline void    setD<0>(uint32_t v) { D0 = v; }
-template <> inline uint32_t getD<1>()          { return D1; }
-template <> inline void    setD<1>(uint32_t v) { D1 = v; }
-template <> inline uint32_t getD<2>()          { return D2; }
-template <> inline void    setD<2>(uint32_t v) { D2 = v; }
-template <> inline uint32_t getD<3>()          { return D3; }
-template <> inline void    setD<3>(uint32_t v) { D3 = v; }
-template <> inline uint32_t getD<4>()          { return D4; }
-template <> inline void    setD<4>(uint32_t v) { D4 = v; }
-template <> inline uint32_t getD<5>()          { return D5; }
-template <> inline void    setD<5>(uint32_t v) { D5 = v; }
-template <> inline uint32_t getD<6>()          { return D6; }
-template <> inline void    setD<6>(uint32_t v) { D6 = v; }
-template <> inline uint32_t getD<7>()          { return D7; }
-template <> inline void    setD<7>(uint32_t v) { D7 = v; }
-
-template <int dn>
-void INTERPRET_SWAP_D(uint16_t)
-{
-    uint32_t v = getD<dn>();
-    uint16_t sr = getSR() & 0xfff0;
-
-    if (unlikely(v == 0)) {
-        sr |= SR_Z;
-    } else {
-        v = (v >> 16) | (v << 16);
-        setD<dn>(v);
-        if (v & 0x80000000) {
-            sr = SR_N;
-        }
-    }
-    setSR(sr);
-    PC += 2;
-}
-
-void __attribute__((used)) INTERPRET_SWAP_D0_(uint16_t opcode) { INTERPRET_SWAP_D<0>(opcode); }
-#endif
 
 #define INTERPRET_CLR_B_Dn(dn) \
 void INTERPRET_CLR_B_D##dn(uint16_t) \
 { \
-    uint16_t sr = getSR() & 0xfff0; \
+    uint16_t sr = SR & ~SR_NZVC; \
     D##dn &= 0xffffff00; \
-    sr &= ~(SR_N | SR_Z | SR_V | SR_C); \
-    sr |= SR_Z; \
-    setSR(sr); \
+    SR = sr | SR_Z; \
     PC += 2; \
-    bumpINSN_COUNT(); }
+}
 
 INTERPRET_CLR_B_Dn(0)
 INTERPRET_CLR_B_Dn(1)
@@ -126,7 +74,45 @@ INTERPRET_CLR_B_Dn(4)
 INTERPRET_CLR_B_Dn(5)
 INTERPRET_CLR_B_Dn(6)
 INTERPRET_CLR_B_Dn(7)
+
+#define INTERPRET_CLR_W_Dn(dn) \
+void INTERPRET_CLR_W_D##dn(uint16_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    D##dn &= 0xffff0000; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_W_Dn(0)
+INTERPRET_CLR_W_Dn(1)
+INTERPRET_CLR_W_Dn(2)
+INTERPRET_CLR_W_Dn(3)
+INTERPRET_CLR_W_Dn(4)
+INTERPRET_CLR_W_Dn(5)
+INTERPRET_CLR_W_Dn(6)
+INTERPRET_CLR_W_Dn(7)
+
+#define INTERPRET_CLR_L_Dn(dn) \
+void INTERPRET_CLR_L_D##dn(uint16_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    D##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_L_Dn(0)
+INTERPRET_CLR_L_Dn(1)
+INTERPRET_CLR_L_Dn(2)
+INTERPRET_CLR_L_Dn(3)
+INTERPRET_CLR_L_Dn(4)
+INTERPRET_CLR_L_Dn(5)
+INTERPRET_CLR_L_Dn(6)
+INTERPRET_CLR_L_Dn(7)
+
 #if 0
+
 uint32_t INTERPRET_CLR_W_REG(uint16_t opcode, struct M68KState *state)
 {
     uint8_t dn = opcode & 7;
@@ -156,4 +142,291 @@ void INTERPRET_RTS(uint16_t)
 {
     PC = *(uint32_t *)(uintptr_t)A7;
     A7 += 4;
+}
+
+void INTERPRET_NOP(uint16_t)
+{
+    PC += 2;
+}
+
+void INTERPRET_UNIMPLEMENTED(uint16_t)
+{
+    kprintf("[INT] UNIMPLEMENTED Line4\n");
+}
+
+void INTERPRET_Exception_F0(uint16_t exception)
+{
+    /* Get the SR register as it is now */
+    uint16_t origSR = SR;
+
+    /* If we were in user mode, switch stack */
+    if ((origSR & SR_S) == 0) {
+        
+    }
+}
+
+static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+{
+    std::array<INTERPRET_Function, 4096> table{};
+
+    auto fill = [&table](int first, int last, INTERPRET_Function func) {
+        for (int i = first; i <= last; ++i)
+            table[i] = func;
+    };
+
+    fill(00000, 07777, INTERPRET_UNIMPLEMENTED);
+
+    table[04100] =     INTERPRET_SWAP_D0;
+    table[04101] =     INTERPRET_SWAP_D1;
+    table[04102] =     INTERPRET_SWAP_D2;
+    table[04103] =     INTERPRET_SWAP_D3;
+    table[04104] =     INTERPRET_SWAP_D0;
+    table[04105] =     INTERPRET_SWAP_D1;
+    table[04106] =     INTERPRET_SWAP_D2;
+    table[04107] =     INTERPRET_SWAP_D3;
+
+    table[01000] =     INTERPRET_CLR_B_D0;
+    table[01001] =     INTERPRET_CLR_B_D1;
+    table[01002] =     INTERPRET_CLR_B_D2;
+    table[01003] =     INTERPRET_CLR_B_D3;
+    table[01004] =     INTERPRET_CLR_B_D4;
+    table[01005] =     INTERPRET_CLR_B_D5;
+    table[01006] =     INTERPRET_CLR_B_D6;
+    table[01007] =     INTERPRET_CLR_B_D7;
+
+    table[01100] =     INTERPRET_CLR_W_D0;
+    table[01101] =     INTERPRET_CLR_W_D1;
+    table[01102] =     INTERPRET_CLR_W_D2;
+    table[01103] =     INTERPRET_CLR_W_D3;
+    table[01104] =     INTERPRET_CLR_W_D4;
+    table[01105] =     INTERPRET_CLR_W_D5;
+    table[01106] =     INTERPRET_CLR_W_D6;
+    table[01107] =     INTERPRET_CLR_W_D7;
+
+    table[01200] =     INTERPRET_CLR_L_D0;
+    table[01201] =     INTERPRET_CLR_L_D1;
+    table[01202] =     INTERPRET_CLR_L_D2;
+    table[01203] =     INTERPRET_CLR_L_D3;
+    table[01204] =     INTERPRET_CLR_L_D4;
+    table[01205] =     INTERPRET_CLR_L_D5;
+    table[01206] =     INTERPRET_CLR_L_D6;
+    table[01207] =     INTERPRET_CLR_L_D7;
+
+    table[07161] =     INTERPRET_NOP;
+    table[07165] =     INTERPRET_RTS;
+    
+    #if 0
+    [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
+    [00320 ... 00347] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
+    [00350 ... 00371] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 1, 2 },
+
+    [01300 ... 01307] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 0, 2 },
+    [01320 ... 01347] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 0, 2 },
+    [01350 ... 01371] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 1, 2 },
+
+    [03300 ... 03307] = { EMIT_MOVEtoSR, NULL, SR_S, SR_ALL, 1, 0, 2 },
+    [03320 ... 03347] = { EMIT_MOVEtoSR, NULL, SR_S, SR_ALL, 1, 0, 2 },
+    [03350 ... 03374] = { EMIT_MOVEtoSR, NULL, SR_S, SR_ALL, 1, 1, 2 },
+
+    [02300 ... 02307] = { EMIT_MOVEtoCCR, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02320 ... 02347] = { EMIT_MOVEtoCCR, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02350 ... 02374] = { EMIT_MOVEtoCCR, NULL, 0, SR_CCR, 1, 1, 2 },
+
+    [04200 ... 04207] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04300 ... 04307] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04700 ... 04707] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
+
+    [04010 ... 04017] = { EMIT_LINK32, NULL, 0, 0, 3, 0, 0 },
+    [07120 ... 07127] = { EMIT_LINK16, NULL, 0, 0, 2, 0, 0 },
+
+    [0xafc]           = { EMIT_ILLEGAL, NULL, SR_CCR, 0, 1, 0, 0 },
+    [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
+    [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
+    [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
+    
+    [0xe72]           = { EMIT_STOP, NULL, SR_S, SR_ALL, 2, 0, 0 },
+    [0xe73]           = { EMIT_RTE, NULL, SR_S, SR_ALL, 1, 0, 0 },
+    [0xe74]           = { EMIT_RTD, NULL, 0, 0, 2, 0, 0 },
+    
+    [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
+    [0xe77]           = { EMIT_RTR, NULL, 0, SR_CCR, 1, 0, 0 },
+    [0xe7a ... 0xe7b] = { EMIT_MOVEC, NULL, SR_S, 0, 2, 0, 4 },
+    [0xe60 ... 0xe6f] = { EMIT_MOVEUSP, NULL, SR_S, 0, 1, 0, 4 },
+    [04110 ... 04117] = { EMIT_BKPT, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
+
+    [07320 ... 07327] = { EMIT_JMP, NULL, 0, 0, 1, 0, 0 },
+    [07350 ... 07373] = { EMIT_JMP, NULL, 0, 0, 1, 1, 0 },
+
+    [07220 ... 07227] = { EMIT_JSR, NULL, 0, 0, 1, 0, 0 },
+    [07250 ... 07273] = { EMIT_JSR, NULL, 0, 0, 1, 1, 0 },
+
+    [00000 ... 00007] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
+    [00100 ... 00107] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+    [00200 ... 00207] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
+
+    [00020 ... 00047] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
+    [00120 ... 00147] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
+    [00220 ... 00247] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
+    
+    [00050 ... 00071] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 1 },
+    [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
+    [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
+
+
+    [01020 ... 01047] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [01120 ... 01147] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [01220 ... 01247] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 4 },
+
+    [01050 ... 01071] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [01150 ... 01171] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [01250 ... 01271] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 1, 4 },
+
+    [02000 ... 02007] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 1 },
+    [02100 ... 02107] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02200 ... 02207] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 4 },
+
+    [02020 ... 02047] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 1 },
+    [02120 ... 02147] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 2 },
+    [02220 ... 02247] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 4 },
+
+    [02050 ... 02071] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 1, 1 },
+    [02150 ... 02171] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 1, 2 },
+    [02250 ... 02271] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 1, 4 },
+
+    [03000 ... 03007] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [03100 ... 03107] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [03200 ... 03207] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 4 },
+
+    [03020 ... 03047] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [03120 ... 03147] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [03220 ... 03247] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 4 },
+
+    [03050 ... 03071] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 1, 1 },
+    [03150 ... 03171] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 1, 2 },
+    [03250 ... 03271] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 1, 4 },
+
+    [05000 ... 05007] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05020 ... 05047] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05050 ... 05074] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 1, 1 },
+    
+    [05100 ... 05147] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [05150 ... 05174] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 1, 2 },
+    
+    [05200 ... 05247] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 4 },
+    [05250 ... 05274] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 1, 4 },
+
+    [04000 ... 04007] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
+    [04020 ... 04047] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
+    [04050 ... 04071] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 1, 1 },
+
+    [04120 ... 04127] = { EMIT_PEA, NULL, 0, 0, 1, 0, 4 },
+    [04150 ... 04173] = { EMIT_PEA, NULL, 0, 0, 1, 1, 4 },
+
+    [05300 ... 05307] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05320 ... 05347] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [05350 ... 05371] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 1, 1 },
+
+    [06000 ... 06007] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06020 ... 06047] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06050 ... 06074] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 1, 4 },
+    [06100 ... 06107] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06120 ... 06147] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 0, 4 },
+    [06150 ... 06174] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 1, 4 },
+
+    [04220 ... 04227] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 2 },
+    [04320 ... 04327] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
+    [04240 ... 04247] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 2 },
+    [04340 ... 04347] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
+    [04250 ... 04271] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 2 },
+    [04350 ... 04371] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 4 },
+
+    [06220 ... 06237] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 2 },
+    [06320 ... 06337] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
+    [06250 ... 06273] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 2 },
+    [06350 ... 06373] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 4 },
+
+    [00720 ... 00727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [00750 ... 00773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [01720 ... 01727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [01750 ... 01773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [02720 ... 02727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [02750 ... 02773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [03720 ... 03727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [03750 ... 03773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [04720 ... 04727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [04750 ... 04773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [05720 ... 05727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [05750 ... 05773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [06720 ... 06727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [06750 ... 06773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+    [07720 ... 07727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
+    [07750 ... 07773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
+
+    [00600 ... 00607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [00620 ... 00647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [00650 ... 00674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [00400 ... 00407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [00420 ... 00447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [00450 ... 00474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [01600 ... 01607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [01620 ... 01647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [01650 ... 01674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [01400 ... 01407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [01420 ... 01447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [01450 ... 01474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [02600 ... 02607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [02620 ... 02647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [02650 ... 02674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [02400 ... 02407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [02420 ... 02447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [02450 ... 02474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [03600 ... 03607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [03620 ... 03647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [03650 ... 03674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [03400 ... 03407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [03420 ... 03447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [03450 ... 03474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [04600 ... 04607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [04620 ... 04647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [04650 ... 04674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [04400 ... 04407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [04420 ... 04447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [04450 ... 04474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [05600 ... 05607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [05620 ... 05647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [05650 ... 05674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [05400 ... 05407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [05420 ... 05447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [05450 ... 05474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [06600 ... 06607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [06620 ... 06647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [06650 ... 06674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [06400 ... 06407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [06420 ... 06447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [06450 ... 06474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+
+    [07600 ... 07607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [07620 ... 07647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
+    [07650 ... 07674] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 2 },
+    [07400 ... 07407] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [07420 ... 07447] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 4 },
+    [07450 ... 07474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
+    #endif
+
+    return table;
+}
+
+static constexpr auto InsnTable = BuildInsnTable();
+
+
+__attribute__((optimize("no-optimize-sibling-calls")))
+void INTERPRET_line4(uint32_t opcode)
+{
+    InsnTable[opcode & 0xfff](opcode);
 }

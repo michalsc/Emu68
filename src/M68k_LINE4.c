@@ -7,6 +7,7 @@
     with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
+#include <emu68/interpreter/Line4.hpp>
 #include "support.h"
 #include "M68k.h"
 #include "RegisterAllocator.h"
@@ -1512,28 +1513,6 @@ static uint32_t EMIT_SWAP(struct TranslatorContext *ctx, uint16_t opcode)
     return 1;
 }
 
-uint32_t INTERPRET_SWAP(uint16_t opcode, struct M68KState *state)
-{
-    uint8_t dn = opcode & 7;
-    uint8_t sr = 0;
-    uint32_t reg = state->D[dn].u32;
-    
-    if (reg == 0) {
-        sr = SR_Z;
-    } else {
-        reg = (reg >> 16) | (reg << 16);
-        if (reg & 0x80000000) {
-            sr = SR_N;
-        }
-        state->D[dn].u32 = reg;
-    }
-
-    state->SR = (state->SR & 0xfff0) | sr;
-    state->PC += 2;
-
-    return state->PC;
-}
-
 static uint32_t EMIT_ILLEGAL(struct TranslatorContext *ctx, uint16_t opcode)
 {
     (void)opcode;
@@ -1674,13 +1653,6 @@ static uint32_t EMIT_NOP(struct TranslatorContext *ctx, uint16_t opcode)
     EMIT_FlushPC(ctx);
 
     return 1;
-}
-
-uint32_t INTERPRET_NOP(uint16_t opcode, struct M68KState *state)
-{
-    (void)opcode;
-    state->PC += 2;
-    return state->PC;
 }
 
 static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
@@ -1996,22 +1968,6 @@ static uint32_t EMIT_RTS(struct TranslatorContext *ctx, uint16_t opcode)
         EMIT(ctx, INSN_TO_LE(0xffffffff));
 
     return 1;
-}
-
-uint32_t INTERPRET_RTS(uint16_t opcode, struct M68KState *state)
-{
-    (void)opcode;
-
-    uint32_t pc;
-    uint32_t a7 = state->A[7].u32;
-
-    pc = *(uint32_t *)(uintptr_t)a7;
-    a7 += 4;
-
-    state->PC = pc;
-    state->A[7].u32 = a7;
-
-    return pc;
 }
 
 static uint32_t EMIT_TRAPV(struct TranslatorContext *ctx, uint16_t opcode)
@@ -3125,7 +3081,14 @@ static struct OpcodeDef InsnTable[4096] = {
     [04010 ... 04017] = { EMIT_LINK32, NULL, 0, 0, 3, 0, 0 },
     [07120 ... 07127] = { EMIT_LINK16, NULL, 0, 0, 2, 0, 0 },
 
-    [04100 ... 04107] = { EMIT_SWAP, INTERPRET_SWAP, 0, SR_NZVC, 1, 0, 0 },
+    [04100]           = { EMIT_SWAP, INTERPRET_SWAP_D0, 0, SR_NZVC, 1, 0, 0 },
+    [04101]           = { EMIT_SWAP, INTERPRET_SWAP_D1, 0, SR_NZVC, 1, 0, 0 },
+    [04102]           = { EMIT_SWAP, INTERPRET_SWAP_D2, 0, SR_NZVC, 1, 0, 0 },
+    [04103]           = { EMIT_SWAP, INTERPRET_SWAP_D3, 0, SR_NZVC, 1, 0, 0 },
+    [04104]           = { EMIT_SWAP, INTERPRET_SWAP_D4, 0, SR_NZVC, 1, 0, 0 },
+    [04105]           = { EMIT_SWAP, INTERPRET_SWAP_D5, 0, SR_NZVC, 1, 0, 0 },
+    [04106]           = { EMIT_SWAP, INTERPRET_SWAP_D6, 0, SR_NZVC, 1, 0, 0 },
+    [04107]           = { EMIT_SWAP, INTERPRET_SWAP_D7, 0, SR_NZVC, 1, 0, 0 },
     [0xafc]           = { EMIT_ILLEGAL, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
     [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
@@ -3159,9 +3122,9 @@ static struct OpcodeDef InsnTable[4096] = {
     [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
     [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
 
-    [01000 ... 01007] = { EMIT_CLR_B_REG, INTERPRET_CLR_B_REG, 0, SR_NZVC, 1, 0, 1 },
-    [01100 ... 01107] = { EMIT_CLR_W_REG, INTERPRET_CLR_W_REG, 0, SR_NZVC, 1, 0, 2 },
-    [01200 ... 01207] = { EMIT_CLR_L_REG, INTERPRET_CLR_L_REG, 0, SR_NZVC, 1, 0, 4 },
+    //[01000 ... 01007] = { EMIT_CLR_B_REG, INTERPRET_CLR_B_REG, 0, SR_NZVC, 1, 0, 1 },
+    //[01100 ... 01107] = { EMIT_CLR_W_REG, INTERPRET_CLR_W_REG, 0, SR_NZVC, 1, 0, 2 },
+    //[01200 ... 01207] = { EMIT_CLR_L_REG, INTERPRET_CLR_L_REG, 0, SR_NZVC, 1, 0, 4 },
 
     [01020 ... 01047] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 1 },
     [01120 ... 01147] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 2 },
@@ -3310,14 +3273,14 @@ static struct OpcodeDef InsnTable[4096] = {
 
 };
 
-uint32_t INTERPRET_line4(struct M68KState *state)
+void INTERPRET_line4(struct M68KState *state)
 {
     uint16_t opcode = *(uint16_t *)(uintptr_t)state->PC;
 
     if (InsnTable[opcode & 0xfff].od_Interpret) {
-        return InsnTable[opcode & 0xfff].od_Interpret(opcode, state);
+        InsnTable[opcode & 0xfff].od_Interpret(opcode);
     } else {
-        return -1;
+        
     }
 }
 
