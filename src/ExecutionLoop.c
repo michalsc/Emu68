@@ -451,8 +451,8 @@ void InterpreterLoop()
         }
 
         M68K_LoadContext(getCTX());
-        void (*code)() = node->mt_ARMEntryPoint;
-        code();
+        uint32_t (*code)() = node->mt_ARMEntryPoint;
+        if (code() == 0) return;
     } while(ARMCode != NULL);
 }
 
