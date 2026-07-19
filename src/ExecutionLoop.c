@@ -423,7 +423,35 @@ void InterpreterLoop()
         
         /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
         
-    }
+
+        /* This is a FAKE interpreter loop! Beware */
+        struct M68KTranslationUnit *node = NULL;
+
+        /* Uncached mode - reset LastPC */
+        setLastPC(~0);
+
+        /* Save context since C code will be called */
+        M68K_SaveContext(ctx);
+
+        /* Find the unit */
+        node = FindUnitNoLRU();
+
+        /* If node is found verify it */
+        if (likely(node != NULL))
+        {
+            node = M68K_VerifyUnitCRC32(node);
+        }
+        /* If node was not found or invalidated, translate code */
+        if (unlikely(node == NULL))
+        {
+            /* Get the code */
+            node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)getCTX()->PC);
+        }
+
+        M68K_LoadContext(getCTX());
+        void (*code)() = node->mt_ARMEntryPoint;
+        code();
+    } while(ARMCode != NULL);
 }
 
 void JITLoop()
