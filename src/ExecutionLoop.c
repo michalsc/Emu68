@@ -408,7 +408,9 @@ void InterpreterLoop()
 
     kprintf("[INT] Starting interpreter loop\n");
 
-    while(1)
+    ARMCode = (void*)-1;
+
+    do
     {
 #ifndef PISTORM_ANY_MODEL
         if (unlikely(PC == 0)) {
