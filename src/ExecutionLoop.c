@@ -37,21 +37,9 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-static inline uint32_t getSR()
-{
-    uint32_t sr;
-    __asm__ volatile("umov %w0, "REG_SR_ASM:"=r"(sr));
-    return sr;
-}
-
 static inline void setLastPC(uint32_t pc)
 {
     __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
-}
-
-static inline void setSR(uint32_t sr)
-{
-    __asm__ volatile("mov "REG_SR_ASM", %w0": :"r"(sr));
 }
 
 extern struct List ICache[EMU68_HASHSIZE];
@@ -543,10 +531,7 @@ void MainLoop()
 #endif
 
         /* Check if JIT cache is enabled */
-        uint32_t cacr;
-        __asm__ volatile("mov %w0, "REG_CACR_ASM:"=r"(cacr));
-
-        if (likely(cacr & CACR_IE))
+        if (likely(getCACR() & CACR_IE))
         {
             JITLoop();
         }
