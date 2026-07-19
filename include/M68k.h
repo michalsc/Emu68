@@ -17,6 +17,10 @@
 #include "md5.h"
 #include "lists.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct M68KLocalState
 {
     void *          mls_M68kPtr;
@@ -453,7 +457,6 @@ struct M68KState
 #define VECTOR_OVERFLOW             0xD4
 #define VECTOR_SIGNALING_NAN        0xD8
 
-
 #define REG_PC    18
 
 #define REG_D0    19
@@ -675,5 +678,9 @@ void LRU_InvalidateByARMAddress(uint32_t *addr);
 void LRU_MarkForVerify(uint32_t *addr);
 
 extern uint8_t host_flags;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _M68K_H */
