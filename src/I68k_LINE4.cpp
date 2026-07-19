@@ -1,5 +1,8 @@
 #include <stdint.h>
 #include <arm_neon.h>
+
+#include "RegisterMapping.h"
+
 #define _REGLOCK_H
 extern "C" {
     #include "M68k.h"
@@ -17,25 +20,6 @@ static inline void bumpINSN_COUNT(void)
     reg_v20 = vaddq_u64(reg_v20, one_zero);
 }
 
-register uint32_t PC asm("w18");
-register uint32_t D0 asm("w19");
-register uint32_t D1 asm("w20");
-register uint32_t D2 asm("w21");
-register uint32_t D3 asm("w22");
-register uint32_t D4 asm("w23");
-register uint32_t D5 asm("w24");
-register uint32_t D6 asm("w25");
-register uint32_t D7 asm("w26");
-
-register uint32_t A0 asm("w13");
-register uint32_t A1 asm("w14");
-register uint32_t A2 asm("w15");
-register uint32_t A3 asm("w16");
-register uint32_t A4 asm("w17");
-register uint32_t A5 asm("w27");
-register uint32_t A6 asm("w28");
-register uint32_t A7 asm("w29");
-
 static inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
@@ -43,21 +27,7 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-#if 1
-
-static inline uint32_t getSR()
-{
-    uint32_t sr;
-    __asm__ volatile("umov %w0, " REG_SR_ASM:"=r"(sr));
-    return sr;
-}
-
-static inline void setSR(uint32_t sr)
-{
-    __asm__ volatile("mov " REG_SR_ASM ", %w0": :"r"(sr));
-}
-
-#else
+#if 0
 
 static inline uint16_t getSR(void) {
     return vgetq_lane_u16(vreinterpretq_u16_u32(reg_v19), 5);
@@ -71,17 +41,17 @@ static inline void setSR(uint16_t v) {
 #define INTERPRET_SWAP_Dn(dn) \
 uint32_t INTERPRET_SWAP_D##dn(uint16_t) \
 { \
-    uint16_t sr = getSR() & 0xfff0; \
+    uint16_t sr = SR & 0xfff0; \
     \
     if (unlikely(D##dn == 0)) { \
         sr |= SR_Z; \
     } else { \
         D##dn = (D##dn >> 16) | (D##dn << 16); \
         if (D##dn & 0x80000000) { \
-            sr = SR_N; \
+            sr |= SR_N; \
         } \
     } \
-    setSR(sr); \
+    SR = sr; \
     PC += 2; \
     return 1; \
 }
