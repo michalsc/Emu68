@@ -154,15 +154,51 @@ void INTERPRET_UNIMPLEMENTED(uint16_t)
     kprintf("[INT] UNIMPLEMENTED Line4\n");
 }
 
-void INTERPRET_Exception_F0(uint16_t exception)
+void INTERPRET_Exception_F0(uint32_t exception)
 {
     /* Get the SR register as it is now */
-    uint16_t origSR = SR;
+    uint32_t origSR = SR;
 
     /* If we were in user mode, switch stack */
     if ((origSR & SR_S) == 0) {
-        
+        USP = A7;
+        if (unlikely(origSR & SR_M)) {
+            A7 = MSP;
+        }
+        else {
+            A7 = ISP;
+        }
     }
+
+    /* Push the exception frame */
+    A7 -= 8;
+    void *sp = (void *)(uintptr_t)A7;
+
+    /* Invert V and C flags */
+    uint32_t tmp = origSR;
+    uint32_t tmp2;
+
+    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
+    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
+    //if ((tmp & 3) > 0 && (tmp & 3) < 3)
+    //    tmp ^= 3;
+    //tmp = (tmp & ~3u) | ((tmp & 1) << 1) | ((tmp >> 1) & 1);
+
+    /* Prepare frame */
+    *(uint16_t *)(uintptr_t)sp = tmp;
+    *(uint32_t *)((uintptr_t)sp + 2) = PC;
+    *(uint16_t *)((uintptr_t)sp + 6) = exception;
+
+    /* Set SR to supervisor and clear trace flags */
+    origSR |= SR_S;
+    origSR &= ~(SR_T0 | SR_T1);
+
+    /* Set the new SR */
+    SR = origSR;
+
+    /* Get the vector address */
+    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
+    PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()

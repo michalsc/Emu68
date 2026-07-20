@@ -23,14 +23,18 @@ register uint32_t A5 asm("w27");
 register uint32_t A6 asm("w28");
 register uint32_t A7 asm("w29");
 
-static inline uint16_t getSR()
+/* 
+    Even though SR is 16 bit, we return and set it as a 32 bit value 
+    to make compiler happier
+*/
+static inline uint32_t getSR()
 {
-    uint16_t sr;
+    uint32_t sr;
     __asm__ volatile("umov %w0, " REG_SR_ASM:"=r"(sr));
     return sr;
 }
 
-static inline void setSR(uint16_t sr)
+static inline void setSR(uint32_t sr)
 {
     __asm__ volatile("mov " REG_SR_ASM ", %w0": :"r"(sr));
 }
@@ -45,6 +49,42 @@ static inline uint32_t getCACR()
 static inline void setCACR(uint32_t cacr)
 {
     __asm__ volatile("mov " REG_CACR_ASM ", %w0": :"r"(cacr));
+}
+
+static inline uint32_t getUSP()
+{
+    uint32_t usp;
+    __asm__ volatile("umov %w0, " REG_USP_ASM:"=r"(usp));
+    return usp;
+}
+
+static inline void setUSP(uint32_t usp)
+{
+    __asm__ volatile("mov " REG_USP_ASM ", %w0": :"r"(usp));
+}
+
+static inline uint32_t getMSP()
+{
+    uint32_t msp;
+    __asm__ volatile("umov %w0, " REG_MSP_ASM:"=r"(msp));
+    return msp;
+}
+
+static inline void setMSP(uint32_t msp)
+{
+    __asm__ volatile("mov " REG_MSP_ASM ", %w0": :"r"(msp));
+}
+
+static inline uint32_t getISP()
+{
+    uint32_t isp;
+    __asm__ volatile("umov %w0, " REG_ISP_ASM:"=r"(isp));
+    return isp;
+}
+
+static inline void setISP(uint32_t isp)
+{
+    __asm__ volatile("mov " REG_ISP_ASM ", %w0": :"r"(isp));
 }
 
 #ifdef __cplusplus
@@ -69,6 +109,9 @@ struct RegisterProxy {
 inline __attribute__((used)) RegisterProxy<getSR,   setSR>   SR;
 //inline RegisterProxy<getFPSR, setFPSR> FPSR;
 inline __attribute__((used)) RegisterProxy<getCACR, setCACR> CACR;
+inline __attribute__((used)) RegisterProxy<getUSP, setUSP> USP;
+inline __attribute__((used)) RegisterProxy<getMSP, setMSP> MSP;
+inline __attribute__((used)) RegisterProxy<getISP, setISP> ISP;
 
 #endif /* __cplusplus */
 
