@@ -34,7 +34,7 @@ static inline struct M68KState *getCTX()
 #define INTERPRET_SWAP_Dn(dn) \
 void INTERPRET_SWAP_D##dn(uint16_t) \
 { \
-    uint16_t sr = SR & 0xfff0; \
+    uint32_t sr = SR & 0xfff0; \
     \
     if (unlikely(D##dn == 0)) { \
         sr |= SR_Z; \
@@ -149,29 +149,25 @@ void INTERPRET_NOP(uint16_t)
     PC += 2;
 }
 
-void INTERPRET_UNIMPLEMENTED(uint16_t)
-{
-    kprintf("[INT] UNIMPLEMENTED Line4\n");
-}
-
 void INTERPRET_Exception_F0(uint32_t exception)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
 
-    /* If we were in user mode, switch stack */
-    if ((origSR & SR_S) == 0) {
+    /* If we were in user mode, switch stack and reserve space for exception frame */
+    if (likely(origSR & SR_S) == 0) {
         USP = A7;
         if (unlikely(origSR & SR_M)) {
-            A7 = MSP;
+            A7 = MSP - 8;
         }
         else {
-            A7 = ISP;
+            A7 = ISP - 8;
         }
+    } else {
+        A7 -= 8;
     }
 
     /* Push the exception frame */
-    A7 -= 8;
     void *sp = (void *)(uintptr_t)A7;
 
     /* Invert V and C flags */
@@ -180,9 +176,6 @@ void INTERPRET_Exception_F0(uint32_t exception)
 
     asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
     tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-    //if ((tmp & 3) > 0 && (tmp & 3) < 3)
-    //    tmp ^= 3;
-    //tmp = (tmp & ~3u) | ((tmp & 1) << 1) | ((tmp >> 1) & 1);
 
     /* Prepare frame */
     *(uint16_t *)(uintptr_t)sp = tmp;
@@ -199,6 +192,13 @@ void INTERPRET_Exception_F0(uint32_t exception)
     /* Get the vector address */
     uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
     PC = *(uint32_t *)(uintptr_t)vbr;
+}
+
+void INTERPRET_UNIMPLEMENTED(uint16_t opcode)
+{
+    kprintf("[INT] opcode %04x at %08x not implemented\n", opcode, PC);
+
+    INTERPRET_Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
 }
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
