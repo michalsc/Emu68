@@ -2,7 +2,7 @@
 #include <arm_neon.h>
 #include <array>
 
-#include <emu68/interpreter/Line4.hpp>
+#include <emu68/m68k/interpreter.hpp>
 
 #include "RegisterMapping.h"
 
@@ -24,15 +24,8 @@ static inline void bumpINSN_COUNT(void)
     reg_v20 = vaddq_u64(reg_v20, one_zero);
 }
 
-static inline struct M68KState *getCTX()
-{
-    struct M68KState *ctx;
-    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
-    return ctx;
-}
-
 #define INTERPRET_SWAP_Dn(dn) \
-void INTERPRET_SWAP_D##dn(uint16_t) \
+void INTERPRET_SWAP_D##dn(uint32_t) \
 { \
     uint32_t sr = SR & 0xfff0; \
     \
@@ -58,7 +51,7 @@ INTERPRET_SWAP_Dn(6)
 INTERPRET_SWAP_Dn(7)
 
 #define INTERPRET_CLR_B_Dn(dn) \
-void INTERPRET_CLR_B_D##dn(uint16_t) \
+void INTERPRET_CLR_B_D##dn(uint32_t) \
 { \
     uint16_t sr = SR & ~SR_NZVC; \
     D##dn &= 0xffffff00; \
@@ -76,7 +69,7 @@ INTERPRET_CLR_B_Dn(6)
 INTERPRET_CLR_B_Dn(7)
 
 #define INTERPRET_CLR_W_Dn(dn) \
-void INTERPRET_CLR_W_D##dn(uint16_t) \
+void INTERPRET_CLR_W_D##dn(uint32_t) \
 { \
     uint16_t sr = SR & ~SR_NZVC; \
     D##dn &= 0xffff0000; \
@@ -94,7 +87,7 @@ INTERPRET_CLR_W_Dn(6)
 INTERPRET_CLR_W_Dn(7)
 
 #define INTERPRET_CLR_L_Dn(dn) \
-void INTERPRET_CLR_L_D##dn(uint16_t) \
+void INTERPRET_CLR_L_D##dn(uint32_t) \
 { \
     uint16_t sr = SR & ~SR_NZVC; \
     D##dn = 0; \
@@ -138,67 +131,168 @@ uint32_t INTERPRET_CLR_L_REG(uint16_t opcode, struct M68KState *state)
 }
 #endif
 
-void INTERPRET_RTS(uint16_t)
+void INTERPRET_RTS(uint32_t)
 {
     PC = *(uint32_t *)(uintptr_t)A7;
     A7 += 4;
 }
 
-void INTERPRET_NOP(uint16_t)
+void INTERPRET_NOP(uint32_t)
 {
     PC += 2;
 }
 
-void INTERPRET_Exception_F0(uint32_t exception)
-{
-    /* Get the SR register as it is now */
-    uint32_t origSR = SR;
-
-    /* If we were in user mode, switch stack and reserve space for exception frame */
-    if (likely(origSR & SR_S) == 0) {
-        USP = A7;
-        if (unlikely(origSR & SR_M)) {
-            A7 = MSP - 8;
-        }
-        else {
-            A7 = ISP - 8;
-        }
-    } else {
-        A7 -= 8;
-    }
-
-    /* Push the exception frame */
-    void *sp = (void *)(uintptr_t)A7;
-
-    /* Invert V and C flags */
-    uint32_t tmp = origSR;
-    uint32_t tmp2;
-
-    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
-    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-
-    /* Prepare frame */
-    *(uint16_t *)(uintptr_t)sp = tmp;
-    *(uint32_t *)((uintptr_t)sp + 2) = PC;
-    *(uint16_t *)((uintptr_t)sp + 6) = exception;
-
-    /* Set SR to supervisor and clear trace flags */
-    origSR |= SR_S;
-    origSR &= ~(SR_T0 | SR_T1);
-
-    /* Set the new SR */
-    SR = origSR;
-
-    /* Get the vector address */
-    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
-    PC = *(uint32_t *)(uintptr_t)vbr;
+#define INTERPRET_PEA_An(src) \
+void INTERPRET_PEA_A##src(uint32_t) \
+{ \
+    A7 -= 4; \
+    PC += 2; \
+    *(uint32_t*)(uintptr_t)A7 = A##src; \
 }
 
-void INTERPRET_UNIMPLEMENTED(uint16_t opcode)
-{
-    kprintf("[INT] opcode %04x at %08x not implemented\n", opcode, PC);
+INTERPRET_PEA_An(0);
+INTERPRET_PEA_An(1);
+INTERPRET_PEA_An(2);
+INTERPRET_PEA_An(3);
+INTERPRET_PEA_An(4);
+INTERPRET_PEA_An(5);
+INTERPRET_PEA_An(6);
+INTERPRET_PEA_An(7);
 
-    INTERPRET_Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
+void INTERPRET_PEA_ABS_W(uint32_t)
+{
+    A7 -= 4;
+    *(uint32_t*)(uintptr_t)A7 = *(int16_t*)(intptr_t)(PC + 2);
+    PC += 4;
+}
+
+void INTERPRET_PEA_ABS_L(uint32_t)
+{
+    A7 -= 4;
+    *(uint32_t*)(uintptr_t)A7 = *(uint32_t*)(intptr_t)(PC + 2);
+    PC += 6;
+}
+
+#define INTERPRET_JMP_An(src) \
+void INTERPRET_JMP_A##src(uint32_t) \
+{ \
+    PC = A##src; \
+}
+
+INTERPRET_JMP_An(0);
+INTERPRET_JMP_An(1);
+INTERPRET_JMP_An(2);
+INTERPRET_JMP_An(3);
+INTERPRET_JMP_An(4);
+INTERPRET_JMP_An(5);
+INTERPRET_JMP_An(6);
+INTERPRET_JMP_An(7);
+
+void INTERPRET_JMP_ABS_W(uint32_t)
+{
+    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
+    PC = pc;
+}
+
+void INTERPRET_JMP_ABS_L(uint32_t)
+{
+    int16_t pc = *(int32_t*)(intptr_t)(PC + 2);
+    PC = pc;
+}
+
+#define INTERPRET_JSR_An(src) \
+void INTERPRET_JSR_A##src(uint32_t) \
+{ \
+    A7 -= 4; \
+    *(uint32_t*)(intptr_t)A7 = PC + 2; \
+    PC = A##src; \
+}
+
+INTERPRET_JSR_An(0);
+INTERPRET_JSR_An(1);
+INTERPRET_JSR_An(2);
+INTERPRET_JSR_An(3);
+INTERPRET_JSR_An(4);
+INTERPRET_JSR_An(5);
+INTERPRET_JSR_An(6);
+INTERPRET_JSR_An(7);
+
+void INTERPRET_JSR_ABS_W(uint32_t)
+{
+    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
+    A7 -= 4;
+    *(uint32_t*)(intptr_t)A7 = PC + 4;
+    PC = pc;
+}
+
+void INTERPRET_JMP_d16_PC(uint32_t)
+{
+    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
+    PC += pc + 2;
+}
+
+void INTERPRET_JSR_ABS_L(uint32_t)
+{
+    int16_t pc = *(int32_t*)(intptr_t)(PC + 2);
+    A7 -= 4;
+    *(uint32_t*)(intptr_t)A7 = PC + 6;
+    PC = pc;
+}
+
+void INTERPRET_JSR_d16_PC(uint32_t)
+{
+    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
+    A7 -= 4;
+    *(uint32_t*)(intptr_t)A7 = PC + 4;
+    PC += pc + 2;
+}
+
+
+#define INTERPRET_LINK_W_An(reg) \
+void INTERPRET_LINK_W_A##reg(uint32_t) \
+{ \
+    int16_t displ = *(int16_t*)(intptr_t)(PC + 2); \
+    A7 -= 4; \
+    *(uint32_t *)(uintptr_t)A7 = A##reg; \
+    A##reg = A7; \
+    A7 += displ; \
+    PC += 4; \
+}
+
+INTERPRET_LINK_W_An(0);
+INTERPRET_LINK_W_An(1);
+INTERPRET_LINK_W_An(2);
+INTERPRET_LINK_W_An(3);
+INTERPRET_LINK_W_An(4);
+INTERPRET_LINK_W_An(5);
+INTERPRET_LINK_W_An(6);
+INTERPRET_LINK_W_An(7);
+
+#define INTERPRET_LINK_L_An(reg) \
+void INTERPRET_LINK_L_A##reg(uint32_t) \
+{ \
+    int32_t displ = *(int32_t*)(intptr_t)(PC + 2); \
+    A7 -= 4; \
+    *(uint32_t *)(uintptr_t)A7 = A##reg; \
+    A##reg = A7; \
+    A7 += displ; \
+    PC += 6; \
+}
+
+INTERPRET_LINK_L_An(0);
+INTERPRET_LINK_L_An(1);
+INTERPRET_LINK_L_An(2);
+INTERPRET_LINK_L_An(3);
+INTERPRET_LINK_L_An(4);
+INTERPRET_LINK_L_An(5);
+INTERPRET_LINK_L_An(6);
+INTERPRET_LINK_L_An(7);
+
+
+void INTERPRET_MOVEM_regs_to_An_Addr(uint32_t)
+{
+    
+    PC += 4;
 }
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
@@ -248,8 +342,64 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     table[01206] =     INTERPRET_CLR_L_D6;
     table[01207] =     INTERPRET_CLR_L_D7;
 
+    table[04010] =     INTERPRET_LINK_L_A0;
+    table[04011] =     INTERPRET_LINK_L_A1;
+    table[04012] =     INTERPRET_LINK_L_A2;
+    table[04013] =     INTERPRET_LINK_L_A3;
+    table[04014] =     INTERPRET_LINK_L_A4;
+    table[04015] =     INTERPRET_LINK_L_A5;
+    table[04016] =     INTERPRET_LINK_L_A6;
+    table[04017] =     INTERPRET_LINK_L_A7;
+
+    table[04120] =     INTERPRET_PEA_A0;
+    table[04121] =     INTERPRET_PEA_A1;
+    table[04122] =     INTERPRET_PEA_A2;
+    table[04123] =     INTERPRET_PEA_A3;
+    table[04124] =     INTERPRET_PEA_A4;
+    table[04125] =     INTERPRET_PEA_A5;
+    table[04126] =     INTERPRET_PEA_A6;
+    table[04127] =     INTERPRET_PEA_A7;
+
+    table[04170] =     INTERPRET_PEA_ABS_W;
+    table[04171] =     INTERPRET_PEA_ABS_L;
+
+    table[07120] =     INTERPRET_LINK_W_A0;
+    table[07121] =     INTERPRET_LINK_W_A1;
+    table[07122] =     INTERPRET_LINK_W_A2;
+    table[07123] =     INTERPRET_LINK_W_A3;
+    table[07124] =     INTERPRET_LINK_W_A4;
+    table[07125] =     INTERPRET_LINK_W_A5;
+    table[07126] =     INTERPRET_LINK_W_A6;
+    table[07127] =     INTERPRET_LINK_W_A7;
+
     table[07161] =     INTERPRET_NOP;
     table[07165] =     INTERPRET_RTS;
+
+    table[07220] =     INTERPRET_JSR_A0;
+    table[07221] =     INTERPRET_JSR_A1;
+    table[07222] =     INTERPRET_JSR_A0;
+    table[07223] =     INTERPRET_JSR_A1;
+    table[07224] =     INTERPRET_JSR_A0;
+    table[07225] =     INTERPRET_JSR_A1;
+    table[07226] =     INTERPRET_JSR_A0;
+    table[07227] =     INTERPRET_JSR_A1;
+
+    table[07270] =     INTERPRET_JSR_ABS_W;
+    table[07271] =     INTERPRET_JSR_ABS_L;
+    table[07272] =     INTERPRET_JSR_d16_PC;
+
+    table[07220] =     INTERPRET_JMP_A0;
+    table[07221] =     INTERPRET_JMP_A1;
+    table[07222] =     INTERPRET_JMP_A0;
+    table[07223] =     INTERPRET_JMP_A1;
+    table[07224] =     INTERPRET_JMP_A0;
+    table[07225] =     INTERPRET_JMP_A1;
+    table[07226] =     INTERPRET_JMP_A0;
+    table[07227] =     INTERPRET_JMP_A1;
+
+    table[07370] =     INTERPRET_JMP_ABS_W;
+    table[07371] =     INTERPRET_JMP_ABS_L;
+    table[07272] =     INTERPRET_JMP_d16_PC;
     
     #if 0
     [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
@@ -459,7 +609,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 }
 
 static constexpr auto InsnTable = BuildInsnTable();
-
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line4(uint32_t opcode)
