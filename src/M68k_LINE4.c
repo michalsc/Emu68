@@ -3081,23 +3081,23 @@ static struct OpcodeDef InsnTable[4096] = {
     [04010 ... 04017] = { EMIT_LINK32, NULL, 0, 0, 3, 0, 0 },
     [07120 ... 07127] = { EMIT_LINK16, NULL, 0, 0, 2, 0, 0 },
 
-    [04100]           = { EMIT_SWAP, INTERPRET_SWAP_D0, 0, SR_NZVC, 1, 0, 0 },
-    [04101]           = { EMIT_SWAP, INTERPRET_SWAP_D1, 0, SR_NZVC, 1, 0, 0 },
-    [04102]           = { EMIT_SWAP, INTERPRET_SWAP_D2, 0, SR_NZVC, 1, 0, 0 },
-    [04103]           = { EMIT_SWAP, INTERPRET_SWAP_D3, 0, SR_NZVC, 1, 0, 0 },
-    [04104]           = { EMIT_SWAP, INTERPRET_SWAP_D4, 0, SR_NZVC, 1, 0, 0 },
-    [04105]           = { EMIT_SWAP, INTERPRET_SWAP_D5, 0, SR_NZVC, 1, 0, 0 },
-    [04106]           = { EMIT_SWAP, INTERPRET_SWAP_D6, 0, SR_NZVC, 1, 0, 0 },
-    [04107]           = { EMIT_SWAP, INTERPRET_SWAP_D7, 0, SR_NZVC, 1, 0, 0 },
+    [04100]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04101]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04102]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04103]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04104]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04105]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04106]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
+    [04107]           = { EMIT_SWAP, NULL, 0, SR_NZVC, 1, 0, 0 },
     [0xafc]           = { EMIT_ILLEGAL, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
     [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
     [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
-    [0xe71]           = { EMIT_NOP, INTERPRET_NOP, 0, 0, 1, 0, 0 },
+    [0xe71]           = { EMIT_NOP, NULL, 0, 0, 1, 0, 0 },
     [0xe72]           = { EMIT_STOP, NULL, SR_S, SR_ALL, 2, 0, 0 },
     [0xe73]           = { EMIT_RTE, NULL, SR_S, SR_ALL, 1, 0, 0 },
     [0xe74]           = { EMIT_RTD, NULL, 0, 0, 2, 0, 0 },
-    [0xe75]           = { EMIT_RTS, INTERPRET_RTS, 0, 0, 1, 0, 0 },
+    [0xe75]           = { EMIT_RTS, NULL, 0, 0, 1, 0, 0 },
     [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe77]           = { EMIT_RTR, NULL, 0, SR_CCR, 1, 0, 0 },
     [0xe7a ... 0xe7b] = { EMIT_MOVEC, NULL, SR_S, 0, 2, 0, 4 },
@@ -3272,17 +3272,6 @@ static struct OpcodeDef InsnTable[4096] = {
     [07450 ... 07474] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 1, 4 },
 
 };
-
-void INTERPRET_line4(struct M68KState *state)
-{
-    uint16_t opcode = *(uint16_t *)(uintptr_t)state->PC;
-
-    if (InsnTable[opcode & 0xfff].od_Interpret) {
-        InsnTable[opcode & 0xfff].od_Interpret(opcode);
-    } else {
-        
-    }
-}
 
 uint32_t EMIT_line4(struct TranslatorContext *ctx)
 {
