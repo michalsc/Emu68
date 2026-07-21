@@ -241,6 +241,22 @@ void disasm_print_arm_only(uint32_t *arm_addr)
         cs_free(insn_arm, count_arm);
 }
 
+void disasm_print_m68k_only(uint16_t *m68k_addr)
+{
+    cs_insn *insn_m68k;
+    size_t count_m68k = 0;
+
+    count_m68k = cs_disasm(h_m68k, (const uint8_t *)m68k_addr, 20, (uintptr_t)m68k_addr, 1, &insn_m68k);
+
+    for (size_t i=0; i < count_m68k; i++)
+    {
+        kprintf("[JIT] %08x: %7s %s\n", insn_m68k[i].address, insn_m68k[i].mnemonic, insn_m68k[i].op_str);
+    }
+
+    if (count_m68k)
+        cs_free(insn_m68k, count_m68k);
+}
+
 void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
 {
     cs_insn *insn_ppc;

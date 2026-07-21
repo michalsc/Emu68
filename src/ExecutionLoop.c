@@ -10,7 +10,9 @@
 #include <M68k.h>
 #include <support.h>
 #include <config.h>
+#include <emu68/m68k/interpreter.hpp>
 
+#include "disasm.h"
 #include "RegisterMapping.h"
 
 #ifdef PISTORM_CLASSIC
@@ -405,15 +407,27 @@ void ProcessIRQ(struct M68KState *ctx)
 void InterpreterLoop()
 {
     struct M68KState *ctx = getCTX();
+    extern int disasm;
 
     kprintf("[INT] Starting interpreter loop\n");
 
     ARMCode = (void*)-1;
 
+    if (disasm) {
+        M68K_SaveContext(ctx);
+        disasm_open();
+        M68K_LoadContext(getCTX());
+    }
+
     do
     {
 #ifndef PISTORM_ANY_MODEL
         if (unlikely(PC == 0)) {
+            if (disasm) {
+                M68K_SaveContext(ctx);
+                disasm_close();
+                M68K_LoadContext(getCTX());
+            }
             return;
         }
 #endif
@@ -425,7 +439,25 @@ void InterpreterLoop()
         
         /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
         
+#if 1
+        uint16_t opcode = *(uint16_t *)(uintptr_t)PC;
+        
+        if (disasm)
+        {
+            M68K_SaveContext(ctx);
+            disasm_print_m68k_only((uint16_t*)(uintptr_t)ctx->PC);
+            M68K_LoadContext(ctx);
+        }
 
+        switch(opcode & 0xf000) {
+            case 0x0000: INTERPRET_line0(opcode); break;
+            case 0x2000: INTERPRET_line2(opcode); break;
+            case 0x4000: INTERPRET_line4(opcode); break;
+            case 0x6000: INTERPRET_line6(opcode); break;
+            case 0x7000: INTERPRET_line7(opcode); break;
+            default: INTERPRET_UNIMPLEMENTED(opcode); break;
+        }
+#else
         /* This is a FAKE interpreter loop! Beware */
         struct M68KTranslationUnit *node = NULL;
 
@@ -453,7 +485,14 @@ void InterpreterLoop()
         M68K_LoadContext(getCTX());
         uint32_t (*code)() = node->mt_ARMEntryPoint;
         if (code() == 0) return;
+#endif
     } while(ARMCode != NULL);
+
+    if (disasm) {
+        M68K_SaveContext(ctx);
+        disasm_close();
+        M68K_LoadContext(getCTX());
+    }
 }
 
 void JITLoop()

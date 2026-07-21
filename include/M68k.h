@@ -620,7 +620,7 @@ int M68K_GetLineFLength(uint16_t *insn_stream);
 uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
 
 typedef uint32_t (*EMIT_Function)(struct TranslatorContext *ctx, uint16_t opcode);
-typedef void (*INTERPRET_Function)(uint16_t opcode);
+typedef void (*INTERPRET_Function)(uint32_t opcode);
 
 struct OpcodeDef {
     EMIT_Function       od_Emit;
