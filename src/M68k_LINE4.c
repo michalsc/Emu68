@@ -3122,9 +3122,9 @@ static struct OpcodeDef InsnTable[4096] = {
     [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
     [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
 
-    //[01000 ... 01007] = { EMIT_CLR_B_REG, INTERPRET_CLR_B_REG, 0, SR_NZVC, 1, 0, 1 },
-    //[01100 ... 01107] = { EMIT_CLR_W_REG, INTERPRET_CLR_W_REG, 0, SR_NZVC, 1, 0, 2 },
-    //[01200 ... 01207] = { EMIT_CLR_L_REG, INTERPRET_CLR_L_REG, 0, SR_NZVC, 1, 0, 4 },
+    [01000 ... 01007] = { EMIT_CLR_B_REG, NULL, 0, SR_NZVC, 1, 0, 1 },
+    [01100 ... 01107] = { EMIT_CLR_W_REG, NULL, 0, SR_NZVC, 1, 0, 2 },
+    [01200 ... 01207] = { EMIT_CLR_L_REG, NULL, 0, SR_NZVC, 1, 0, 4 },
 
     [01020 ... 01047] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 1 },
     [01120 ... 01147] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 2 },

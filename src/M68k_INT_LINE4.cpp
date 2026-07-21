@@ -104,32 +104,176 @@ INTERPRET_CLR_L_Dn(5)
 INTERPRET_CLR_L_Dn(6)
 INTERPRET_CLR_L_Dn(7)
 
-#if 0
 
-uint32_t INTERPRET_CLR_W_REG(uint16_t opcode, struct M68KState *state)
-{
-    uint8_t dn = opcode & 7;
-
-    state->D[dn].u16[1] = 0;
-    state->SR &= ~(SR_N | SR_Z | SR_V | SR_C);
-    state->SR |= SR_Z;
-    state->PC += 2;
-    
-    return state->PC;
+#define INTERPRET_CLR_B_An_Addr(dn) \
+void INTERPRET_CLR_B_A##dn##_Addr(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    *(uint8_t*)(uintptr_t)A##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
 }
 
-uint32_t INTERPRET_CLR_L_REG(uint16_t opcode, struct M68KState *state)
-{
-    uint8_t dn = opcode & 7;
+INTERPRET_CLR_B_An_Addr(0)
+INTERPRET_CLR_B_An_Addr(1)
+INTERPRET_CLR_B_An_Addr(2)
+INTERPRET_CLR_B_An_Addr(3)
+INTERPRET_CLR_B_An_Addr(4)
+INTERPRET_CLR_B_An_Addr(5)
+INTERPRET_CLR_B_An_Addr(6)
+INTERPRET_CLR_B_An_Addr(7)
 
-    state->D[dn].u32 = 0;
-    state->SR &= ~(SR_N | SR_Z | SR_V | SR_C);
-    state->SR |= SR_Z;
-    state->PC += 2;
-    
-    return state->PC;
+#define INTERPRET_CLR_W_An_Addr(dn) \
+void INTERPRET_CLR_W_A##dn##_Addr(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    *(uint16_t*)(uintptr_t)A##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
 }
-#endif
+
+INTERPRET_CLR_W_An_Addr(0)
+INTERPRET_CLR_W_An_Addr(1)
+INTERPRET_CLR_W_An_Addr(2)
+INTERPRET_CLR_W_An_Addr(3)
+INTERPRET_CLR_W_An_Addr(4)
+INTERPRET_CLR_W_An_Addr(5)
+INTERPRET_CLR_W_An_Addr(6)
+INTERPRET_CLR_W_An_Addr(7)
+
+#define INTERPRET_CLR_L_An_Addr(dn) \
+void INTERPRET_CLR_L_A##dn##_Addr(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    *(uint32_t*)(uintptr_t)A##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_L_An_Addr(0)
+INTERPRET_CLR_L_An_Addr(1)
+INTERPRET_CLR_L_An_Addr(2)
+INTERPRET_CLR_L_An_Addr(3)
+INTERPRET_CLR_L_An_Addr(4)
+INTERPRET_CLR_L_An_Addr(5)
+INTERPRET_CLR_L_An_Addr(6)
+INTERPRET_CLR_L_An_Addr(7)
+
+
+#define INTERPRET_CLR_B_An_PreDec(dn) \
+void INTERPRET_CLR_B_A##dn##_PreDec(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    A##dn -= ((dn) == 7) ? 2 : 1; \
+    *(uint8_t*)(uintptr_t)A##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_B_An_PreDec(0)
+INTERPRET_CLR_B_An_PreDec(1)
+INTERPRET_CLR_B_An_PreDec(2)
+INTERPRET_CLR_B_An_PreDec(3)
+INTERPRET_CLR_B_An_PreDec(4)
+INTERPRET_CLR_B_An_PreDec(5)
+INTERPRET_CLR_B_An_PreDec(6)
+INTERPRET_CLR_B_An_PreDec(7)
+
+#define INTERPRET_CLR_W_An_PreDec(dn) \
+void INTERPRET_CLR_W_A##dn##_PreDec(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    A##dn -= 2; \
+    *(uint16_t*)(uintptr_t)A##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_W_An_PreDec(0)
+INTERPRET_CLR_W_An_PreDec(1)
+INTERPRET_CLR_W_An_PreDec(2)
+INTERPRET_CLR_W_An_PreDec(3)
+INTERPRET_CLR_W_An_PreDec(4)
+INTERPRET_CLR_W_An_PreDec(5)
+INTERPRET_CLR_W_An_PreDec(6)
+INTERPRET_CLR_W_An_PreDec(7)
+
+#define INTERPRET_CLR_L_An_PreDec(dn) \
+void INTERPRET_CLR_L_A##dn##_PreDec(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    A##dn -= 4; \
+    *(uint32_t*)(uintptr_t)A##dn = 0; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_L_An_PreDec(0)
+INTERPRET_CLR_L_An_PreDec(1)
+INTERPRET_CLR_L_An_PreDec(2)
+INTERPRET_CLR_L_An_PreDec(3)
+INTERPRET_CLR_L_An_PreDec(4)
+INTERPRET_CLR_L_An_PreDec(5)
+INTERPRET_CLR_L_An_PreDec(6)
+INTERPRET_CLR_L_An_PreDec(7)
+
+
+#define INTERPRET_CLR_B_An_PostInc(dn) \
+void INTERPRET_CLR_B_A##dn##_PostInc(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    *(uint8_t*)(uintptr_t)A##dn = 0; \
+    A##dn += ((dn) == 7) ? 2 : 1; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_B_An_PostInc(0)
+INTERPRET_CLR_B_An_PostInc(1)
+INTERPRET_CLR_B_An_PostInc(2)
+INTERPRET_CLR_B_An_PostInc(3)
+INTERPRET_CLR_B_An_PostInc(4)
+INTERPRET_CLR_B_An_PostInc(5)
+INTERPRET_CLR_B_An_PostInc(6)
+INTERPRET_CLR_B_An_PostInc(7)
+
+#define INTERPRET_CLR_W_An_PostInc(dn) \
+void INTERPRET_CLR_W_A##dn##_PostInc(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    *(uint16_t*)(uintptr_t)A##dn = 0; \
+    A##dn += 2; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_W_An_PostInc(0)
+INTERPRET_CLR_W_An_PostInc(1)
+INTERPRET_CLR_W_An_PostInc(2)
+INTERPRET_CLR_W_An_PostInc(3)
+INTERPRET_CLR_W_An_PostInc(4)
+INTERPRET_CLR_W_An_PostInc(5)
+INTERPRET_CLR_W_An_PostInc(6)
+INTERPRET_CLR_W_An_PostInc(7)
+
+#define INTERPRET_CLR_L_An_PostInc(dn) \
+void INTERPRET_CLR_L_A##dn##_PostInc(uint32_t) \
+{ \
+    uint16_t sr = SR & ~SR_NZVC; \
+    *(uint32_t*)(uintptr_t)A##dn = 0; \
+    A##dn += 4; \
+    SR = sr | SR_Z; \
+    PC += 2; \
+}
+
+INTERPRET_CLR_L_An_PostInc(0)
+INTERPRET_CLR_L_An_PostInc(1)
+INTERPRET_CLR_L_An_PostInc(2)
+INTERPRET_CLR_L_An_PostInc(3)
+INTERPRET_CLR_L_An_PostInc(4)
+INTERPRET_CLR_L_An_PostInc(5)
+INTERPRET_CLR_L_An_PostInc(6)
+INTERPRET_CLR_L_An_PostInc(7)
 
 void INTERPRET_RTS(uint32_t)
 {
@@ -196,8 +340,7 @@ void INTERPRET_JMP_ABS_W(uint32_t)
 
 void INTERPRET_JMP_ABS_L(uint32_t)
 {
-    int16_t pc = *(int32_t*)(intptr_t)(PC + 2);
-    PC = pc;
+    PC = *(uint32_t*)(intptr_t)(PC + 2);
 }
 
 #define INTERPRET_JSR_An(src) \
@@ -233,7 +376,7 @@ void INTERPRET_JMP_d16_PC(uint32_t)
 
 void INTERPRET_JSR_ABS_L(uint32_t)
 {
-    int16_t pc = *(int32_t*)(intptr_t)(PC + 2);
+    uint32_t pc = *(int32_t*)(intptr_t)(PC + 2);
     A7 -= 4;
     *(uint32_t*)(intptr_t)A7 = PC + 6;
     PC = pc;
@@ -289,11 +432,74 @@ INTERPRET_LINK_L_An(6);
 INTERPRET_LINK_L_An(7);
 
 
-void INTERPRET_MOVEM_regs_to_An_Addr(uint32_t)
-{
-    
-    PC += 4;
+#define INTERPRET_MOVEM_L_regs_to_An_Addr(reg) \
+void INTERPRET_MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
+{ \
+    uint32_t *base = (uint32_t *)(uintptr_t)A##reg; \
+    uint16_t mask = *(uint16_t*)(uintptr_t)(PC + 2); \
+    if (mask & 0x0001) *base++ = D0; \
+    if (mask & 0x0002) *base++ = D1; \
+    if (mask & 0x0004) *base++ = D2; \
+    if (mask & 0x0008) *base++ = D3; \
+    if (mask & 0x0010) *base++ = D4; \
+    if (mask & 0x0020) *base++ = D5; \
+    if (mask & 0x0040) *base++ = D6; \
+    if (mask & 0x0080) *base++ = D7; \
+    if (mask & 0x0100) *base++ = A0; \
+    if (mask & 0x0200) *base++ = A1; \
+    if (mask & 0x0400) *base++ = A2; \
+    if (mask & 0x0800) *base++ = A3; \
+    if (mask & 0x1000) *base++ = A4; \
+    if (mask & 0x2000) *base++ = A5; \
+    if (mask & 0x4000) *base++ = A6; \
+    if (mask & 0x8000) *base++ = A7; \
+    PC += 4; \
 }
+
+INTERPRET_MOVEM_L_regs_to_An_Addr(0);
+INTERPRET_MOVEM_L_regs_to_An_Addr(1);
+INTERPRET_MOVEM_L_regs_to_An_Addr(2);
+INTERPRET_MOVEM_L_regs_to_An_Addr(3);
+INTERPRET_MOVEM_L_regs_to_An_Addr(4);
+INTERPRET_MOVEM_L_regs_to_An_Addr(5);
+INTERPRET_MOVEM_L_regs_to_An_Addr(6);
+INTERPRET_MOVEM_L_regs_to_An_Addr(7);
+
+
+#define INTERPRET_MOVEM_L_regs_to_An_PreDec(reg) \
+void INTERPRET_MOVEM_L_regs_to_A##reg##_PreDec(uint32_t) \
+{ \
+    uint32_t *base = (uint32_t *)(uintptr_t)A##reg; \
+    A##reg -= 4; \
+    uint16_t mask = *(uint16_t*)(uintptr_t)(PC + 2); \
+    if (mask & 0x0001) *--base = A7; \
+    if (mask & 0x0002) *--base = A6; \
+    if (mask & 0x0004) *--base = A5; \
+    if (mask & 0x0008) *--base = A4; \
+    if (mask & 0x0010) *--base = A3; \
+    if (mask & 0x0020) *--base = A2; \
+    if (mask & 0x0040) *--base = A1; \
+    if (mask & 0x0080) *--base = A0; \
+    if (mask & 0x0100) *--base = D7; \
+    if (mask & 0x0200) *--base = D6; \
+    if (mask & 0x0400) *--base = D5; \
+    if (mask & 0x0800) *--base = D4; \
+    if (mask & 0x1000) *--base = D3; \
+    if (mask & 0x2000) *--base = D2; \
+    if (mask & 0x4000) *--base = D1; \
+    if (mask & 0x8000) *--base = D0; \
+    A##reg = (uint32_t)(uintptr_t)base; \
+    PC += 4; \
+}
+
+INTERPRET_MOVEM_L_regs_to_An_PreDec(0);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(1);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(2);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(3);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(4);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(5);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(6);
+INTERPRET_MOVEM_L_regs_to_An_PreDec(7);
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
@@ -342,6 +548,87 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     table[01206] =     INTERPRET_CLR_L_D6;
     table[01207] =     INTERPRET_CLR_L_D7;
 
+    table[01020] =     INTERPRET_CLR_B_A0_Addr;
+    table[01021] =     INTERPRET_CLR_B_A1_Addr;
+    table[01022] =     INTERPRET_CLR_B_A2_Addr;
+    table[01023] =     INTERPRET_CLR_B_A3_Addr;
+    table[01024] =     INTERPRET_CLR_B_A4_Addr;
+    table[01025] =     INTERPRET_CLR_B_A5_Addr;
+    table[01026] =     INTERPRET_CLR_B_A6_Addr;
+    table[01027] =     INTERPRET_CLR_B_A7_Addr;
+
+    table[01120] =     INTERPRET_CLR_W_A0_Addr;
+    table[01121] =     INTERPRET_CLR_W_A1_Addr;
+    table[01122] =     INTERPRET_CLR_W_A2_Addr;
+    table[01123] =     INTERPRET_CLR_W_A3_Addr;
+    table[01124] =     INTERPRET_CLR_W_A4_Addr;
+    table[01125] =     INTERPRET_CLR_W_A5_Addr;
+    table[01126] =     INTERPRET_CLR_W_A6_Addr;
+    table[01127] =     INTERPRET_CLR_W_A7_Addr;
+
+    table[01220] =     INTERPRET_CLR_L_A0_Addr;
+    table[01221] =     INTERPRET_CLR_L_A1_Addr;
+    table[01222] =     INTERPRET_CLR_L_A2_Addr;
+    table[01223] =     INTERPRET_CLR_L_A3_Addr;
+    table[01224] =     INTERPRET_CLR_L_A4_Addr;
+    table[01225] =     INTERPRET_CLR_L_A5_Addr;
+    table[01226] =     INTERPRET_CLR_L_A6_Addr;
+    table[01227] =     INTERPRET_CLR_L_A7_Addr;
+
+    table[01030] =     INTERPRET_CLR_B_A0_PostInc;
+    table[01031] =     INTERPRET_CLR_B_A1_PostInc;
+    table[01032] =     INTERPRET_CLR_B_A2_PostInc;
+    table[01033] =     INTERPRET_CLR_B_A3_PostInc;
+    table[01034] =     INTERPRET_CLR_B_A4_PostInc;
+    table[01035] =     INTERPRET_CLR_B_A5_PostInc;
+    table[01036] =     INTERPRET_CLR_B_A6_PostInc;
+    table[01037] =     INTERPRET_CLR_B_A7_PostInc;
+
+    table[01130] =     INTERPRET_CLR_W_A0_PostInc;
+    table[01131] =     INTERPRET_CLR_W_A1_PostInc;
+    table[01132] =     INTERPRET_CLR_W_A2_PostInc;
+    table[01133] =     INTERPRET_CLR_W_A3_PostInc;
+    table[01134] =     INTERPRET_CLR_W_A4_PostInc;
+    table[01135] =     INTERPRET_CLR_W_A5_PostInc;
+    table[01136] =     INTERPRET_CLR_W_A6_PostInc;
+    table[01137] =     INTERPRET_CLR_W_A7_PostInc;
+
+    table[01230] =     INTERPRET_CLR_L_A0_PostInc;
+    table[01231] =     INTERPRET_CLR_L_A1_PostInc;
+    table[01232] =     INTERPRET_CLR_L_A2_PostInc;
+    table[01233] =     INTERPRET_CLR_L_A3_PostInc;
+    table[01234] =     INTERPRET_CLR_L_A4_PostInc;
+    table[01235] =     INTERPRET_CLR_L_A5_PostInc;
+    table[01236] =     INTERPRET_CLR_L_A6_PostInc;
+    table[01237] =     INTERPRET_CLR_L_A7_PostInc;
+
+    table[01040] =     INTERPRET_CLR_B_A0_PreDec;
+    table[01041] =     INTERPRET_CLR_B_A1_PreDec;
+    table[01042] =     INTERPRET_CLR_B_A2_PreDec;
+    table[01043] =     INTERPRET_CLR_B_A3_PreDec;
+    table[01044] =     INTERPRET_CLR_B_A4_PreDec;
+    table[01045] =     INTERPRET_CLR_B_A5_PreDec;
+    table[01046] =     INTERPRET_CLR_B_A6_PreDec;
+    table[01047] =     INTERPRET_CLR_B_A7_PreDec;
+
+    table[01140] =     INTERPRET_CLR_W_A0_PreDec;
+    table[01141] =     INTERPRET_CLR_W_A1_PreDec;
+    table[01142] =     INTERPRET_CLR_W_A2_PreDec;
+    table[01143] =     INTERPRET_CLR_W_A3_PreDec;
+    table[01144] =     INTERPRET_CLR_W_A4_PreDec;
+    table[01145] =     INTERPRET_CLR_W_A5_PreDec;
+    table[01146] =     INTERPRET_CLR_W_A6_PreDec;
+    table[01147] =     INTERPRET_CLR_W_A7_PreDec;
+
+    table[01240] =     INTERPRET_CLR_L_A0_PreDec;
+    table[01241] =     INTERPRET_CLR_L_A1_PreDec;
+    table[01242] =     INTERPRET_CLR_L_A2_PreDec;
+    table[01243] =     INTERPRET_CLR_L_A3_PreDec;
+    table[01244] =     INTERPRET_CLR_L_A4_PreDec;
+    table[01245] =     INTERPRET_CLR_L_A5_PreDec;
+    table[01246] =     INTERPRET_CLR_L_A6_PreDec;
+    table[01247] =     INTERPRET_CLR_L_A7_PreDec;
+
     table[04010] =     INTERPRET_LINK_L_A0;
     table[04011] =     INTERPRET_LINK_L_A1;
     table[04012] =     INTERPRET_LINK_L_A2;
@@ -362,6 +649,24 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
     table[04170] =     INTERPRET_PEA_ABS_W;
     table[04171] =     INTERPRET_PEA_ABS_L;
+
+    table[04320] =     INTERPRET_MOVEM_L_regs_to_A0_Addr;
+    table[04321] =     INTERPRET_MOVEM_L_regs_to_A1_Addr;
+    table[04322] =     INTERPRET_MOVEM_L_regs_to_A2_Addr;
+    table[04323] =     INTERPRET_MOVEM_L_regs_to_A3_Addr;
+    table[04324] =     INTERPRET_MOVEM_L_regs_to_A4_Addr;
+    table[04325] =     INTERPRET_MOVEM_L_regs_to_A5_Addr;
+    table[04326] =     INTERPRET_MOVEM_L_regs_to_A6_Addr;
+    table[04327] =     INTERPRET_MOVEM_L_regs_to_A7_Addr;
+
+    table[04340] =     INTERPRET_MOVEM_L_regs_to_A0_PreDec;
+    table[04341] =     INTERPRET_MOVEM_L_regs_to_A1_PreDec;
+    table[04342] =     INTERPRET_MOVEM_L_regs_to_A2_PreDec;
+    table[04343] =     INTERPRET_MOVEM_L_regs_to_A3_PreDec;
+    table[04344] =     INTERPRET_MOVEM_L_regs_to_A4_PreDec;
+    table[04345] =     INTERPRET_MOVEM_L_regs_to_A5_PreDec;
+    table[04346] =     INTERPRET_MOVEM_L_regs_to_A6_PreDec;
+    table[04347] =     INTERPRET_MOVEM_L_regs_to_A7_PreDec;
 
     table[07120] =     INTERPRET_LINK_W_A0;
     table[07121] =     INTERPRET_LINK_W_A1;
