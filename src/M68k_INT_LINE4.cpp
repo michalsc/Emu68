@@ -50,6 +50,21 @@ INTERPRET_SWAP_Dn(5)
 INTERPRET_SWAP_Dn(6)
 INTERPRET_SWAP_Dn(7)
 
+void INTERPRET_CLR_Generic(uint32_t opcode)
+{
+    uint16_t sr = SR & ~SR_NZVC;
+    SR = sr | SR_Z;
+    PC += 2;
+
+    switch ((opcode >> 6) & 3)
+    {
+        case 0: INTERPRET_StoreToEffectiveAddress(opcode & 7, 0, I_SIZE_BYTE, (opcode >> 3) & 7); break;
+        case 1: INTERPRET_StoreToEffectiveAddress(opcode & 7, 0, I_SIZE_WORD, (opcode >> 3) & 7); break;
+        case 2: INTERPRET_StoreToEffectiveAddress(opcode & 7, 0, I_SIZE_LONG, (opcode >> 3) & 7); break;
+        default: __builtin_unreachable();
+    }
+}
+
 #define INTERPRET_CLR_B_Dn(dn) \
 void INTERPRET_CLR_B_D##dn(uint32_t) \
 { \
@@ -286,6 +301,19 @@ void INTERPRET_NOP(uint32_t)
     PC += 2;
 }
 
+
+void INTERPRET_PEA_Generic(uint32_t opcode)
+{
+    uint32_t ea;
+
+    PC += 2;
+    
+    INTERPRET_GetEffectiveAddress(opcode & 7, 4, &ea, (opcode >> 3) & 7);
+    
+    A7 -= 4;
+    *(uint32_t*)(uintptr_t)A7 = ea;
+}
+
 #define INTERPRET_PEA_An(src) \
 void INTERPRET_PEA_A##src(uint32_t) \
 { \
@@ -501,6 +529,16 @@ INTERPRET_MOVEM_L_regs_to_An_PreDec(5);
 INTERPRET_MOVEM_L_regs_to_An_PreDec(6);
 INTERPRET_MOVEM_L_regs_to_An_PreDec(7);
 
+void INTERPRET_LEA_Generic(uint32_t opcode)
+{
+    uint32_t ea;
+
+    PC += 2;
+
+    INTERPRET_GetEffectiveAddress(opcode & 7, 4, &ea, (opcode >> 3) & 7);
+    setAn((opcode >> 9) & 7, ea);
+}
+
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -520,6 +558,13 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     table[04105] =     INTERPRET_SWAP_D1;
     table[04106] =     INTERPRET_SWAP_D2;
     table[04107] =     INTERPRET_SWAP_D3;
+
+    fill(01020, 01047, INTERPRET_CLR_Generic);
+    fill(01120, 01147, INTERPRET_CLR_Generic);
+    fill(01220, 01247, INTERPRET_CLR_Generic);
+    fill(01050, 01071, INTERPRET_CLR_Generic);
+    fill(01150, 01171, INTERPRET_CLR_Generic);
+    fill(01250, 01271, INTERPRET_CLR_Generic);
 
     table[01000] =     INTERPRET_CLR_B_D0;
     table[01001] =     INTERPRET_CLR_B_D1;
@@ -638,6 +683,9 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     table[04016] =     INTERPRET_LINK_L_A6;
     table[04017] =     INTERPRET_LINK_L_A7;
 
+    fill(04120, 04127, INTERPRET_PEA_Generic);
+    fill(04150, 04173, INTERPRET_PEA_Generic);
+
     table[04120] =     INTERPRET_PEA_A0;
     table[04121] =     INTERPRET_PEA_A1;
     table[04122] =     INTERPRET_PEA_A2;
@@ -705,6 +753,23 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     table[07370] =     INTERPRET_JMP_ABS_W;
     table[07371] =     INTERPRET_JMP_ABS_L;
     table[07272] =     INTERPRET_JMP_d16_PC;
+
+    fill(00720, 00727, INTERPRET_LEA_Generic);
+    fill(00750, 00773, INTERPRET_LEA_Generic);
+    fill(01720, 01727, INTERPRET_LEA_Generic);
+    fill(01750, 01773, INTERPRET_LEA_Generic);
+    fill(02720, 02727, INTERPRET_LEA_Generic);
+    fill(02750, 02773, INTERPRET_LEA_Generic);
+    fill(03720, 03727, INTERPRET_LEA_Generic);
+    fill(03750, 03773, INTERPRET_LEA_Generic);
+    fill(04720, 04727, INTERPRET_LEA_Generic);
+    fill(04750, 04773, INTERPRET_LEA_Generic);
+    fill(05720, 05727, INTERPRET_LEA_Generic);
+    fill(05750, 05773, INTERPRET_LEA_Generic);
+    fill(06720, 06727, INTERPRET_LEA_Generic);
+    fill(06750, 06773, INTERPRET_LEA_Generic);
+    fill(07720, 07727, INTERPRET_LEA_Generic);
+    fill(07750, 07773, INTERPRET_LEA_Generic);
     
     #if 0
     [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
@@ -763,15 +828,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
     [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
 
-
-    [01020 ... 01047] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [01120 ... 01147] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [01220 ... 01247] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 0, 4 },
-
-    [01050 ... 01071] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [01150 ... 01171] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [01250 ... 01271] = { EMIT_CLR, NULL, 0, SR_NZVC, 1, 1, 4 },
-
     [02000 ... 02007] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 1 },
     [02100 ... 02107] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 2 },
     [02200 ... 02207] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 4 },
@@ -810,8 +866,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [04020 ... 04047] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
     [04050 ... 04071] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 1, 1 },
 
-    [04120 ... 04127] = { EMIT_PEA, NULL, 0, 0, 1, 0, 4 },
-    [04150 ... 04173] = { EMIT_PEA, NULL, 0, 0, 1, 1, 4 },
+    
 
     [05300 ... 05307] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
     [05320 ... 05347] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
@@ -835,23 +890,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [06320 ... 06337] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
     [06250 ... 06273] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 2 },
     [06350 ... 06373] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 4 },
-
-    [00720 ... 00727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [00750 ... 00773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [01720 ... 01727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [01750 ... 01773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [02720 ... 02727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [02750 ... 02773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [03720 ... 03727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [03750 ... 03773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [04720 ... 04727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [04750 ... 04773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [05720 ... 05727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [05750 ... 05773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [06720 ... 06727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [06750 ... 06773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
-    [07720 ... 07727] = { EMIT_LEA, NULL, 0, 0, 1, 0, 4 },
-    [07750 ... 07773] = { EMIT_LEA, NULL, 0, 0, 1, 1, 4 },
 
     [00600 ... 00607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
     [00620 ... 00647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
