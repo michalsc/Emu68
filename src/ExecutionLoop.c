@@ -451,7 +451,9 @@ void InterpreterLoop()
 
         switch(opcode & 0xf000) {
             case 0x0000: INTERPRET_line0(opcode); break;
+            case 0x1000: INTERPRET_line1(opcode); break;
             case 0x2000: INTERPRET_line2(opcode); break;
+            case 0x3000: INTERPRET_line3(opcode); break;
             case 0x4000: INTERPRET_line4(opcode); break;
             case 0x6000: INTERPRET_line6(opcode); break;
             case 0x7000: INTERPRET_line7(opcode); break;
