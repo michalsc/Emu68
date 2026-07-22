@@ -896,6 +896,11 @@ INTERPRET_MOVE_B_IMMED_to_An_PreDec(5);
 INTERPRET_MOVE_B_IMMED_to_An_PreDec(6);
 INTERPRET_MOVE_B_IMMED_to_An_PreDec(7);
 
+void INTERPRET_MOVE_B_Generic(uint32_t)
+{
+
+}
+
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable_Long()
 {
     std::array<INTERPRET_Function, 4096> table{};

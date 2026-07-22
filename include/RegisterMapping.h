@@ -89,6 +89,48 @@ static inline void setISP(uint32_t isp)
 
 #ifdef __cplusplus
 
+[[gnu::always_inline]] static inline uint32_t getDn(int reg)
+{
+    switch (reg) {
+        case 0: return D0; case 1: return D1;
+        case 2: return D2; case 3: return D3;
+        case 4: return D4; case 5: return D5;
+        case 6: return D6; case 7: return D7;
+    }
+    __builtin_unreachable();
+}
+
+[[gnu::always_inline]] static inline uint32_t getAn(int reg)
+{
+    switch (reg) {
+        case 0: return A0; case 1: return A1;
+        case 2: return A2; case 3: return A3;
+        case 4: return A4; case 5: return A5;
+        case 6: return A6; case 7: return A7;
+    }
+    __builtin_unreachable();
+}
+
+[[gnu::always_inline]] static inline void setDn(int reg, uint32_t val)
+{
+    switch (reg) {
+        case 0: D0 = val; break; case 1: D1 = val; break;
+        case 2: D2 = val; break; case 3: D3 = val; break;
+        case 4: D4 = val; break; case 5: D5 = val; break;
+        case 6: D6 = val; break; case 7: D7 = val; break;
+    }
+}
+
+[[gnu::always_inline]] static inline void setAn(int reg, uint32_t val)
+{
+    switch (reg) {
+        case 0: A0 = val; break; case 1: A1 = val; break;
+        case 2: A2 = val; break; case 3: A3 = val; break;
+        case 4: A4 = val; break; case 5: A5 = val; break;
+        case 6: A6 = val; break; case 7: A7 = val; break;
+    }
+}
+
 template <auto Get, auto Set>
 struct RegisterProxy {
     using value_type = decltype(Get());
