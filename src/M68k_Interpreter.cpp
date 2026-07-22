@@ -24,6 +24,11 @@ extern "C" {
 #define M68K_EA_BD_SIZE 0x0030
 #define M68K_EA_IIS 0x0007
 
+#define M68K_EA_BD_SIZE_ILLEGAL 0x0000
+#define M68K_EA_BD_SIZE_NULL 0x0010
+#define M68K_EA_BD_SIZE_WORD 0x0020
+#define M68K_EA_BD_SIZE_LONG 0x0030
+
 static inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
@@ -90,7 +95,7 @@ extern "C" void INTERPRET_UNIMPLEMENTED(uint32_t opcode)
     INTERPRET_Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
 }
 
-void INTERPRET_LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t, uint8_t size, void *out)
+void INTERPRET_LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t dn = getDn(src_reg);
 
@@ -109,7 +114,7 @@ void INTERPRET_LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t, uint8_t size, void *ou
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t, uint8_t size, void *out)
+void INTERPRET_LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t an = getAn(src_reg);
 
@@ -125,7 +130,7 @@ void INTERPRET_LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t, uint8_t size, void *ou
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t, uint8_t size, void *out)
+void INTERPRET_LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg);
 
@@ -144,7 +149,7 @@ void INTERPRET_LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t, uint8_t size, void *ou
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t, uint8_t size, void *out)
+void INTERPRET_LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg);
 
@@ -166,7 +171,7 @@ void INTERPRET_LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t, uint8_t size, void *ou
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t, uint8_t size, void *out)
+void INTERPRET_LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg);
     switch (size) {
@@ -190,96 +195,143 @@ void INTERPRET_LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t, uint8_t size, void *ou
     __builtin_unreachable();
 }
 
-uint32_t INTERPRET_LoadFrom_EA_Mod5(void * pc, uint8_t size, uint8_t ea, struct M68KState *state, void *out)
+void INTERPRET_LoadFrom_EA_Mod5(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint8_t src_reg = ea & 7;
-    uint32_t addr = state->A[src_reg].u32 + *(int16_t *)pc;
-    uint32_t extra_bytes = 2;
+    uint32_t addr = getAn(src_reg) + *(int16_t *)(uintptr_t)PC;
+    PC += 2;
 
     switch (size) {
         case 4:
             *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-            break;
+            return;
         case 2:
             *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-            break;
+            return;
         case 1:
             *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-            break;
-        default:
-            kprintf("[INT] INTERPRET_LoadFromEffectiveAddress: Invalid size %d\n", size);
-            break;
+            return;
     }
     
-    return extra_bytes;
+    __builtin_unreachable();
 }
 
-uint32_t INTERPRET_LoadFrom_EA_EXT(void * pc, uint8_t size, uint32_t an, struct M68KState *state, void *out)
+void INTERPRET_LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
 {
-    uint16_t ext_word = *(uint16_t *)pc;
-    uint32_t full = ext_word & M68K_EA_FULL;
-    uint32_t extra_bytes = 2;
+    uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
     uint8_t index_reg = (ext_word & M68K_EA_REG) >> 12;
-    uint8_t index_size = (ext_word & M68K_EA_WL) ? 4 : 2;
-    uint16_t index_is_addr = (ext_word & M68K_EA_DA);
 
-#if 0
-
-#endif
-
-    if (full) /* Full format */
+    PC += 2;
+    
+    if (ext_word & M68K_EA_FULL)
     {
-        
-    }
-    else /* Brief format */
-    {
-        int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = index_is_addr ? state->A[index_reg].u32 : state->D[index_reg].u32;
+        uint32_t base_displacement = 0;
+        uint32_t outer_displacement = 0;
+        uint32_t index_value = 0;
 
-        if (index_size == 2) {
-            index_value = (int16_t)index_value;
+        if (ext_word & M68K_EA_BS) {
+            An = 0;
         }
 
-        an += displacement;
-        an += index_value * scale;
+        switch(ext_word & M68K_EA_BD_SIZE) {
+            case M68K_EA_BD_SIZE_WORD:
+                base_displacement = *(int16_t*)(uintptr_t)PC;
+                PC += 2;
+                break;
+            case M68K_EA_BD_SIZE_LONG:
+                base_displacement = *(uint32_t*)(uintptr_t)PC;
+                PC += 4;
+                break;
+            default:
+                break;
+        }
+
+        if ((ext_word & M68K_EA_IS) == 0) {
+            index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+
+            if ((ext_word & M68K_EA_WL) == 0) {
+                index_value = (int16_t)index_value;
+            }
+
+            index_value *= scale;
+        }
+
+        switch(ext_word & 3) {
+            case 2:
+                outer_displacement = *(int16_t*)(uintptr_t)PC;
+                PC += 2;
+                break;
+            case 3:
+                outer_displacement = *(uint32_t*)(uintptr_t)PC;
+                PC += 4;
+                break;
+            default:
+                break;
+        }
+
+        uint32_t indirect_address;
+        
+        if ((ext_word & 4) == 0) {
+            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
+        } else {
+            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
+        }
+
+        indirect_address += outer_displacement;
 
         switch (size) {
             case 4:
-                *(uint32_t *)out = *(uint32_t *)(uintptr_t)an;
+                *(uint32_t *)out = *(uint32_t *)(uintptr_t)indirect_address;
                 break;
             case 2:
-                *(uint16_t *)out = *(uint16_t *)(uintptr_t)an;
+                *(uint16_t *)out = *(uint16_t *)(uintptr_t)indirect_address;
                 break;
             case 1:
-                *(uint8_t *)out = *(uint8_t *)(uintptr_t)an;
+                *(uint8_t *)out = *(uint8_t *)(uintptr_t)indirect_address;
                 break;
             default:
-                kprintf("[INT] INTERPRET_LoadFromEffectiveAddress: Invalid size %d\n", size);
-                break;
+                __builtin_unreachable();
         }
     }
+    else
+    {
+        int8_t displacement = ext_word & M68K_EA_OFF8;
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
 
-    return extra_bytes;
+        if ((ext_word & M68K_EA_WL) == 0) {
+            index_value = (int16_t)index_value;
+        }
+
+        An += displacement;
+        An += index_value * scale;
+
+        switch (size) {
+            case 4:
+                *(uint32_t *)out = *(uint32_t *)(uintptr_t)An;
+                break;
+            case 2:
+                *(uint16_t *)out = *(uint16_t *)(uintptr_t)An;
+                break;
+            case 1:
+                *(uint8_t *)out = *(uint8_t *)(uintptr_t)An;
+                break;
+            default:
+                __builtin_unreachable();
+        }
+    }
 }
 
-uint32_t INTERPRET_LoadFrom_EA_Mod6(void * pc, uint8_t size, uint8_t ea, struct M68KState *state, void *out)
+void INTERPRET_LoadFrom_EA_Mod6(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint8_t src_reg = ea & 7;
-    uint32_t an = state->A[src_reg].u32;
-
-    return INTERPRET_LoadFrom_EA_EXT(pc, size, an, state, out);
+    INTERPRET_LoadFrom_EA_EXT(getAn(src_reg), size, out);
 }
 
-uint32_t INTERPRET_LoadFrom_EA_Mod7(void * pc, uint8_t size, uint8_t ea, struct M68KState *state, void *out)
+void INTERPRET_LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint8_t src_reg = ea & 7;
-    uint32_t extra_bytes = 0;
-
     if (src_reg == 0)
     {
-        uintptr_t addr = (uint32_t)*(int16_t *)pc;
-        extra_bytes = 2;
+        uintptr_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        PC += 2;
         switch (size) {
             case 4:
                 *(uint32_t *)out = *(uint32_t *)addr;
@@ -291,14 +343,13 @@ uint32_t INTERPRET_LoadFrom_EA_Mod7(void * pc, uint8_t size, uint8_t ea, struct 
                 *(uint8_t *)out = *(uint8_t *)addr;
                 break;
             default:
-                kprintf("[INT] INTERPRET_LoadFromEffectiveAddress: Invalid size %d\n", size);
-                break;
+                __builtin_unreachable();
         }
     }
     else if (src_reg == 1)
     {
-        uintptr_t addr = *(uint32_t *)pc;
-        extra_bytes = 4;
+        uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
+        PC += 4;
         switch (size) {
             case 4:
                 *(uint32_t *)out = *(uint32_t *)addr;
@@ -310,15 +361,14 @@ uint32_t INTERPRET_LoadFrom_EA_Mod7(void * pc, uint8_t size, uint8_t ea, struct 
                 *(uint8_t *)out = *(uint8_t *)addr;
                 break;
             default:
-                kprintf("[INT] INTERPRET_LoadFromEffectiveAddress: Invalid size %d\n", size);
-                break;
+                __builtin_unreachable();
         }
     }
     else if (src_reg == 2)
     {
-        int16_t off = *(int16_t *)pc;
-        uint32_t addr = (uint32_t)(uintptr_t)pc + off;
-        extra_bytes = 2;
+        int16_t off = *(int16_t *)(uintptr_t)PC;
+        uint32_t addr = (uint32_t)(uintptr_t)PC + off;
+        PC += 2;
         switch (size) {
             case 4:
                 *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
@@ -330,47 +380,497 @@ uint32_t INTERPRET_LoadFrom_EA_Mod7(void * pc, uint8_t size, uint8_t ea, struct 
                 *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
                 break;
             default:
-                kprintf("[INT] INTERPRET_LoadFromEffectiveAddress: Invalid size %d\n", size);
-                break;
+                __builtin_unreachable();
         }
     }
     else if (src_reg == 3)
     {
-        uint32_t an = (uint32_t)(uintptr_t)pc;
-        return INTERPRET_LoadFrom_EA_EXT(pc, size, an, state, out);
+        INTERPRET_LoadFrom_EA_EXT(PC, size, out);
     }
     else if (src_reg == 4)
     {
         switch (size) {
             case 4:
-                *(uint32_t *)out = *(uint32_t *)pc;
-                extra_bytes = 4;
+                *(uint32_t *)out = *(uint32_t *)(uintptr_t)PC;
+                PC += 4;
                 break;
             case 2:
-                *(uint16_t *)out = *(uint16_t *)pc;
-                extra_bytes = 2;
+                *(uint16_t *)out = *(uint16_t *)(uintptr_t)PC;
+                PC += 2;
                 break;
             case 1:
-                *(uint8_t *)out = *(uint16_t *)pc;
-                extra_bytes = 2;
+                *(uint8_t *)out = *(uint16_t *)(uintptr_t)PC;
+                PC += 2;
                 break;
             default:
-                kprintf("[INT] INTERPRET_LoadFromEffectiveAddress: Invalid size %d\n", size);
-                break;
+                __builtin_unreachable();
         }
     }
-
-    return extra_bytes;
+    else
+    {
+        __builtin_unreachable();
+    }
 }
 
-void INTERPRET_LoadFromEffectiveAddress(uint8_t src_reg, uint8_t mode, uint8_t size, void *out)
+void INTERPRET_LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode)
 {
     switch(mode) {
-        case 0: INTERPRET_LoadFrom_EA_Mod0(src_reg, mode, size, out); return;
-        case 1: INTERPRET_LoadFrom_EA_Mod1(src_reg, mode, size, out); return;
-        case 2: INTERPRET_LoadFrom_EA_Mod2(src_reg, mode, size, out); return;
-        case 3: INTERPRET_LoadFrom_EA_Mod3(src_reg, mode, size, out); return;
-        case 4: INTERPRET_LoadFrom_EA_Mod4(src_reg, mode, size, out); return;
+        case 0: [[unlikely]] INTERPRET_LoadFrom_EA_Mod0(src_reg, size, out); return;
+        case 1: [[unlikely]] INTERPRET_LoadFrom_EA_Mod1(src_reg, size, out); return;
+        case 2: [[unlikely]] INTERPRET_LoadFrom_EA_Mod2(src_reg, size, out); return;
+        case 3: [[unlikely]] INTERPRET_LoadFrom_EA_Mod3(src_reg, size, out); return;
+        case 4: [[unlikely]] INTERPRET_LoadFrom_EA_Mod4(src_reg, size, out); return;
+        case 5: INTERPRET_LoadFrom_EA_Mod5(src_reg, size, out); return;
+        case 6: INTERPRET_LoadFrom_EA_Mod6(src_reg, size, out); return;
+        case 7: INTERPRET_LoadFrom_EA_Mod7(src_reg, size, out); return;
+    }
+
+    __builtin_unreachable();
+}
+
+void INTERPRET_Get_EA_Mod2(uint8_t src_reg, uint8_t, uint32_t *out)
+{
+    *out = getAn(src_reg);
+}
+
+void INTERPRET_Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
+{
+    uint32_t addr = getAn(src_reg);
+    
+    *out = addr;
+    addr += size;
+    if (src_reg == 7 && size == 1) addr++;
+
+    setAn(src_reg, addr);
+}
+
+void INTERPRET_Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
+{
+    uint32_t addr = getAn(src_reg);
+
+    addr -= size;
+    if (src_reg == 7 && size == 1) addr--;
+    *out = addr;
+
+    setAn(src_reg, addr);
+}
+
+void INTERPRET_Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
+{
+    *out = getAn(src_reg) + *(int16_t *)(uintptr_t)PC;
+    PC += 2;
+}
+
+
+void INTERPRET_Get_EA_EXT(uint32_t An, uint8_t, uint32_t *out)
+{
+    uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
+    uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
+    uint8_t index_reg = (ext_word & M68K_EA_REG) >> 12;
+
+    PC += 2;
+    
+    if (ext_word & M68K_EA_FULL)
+    {
+        uint32_t base_displacement = 0;
+        uint32_t outer_displacement = 0;
+        uint32_t index_value = 0;
+
+        if (ext_word & M68K_EA_BS) {
+            An = 0;
+        }
+
+        switch(ext_word & M68K_EA_BD_SIZE) {
+            case M68K_EA_BD_SIZE_WORD:
+                base_displacement = *(int16_t*)(uintptr_t)PC;
+                PC += 2;
+                break;
+            case M68K_EA_BD_SIZE_LONG:
+                base_displacement = *(uint32_t*)(uintptr_t)PC;
+                PC += 4;
+                break;
+            default:
+                break;
+        }
+
+        if ((ext_word & M68K_EA_IS) == 0) {
+            index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+
+            if ((ext_word & M68K_EA_WL) == 0) {
+                index_value = (int16_t)index_value;
+            }
+
+            index_value *= scale;
+        }
+
+        switch(ext_word & 3) {
+            case 2:
+                outer_displacement = *(int16_t*)(uintptr_t)PC;
+                PC += 2;
+                break;
+            case 3:
+                outer_displacement = *(uint32_t*)(uintptr_t)PC;
+                PC += 4;
+                break;
+            default:
+                break;
+        }
+
+        uint32_t indirect_address;
+        
+        if ((ext_word & 4) == 0) {
+            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
+        } else {
+            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
+        }
+
+        indirect_address += outer_displacement;
+
+        *out = indirect_address;
+    }
+    else
+    {
+        int8_t displacement = ext_word & M68K_EA_OFF8;
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+
+        if ((ext_word & M68K_EA_WL) == 0) {
+            index_value = (int16_t)index_value;
+        }
+
+        An += displacement;
+        An += index_value * scale;
+
+        *out = An;
+    }
+}
+
+void INTERPRET_Get_EA_Mod6(uint8_t src_reg, uint8_t size, uint32_t *out)
+{
+    INTERPRET_Get_EA_EXT(getAn(src_reg), size, out);
+}
+
+void INTERPRET_Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
+{
+    if (src_reg == 0)
+    {
+        *out = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        PC += 2;
+    }
+    else if (src_reg == 1)
+    {
+        *out = *(uint32_t *)(uintptr_t)PC;
+        PC += 4;
+    }
+    else if (src_reg == 2)
+    {
+        int16_t off = *(int16_t *)(uintptr_t)PC;
+        *out = (uint32_t)(uintptr_t)PC + off;
+        PC += 2;
+    }
+    else if (src_reg == 3)
+    {
+        INTERPRET_Get_EA_EXT(PC, size, out);
+    }
+    else
+    {
+        __builtin_unreachable();
+    }
+}
+
+void INTERPRET_GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode)
+{
+    switch(mode) {
+        // mode 0 and 1 cannot return EA address at all
+        case 2: [[unlikely]] INTERPRET_Get_EA_Mod2(src_reg, size, out); return;
+        case 3: [[unlikely]] INTERPRET_Get_EA_Mod3(src_reg, size, out); return;
+        case 4: [[unlikely]] INTERPRET_Get_EA_Mod4(src_reg, size, out); return;
+        case 5: INTERPRET_Get_EA_Mod5(src_reg, size, out); return;
+        case 6: INTERPRET_Get_EA_Mod6(src_reg, size, out); return;
+        case 7: INTERPRET_Get_EA_Mod7(src_reg, size, out); return;
+    }
+}
+
+void INTERPRET_StoreTo_EA_Mod0(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    switch (size) {
+        case 4:
+            setDn(dst_reg, value);
+            return;
+        case 2:
+            setDn(dst_reg, (getDn(dst_reg) & 0xffff0000) | (value & 0x0000ffff));
+            return;
+        case 1:
+            setDn(dst_reg, (getDn(dst_reg) & 0xffffff00) | (value & 0x000000ff));
+            return;
+    }
+
+    __builtin_unreachable();
+}
+
+void INTERPRET_StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    switch (size) {
+        case 4:
+            setAn(dst_reg, value);
+            return;
+        case 2:
+            setAn(dst_reg, (int16_t)value);
+            return;
+    }
+
+    __builtin_unreachable();
+}
+
+void INTERPRET_StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    uintptr_t addr = getAn(dst_reg);
+
+    switch (size) {
+        case 4:
+            *(uint32_t *)addr = value;
+            return;
+        case 2:
+            *(uint16_t *)addr = value;
+            return;
+        case 1:
+            *(uint8_t *)addr = value;
+            return;
+    }
+
+    __builtin_unreachable();
+}
+
+void INTERPRET_StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    uintptr_t addr = getAn(dst_reg);
+
+    switch (size) {
+        case 4:
+            *(uint32_t *)addr = value;
+            setAn(dst_reg, addr + 4);
+            return;
+        case 2:
+            *(uint16_t *)addr = value;
+            setAn(dst_reg, addr + 2);
+            return;
+        case 1:
+            *(uint8_t *)addr = value;
+            setAn(dst_reg, addr + (dst_reg == 7) ? 2 : 1);
+            return;
+    }
+
+    __builtin_unreachable();
+}
+
+void INTERPRET_StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    uint32_t addr = getAn(dst_reg);
+
+    switch (size) {
+        case 4:
+            addr -= 4;
+            setAn(dst_reg, addr);
+            *(uint32_t *)(uintptr_t)addr = value;
+            return;
+        case 2:
+            addr -= 2;
+            setAn(dst_reg, addr);
+            *(uint16_t *)(uintptr_t)addr = value;
+            return;
+        case 1:
+            addr -= (dst_reg == 7) ? 2 : 1;
+            setAn(dst_reg, addr);
+            *(uint8_t *)(uintptr_t)addr = value;
+            return;
+    }
+
+    __builtin_unreachable();
+}
+
+void INTERPRET_StoreTo_EA_Mod5(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    uint32_t addr = getAn(dst_reg) + *(int16_t *)(uintptr_t)PC;
+    PC += 2;
+
+    switch (size) {
+        case 4:
+            *(uint32_t *)(uintptr_t)addr = value;
+            return;
+        case 2:
+            *(uint16_t *)(uintptr_t)addr = value;
+            return;
+        case 1:
+            *(uint8_t *)(uintptr_t)addr = value;
+            return;
+    }
+    
+    __builtin_unreachable();
+}
+
+void INTERPRET_StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
+    uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
+    uint8_t index_reg = (ext_word & M68K_EA_REG) >> 12;
+    uint32_t An = 0;
+
+    PC += 2;
+    
+    if (ext_word & M68K_EA_FULL)
+    {
+        uint32_t base_displacement = 0;
+        uint32_t outer_displacement = 0;
+        uint32_t index_value = 0;
+
+        if ((ext_word & M68K_EA_BS) == 0) {
+            An = getAn(dst_reg);
+        }
+
+        switch(ext_word & M68K_EA_BD_SIZE) {
+            case M68K_EA_BD_SIZE_WORD:
+                base_displacement = *(int16_t*)(uintptr_t)PC;
+                PC += 2;
+                break;
+            case M68K_EA_BD_SIZE_LONG:
+                base_displacement = *(uint32_t*)(uintptr_t)PC;
+                PC += 4;
+                break;
+            default:
+                break;
+        }
+
+        if ((ext_word & M68K_EA_IS) == 0) {
+            index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+
+            if ((ext_word & M68K_EA_WL) == 0) {
+                index_value = (int16_t)index_value;
+            }
+
+            index_value *= scale;
+        }
+
+        switch(ext_word & 3) {
+            case 2:
+                outer_displacement = *(int16_t*)(uintptr_t)PC;
+                PC += 2;
+                break;
+            case 3:
+                outer_displacement = *(uint32_t*)(uintptr_t)PC;
+                PC += 4;
+                break;
+            default:
+                break;
+        }
+
+        uint32_t indirect_address;
+        
+        if ((ext_word & 4) == 0) {
+            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
+        } else {
+            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
+        }
+
+        indirect_address += outer_displacement;
+
+        switch (size) {
+            case 4:
+                *(uint32_t *)(uintptr_t)indirect_address = value;
+                break;
+            case 2:
+                *(uint16_t *)(uintptr_t)indirect_address = value;
+                break;
+            case 1:
+                *(uint8_t *)(uintptr_t)indirect_address = value;
+                break;
+            default:
+                __builtin_unreachable();
+        }
+    }
+    else
+    {
+        int8_t displacement = ext_word & M68K_EA_OFF8;
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+        
+        An = getAn(dst_reg);
+
+        if ((ext_word & M68K_EA_WL) == 0) {
+            index_value = (int16_t)index_value;
+        }
+
+        An += displacement;
+        An += index_value * scale;
+
+        switch (size) {
+            case 4:
+                *(uint32_t *)(uintptr_t)An = value;
+                break;
+            case 2:
+                *(uint16_t *)(uintptr_t)An = value;
+                break;
+            case 1:
+                *(uint8_t *)(uintptr_t)An = value;
+                break;
+            default:
+                __builtin_unreachable();
+        }
+    }
+}
+
+void INTERPRET_StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
+{
+    if (dst_reg == 0)
+    {
+        uintptr_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        PC += 2;
+        switch (size) {
+            case 4:
+                *(uint32_t *)addr = value;
+                break;
+            case 2:
+                *(uint16_t *)addr = value;
+                break;
+            case 1:
+                *(uint8_t *)addr = value;
+                break;
+            default:
+                __builtin_unreachable();
+        }
+    }
+    else if (dst_reg == 1)
+    {
+        uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
+        PC += 4;
+        switch (size) {
+            case 4:
+                *(uint32_t *)addr = value;
+                break;
+            case 2:
+                *(uint16_t *)addr = value;
+                break;
+            case 1:
+                *(uint8_t *)addr = value;
+                break;
+            default:
+                __builtin_unreachable();
+        }
+    }
+    else
+    {
+        __builtin_unreachable();
+    }
+}
+
+void INTERPRET_StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode)
+{
+    switch(mode) {
+        case 0: [[unlikely]] INTERPRET_StoreTo_EA_Mod0(dst_reg, value, size); return;
+        case 1: [[unlikely]] INTERPRET_StoreTo_EA_Mod1(dst_reg, value, size); return;
+        case 2: [[unlikely]] INTERPRET_StoreTo_EA_Mod2(dst_reg, value, size); return;
+        case 3: [[unlikely]] INTERPRET_StoreTo_EA_Mod3(dst_reg, value, size); return;
+        case 4: [[unlikely]] INTERPRET_StoreTo_EA_Mod4(dst_reg, value, size); return;
+        case 5: INTERPRET_StoreTo_EA_Mod5(dst_reg, value, size); return;
+        case 6: INTERPRET_StoreTo_EA_Mod6(dst_reg, value, size); return;
+        case 7: INTERPRET_StoreTo_EA_Mod7(dst_reg, value, size); return;
     }
 
     __builtin_unreachable();

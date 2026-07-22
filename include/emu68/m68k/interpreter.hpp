@@ -9,7 +9,14 @@
 
 #ifdef __cplusplus
 
+#define I_SIZE_BYTE   1
+#define I_SIZE_WORD   2
+#define I_SIZE_LONG   4
+
 void INTERPRET_Exception_F0(uint32_t exception);
+void INTERPRET_LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode);
+void INTERPRET_StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode);
+void INTERPRET_GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode);
 
 extern "C" {
 #endif
