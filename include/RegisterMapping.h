@@ -89,6 +89,8 @@ static inline void setISP(uint32_t isp)
 
 #ifdef __cplusplus
 
+#include <type_traits> 
+
 [[gnu::always_inline]] static inline uint32_t getDn(int reg)
 {
     switch (reg) {
@@ -128,6 +130,92 @@ static inline void setISP(uint32_t isp)
         case 2: A2 = val; break; case 3: A3 = val; break;
         case 4: A4 = val; break; case 5: A5 = val; break;
         case 6: A6 = val; break; case 7: A7 = val; break;
+    }
+}
+
+template <unsigned reg, class type> requires (reg < 8)
+type constexpr getD()
+{
+    if constexpr (reg == 0)      { return (type)D0; }
+    else if constexpr (reg == 1) { return (type)D1; }
+    else if constexpr (reg == 2) { return (type)D2; }
+    else if constexpr (reg == 3) { return (type)D3; }
+    else if constexpr (reg == 4) { return (type)D4; }
+    else if constexpr (reg == 5) { return (type)D5; }
+    else if constexpr (reg == 6) { return (type)D6; }
+    else if constexpr (reg == 7) { return (type)D7; }
+}
+
+template <unsigned reg, class type> requires (reg < 8 && std::is_integral<type>::value && (sizeof(type) == 1 || sizeof(type) == 2 || sizeof(type) == 4))
+void constexpr setD(type value)
+{
+    if constexpr (sizeof(type) == 4) {
+        if constexpr (reg == 0)      { D0 = value; }
+        else if constexpr (reg == 1) { D1 = value; }
+        else if constexpr (reg == 2) { D2 = value; }
+        else if constexpr (reg == 3) { D3 = value; }
+        else if constexpr (reg == 4) { D4 = value; }
+        else if constexpr (reg == 5) { D5 = value; }
+        else if constexpr (reg == 6) { D6 = value; }
+        else if constexpr (reg == 7) { D7 = value; }
+    }
+    else if constexpr (sizeof(type) == 2) {
+        if constexpr (reg == 0)      { D0 = (D0 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 1) { D1 = (D1 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 2) { D2 = (D2 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 3) { D3 = (D3 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 4) { D4 = (D4 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 5) { D5 = (D5 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 6) { D6 = (D6 & 0xffff0000) | (value & 0x0000ffff); }
+        else if constexpr (reg == 7) { D7 = (D7 & 0xffff0000) | (value & 0x0000ffff); }
+    }
+    else if constexpr (sizeof(type) == 1) {
+        if constexpr (reg == 0)      { D0 = (D0 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 1) { D1 = (D1 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 2) { D2 = (D2 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 3) { D3 = (D3 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 4) { D4 = (D4 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 5) { D5 = (D5 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 6) { D6 = (D6 & 0xffffff00) | (value & 0x000000ff); }
+        else if constexpr (reg == 7) { D7 = (D7 & 0xffffff00) | (value & 0x000000ff); }
+    }
+}
+
+template <unsigned reg, class type> requires (reg < 8 && sizeof(type) > 1)
+type constexpr getA()
+{
+    if constexpr (reg == 0)      { return (type)A0; }
+    else if constexpr (reg == 1) { return (type)A1; }
+    else if constexpr (reg == 2) { return (type)A2; }
+    else if constexpr (reg == 3) { return (type)A3; }
+    else if constexpr (reg == 4) { return (type)A4; }
+    else if constexpr (reg == 5) { return (type)A5; }
+    else if constexpr (reg == 6) { return (type)A6; }
+    else if constexpr (reg == 7) { return (type)A7; }
+}
+
+template <unsigned reg, class type> requires (reg < 8 && std::is_integral<type>::value && (sizeof(type) == 2 || sizeof(type) == 4))
+void constexpr setA(type value)
+{
+    if constexpr (sizeof(type) == 4) {
+        if constexpr (reg == 0)      { A0 = value; }
+        else if constexpr (reg == 1) { A1 = value; }
+        else if constexpr (reg == 2) { A2 = value; }
+        else if constexpr (reg == 3) { A3 = value; }
+        else if constexpr (reg == 4) { A4 = value; }
+        else if constexpr (reg == 5) { A5 = value; }
+        else if constexpr (reg == 6) { A6 = value; }
+        else if constexpr (reg == 7) { A7 = value; }
+    }
+    else if constexpr (sizeof(type) == 2) {
+        if constexpr (reg == 0)      { A0 = (int16_t)value; }
+        else if constexpr (reg == 1) { A1 = (int16_t)value; }
+        else if constexpr (reg == 2) { A2 = (int16_t)value; }
+        else if constexpr (reg == 3) { A3 = (int16_t)value; }
+        else if constexpr (reg == 4) { A4 = (int16_t)value; }
+        else if constexpr (reg == 5) { A5 = (int16_t)value; }
+        else if constexpr (reg == 6) { A6 = (int16_t)value; }
+        else if constexpr (reg == 7) { A7 = (int16_t)value; }
     }
 }
 
