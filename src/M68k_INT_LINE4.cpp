@@ -271,6 +271,27 @@ INTERPRET_CLR_W_An_PostInc(5)
 INTERPRET_CLR_W_An_PostInc(6)
 INTERPRET_CLR_W_An_PostInc(7)
 
+template<unsigned an> requires (an < 8)
+void INTERPRET_CLR_W_PostInc_An(uint32_t)
+{
+    uint16_t sr = SR & ~SR_NZVC;
+
+    if constexpr (an == 0)      { *(uint16_t*)(uintptr_t)A0 = 0; A0 += 2; }
+    else if constexpr (an == 1) { *(uint16_t*)(uintptr_t)A1 = 0; A1 += 2; }
+    else if constexpr (an == 2) { *(uint16_t*)(uintptr_t)A2 = 0; A2 += 2; }
+    else if constexpr (an == 3) { *(uint16_t*)(uintptr_t)A3 = 0; A3 += 2; }
+    else if constexpr (an == 4) { *(uint16_t*)(uintptr_t)A4 = 0; A4 += 2; }
+    else if constexpr (an == 5) { *(uint16_t*)(uintptr_t)A5 = 0; A5 += 2; }
+    else if constexpr (an == 6) { *(uint16_t*)(uintptr_t)A6 = 0; A6 += 2; }
+    else if constexpr (an == 7) { *(uint16_t*)(uintptr_t)A7 = 0; A7 += 2; }
+
+    SR = sr | SR_Z;
+    PC += 2;
+}
+
+void (*ptr)(uint32_t) = INTERPRET_CLR_W_PostInc_An<0>;
+
+
 #define INTERPRET_CLR_L_An_PostInc(dn) \
 void INTERPRET_CLR_L_A##dn##_PostInc(uint32_t) \
 { \
@@ -795,7 +816,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [04010 ... 04017] = { EMIT_LINK32, NULL, 0, 0, 3, 0, 0 },
     [07120 ... 07127] = { EMIT_LINK16, NULL, 0, 0, 2, 0, 0 },
 
-    [0xafc]           = { EMIT_ILLEGAL, NULL, SR_CCR, 0, 1, 0, 0 },
     [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
     [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
     [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
@@ -865,8 +885,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [04000 ... 04007] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
     [04020 ... 04047] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
     [04050 ... 04071] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 1, 1 },
-
-    
 
     [05300 ... 05307] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
     [05320 ... 05347] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
