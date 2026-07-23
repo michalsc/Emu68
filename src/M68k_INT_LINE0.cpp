@@ -13,6 +13,173 @@ extern "C" {
     #include "support.h"
 }
 
+void INTERPRET_ORI_to_CCR(uint32_t)
+{
+    uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+    SR = SR | immed;
+    PC += 4;
+}
+
+void INTERPRET_ORI_to_SR(uint32_t)
+{
+    uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
+    uint16_t sr = SR;
+    uint16_t changed = sr;
+    
+    /* Modifying SR requires supervisor rights */
+    if (sr & SR_S) {
+        sr |= immed;
+        changed ^= sr;
+
+        /* Check if M flag has changed its value */
+        if (changed & SR_M) {
+            /* M is set, store A7 to ISP and move MSP to A7, changing M to 0 cannot happen in ORI */
+            if (sr & SR_M) {
+                setISP(A7);
+                A7 = getMSP();
+            }
+        }
+
+        /* Check if IPL was altered */
+        if (changed & SR_IPL) {
+            /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
+            if ((sr & SR_IPL) > 0x0600) {
+                asm volatile("msr DAIFSet, 7":::"memory");
+            } else {
+                asm volatile("msr DAIFClr, 7":::"memory");
+            }
+        }
+        SR = sr;
+        PC += 4;
+    } else {
+        INTERPRET_Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+    }
+}
+
+void INTERPRET_ANDI_to_CCR(uint32_t)
+{
+	uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+    SR = SR & immed;
+	PC += 4;
+}
+
+void INTERPRET_ANDI_to_SR(uint32_t)
+{
+    uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
+    uint16_t sr = SR;
+    uint16_t changed = sr;
+    
+    /* Modifying SR requires supervisor rights */
+    if (sr & SR_S) {
+        sr &= immed;
+        changed ^= sr;
+
+        /* Check if M flag has changed its value */
+        if (changed & SR_M) {
+            /* M is set, store A7 to ISP and move MSP to A7 */
+            if (sr & SR_M) {
+                setISP(A7);
+                A7 = getMSP();
+            } else {
+                /* This **CANNOT** happen */
+                setMSP(A7);
+                A7 = getISP();
+            }
+        }
+
+        /*
+            Check if S was cleared. If this is the case, move A7 to ISP or MSP and
+            load USP into A7
+        */
+        if (changed & SR_S) {
+            if ((sr & SR_S) == 0) {
+                if (sr & SR_M) {
+                    setMSP(A7);
+                } else {
+                    setISP(A7);
+                }
+                A7 = getUSP();
+            }
+        }
+
+        /* Check if IPL was altered */
+        if (changed & SR_IPL) {
+            /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
+            if ((sr & SR_IPL) > 0x0600) {
+                asm volatile("msr DAIFSet, 7":::"memory");
+            } else {
+                asm volatile("msr DAIFClr, 7":::"memory");
+            }
+        }
+        SR = sr;
+        PC += 4;
+    } else {
+        INTERPRET_Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+    }
+}
+
+void INTERPRET_EORI_to_CCR(uint32_t)
+{
+	uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+    SR = SR ^ immed;
+	PC += 4;
+}
+
+void INTERPRET_EORI_to_SR(uint32_t)
+{
+    uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
+    uint16_t sr = SR;
+    uint16_t changed = sr;
+    
+    /* Modifying SR requires supervisor rights */
+    if (sr & SR_S) {
+        sr ^= immed;
+        changed ^= sr;
+
+        /* Check if M flag has changed its value */
+        if (changed & SR_M) {
+            /* M is set, store A7 to ISP and move MSP to A7 */
+            if (sr & SR_M) {
+                setISP(A7);
+                A7 = getMSP();
+            } else {
+                /* This **CANNOT** happen */
+                setMSP(A7);
+                A7 = getISP();
+            }
+        }
+
+        /*
+            Check if S was cleared. If this is the case, move A7 to ISP or MSP and
+            load USP into A7
+        */
+        if (changed & SR_S) {
+            if ((sr & SR_S) == 0) {
+                if (sr & SR_M) {
+                    setMSP(A7);
+                } else {
+                    setISP(A7);
+                }
+                A7 = getUSP();
+            }
+        }
+
+        /* Check if IPL was altered */
+        if (changed & SR_IPL) {
+            /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
+            if ((sr & SR_IPL) > 0x0600) {
+                asm volatile("msr DAIFSet, 7":::"memory");
+            } else {
+                asm volatile("msr DAIFClr, 7":::"memory");
+            }
+        }
+        SR = sr;
+        PC += 4;
+    } else {
+        INTERPRET_Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+    }
+}
+
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -24,14 +191,15 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
     fill(00000, 07777, INTERPRET_UNIMPLEMENTED);
     
-    #if 0
-    	[0x03c]			  = { EMIT_ORI_TO_CCR, NULL, SR_CCR, SR_CCR, 2, 0, 1 },
-	[0x07c]			  = { EMIT_ORI_TO_SR, NULL, SR_ALL, SR_ALL, 2, 0, 2  },
-	[0x23c]			  = { EMIT_ANDI_TO_CCR, NULL, SR_CCR, SR_CCR, 2, 0, 1 },
-	[0x27c]			  = { EMIT_ANDI_TO_SR, NULL, SR_ALL, SR_ALL, 2, 0, 2 },
-	[0xa3c]			  = { EMIT_EORI_TO_CCR, NULL, SR_CCR, SR_CCR, 2, 0, 1 },
-	[0xa7c]			  = { EMIT_EORI_TO_SR, NULL, SR_ALL, SR_ALL, 2, 0, 2 },
+    table[00074]      = INTERPRET_ORI_to_CCR;
+    table[01074]      = INTERPRET_ANDI_to_CCR;
+    table[05074]      = INTERPRET_EORI_to_CCR;
 
+    table[00174]      = INTERPRET_ORI_to_SR;
+    table[01174]      = INTERPRET_ANDI_to_SR;
+    table[05174]      = INTERPRET_ORI_to_SR;
+
+    #if 0
 	[00000 ... 00007] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 0, 1 },
 	[00020 ... 00047] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 0, 1 },
 	[00050 ... 00071] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 1, 1 },
