@@ -6,483 +6,328 @@
 
 #include "RegisterMapping.h"
 
-
 #define _REGLOCK_H
 extern "C" {
     #include "M68k.h"
     #include "support.h"
 }
 
-register uint32x4_t reg_v19 asm("v19");   // FPSR, FPIAR, FPCR|SR
-register uint64x2_t reg_v20 asm("v20");   // INSN_COUNT, CTX
-register uint32x4_t reg_v21 asm("v21");   // CACR, USP, ISP, MSP
+register uint64_t (*ARMCode)() __asm__("x12");
 
-static const uint64x2_t one_zero = { 0, 1 };
+extern "C" {
 
-static inline void bumpINSN_COUNT(void)
-{
-    reg_v20 = vaddq_u64(reg_v20, one_zero);
+    extern int disasm;
+    extern int debug;
+    extern uint32_t debug_range_min;
+    extern uint32_t debug_range_max;
+    void M68K_LoadContext(struct M68KState *ctx);
+    void M68K_SaveContext(struct M68KState *ctx);
+
 }
 
-#define INTERPRET_SWAP_Dn(dn) \
-void INTERPRET_SWAP_D##dn(uint32_t) \
-{ \
-    uint32_t sr = SR & 0xfff0; \
-    \
-    if (unlikely(D##dn == 0)) { \
-        sr |= SR_Z; \
-    } else { \
-        D##dn = (D##dn >> 16) | (D##dn << 16); \
-        if (D##dn & 0x80000000) { \
-            sr |= SR_N; \
-        } \
-    } \
-    SR = sr; \
-    PC += 2; \
-}
+namespace Emu68::M68k::Interpreter {
 
-INTERPRET_SWAP_Dn(0)
-INTERPRET_SWAP_Dn(1)
-INTERPRET_SWAP_Dn(2)
-INTERPRET_SWAP_Dn(3)
-INTERPRET_SWAP_Dn(4)
-INTERPRET_SWAP_Dn(5)
-INTERPRET_SWAP_Dn(6)
-INTERPRET_SWAP_Dn(7)
 
-void INTERPRET_CLR_Generic(uint32_t opcode)
+
+template<uint8_t Mode, uint8_t Reg>
+void MOVE_to_CCR(uint32_t)
 {
-    uint16_t sr = SR & ~SR_NZVC;
-    SR = sr | SR_Z;
     PC += 2;
+    WORD val = LoadFromEA<Mode, Reg, WORD>() & SR_CCR;
+    SR = (SR & 0xff00) | (val & 0x00ff);
+}
 
-    switch ((opcode >> 6) & 3)
-    {
-        case 0: INTERPRET_StoreToEffectiveAddress(opcode & 7, 0, I_SIZE_BYTE, (opcode >> 3) & 7); break;
-        case 1: INTERPRET_StoreToEffectiveAddress(opcode & 7, 0, I_SIZE_WORD, (opcode >> 3) & 7); break;
-        case 2: INTERPRET_StoreToEffectiveAddress(opcode & 7, 0, I_SIZE_LONG, (opcode >> 3) & 7); break;
-        default: __builtin_unreachable();
+template<uint8_t Mode, uint8_t Reg>
+void MOVE_to_SR(uint32_t)
+{
+    uint16_t sr = SR;
+    uint16_t changed = sr;
+
+    /* Modifying SR requires supervisor rights */
+    if (sr & SR_S) {
+        PC += 2;
+        WORD val = LoadFromEA<Mode, Reg, WORD>() & SR_ALL;
+
+        sr = val;
+        changed ^= sr;
+
+        HandleChangedSR(sr, changed);
+        
+        SR = sr;
+    } else {
+        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
-#define INTERPRET_CLR_B_Dn(dn) \
-void INTERPRET_CLR_B_D##dn(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    D##dn &= 0xffffff00; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_B_Dn(0)
-INTERPRET_CLR_B_Dn(1)
-INTERPRET_CLR_B_Dn(2)
-INTERPRET_CLR_B_Dn(3)
-INTERPRET_CLR_B_Dn(4)
-INTERPRET_CLR_B_Dn(5)
-INTERPRET_CLR_B_Dn(6)
-INTERPRET_CLR_B_Dn(7)
-
-#define INTERPRET_CLR_W_Dn(dn) \
-void INTERPRET_CLR_W_D##dn(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    D##dn &= 0xffff0000; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_W_Dn(0)
-INTERPRET_CLR_W_Dn(1)
-INTERPRET_CLR_W_Dn(2)
-INTERPRET_CLR_W_Dn(3)
-INTERPRET_CLR_W_Dn(4)
-INTERPRET_CLR_W_Dn(5)
-INTERPRET_CLR_W_Dn(6)
-INTERPRET_CLR_W_Dn(7)
-
-#define INTERPRET_CLR_L_Dn(dn) \
-void INTERPRET_CLR_L_D##dn(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    D##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_L_Dn(0)
-INTERPRET_CLR_L_Dn(1)
-INTERPRET_CLR_L_Dn(2)
-INTERPRET_CLR_L_Dn(3)
-INTERPRET_CLR_L_Dn(4)
-INTERPRET_CLR_L_Dn(5)
-INTERPRET_CLR_L_Dn(6)
-INTERPRET_CLR_L_Dn(7)
-
-
-#define INTERPRET_CLR_B_An_Addr(dn) \
-void INTERPRET_CLR_B_A##dn##_Addr(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    *(uint8_t*)(uintptr_t)A##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_B_An_Addr(0)
-INTERPRET_CLR_B_An_Addr(1)
-INTERPRET_CLR_B_An_Addr(2)
-INTERPRET_CLR_B_An_Addr(3)
-INTERPRET_CLR_B_An_Addr(4)
-INTERPRET_CLR_B_An_Addr(5)
-INTERPRET_CLR_B_An_Addr(6)
-INTERPRET_CLR_B_An_Addr(7)
-
-#define INTERPRET_CLR_W_An_Addr(dn) \
-void INTERPRET_CLR_W_A##dn##_Addr(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    *(uint16_t*)(uintptr_t)A##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_W_An_Addr(0)
-INTERPRET_CLR_W_An_Addr(1)
-INTERPRET_CLR_W_An_Addr(2)
-INTERPRET_CLR_W_An_Addr(3)
-INTERPRET_CLR_W_An_Addr(4)
-INTERPRET_CLR_W_An_Addr(5)
-INTERPRET_CLR_W_An_Addr(6)
-INTERPRET_CLR_W_An_Addr(7)
-
-#define INTERPRET_CLR_L_An_Addr(dn) \
-void INTERPRET_CLR_L_A##dn##_Addr(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    *(uint32_t*)(uintptr_t)A##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_L_An_Addr(0)
-INTERPRET_CLR_L_An_Addr(1)
-INTERPRET_CLR_L_An_Addr(2)
-INTERPRET_CLR_L_An_Addr(3)
-INTERPRET_CLR_L_An_Addr(4)
-INTERPRET_CLR_L_An_Addr(5)
-INTERPRET_CLR_L_An_Addr(6)
-INTERPRET_CLR_L_An_Addr(7)
-
-
-#define INTERPRET_CLR_B_An_PreDec(dn) \
-void INTERPRET_CLR_B_A##dn##_PreDec(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    A##dn -= ((dn) == 7) ? 2 : 1; \
-    *(uint8_t*)(uintptr_t)A##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_B_An_PreDec(0)
-INTERPRET_CLR_B_An_PreDec(1)
-INTERPRET_CLR_B_An_PreDec(2)
-INTERPRET_CLR_B_An_PreDec(3)
-INTERPRET_CLR_B_An_PreDec(4)
-INTERPRET_CLR_B_An_PreDec(5)
-INTERPRET_CLR_B_An_PreDec(6)
-INTERPRET_CLR_B_An_PreDec(7)
-
-#define INTERPRET_CLR_W_An_PreDec(dn) \
-void INTERPRET_CLR_W_A##dn##_PreDec(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    A##dn -= 2; \
-    *(uint16_t*)(uintptr_t)A##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_W_An_PreDec(0)
-INTERPRET_CLR_W_An_PreDec(1)
-INTERPRET_CLR_W_An_PreDec(2)
-INTERPRET_CLR_W_An_PreDec(3)
-INTERPRET_CLR_W_An_PreDec(4)
-INTERPRET_CLR_W_An_PreDec(5)
-INTERPRET_CLR_W_An_PreDec(6)
-INTERPRET_CLR_W_An_PreDec(7)
-
-#define INTERPRET_CLR_L_An_PreDec(dn) \
-void INTERPRET_CLR_L_A##dn##_PreDec(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    A##dn -= 4; \
-    *(uint32_t*)(uintptr_t)A##dn = 0; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_L_An_PreDec(0)
-INTERPRET_CLR_L_An_PreDec(1)
-INTERPRET_CLR_L_An_PreDec(2)
-INTERPRET_CLR_L_An_PreDec(3)
-INTERPRET_CLR_L_An_PreDec(4)
-INTERPRET_CLR_L_An_PreDec(5)
-INTERPRET_CLR_L_An_PreDec(6)
-INTERPRET_CLR_L_An_PreDec(7)
-
-
-#define INTERPRET_CLR_B_An_PostInc(dn) \
-void INTERPRET_CLR_B_A##dn##_PostInc(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    *(uint8_t*)(uintptr_t)A##dn = 0; \
-    A##dn += ((dn) == 7) ? 2 : 1; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_B_An_PostInc(0)
-INTERPRET_CLR_B_An_PostInc(1)
-INTERPRET_CLR_B_An_PostInc(2)
-INTERPRET_CLR_B_An_PostInc(3)
-INTERPRET_CLR_B_An_PostInc(4)
-INTERPRET_CLR_B_An_PostInc(5)
-INTERPRET_CLR_B_An_PostInc(6)
-INTERPRET_CLR_B_An_PostInc(7)
-
-#define INTERPRET_CLR_W_An_PostInc(dn) \
-void INTERPRET_CLR_W_A##dn##_PostInc(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    *(uint16_t*)(uintptr_t)A##dn = 0; \
-    A##dn += 2; \
-    SR = sr | SR_Z; \
-    PC += 2; \
-}
-
-INTERPRET_CLR_W_An_PostInc(0)
-INTERPRET_CLR_W_An_PostInc(1)
-INTERPRET_CLR_W_An_PostInc(2)
-INTERPRET_CLR_W_An_PostInc(3)
-INTERPRET_CLR_W_An_PostInc(4)
-INTERPRET_CLR_W_An_PostInc(5)
-INTERPRET_CLR_W_An_PostInc(6)
-INTERPRET_CLR_W_An_PostInc(7)
-
-template<unsigned an> requires (an < 8)
-void INTERPRET_CLR_W_PostInc_An(uint32_t)
+template<uint8_t Dn> requires (Dn < 8)
+void SWAP(uint32_t)
 {
-    uint16_t sr = SR & ~SR_NZVC;
+    uint32_t sr = SR & ~SR_CCR;
+    uint32_t val = getD<Dn, uint32_t>();
 
-    if constexpr (an == 0)      { *(uint16_t*)(uintptr_t)A0 = 0; A0 += 2; }
-    else if constexpr (an == 1) { *(uint16_t*)(uintptr_t)A1 = 0; A1 += 2; }
-    else if constexpr (an == 2) { *(uint16_t*)(uintptr_t)A2 = 0; A2 += 2; }
-    else if constexpr (an == 3) { *(uint16_t*)(uintptr_t)A3 = 0; A3 += 2; }
-    else if constexpr (an == 4) { *(uint16_t*)(uintptr_t)A4 = 0; A4 += 2; }
-    else if constexpr (an == 5) { *(uint16_t*)(uintptr_t)A5 = 0; A5 += 2; }
-    else if constexpr (an == 6) { *(uint16_t*)(uintptr_t)A6 = 0; A6 += 2; }
-    else if constexpr (an == 7) { *(uint16_t*)(uintptr_t)A7 = 0; A7 += 2; }
-
-    SR = sr | SR_Z;
+    if (unlikely(val == 0)) {
+        sr |= SR_Z;
+    } else {
+        val = (val >> 16) | (val << 16);
+        if (val & 0x80000000) {
+            sr |= SR_N;
+        }
+        setD<Dn, uint32_t>(val);
+    }
+    SR = sr;
     PC += 2;
 }
 
-void (*ptr)(uint32_t) = INTERPRET_CLR_W_PostInc_An<0>;
+template<uint8_t Mode, uint8_t Reg, class Type>
+void CLR(uint32_t)
+{
+    uint16_t sr = SR & ~SR_NZVC;
+    SR = sr | SR_Z;
+    PC += 2;
 
-
-#define INTERPRET_CLR_L_An_PostInc(dn) \
-void INTERPRET_CLR_L_A##dn##_PostInc(uint32_t) \
-{ \
-    uint16_t sr = SR & ~SR_NZVC; \
-    *(uint32_t*)(uintptr_t)A##dn = 0; \
-    A##dn += 4; \
-    SR = sr | SR_Z; \
-    PC += 2; \
+    StoreToEA<Mode, Reg, Type>(0);
 }
 
-INTERPRET_CLR_L_An_PostInc(0)
-INTERPRET_CLR_L_An_PostInc(1)
-INTERPRET_CLR_L_An_PostInc(2)
-INTERPRET_CLR_L_An_PostInc(3)
-INTERPRET_CLR_L_An_PostInc(4)
-INTERPRET_CLR_L_An_PostInc(5)
-INTERPRET_CLR_L_An_PostInc(6)
-INTERPRET_CLR_L_An_PostInc(7)
+static inline struct M68KState *getCTX()
+{
+    struct M68KState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
 
-void INTERPRET_RTS(uint32_t)
+void RTS(uint32_t)
 {
     PC = *(uint32_t *)(uintptr_t)A7;
     A7 += 4;
+
+    M68K_SaveContext(getCTX());
+    kprintf("[INT] RTS to %08x, A7 %08x\n", PC, A7);
+    M68K_LoadContext(getCTX());
+
 }
 
-void INTERPRET_NOP(uint32_t)
+void NOP(uint32_t)
 {
     PC += 2;
 }
 
-
-void INTERPRET_PEA_Generic(uint32_t opcode)
+template<uint8_t Mode, uint8_t Reg, uint8_t An>
+void LEA(uint32_t)
 {
-    uint32_t ea;
-
     PC += 2;
-    
-    INTERPRET_GetEffectiveAddress(opcode & 7, 4, &ea, (opcode >> 3) & 7);
-    
-    A7 -= 4;
-    *(uint32_t*)(uintptr_t)A7 = ea;
+    setA<An, uint32_t>(GetEA<Mode, Reg, uint32_t>());
 }
 
-#define INTERPRET_PEA_An(src) \
-void INTERPRET_PEA_A##src(uint32_t) \
-{ \
-    A7 -= 4; \
-    PC += 2; \
-    *(uint32_t*)(uintptr_t)A7 = A##src; \
-}
-
-INTERPRET_PEA_An(0);
-INTERPRET_PEA_An(1);
-INTERPRET_PEA_An(2);
-INTERPRET_PEA_An(3);
-INTERPRET_PEA_An(4);
-INTERPRET_PEA_An(5);
-INTERPRET_PEA_An(6);
-INTERPRET_PEA_An(7);
-
-void INTERPRET_PEA_ABS_W(uint32_t)
+template<uint8_t Mode, uint8_t Reg>
+void PEA(uint32_t)
 {
+    PC += 2;
     A7 -= 4;
-    *(uint32_t*)(uintptr_t)A7 = *(int16_t*)(intptr_t)(PC + 2);
+    *(uint32_t*)(uintptr_t)A7 = GetEA<Mode, Reg, uint32_t>();
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void JMP(uint32_t)
+{
+    PC += 2;
+    PC = GetEA<Mode, Reg, uint32_t>();
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void JSR(uint32_t)
+{
+    uint32_t new_pc;
+    PC += 2;
+    A7 -= 4;
+    new_pc = GetEA<Mode, Reg, uint32_t>();
+    *(uint32_t*)(intptr_t)A7 = PC; 
+    PC = new_pc;
+}
+
+template<uint8_t An>
+void LINK_W(uint32_t)
+{
+    int16_t displ = *(int16_t*)(intptr_t)(PC + 2);
+    A7 -= 4;
+    *(uint32_t *)(uintptr_t)A7 = getA<An, uint32_t>();
+    setA<An, uint32_t>(A7);
+    A7 += displ;
     PC += 4;
 }
 
-void INTERPRET_PEA_ABS_L(uint32_t)
+template<uint8_t An>
+void LINK_L(uint32_t)
 {
+    int32_t displ = *(int32_t*)(intptr_t)(PC + 2);
     A7 -= 4;
-    *(uint32_t*)(uintptr_t)A7 = *(uint32_t*)(intptr_t)(PC + 2);
+    *(uint32_t *)(uintptr_t)A7 = getA<An, uint32_t>();
+    setA<An, uint32_t>(A7);
+    A7 += displ;
     PC += 6;
 }
 
-#define INTERPRET_JMP_An(src) \
-void INTERPRET_JMP_A##src(uint32_t) \
-{ \
-    PC = A##src; \
-}
-
-INTERPRET_JMP_An(0);
-INTERPRET_JMP_An(1);
-INTERPRET_JMP_An(2);
-INTERPRET_JMP_An(3);
-INTERPRET_JMP_An(4);
-INTERPRET_JMP_An(5);
-INTERPRET_JMP_An(6);
-INTERPRET_JMP_An(7);
-
-void INTERPRET_JMP_ABS_W(uint32_t)
+template<uint8_t Dn>
+void EXT_B_to_W(uint32_t)
 {
-    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
-    PC = pc;
+    uint32_t sr = SR & ~SR_NZVC;
+    PC += 2;
+    WORD val = getD<Dn, BYTE>();
+    setD<Dn, WORD>(val);
+
+    if (val == 0) {
+        sr |= SR_Z;
+    } else if (val < 0) {
+        sr |= SR_N;
+    }
+
+    SR = sr;
 }
 
-void INTERPRET_JMP_ABS_L(uint32_t)
+template<uint8_t Dn>
+void EXT_W_to_L(uint32_t)
 {
-    PC = *(uint32_t*)(intptr_t)(PC + 2);
+    uint32_t sr = SR & ~SR_NZVC;
+    PC += 2;
+    LONG val = getD<Dn, WORD>();
+    setD<Dn, LONG>(val);
+
+    if (val == 0) {
+        sr |= SR_Z;
+    } else if (val < 0) {
+        sr |= SR_N;
+    }
+
+    SR = sr;
 }
 
-#define INTERPRET_JSR_An(src) \
-void INTERPRET_JSR_A##src(uint32_t) \
-{ \
-    A7 -= 4; \
-    *(uint32_t*)(intptr_t)A7 = PC + 2; \
-    PC = A##src; \
-}
-
-INTERPRET_JSR_An(0);
-INTERPRET_JSR_An(1);
-INTERPRET_JSR_An(2);
-INTERPRET_JSR_An(3);
-INTERPRET_JSR_An(4);
-INTERPRET_JSR_An(5);
-INTERPRET_JSR_An(6);
-INTERPRET_JSR_An(7);
-
-void INTERPRET_JSR_ABS_W(uint32_t)
+template<uint8_t Dn>
+void EXT_B_to_L(uint32_t)
 {
-    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
-    A7 -= 4;
-    *(uint32_t*)(intptr_t)A7 = PC + 4;
-    PC = pc;
+    uint32_t sr = SR & ~SR_NZVC;
+    PC += 2;
+    LONG val = getD<Dn, BYTE>();
+    setD<Dn, LONG>(val);
+
+    if (val == 0) {
+        sr |= SR_Z;
+    } else if (val < 0) {
+        sr |= SR_N;
+    }
+
+    SR = sr;
 }
 
-void INTERPRET_JMP_d16_PC(uint32_t)
+void MOVEC(uint32_t opcode)
 {
-    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
-    PC += pc + 2;
+    /* MOVEC requires supervisor rights */
+    if (SR & SR_S)
+    {
+        struct M68KState *ctx = getCTX();
+        uint16_t opcode2 = *(uint16_t*)(uintptr_t)(PC + 2);
+        uint16_t cr = opcode2 & 0x0fff;
+        uint8_t reg = (opcode2 >> 12) & 7;
+        
+        if (opcode & 1)
+        {
+            // Register to Control Register
+            uint32_t dn = opcode2 & 0x8000 ? getAn(reg) : getDn(reg);
+
+            switch(cr)
+            {
+                case 0x000: ctx->SFC = dn & 7;                      break;
+                case 0x001: ctx->DFC = dn & 7;                      break;
+                case 0x002: CACR = dn & 0x80008000; ARMCode = 0;    break;
+                case 0x003: ctx->TCR = (dn & 0xc000);               break;
+                case 0x004: ctx->ITT0 = dn & 0x1c9b;                break;
+                case 0x005: ctx->ITT1 = dn & 0x1c9b;                break;
+                case 0x006: ctx->DTT0 = dn & 0x1c9b;                break;
+                case 0x007: ctx->DTT1 = dn & 0x1c9b;                break;
+                case 0x800: USP = dn;                               break;
+                case 0x801: ctx->VBR = dn;                          break;
+                case 0x803: if (SR & SR_M) A7 = dn; else MSP = dn;  break;
+                case 0x804: if (SR & SR_M) ISP = dn; else A7 = dn;  break;
+                case 0x805: ctx->MMUSR = dn;                        break;
+                case 0x806: ctx->URP = dn & 0xfffffe00;             break;
+                case 0x807: ctx->SRP = dn & 0xfffffe00;             break;
+                case 0x0ea: ctx->JIT_SOFTFLUSH_THRESH = dn;         break;
+                case 0x0eb: ctx->JIT_CONTROL = dn;                  break;
+                case 0x0ed: debug = dn & 3; disasm = (dn >> 2) & 1; break;
+                case 0x0ee: debug_range_min = dn;                   break;
+                case 0x0ef: debug_range_max = dn;                   break;
+                case 0x1e0: ctx->JIT_CONTROL2 = dn & 0x1fffffff;
+                            if (dn & 0x20000000) ctx->INTF.ARM = 0;
+                            if (dn & 0x40000000) ctx->INTF.PPC = 0;
+                            if (dn & 0x80000000) {
+                                *ctx->PPC_EE_FLAG = 255;
+                                asm volatile("sev":::"memory");
+                            }                                       break;
+                default:    Exception_F0(VECTOR_PRIVILEGE_VIOLATION); return;
+            }
+
+            /* Do not allow enabling MMU for now */
+            ctx->TCR &= ~0x8000;
+        }
+        else
+        {
+            // Control Register to Register
+            uint64_t val = 0;
+
+            switch (cr) {
+                case 0x000: val = ctx->SFC;                                 break;
+                case 0x001: val = ctx->DFC;                                 break;
+                case 0x002: val = CACR;                                     break;
+                case 0x800: val = USP;                                      break;
+                case 0x801: val = ctx->VBR;                                 break;
+                case 0x803: val = (SR & SR_M) ? A7 : MSP;                   break;
+                case 0x804: val = (SR & SR_M) ? ISP : A7;                   break;
+                case 0x0e0: asm volatile("mrs %0, CNTFRQ_EL0":"=r"(val));   break;
+                case 0x0e1: asm volatile("mrs %0, CNTPCT_EL0":"=r"(val));   break;
+                case 0x0e2: asm volatile("mrs %0, CNTPCT_EL0":"=r"(val)); 
+                            val >>= 32;                                     break;
+                case 0x0e3: asm volatile("mov %w0, v22.s[0]":"=r"(val));    break;
+                case 0x0e4: asm volatile("mov %w0, v22.s[1]":"=r"(val));    break;
+                case 0x0e5: asm volatile("mrs %0, PMCCNTR_EL0":"=r"(val));  break;
+                case 0x0e6: asm volatile("mrs %0, PMCCNTR_EL0":"=r"(val));
+                            val >>= 32;                                     break;
+                case 0x0e7: val = ctx->JIT_CACHE_TOTAL;                     break;
+                case 0x0e8: val = ctx->JIT_CACHE_FREE;                      break;
+                case 0x0e9: val = ctx->JIT_UNIT_COUNT;                      break;
+                case 0x0ea: val = ctx->JIT_SOFTFLUSH_THRESH;                break;
+                case 0x0eb: val = ctx->JIT_CONTROL;                         break;
+                case 0x0ec: val = ctx->JIT_CACHE_MISS;                      break;
+                case 0x0ed: val = (debug & 3) | disasm ? 4 : 0;             break;
+                case 0x0ee: val = debug_range_min;                          break;
+                case 0x0ef: val = debug_range_max;                          break;
+                case 0x1e0: val = ctx->JIT_CONTROL2;
+                            val |= ctx->INTF.PPC ? 0x40000000 : 0;
+                            val |= ctx->INTF.ARM ? 0x20000000 : 0;          break;
+                case 0x003: val = ctx->TCR;                                 break;
+                case 0x004: val = ctx->ITT0;                                break;
+                case 0x005: val = ctx->ITT1;                                break;
+                case 0x006: val = ctx->DTT0;                                break;
+                case 0x007: val = ctx->DTT1;                                break;
+                case 0x805: val = ctx->MMUSR;                               break;
+                case 0x806: val = ctx->URP;                                 break;
+                case 0x807: val = ctx->SRP;                                 break;
+                default:    Exception_F0(VECTOR_PRIVILEGE_VIOLATION);       return;
+            }
+
+            if (opcode2 & 0x8000) {
+                setAn(reg, val);
+            } else {
+                setDn(reg, val);
+            }
+        }
+        PC += 4;
+    }
+    else
+    {
+        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+    }
 }
 
-void INTERPRET_JSR_ABS_L(uint32_t)
-{
-    uint32_t pc = *(int32_t*)(intptr_t)(PC + 2);
-    A7 -= 4;
-    *(uint32_t*)(intptr_t)A7 = PC + 6;
-    PC = pc;
-}
-
-void INTERPRET_JSR_d16_PC(uint32_t)
-{
-    int16_t pc = *(int16_t*)(intptr_t)(PC + 2);
-    A7 -= 4;
-    *(uint32_t*)(intptr_t)A7 = PC + 4;
-    PC += pc + 2;
-}
-
-
-#define INTERPRET_LINK_W_An(reg) \
-void INTERPRET_LINK_W_A##reg(uint32_t) \
-{ \
-    int16_t displ = *(int16_t*)(intptr_t)(PC + 2); \
-    A7 -= 4; \
-    *(uint32_t *)(uintptr_t)A7 = A##reg; \
-    A##reg = A7; \
-    A7 += displ; \
-    PC += 4; \
-}
-
-INTERPRET_LINK_W_An(0);
-INTERPRET_LINK_W_An(1);
-INTERPRET_LINK_W_An(2);
-INTERPRET_LINK_W_An(3);
-INTERPRET_LINK_W_An(4);
-INTERPRET_LINK_W_An(5);
-INTERPRET_LINK_W_An(6);
-INTERPRET_LINK_W_An(7);
-
-#define INTERPRET_LINK_L_An(reg) \
-void INTERPRET_LINK_L_A##reg(uint32_t) \
-{ \
-    int32_t displ = *(int32_t*)(intptr_t)(PC + 2); \
-    A7 -= 4; \
-    *(uint32_t *)(uintptr_t)A7 = A##reg; \
-    A##reg = A7; \
-    A7 += displ; \
-    PC += 6; \
-}
-
-INTERPRET_LINK_L_An(0);
-INTERPRET_LINK_L_An(1);
-INTERPRET_LINK_L_An(2);
-INTERPRET_LINK_L_An(3);
-INTERPRET_LINK_L_An(4);
-INTERPRET_LINK_L_An(5);
-INTERPRET_LINK_L_An(6);
-INTERPRET_LINK_L_An(7);
-
-
-#define INTERPRET_MOVEM_L_regs_to_An_Addr(reg) \
-void INTERPRET_MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
+#define MOVEM_L_regs_to_An_Addr(reg) \
+void MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
 { \
     uint32_t *base = (uint32_t *)(uintptr_t)A##reg; \
     uint16_t mask = *(uint16_t*)(uintptr_t)(PC + 2); \
@@ -505,18 +350,18 @@ void INTERPRET_MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
     PC += 4; \
 }
 
-INTERPRET_MOVEM_L_regs_to_An_Addr(0);
-INTERPRET_MOVEM_L_regs_to_An_Addr(1);
-INTERPRET_MOVEM_L_regs_to_An_Addr(2);
-INTERPRET_MOVEM_L_regs_to_An_Addr(3);
-INTERPRET_MOVEM_L_regs_to_An_Addr(4);
-INTERPRET_MOVEM_L_regs_to_An_Addr(5);
-INTERPRET_MOVEM_L_regs_to_An_Addr(6);
-INTERPRET_MOVEM_L_regs_to_An_Addr(7);
+MOVEM_L_regs_to_An_Addr(0);
+MOVEM_L_regs_to_An_Addr(1);
+MOVEM_L_regs_to_An_Addr(2);
+MOVEM_L_regs_to_An_Addr(3);
+MOVEM_L_regs_to_An_Addr(4);
+MOVEM_L_regs_to_An_Addr(5);
+MOVEM_L_regs_to_An_Addr(6);
+MOVEM_L_regs_to_An_Addr(7);
 
 
-#define INTERPRET_MOVEM_L_regs_to_An_PreDec(reg) \
-void INTERPRET_MOVEM_L_regs_to_A##reg##_PreDec(uint32_t) \
+#define MOVEM_L_regs_to_An_PreDec(reg) \
+void MOVEM_L_regs_to_A##reg##_PreDec(uint32_t) \
 { \
     uint32_t *base = (uint32_t *)(uintptr_t)A##reg; \
     A##reg -= 4; \
@@ -541,24 +386,112 @@ void INTERPRET_MOVEM_L_regs_to_A##reg##_PreDec(uint32_t) \
     PC += 4; \
 }
 
-INTERPRET_MOVEM_L_regs_to_An_PreDec(0);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(1);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(2);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(3);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(4);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(5);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(6);
-INTERPRET_MOVEM_L_regs_to_An_PreDec(7);
+MOVEM_L_regs_to_An_PreDec(0);
+MOVEM_L_regs_to_An_PreDec(1);
+MOVEM_L_regs_to_An_PreDec(2);
+MOVEM_L_regs_to_An_PreDec(3);
+MOVEM_L_regs_to_An_PreDec(4);
+MOVEM_L_regs_to_An_PreDec(5);
+MOVEM_L_regs_to_An_PreDec(6);
+MOVEM_L_regs_to_An_PreDec(7);
 
-void INTERPRET_LEA_Generic(uint32_t opcode)
-{
-    uint32_t ea;
 
-    PC += 2;
-
-    INTERPRET_GetEffectiveAddress(opcode & 7, 4, &ea, (opcode >> 3) & 7);
-    setAn((opcode >> 9) & 7, ea);
+#define MOVEM_L_regs_from_An_PostInc(reg) \
+void MOVEM_L_regs_from_A##reg##_PostInc(uint32_t) \
+{ \
+    uint32_t *base = (uint32_t *)(uintptr_t)A##reg; \
+    uint16_t mask = *(uint16_t*)(uintptr_t)(PC + 2); \
+    if (mask & 0x0001) *base++ = D0; \
+    if (mask & 0x0002) *base++ = D1; \
+    if (mask & 0x0004) *base++ = D2; \
+    if (mask & 0x0008) *base++ = D3; \
+    if (mask & 0x0010) *base++ = D4; \
+    if (mask & 0x0020) *base++ = D5; \
+    if (mask & 0x0040) *base++ = D6; \
+    if (mask & 0x0080) *base++ = D7; \
+    if (mask & 0x0100) *base++ = A0; \
+    if (mask & 0x0200) *base++ = A1; \
+    if (mask & 0x0400) *base++ = A2; \
+    if (mask & 0x0800) *base++ = A3; \
+    if (mask & 0x1000) *base++ = A4; \
+    if (mask & 0x2000) *base++ = A5; \
+    if (mask & 0x4000) *base++ = A6; \
+    if (mask & 0x8000) *base++ = A7; \
+    A##reg = (uint32_t)(uintptr_t)base; \
+    PC += 4; \
 }
+
+MOVEM_L_regs_from_An_PostInc(0);
+MOVEM_L_regs_from_An_PostInc(1);
+MOVEM_L_regs_from_An_PostInc(2);
+MOVEM_L_regs_from_An_PostInc(3);
+MOVEM_L_regs_from_An_PostInc(4);
+MOVEM_L_regs_from_An_PostInc(5);
+MOVEM_L_regs_from_An_PostInc(6);
+MOVEM_L_regs_from_An_PostInc(7);
+
+#define FILL_PEA_ALIKE(base_offset, name) \
+    [&]<std::size_t... Areg>(int base, std::index_sequence<Areg...>) { \
+        ((table[base + EA(2, Areg)] = \
+             name<2, Areg>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(5 + (Is >> 3), Is & 7)] = \
+             name<5 + (Is >> 3), Is & 7>), ...); \
+    }((base_offset), std::make_index_sequence<20>{});
+
+#define FILL_LEA(base_offset, name, an) \
+    [&]<std::size_t... Areg>(int base, std::index_sequence<Areg...>) { \
+        ((table[base + EA(2, Areg)] = \
+             name<2, Areg, an>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(5 + (Is >> 3), Is & 7)] = \
+             name<5 + (Is >> 3), Is & 7, an>), ...); \
+    }((base_offset), std::make_index_sequence<20>{});
+
+#define FILL_MOD0(base_offset, name) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+            name<0, Dreg>), ...); \
+    }((base_offset), std::make_index_sequence<8>{});
+
+#define FILL_MOD0_size(base_offset, name, size) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+            name<0, Dreg, size>), ...); \
+    }((base_offset), std::make_index_sequence<8>{});
+
+#define FILL_MOD0_reg_only(base_offset, name) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+            name<Dreg>), ...); \
+    }((base_offset), std::make_index_sequence<8>{});
+
+#define FILL_MOD2_to_75(base_offset, name) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+            name<2 + (Is >> 3), Is & 7>), ...); \
+    }((base_offset), std::make_index_sequence<45>{});
+
+#define FILL_MOD2_to_75_size(base_offset, name, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+            name<2 + (Is >> 3), Is & 7, size>), ...); \
+    }((base_offset), std::make_index_sequence<45>{});
+
+#define FILL_MOD2_to_72(base_offset, name) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+            name<2 + (Is >> 3), Is & 7>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
+
+#define FILL_MOD2_to_72_size(base_offset, name, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+            name<2 + (Is >> 3), Is & 7, size>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
+
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
@@ -569,229 +502,77 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
             table[i] = func;
     };
 
-    fill(00000, 07777, INTERPRET_UNIMPLEMENTED);
+    auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    table[04100] =     INTERPRET_SWAP_D0;
-    table[04101] =     INTERPRET_SWAP_D1;
-    table[04102] =     INTERPRET_SWAP_D2;
-    table[04103] =     INTERPRET_SWAP_D3;
-    table[04104] =     INTERPRET_SWAP_D0;
-    table[04105] =     INTERPRET_SWAP_D1;
-    table[04106] =     INTERPRET_SWAP_D2;
-    table[04107] =     INTERPRET_SWAP_D3;
+    fill(00000, 07777, UNIMPLEMENTED);
 
-    fill(01020, 01047, INTERPRET_CLR_Generic);
-    fill(01120, 01147, INTERPRET_CLR_Generic);
-    fill(01220, 01247, INTERPRET_CLR_Generic);
-    fill(01050, 01071, INTERPRET_CLR_Generic);
-    fill(01150, 01171, INTERPRET_CLR_Generic);
-    fill(01250, 01271, INTERPRET_CLR_Generic);
+    FILL_MOD0(              02300, MOVE_to_CCR);    /* MOVE to CCR Dn */
+    FILL_MOD2_to_75(        02300, MOVE_to_CCR);    /* MOVE to CCR all other modes */
 
-    table[01000] =     INTERPRET_CLR_B_D0;
-    table[01001] =     INTERPRET_CLR_B_D1;
-    table[01002] =     INTERPRET_CLR_B_D2;
-    table[01003] =     INTERPRET_CLR_B_D3;
-    table[01004] =     INTERPRET_CLR_B_D4;
-    table[01005] =     INTERPRET_CLR_B_D5;
-    table[01006] =     INTERPRET_CLR_B_D6;
-    table[01007] =     INTERPRET_CLR_B_D7;
+    FILL_MOD0(              03300, MOVE_to_SR);     /* MOVE to SR Dn */
+    FILL_MOD2_to_75(        03300, MOVE_to_SR);     /* MOVE to SR all other modes */
 
-    table[01100] =     INTERPRET_CLR_W_D0;
-    table[01101] =     INTERPRET_CLR_W_D1;
-    table[01102] =     INTERPRET_CLR_W_D2;
-    table[01103] =     INTERPRET_CLR_W_D3;
-    table[01104] =     INTERPRET_CLR_W_D4;
-    table[01105] =     INTERPRET_CLR_W_D5;
-    table[01106] =     INTERPRET_CLR_W_D6;
-    table[01107] =     INTERPRET_CLR_W_D7;
+    FILL_MOD0_reg_only(     04100, SWAP);           /* SWAP Dn */
 
-    table[01200] =     INTERPRET_CLR_L_D0;
-    table[01201] =     INTERPRET_CLR_L_D1;
-    table[01202] =     INTERPRET_CLR_L_D2;
-    table[01203] =     INTERPRET_CLR_L_D3;
-    table[01204] =     INTERPRET_CLR_L_D4;
-    table[01205] =     INTERPRET_CLR_L_D5;
-    table[01206] =     INTERPRET_CLR_L_D6;
-    table[01207] =     INTERPRET_CLR_L_D7;
+    FILL_MOD0_size(         01000, CLR, BYTE);      /* CLR.B Dn */
+    FILL_MOD2_to_72_size(   01000, CLR, BYTE);      /* CLR.B all other modes */
+    FILL_MOD0_size(         01100, CLR, WORD);      /* CLR.W Dn */
+    FILL_MOD2_to_72_size(   01100, CLR, WORD);      /* CLR.W all other modes */
+    FILL_MOD0_size(         01200, CLR, LONG);      /* CLR.L Dn */
+    FILL_MOD2_to_72_size(   01200, CLR, LONG);      /* CLR.L all other modes */
 
-    table[01020] =     INTERPRET_CLR_B_A0_Addr;
-    table[01021] =     INTERPRET_CLR_B_A1_Addr;
-    table[01022] =     INTERPRET_CLR_B_A2_Addr;
-    table[01023] =     INTERPRET_CLR_B_A3_Addr;
-    table[01024] =     INTERPRET_CLR_B_A4_Addr;
-    table[01025] =     INTERPRET_CLR_B_A5_Addr;
-    table[01026] =     INTERPRET_CLR_B_A6_Addr;
-    table[01027] =     INTERPRET_CLR_B_A7_Addr;
+    FILL_PEA_ALIKE(         07200, JSR);            /* JSR all modes */
+    FILL_PEA_ALIKE(         07300, JMP);            /* JMP all modes */
+    FILL_PEA_ALIKE(         04100, PEA);            /* PEA all modes */
+    FILL_LEA(               00700, LEA, 0);         /* LEA to A0 all modes */
+    FILL_LEA(               01700, LEA, 1);         /* LEA to A1 all modes */
+    FILL_LEA(               02700, LEA, 2);         /* LEA to A2 all modes */
+    FILL_LEA(               03700, LEA, 3);         /* LEA to A3 all modes */
+    FILL_LEA(               04700, LEA, 4);         /* LEA to A4 all modes */
+    FILL_LEA(               05700, LEA, 5);         /* LEA to A5 all modes */
+    FILL_LEA(               06700, LEA, 6);         /* LEA to A6 all modes */
+    FILL_LEA(               07700, LEA, 7);         /* LEA to A7 all modes */
 
-    table[01120] =     INTERPRET_CLR_W_A0_Addr;
-    table[01121] =     INTERPRET_CLR_W_A1_Addr;
-    table[01122] =     INTERPRET_CLR_W_A2_Addr;
-    table[01123] =     INTERPRET_CLR_W_A3_Addr;
-    table[01124] =     INTERPRET_CLR_W_A4_Addr;
-    table[01125] =     INTERPRET_CLR_W_A5_Addr;
-    table[01126] =     INTERPRET_CLR_W_A6_Addr;
-    table[01127] =     INTERPRET_CLR_W_A7_Addr;
+    FILL_MOD0_reg_only(     04010, LINK_L);         /* LINK.L #imm, An */
+    FILL_MOD0_reg_only(     07120, LINK_W);         /* LINK.L #imm, An */
 
-    table[01220] =     INTERPRET_CLR_L_A0_Addr;
-    table[01221] =     INTERPRET_CLR_L_A1_Addr;
-    table[01222] =     INTERPRET_CLR_L_A2_Addr;
-    table[01223] =     INTERPRET_CLR_L_A3_Addr;
-    table[01224] =     INTERPRET_CLR_L_A4_Addr;
-    table[01225] =     INTERPRET_CLR_L_A5_Addr;
-    table[01226] =     INTERPRET_CLR_L_A6_Addr;
-    table[01227] =     INTERPRET_CLR_L_A7_Addr;
+    FILL_MOD0_reg_only(     04200, EXT_B_to_W);     /* EXT.W Dn */
+    FILL_MOD0_reg_only(     04300, EXT_W_to_L);     /* EXT.L Dn */
+    FILL_MOD0_reg_only(     04700, EXT_B_to_L);     /* EXTB.L Dn */
 
-    table[01030] =     INTERPRET_CLR_B_A0_PostInc;
-    table[01031] =     INTERPRET_CLR_B_A1_PostInc;
-    table[01032] =     INTERPRET_CLR_B_A2_PostInc;
-    table[01033] =     INTERPRET_CLR_B_A3_PostInc;
-    table[01034] =     INTERPRET_CLR_B_A4_PostInc;
-    table[01035] =     INTERPRET_CLR_B_A5_PostInc;
-    table[01036] =     INTERPRET_CLR_B_A6_PostInc;
-    table[01037] =     INTERPRET_CLR_B_A7_PostInc;
+    table[04320] =     MOVEM_L_regs_to_A0_Addr;
+    table[04321] =     MOVEM_L_regs_to_A1_Addr;
+    table[04322] =     MOVEM_L_regs_to_A2_Addr;
+    table[04323] =     MOVEM_L_regs_to_A3_Addr;
+    table[04324] =     MOVEM_L_regs_to_A4_Addr;
+    table[04325] =     MOVEM_L_regs_to_A5_Addr;
+    table[04326] =     MOVEM_L_regs_to_A6_Addr;
+    table[04327] =     MOVEM_L_regs_to_A7_Addr;
 
-    table[01130] =     INTERPRET_CLR_W_A0_PostInc;
-    table[01131] =     INTERPRET_CLR_W_A1_PostInc;
-    table[01132] =     INTERPRET_CLR_W_A2_PostInc;
-    table[01133] =     INTERPRET_CLR_W_A3_PostInc;
-    table[01134] =     INTERPRET_CLR_W_A4_PostInc;
-    table[01135] =     INTERPRET_CLR_W_A5_PostInc;
-    table[01136] =     INTERPRET_CLR_W_A6_PostInc;
-    table[01137] =     INTERPRET_CLR_W_A7_PostInc;
+    table[06330] =     MOVEM_L_regs_from_A0_PostInc;
+    table[06331] =     MOVEM_L_regs_from_A1_PostInc;
+    table[06332] =     MOVEM_L_regs_from_A2_PostInc;
+    table[06333] =     MOVEM_L_regs_from_A3_PostInc;
+    table[06334] =     MOVEM_L_regs_from_A4_PostInc;
+    table[06335] =     MOVEM_L_regs_from_A5_PostInc;
+    table[06336] =     MOVEM_L_regs_from_A6_PostInc;
+    table[06337] =     MOVEM_L_regs_from_A7_PostInc;
 
-    table[01230] =     INTERPRET_CLR_L_A0_PostInc;
-    table[01231] =     INTERPRET_CLR_L_A1_PostInc;
-    table[01232] =     INTERPRET_CLR_L_A2_PostInc;
-    table[01233] =     INTERPRET_CLR_L_A3_PostInc;
-    table[01234] =     INTERPRET_CLR_L_A4_PostInc;
-    table[01235] =     INTERPRET_CLR_L_A5_PostInc;
-    table[01236] =     INTERPRET_CLR_L_A6_PostInc;
-    table[01237] =     INTERPRET_CLR_L_A7_PostInc;
+    table[04340] =     MOVEM_L_regs_to_A0_PreDec;
+    table[04341] =     MOVEM_L_regs_to_A1_PreDec;
+    table[04342] =     MOVEM_L_regs_to_A2_PreDec;
+    table[04343] =     MOVEM_L_regs_to_A3_PreDec;
+    table[04344] =     MOVEM_L_regs_to_A4_PreDec;
+    table[04345] =     MOVEM_L_regs_to_A5_PreDec;
+    table[04346] =     MOVEM_L_regs_to_A6_PreDec;
+    table[04347] =     MOVEM_L_regs_to_A7_PreDec;
 
-    table[01040] =     INTERPRET_CLR_B_A0_PreDec;
-    table[01041] =     INTERPRET_CLR_B_A1_PreDec;
-    table[01042] =     INTERPRET_CLR_B_A2_PreDec;
-    table[01043] =     INTERPRET_CLR_B_A3_PreDec;
-    table[01044] =     INTERPRET_CLR_B_A4_PreDec;
-    table[01045] =     INTERPRET_CLR_B_A5_PreDec;
-    table[01046] =     INTERPRET_CLR_B_A6_PreDec;
-    table[01047] =     INTERPRET_CLR_B_A7_PreDec;
+    table[07161] =     NOP;
+    table[07165] =     RTS;
+    table[07172] =     MOVEC;
+    table[07173] =     MOVEC;
 
-    table[01140] =     INTERPRET_CLR_W_A0_PreDec;
-    table[01141] =     INTERPRET_CLR_W_A1_PreDec;
-    table[01142] =     INTERPRET_CLR_W_A2_PreDec;
-    table[01143] =     INTERPRET_CLR_W_A3_PreDec;
-    table[01144] =     INTERPRET_CLR_W_A4_PreDec;
-    table[01145] =     INTERPRET_CLR_W_A5_PreDec;
-    table[01146] =     INTERPRET_CLR_W_A6_PreDec;
-    table[01147] =     INTERPRET_CLR_W_A7_PreDec;
 
-    table[01240] =     INTERPRET_CLR_L_A0_PreDec;
-    table[01241] =     INTERPRET_CLR_L_A1_PreDec;
-    table[01242] =     INTERPRET_CLR_L_A2_PreDec;
-    table[01243] =     INTERPRET_CLR_L_A3_PreDec;
-    table[01244] =     INTERPRET_CLR_L_A4_PreDec;
-    table[01245] =     INTERPRET_CLR_L_A5_PreDec;
-    table[01246] =     INTERPRET_CLR_L_A6_PreDec;
-    table[01247] =     INTERPRET_CLR_L_A7_PreDec;
-
-    table[04010] =     INTERPRET_LINK_L_A0;
-    table[04011] =     INTERPRET_LINK_L_A1;
-    table[04012] =     INTERPRET_LINK_L_A2;
-    table[04013] =     INTERPRET_LINK_L_A3;
-    table[04014] =     INTERPRET_LINK_L_A4;
-    table[04015] =     INTERPRET_LINK_L_A5;
-    table[04016] =     INTERPRET_LINK_L_A6;
-    table[04017] =     INTERPRET_LINK_L_A7;
-
-    fill(04120, 04127, INTERPRET_PEA_Generic);
-    fill(04150, 04173, INTERPRET_PEA_Generic);
-
-    table[04120] =     INTERPRET_PEA_A0;
-    table[04121] =     INTERPRET_PEA_A1;
-    table[04122] =     INTERPRET_PEA_A2;
-    table[04123] =     INTERPRET_PEA_A3;
-    table[04124] =     INTERPRET_PEA_A4;
-    table[04125] =     INTERPRET_PEA_A5;
-    table[04126] =     INTERPRET_PEA_A6;
-    table[04127] =     INTERPRET_PEA_A7;
-
-    table[04170] =     INTERPRET_PEA_ABS_W;
-    table[04171] =     INTERPRET_PEA_ABS_L;
-
-    table[04320] =     INTERPRET_MOVEM_L_regs_to_A0_Addr;
-    table[04321] =     INTERPRET_MOVEM_L_regs_to_A1_Addr;
-    table[04322] =     INTERPRET_MOVEM_L_regs_to_A2_Addr;
-    table[04323] =     INTERPRET_MOVEM_L_regs_to_A3_Addr;
-    table[04324] =     INTERPRET_MOVEM_L_regs_to_A4_Addr;
-    table[04325] =     INTERPRET_MOVEM_L_regs_to_A5_Addr;
-    table[04326] =     INTERPRET_MOVEM_L_regs_to_A6_Addr;
-    table[04327] =     INTERPRET_MOVEM_L_regs_to_A7_Addr;
-
-    table[04340] =     INTERPRET_MOVEM_L_regs_to_A0_PreDec;
-    table[04341] =     INTERPRET_MOVEM_L_regs_to_A1_PreDec;
-    table[04342] =     INTERPRET_MOVEM_L_regs_to_A2_PreDec;
-    table[04343] =     INTERPRET_MOVEM_L_regs_to_A3_PreDec;
-    table[04344] =     INTERPRET_MOVEM_L_regs_to_A4_PreDec;
-    table[04345] =     INTERPRET_MOVEM_L_regs_to_A5_PreDec;
-    table[04346] =     INTERPRET_MOVEM_L_regs_to_A6_PreDec;
-    table[04347] =     INTERPRET_MOVEM_L_regs_to_A7_PreDec;
-
-    table[07120] =     INTERPRET_LINK_W_A0;
-    table[07121] =     INTERPRET_LINK_W_A1;
-    table[07122] =     INTERPRET_LINK_W_A2;
-    table[07123] =     INTERPRET_LINK_W_A3;
-    table[07124] =     INTERPRET_LINK_W_A4;
-    table[07125] =     INTERPRET_LINK_W_A5;
-    table[07126] =     INTERPRET_LINK_W_A6;
-    table[07127] =     INTERPRET_LINK_W_A7;
-
-    table[07161] =     INTERPRET_NOP;
-    table[07165] =     INTERPRET_RTS;
-
-    table[07220] =     INTERPRET_JSR_A0;
-    table[07221] =     INTERPRET_JSR_A1;
-    table[07222] =     INTERPRET_JSR_A0;
-    table[07223] =     INTERPRET_JSR_A1;
-    table[07224] =     INTERPRET_JSR_A0;
-    table[07225] =     INTERPRET_JSR_A1;
-    table[07226] =     INTERPRET_JSR_A0;
-    table[07227] =     INTERPRET_JSR_A1;
-
-    table[07270] =     INTERPRET_JSR_ABS_W;
-    table[07271] =     INTERPRET_JSR_ABS_L;
-    table[07272] =     INTERPRET_JSR_d16_PC;
-
-    table[07220] =     INTERPRET_JMP_A0;
-    table[07221] =     INTERPRET_JMP_A1;
-    table[07222] =     INTERPRET_JMP_A0;
-    table[07223] =     INTERPRET_JMP_A1;
-    table[07224] =     INTERPRET_JMP_A0;
-    table[07225] =     INTERPRET_JMP_A1;
-    table[07226] =     INTERPRET_JMP_A0;
-    table[07227] =     INTERPRET_JMP_A1;
-
-    table[07370] =     INTERPRET_JMP_ABS_W;
-    table[07371] =     INTERPRET_JMP_ABS_L;
-    table[07272] =     INTERPRET_JMP_d16_PC;
-
-    fill(00720, 00727, INTERPRET_LEA_Generic);
-    fill(00750, 00773, INTERPRET_LEA_Generic);
-    fill(01720, 01727, INTERPRET_LEA_Generic);
-    fill(01750, 01773, INTERPRET_LEA_Generic);
-    fill(02720, 02727, INTERPRET_LEA_Generic);
-    fill(02750, 02773, INTERPRET_LEA_Generic);
-    fill(03720, 03727, INTERPRET_LEA_Generic);
-    fill(03750, 03773, INTERPRET_LEA_Generic);
-    fill(04720, 04727, INTERPRET_LEA_Generic);
-    fill(04750, 04773, INTERPRET_LEA_Generic);
-    fill(05720, 05727, INTERPRET_LEA_Generic);
-    fill(05750, 05773, INTERPRET_LEA_Generic);
-    fill(06720, 06727, INTERPRET_LEA_Generic);
-    fill(06750, 06773, INTERPRET_LEA_Generic);
-    fill(07720, 07727, INTERPRET_LEA_Generic);
-    fill(07750, 07773, INTERPRET_LEA_Generic);
-    
     #if 0
     [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
     [00320 ... 00347] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
@@ -813,9 +594,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [04300 ... 04307] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
     [04700 ... 04707] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
 
-    [04010 ... 04017] = { EMIT_LINK32, NULL, 0, 0, 3, 0, 0 },
-    [07120 ... 07127] = { EMIT_LINK16, NULL, 0, 0, 2, 0, 0 },
-
     [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
     [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
     [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
@@ -829,12 +607,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [0xe7a ... 0xe7b] = { EMIT_MOVEC, NULL, SR_S, 0, 2, 0, 4 },
     [0xe60 ... 0xe6f] = { EMIT_MOVEUSP, NULL, SR_S, 0, 1, 0, 4 },
     [04110 ... 04117] = { EMIT_BKPT, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
-
-    [07320 ... 07327] = { EMIT_JMP, NULL, 0, 0, 1, 0, 0 },
-    [07350 ... 07373] = { EMIT_JMP, NULL, 0, 0, 1, 1, 0 },
-
-    [07220 ... 07227] = { EMIT_JSR, NULL, 0, 0, 1, 0, 0 },
-    [07250 ... 07273] = { EMIT_JSR, NULL, 0, 0, 1, 1, 0 },
 
     [00000 ... 00007] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
     [00100 ... 00107] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
@@ -969,7 +741,9 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     return table;
 }
 
-static constexpr auto InsnTable = BuildInsnTable();
+} // Emu68::M68k::Interpreter
+
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line4(uint32_t opcode)

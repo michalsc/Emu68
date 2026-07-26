@@ -87,8 +87,17 @@ set(EMU68_FILES
     src/M68k_Interpreter.cpp
     src/M68k_INT_LINE0.cpp
     src/M68k_INT_LINE4.cpp
+    src/M68k_INT_LINE5.cpp
     src/M68k_INT_LINE6.cpp
     src/M68k_INT_LINE7.cpp
+    src/M68k_INT_LINE8.cpp
+    src/M68k_INT_LINE9.cpp
+    src/M68k_INT_LINEA.cpp
+    src/M68k_INT_LINEB.cpp
+    src/M68k_INT_LINEC.cpp
+    src/M68k_INT_LINED.cpp
+    src/M68k_INT_LINEE.cpp
+    src/M68k_INT_LINEF.cpp
     src/M68k_INT_MOVE.cpp
     src/M68k_LINE0.c
     src/M68k_LINE4.c
@@ -174,8 +183,17 @@ set_source_files_properties(
     src/M68k_Interpreter.cpp 
     src/M68k_INT_LINE0.cpp 
     src/M68k_INT_LINE4.cpp 
+    src/M68k_INT_LINE5.cpp 
     src/M68k_INT_LINE6.cpp 
     src/M68k_INT_LINE7.cpp 
+    src/M68k_INT_LINE8.cpp 
+    src/M68k_INT_LINE9.cpp 
+    src/M68k_INT_LINEA.cpp 
+    src/M68k_INT_LINEB.cpp 
+    src/M68k_INT_LINEC.cpp 
+    src/M68k_INT_LINED.cpp 
+    src/M68k_INT_LINEE.cpp 
+    src/M68k_INT_LINEF.cpp 
     src/M68k_INT_MOVE.cpp 
     PROPERTIES COMPILE_FLAGS 
     "${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")

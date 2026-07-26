@@ -6,21 +6,176 @@
 
 #include "RegisterMapping.h"
 
-
-#define _REGLOCK_H
 extern "C" {
     #include "M68k.h"
     #include "support.h"
 }
 
-void INTERPRET_ORI_to_CCR(uint32_t)
+namespace Emu68::M68k::Interpreter {
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void ANDI(uint32_t)
+{
+    Type immediate;
+
+    PC += 2;
+
+    if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
+        immediate = *(Type *)(uintptr_t)PC;
+        PC += sizeof(Type);
+    }
+    else {
+        immediate = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
+        PC += 2;
+    }
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        v &= immediate;
+
+        if (v == 0) {
+            sr |= SR_Z;
+        } else if (v < 0) {
+            sr |= SR_N;
+        }
+        SR = sr;
+
+        return v;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void ORI(uint32_t)
+{
+    Type immediate;
+
+    PC += 2;
+
+    if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
+        immediate = *(Type *)(uintptr_t)PC;
+        PC += sizeof(Type);
+    }
+    else {
+        immediate = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
+        PC += 2;
+    }
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        v |= immediate;
+
+        if (v == 0) {
+            sr |= SR_Z;
+        } else if (v < 0) {
+            sr |= SR_N;
+        }
+        SR = sr;
+
+        return v;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void EORI(uint32_t)
+{
+    Type immediate;
+
+    PC += 2;
+
+    if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
+        immediate = *(Type *)(uintptr_t)PC;
+        PC += sizeof(Type);
+    }
+    else {
+        immediate = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
+        PC += 2;
+    }
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        v ^= immediate;
+
+        if (v == 0) {
+            sr |= SR_Z;
+        } else if (v < 0) {
+            sr |= SR_N;
+        }
+        SR = sr;
+
+        return v;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void ADDI(uint32_t)
+{
+    Type immediate;
+    PC += 2;
+    if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
+        immediate = *(Type *)(uintptr_t)PC;
+        PC += sizeof(Type);
+    } else {
+        immediate = (Type)*(uint16_t *)(uintptr_t)PC;
+        PC += 2;
+    }
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Arith_WithFlags<Type, false>(v, immediate);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void SUBI(uint32_t)
+{
+    Type immediate;
+    PC += 2;
+    if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
+        immediate = *(Type *)(uintptr_t)PC;
+        PC += sizeof(Type);
+    } else {
+        immediate = (Type)*(uint16_t *)(uintptr_t)PC;
+        PC += 2;
+    }
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Arith_WithFlags<Type, true>(v, immediate);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void CMPI(uint32_t)
+{
+    Type immediate;
+    PC += 2;
+    if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
+        immediate = *(Type *)(uintptr_t)PC;
+        PC += sizeof(Type);
+    } else {
+        immediate = (Type)*(uint16_t *)(uintptr_t)PC;
+        PC += 2;
+    }
+
+    Type v = LoadFromEA<Mode, Reg, Type>();
+    auto [result, ccr] = Arith_WithFlags<Type, true>(v, immediate);
+    (void)result;                          // discarded — CMPI keeps only the flags
+    SR = (SR & ~SR_NZVC) | ccr;            // X untouched
+}
+
+void ORI_to_CCR(uint32_t)
 {
     uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
     SR = SR | immed;
     PC += 4;
 }
 
-void INTERPRET_ORI_to_SR(uint32_t)
+void ORI_to_SR(uint32_t)
 {
     uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
     uint16_t sr = SR;
@@ -31,39 +186,23 @@ void INTERPRET_ORI_to_SR(uint32_t)
         sr |= immed;
         changed ^= sr;
 
-        /* Check if M flag has changed its value */
-        if (changed & SR_M) {
-            /* M is set, store A7 to ISP and move MSP to A7, changing M to 0 cannot happen in ORI */
-            if (sr & SR_M) {
-                setISP(A7);
-                A7 = getMSP();
-            }
-        }
+        HandleChangedSR(sr, changed);
 
-        /* Check if IPL was altered */
-        if (changed & SR_IPL) {
-            /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
-            if ((sr & SR_IPL) > 0x0600) {
-                asm volatile("msr DAIFSet, 7":::"memory");
-            } else {
-                asm volatile("msr DAIFClr, 7":::"memory");
-            }
-        }
         SR = sr;
         PC += 4;
     } else {
-        INTERPRET_Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
-void INTERPRET_ANDI_to_CCR(uint32_t)
+void ANDI_to_CCR(uint32_t)
 {
 	uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
     SR = SR & immed;
 	PC += 4;
 }
 
-void INTERPRET_ANDI_to_SR(uint32_t)
+void ANDI_to_SR(uint32_t)
 {
     uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
     uint16_t sr = SR;
@@ -74,58 +213,23 @@ void INTERPRET_ANDI_to_SR(uint32_t)
         sr &= immed;
         changed ^= sr;
 
-        /* Check if M flag has changed its value */
-        if (changed & SR_M) {
-            /* M is set, store A7 to ISP and move MSP to A7 */
-            if (sr & SR_M) {
-                setISP(A7);
-                A7 = getMSP();
-            } else {
-                /* This **CANNOT** happen */
-                setMSP(A7);
-                A7 = getISP();
-            }
-        }
+        HandleChangedSR(sr, changed);
 
-        /*
-            Check if S was cleared. If this is the case, move A7 to ISP or MSP and
-            load USP into A7
-        */
-        if (changed & SR_S) {
-            if ((sr & SR_S) == 0) {
-                if (sr & SR_M) {
-                    setMSP(A7);
-                } else {
-                    setISP(A7);
-                }
-                A7 = getUSP();
-            }
-        }
-
-        /* Check if IPL was altered */
-        if (changed & SR_IPL) {
-            /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
-            if ((sr & SR_IPL) > 0x0600) {
-                asm volatile("msr DAIFSet, 7":::"memory");
-            } else {
-                asm volatile("msr DAIFClr, 7":::"memory");
-            }
-        }
         SR = sr;
         PC += 4;
     } else {
-        INTERPRET_Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
-void INTERPRET_EORI_to_CCR(uint32_t)
+void EORI_to_CCR(uint32_t)
 {
-	uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+    uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
     SR = SR ^ immed;
-	PC += 4;
+    PC += 4;
 }
 
-void INTERPRET_EORI_to_SR(uint32_t)
+void EORI_to_SR(uint32_t)
 {
     uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
     uint16_t sr = SR;
@@ -136,49 +240,293 @@ void INTERPRET_EORI_to_SR(uint32_t)
         sr ^= immed;
         changed ^= sr;
 
-        /* Check if M flag has changed its value */
-        if (changed & SR_M) {
-            /* M is set, store A7 to ISP and move MSP to A7 */
-            if (sr & SR_M) {
-                setISP(A7);
-                A7 = getMSP();
-            } else {
-                /* This **CANNOT** happen */
-                setMSP(A7);
-                A7 = getISP();
-            }
-        }
-
-        /*
-            Check if S was cleared. If this is the case, move A7 to ISP or MSP and
-            load USP into A7
-        */
-        if (changed & SR_S) {
-            if ((sr & SR_S) == 0) {
-                if (sr & SR_M) {
-                    setMSP(A7);
-                } else {
-                    setISP(A7);
-                }
-                A7 = getUSP();
-            }
-        }
-
-        /* Check if IPL was altered */
-        if (changed & SR_IPL) {
-            /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
-            if ((sr & SR_IPL) > 0x0600) {
-                asm volatile("msr DAIFSet, 7":::"memory");
-            } else {
-                asm volatile("msr DAIFClr, 7":::"memory");
-            }
-        }
+        HandleChangedSR(sr, changed);
+        
         SR = sr;
         PC += 4;
     } else {
-        INTERPRET_Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
+
+
+template<uint8_t Dn>
+void BTST_IMM_Dn(uint32_t)
+{
+    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    PC += 4;
+
+    if (getD<Dn, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+}
+
+template<uint8_t Dn>
+void BSET_IMM_Dn(uint32_t)
+{
+    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    PC += 4;
+    
+    if (getD<Dn, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    setD<Dn, uint32_t>(getD<Dn, uint32_t>() | mask);
+}
+
+template<uint8_t Dn>
+void BCLR_IMM_Dn(uint32_t)
+{
+    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    PC += 4;
+    
+    if (getD<Dn, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    setD<Dn, uint32_t>(getD<Dn, uint32_t>() & ~mask);
+}
+
+template<uint8_t Dn>
+void BCHG_IMM_Dn(uint32_t)
+{
+    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    PC += 4;
+    
+    if (getD<Dn, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    setD<Dn, uint32_t>(getD<Dn, uint32_t>() ^ mask);
+}
+
+template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
+void BTST_IMM_EA(uint32_t)
+{
+    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    uint8_t v;
+    
+    PC += 4;
+    v = LoadFromEA<Mode, Reg, uint8_t>();
+
+    if (v & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+}
+
+template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
+void BSET_IMM_EA(uint32_t)
+{
+    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    PC += 4;
+    
+    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+        if (v & mask) {
+            SR |= SR_Z;
+        } else {
+            SR &= ~SR_Z;
+        }
+        return v | mask;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
+void BCLR_IMM_EA(uint32_t)
+{
+    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    PC += 4;
+    
+    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+        if (v & mask) {
+            SR |= SR_Z;
+        } else {
+            SR &= ~SR_Z;
+        }
+        return v & ~mask;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
+void BCHG_IMM_EA(uint32_t)
+{
+    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    PC += 4;
+    
+    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+        if (v & mask) {
+            SR |= SR_Z;
+        } else {
+            SR &= ~SR_Z;
+        }
+        return v ^ mask;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
+void BTST_REG(uint32_t)
+{
+    uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
+    uint8_t v;
+    
+    PC += 2;
+    v = LoadFromEA<Mode, Reg, uint8_t>();
+
+    if (v & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
+void BSET_REG(uint32_t)
+{
+    uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
+    PC += 2;
+
+    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+        if (v & mask) {
+            SR |= SR_Z;
+        } else {
+            SR &= ~SR_Z;
+        }
+        return v | mask;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
+void BCLR_REG(uint32_t)
+{
+    uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
+    PC += 2;
+
+    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+        if (v & mask) {
+            SR |= SR_Z;
+        } else {
+            SR &= ~SR_Z;
+        }
+        return v & ~mask;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
+void BCHG_REG(uint32_t)
+{
+    uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
+    PC += 2;
+
+    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+        if (v & mask) {
+            SR |= SR_Z;
+        } else {
+            SR &= ~SR_Z;
+        }
+        return v ^ mask;
+    });
+}
+
+template<uint8_t Reg, uint8_t Dn>
+void BTST_REG_Dn(uint32_t)
+{
+    uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
+    if (getD<Reg, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    PC += 2;
+}
+
+template<uint8_t Reg, uint8_t Dn>
+void BSET_REG_Dn(uint32_t)
+{
+    uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
+    if (getD<Reg, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    setD<Reg, uint32_t>(getD<Reg, uint32_t>() | mask);
+    PC += 2;
+}
+
+template<uint8_t Reg, uint8_t Dn>
+void BCLR_REG_Dn(uint32_t)
+{
+    uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
+    if (getD<Reg, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    setD<Reg, uint32_t>(getD<Reg, uint32_t>() & ~mask);
+    PC += 2;
+}
+
+template<uint8_t Reg, uint8_t Dn>
+void BCHG_REG_Dn(uint32_t)
+{
+    uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
+    if (getD<Reg, uint32_t>() & mask) {
+        SR |= SR_Z;
+    } else {
+        SR &= ~SR_Z;
+    }
+    setD<Reg, uint32_t>(getD<Reg, uint32_t>() ^ mask);
+    PC += 2;
+}
+
+#define FILL_IMM_OP(base_offset, name, type) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+             name<0, Dreg, type>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+             name<2 + (Is >> 3), Is & 7, type>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
+
+#define FILL_Bxxx_Dn(base_offset, name) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + ((Is >> 3) << 9) + EA(0, Is & 7)] = \
+             name<(Is & 7), (Is >> 3)>), ...); \
+    }((base_offset), std::make_index_sequence<64>{});
+
+#define FILL_Bxxx_Dn_EA(base_offset, name, dn) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + (dn << 9) + EA(2 + ((Is >> 3) & 7), Is & 7)] = \
+             name<2 + ((Is >> 3) & 7), (Is & 7), dn>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
+
+#define FILL_Bxxx_EA(base_offset, name) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 0) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 1) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 2) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 3) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 4) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 5) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 6) \
+    FILL_Bxxx_Dn_EA(base_offset, name, 7)
+
+#define FILL_Bxxx_IMM(base_offset, name) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg & 7)] = \
+             name<Dreg>), ...); \
+    }((base_offset), std::make_index_sequence<8>{});
+
+#define FILL_Bxxx_IMM_EA(base_offset, name) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + ((Is >> 3) & 7), Is & 7)] = \
+             name<2 + ((Is >> 3) & 7), (Is & 7)>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
@@ -189,189 +537,61 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
             table[i] = func;
     };
 
-    fill(00000, 07777, INTERPRET_UNIMPLEMENTED);
-    
-    table[00074]      = INTERPRET_ORI_to_CCR;
-    table[01074]      = INTERPRET_ANDI_to_CCR;
-    table[05074]      = INTERPRET_EORI_to_CCR;
+    auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    table[00174]      = INTERPRET_ORI_to_SR;
-    table[01174]      = INTERPRET_ANDI_to_SR;
-    table[05174]      = INTERPRET_ORI_to_SR;
+    fill(00000, 07777, UNIMPLEMENTED);
+    
+    FILL_IMM_OP(00000, ORI, BYTE);
+    FILL_IMM_OP(00100, ORI, WORD);
+    FILL_IMM_OP(00200, ORI, LONG);
+
+    FILL_IMM_OP(01000, ANDI, BYTE);
+    FILL_IMM_OP(01100, ANDI, WORD);
+    FILL_IMM_OP(01200, ANDI, LONG);
+
+    FILL_IMM_OP(02000, SUBI, BYTE);
+    FILL_IMM_OP(02100, SUBI, WORD);
+    FILL_IMM_OP(02200, SUBI, LONG);
+
+    FILL_IMM_OP(03000, ADDI, BYTE);
+    FILL_IMM_OP(03100, ADDI, WORD);
+    FILL_IMM_OP(03200, ADDI, LONG);
+
+    FILL_IMM_OP(05000, EORI, BYTE);
+    FILL_IMM_OP(05100, EORI, WORD);
+    FILL_IMM_OP(05200, EORI, LONG);
+
+    FILL_IMM_OP(06000, CMPI, BYTE);
+    FILL_IMM_OP(06100, CMPI, WORD);
+    FILL_IMM_OP(06200, CMPI, LONG);
+
+    table[00074] = ORI_to_CCR;
+    table[01074] = ANDI_to_CCR;
+    table[05074] = EORI_to_CCR;
+
+    table[00174] = ORI_to_SR;
+    table[01174] = ANDI_to_SR;
+    table[05174] = ORI_to_SR;
+
+    FILL_Bxxx_Dn(00400, BTST_REG_Dn);
+    FILL_Bxxx_Dn(00500, BCHG_REG_Dn);
+    FILL_Bxxx_Dn(00600, BCLR_REG_Dn);
+    FILL_Bxxx_Dn(00700, BSET_REG_Dn);
+    FILL_Bxxx_EA(00400, BTST_REG);
+    FILL_Bxxx_EA(00500, BCHG_REG);
+    FILL_Bxxx_EA(00600, BCLR_REG);
+    FILL_Bxxx_EA(00700, BSET_REG);
+
+    FILL_Bxxx_IMM(04000, BTST_IMM_Dn);
+    FILL_Bxxx_IMM(04100, BCHG_IMM_Dn);
+    FILL_Bxxx_IMM(04200, BCLR_IMM_Dn);
+    FILL_Bxxx_IMM(04300, BSET_IMM_Dn);
+    FILL_Bxxx_IMM_EA(04000, BTST_IMM_EA);
+    FILL_Bxxx_IMM_EA(04100, BCHG_IMM_EA);
+    FILL_Bxxx_IMM_EA(04200, BCLR_IMM_EA);
+    FILL_Bxxx_IMM_EA(04300, BSET_IMM_EA);
 
     #if 0
-	[00000 ... 00007] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[00020 ... 00047] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[00050 ... 00071] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[00100 ... 00107] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[00120 ... 00147] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[00150 ... 00171] = { EMIT_ORI, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[00200 ... 00207] = { EMIT_ORI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[00220 ... 00247] = { EMIT_ORI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[00250 ... 00271] = { EMIT_ORI, NULL, 0, SR_NZVC, 3, 1, 4 },
-
-	[01000 ... 01007] = { EMIT_ANDI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[01020 ... 01047] = { EMIT_ANDI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[01050 ... 01071] = { EMIT_ANDI, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[01100 ... 01107] = { EMIT_ANDI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[01120 ... 01147] = { EMIT_ANDI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[01150 ... 01171] = { EMIT_ANDI, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[01200 ... 01207] = { EMIT_ANDI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[01220 ... 01247] = { EMIT_ANDI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[01250 ... 01271] = { EMIT_ANDI, NULL, 0, SR_NZVC, 3, 1, 4 },
-
-	[02000 ... 02007] = { EMIT_SUBI, NULL, 0, SR_CCR, 2, 0, 1 },
-	[02020 ... 02047] = { EMIT_SUBI, NULL, 0, SR_CCR, 2, 0, 1 },
-	[02050 ... 02071] = { EMIT_SUBI, NULL, 0, SR_CCR, 2, 1, 1 },
-	[02100 ... 02107] = { EMIT_SUBI, NULL, 0, SR_CCR, 2, 0, 2 },
-	[02120 ... 02147] = { EMIT_SUBI, NULL, 0, SR_CCR, 2, 0, 2 },
-	[02150 ... 02171] = { EMIT_SUBI, NULL, 0, SR_CCR, 2, 1, 2 },
-	[02200 ... 02207] = { EMIT_SUBI, NULL, 0, SR_CCR, 3, 0, 4 },
-	[02220 ... 02247] = { EMIT_SUBI, NULL, 0, SR_CCR, 3, 0, 4 },
-	[02250 ... 02271] = { EMIT_SUBI, NULL, 0, SR_CCR, 3, 1, 4 },
-
-	[03000 ... 03007] = { EMIT_ADDI, NULL, 0, SR_CCR, 2, 0, 1 },
-	[03020 ... 03047] = { EMIT_ADDI, NULL, 0, SR_CCR, 2, 0, 1 },
-	[03050 ... 03071] = { EMIT_ADDI, NULL, 0, SR_CCR, 2, 1, 1 },
-	[03100 ... 03107] = { EMIT_ADDI, NULL, 0, SR_CCR, 2, 0, 2 },
-	[03120 ... 03147] = { EMIT_ADDI, NULL, 0, SR_CCR, 2, 0, 2 },
-	[03150 ... 03171] = { EMIT_ADDI, NULL, 0, SR_CCR, 2, 1, 2 },
-	[03200 ... 03207] = { EMIT_ADDI, NULL, 0, SR_CCR, 3, 0, 4 },
-	[03220 ... 03247] = { EMIT_ADDI, NULL, 0, SR_CCR, 3, 0, 4 },
-	[03250 ... 03271] = { EMIT_ADDI, NULL, 0, SR_CCR, 3, 1, 4 },
-
-	[04000 ... 04007] = { EMIT_BTST, NULL, 0, SR_Z, 2, 0, 4 },
-	[04020 ... 04047] = { EMIT_BTST, NULL, 0, SR_Z, 2, 0, 1 },
-	[04050 ... 04073] = { EMIT_BTST, NULL, 0, SR_Z, 2, 1, 1 },
-	[04100 ... 04107] = { EMIT_BCHG, NULL, 0, SR_Z, 2, 0, 4 },
-	[04120 ... 04147] = { EMIT_BCHG, NULL, 0, SR_Z, 2, 1, 1 },
-	[04150 ... 04171] = { EMIT_BCHG, NULL, 0, SR_Z, 2, 1, 1 },
-	[04200 ... 04207] = { EMIT_BCLR, NULL, 0, SR_Z, 2, 0, 4 },
-	[04220 ... 04247] = { EMIT_BCLR, NULL, 0, SR_Z, 2, 0, 1 },
-	[04250 ... 04271] = { EMIT_BCLR, NULL, 0, SR_Z, 2, 1, 1 },
-	[04300 ... 04307] = { EMIT_BSET, NULL, 0, SR_Z, 2, 0, 4 },
-	[04320 ... 04347] = { EMIT_BSET, NULL, 0, SR_Z, 2, 0, 1 },
-	[04350 ... 04371] = { EMIT_BSET, NULL, 0, SR_Z, 2, 1, 1 },
-
-	[05000 ... 05007] = { EMIT_EORI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[05020 ... 05047] = { EMIT_EORI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[05050 ... 05071] = { EMIT_EORI, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[05100 ... 05107] = { EMIT_EORI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[05120 ... 05147] = { EMIT_EORI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[05150 ... 05171] = { EMIT_EORI, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[05200 ... 05207] = { EMIT_EORI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[05220 ... 05247] = { EMIT_EORI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[05250 ... 05271] = { EMIT_EORI, NULL, 0, SR_NZVC, 3, 1, 4 },
-
-	[06000 ... 06007] = { EMIT_CMPI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[06020 ... 06047] = { EMIT_CMPI, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[06050 ... 06073] = { EMIT_CMPI, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[06100 ... 06107] = { EMIT_CMPI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[06120 ... 06147] = { EMIT_CMPI, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[06150 ... 06173] = { EMIT_CMPI, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[06200 ... 06207] = { EMIT_CMPI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[06220 ... 06247] = { EMIT_CMPI, NULL, 0, SR_NZVC, 3, 0, 4 },
-	[06250 ... 06273] = { EMIT_CMPI, NULL, 0, SR_NZVC, 3, 1, 4 },
-
-	[00400 ... 00407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[00420 ... 00447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[00450 ... 00474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[01400 ... 01407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[01420 ... 01447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[01450 ... 01474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[02400 ... 02407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[02420 ... 02447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[02450 ... 02474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[03400 ... 03407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[03420 ... 03447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[03450 ... 03474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[04400 ... 04407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[04420 ... 04447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[04450 ... 04474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[05400 ... 05407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[05420 ... 05447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[05450 ... 05474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[06400 ... 06407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[06420 ... 06447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[06450 ... 06474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-	[07400 ... 07407] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 4 },
-	[07420 ... 07447] = { EMIT_BTST, NULL, 0, SR_Z, 1, 0, 1 },
-	[07450 ... 07474] = { EMIT_BTST, NULL, 0, SR_Z, 1, 1, 1 },
-
-	[00500 ... 00507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[00520 ... 00547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[00550 ... 00571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[01500 ... 01507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[01520 ... 01547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[01550 ... 01571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[02500 ... 02507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[02520 ... 02547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[02550 ... 02571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[03500 ... 03507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[03520 ... 03547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[03550 ... 03571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[04500 ... 04507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[04520 ... 04547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[04550 ... 04571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[05500 ... 05507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[05520 ... 05547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[05550 ... 05571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[06500 ... 06507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[06520 ... 06547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[06550 ... 06571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-	[07500 ... 07507] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 4 },
-	[07520 ... 07547] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 0, 1 },
-	[07550 ... 07571] = { EMIT_BCHG, NULL, 0, SR_Z, 1, 1, 1 },
-
-	[00600 ... 00607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[00620 ... 00647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[00650 ... 00671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[01600 ... 01607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[01620 ... 01647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[01650 ... 01671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[02600 ... 02607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[02620 ... 02647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[02650 ... 02671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[03600 ... 03607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[03620 ... 03647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[03650 ... 03671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[04600 ... 04607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[04620 ... 04647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[04650 ... 04671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[05600 ... 05607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[05620 ... 05647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[05650 ... 05671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[06600 ... 06607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[06620 ... 06647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[06650 ... 06671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-	[07600 ... 07607] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 4 },
-	[07620 ... 07647] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 0, 1 },
-	[07650 ... 07671] = { EMIT_BCLR, NULL, 0, SR_Z, 1, 1, 1 },
-
-	[00700 ... 00707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[00720 ... 00747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[00750 ... 00771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[01700 ... 01707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[01720 ... 01747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[01750 ... 01771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[02700 ... 02707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[02720 ... 02747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[02750 ... 02771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[03700 ... 03707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[03720 ... 03747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[03750 ... 03771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[04700 ... 04707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[04720 ... 04747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[04750 ... 04771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[05700 ... 05707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[05720 ... 05747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[05750 ... 05771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[06700 ... 06707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[06720 ... 06747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[06750 ... 06771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
-	[07700 ... 07707] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 4 },
-	[07720 ... 07747] = { EMIT_BSET, NULL, 0, SR_Z, 1, 0, 1 },
-	[07750 ... 07771] = { EMIT_BSET, NULL, 0, SR_Z, 1, 1, 1 },
 
 	[05320 ... 05347] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 0, 1 },
 	[05350 ... 05371] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 1, 1 },
@@ -434,7 +654,9 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     return table;
 }
 
-static constexpr auto InsnTable = BuildInsnTable();
+} // Emu68::M68k::Interpreter
+
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line0(uint32_t opcode)

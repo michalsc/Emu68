@@ -12,47 +12,42 @@ extern "C" {
     #include "support.h"
 }
 
-#define INTERPRET_MOVEQ_Dn(dn) \
-void INTERPRET_MOVEQ_D##dn(uint32_t opcode) \
-{ \
-    uint32_t sr = SR & 0xfff0; \
-    int32_t value = (int8_t)(opcode & 0xff); \
-    D##dn = value; \
-    if (value == 0) { \
-        sr |= SR_Z; \
-    } else if (value < 0) { \
-        sr |= SR_N; \
-    } \
-    SR = sr; \
-    PC += 2; \
+namespace Emu68::M68k::Interpreter {
+
+template<uint8_t Dn>
+void MOVEQ(uint32_t opcode)
+{
+    uint32_t sr = SR & 0xfff0;
+    LONG value = (BYTE)(opcode & 0xff);
+    setD<Dn, LONG>(value);
+    if (value == 0) {
+        sr |= SR_Z;
+    } else if (value < 0) {
+        sr |= SR_N;
+    }
+    SR = sr;
+    PC += 2;
 }
 
-INTERPRET_MOVEQ_Dn(0);
-INTERPRET_MOVEQ_Dn(1);
-INTERPRET_MOVEQ_Dn(2);
-INTERPRET_MOVEQ_Dn(3);
-INTERPRET_MOVEQ_Dn(4);
-INTERPRET_MOVEQ_Dn(5);
-INTERPRET_MOVEQ_Dn(6);
-INTERPRET_MOVEQ_Dn(7);
+} // Emu68::M68k::Interpreter
 
 static constexpr std::array<INTERPRET_Function, 16> InsnTable = {
-    INTERPRET_MOVEQ_D0,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D1,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D2,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D3,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D4,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D5,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D6,
-    INTERPRET_UNIMPLEMENTED,
-    INTERPRET_MOVEQ_D7,
-    INTERPRET_UNIMPLEMENTED
+    Emu68::M68k::Interpreter::MOVEQ<0>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<1>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<2>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<3>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<4>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<5>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<6>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED,
+    Emu68::M68k::Interpreter::MOVEQ<7>,
+    Emu68::M68k::Interpreter::UNIMPLEMENTED
 };
 
 __attribute__((optimize("no-optimize-sibling-calls")))

@@ -21,6 +21,11 @@
 extern "C" {
 #endif
 
+/* M68k "native" types as used in AmigaOS */
+typedef int32_t     LONG;
+typedef int16_t     WORD;
+typedef int8_t      BYTE;
+
 struct M68KLocalState
 {
     void *          mls_M68kPtr;
@@ -297,6 +302,24 @@ struct M68KState
 #define SRB_S    13
 #define SRB_T0   14
 #define SRB_T1   15
+
+// EA calculations
+#define M68K_EA_DA 0x8000
+#define M68K_EA_REG 0x7000
+#define M68K_EA_WL 0x0800
+#define M68K_EA_SCALE 0x0600
+#define M68K_EA_FULL 0x0100
+#define M68K_EA_OFF8 0x00FF
+
+#define M68K_EA_BS 0x0080
+#define M68K_EA_IS 0x0040
+#define M68K_EA_BD_SIZE 0x0030
+#define M68K_EA_IIS 0x0007
+
+#define M68K_EA_BD_SIZE_ILLEGAL 0x0000
+#define M68K_EA_BD_SIZE_NULL 0x0010
+#define M68K_EA_BD_SIZE_WORD 0x0020
+#define M68K_EA_BD_SIZE_LONG 0x0030
 
 //FPCR
 #define FPCR_RND	0x00000030

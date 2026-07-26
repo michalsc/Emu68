@@ -12,22 +12,18 @@ extern "C" {
     #include "support.h"
 }
 
-#define M68K_EA_DA 0x8000
-#define M68K_EA_REG 0x7000
-#define M68K_EA_WL 0x0800
-#define M68K_EA_SCALE 0x0600
-#define M68K_EA_FULL 0x0100
-#define M68K_EA_OFF8 0x00FF
 
-#define M68K_EA_BS 0x0080
-#define M68K_EA_IS 0x0040
-#define M68K_EA_BD_SIZE 0x0030
-#define M68K_EA_IIS 0x0007
+extern "C" {
 
-#define M68K_EA_BD_SIZE_ILLEGAL 0x0000
-#define M68K_EA_BD_SIZE_NULL 0x0010
-#define M68K_EA_BD_SIZE_WORD 0x0020
-#define M68K_EA_BD_SIZE_LONG 0x0030
+    void M68K_LoadContext(struct M68KState *ctx);
+    void M68K_SaveContext(struct M68KState *ctx);
+    void M68K_PrintContext(struct M68KState *ctx);
+
+
+}
+
+
+namespace Emu68::M68k::Interpreter {
 
 static inline struct M68KState *getCTX()
 {
@@ -36,7 +32,7 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-void INTERPRET_Exception_F0(uint32_t exception)
+void Exception_F0(uint32_t exception)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
@@ -81,21 +77,17 @@ void INTERPRET_Exception_F0(uint32_t exception)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
-extern "C" void INTERPRET_UNIMPLEMENTED(uint32_t opcode)
+void UNIMPLEMENTED(uint32_t opcode)
 {
-    void M68K_LoadContext(struct M68KState *ctx);
-    void M68K_SaveContext(struct M68KState *ctx);
-    void M68K_PrintContext(struct M68KState *ctx);
-
     M68K_SaveContext(getCTX());
     kprintf("[INT] opcode %04x at %08x not implemented\n", opcode, PC);
     M68K_PrintContext(getCTX());
     M68K_LoadContext(getCTX());
 
-    INTERPRET_Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
+    Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
 }
 
-void INTERPRET_LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t dn = getDn(src_reg);
 
@@ -114,7 +106,7 @@ void INTERPRET_LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t size, void *out)
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t an = getAn(src_reg);
 
@@ -130,7 +122,7 @@ void INTERPRET_LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg);
 
@@ -149,7 +141,7 @@ void INTERPRET_LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg);
 
@@ -171,7 +163,7 @@ void INTERPRET_LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg);
     switch (size) {
@@ -195,7 +187,7 @@ void INTERPRET_LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_Mod5(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod5(uint8_t src_reg, uint8_t size, void *out)
 {
     uint32_t addr = getAn(src_reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
@@ -215,7 +207,7 @@ void INTERPRET_LoadFrom_EA_Mod5(uint8_t src_reg, uint8_t size, void *out)
     __builtin_unreachable();
 }
 
-void INTERPRET_LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
+void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
 {
     uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
@@ -270,10 +262,17 @@ void INTERPRET_LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
         }
 
         uint32_t indirect_address;
-        
-        if ((ext_word & 4) == 0) {
+
+        if ((ext_word & 3) == 0) {
+            // No memory indirect action (000), or reserved (100, don't-care)
+            indirect_address = An + base_displacement + index_value;
+        }
+        else if ((ext_word & 4) == 0) {
+            // Indirect preindexed: index folded in before the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
-        } else {
+        }
+        else {
+            // Indirect postindexed: index added after the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
         }
 
@@ -321,12 +320,12 @@ void INTERPRET_LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
     }
 }
 
-void INTERPRET_LoadFrom_EA_Mod6(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod6(uint8_t src_reg, uint8_t size, void *out)
 {
-    INTERPRET_LoadFrom_EA_EXT(getAn(src_reg), size, out);
+    LoadFrom_EA_EXT(getAn(src_reg), size, out);
 }
 
-void INTERPRET_LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
 {
     if (src_reg == 0)
     {
@@ -385,7 +384,7 @@ void INTERPRET_LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
     }
     else if (src_reg == 3)
     {
-        INTERPRET_LoadFrom_EA_EXT(PC, size, out);
+        LoadFrom_EA_EXT(PC, size, out);
     }
     else if (src_reg == 4)
     {
@@ -412,28 +411,28 @@ void INTERPRET_LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
     }
 }
 
-void INTERPRET_LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode)
+void LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode)
 {
     switch(mode) {
-        case 0: [[unlikely]] INTERPRET_LoadFrom_EA_Mod0(src_reg, size, out); return;
-        case 1: [[unlikely]] INTERPRET_LoadFrom_EA_Mod1(src_reg, size, out); return;
-        case 2: [[unlikely]] INTERPRET_LoadFrom_EA_Mod2(src_reg, size, out); return;
-        case 3: [[unlikely]] INTERPRET_LoadFrom_EA_Mod3(src_reg, size, out); return;
-        case 4: [[unlikely]] INTERPRET_LoadFrom_EA_Mod4(src_reg, size, out); return;
-        case 5: INTERPRET_LoadFrom_EA_Mod5(src_reg, size, out); return;
-        case 6: INTERPRET_LoadFrom_EA_Mod6(src_reg, size, out); return;
-        case 7: INTERPRET_LoadFrom_EA_Mod7(src_reg, size, out); return;
+        case 0: [[unlikely]] LoadFrom_EA_Mod0(src_reg, size, out); return;
+        case 1: [[unlikely]] LoadFrom_EA_Mod1(src_reg, size, out); return;
+        case 2: [[unlikely]] LoadFrom_EA_Mod2(src_reg, size, out); return;
+        case 3: [[unlikely]] LoadFrom_EA_Mod3(src_reg, size, out); return;
+        case 4: [[unlikely]] LoadFrom_EA_Mod4(src_reg, size, out); return;
+        case 5: LoadFrom_EA_Mod5(src_reg, size, out); return;
+        case 6: LoadFrom_EA_Mod6(src_reg, size, out); return;
+        case 7: LoadFrom_EA_Mod7(src_reg, size, out); return;
     }
 
     __builtin_unreachable();
 }
 
-void INTERPRET_Get_EA_Mod2(uint8_t src_reg, uint8_t, uint32_t *out)
+void Get_EA_Mod2(uint8_t src_reg, uint8_t, uint32_t *out)
 {
     *out = getAn(src_reg);
 }
 
-void INTERPRET_Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
+void Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
     uint32_t addr = getAn(src_reg);
     
@@ -444,7 +443,7 @@ void INTERPRET_Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
     setAn(src_reg, addr);
 }
 
-void INTERPRET_Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
+void Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
     uint32_t addr = getAn(src_reg);
 
@@ -455,14 +454,13 @@ void INTERPRET_Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
     setAn(src_reg, addr);
 }
 
-void INTERPRET_Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
+void Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
 {
     *out = getAn(src_reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
 }
 
-
-void INTERPRET_Get_EA_EXT(uint32_t An, uint8_t, uint32_t *out)
+void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
 {
     uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
@@ -518,9 +516,16 @@ void INTERPRET_Get_EA_EXT(uint32_t An, uint8_t, uint32_t *out)
 
         uint32_t indirect_address;
         
-        if ((ext_word & 4) == 0) {
+        if ((ext_word & 3) == 0) {
+            // No memory indirect action (000), or reserved (100, don't-care)
+            indirect_address = An + base_displacement + index_value;
+        }
+        else if ((ext_word & 4) == 0) {
+            // Indirect preindexed: index folded in before the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
-        } else {
+        }
+        else {
+            // Indirect postindexed: index added after the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
         }
 
@@ -544,12 +549,12 @@ void INTERPRET_Get_EA_EXT(uint32_t An, uint8_t, uint32_t *out)
     }
 }
 
-void INTERPRET_Get_EA_Mod6(uint8_t src_reg, uint8_t size, uint32_t *out)
+void Get_EA_Mod6(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
-    INTERPRET_Get_EA_EXT(getAn(src_reg), size, out);
+    GetExtendedEffectiveAddress(getAn(src_reg), size, out);
 }
 
-void INTERPRET_Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
+void Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
     if (src_reg == 0)
     {
@@ -569,7 +574,7 @@ void INTERPRET_Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
     }
     else if (src_reg == 3)
     {
-        INTERPRET_Get_EA_EXT(PC, size, out);
+        GetExtendedEffectiveAddress(PC, size, out);
     }
     else
     {
@@ -577,20 +582,20 @@ void INTERPRET_Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
     }
 }
 
-void INTERPRET_GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode)
+void GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode)
 {
     switch(mode) {
         // mode 0 and 1 cannot return EA address at all
-        case 2: [[unlikely]] INTERPRET_Get_EA_Mod2(src_reg, size, out); return;
-        case 3: [[unlikely]] INTERPRET_Get_EA_Mod3(src_reg, size, out); return;
-        case 4: [[unlikely]] INTERPRET_Get_EA_Mod4(src_reg, size, out); return;
-        case 5: INTERPRET_Get_EA_Mod5(src_reg, size, out); return;
-        case 6: INTERPRET_Get_EA_Mod6(src_reg, size, out); return;
-        case 7: INTERPRET_Get_EA_Mod7(src_reg, size, out); return;
+        case 2: [[unlikely]] Get_EA_Mod2(src_reg, size, out); return;
+        case 3: [[unlikely]] Get_EA_Mod3(src_reg, size, out); return;
+        case 4: [[unlikely]] Get_EA_Mod4(src_reg, size, out); return;
+        case 5: Get_EA_Mod5(src_reg, size, out); return;
+        case 6: Get_EA_Mod6(src_reg, size, out); return;
+        case 7: Get_EA_Mod7(src_reg, size, out); return;
     }
 }
 
-void INTERPRET_StoreTo_EA_Mod0(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod0(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     switch (size) {
         case 4:
@@ -607,7 +612,7 @@ void INTERPRET_StoreTo_EA_Mod0(uint8_t dst_reg, uint32_t value, uint8_t size)
     __builtin_unreachable();
 }
 
-void INTERPRET_StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     switch (size) {
         case 4:
@@ -621,7 +626,7 @@ void INTERPRET_StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
     __builtin_unreachable();
 }
 
-void INTERPRET_StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     uintptr_t addr = getAn(dst_reg);
 
@@ -640,7 +645,7 @@ void INTERPRET_StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
     __builtin_unreachable();
 }
 
-void INTERPRET_StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     uintptr_t addr = getAn(dst_reg);
 
@@ -662,7 +667,7 @@ void INTERPRET_StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
     __builtin_unreachable();
 }
 
-void INTERPRET_StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     uint32_t addr = getAn(dst_reg);
 
@@ -687,7 +692,7 @@ void INTERPRET_StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
     __builtin_unreachable();
 }
 
-void INTERPRET_StoreTo_EA_Mod5(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod5(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     uint32_t addr = getAn(dst_reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
@@ -707,7 +712,7 @@ void INTERPRET_StoreTo_EA_Mod5(uint8_t dst_reg, uint32_t value, uint8_t size)
     __builtin_unreachable();
 }
 
-void INTERPRET_StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
@@ -764,9 +769,16 @@ void INTERPRET_StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
 
         uint32_t indirect_address;
         
-        if ((ext_word & 4) == 0) {
+        if ((ext_word & 3) == 0) {
+            // No memory indirect action (000), or reserved (100, don't-care)
+            indirect_address = An + base_displacement + index_value;
+        }
+        else if ((ext_word & 4) == 0) {
+            // Indirect preindexed: index folded in before the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
-        } else {
+        }
+        else {
+            // Indirect postindexed: index added after the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
         }
 
@@ -816,7 +828,7 @@ void INTERPRET_StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
     }
 }
 
-void INTERPRET_StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
+void StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     if (dst_reg == 0)
     {
@@ -860,18 +872,60 @@ void INTERPRET_StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
     }
 }
 
-void INTERPRET_StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode)
+void StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode)
 {
     switch(mode) {
-        case 0: [[unlikely]] INTERPRET_StoreTo_EA_Mod0(dst_reg, value, size); return;
-        case 1: [[unlikely]] INTERPRET_StoreTo_EA_Mod1(dst_reg, value, size); return;
-        case 2: [[unlikely]] INTERPRET_StoreTo_EA_Mod2(dst_reg, value, size); return;
-        case 3: [[unlikely]] INTERPRET_StoreTo_EA_Mod3(dst_reg, value, size); return;
-        case 4: [[unlikely]] INTERPRET_StoreTo_EA_Mod4(dst_reg, value, size); return;
-        case 5: INTERPRET_StoreTo_EA_Mod5(dst_reg, value, size); return;
-        case 6: INTERPRET_StoreTo_EA_Mod6(dst_reg, value, size); return;
-        case 7: INTERPRET_StoreTo_EA_Mod7(dst_reg, value, size); return;
+        case 0: [[unlikely]] StoreTo_EA_Mod0(dst_reg, value, size); return;
+        case 1: [[unlikely]] StoreTo_EA_Mod1(dst_reg, value, size); return;
+        case 2: [[unlikely]] StoreTo_EA_Mod2(dst_reg, value, size); return;
+        case 3: [[unlikely]] StoreTo_EA_Mod3(dst_reg, value, size); return;
+        case 4: [[unlikely]] StoreTo_EA_Mod4(dst_reg, value, size); return;
+        case 5: StoreTo_EA_Mod5(dst_reg, value, size); return;
+        case 6: StoreTo_EA_Mod6(dst_reg, value, size); return;
+        case 7: StoreTo_EA_Mod7(dst_reg, value, size); return;
     }
 
     __builtin_unreachable();
 }
+
+void HandleChangedSR(uint32_t sr, uint32_t changed)
+{
+    /* Check if M flag has changed its value */
+    if (changed & SR_M) {
+        /* M is set, store A7 to ISP and move MSP to A7 */
+        if (sr & SR_M) {
+            setISP(A7);
+            A7 = getMSP();
+        } else {
+            setMSP(A7);
+            A7 = getISP();
+        }
+    }
+
+    /*
+        Check if S was cleared. If this is the case, move A7 to ISP or MSP and
+        load USP into A7
+    */
+    if (changed & SR_S) {
+        if ((sr & SR_S) == 0) {
+            if (sr & SR_M) {
+                setMSP(A7);
+            } else {
+                setISP(A7);
+            }
+            A7 = getUSP();
+        }
+    }
+
+    /* Check if IPL was altered */
+    if (changed & SR_IPL) {
+        /* IPL higher than 6? Disable ARM interrupts, otherwise enable them */
+        if ((sr & SR_IPL) > 0x0600) {
+            asm volatile("msr DAIFSet, 7":::"memory");
+        } else {
+            asm volatile("msr DAIFClr, 7":::"memory");
+        }
+    }
+}
+
+} // Emu68::M68k::Interpreter

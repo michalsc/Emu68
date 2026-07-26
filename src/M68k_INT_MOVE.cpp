@@ -13,9 +13,7 @@ extern "C" {
     #include "support.h"
 }
 
-typedef int32_t     LONG;
-typedef int16_t     WORD;
-typedef int8_t      BYTE;
+namespace Emu68::M68k::Interpreter {
 
 /*
     Template for MOVE.B/W/L Dsrc, Ddest with SR update. 
@@ -312,7 +310,7 @@ void INTERPRET_MOVE_Generic(uint32_t opcode)
     /* Modes with An as source or destination are WORD/LONG only, otherwise throw exception */
     if (sizeof(type) < 2) {
         if (src_mode == 1 || dst_mode == 1) {
-            INTERPRET_UNIMPLEMENTED(opcode);
+            UNIMPLEMENTED(opcode);
             return;
         }
     }
@@ -320,8 +318,8 @@ void INTERPRET_MOVE_Generic(uint32_t opcode)
     /* Update PC to point either to next instruction or first extension word */
     PC += 2;
     
-    INTERPRET_LoadFromEffectiveAddress(src_reg, sizeof(type), &value, src_mode);
-    INTERPRET_StoreToEffectiveAddress(dst_reg, value, sizeof(type), dst_mode);
+    LoadFromEffectiveAddress(src_reg, sizeof(type), &value, src_mode);
+    StoreToEffectiveAddress(dst_reg, value, sizeof(type), dst_mode);
 
     if (dst_mode != 1) {
         uint32_t sr = SR & 0xfff0;
@@ -350,7 +348,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     auto DST = [](int mode, int reg) constexpr { return (mode << 6) | (reg << 9); };
 
     /* Make all entries unimplemented first */
-    fill(00000, 07777, INTERPRET_UNIMPLEMENTED);
+    fill(00000, 07777, UNIMPLEMENTED);
 
     /*
         Fill all allowed defaults with generic version:
@@ -454,9 +452,11 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     return table;
 }
 
-static constexpr auto InsnTable_L = BuildInsnTable<LONG>();
-static constexpr auto InsnTable_W = BuildInsnTable<WORD>();
-static constexpr auto InsnTable_B = BuildInsnTable<BYTE>();
+} // Emu68::M68k::Interpreter
+
+static constexpr auto InsnTable_L = Emu68::M68k::Interpreter::BuildInsnTable<LONG>();
+static constexpr auto InsnTable_W = Emu68::M68k::Interpreter::BuildInsnTable<WORD>();
+static constexpr auto InsnTable_B = Emu68::M68k::Interpreter::BuildInsnTable<BYTE>();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line1(uint32_t opcode)

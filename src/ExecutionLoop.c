@@ -10,6 +10,7 @@
 #include <M68k.h>
 #include <support.h>
 #include <config.h>
+#include <arm_neon.h>
 #include <emu68/m68k/interpreter.hpp>
 
 #include "disasm.h"
@@ -404,6 +405,8 @@ void ProcessIRQ(struct M68KState *ctx)
     }
 }
 
+register uint64x2_t reg_q22 asm("q22");
+
 void InterpreterLoop()
 {
     struct M68KState *ctx = getCTX();
@@ -418,6 +421,9 @@ void InterpreterLoop()
         disasm_open();
         M68K_LoadContext(getCTX());
     }
+
+    /* Prepare vector 0; 1 which gets added to the INSN_COUNTER after every executed instruction */
+    asm volatile("mov v22.d[1], xzr\n\tmov v22.d[0], %0"::"r"(1));
 
     do
     {
@@ -455,10 +461,21 @@ void InterpreterLoop()
             case 0x2000: INTERPRET_line2(opcode); break;
             case 0x3000: INTERPRET_line3(opcode); break;
             case 0x4000: INTERPRET_line4(opcode); break;
+            case 0x5000: INTERPRET_line5(opcode); break;
             case 0x6000: INTERPRET_line6(opcode); break;
             case 0x7000: INTERPRET_line7(opcode); break;
-            default: INTERPRET_UNIMPLEMENTED(opcode); break;
+            case 0x8000: INTERPRET_line8(opcode); break;
+            case 0x9000: INTERPRET_line9(opcode); break;
+            case 0xa000: INTERPRET_lineA(opcode); break;
+            case 0xb000: INTERPRET_lineB(opcode); break;
+            case 0xc000: INTERPRET_lineC(opcode); break;
+            case 0xd000: INTERPRET_lineD(opcode); break;
+            case 0xe000: INTERPRET_lineE(opcode); break;
+            case 0xf000: INTERPRET_lineF(opcode); break;
         }
+
+        reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reg_q22);
+
 #else
         /* This is a FAKE interpreter loop! Beware */
         struct M68KTranslationUnit *node = NULL;
