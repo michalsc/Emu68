@@ -137,6 +137,22 @@ void ADDQ(uint32_t opcode)
     });
 }
 
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void SUBQ(uint32_t opcode)
+{
+    uint32_t immediate = (opcode >> 9) & 7;
+    if (immediate == 0) immediate = 8;
+
+    PC += 2;
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Arith_WithFlags<Type, true>(v, immediate);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
 #define FILL_ALL_WR_EAs(base_offset, name, size) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA((Is >> 3), Is & 7)] = \
@@ -239,6 +255,33 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     FILL_ALL_WR_EAs(        05200, ADDQ, LONG);
     FILL_ALL_WR_EAs(        06200, ADDQ, LONG);
     FILL_ALL_WR_EAs(        07200, ADDQ, LONG);
+
+    FILL_ALL_WR_EAs_no_An(  00400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  01400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  02400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  03400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  04400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  05400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  06400, SUBQ, BYTE);
+    FILL_ALL_WR_EAs_no_An(  07400, SUBQ, BYTE);
+
+    FILL_ALL_WR_EAs(        00500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        01500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        02500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        03500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        04500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        05500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        06500, SUBQ, WORD);
+    FILL_ALL_WR_EAs(        07500, SUBQ, WORD);
+
+    FILL_ALL_WR_EAs(        00600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        01600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        02600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        03600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        04600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        05600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        06600, SUBQ, LONG);
+    FILL_ALL_WR_EAs(        07600, SUBQ, LONG);
 
     #if 0
     [0372]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 2, 0, 0 },
