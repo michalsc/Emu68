@@ -267,6 +267,9 @@ of_node_t * dt_find_node(const char *key)
     int i;
     of_node_t *node, *ret = NULL;
 
+    if (key == NULL)
+        return root;
+
     if (key[0] == '/' && key[1] == 0)
         return root;
 
