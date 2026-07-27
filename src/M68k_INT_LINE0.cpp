@@ -11,6 +11,23 @@ extern "C" {
     #include "support.h"
 }
 
+
+extern "C" {
+
+    void M68K_LoadContext(struct M68KState *ctx);
+    void M68K_SaveContext(struct M68KState *ctx);
+    void M68K_PrintContext(struct M68KState *ctx);
+
+
+static inline struct M68KState *getCTX()
+{
+    struct M68KState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
+}
+
+
 namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, class Type>
@@ -253,26 +270,26 @@ void EORI_to_SR(uint32_t)
 template<uint8_t Dn>
 void BTST_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
     PC += 4;
 
     if (getD<Dn, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
 }
 
 template<uint8_t Dn>
 void BSET_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
     PC += 4;
     
     if (getD<Dn, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     setD<Dn, uint32_t>(getD<Dn, uint32_t>() | mask);
 }
@@ -280,13 +297,13 @@ void BSET_IMM_Dn(uint32_t)
 template<uint8_t Dn>
 void BCLR_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
     PC += 4;
     
     if (getD<Dn, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     setD<Dn, uint32_t>(getD<Dn, uint32_t>() & ~mask);
 }
@@ -294,13 +311,13 @@ void BCLR_IMM_Dn(uint32_t)
 template<uint8_t Dn>
 void BCHG_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 31;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
     PC += 4;
     
     if (getD<Dn, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     setD<Dn, uint32_t>(getD<Dn, uint32_t>() ^ mask);
 }
@@ -308,30 +325,30 @@ void BCHG_IMM_Dn(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BTST_IMM_EA(uint32_t)
 {
-    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     uint8_t v;
     
     PC += 4;
     v = LoadFromEA<Mode, Reg, uint8_t>();
 
     if (v & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
 }
 
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BSET_IMM_EA(uint32_t)
 {
-    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     PC += 4;
     
     ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
-            SR |= SR_Z;
-        } else {
             SR &= ~SR_Z;
+        } else {
+            SR |= SR_Z;
         }
         return v | mask;
     });
@@ -340,14 +357,14 @@ void BSET_IMM_EA(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BCLR_IMM_EA(uint32_t)
 {
-    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     PC += 4;
     
     ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
-            SR |= SR_Z;
-        } else {
             SR &= ~SR_Z;
+        } else {
+            SR |= SR_Z;
         }
         return v & ~mask;
     });
@@ -356,14 +373,14 @@ void BCLR_IMM_EA(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BCHG_IMM_EA(uint32_t)
 {
-    uint8_t mask = 1 << *(uint8_t *)(uintptr_t)(PC + 3) & 7;
+    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     PC += 4;
     
     ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
-            SR |= SR_Z;
-        } else {
             SR &= ~SR_Z;
+        } else {
+            SR |= SR_Z;
         }
         return v ^ mask;
     });
@@ -379,9 +396,9 @@ void BTST_REG(uint32_t)
     v = LoadFromEA<Mode, Reg, uint8_t>();
 
     if (v & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
 }
 
@@ -393,9 +410,9 @@ void BSET_REG(uint32_t)
 
     ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
-            SR |= SR_Z;
-        } else {
             SR &= ~SR_Z;
+        } else {
+            SR |= SR_Z;
         }
         return v | mask;
     });
@@ -409,9 +426,9 @@ void BCLR_REG(uint32_t)
 
     ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
-            SR |= SR_Z;
-        } else {
             SR &= ~SR_Z;
+        } else {
+            SR |= SR_Z;
         }
         return v & ~mask;
     });
@@ -425,9 +442,9 @@ void BCHG_REG(uint32_t)
 
     ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
-            SR |= SR_Z;
-        } else {
             SR &= ~SR_Z;
+        } else {
+            SR |= SR_Z;
         }
         return v ^ mask;
     });
@@ -438,9 +455,9 @@ void BTST_REG_Dn(uint32_t)
 {
     uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
     if (getD<Reg, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     PC += 2;
 }
@@ -450,9 +467,9 @@ void BSET_REG_Dn(uint32_t)
 {
     uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
     if (getD<Reg, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     setD<Reg, uint32_t>(getD<Reg, uint32_t>() | mask);
     PC += 2;
@@ -463,9 +480,9 @@ void BCLR_REG_Dn(uint32_t)
 {
     uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
     if (getD<Reg, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     setD<Reg, uint32_t>(getD<Reg, uint32_t>() & ~mask);
     PC += 2;
@@ -476,9 +493,9 @@ void BCHG_REG_Dn(uint32_t)
 {
     uint32_t mask = 1 << (getD<Dn, uint32_t>() & 31);
     if (getD<Reg, uint32_t>() & mask) {
-        SR |= SR_Z;
-    } else {
         SR &= ~SR_Z;
+    } else {
+        SR |= SR_Z;
     }
     setD<Reg, uint32_t>(getD<Reg, uint32_t>() ^ mask);
     PC += 2;
