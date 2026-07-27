@@ -88,6 +88,51 @@ void CLR(uint32_t)
     StoreToEA<Mode, Reg, Type>(0);
 }
 
+template<uint8_t Mode, uint8_t Reg, class Type>
+void TST(uint32_t)
+{
+    uint16_t sr = SR & ~SR_NZVC;
+    PC += 2;
+    Type val = LoadFromEA<Mode, Reg, Type>();
+    if (val == 0) {
+        sr |= SR_Z;
+    } else if (val < 0) {
+        sr |= SR_N;
+    }
+    SR = sr;
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void NOT(uint32_t)
+{
+    PC += 2;
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        uint32_t sr = SR & ~SR_NZVC;
+        
+        v = ~v;
+        
+        if (v == 0) {
+            sr |= SR_Z;
+        } else if (v < 0) {
+            sr |= SR_N;
+        }
+        SR = sr;
+
+        return v;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void NEG(uint32_t)
+{
+    PC += 2;
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Arith_WithFlags<Type, true>(0, v);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
 static inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
@@ -95,15 +140,29 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
+void TRAP(uint32_t opcode)
+{
+    Exception_F0(VECTOR_INT_TRAP(opcode & 15));
+}
+
 void RTS(uint32_t)
 {
     PC = *(uint32_t *)(uintptr_t)A7;
     A7 += 4;
+}
 
-    M68K_SaveContext(getCTX());
-    kprintf("[INT] RTS to %08x, A7 %08x\n", PC, A7);
-    M68K_LoadContext(getCTX());
+void RTR(uint32_t)
+{
+    SR = (SR & ~SR_CCR) | (*(uint16_t*)(uintptr_t)A7 & SR_CCR);
+    PC = *(uint32_t *)(uintptr_t)(A7 + 2);
+    A7 += 6;
+}
 
+void RTD(uint32_t)
+{
+    int32_t displacement = *(int16_t*)(uintptr_t)(PC + 2);
+    PC = *(uint32_t *)(uintptr_t)A7;
+    A7 += 4 + displacement;
 }
 
 void NOP(uint32_t)
@@ -164,6 +223,15 @@ void LINK_L(uint32_t)
     setA<An, uint32_t>(A7);
     A7 += displ;
     PC += 6;
+}
+
+template<uint8_t An>
+void UNLK(uint32_t)
+{
+    A7 = getA<An, uint32_t>();
+    setA<An, uint32_t>(*(uint32_t*)(uintptr_t)A7);
+    A7 += 4;
+    PC += 2;
 }
 
 template<uint8_t Dn>
@@ -401,22 +469,22 @@ void MOVEM_L_regs_from_A##reg##_PostInc(uint32_t) \
 { \
     uint32_t *base = (uint32_t *)(uintptr_t)A##reg; \
     uint16_t mask = *(uint16_t*)(uintptr_t)(PC + 2); \
-    if (mask & 0x0001) *base++ = D0; \
-    if (mask & 0x0002) *base++ = D1; \
-    if (mask & 0x0004) *base++ = D2; \
-    if (mask & 0x0008) *base++ = D3; \
-    if (mask & 0x0010) *base++ = D4; \
-    if (mask & 0x0020) *base++ = D5; \
-    if (mask & 0x0040) *base++ = D6; \
-    if (mask & 0x0080) *base++ = D7; \
-    if (mask & 0x0100) *base++ = A0; \
-    if (mask & 0x0200) *base++ = A1; \
-    if (mask & 0x0400) *base++ = A2; \
-    if (mask & 0x0800) *base++ = A3; \
-    if (mask & 0x1000) *base++ = A4; \
-    if (mask & 0x2000) *base++ = A5; \
-    if (mask & 0x4000) *base++ = A6; \
-    if (mask & 0x8000) *base++ = A7; \
+    if (mask & 0x0001) D0 = *base++; \
+    if (mask & 0x0002) D1 = *base++; \
+    if (mask & 0x0004) D2 = *base++; \
+    if (mask & 0x0008) D3 = *base++; \
+    if (mask & 0x0010) D4 = *base++; \
+    if (mask & 0x0020) D5 = *base++; \
+    if (mask & 0x0040) D6 = *base++; \
+    if (mask & 0x0080) D7 = *base++; \
+    if (mask & 0x0100) A0 = *base++; \
+    if (mask & 0x0200) A1 = *base++; \
+    if (mask & 0x0400) A2 = *base++; \
+    if (mask & 0x0800) A3 = *base++; \
+    if (mask & 0x1000) A4 = *base++; \
+    if (mask & 0x2000) A5 = *base++; \
+    if (mask & 0x4000) A6 = *base++; \
+    if (mask & 0x8000) A7 = *base++; \
     A##reg = (uint32_t)(uintptr_t)base; \
     PC += 4; \
 }
@@ -492,6 +560,21 @@ MOVEM_L_regs_from_An_PostInc(7);
             name<2 + (Is >> 3), Is & 7, size>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+#define FILL_ALL_RD_EAs(base_offset, name, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA((Is >> 3), Is & 7)] = \
+             name<(Is >> 3), Is & 7, size>), ...); \
+    }((base_offset), std::make_index_sequence<61>{});
+
+#define FILL_ALL_RD_EAs_no_An(base_offset, name, size) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+            name<0, Dreg, size>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+             name<2 + (Is >> 3), Is & 7, size>), ...); \
+    }((base_offset), std::make_index_sequence<45>{});
 
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
@@ -521,6 +604,24 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     FILL_MOD0_size(         01200, CLR, LONG);      /* CLR.L Dn */
     FILL_MOD2_to_72_size(   01200, CLR, LONG);      /* CLR.L all other modes */
 
+    FILL_ALL_RD_EAs_no_An(  05000, TST, BYTE);
+    FILL_ALL_RD_EAs(        05100, TST, WORD);
+    FILL_ALL_RD_EAs(        05200, TST, LONG);
+
+    FILL_MOD0_size(         02000, NEG, BYTE);      /* NOT.B Dn */
+    FILL_MOD2_to_72_size(   02000, NEG, BYTE);      /* NOT.B all other modes */
+    FILL_MOD0_size(         02100, NEG, WORD);      /* NOT.W Dn */
+    FILL_MOD2_to_72_size(   02100, NEG, WORD);      /* NOT.W all other modes */
+    FILL_MOD0_size(         02200, NEG, LONG);      /* NOT.L Dn */
+    FILL_MOD2_to_72_size(   02200, NEG, LONG);      /* NOT.L all other modes */
+
+    FILL_MOD0_size(         03000, NOT, BYTE);      /* NOT.B Dn */
+    FILL_MOD2_to_72_size(   03000, NOT, BYTE);      /* NOT.B all other modes */
+    FILL_MOD0_size(         03100, NOT, WORD);      /* NOT.W Dn */
+    FILL_MOD2_to_72_size(   03100, NOT, WORD);      /* NOT.W all other modes */
+    FILL_MOD0_size(         03200, NOT, LONG);      /* NOT.L Dn */
+    FILL_MOD2_to_72_size(   03200, NOT, LONG);      /* NOT.L all other modes */
+
     FILL_PEA_ALIKE(         07200, JSR);            /* JSR all modes */
     FILL_PEA_ALIKE(         07300, JMP);            /* JMP all modes */
     FILL_PEA_ALIKE(         04100, PEA);            /* PEA all modes */
@@ -535,6 +636,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
     FILL_MOD0_reg_only(     04010, LINK_L);         /* LINK.L #imm, An */
     FILL_MOD0_reg_only(     07120, LINK_W);         /* LINK.L #imm, An */
+    FILL_MOD0_reg_only(     07130, UNLK);           /* UNLK An */
 
     FILL_MOD0_reg_only(     04200, EXT_B_to_W);     /* EXT.W Dn */
     FILL_MOD0_reg_only(     04300, EXT_W_to_L);     /* EXT.L Dn */
@@ -568,10 +670,13 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     table[04347] =     MOVEM_L_regs_to_A7_PreDec;
 
     table[07161] =     NOP;
+    table[07164] =     RTD;
     table[07165] =     RTS;
+    table[07167] =     RTR;
     table[07172] =     MOVEC;
     table[07173] =     MOVEC;
 
+    fill(07100, 07117, TRAP);
 
     #if 0
     [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
@@ -581,30 +686,12 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [01300 ... 01307] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 0, 2 },
     [01320 ... 01347] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 0, 2 },
     [01350 ... 01371] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 1, 2 },
-
-    [03300 ... 03307] = { EMIT_MOVEtoSR, NULL, SR_S, SR_ALL, 1, 0, 2 },
-    [03320 ... 03347] = { EMIT_MOVEtoSR, NULL, SR_S, SR_ALL, 1, 0, 2 },
-    [03350 ... 03374] = { EMIT_MOVEtoSR, NULL, SR_S, SR_ALL, 1, 1, 2 },
-
-    [02300 ... 02307] = { EMIT_MOVEtoCCR, NULL, 0, SR_CCR, 1, 0, 2 },
-    [02320 ... 02347] = { EMIT_MOVEtoCCR, NULL, 0, SR_CCR, 1, 0, 2 },
-    [02350 ... 02374] = { EMIT_MOVEtoCCR, NULL, 0, SR_CCR, 1, 1, 2 },
-
-    [04200 ... 04207] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
-    [04300 ... 04307] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
-    [04700 ... 04707] = { EMIT_EXT, NULL, 0, SR_NZVC, 1, 0, 0 },
-
-    [0xe40 ... 0xe4f] = { EMIT_TRAP, NULL, SR_CCR, 0, 1, 0, 0 },
-    [07130 ... 07137] = { EMIT_UNLK, NULL, 0, 0, 1, 0, 0 },
-    [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
     
+    [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
     [0xe72]           = { EMIT_STOP, NULL, SR_S, SR_ALL, 2, 0, 0 },
     [0xe73]           = { EMIT_RTE, NULL, SR_S, SR_ALL, 1, 0, 0 },
-    [0xe74]           = { EMIT_RTD, NULL, 0, 0, 2, 0, 0 },
-    
     [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
-    [0xe77]           = { EMIT_RTR, NULL, 0, SR_CCR, 1, 0, 0 },
-    [0xe7a ... 0xe7b] = { EMIT_MOVEC, NULL, SR_S, 0, 2, 0, 4 },
+    
     [0xe60 ... 0xe6f] = { EMIT_MOVEUSP, NULL, SR_S, 0, 1, 0, 4 },
     [04110 ... 04117] = { EMIT_BKPT, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
 
@@ -619,40 +706,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [00050 ... 00071] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 1 },
     [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
     [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
-
-    [02000 ... 02007] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 1 },
-    [02100 ... 02107] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 2 },
-    [02200 ... 02207] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 4 },
-
-    [02020 ... 02047] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 1 },
-    [02120 ... 02147] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 2 },
-    [02220 ... 02247] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 0, 4 },
-
-    [02050 ... 02071] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 1, 1 },
-    [02150 ... 02171] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 1, 2 },
-    [02250 ... 02271] = { EMIT_NEG, NULL, 0, SR_CCR, 1, 1, 4 },
-
-    [03000 ... 03007] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [03100 ... 03107] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [03200 ... 03207] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 4 },
-
-    [03020 ... 03047] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [03120 ... 03147] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [03220 ... 03247] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 0, 4 },
-
-    [03050 ... 03071] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 1, 1 },
-    [03150 ... 03171] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 1, 2 },
-    [03250 ... 03271] = { EMIT_NOT, NULL, 0, SR_NZVC, 1, 1, 4 },
-
-    [05000 ... 05007] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [05020 ... 05047] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 1 },
-    [05050 ... 05074] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 1, 1 },
-    
-    [05100 ... 05147] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 2 },
-    [05150 ... 05174] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 1, 2 },
-    
-    [05200 ... 05247] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 0, 4 },
-    [05250 ... 05274] = { EMIT_TST, NULL, 0, SR_NZVC, 1, 1, 4 },
 
     [04000 ... 04007] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
     [04020 ... 04047] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
