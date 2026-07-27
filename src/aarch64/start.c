@@ -869,6 +869,12 @@ void boot(void *dtree)
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
 
+    /* Capability marker for m68k guests: this build decodes the private LINE-F
+       data-cache range opcodes (EMIT_lineF, 0xF460/0xF440 + ext word).
+       Value = capability revision. */
+    uint32_t dcache_range_ops = 1;
+    dt_add_property(e, "dcache-range-ops", &dcache_range_ops, sizeof(dcache_range_ops));
+
     if (ppc_enable) {
         if (!dt_find_property(e, "ppc-enable"))
         {
