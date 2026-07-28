@@ -118,16 +118,66 @@ void ROL_IMM(uint32_t opcode)
     PC += 2;
 }
 
+template<bool Left, bool RegCount, uint8_t CountOrReg, uint8_t Reg, class Type>
+void ASx_Reg(uint32_t)
+{
+    PC += 2;
+    Type v = getD<Reg, Type>();
+
+    int count;
+    if constexpr (RegCount) count = getD<CountOrReg, uint32_t>() & 63;
+    else                    count = (CountOrReg == 0) ? 8 : CountOrReg;
+
+    auto [result, ccr] = [&] {
+        if constexpr (Left) return Asl_WithFlags<Type>(v, count);
+        else                return Asr_WithFlags<Type>(v, count);
+    }();
+
+    if constexpr (!RegCount) {
+        // immediate count is always 1..8 -- X always updated, same shape as ADD
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_C) ? SR_X : 0);
+    } else {
+        uint16_t mask = SR_NZVC | (count != 0 ? SR_X : 0);
+        uint16_t bits = ccr | ((count != 0 && (ccr & SR_C)) ? SR_X : 0);
+        SR = (SR & ~mask) | bits;
+    }
+
+    setD<Reg, Type>(result);
+}
+
+template<uint8_t Mode, uint8_t Reg, bool Left, class Type>
+void ASx_Mem(uint32_t)
+{
+    PC += 2;
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Left ? Asl_WithFlags<Type>(v, 1) : Asr_WithFlags<Type>(v, 1);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_C) ? SR_X : 0);
+        return result;
+    });
+}
+
 #define FILL_MOD2_to_72(base_offset, name) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
             name<2 + (Is >> 3), Is & 7>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+#define FILL_MOD2_to_72_sz(base_offset, name, opt, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+            name<2 + (Is >> 3), Is & 7, opt, size>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
+
 #define FILL_REG_CNT(base_offset, name, type) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + (Is & 7) + ((Is >> 3) << 9)] = \
             name<Is & 7, type>), ...); \
+    }((base_offset), std::make_index_sequence<64>{});
+
+#define FILL_SHIFT_REG(base_offset, name, left, regcount, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + ((Is >> 3) << 9) + (Is & 7)] = \
+             name<left, regcount, (Is >> 3), Is & 7, size>), ...); \
     }((base_offset), std::make_index_sequence<64>{});
 
 
@@ -153,6 +203,22 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     FILL_REG_CNT(       00430,  ROL_IMM, uint8_t);
     FILL_REG_CNT(       00530,  ROL_IMM, uint16_t);
     FILL_REG_CNT(       00630,  ROL_IMM, uint32_t);
+
+    FILL_SHIFT_REG(     00000,  ASx_Reg, false, false, BYTE);   // ASR.B #n,Dn
+    FILL_SHIFT_REG(     00040,  ASx_Reg, false, true,  BYTE);   // ASR.B Dn,Dn
+    FILL_SHIFT_REG(     00100,  ASx_Reg, false, false, WORD);
+    FILL_SHIFT_REG(     00140,  ASx_Reg, false, true,  WORD);
+    FILL_SHIFT_REG(     00200,  ASx_Reg, false, false, LONG);
+    FILL_SHIFT_REG(     00240,  ASx_Reg, false, true,  LONG);
+    FILL_SHIFT_REG(     00400,  ASx_Reg, true,  false, BYTE);   // ASL.B #n,Dn
+    FILL_SHIFT_REG(     00440,  ASx_Reg, true,  true,  BYTE);
+    FILL_SHIFT_REG(     00500,  ASx_Reg, true,  false, WORD);
+    FILL_SHIFT_REG(     00540,  ASx_Reg, true,  true,  WORD);
+    FILL_SHIFT_REG(     00600,  ASx_Reg, true,  false, LONG);
+    FILL_SHIFT_REG(     00640,  ASx_Reg, true,  true,  LONG);
+
+    FILL_MOD2_to_72_sz( 00300,  ASx_Mem, false, WORD);   // ASR <ea>
+    FILL_MOD2_to_72_sz( 00700,  ASx_Mem, true,  WORD);   // ASL <ea>
 
     return table;
 }
