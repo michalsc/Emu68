@@ -242,6 +242,61 @@ static inline std::pair<Type, uint8_t> ArithX_WithFlags(Type a, Type b, uint8_t 
     return { rv, ccr };
 }
 
+template<class Type>
+static inline std::pair<Type, uint8_t> Asl_WithFlags(Type value, int count)
+{
+    constexpr int W = sizeof(Type) * 8;
+
+    if (count == 0) {
+        uint8_t ccr = 0;
+        if (value == 0) ccr |= SR_Z;
+        if (value < 0)  ccr |= SR_N;
+        return { value, ccr };
+    }
+
+    int64_t  v64  = value;
+    uint64_t uv64 = (uint64_t)v64;
+
+    Type result = (Type)(uv64 << count);
+    uint8_t carry = (uint8_t)(((uv64 << (count - 1)) >> (W - 1)) & 1);
+
+    int64_t  t64 = v64 >> count;
+    uint64_t x64 = uv64 ^ (uint64_t)t64;
+    int win = (W - count - 1 > 0) ? (W - count - 1) : 0;
+    bool overflow = (x64 >> win) != 0;
+
+    uint8_t ccr = 0;
+    if (result == 0) ccr |= SR_Z;
+    if (result < 0)  ccr |= SR_N;
+    if (overflow)    ccr |= SR_Valt;
+    if (carry)       ccr |= SR_Calt;
+    return { result, ccr };
+}
+
+template<class Type>
+static inline std::pair<Type, uint8_t> Asr_WithFlags(Type value, int count)
+{
+    if (count == 0) {
+        uint8_t ccr = 0;
+        if (value == 0) ccr |= SR_Z;
+        if (value < 0)  ccr |= SR_N;
+        return { value, ccr };
+    }
+
+    int64_t  v64  = value;
+    uint64_t uv64 = (uint64_t)v64;
+
+    Type result = (Type)(v64 >> count);
+    uint8_t carry = (uint8_t)((uv64 >> (count - 1)) & 1);
+
+    uint8_t ccr = 0;
+    if (result == 0) ccr |= SR_Z;
+    if (result < 0)  ccr |= SR_N;
+    // V is always 0 for ASR
+    if (carry) ccr |= SR_Calt;
+    return { result, ccr };
+}
+
 } // Emu68::M68k::Interpreter
 
 extern "C" {
