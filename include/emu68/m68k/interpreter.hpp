@@ -25,6 +25,10 @@ namespace Emu68::M68k::Interpreter {
 #define I_SIZE_LONG   4
 
 void Exception_F0(uint32_t exception);
+void Exception_F1(uint32_t exception);
+void Exception_F2(uint32_t exception, uint32_t ea);
+void Exception_F3(uint32_t exception, uint32_t ea);
+void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc);
 void LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode);
 void StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode);
 void GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode);
