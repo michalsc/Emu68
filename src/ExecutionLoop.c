@@ -48,6 +48,7 @@ static inline void setLastPC(uint32_t pc)
 extern struct List ICache[EMU68_HASHSIZE];
 void M68K_LoadContext(struct M68KState *ctx);
 void M68K_SaveContext(struct M68KState *ctx);
+void M68K_PrintContext(struct M68KState *ctx);
 
 struct Entry {
     uintptr_t m68k;

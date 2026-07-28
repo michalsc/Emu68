@@ -2082,6 +2082,8 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("\n[JIT] ");
 
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
+
+    kprintf("[JIT]     INSN_COUNT = 0x%016lx\n", m68k->INSN_COUNT);
 }
 /*
 uint16_t *framebuffer __attribute__((weak)) = NULL;
