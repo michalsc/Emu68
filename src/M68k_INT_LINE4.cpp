@@ -394,6 +394,89 @@ void MOVEC(uint32_t opcode)
     }
 }
 
+
+template<uint8_t Mode, uint8_t Reg>
+void DIVU_L(uint32_t)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    uint16_t opcode2 = *(uint16_t *)(uintptr_t)(PC + 2);
+    uint32_t orig_PC = PC;
+
+    PC += 4;
+
+    uint32_t src = LoadFromEA<Mode, Reg, uint32_t>();
+
+    if (src == 0) {
+        Exception_F2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+    }
+    else {
+        uint32_t dq = getDn((opcode2 >> 12) & 7);
+
+        /* 64 / 32 -> 32 divide */
+        if (opcode2 & (1 << 10)) {
+            uint64_t value = getDn(opcode2 & 7);
+            value = (value << 32) | dq;
+
+            /* If reminder register is the same as destination, skip reminder */
+            if ((opcode2 & 7) == ((opcode2 >> 12) & 7))
+            {
+                value = value / src;
+                setDn((opcode2 >> 12) & 7, value);
+            }
+            else
+            {
+                uint64_t rem;
+                rem = value % src;
+                value = value / src;
+
+                /* Overflow! */
+                if (value & 0xffffffff00000000ULL) {
+                    SR = (SR & ~SR_Calt) | SR_Valt;
+                    return;
+                }
+
+                setDn(opcode2 & 7, rem);
+                setDn((opcode2 >> 12) & 7, value);
+
+                if ((int32_t)value == 0) {
+                    sr |= SR_Z;
+                } else if ((int32_t)value < 0) {
+                    sr |= SR_N;
+                }
+
+                SR = sr;
+            }
+        }
+        else 
+        /* 32 / 32 -> 32 divide */
+        {
+            /* If reminder register is the same as destination, skip reminder */
+            if ((opcode2 & 7) == ((opcode2 >> 12) & 7))
+            {
+                dq = dq / src;
+                setDn((opcode2 >> 12) & 7, dq);
+            }
+            else
+            {
+                uint32_t rem;
+                rem = dq % src;
+                dq = dq / src;
+
+                setDn(opcode2 & 7, rem);
+                setDn((opcode2 >> 12) & 7, dq);
+            }
+
+            if ((int32_t)dq == 0) {
+                sr |= SR_Z;
+            } else if ((int32_t)dq < 0) {
+                sr |= SR_N;
+            }
+
+            SR = sr;
+        }
+    }
+}
+
 #define MOVEM_L_regs_to_An_Addr(reg) \
 void MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
 { \
@@ -576,6 +659,16 @@ MOVEM_L_regs_from_An_PostInc(7);
              name<2 + (Is >> 3), Is & 7, size>), ...); \
     }((base_offset), std::make_index_sequence<45>{});
 
+#define FILL_ALL_RD_EAs_no_An_no_size(base_offset, name) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+            name<0, Dreg>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+             name<2 + (Is >> 3), Is & 7>), ...); \
+    }((base_offset), std::make_index_sequence<45>{});
+
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -641,6 +734,8 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     FILL_MOD0_reg_only(     04200, EXT_B_to_W);     /* EXT.W Dn */
     FILL_MOD0_reg_only(     04300, EXT_W_to_L);     /* EXT.L Dn */
     FILL_MOD0_reg_only(     04700, EXT_B_to_L);     /* EXTB.L Dn */
+
+    FILL_ALL_RD_EAs_no_An_no_size(  06100,  DIVU_L);
 
     table[04320] =     MOVEM_L_regs_to_A0_Addr;
     table[04321] =     MOVEM_L_regs_to_A1_Addr;
