@@ -87,7 +87,7 @@ uint32_t GetEA()
     }
     else if constexpr (Mode == 6) {
         uint32_t ea;
-        GetEffectiveAddress(getA<Reg, uint32_t>(), sizeof(Type), &ea, Mode);
+        GetExtendedEffectiveAddress(getA<Reg, uint32_t>(), sizeof(Type), &ea);
         return ea;
     }
     else if constexpr (Mode == 7) {
@@ -109,7 +109,7 @@ uint32_t GetEA()
         }
         else if constexpr (Reg == 3) {
             uint32_t ea;
-            GetEffectiveAddress(PC, sizeof(Type), &ea, Mode);
+            GetExtendedEffectiveAddress(PC, sizeof(Type), &ea);
             return ea;
         }
         else {
