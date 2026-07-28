@@ -11,6 +11,9 @@
 extern "C" {
     #include "M68k.h"
     #include "support.h"
+
+    void M68K_LoadContext(struct M68KState *ctx);
+    void M68K_SaveContext(struct M68KState *ctx);
 }
 
 namespace Emu68::M68k::Interpreter {
@@ -23,7 +26,7 @@ namespace Emu68::M68k::Interpreter {
 template<unsigned src, unsigned dst, class type> requires (src < 8 && dst < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_Dn_to_Dn(uint32_t)
 {
-    uint32_t sr = SR & SR_NZVC; \
+    uint32_t sr = SR & ~SR_NZVC; \
     type val;
 
     val = getD<src, type>();
@@ -45,7 +48,7 @@ void INTERPRET_MOVE_Dn_to_Dn(uint32_t)
 template<unsigned src, unsigned dst, class type> requires (src < 8 && dst < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_An_to_Dn(uint32_t)
 {
-    uint32_t sr = SR & SR_NZVC; \
+    uint32_t sr = SR & ~SR_NZVC; \
     type val;
 
     val = getA<src, type>();
@@ -95,7 +98,7 @@ void INTERPRET_MOVEA_An_to_An(uint32_t)
 template<unsigned src, class type> requires (src < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_Dn_to_ABS_L(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     uint32_t abs = *(uint32_t*)(uintptr_t)(PC + 2);
     type val = getD<src, type>();
     *(type*)(uintptr_t)abs = val;
@@ -114,7 +117,7 @@ void INTERPRET_MOVE_Dn_to_ABS_L(uint32_t)
 template<unsigned src, class type> requires (src < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_Dn_to_ABS_W(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     uint32_t abs = *(int16_t*)(uintptr_t)(PC + 2);
     type val = getD<src, type>();
     *(type*)(uintptr_t)abs = val;
@@ -133,7 +136,7 @@ void INTERPRET_MOVE_Dn_to_ABS_W(uint32_t)
 template<unsigned src, class type> requires (src < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_An_to_ABS_L(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     uint32_t abs = *(uint32_t*)(uintptr_t)(PC + 2);
     type val = getA<src, type>();
     *(type*)(uintptr_t)abs = val;
@@ -152,7 +155,7 @@ void INTERPRET_MOVE_An_to_ABS_L(uint32_t)
 template<unsigned src, class type> requires (src < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_An_to_ABS_W(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     uint32_t abs = *(int16_t*)(uintptr_t)(PC + 2);
     type val = getD<src, type>();
     *(type*)(uintptr_t)abs = val;
@@ -171,7 +174,7 @@ void INTERPRET_MOVE_An_to_ABS_W(uint32_t)
 template<unsigned dst, class type> requires (dst < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_IMM_to_Dn(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     type val;
     if (sizeof(type) == 4) {
         val = *(type*)(uintptr_t)(PC + 2);
@@ -212,7 +215,7 @@ void INTERPRET_MOVEA_IMM_to_An(uint32_t)
 template<unsigned areg, class type> requires (areg < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_IMM_to_An_Addr(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     type val;
     if (sizeof(type) == 4) {
         val = *(type*)(uintptr_t)(PC + 2);
@@ -238,7 +241,7 @@ void INTERPRET_MOVE_IMM_to_An_Addr(uint32_t)
 template<unsigned areg, class type> requires (areg < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_IMM_to_An_Addr_PostInc(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     type val;
     if (sizeof(type) == 4) {
         val = *(type*)(uintptr_t)(PC + 2);
@@ -270,7 +273,7 @@ void INTERPRET_MOVE_IMM_to_An_Addr_PostInc(uint32_t)
 template<unsigned areg, class type> requires (areg < 8 && std::is_signed<type>::value)
 void INTERPRET_MOVE_IMM_to_An_Addr_PreDec(uint32_t)
 {
-    uint32_t sr = SR & 0xfff0;
+    uint32_t sr = SR & ~SR_NZVC;
     type val;
     if (sizeof(type) == 4) {
         val = *(type*)(uintptr_t)(PC + 2);
@@ -298,6 +301,13 @@ void INTERPRET_MOVE_IMM_to_An_Addr_PreDec(uint32_t)
     SR = sr;
 }
 
+static inline struct M68KState *getCTX()
+{
+    struct M68KState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
+
 template<class type>
 void INTERPRET_MOVE_Generic(uint32_t opcode)
 {
@@ -317,12 +327,17 @@ void INTERPRET_MOVE_Generic(uint32_t opcode)
 
     /* Update PC to point either to next instruction or first extension word */
     PC += 2;
-    
+
     LoadFromEffectiveAddress(src_reg, sizeof(type), &value, src_mode);
+
+    M68K_SaveContext(getCTX());
+    kprintf("MOVE generic from mode %d.%d to mode %d.%d size %d value %x\n", src_mode, src_reg, dst_mode, dst_reg, sizeof(type), value);
+    M68K_LoadContext(getCTX());
+
     StoreToEffectiveAddress(dst_reg, value, sizeof(type), dst_mode);
 
     if (dst_mode != 1) {
-        uint32_t sr = SR & 0xfff0;
+        uint32_t sr = SR & ~SR_NZVC;
 
         if (value == 0) {
             sr |= SR_Z;
@@ -334,6 +349,41 @@ void INTERPRET_MOVE_Generic(uint32_t opcode)
     }
 }
 
+template<uint8_t SrcMode, uint8_t SrcReg, uint8_t DstMode, uint8_t DstReg, class Type>
+void MOVE(uint32_t)
+{
+    PC += 2;
+    Type value = LoadFromEA<SrcMode, SrcReg, Type>();
+    StoreToEA<DstMode, DstReg, Type>(value);
+
+    if (DstMode != 1) {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        if (value == 0) {
+            sr |= SR_Z;
+        } else if (value < 0) {
+            sr |= SR_N;
+        }
+
+        SR = sr;
+    }
+}
+
+#define FILL_ALL_MOVE(name) \
+[&]<std::size_t... Is>(std::index_sequence<Is...>) { \
+    auto fillOne = [&]<std::size_t I>() { \
+        constexpr std::size_t DstI = I / 61; \
+        constexpr std::size_t SrcI = I % 61; \
+        constexpr std::size_t DstMode = DstI >> 3; \
+        constexpr std::size_t SrcMode = SrcI >> 3; \
+        if constexpr (sizeof(type) > 1 || (SrcMode != 1 && DstMode != 1)) { \
+            constexpr int base = ((DstI & 7) << 9) | ((DstI >> 3) << 6); \
+            table[base + SrcI] = name<(SrcI >> 3), SrcI & 7, (DstI >> 3), DstI & 7, type>; \
+        } \
+    }; \
+    (fillOne.template operator()<Is>(), ...); \
+}(std::make_index_sequence<58 * 61>{});
+
 template<class type>
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
@@ -343,13 +393,16 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
         for (int i = first; i <= last; ++i)
             table[i] = func;
     };
-
+#if 0
     auto SRC = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
     auto DST = [](int mode, int reg) constexpr { return (mode << 6) | (reg << 9); };
-
+#endif
     /* Make all entries unimplemented first */
     fill(00000, 07777, UNIMPLEMENTED);
 
+    FILL_ALL_MOVE(MOVE)
+#if 0
+    #if 0
     /*
         Fill all allowed defaults with generic version:
         modes 0 to 6 allow all register combinations
@@ -360,12 +413,14 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
         with mode<->reg swap (mode 7, register 1). Source decoded as mod:reg 
         can go always from 000 (mode 0, register 0) up to 074 (mode 7, register 4)
     */
+   
     for (int dst_rm = 0; dst_rm <= 071; dst_rm++) {
         int dst_mode = dst_rm >> 3;
         int dst_reg  = dst_rm & 7;
         int base = DST(dst_mode, dst_reg);
         fill(base + SRC(0, 0), base + SRC(7, 4), INTERPRET_MOVE_Generic<type>);
     }
+    #endif
 
     /* Fill MOVE Dn to Dn, all 64 combinations */
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) {
@@ -448,7 +503,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
         ((table[base + DST(4, Areg)] =
              INTERPRET_MOVE_IMM_to_An_Addr_PreDec<Areg, type>), ...);
     }(SRC(7, 4), std::make_index_sequence<8>{});
-
+#endif
     return table;
 }
 
