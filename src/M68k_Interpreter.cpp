@@ -77,6 +77,190 @@ void Exception_F0(uint32_t exception)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
+void Exception_F1(uint32_t exception)
+{
+    /* Get the SR register as it is now */
+    uint32_t origSR = SR;
+
+    /* If we were in user mode, switch stack and reserve space for exception frame */
+    if (likely(origSR & SR_S) == 0) {
+        USP = A7;
+        if (unlikely(origSR & SR_M)) {
+            A7 = MSP - 8;
+        }
+        else {
+            A7 = ISP - 8;
+        }
+    } else {
+        A7 -= 8;
+    }
+
+    /* Push the exception frame */
+    void *sp = (void *)(uintptr_t)A7;
+
+    /* Invert V and C flags */
+    uint32_t tmp = origSR;
+    uint32_t tmp2;
+
+    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
+    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
+
+    /* Prepare frame */
+    *(uint16_t *)(uintptr_t)sp = tmp;
+    *(uint32_t *)((uintptr_t)sp + 2) = PC;
+    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x1000;
+
+    /* Set SR to supervisor and clear trace flags */
+    origSR |= SR_S;
+    origSR &= ~(SR_T0 | SR_T1);
+
+    /* Set the new SR */
+    SR = origSR;
+
+    /* Get the vector address */
+    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
+    PC = *(uint32_t *)(uintptr_t)vbr;
+}
+
+void Exception_F2(uint32_t exception, uint32_t ea)
+{
+    /* Get the SR register as it is now */
+    uint32_t origSR = SR;
+
+    /* If we were in user mode, switch stack and reserve space for exception frame */
+    if (likely(origSR & SR_S) == 0) {
+        USP = A7;
+        if (unlikely(origSR & SR_M)) {
+            A7 = MSP - 12;
+        }
+        else {
+            A7 = ISP - 12;
+        }
+    } else {
+        A7 -= 12;
+    }
+
+    /* Push the exception frame */
+    void *sp = (void *)(uintptr_t)A7;
+
+    /* Invert V and C flags */
+    uint32_t tmp = origSR;
+    uint32_t tmp2;
+
+    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
+    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
+
+    /* Prepare frame */
+    *(uint16_t *)(uintptr_t)sp = tmp;
+    *(uint32_t *)((uintptr_t)sp + 2) = PC;
+    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x2000;
+    *(uint32_t *)((uintptr_t)sp + 8) = ea;
+
+    /* Set SR to supervisor and clear trace flags */
+    origSR |= SR_S;
+    origSR &= ~(SR_T0 | SR_T1);
+
+    /* Set the new SR */
+    SR = origSR;
+
+    /* Get the vector address */
+    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
+    PC = *(uint32_t *)(uintptr_t)vbr;
+}
+
+void Exception_F3(uint32_t exception, uint32_t ea)
+{
+    /* Get the SR register as it is now */
+    uint32_t origSR = SR;
+
+    /* If we were in user mode, switch stack and reserve space for exception frame */
+    if (likely(origSR & SR_S) == 0) {
+        USP = A7;
+        if (unlikely(origSR & SR_M)) {
+            A7 = MSP - 12;
+        }
+        else {
+            A7 = ISP - 12;
+        }
+    } else {
+        A7 -= 12;
+    }
+
+    /* Push the exception frame */
+    void *sp = (void *)(uintptr_t)A7;
+
+    /* Invert V and C flags */
+    uint32_t tmp = origSR;
+    uint32_t tmp2;
+
+    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
+    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
+
+    /* Prepare frame */
+    *(uint16_t *)(uintptr_t)sp = tmp;
+    *(uint32_t *)((uintptr_t)sp + 2) = PC;
+    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x3000;
+    *(uint32_t *)((uintptr_t)sp + 8) = ea;
+
+    /* Set SR to supervisor and clear trace flags */
+    origSR |= SR_S;
+    origSR &= ~(SR_T0 | SR_T1);
+
+    /* Set the new SR */
+    SR = origSR;
+
+    /* Get the vector address */
+    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
+    PC = *(uint32_t *)(uintptr_t)vbr;
+}
+
+void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc)
+{
+    /* Get the SR register as it is now */
+    uint32_t origSR = SR;
+
+    /* If we were in user mode, switch stack and reserve space for exception frame */
+    if (likely(origSR & SR_S) == 0) {
+        USP = A7;
+        if (unlikely(origSR & SR_M)) {
+            A7 = MSP - 16;
+        }
+        else {
+            A7 = ISP - 16;
+        }
+    } else {
+        A7 -= 16;
+    }
+
+    /* Push the exception frame */
+    void *sp = (void *)(uintptr_t)A7;
+
+    /* Invert V and C flags */
+    uint32_t tmp = origSR;
+    uint32_t tmp2;
+
+    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
+    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
+
+    /* Prepare frame */
+    *(uint16_t *)(uintptr_t)sp = tmp;
+    *(uint32_t *)((uintptr_t)sp + 2) = PC;
+    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x4000;
+    *(uint32_t *)((uintptr_t)sp + 8) = ea;
+    *(uint32_t *)((uintptr_t)sp + 12) = pc;
+
+    /* Set SR to supervisor and clear trace flags */
+    origSR |= SR_S;
+    origSR &= ~(SR_T0 | SR_T1);
+
+    /* Set the new SR */
+    SR = origSR;
+
+    /* Get the vector address */
+    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
+    PC = *(uint32_t *)(uintptr_t)vbr;
+}
+
 void UNIMPLEMENTED(uint32_t opcode)
 {
     M68K_SaveContext(getCTX());
