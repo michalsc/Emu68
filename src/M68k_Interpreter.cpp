@@ -332,15 +332,18 @@ void LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
     switch (size) {
         case 4:
             *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-            setAn(src_reg, addr + 4);
+            addr += 4;
+            setAn(src_reg, addr);
             return;
         case 2:
             *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-            setAn(src_reg, addr + 2);
+            addr += 2;
+            setAn(src_reg, addr);
             return;
         case 1:
             *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-            setAn(src_reg, addr + (src_reg == 7) ? 2 : 1);
+            addr += (src_reg == 7) ? 2 : 1;
+            setAn(src_reg, addr);
             return;
     }
 
@@ -836,15 +839,18 @@ void StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
     switch (size) {
         case 4:
             *(uint32_t *)addr = value;
-            setAn(dst_reg, addr + 4);
+            addr += 4;
+            setAn(dst_reg, addr);
             return;
         case 2:
             *(uint16_t *)addr = value;
-            setAn(dst_reg, addr + 2);
+            addr += 2;
+            setAn(dst_reg, addr);
             return;
         case 1:
             *(uint8_t *)addr = value;
-            setAn(dst_reg, addr + (dst_reg == 7) ? 2 : 1);
+            addr += (dst_reg == 7) ? 2 : 1;
+            setAn(dst_reg, addr);
             return;
     }
 
