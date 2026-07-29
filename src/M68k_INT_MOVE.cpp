@@ -356,6 +356,35 @@ void MOVE(uint32_t)
     Type value = LoadFromEA<SrcMode, SrcReg, Type>();
     StoreToEA<DstMode, DstReg, Type>(value);
 
+    if constexpr (DstMode != 1) {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        if (value == 0) {
+            sr |= SR_Z;
+        } else if (value < 0) {
+            sr |= SR_N;
+        }
+
+        SR = sr;
+    }
+}
+
+template<class Type>
+void MOVE_(uint32_t opcode)
+{
+    uint8_t SrcMode = (opcode >> 3) & 7;
+    uint8_t DstMode = (opcode >> 6) & 7;
+    uint8_t SrcReg = (opcode) & 7;
+    uint8_t DstReg = (opcode >> 9) & 7;
+
+    PC += 2;
+    Type value;
+    
+    LoadFromEffectiveAddress(SrcReg, sizeof(Type), &value, SrcMode );
+    StoreToEffectiveAddress(DstReg, value, sizeof(Type), DstMode);
+    //= LoadFromEA<SrcMode, SrcReg, Type>();
+    //StoreToEA<DstMode, DstReg, Type>(value);
+
     if (DstMode != 1) {
         uint32_t sr = SR & ~SR_NZVC;
 
@@ -370,7 +399,7 @@ void MOVE(uint32_t)
 }
 
 #define FILL_ALL_MOVE(name) \
-[&]<std::size_t... Is>(std::index_sequence<Is...>) { \
+[&]<std::size_t... Is>(std::index_sequence<Is...>) consteval { \
     auto fillOne = [&]<std::size_t I>() { \
         constexpr std::size_t DstI = I / 61; \
         constexpr std::size_t SrcI = I % 61; \
@@ -384,8 +413,24 @@ void MOVE(uint32_t)
     (fillOne.template operator()<Is>(), ...); \
 }(std::make_index_sequence<58 * 61>{});
 
+
+#define FILL_ALL_MOVE_(name) \
+[&]<std::size_t... Is>(std::index_sequence<Is...>) { \
+    auto fillOne = [&]<std::size_t I>() { \
+        constexpr std::size_t DstI = I / 61; \
+        constexpr std::size_t SrcI = I % 61; \
+        constexpr std::size_t DstMode = DstI >> 3; \
+        constexpr std::size_t SrcMode = SrcI >> 3; \
+        if constexpr (sizeof(type) > 1 || (SrcMode != 1 && DstMode != 1)) { \
+            constexpr int base = ((DstI & 7) << 9) | ((DstI >> 3) << 6); \
+            table[base + SrcI] = name<type>; \
+        } \
+    }; \
+    (fillOne.template operator()<Is>(), ...); \
+}(std::make_index_sequence<58 * 61>{});
+
 template<class type>
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static consteval std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
@@ -399,6 +444,8 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 #endif
     /* Make all entries unimplemented first */
     fill(00000, 07777, UNIMPLEMENTED);
+
+        //FILL_ALL_MOVE_(MOVE_)
 
     FILL_ALL_MOVE(MOVE)
 #if 0
