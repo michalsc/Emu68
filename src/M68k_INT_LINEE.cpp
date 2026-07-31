@@ -10,6 +10,19 @@
 extern "C" {
     #include "M68k.h"
     #include "support.h"
+
+static inline struct M68KState *getCTX()
+{
+    struct M68KState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
+
+    void M68K_SaveContext(struct M68KState *ctx);
+    void M68K_LoadContext(struct M68KState *ctx);
+
+
+
 }
 
 namespace Emu68::M68k::Interpreter {
@@ -135,10 +148,10 @@ void ASx_Reg(uint32_t)
 
     if constexpr (!RegCount) {
         // immediate count is always 1..8 -- X always updated, same shape as ADD
-        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_C) ? SR_X : 0);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
     } else {
         uint16_t mask = SR_NZVC | (count != 0 ? SR_X : 0);
-        uint16_t bits = ccr | ((count != 0 && (ccr & SR_C)) ? SR_X : 0);
+        uint16_t bits = ccr | ((count != 0 && (ccr & SR_Calt)) ? SR_X : 0);
         SR = (SR & ~mask) | bits;
     }
 
@@ -151,7 +164,46 @@ void ASx_Mem(uint32_t)
     PC += 2;
     ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         auto [result, ccr] = Left ? Asl_WithFlags<Type>(v, 1) : Asr_WithFlags<Type>(v, 1);
-        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_C) ? SR_X : 0);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
+
+template<bool Left, bool RegCount, uint8_t CountOrReg, uint8_t Reg, class Type>
+void LSx_Reg(uint32_t)
+{
+    PC += 2;
+    Type v = getD<Reg, Type>();
+
+    int count;
+    if constexpr (RegCount) count = getD<CountOrReg, uint32_t>() & 63;
+    else                    count = (CountOrReg == 0) ? 8 : CountOrReg;
+
+    auto [result, ccr] = [&] {
+        if constexpr (Left) return Lsl_WithFlags<Type>(v, count);
+        else                return Lsr_WithFlags<Type>(v, count);
+    }();
+
+    if constexpr (!RegCount) {
+        // immediate count is always 1..8 -- X always updated, same shape as ADD
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+    } else {
+        uint16_t mask = SR_NZVC | (count != 0 ? SR_X : 0);
+        uint16_t bits = ccr | ((count != 0 && (ccr & SR_Calt)) ? SR_X : 0);
+        SR = (SR & ~mask) | bits;
+    }
+
+    setD<Reg, Type>(result);
+}
+
+template<uint8_t Mode, uint8_t Reg, bool Left, class Type>
+void LSx_Mem(uint32_t)
+{
+    PC += 2;
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Left ? Lsl_WithFlags<Type>(v, 1) : Lsr_WithFlags<Type>(v, 1);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
 }
@@ -219,6 +271,22 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
     FILL_MOD2_to_72_sz( 00300,  ASx_Mem, false, WORD);   // ASR <ea>
     FILL_MOD2_to_72_sz( 00700,  ASx_Mem, true,  WORD);   // ASL <ea>
+
+    FILL_SHIFT_REG(     00010,  LSx_Reg, false, false, BYTE);   // ASR.B #n,Dn
+    FILL_SHIFT_REG(     00050,  LSx_Reg, false, true,  BYTE);   // ASR.B Dn,Dn
+    FILL_SHIFT_REG(     00110,  LSx_Reg, false, false, WORD);
+    FILL_SHIFT_REG(     00150,  LSx_Reg, false, true,  WORD);
+    FILL_SHIFT_REG(     00210,  LSx_Reg, false, false, LONG);
+    FILL_SHIFT_REG(     00250,  LSx_Reg, false, true,  LONG);
+    FILL_SHIFT_REG(     00410,  LSx_Reg, true,  false, BYTE);   // ASL.B #n,Dn
+    FILL_SHIFT_REG(     00450,  LSx_Reg, true,  true,  BYTE);
+    FILL_SHIFT_REG(     00510,  LSx_Reg, true,  false, WORD);
+    FILL_SHIFT_REG(     00550,  LSx_Reg, true,  true,  WORD);
+    FILL_SHIFT_REG(     00610,  LSx_Reg, true,  false, LONG);
+    FILL_SHIFT_REG(     00650,  LSx_Reg, true,  true,  LONG);
+
+    FILL_MOD2_to_72_sz( 01300,  LSx_Mem, false, WORD);   // ASR <ea>
+    FILL_MOD2_to_72_sz( 01700,  LSx_Mem, true,  WORD);   // ASL <ea>
 
     return table;
 }
