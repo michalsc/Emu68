@@ -51,15 +51,72 @@ void DIVU_W(uint32_t)
 }
 
 
-#define FILL_ALL_RD_EAs_no_An(base_offset, name) \
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+requires (Mode > 1)
+void OR_Dn_to_EA(uint32_t)
+{
+    Type dval = getD<Dn, Type>();
+    PC = PC + 2;
+
+    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        v |= dval;
+
+        if (v == 0) {
+            sr |= SR_Z;
+        } else if (v < 0) {
+            sr |= SR_N;
+        }
+        SR = sr;
+
+        return v;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
+void OR_EA_to_Dn(uint32_t)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    PC = PC + 2;
+    Type val = LoadFromEA<Mode, Reg, Type>();
+    Type dval = getD<Dn, Type>();
+
+    dval |= val;
+
+    if (dval == 0) {
+        sr |= SR_Z;
+    } else if (dval < 0) {
+        sr |= SR_N;
+    }
+    SR = sr;
+
+    setD<Dn, Type>(dval);
+}
+
+#define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA((Is >> 3), Is & 7)] = \
+             name<(Is >> 3), Is & 7, reg, size>), ...); \
+    }((base_offset), std::make_index_sequence<61>{});
+
+#define FILL_ALL_RD_EAs_no_An(base_offset, name, reg, size) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
         ((table[base + EA(0, Dreg)] = \
-            name<0, Dreg>), ...); \
+            name<0, Dreg, reg, size>), ...); \
     }((base_offset), std::make_index_sequence<8>{}); \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
-             name<2 + (Is >> 3), Is & 7>), ...); \
+             name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
     }((base_offset), std::make_index_sequence<45>{});
+
+#define FILL_ALL_WR_EAs(base_offset, name, reg, size) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+             name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
+
 
 #define FILL_ALL_RD_EAs_no_An_reg(base_offset, name, reg) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
@@ -93,6 +150,60 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     FILL_ALL_RD_EAs_no_An_reg(  00300,  DIVU_W, 5);
     FILL_ALL_RD_EAs_no_An_reg(  00300,  DIVU_W, 6);
     FILL_ALL_RD_EAs_no_An_reg(  00300,  DIVU_W, 7);
+
+    FILL_ALL_RD_EAs_no_An(  00000,  OR_EA_to_Dn, 0,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  01000,  OR_EA_to_Dn, 1,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  02000,  OR_EA_to_Dn, 2,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  03000,  OR_EA_to_Dn, 3,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  04000,  OR_EA_to_Dn, 4,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  05000,  OR_EA_to_Dn, 5,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  06000,  OR_EA_to_Dn, 6,  BYTE);
+    FILL_ALL_RD_EAs_no_An(  07000,  OR_EA_to_Dn, 7,  BYTE);
+
+    FILL_ALL_RD_EAs_no_An(  00100,  OR_EA_to_Dn, 0,  WORD);
+    FILL_ALL_RD_EAs_no_An(  01100,  OR_EA_to_Dn, 1,  WORD);
+    FILL_ALL_RD_EAs_no_An(  02100,  OR_EA_to_Dn, 2,  WORD);
+    FILL_ALL_RD_EAs_no_An(  03100,  OR_EA_to_Dn, 3,  WORD);
+    FILL_ALL_RD_EAs_no_An(  04100,  OR_EA_to_Dn, 4,  WORD);
+    FILL_ALL_RD_EAs_no_An(  05100,  OR_EA_to_Dn, 5,  WORD);
+    FILL_ALL_RD_EAs_no_An(  06100,  OR_EA_to_Dn, 6,  WORD);
+    FILL_ALL_RD_EAs_no_An(  07100,  OR_EA_to_Dn, 7,  WORD);
+
+    FILL_ALL_RD_EAs_no_An(  00200,  OR_EA_to_Dn, 0,  LONG);
+    FILL_ALL_RD_EAs_no_An(  01200,  OR_EA_to_Dn, 1,  LONG);
+    FILL_ALL_RD_EAs_no_An(  02200,  OR_EA_to_Dn, 2,  LONG);
+    FILL_ALL_RD_EAs_no_An(  03200,  OR_EA_to_Dn, 3,  LONG);
+    FILL_ALL_RD_EAs_no_An(  04200,  OR_EA_to_Dn, 4,  LONG);
+    FILL_ALL_RD_EAs_no_An(  05200,  OR_EA_to_Dn, 5,  LONG);
+    FILL_ALL_RD_EAs_no_An(  06200,  OR_EA_to_Dn, 6,  LONG);
+    FILL_ALL_RD_EAs_no_An(  07200,  OR_EA_to_Dn, 7,  LONG);
+
+    FILL_ALL_WR_EAs(        00400,  OR_Dn_to_EA, 0,  BYTE);
+    FILL_ALL_WR_EAs(        01400,  OR_Dn_to_EA, 1,  BYTE);
+    FILL_ALL_WR_EAs(        02400,  OR_Dn_to_EA, 2,  BYTE);
+    FILL_ALL_WR_EAs(        03400,  OR_Dn_to_EA, 3,  BYTE);
+    FILL_ALL_WR_EAs(        04400,  OR_Dn_to_EA, 4,  BYTE);
+    FILL_ALL_WR_EAs(        05400,  OR_Dn_to_EA, 5,  BYTE);
+    FILL_ALL_WR_EAs(        06400,  OR_Dn_to_EA, 6,  BYTE);
+    FILL_ALL_WR_EAs(        07400,  OR_Dn_to_EA, 7,  BYTE);
+
+    FILL_ALL_WR_EAs(        00500,  OR_Dn_to_EA, 0,  WORD);
+    FILL_ALL_WR_EAs(        01500,  OR_Dn_to_EA, 1,  WORD);
+    FILL_ALL_WR_EAs(        02500,  OR_Dn_to_EA, 2,  WORD);
+    FILL_ALL_WR_EAs(        03500,  OR_Dn_to_EA, 3,  WORD);
+    FILL_ALL_WR_EAs(        04500,  OR_Dn_to_EA, 4,  WORD);
+    FILL_ALL_WR_EAs(        05500,  OR_Dn_to_EA, 5,  WORD);
+    FILL_ALL_WR_EAs(        06500,  OR_Dn_to_EA, 6,  WORD);
+    FILL_ALL_WR_EAs(        07500,  OR_Dn_to_EA, 7,  WORD);
+
+    FILL_ALL_WR_EAs(        00600,  OR_Dn_to_EA, 0,  LONG);
+    FILL_ALL_WR_EAs(        01600,  OR_Dn_to_EA, 1,  LONG);
+    FILL_ALL_WR_EAs(        02600,  OR_Dn_to_EA, 2,  LONG);
+    FILL_ALL_WR_EAs(        03600,  OR_Dn_to_EA, 3,  LONG);
+    FILL_ALL_WR_EAs(        04600,  OR_Dn_to_EA, 4,  LONG);
+    FILL_ALL_WR_EAs(        05600,  OR_Dn_to_EA, 5,  LONG);
+    FILL_ALL_WR_EAs(        06600,  OR_Dn_to_EA, 6,  LONG);
+    FILL_ALL_WR_EAs(        07600,  OR_Dn_to_EA, 7,  LONG);
 
     return table;
 }
