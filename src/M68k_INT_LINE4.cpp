@@ -477,6 +477,94 @@ void DIVU_L(uint32_t)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg>
+void MULU_L(uint32_t)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    uint16_t opcode2 = *(uint16_t *)(uintptr_t)(PC + 2);
+
+    PC += 4;
+
+    /* Signed (bit 11 set) or unsigned (bit 11 clear) */
+    if (opcode2 & (1 << 11)) {
+        int32_t src = LoadFromEA<Mode, Reg, int32_t>();
+        int32_t di = getDn((opcode2 >> 12) & 7);
+        int64_t value = (int64_t)di * (int64_t)src;
+
+        /* 32 * 32 -> 64 multiply */
+        if (opcode2 & (1 << 10)) {
+            setDn(opcode2 & 7, value >> 32);
+            setDn((opcode2 >> 12) & 7, value);
+            
+            if (value == 0) {
+                sr |= SR_Z;
+            } else if (value < 0) {
+                sr |= SR_N;
+            }
+
+            SR = sr;
+        }
+        else 
+        /* 32 * 32 -> 32 multiply */
+        {
+            setDn((opcode2 >> 12) & 7, value);
+
+            /* 
+                Overflow when 32 bit result sign extended to 64 bit differs 
+                directly computed 64-bit result 
+            */
+            if (value != (int64_t)((int32_t)value)) {
+                sr |= SR_Valt;
+            }
+
+            if (value == 0) {
+                sr |= SR_Z;
+            } else if (value < 0) {
+                sr |= SR_N;
+            }
+
+            SR = sr;
+        }
+    }
+    else {
+        uint32_t src = LoadFromEA<Mode, Reg, uint32_t>();
+        uint32_t di = getDn((opcode2 >> 12) & 7);
+        uint64_t value = (uint64_t)di * (uint64_t)src;
+
+        /* 32 * 32 -> 64 multiply */
+        if (opcode2 & (1 << 10)) {
+            setDn(opcode2 & 7, value >> 32);
+            setDn((opcode2 >> 12) & 7, value);
+            
+            if ((int64_t)value == 0) {
+                sr |= SR_Z;
+            } else if ((int64_t)value < 0) {
+                sr |= SR_N;
+            }
+
+            SR = sr;
+        }
+        else 
+        /* 32 * 32 -> 32 multiply */
+        {
+            setDn((opcode2 >> 12) & 7, value);
+
+            if (value >> 32) {
+                sr |= SR_Valt;
+            }
+
+            if ((int64_t)value == 0) {
+                sr |= SR_Z;
+            } else if ((int64_t)value < 0) {
+                sr |= SR_N;
+            }
+
+            SR = sr;
+        }
+    } 
+}
+
+
 #define MOVEM_L_regs_to_An_Addr(reg) \
 void MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
 { \
@@ -736,6 +824,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     FILL_MOD0_reg_only(     04700, EXT_B_to_L);     /* EXTB.L Dn */
 
     FILL_ALL_RD_EAs_no_An_no_size(  06100,  DIVU_L);
+    FILL_ALL_RD_EAs_no_An_no_size(  06000,  MULU_L);
 
     table[04320] =     MOVEM_L_regs_to_A0_Addr;
     table[04321] =     MOVEM_L_regs_to_A1_Addr;
