@@ -297,6 +297,55 @@ static inline std::pair<Type, uint8_t> Asr_WithFlags(Type value, int count)
     return { result, ccr };
 }
 
+template<class Type>
+static inline std::pair<Type, uint8_t> Lsl_WithFlags(Type value, int count)
+{
+    constexpr int W = sizeof(Type) * 8;
+    using UT = std::make_unsigned_t<Type>;
+
+    if (count == 0) {
+        uint8_t ccr = 0;
+        if (value == 0) ccr |= SR_Z;
+        if (value < 0)  ccr |= SR_N;
+        return { value, ccr };
+    }
+
+    uint64_t uv64 = (uint64_t)(UT)value;
+    Type result = (Type)(uv64 << count);
+    uint8_t carry = (uint8_t)(((uv64 << (count - 1)) >> (W - 1)) & 1);
+
+    uint8_t ccr = 0;
+    if (result == 0) ccr |= SR_Z;
+    if (result < 0)  ccr |= SR_N;
+    // V is always 0 for LSL
+    if (carry) ccr |= SR_C;
+    return { result, ccr };
+}
+
+template<class Type>
+static inline std::pair<Type, uint8_t> Lsr_WithFlags(Type value, int count)
+{
+    using UT = std::make_unsigned_t<Type>;
+
+    if (count == 0) {
+        uint8_t ccr = 0;
+        if (value == 0) ccr |= SR_Z;
+        if (value < 0)  ccr |= SR_N;
+        return { value, ccr };
+    }
+
+    uint64_t uv64 = (uint64_t)(UT)value;              // zero-extend, not sign-extend
+    Type result = (Type)(uv64 >> count);               // logical shift, self-saturates to 0
+    uint8_t carry = (uint8_t)((uv64 >> (count - 1)) & 1);
+
+    uint8_t ccr = 0;
+    if (result == 0) ccr |= SR_Z;
+    if (result < 0)  ccr |= SR_N;   // provably always false for count >= 1, harmless to leave uniform
+    // V is always 0 for LSR
+    if (carry) ccr |= SR_C;
+    return { result, ccr };
+}
+
 } // Emu68::M68k::Interpreter
 
 extern "C" {
