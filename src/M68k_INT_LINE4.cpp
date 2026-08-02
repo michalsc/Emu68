@@ -298,7 +298,7 @@ void MOVEC(uint32_t opcode)
         if (opcode & 1)
         {
             // Register to Control Register
-            uint32_t dn = opcode2 & 0x8000 ? getAn(reg) : getDn(reg);
+            uint32_t dn = opcode2 & 0x8000 ? getAn<uint32_t>(reg) : getDn<uint32_t>(reg);
 
             switch(cr)
             {
@@ -381,9 +381,9 @@ void MOVEC(uint32_t opcode)
             }
 
             if (opcode2 & 0x8000) {
-                setAn(reg, val);
+                setAn(reg, (uint32_t)val);
             } else {
-                setDn(reg, val);
+                setDn(reg, (uint32_t)val);
             }
         }
         PC += 4;
@@ -410,18 +410,18 @@ void DIVU_L(uint32_t)
         Exception_F2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
     }
     else {
-        uint32_t dq = getDn((opcode2 >> 12) & 7);
+        uint32_t dq = getDn<uint32_t>((opcode2 >> 12) & 7);
 
         /* 64 / 32 -> 32 divide */
         if (opcode2 & (1 << 10)) {
-            uint64_t value = getDn(opcode2 & 7);
+            uint64_t value = getDn<uint32_t>(opcode2 & 7);
             value = (value << 32) | dq;
 
             /* If reminder register is the same as destination, skip reminder */
             if ((opcode2 & 7) == ((opcode2 >> 12) & 7))
             {
                 value = value / src;
-                setDn((opcode2 >> 12) & 7, value);
+                setDn((opcode2 >> 12) & 7, (uint32_t)value);
             }
             else
             {
@@ -435,8 +435,8 @@ void DIVU_L(uint32_t)
                     return;
                 }
 
-                setDn(opcode2 & 7, rem);
-                setDn((opcode2 >> 12) & 7, value);
+                setDn(opcode2 & 7, (uint32_t)rem);
+                setDn((opcode2 >> 12) & 7, (uint32_t)value);
 
                 if ((int32_t)value == 0) {
                     sr |= SR_Z;
@@ -488,13 +488,13 @@ void MULU_L(uint32_t)
     /* Signed (bit 11 set) or unsigned (bit 11 clear) */
     if (opcode2 & (1 << 11)) {
         int32_t src = LoadFromEA<Mode, Reg, int32_t>();
-        int32_t di = getDn((opcode2 >> 12) & 7);
+        int32_t di = getDn<int32_t>((opcode2 >> 12) & 7);
         int64_t value = (int64_t)di * (int64_t)src;
 
         /* 32 * 32 -> 64 multiply */
         if (opcode2 & (1 << 10)) {
-            setDn(opcode2 & 7, value >> 32);
-            setDn((opcode2 >> 12) & 7, value);
+            setDn(opcode2 & 7, (uint32_t)(value >> 32));
+            setDn((opcode2 >> 12) & 7, (uint32_t)value);
             
             if (value == 0) {
                 sr |= SR_Z;
@@ -507,7 +507,7 @@ void MULU_L(uint32_t)
         else 
         /* 32 * 32 -> 32 multiply */
         {
-            setDn((opcode2 >> 12) & 7, value);
+            setDn((opcode2 >> 12) & 7, (uint32_t)value);
 
             /* 
                 Overflow when 32 bit result sign extended to 64 bit differs 
@@ -528,13 +528,13 @@ void MULU_L(uint32_t)
     }
     else {
         uint32_t src = LoadFromEA<Mode, Reg, uint32_t>();
-        uint32_t di = getDn((opcode2 >> 12) & 7);
+        uint32_t di = getDn<uint32_t>((opcode2 >> 12) & 7);
         uint64_t value = (uint64_t)di * (uint64_t)src;
 
         /* 32 * 32 -> 64 multiply */
         if (opcode2 & (1 << 10)) {
-            setDn(opcode2 & 7, value >> 32);
-            setDn((opcode2 >> 12) & 7, value);
+            setDn(opcode2 & 7, (uint32_t)(value >> 32));
+            setDn((opcode2 >> 12) & 7, (uint32_t)value);
             
             if ((int64_t)value == 0) {
                 sr |= SR_Z;
@@ -547,7 +547,7 @@ void MULU_L(uint32_t)
         else 
         /* 32 * 32 -> 32 multiply */
         {
-            setDn((opcode2 >> 12) & 7, value);
+            setDn((opcode2 >> 12) & 7, (uint32_t)value);
 
             if (value >> 32) {
                 sr |= SR_Valt;

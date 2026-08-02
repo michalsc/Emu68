@@ -288,18 +288,6 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     [0373]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 3, 0, 0 },
     [0374]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 1, 0, 0 },
 
-    [0400 ... 0407] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 0, 1 },
-    [0420 ... 0447] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 0, 1 },
-    [0450 ... 0471] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 1, 1 },
-    [0500 ... 0507] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 0, 2 },
-    [0510 ... 0517] = { EMIT_SUBQ, NULL, 0, 0, 1, 0, 2 },
-    [0520 ... 0547] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 0, 2 },
-    [0550 ... 0571] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 1, 2 },
-    [0600 ... 0607] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 0, 4 },
-    [0610 ... 0617] = { EMIT_SUBQ, NULL, 0, 0, 1, 0, 4 },
-    [0620 ... 0647] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 0, 4 },
-    [0650 ... 0671] = { EMIT_SUBQ, NULL, 0, SR_CCR, 1, 1, 4 },
-
     [0772]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 2, 0, 0},
     [0773]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 3, 0, 0},
     [0774]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 1, 0, 0},
