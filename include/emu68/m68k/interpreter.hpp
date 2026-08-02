@@ -63,7 +63,7 @@ bool EvalCond()
 template<auto...> constexpr bool always_false = false;
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires (Mode >= 2 && Mode < 8 && Reg < 8 && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
+requires (Mode >= 2 && Mode < 8 && Reg < 8 && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4 || sizeof(Type) == 8 || sizeof(Type) == 12))
 uint32_t GetEA()
 {
     if constexpr (Mode == 2) {
@@ -111,6 +111,12 @@ uint32_t GetEA()
             uint32_t ea;
             GetExtendedEffectiveAddress(PC, sizeof(Type), &ea);
             return ea;
+        }
+        else if constexpr (Reg == 4) {
+            if (sizeof(Type) == 1) PC++;
+            uint32_t addr = PC;
+            PC += sizeof(Type);
+            return addr;
         }
         else {
             static_assert(always_false<Reg>, "Mode 7 Reg 4-7 have no addressable EA (immediate/reserved)");
