@@ -10,6 +10,7 @@
 extern "C" {
     #include "M68k.h"
     #include "support.h"
+    #include "disasm.h"
 }
 
 
@@ -19,9 +20,149 @@ extern "C" {
     void M68K_SaveContext(struct M68KState *ctx);
     void M68K_PrintContext(struct M68KState *ctx);
 
-
 }
 
+template<class Type>
+Type getDn(int reg)
+{
+    if constexpr (std::is_same<Type, uint8_t>::value || std::is_same<Type, int8_t>::value) {
+        switch (reg) {
+            case 0: return D0 & 0xff; case 1: return D1 & 0xff;
+            case 2: return D2 & 0xff; case 3: return D3 & 0xff;
+            case 4: return D4 & 0xff; case 5: return D5 & 0xff;
+            case 6: return D6 & 0xff; case 7: return D7 & 0xff;
+        }
+    } else if constexpr (std::is_same<Type, uint16_t>::value || std::is_same<Type, int16_t>::value) {
+        switch (reg) {
+            case 0: return D0 & 0xffff; case 1: return D1 & 0xffff;
+            case 2: return D2 & 0xffff; case 3: return D3 & 0xffff;
+            case 4: return D4 & 0xffff; case 5: return D5 & 0xffff;
+            case 6: return D6 & 0xffff; case 7: return D7 & 0xffff;
+        }
+    } else if constexpr (std::is_same<Type, uint32_t>::value || std::is_same<Type, int32_t>::value) {
+        switch (reg) {
+            case 0: return D0; case 1: return D1;
+            case 2: return D2; case 3: return D3;
+            case 4: return D4; case 5: return D5;
+            case 6: return D6; case 7: return D7;
+        }
+    }
+    __builtin_unreachable();
+}
+
+template BYTE getDn<BYTE>(int);
+template WORD getDn<WORD>(int);
+template LONG getDn<LONG>(int);
+template UBYTE getDn<UBYTE>(int);
+template UWORD getDn<UWORD>(int);
+template ULONG getDn<ULONG>(int);
+
+template<class Type>
+void setDn(int reg, Type val)
+{
+    if constexpr (std::is_same<Type, uint8_t>::value || std::is_same<Type, int8_t>::value) {
+        switch (reg) {
+            case 0: D0 = (D0 & 0xffffff00) | (val & 0xff); break; case 1: D1 = (D1 & 0xffffff00) | (val & 0xff); break;
+            case 2: D2 = (D2 & 0xffffff00) | (val & 0xff); break; case 3: D3 = (D3 & 0xffffff00) | (val & 0xff); break;
+            case 4: D4 = (D4 & 0xffffff00) | (val & 0xff); break; case 5: D5 = (D5 & 0xffffff00) | (val & 0xff); break;
+            case 6: D6 = (D6 & 0xffffff00) | (val & 0xff); break; case 7: D7 = (D7 & 0xffffff00) | (val & 0xff); break;
+        }
+    } else if constexpr (std::is_same<Type, uint16_t>::value || std::is_same<Type, int16_t>::value) {
+        switch (reg) {
+            case 0: D0 = (D0 & 0xffff0000) | (val & 0xffff); break; case 1: D1 = (D1 & 0xffff0000) | (val & 0xffff); break;
+            case 2: D2 = (D2 & 0xffff0000) | (val & 0xffff); break; case 3: D3 = (D3 & 0xffff0000) | (val & 0xffff); break;
+            case 4: D4 = (D4 & 0xffff0000) | (val & 0xffff); break; case 5: D5 = (D5 & 0xffff0000) | (val & 0xffff); break;
+            case 6: D6 = (D6 & 0xffff0000) | (val & 0xffff); break; case 7: D7 = (D7 & 0xffff0000) | (val & 0xffff); break;
+        }
+    } else if constexpr (std::is_same<Type, uint32_t>::value || std::is_same<Type, int32_t>::value) {
+        switch (reg) {
+            case 0: D0 = val; break; case 1: D1 = val; break;
+            case 2: D2 = val; break; case 3: D3 = val; break;
+            case 4: D4 = val; break; case 5: D5 = val; break;
+            case 6: D6 = val; break; case 7: D7 = val; break;
+        }
+    }
+}
+
+template void setDn<BYTE>(int reg, BYTE val);
+template void setDn<WORD>(int reg, WORD val);
+template void setDn<LONG>(int reg, LONG val);
+template void setDn<UBYTE>(int reg, UBYTE val);
+template void setDn<UWORD>(int reg, UWORD val);
+template void setDn<ULONG>(int reg, ULONG val);
+
+template<class Type>
+Type getAn(int reg)
+{
+    switch (reg) {
+        case 0: return (Type)A0; case 1: return (Type)A1;
+        case 2: return (Type)A2; case 3: return (Type)A3;
+        case 4: return (Type)A4; case 5: return (Type)A5;
+        case 6: return (Type)A6; case 7: return (Type)A7;
+    }
+    __builtin_unreachable();
+}
+
+template WORD getAn<WORD>(int reg);
+template LONG getAn<LONG>(int reg);
+template UWORD getAn<UWORD>(int reg);
+template ULONG getAn<ULONG>(int reg);
+
+template<class Type>
+void setAn(int reg, Type value)
+{
+    if constexpr (std::is_same<Type, uint16_t>::value || std::is_same<Type, int16_t>::value) {
+        switch (reg) {
+            case 0: A0 = (int16_t)value; break; case 1: A1 = (int16_t)value; break;
+            case 2: A2 = (int16_t)value; break; case 3: A3 = (int16_t)value; break;
+            case 4: A4 = (int16_t)value; break; case 5: A5 = (int16_t)value; break;
+            case 6: A6 = (int16_t)value; break; case 7: A7 = (int16_t)value; break;
+        }
+    } else if constexpr (std::is_same<Type, uint32_t>::value || std::is_same<Type, int32_t>::value) {
+        switch (reg) {
+            case 0: A0 = value; break; case 1: A1 = value; break;
+            case 2: A2 = value; break; case 3: A3 = value; break;
+            case 4: A4 = value; break; case 5: A5 = value; break;
+            case 6: A6 = value; break; case 7: A7 = value; break;
+        }
+    }
+    __builtin_unreachable();
+}
+
+template void setAn<WORD>(int reg, WORD value);
+template void setAn<LONG>(int reg, LONG value);
+template void setAn<UWORD>(int reg, UWORD value);
+template void setAn<ULONG>(int reg, ULONG value);
+
+template<class Type>
+Type getFPn(int reg)
+{
+    switch (reg) {
+        case 0: return (Type)FP0; case 1: return (Type)FP1;
+        case 2: return (Type)FP2; case 3: return (Type)FP3;
+        case 4: return (Type)FP4; case 5: return (Type)FP5;
+        case 6: return (Type)FP6; case 7: return (Type)FP7;
+    }
+    __builtin_unreachable();
+}
+
+template float getFPn<float>(int reg);
+template double getFPn<double>(int reg);
+
+template<class Type>
+void setFPn(int reg, Type value)
+{
+    switch (reg) {
+        case 0: FP0 = value; break; case 1: FP1 = value; break;
+        case 2: FP2 = value; break; case 3: FP3 = value; break;
+        case 4: FP4 = value; break; case 5: FP5 = value; break;
+        case 6: FP6 = value; break; case 7: FP7 = value; break;
+    }
+    __builtin_unreachable();
+}
+
+template void setFPn<float>(int reg, float value);
+template void setFPn<double>(int reg, double value);
 
 namespace Emu68::M68k::Interpreter {
 
@@ -264,16 +405,18 @@ void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc)
 void UNIMPLEMENTED(uint32_t opcode)
 {
     M68K_SaveContext(getCTX());
+    disasm_open();
     kprintf("[INT] opcode %04x at %08x not implemented\n", opcode, PC);
+    disasm_print_m68k_only((uint16_t*)(uintptr_t)getCTX()->PC);
     M68K_PrintContext(getCTX());
     M68K_LoadContext(getCTX());
 
     Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
 }
 
-void LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t size, void *out)
+void LoadFrom_EA_Mod0(int src_reg, uint8_t size, void *out)
 {
-    uint32_t dn = getDn(src_reg);
+    uint32_t dn = getDn<uint32_t>(src_reg);
 
     switch (size) {
         case 4:
@@ -292,7 +435,7 @@ void LoadFrom_EA_Mod0(uint8_t src_reg, uint8_t size, void *out)
 
 void LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint32_t an = getAn(src_reg);
+    uint32_t an = getAn<uint32_t>(src_reg);
 
     switch (size) {
         case 4:
@@ -308,7 +451,7 @@ void LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
 
 void LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint32_t addr = getAn(src_reg);
+    uint32_t addr = getAn<uint32_t>(src_reg);
 
     switch (size) {
         case 4:
@@ -327,23 +470,23 @@ void LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
 
 void LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint32_t addr = getAn(src_reg);
+    uint32_t addr = getAn<uint32_t>(src_reg);
 
     switch (size) {
         case 4:
             *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
             addr += 4;
-            setAn(src_reg, addr);
+            setAn<uint32_t>(src_reg, addr);
             return;
         case 2:
             *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
             addr += 2;
-            setAn(src_reg, addr);
+            setAn<uint32_t>(src_reg, addr);
             return;
         case 1:
             *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
             addr += (src_reg == 7) ? 2 : 1;
-            setAn(src_reg, addr);
+            setAn<uint32_t>(src_reg, addr);
             return;
     }
 
@@ -352,21 +495,21 @@ void LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
 
 void LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint32_t addr = getAn(src_reg);
+    uint32_t addr = getAn<uint32_t>(src_reg);
     switch (size) {
         case 4:
             addr -= 4;
-            setAn(src_reg, addr);
+            setAn<uint32_t>(src_reg, addr);
             *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
             return;
         case 2:
             addr -= 2;
-            setAn(src_reg, addr);
+            setAn<uint32_t>(src_reg, addr);
             *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
             return;
         case 1:
             addr -= (src_reg == 7) ? 2 : 1;
-            setAn(src_reg, addr);
+            setAn<uint32_t>(src_reg, addr);
             *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
             return;
     }
@@ -376,7 +519,7 @@ void LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
 
 void LoadFrom_EA_Mod5(uint8_t src_reg, uint8_t size, void *out)
 {
-    uint32_t addr = getAn(src_reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getAn<uint32_t>(src_reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
 
     switch (size) {
@@ -426,7 +569,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
         }
 
         if ((ext_word & M68K_EA_IS) == 0) {
-            index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+            index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
 
             if ((ext_word & M68K_EA_WL) == 0) {
                 index_value = (int16_t)index_value;
@@ -482,7 +625,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
     else
     {
         int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
 
         if ((ext_word & M68K_EA_WL) == 0) {
             index_value = (int16_t)index_value;
@@ -509,7 +652,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
 
 void LoadFrom_EA_Mod6(uint8_t src_reg, uint8_t size, void *out)
 {
-    LoadFrom_EA_EXT(getAn(src_reg), size, out);
+    LoadFrom_EA_EXT(getAn<uint32_t>(src_reg), size, out);
 }
 
 void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
@@ -616,34 +759,34 @@ void LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t 
 
 void Get_EA_Mod2(uint8_t src_reg, uint8_t, uint32_t *out)
 {
-    *out = getAn(src_reg);
+    *out = getAn<uint32_t>(src_reg);
 }
 
 void Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
-    uint32_t addr = getAn(src_reg);
+    uint32_t addr = getAn<uint32_t>(src_reg);
     
     *out = addr;
     addr += size;
     if (src_reg == 7 && size == 1) addr++;
 
-    setAn(src_reg, addr);
+    setAn<uint32_t>(src_reg, addr);
 }
 
 void Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
-    uint32_t addr = getAn(src_reg);
+    uint32_t addr = getAn<uint32_t>(src_reg);
 
     addr -= size;
     if (src_reg == 7 && size == 1) addr--;
     *out = addr;
 
-    setAn(src_reg, addr);
+    setAn<uint32_t>(src_reg, addr);
 }
 
 void Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
 {
-    *out = getAn(src_reg) + *(int16_t *)(uintptr_t)PC;
+    *out = getAn<uint32_t>(src_reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
 }
 
@@ -679,7 +822,7 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
         }
 
         if ((ext_word & M68K_EA_IS) == 0) {
-            index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+            index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
 
             if ((ext_word & M68K_EA_WL) == 0) {
                 index_value = (int16_t)index_value;
@@ -723,7 +866,7 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
     else
     {
         int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
 
         if ((ext_word & M68K_EA_WL) == 0) {
             index_value = (int16_t)index_value;
@@ -738,7 +881,7 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
 
 void Get_EA_Mod6(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
-    GetExtendedEffectiveAddress(getAn(src_reg), size, out);
+    GetExtendedEffectiveAddress(getAn<uint32_t>(src_reg), size, out);
 }
 
 void Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
@@ -763,6 +906,11 @@ void Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
     {
         GetExtendedEffectiveAddress(PC, size, out);
     }
+    else if (src_reg == 4)
+    {
+        *out = PC;
+        PC += size;
+    }
     else
     {
         __builtin_unreachable();
@@ -786,13 +934,13 @@ void StoreTo_EA_Mod0(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
     switch (size) {
         case 4:
-            setDn(dst_reg, value);
+            setDn<uint32_t>(dst_reg, value);
             return;
         case 2:
-            setDn(dst_reg, (getDn(dst_reg) & 0xffff0000) | (value & 0x0000ffff));
+            setDn<uint16_t>(dst_reg, value);
             return;
         case 1:
-            setDn(dst_reg, (getDn(dst_reg) & 0xffffff00) | (value & 0x000000ff));
+            setDn<uint8_t>(dst_reg, value);
             return;
     }
 
@@ -806,7 +954,7 @@ void StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
             setAn(dst_reg, value);
             return;
         case 2:
-            setAn(dst_reg, (int16_t)value);
+            setAn<int16_t>(dst_reg, (int16_t)value);
             return;
     }
 
@@ -815,7 +963,7 @@ void StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
 
 void StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
-    uintptr_t addr = getAn(dst_reg);
+    uintptr_t addr = getAn<uint32_t>(dst_reg);
 
     switch (size) {
         case 4:
@@ -834,23 +982,23 @@ void StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
 
 void StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
-    uintptr_t addr = getAn(dst_reg);
+    uintptr_t addr = getAn<uint32_t>(dst_reg);
 
     switch (size) {
         case 4:
             *(uint32_t *)addr = value;
             addr += 4;
-            setAn(dst_reg, addr);
+            setAn<uint32_t>(dst_reg, addr);
             return;
         case 2:
             *(uint16_t *)addr = value;
             addr += 2;
-            setAn(dst_reg, addr);
+            setAn<uint32_t>(dst_reg, addr);
             return;
         case 1:
             *(uint8_t *)addr = value;
             addr += (dst_reg == 7) ? 2 : 1;
-            setAn(dst_reg, addr);
+            setAn<uint32_t>(dst_reg, addr);
             return;
     }
 
@@ -859,22 +1007,22 @@ void StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
 
 void StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
-    uint32_t addr = getAn(dst_reg);
+    uint32_t addr = getAn<uint32_t>(dst_reg);
 
     switch (size) {
         case 4:
             addr -= 4;
-            setAn(dst_reg, addr);
+            setAn<uint32_t>(dst_reg, addr);
             *(uint32_t *)(uintptr_t)addr = value;
             return;
         case 2:
             addr -= 2;
-            setAn(dst_reg, addr);
+            setAn<uint32_t>(dst_reg, addr);
             *(uint16_t *)(uintptr_t)addr = value;
             return;
         case 1:
             addr -= (dst_reg == 7) ? 2 : 1;
-            setAn(dst_reg, addr);
+            setAn<uint32_t>(dst_reg, addr);
             *(uint8_t *)(uintptr_t)addr = value;
             return;
     }
@@ -884,7 +1032,7 @@ void StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
 
 void StoreTo_EA_Mod5(uint8_t dst_reg, uint32_t value, uint8_t size)
 {
-    uint32_t addr = getAn(dst_reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getAn<uint32_t>(dst_reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
 
     switch (size) {
@@ -918,7 +1066,7 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
         uint32_t index_value = 0;
 
         if ((ext_word & M68K_EA_BS) == 0) {
-            An = getAn(dst_reg);
+            An = getAn<uint32_t>(dst_reg);
         }
 
         switch(ext_word & M68K_EA_BD_SIZE) {
@@ -935,7 +1083,7 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
         }
 
         if ((ext_word & M68K_EA_IS) == 0) {
-            index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+            index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
 
             if ((ext_word & M68K_EA_WL) == 0) {
                 index_value = (int16_t)index_value;
@@ -991,9 +1139,9 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
     else
     {
         int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn(index_reg) : getDn(index_reg);
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
         
-        An = getAn(dst_reg);
+        An = getAn<uint32_t>(dst_reg);
 
         if ((ext_word & M68K_EA_WL) == 0) {
             index_value = (int16_t)index_value;
