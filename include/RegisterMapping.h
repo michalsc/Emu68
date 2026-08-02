@@ -23,6 +23,15 @@ register uint32_t A5 asm("w27");
 register uint32_t A6 asm("w28");
 register uint32_t A7 asm("w29");
 
+register double FP0 asm("d8");
+register double FP1 asm("d9");
+register double FP2 asm("d10");
+register double FP3 asm("d11");
+register double FP4 asm("d12");
+register double FP5 asm("d13");
+register double FP6 asm("d14");
+register double FP7 asm("d15");
+
 /* 
     Even though SR is 16 bit, we return and set it as a 32 bit value 
     to make compiler happier
@@ -91,47 +100,18 @@ static inline void setISP(uint32_t isp)
 
 #include <type_traits> 
 
-[[gnu::always_inline]] static inline uint32_t getDn(int reg)
-{
-    switch (reg) {
-        case 0: return D0; case 1: return D1;
-        case 2: return D2; case 3: return D3;
-        case 4: return D4; case 5: return D5;
-        case 6: return D6; case 7: return D7;
-    }
-    __builtin_unreachable();
-}
-
-[[gnu::always_inline]] static inline uint32_t getAn(int reg)
-{
-    switch (reg) {
-        case 0: return A0; case 1: return A1;
-        case 2: return A2; case 3: return A3;
-        case 4: return A4; case 5: return A5;
-        case 6: return A6; case 7: return A7;
-    }
-    __builtin_unreachable();
-}
-
-[[gnu::always_inline]] static inline void setDn(int reg, uint32_t val)
-{
-    switch (reg) {
-        case 0: D0 = val; break; case 1: D1 = val; break;
-        case 2: D2 = val; break; case 3: D3 = val; break;
-        case 4: D4 = val; break; case 5: D5 = val; break;
-        case 6: D6 = val; break; case 7: D7 = val; break;
-    }
-}
-
-[[gnu::always_inline]] static inline void setAn(int reg, uint32_t val)
-{
-    switch (reg) {
-        case 0: A0 = val; break; case 1: A1 = val; break;
-        case 2: A2 = val; break; case 3: A3 = val; break;
-        case 4: A4 = val; break; case 5: A5 = val; break;
-        case 6: A6 = val; break; case 7: A7 = val; break;
-    }
-}
+template<class Type>
+Type getDn(int reg);
+template<class Type>
+void setDn(int reg, Type val);
+template<class Type>
+Type getAn(int reg);
+template<class Type>
+void setAn(int reg, Type val);
+template<class Type>
+Type getFPn(int reg);
+template<class Type>
+void setFPn(int reg, Type val);
 
 template <unsigned reg, class type> requires (reg < 8)
 type constexpr getD()
@@ -217,6 +197,32 @@ void constexpr setA(type value)
         else if constexpr (reg == 6) { A6 = (int16_t)value; }
         else if constexpr (reg == 7) { A7 = (int16_t)value; }
     }
+}
+
+template <unsigned reg, class type> requires (reg < 8)
+type constexpr getFP()
+{
+    if constexpr (reg == 0)      { return (type)FP0; }
+    else if constexpr (reg == 1) { return (type)FP1; }
+    else if constexpr (reg == 2) { return (type)FP2; }
+    else if constexpr (reg == 3) { return (type)FP3; }
+    else if constexpr (reg == 4) { return (type)FP4; }
+    else if constexpr (reg == 5) { return (type)FP5; }
+    else if constexpr (reg == 6) { return (type)FP6; }
+    else if constexpr (reg == 7) { return (type)FP7; }
+}
+
+template <unsigned reg, class type> requires (reg < 8)
+type constexpr setFP(type value)
+{
+    if constexpr (reg == 0)      { FP0 = value; }
+    else if constexpr (reg == 1) { FP1 = value; }
+    else if constexpr (reg == 2) { FP2 = value; }
+    else if constexpr (reg == 3) { FP3 = value; }
+    else if constexpr (reg == 4) { FP4 = value; }
+    else if constexpr (reg == 5) { FP5 = value; }
+    else if constexpr (reg == 6) { FP6 = value; }
+    else if constexpr (reg == 7) { FP7 = value; }
 }
 
 template <auto Get, auto Set>
