@@ -370,7 +370,7 @@ void MOVE(uint32_t)
 }
 
 template<class Type>
-void MOVE_(uint32_t opcode)
+void MOVE_Generic(uint32_t opcode)
 {
     uint8_t SrcMode = (opcode >> 3) & 7;
     uint8_t DstMode = (opcode >> 6) & 7;
@@ -382,8 +382,6 @@ void MOVE_(uint32_t opcode)
     
     LoadFromEffectiveAddress(SrcReg, sizeof(Type), &value, SrcMode );
     StoreToEffectiveAddress(DstReg, value, sizeof(Type), DstMode);
-    //= LoadFromEA<SrcMode, SrcReg, Type>();
-    //StoreToEA<DstMode, DstReg, Type>(value);
 
     if (DstMode != 1) {
         uint32_t sr = SR & ~SR_NZVC;
