@@ -25,6 +25,9 @@ extern "C" {
 typedef int32_t     LONG;
 typedef int16_t     WORD;
 typedef int8_t      BYTE;
+typedef uint32_t    ULONG;
+typedef uint16_t    UWORD;
+typedef uint8_t     UBYTE;
 
 struct M68KLocalState
 {
