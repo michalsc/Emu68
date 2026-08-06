@@ -583,6 +583,62 @@ struct M68KState
 #define CTX_INSN_COUNT  CTX_INSN_COUNT_VN,CTX_INSN_COUNT_SIZE,CTX_INSN_COUNT_POS
 #define CTX_LAST_PC     CTX_LAST_PC_VN,CTX_LAST_PC_SIZE,CTX_LAST_PC_POS
 
+/* FPU constants */
+enum {
+    C_PI = 0,
+    C_PI_2,
+    C_PI_4,
+    C_1_PI,
+    C_2_PI,
+    C_2_SQRTPI,
+    C_1_2PI,
+    C_SQRT2,
+    C_SQRT1_2,
+    C_0_5,
+    C_1_5,
+    C_LOG10_2 = 0x0b,
+    C_E,
+    C_LOG2E,
+    C_LOG10E,
+    C_ZERO,
+    C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
+    C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
+
+    C_SIN_COEFF_SINGLE = 0x1a,
+    C_COS_COEFF_SINGLE = 0x2a,
+
+    C_LN2 = 0x30,
+    C_LN10,
+    C_10P0,
+    C_10P1,
+    C_10P2,
+    C_10P4,
+    C_10P8,
+    C_10P16,
+    C_10P32,
+    C_10P64,
+    C_10P128,
+    C_10P256,
+    C_10P512,
+    C_10P1024,
+    C_10P2048,
+    C_10P4096,
+
+    C_TWO54,
+    C_LN2HI,
+    C_LN2LO,
+    C_LG1,
+    C_LG2,
+    C_LG3,
+    C_LG4,
+    C_LG5,
+    C_LG6,
+    C_LG7
+};
+
+/* FPU constants are stored here */
+extern double const FPUConstants[128];
+
 void EMIT_GetOffsetPC(struct TranslatorContext *ctx, int8_t *offset);
 void EMIT_AdvancePC(struct TranslatorContext *ctx, uint8_t offset);
 void EMIT_FlushPC(struct TranslatorContext *ctx);
@@ -647,6 +703,7 @@ uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
 
 typedef uint32_t (*EMIT_Function)(struct TranslatorContext *ctx, uint16_t opcode);
 typedef void (*INTERPRET_Function)(uint32_t opcode);
+typedef bool (*INTERPRET_FPU_Function)(uint32_t opcode, uint32_t opcode2);
 
 struct OpcodeDef {
     EMIT_Function       od_Emit;

@@ -47,59 +47,8 @@ void get_Save96(struct TranslatorContext *ctx)
     }
 }
 
-enum {
-    C_PI = 0,
-    C_PI_2,
-    C_PI_4,
-    C_1_PI,
-    C_2_PI,
-    C_2_SQRTPI,
-    C_1_2PI,
-    C_SQRT2,
-    C_SQRT1_2,
-    C_0_5,
-    C_1_5,
-    C_LOG10_2 = 0x0b,
-    C_E,
-    C_LOG2E,
-    C_LOG10E,
-    C_ZERO,
-    C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
-    C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
 
-    C_SIN_COEFF_SINGLE = 0x1a,
-    C_COS_COEFF_SINGLE = 0x2a,
-
-    C_LN2 = 0x30,
-    C_LN10,
-    C_10P0,
-    C_10P1,
-    C_10P2,
-    C_10P4,
-    C_10P8,
-    C_10P16,
-    C_10P32,
-    C_10P64,
-    C_10P128,
-    C_10P256,
-    C_10P512,
-    C_10P1024,
-    C_10P2048,
-    C_10P4096,
-
-    C_TWO54,
-    C_LN2HI,
-    C_LN2LO,
-    C_LG1,
-    C_LG2,
-    C_LG3,
-    C_LG4,
-    C_LG5,
-    C_LG6,
-    C_LG7
-};
-
-static double const __attribute__((used)) constants[128] = {
+double const __attribute__((used)) FPUConstants[128] = {
     [C_PI] =        3.14159265358979323846264338327950288, /* Official */
     [C_PI_2] =      1.57079632679489661923132169163975144,
     [C_PI_4] =      0.785398163397448309615660845819875721,
@@ -2122,7 +2071,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             EMIT(ctx, fmov_0(fp_dst));
         }
         else {
-            u.u64 = (uintptr_t)constants;
+            u.u64 = (uintptr_t)FPUConstants;
             EMIT(ctx, 
                 mov64_immed_u16(0, u.u16[3], 0),
                 movk64_immed_u16(0, u.u16[2], 1),
