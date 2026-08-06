@@ -15,6 +15,42 @@ extern "C" {
 namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
+void DIVS_W(uint32_t)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    int16_t src;
+    uint32_t orig_PC = PC;
+
+    PC += 2;
+    src = LoadFromEA<Mode, Reg, int16_t>();
+
+    if (src == 0) {
+        Exception_F2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+    } else {
+        int32_t dval = getD<Dn, int32_t>();
+        int32_t drem;
+
+        dval = dval / (int32_t)src;
+        drem = dval % (int32_t)src;
+
+        if ((int32_t)dval != (int16_t)dval) {
+            SR = (SR & ~SR_Calt) | SR_Valt;
+            return;
+        }
+
+        setD<Dn, uint32_t>((drem << 16) | ((uint32_t)dval & 0xffff));
+
+        if ((int16_t)dval == 0) {
+            sr |= SR_Z;
+        } else if ((int16_t)dval < 0) {
+            sr |= SR_N;
+        }
+
+        SR = sr;
+    }
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
 void DIVU_W(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
@@ -49,7 +85,6 @@ void DIVU_W(uint32_t)
         SR = sr;
     }
 }
-
 
 template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 requires (Mode > 1)
@@ -141,6 +176,15 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
     fill(00000, 07777, UNIMPLEMENTED);
+
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 0);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 1);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 2);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 3);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 4);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 5);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 6);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 7);
 
     FILL_ALL_RD_EAs_no_An_reg(  00300,  DIVU_W, 0);
     FILL_ALL_RD_EAs_no_An_reg(  00300,  DIVU_W, 1);
