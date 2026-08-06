@@ -14,6 +14,51 @@ extern "C" {
 
 namespace Emu68::M68k::Interpreter {
 
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
+void MULU_W(uint32_t)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    uint16_t src;
+
+    PC += 2;
+    src = LoadFromEA<Mode, Reg, uint16_t>();
+
+    uint32_t dval = getD<Dn, uint16_t>() * src;
+
+    setD<Dn, uint32_t>(dval);
+
+    if ((int32_t)dval == 0) {
+        sr |= SR_Z;
+    } else if ((int32_t)dval < 0) {
+        sr |= SR_N;
+    }
+
+    SR = sr;
+}
+
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
+void MULS_W(uint32_t)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    int16_t src;
+
+    PC += 2;
+    src = LoadFromEA<Mode, Reg, int16_t>();
+
+    int32_t dval = getD<Dn, int16_t>() * src;
+
+    setD<Dn, uint32_t>(dval);
+
+    if (dval == 0) {
+        sr |= SR_Z;
+    } else if (dval < 0) {
+        sr |= SR_N;
+    }
+
+    SR = sr;
+}
+
 template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 requires (Mode > 1)
 void AND_Dn_to_EA(uint32_t)
@@ -58,6 +103,30 @@ void AND_EA_to_Dn(uint32_t)
     setD<Dn, Type>(dval);
 }
 
+template<uint8_t Rx, bool RxIsA, uint8_t Ry, bool RyIsA>
+requires (Rx < 8 && Ry < 8)
+void EXG(uint32_t)
+{
+    PC = PC + 2;
+    uint32_t tmp;
+
+    if constexpr (RxIsA && RyIsA) {
+        tmp = getA<Rx, uint32_t>();
+        setA<Rx, uint32_t>(getA<Ry, uint32_t>());
+        setA<Ry, uint32_t>(tmp);
+    }
+    else if constexpr(!RxIsA && !RyIsA) {
+        tmp = getD<Rx, uint32_t>();
+        setD<Rx, uint32_t>(getD<Ry, uint32_t>());
+        setD<Ry, uint32_t>(tmp);
+    }
+    else if constexpr(!RxIsA && RyIsA) {
+        tmp = getD<Rx, uint32_t>();
+        setD<Rx, uint32_t>(getA<Ry, uint32_t>());
+        setA<Ry, uint32_t>(tmp);
+    } else static_assert(false, "RegX must be Dn for EXG.L An, Dn");
+}
+
 #define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA((Is >> 3), Is & 7)] = \
@@ -80,6 +149,22 @@ void AND_EA_to_Dn(uint32_t)
              name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+#define FILL_ALL_RD_EAs_no_An_reg(base_offset, name, reg) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg) + (reg << 9)] = \
+            name<0, Dreg, reg>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7) + (reg << 9)] = \
+             name<2 + (Is >> 3), Is & 7, reg>), ...); \
+    }((base_offset), std::make_index_sequence<45>{});
+
+#define FILL_EXG(base_offset, Ax, Ay) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + (Is & 7) + ((Is >> 3) << 9)] = \
+             EXG<(Is >> 3), Ax, Is & 7, Ay>), ...); \
+    }((base_offset), std::make_index_sequence<64>{});
+
 static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -92,6 +177,28 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
     fill(00000, 07777, UNIMPLEMENTED);
+
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 0);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 1);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 2);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 3);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 4);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 5);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 6);
+    FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 7);
+
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 0);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 1);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 2);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 3);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 4);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 5);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 6);
+    FILL_ALL_RD_EAs_no_An_reg(  00300,  MULU_W, 7);
+
+    FILL_EXG(               00500, false, false);
+    FILL_EXG(               00510, true, true);
+    FILL_EXG(               00610, false, true);
 
     FILL_ALL_RD_EAs_no_An(  00000,  AND_EA_to_Dn, 0,  BYTE);
     FILL_ALL_RD_EAs_no_An(  01000,  AND_EA_to_Dn, 1,  BYTE);
