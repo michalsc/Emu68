@@ -96,6 +96,42 @@ static inline void setISP(uint32_t isp)
     __asm__ volatile("mov " REG_ISP_ASM ", %w0": :"r"(isp));
 }
 
+static inline uint32_t getFPIAR()
+{
+    uint32_t fpiar;
+    __asm__ volatile("umov %w0, " REG_FPIAR_ASM :"=r"(fpiar));
+    return fpiar;
+}
+
+static inline void setFPIAR(uint32_t fpiar)
+{
+    __asm__ volatile("mov " REG_FPIAR_ASM ", %w0": :"r"(fpiar));
+}
+
+static inline uint32_t getFPSR()
+{
+    uint32_t fpsr;
+    __asm__ volatile("umov %w0, " REG_FPSR_ASM :"=r"(fpsr));
+    return fpsr;
+}
+
+static inline void setFPSR(uint32_t fpsr)
+{
+    __asm__ volatile("mov " REG_FPSR_ASM ", %w0": :"r"(fpsr));
+}
+
+static inline uint32_t getFPCR()
+{
+    uint32_t fpcr;
+    __asm__ volatile("umov %w0, " REG_FPCR_ASM :"=r"(fpcr));
+    return fpcr;
+}
+
+static inline void setFPCR(uint32_t fpcr)
+{
+    __asm__ volatile("mov " REG_FPCR_ASM ", %w0": :"r"(fpcr));
+}
+
 #ifdef __cplusplus
 
 #include <type_traits> 
@@ -114,7 +150,7 @@ template<class Type>
 void setFPn(int reg, Type val);
 
 template <unsigned reg, class type> requires (reg < 8)
-type constexpr getD()
+[[gnu::always_inline]] inline type getD()
 {
     if constexpr (reg == 0)      { return (type)D0; }
     else if constexpr (reg == 1) { return (type)D1; }
@@ -127,7 +163,7 @@ type constexpr getD()
 }
 
 template <unsigned reg, class type> requires (reg < 8 && std::is_integral<type>::value && (sizeof(type) == 1 || sizeof(type) == 2 || sizeof(type) == 4))
-void constexpr setD(type value)
+[[gnu::always_inline]] inline void setD(type value)
 {
     if constexpr (sizeof(type) == 4) {
         if constexpr (reg == 0)      { D0 = value; }
@@ -162,7 +198,7 @@ void constexpr setD(type value)
 }
 
 template <unsigned reg, class type> requires (reg < 8 && sizeof(type) > 1)
-type constexpr getA()
+[[gnu::always_inline]] inline type getA()
 {
     if constexpr (reg == 0)      { return (type)A0; }
     else if constexpr (reg == 1) { return (type)A1; }
@@ -175,7 +211,7 @@ type constexpr getA()
 }
 
 template <unsigned reg, class type> requires (reg < 8 && std::is_integral<type>::value && (sizeof(type) == 2 || sizeof(type) == 4))
-void constexpr setA(type value)
+[[gnu::always_inline]] inline void setA(type value)
 {
     if constexpr (sizeof(type) == 4) {
         if constexpr (reg == 0)      { A0 = value; }
@@ -200,7 +236,7 @@ void constexpr setA(type value)
 }
 
 template <unsigned reg, class type> requires (reg < 8)
-type constexpr getFP()
+[[gnu::always_inline]] inline type getFP()
 {
     if constexpr (reg == 0)      { return (type)FP0; }
     else if constexpr (reg == 1) { return (type)FP1; }
@@ -213,7 +249,7 @@ type constexpr getFP()
 }
 
 template <unsigned reg, class type> requires (reg < 8)
-type constexpr setFP(type value)
+[[gnu::always_inline]] inline void setFP(type value)
 {
     if constexpr (reg == 0)      { FP0 = value; }
     else if constexpr (reg == 1) { FP1 = value; }
@@ -243,7 +279,9 @@ struct RegisterProxy {
 };
 
 inline __attribute__((used)) RegisterProxy<getSR,   setSR>   SR;
-//inline RegisterProxy<getFPSR, setFPSR> FPSR;
+inline __attribute__((used)) RegisterProxy<getFPSR, setFPSR> FPSR;
+inline __attribute__((used)) RegisterProxy<getFPCR, setFPCR> FPCR;
+inline __attribute__((used)) RegisterProxy<getFPIAR, setFPIAR> FPIAR;
 inline __attribute__((used)) RegisterProxy<getCACR, setCACR> CACR;
 inline __attribute__((used)) RegisterProxy<getUSP, setUSP> USP;
 inline __attribute__((used)) RegisterProxy<getMSP, setMSP> MSP;
