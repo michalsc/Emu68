@@ -767,21 +767,24 @@ void Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
     uint32_t addr = getAn<uint32_t>(src_reg);
     
     *out = addr;
-    addr += size;
-    if (src_reg == 7 && size == 1) addr++;
+    if (size > 0) {
+        addr += size;
+        if (src_reg == 7 && size == 1) addr++;
 
-    setAn<uint32_t>(src_reg, addr);
+        setAn<uint32_t>(src_reg, addr);
+    }
 }
 
 void Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
     uint32_t addr = getAn<uint32_t>(src_reg);
 
-    addr -= size;
-    if (src_reg == 7 && size == 1) addr--;
+    if (size > 0) {
+        addr -= size;
+        if (src_reg == 7 && size == 1) addr--;
+        setAn<uint32_t>(src_reg, addr);
+    }
     *out = addr;
-
-    setAn<uint32_t>(src_reg, addr);
 }
 
 void Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
