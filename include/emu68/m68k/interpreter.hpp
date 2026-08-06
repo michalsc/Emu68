@@ -62,6 +62,8 @@ bool EvalCond()
 
 template<auto...> constexpr bool always_false = false;
 
+#define DEFAULT 255
+
 template<uint8_t Mode, uint8_t Reg, class Type>
 requires (Mode >= 2 && Mode < 8 && Reg < 8 && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4 || sizeof(Type) == 8 || sizeof(Type) == 12))
 uint32_t GetEA()
