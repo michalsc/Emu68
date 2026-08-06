@@ -66,6 +66,7 @@ void setDn(int reg, Type val)
             case 2: D2 = (D2 & 0xffffff00) | (val & 0xff); break; case 3: D3 = (D3 & 0xffffff00) | (val & 0xff); break;
             case 4: D4 = (D4 & 0xffffff00) | (val & 0xff); break; case 5: D5 = (D5 & 0xffffff00) | (val & 0xff); break;
             case 6: D6 = (D6 & 0xffffff00) | (val & 0xff); break; case 7: D7 = (D7 & 0xffffff00) | (val & 0xff); break;
+            default: __builtin_unreachable();
         }
     } else if constexpr (std::is_same<Type, uint16_t>::value || std::is_same<Type, int16_t>::value) {
         switch (reg) {
@@ -73,6 +74,7 @@ void setDn(int reg, Type val)
             case 2: D2 = (D2 & 0xffff0000) | (val & 0xffff); break; case 3: D3 = (D3 & 0xffff0000) | (val & 0xffff); break;
             case 4: D4 = (D4 & 0xffff0000) | (val & 0xffff); break; case 5: D5 = (D5 & 0xffff0000) | (val & 0xffff); break;
             case 6: D6 = (D6 & 0xffff0000) | (val & 0xffff); break; case 7: D7 = (D7 & 0xffff0000) | (val & 0xffff); break;
+            default: __builtin_unreachable();
         }
     } else if constexpr (std::is_same<Type, uint32_t>::value || std::is_same<Type, int32_t>::value) {
         switch (reg) {
@@ -80,6 +82,7 @@ void setDn(int reg, Type val)
             case 2: D2 = val; break; case 3: D3 = val; break;
             case 4: D4 = val; break; case 5: D5 = val; break;
             case 6: D6 = val; break; case 7: D7 = val; break;
+            default: __builtin_unreachable();
         }
     }
 }
@@ -117,6 +120,7 @@ void setAn(int reg, Type value)
             case 2: A2 = (int16_t)value; break; case 3: A3 = (int16_t)value; break;
             case 4: A4 = (int16_t)value; break; case 5: A5 = (int16_t)value; break;
             case 6: A6 = (int16_t)value; break; case 7: A7 = (int16_t)value; break;
+            default: __builtin_unreachable();
         }
     } else if constexpr (std::is_same<Type, uint32_t>::value || std::is_same<Type, int32_t>::value) {
         switch (reg) {
@@ -124,9 +128,9 @@ void setAn(int reg, Type value)
             case 2: A2 = value; break; case 3: A3 = value; break;
             case 4: A4 = value; break; case 5: A5 = value; break;
             case 6: A6 = value; break; case 7: A7 = value; break;
+            default: __builtin_unreachable();
         }
     }
-    __builtin_unreachable();
 }
 
 template void setAn<WORD>(int reg, WORD value);
@@ -157,8 +161,8 @@ void setFPn(int reg, Type value)
         case 2: FP2 = value; break; case 3: FP3 = value; break;
         case 4: FP4 = value; break; case 5: FP5 = value; break;
         case 6: FP6 = value; break; case 7: FP7 = value; break;
+        default: __builtin_unreachable();
     }
-    __builtin_unreachable();
 }
 
 template void setFPn<float>(int reg, float value);
