@@ -696,7 +696,7 @@ bool FMOVE_EA_to_Sys(uint32_t opcode, uint32_t opcode2)
     /* If instruction was handled and FPCR was updated, set ARM fpcr to adjust rounding */
     if (handled && (reglist & 4)) {
         uint64_t arm_fpcr;
-        uint32_t fpcr = (FPCR >> 4) & 2; /* Extract rounding bits from m68k FPCR */
+        uint32_t fpcr = (FPCR >> 4) & 3; /* Extract rounding bits from m68k FPCR */
 
         asm volatile("mrs %0, FPCR":"=r"(arm_fpcr));
 
