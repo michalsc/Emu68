@@ -43,20 +43,25 @@ bool EvalCond()
     else if constexpr (InstCC == M_CC_F) { return false; }
     else {
         const uint8_t cc = SR & 0x0f;
-        if constexpr (InstCC == M_CC_HI) { return (cc & (SR_Calt | SR_Z)) == 0; }
-        else if constexpr (InstCC == M_CC_LS) { return (cc & (SR_Calt | SR_Z)) != 0; }
-        else if constexpr (InstCC == M_CC_CC) { return (cc & SR_Calt) == 0; }
-        else if constexpr (InstCC == M_CC_CS) { return (cc & SR_Calt) != 0; }
-        else if constexpr (InstCC == M_CC_NE) { return (cc & SR_Z) == 0; }
-        else if constexpr (InstCC == M_CC_EQ) { return (cc & SR_Z) != 0; }
-        else if constexpr (InstCC == M_CC_VC) { return (cc & SR_Valt) == 0; }
-        else if constexpr (InstCC == M_CC_VS) { return (cc & SR_Valt) != 0; }
-        else if constexpr (InstCC == M_CC_PL) { return (cc & SR_N) == 0; }
-        else if constexpr (InstCC == M_CC_MI) { return (cc & SR_N) != 0; }
-        else if constexpr (InstCC == M_CC_GE) { return ((cc & SR_N) >> 3) == ((cc & SR_Valt) >> 1); }
-        else if constexpr (InstCC == M_CC_LT) { return ((cc & SR_N) >> 3) != ((cc & SR_Valt) >> 1); }
-        else if constexpr (InstCC == M_CC_GT) { return ((cc & SR_Z) == 0) && (((cc & SR_N) >> 3) == ((cc & SR_Valt) >> 1)); }
-        else if constexpr (InstCC == M_CC_LE) { return ((cc & SR_Z) != 0) || (((cc & SR_N) >> 3) != ((cc & SR_Valt) >> 1)); }
+        const bool c = (cc & SR_Calt) != 0;
+        const bool z = (cc & SR_Z)    != 0;
+        const bool v = (cc & SR_Valt) != 0;
+        const bool n = (cc & SR_N)    != 0;
+
+        if constexpr (InstCC == M_CC_HI)      { return !c && !z; }
+        else if constexpr (InstCC == M_CC_LS) { return c || z; }
+        else if constexpr (InstCC == M_CC_CC) { return !c; }
+        else if constexpr (InstCC == M_CC_CS) { return c; }
+        else if constexpr (InstCC == M_CC_NE) { return !z; }
+        else if constexpr (InstCC == M_CC_EQ) { return z; }
+        else if constexpr (InstCC == M_CC_VC) { return !v; }
+        else if constexpr (InstCC == M_CC_VS) { return v; }
+        else if constexpr (InstCC == M_CC_PL) { return !n; }
+        else if constexpr (InstCC == M_CC_MI) { return n; }
+        else if constexpr (InstCC == M_CC_GE) { return n == v; }
+        else if constexpr (InstCC == M_CC_LT) { return n != v; }
+        else if constexpr (InstCC == M_CC_GT) { return !z && (n == v); }
+        else if constexpr (InstCC == M_CC_LE) { return z || (n != v); }
     }
 }
 
