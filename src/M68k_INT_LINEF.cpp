@@ -67,7 +67,7 @@ namespace Emu68::M68k::Interpreter {
     asm volatile("msr FPCR, %0"::"r"(0));
 }
 
-[[gnu::always_inline]] inline void UpdateFlagsFPU(double value)
+[[gnu::noinline]]  void UpdateFlagsFPU(double value)
 {
     uint32_t fpsr = FPSR;
     uint64_t tmp;
@@ -79,6 +79,15 @@ namespace Emu68::M68k::Interpreter {
         "orr    %w0, %w0, %w1, LSR #4  \n\t"
         :"=r"(fpsr),"=r"(tmp):"y"(value),"0"(fpsr):"cc");
     FPSR = fpsr;
+}
+
+[[gnu::always_inline]] inline double RoundToSingle(double value)
+{
+    float f;
+    asm volatile("fcvt %s0, %d1" : "=w"(f) : "w"(value));
+    double result;
+    asm volatile("fcvt %d0, %s1" : "=w"(result) : "w"(f));
+    return result;
 }
 
 template<uint8_t Mode = DEFAULT, uint8_t Reg = DEFAULT>
@@ -122,7 +131,7 @@ bool UNIMPLEMENTED(uint32_t opcode, uint32_t)
     return 0;
 }
 
-[[gnu::noinline]] double LoadFromEA(uint32_t mode, uint32_t reg, uint32_t format)
+[[gnu::noinline]] bool LoadFromEA(uint32_t mode, uint32_t reg, uint32_t format, double& out)
 {
     union {
         uint64_t u64;
@@ -130,7 +139,6 @@ bool UNIMPLEMENTED(uint32_t opcode, uint32_t)
     } u;
     packed_t p;
     uint32_t addr = 0;
-    double value = 0.0;
     uint8_t size = 0;
 
     switch(format) {
@@ -143,32 +151,38 @@ bool UNIMPLEMENTED(uint32_t opcode, uint32_t)
         case 6: size = 1; break;    /* char */
     }
 
+    /* Load from Dn allowed only if type is char, short, int or single */
     if (mode == 0 && (format == 0 || format == 1 || format == 4 || format == 6)) {
         union {
             uint32_t u32;
             float f;
         } u32;
         switch (format) {
-            case 0: return (double)getDn<int32_t>(reg);
-            case 1: u32.u32 = getDn<int32_t>(reg); return u32.f;
-            case 4: return (double)getDn<int16_t>(reg);
-            case 6: return (double)getDn<int8_t>(reg);
+            case 0: out = (double)getDn<int32_t>(reg); return true;
+            case 1: u32.u32 = getDn<int32_t>(reg); out = u32.f; return true;
+            case 4: out = (double)getDn<int16_t>(reg); return true;
+            case 6: out = (double)getDn<int8_t>(reg); return true;
         }
+    }
+
+    /* Anything else with mode 0 or mode 1 is a reserved/illegal encoding. */
+    if (mode < 2) {
+        return false;
     }
 
     GetEffectiveAddress(reg, size, &addr, mode);
 
     switch(format) {
-        case 0: value = *(int32_t *)(uintptr_t)addr; break;
-        case 1: value = *(float *)(uintptr_t)addr; break;
-        case 2: u.u64 = Load96bit(0, addr); value = u.d; break;
-        case 3: p = *(packed_t *)(uintptr_t)addr; value = PackedToDouble(p); break;
-        case 4: value = *(int16_t *)(uintptr_t)addr; break;
-        case 5: value = *(double *)(uintptr_t)addr; break;
-        case 6: value = *(int8_t *)(uintptr_t)addr; break;
+        case 0: out = *(int32_t *)(uintptr_t)addr; break;
+        case 1: out = *(float *)(uintptr_t)addr; break;
+        case 2: u.u64 = Load96bit(0, addr); out = u.d; break;
+        case 3: p = *(packed_t *)(uintptr_t)addr; out = PackedToDouble(p); break;
+        case 4: out = *(int16_t *)(uintptr_t)addr; break;
+        case 5: out = *(double *)(uintptr_t)addr; break;
+        case 6: out = *(int8_t *)(uintptr_t)addr; break;
     }
 
-    return value;
+    return true;
 }
 
 template<bool LongJump, uint8_t InstCC>
@@ -200,21 +214,17 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 {
     uint8_t src = (SrcReg == DEFAULT) ? (opcode2 >> 10) & 7 : SrcReg;
     uint8_t dst = (DstReg == DEFAULT) ? (opcode2 >> 7) & 7 : DstReg;
-    bool handled = true;
     double value;
 
     if constexpr (RegToReg) {
         if constexpr (DstReg == DEFAULT) {
             value = modify(getFPn<double>(src));
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFPn<double>(dst, value);
         } else if constexpr (SrcReg == DEFAULT) {
             value = modify(getFPn<double>(src));
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
         } else {
             value = modify(getFP<SrcReg, double>());
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
         }
     } else {
@@ -222,9 +232,9 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
         uint32_t reg = opcode & 7;
         uint32_t format = (opcode2 >> 10) & 7;
 
-        value = modify(LoadFromEA(mode, reg, format));
-
-        UpdateFlagsFPU(value);
+        if (!LoadFromEA(mode, reg, format, value)) return false;
+        
+        value = modify(value);
 
         if constexpr (DstReg == DEFAULT) {
             if constexpr (UpdateDst) setFPn<double>(dst, value);
@@ -233,7 +243,9 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
         }
     }
 
-    return handled;
+    UpdateFlagsFPU(value);
+
+    return true;
 }
 
 template<bool RegToReg, uint8_t DstReg, uint8_t SrcReg, bool UpdateDst = true, class Fn>
@@ -241,21 +253,17 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 {
     uint8_t src = (SrcReg == DEFAULT) ? (opcode2 >> 10) & 7 : SrcReg;
     uint8_t dst = (DstReg == DEFAULT) ? (opcode2 >> 7) & 7 : DstReg;
-    bool handled = true;
     double value;
 
     if constexpr (RegToReg) {
         if constexpr (DstReg == DEFAULT) {
             value = modify(getFPn<double>(src), getFPn<double>(dst));
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFPn<double>(dst, value);
         } else if constexpr (SrcReg == DEFAULT) {
             value = modify(getFPn<double>(src), getFP<DstReg, double>());
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
         } else {
             value = modify(getFP<SrcReg, double>(), getFP<DstReg, double>());
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
         }
     } else {
@@ -263,20 +271,20 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
         uint32_t reg = opcode & 7;
         uint32_t format = (opcode2 >> 10) & 7;
 
-        value = LoadFromEA(mode, reg, format);
+        if (!LoadFromEA(mode, reg, format, value)) return false;
 
         if constexpr (DstReg == DEFAULT) {
             value = modify(value, getFPn<double>(dst));
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFPn<double>(dst, value);
         } else {
             value = modify(value, getFP<DstReg, double>());
-            UpdateFlagsFPU(value);
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
         }
     }
 
-    return handled;
+    UpdateFlagsFPU(value);
+
+    return true;
 }
 
 /* Dyadic operations */
@@ -328,8 +336,6 @@ bool FABS(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { asm volatile("fabs %d0, %d0" : "=w"(value) : "0"(value)); return value; });
 }
-
-template bool FABS<true, 0, 0>(uint32_t opcode, uint32_t opcode2);
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
 bool FACOS(uint32_t opcode, uint32_t opcode2)
@@ -563,7 +569,6 @@ bool FMOVEM_to_EA(uint32_t opcode, uint32_t opcode2)
 
     return true;
 }
-
 
 bool FMOVEM_from_EA(uint32_t opcode, uint32_t opcode2)
 {
@@ -847,10 +852,6 @@ void HandleGeneralType(uint32_t opcode)
     uint8_t ry = (opcode2 >> 7) & 7;
     uint8_t extension = opcode2 & 0x7f;
     bool handled = false;
-
-    (void)opclass;
-    (void)rx;
-    (void)ry;
 
     PC += 4;
 
