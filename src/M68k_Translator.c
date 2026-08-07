@@ -1131,17 +1131,19 @@ void M68K_DumpStats()
     }
     kprintf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
 
-    uint32_t mean = 100 * (arm_count);
-    mean = mean / m68k_count;
-    uint32_t mean_n = mean / 100;
-    uint32_t mean_f = mean % 100;
-    kprintf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    if (m68k_count > 0) {
+        uint32_t mean = 100 * (arm_count);
+        mean = mean / m68k_count;
+        uint32_t mean_n = mean / 100;
+        uint32_t mean_f = mean % 100;
+        kprintf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
 
-    mean = 100 * (total_arm_count);
-    mean = mean / m68k_count;
-    mean_n = mean / 100;
-    mean_f = mean % 100;
-    kprintf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+        mean = 100 * (total_arm_count);
+        mean = mean / m68k_count;
+        mean_n = mean / 100;
+        mean_f = mean % 100;
+        kprintf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    }
 }
 
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx)
