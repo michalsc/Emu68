@@ -60,6 +60,50 @@ bool EvalCond()
     }
 }
 
+template<uint8_t InstCC> requires (InstCC < 32)
+bool EvalCondFPU()
+{
+    if constexpr (InstCC == F_CC_T) { return true; }
+    else if constexpr (InstCC == F_CC_ST) { return true; }
+    else if constexpr (InstCC == F_CC_F) { return false; }
+    else if constexpr (InstCC == F_CC_SF) { return false; }
+    else {
+        const uint32_t cc = FPSR;
+        const bool n   = (cc & FPSRF_N)   != 0;
+        const bool z   = (cc & FPSRF_Z)   != 0;
+        const bool nan = (cc & FPSRF_NAN) != 0;
+
+        if constexpr (InstCC == F_CC_EQ)        { return z; }
+        else if constexpr (InstCC == F_CC_SEQ)  { return z; }
+        else if constexpr (InstCC == F_CC_NE)   { return !z; }
+        else if constexpr (InstCC == F_CC_SNE)  { return !z; }
+        else if constexpr (InstCC == F_CC_OR)   { return !nan; }
+        else if constexpr (InstCC == F_CC_UN)   { return nan; }
+        else if constexpr (InstCC == F_CC_GT)   { return !nan && !z && !n; } 
+        else if constexpr (InstCC == F_CC_NGT)  { return nan || z || n; }
+        else if constexpr (InstCC == F_CC_OGT)  { return !nan && !z && !n; } 
+        else if constexpr (InstCC == F_CC_ULE)  { return nan || z || n; }
+        else if constexpr (InstCC == F_CC_GL)   { return !nan && !z; }
+        else if constexpr (InstCC == F_CC_NGL)  { return nan || z; }
+        else if constexpr (InstCC == F_CC_OGL)  { return !nan && !z; }
+        else if constexpr (InstCC == F_CC_UEQ)  { return nan || z; }
+        else if constexpr (InstCC == F_CC_GE)   { return z || (!nan && !n); }
+        else if constexpr (InstCC == F_CC_NGE)  { return nan || (n && !z); }
+        else if constexpr (InstCC == F_CC_LT)   { return !nan && n && !z; }
+        else if constexpr (InstCC == F_CC_NLT)  { return nan || z || !n; }
+        else if constexpr (InstCC == F_CC_LE)   { return !nan && (n || z); }
+        else if constexpr (InstCC == F_CC_NLE)  { return nan || (!z && !n); }
+        else if constexpr (InstCC == F_CC_GLE)  { return !nan; }
+        else if constexpr (InstCC == F_CC_NGLE) { return nan; }
+        else if constexpr (InstCC == F_CC_OGE)  { return z || (!nan && !n); }
+        else if constexpr (InstCC == F_CC_ULT)  { return nan || (n && !z); }
+        else if constexpr (InstCC == F_CC_OLT)  { return !nan && n && !z; }
+        else if constexpr (InstCC == F_CC_UGE)  { return nan || z || !n; }
+        else if constexpr (InstCC == F_CC_OLE)  { return !nan && (n || z); }
+        else if constexpr (InstCC == F_CC_UGT)  { return nan || (!n && !z); }
+    }
+}
+
 template<auto...> constexpr bool always_false = false;
 
 #define DEFAULT 255
