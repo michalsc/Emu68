@@ -395,6 +395,11 @@ struct M68KState
 #define FPSRB_I     25
 #define FPSRB_NAN   24
 
+#define FPSRF_N     (1 << FPSRB_N)
+#define FPSRF_Z     (1 << FPSRB_Z)
+#define FPSRF_I     (1 << FPSRB_I)
+#define FPSRF_NAN   (1 << FPSRB_NAN)
+
 // Set in host flags when NZCV aarch64 are synced with FPU flags
 #define FP_FLAGS    0x80
 
