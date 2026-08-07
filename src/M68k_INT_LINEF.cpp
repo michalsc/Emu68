@@ -289,10 +289,14 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 
 /* Dyadic operations */
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
 bool FADD(uint32_t opcode, uint32_t opcode2)
 {
-    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { return op1 + op2; });
+    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
+        double result = op1 + op2; 
+        if constexpr (SingleRounding) result = RoundToSingle(result);
+        return result;
+    });
 }
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
@@ -301,18 +305,26 @@ bool FCMP(uint32_t opcode, uint32_t opcode2)
     return DYADIC<RegToReg, DstReg, SrcReg, false>(opcode, opcode2, [](double op1, double op2) -> double { return op2 - op1; });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
 bool FDIV(uint32_t opcode, uint32_t opcode2)
 {
-    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { return op2 / op1; });
+    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
+        double result = op2 / op1; 
+        if constexpr (SingleRounding) result = RoundToSingle(result);
+        return result;
+    });
 }
 
 // FMOD
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
 bool FMUL(uint32_t opcode, uint32_t opcode2)
 {
-    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { return op2 * op1; });
+    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
+        double result = op2 * op1; 
+        if constexpr (SingleRounding) result = RoundToSingle(result);
+        return result;
+    });
 }
 
 // FREM
@@ -323,10 +335,14 @@ bool FMUL(uint32_t opcode, uint32_t opcode2)
 
 // FSGLMUL
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
 bool FSUB(uint32_t opcode, uint32_t opcode2)
 {
-    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { return op2 - op1; });
+    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
+        double result = op2 - op1; 
+        if constexpr (SingleRounding) result = RoundToSingle(result);
+        return result;
+    });
 }
 
 /* Monadic operations */
@@ -425,16 +441,22 @@ bool FLOGNP1(uint32_t opcode, uint32_t opcode2)
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return log1p(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
 bool FMOVE(uint32_t opcode, uint32_t opcode2)
 {
-    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return value; });
+    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { 
+        if constexpr (SingleRounding) return RoundToSingle(value);
+        else return value;
+    });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
 bool FNEG(uint32_t opcode, uint32_t opcode2)
 {
-    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return -value; });
+    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { 
+        if constexpr (SingleRounding) return RoundToSingle(-value);
+        else return -value;
+    });
 }
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
@@ -808,33 +830,33 @@ static consteval std::array<INTERPRET_FPU_Function, 128> BuildExtensionFieldServ
     table[0x18] = FABS<RegToReg>;
     table[0x19] = FCOSH<RegToReg>;
     table[0x1A] = FNEG<RegToReg>;
-    table[0x5A] = FNEG<RegToReg>;   // FSNEG
+    table[0x5A] = FNEG<RegToReg, DEFAULT, DEFAULT, true>;   // FSNEG
     table[0x5E] = FNEG<RegToReg>;   // FDNEG
     table[0x1C] = FACOS<RegToReg>;
     table[0x1D] = FCOS<RegToReg>;
     //table[0x1E] = FGETEXP<RegToReg>;
     //table[0x1F] = FGETMAN<RegToReg>;
     table[0x20] = FDIV<RegToReg>;
-    table[0x60] = FDIV<RegToReg>;   // FSDIV
+    table[0x60] = FDIV<RegToReg, DEFAULT, DEFAULT, true>;   // FSDIV
     table[0x64] = FDIV<RegToReg>;   // FDDIV
     //table[0x21] = FMOD<RegToReg>;
     table[0x22] = FADD<RegToReg>;
-    table[0x62] = FADD<RegToReg>;   // FSADD
+    table[0x62] = FADD<RegToReg, DEFAULT, DEFAULT, true>;   // FSADD
     table[0x66] = FADD<RegToReg>;   // FDADD
     table[0x23] = FMUL<RegToReg>;
-    table[0x63] = FMUL<RegToReg>;   // FSMUL
+    table[0x63] = FMUL<RegToReg, DEFAULT, DEFAULT, true>;   // FSMUL
     table[0x67] = FMUL<RegToReg>;   // FDMUL
     //table[0x24] = FSGLDIV<RegToReg>;
     //table[0x25] = FREM<RegToReg>;
     //table[0x26] = FSCALE<RegToReg>;
     //table[0x27] = FSGLMUL<RegToReg>;
     table[0x28] = FSUB<RegToReg>;
-    table[0x68] = FSUB<RegToReg>;   // FSSUB
+    table[0x68] = FSUB<RegToReg, DEFAULT, DEFAULT, true>;   // FSSUB
     table[0x6c] = FSUB<RegToReg>;   // FDSUB
     /* table[0x30..0x37] = FSINCOS */
     table[0x38] = FCMP<RegToReg>;
     table[0x3A] = FTST<RegToReg>;
-    table[0x40] = FMOVE<RegToReg>; // FSMOVE
+    table[0x40] = FMOVE<RegToReg, DEFAULT, DEFAULT, true>; // FSMOVE
     table[0x44] = FMOVE<RegToReg>; // FDMOVE
     
 
