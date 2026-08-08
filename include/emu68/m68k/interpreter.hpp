@@ -1,5 +1,4 @@
-#ifndef _EMU68_M68K_INTERPRETER_HPP_
-#define _EMU68_M68K_INTERPRETER_HPP_
+#pragma once
 
 #ifdef __cplusplus
 #include <cstdint>
@@ -13,31 +12,42 @@
 
 #define _REGLOCK_H
 extern "C" {
-    #include "M68k.h"
-    #include "support.h"
+#include "M68k.h"
+#include "support.h"
 }
 #include "RegisterMapping.h"
 
 namespace Emu68::M68k::Interpreter {
 
-#define I_SIZE_BYTE   1
-#define I_SIZE_WORD   2
-#define I_SIZE_LONG   4
+void exceptionF0(uint32_t exception);
+void exceptionF1(uint32_t exception);
+void exceptionF2(uint32_t exception, uint32_t ea);
+void exceptionF3(uint32_t exception, uint32_t ea);
+void exceptionF4(uint32_t exception, uint32_t ea, uint32_t pc);
+void loadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode);
+void storeToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode);
+void getEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode);
+void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out);
+void handleChangedSR(uint32_t sr, uint32_t changed);
+void ILLEGAL(uint32_t opcode);
 
-void Exception_F0(uint32_t exception);
-void Exception_F1(uint32_t exception);
-void Exception_F2(uint32_t exception, uint32_t ea);
-void Exception_F3(uint32_t exception, uint32_t ea);
-void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc);
-void LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode);
-void StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode);
-void GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode);
-void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out);
-void HandleChangedSR(uint32_t sr, uint32_t changed);
-void UNIMPLEMENTED(uint32_t opcode);
+enum class EAClass : uint8_t {
+    Dn, An, Ind, IndPost, IndPre, D16An, D8AnXn,   // modes 0..6
+    AbsW, AbsL, D16PC, D8PCXn, Imm                 // mode 7, reg 0..4
+};
+
+constexpr EAClass classifyEA(unsigned mode, unsigned reg) {
+    if (mode < 7) return static_cast<EAClass>(mode);
+    constexpr EAClass sub[5] = {
+        EAClass::AbsW, EAClass::AbsL, EAClass::D16PC, EAClass::D8PCXn, EAClass::Imm
+    };
+    return sub[reg];
+}
+
+constexpr uint32_t classBit(EAClass c) { return 1u << static_cast<unsigned>(c); }
 
 template<uint8_t InstCC> requires (InstCC < 16)
-bool EvalCond()
+bool evalCond()
 {
     if constexpr (InstCC == M_CC_T) { return true; }
     else if constexpr (InstCC == M_CC_F) { return false; }
@@ -66,7 +76,7 @@ bool EvalCond()
 }
 
 template<uint8_t InstCC> requires (InstCC < 32)
-bool EvalCondFPU()
+bool evalCondFPU()
 {
     if constexpr (InstCC == F_CC_T) { return true; }
     else if constexpr (InstCC == F_CC_ST) { return true; }
@@ -109,136 +119,122 @@ bool EvalCondFPU()
     }
 }
 
-template<auto...> constexpr bool always_false = false;
+template<auto...> constexpr bool ALWAYS_FALSE = false;
 
 #define DEFAULT 255
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires (Mode >= 2 && Mode < 8 && Reg < 8 && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4 || sizeof(Type) == 8 || sizeof(Type) == 12))
-uint32_t GetEA()
+requires (Mode >= 2 && Mode < 8 && Reg < 8 && 
+          (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4 ||
+           sizeof(Type) == 8 || sizeof(Type) == 12))
+uint32_t getEA()
 {
     if constexpr (Mode == 2) {
         return getA<Reg, uint32_t>();
-    }
-    else if constexpr (Mode == 3) {
+    } else if constexpr (Mode == 3) {
         uint32_t addr = getA<Reg, uint32_t>();
         uint32_t next = addr + sizeof(Type) + ((sizeof(Type) == 1 && Reg == 7) ? 1 : 0);
         setA<Reg, uint32_t>(next);
         return addr;
-    }
-    else if constexpr (Mode == 4) {
+    } else if constexpr (Mode == 4) {
         uint32_t addr = getA<Reg, uint32_t>() - sizeof(Type) - ((sizeof(Type) == 1 && Reg == 7) ? 1 : 0);
         setA<Reg, uint32_t>(addr);
         return addr;
-    }
-    else if constexpr (Mode == 5) {
+    } else if constexpr (Mode == 5) {
         uint32_t addr = getA<Reg, uint32_t>() + *(int16_t *)(uintptr_t)PC;
         PC += 2;
         return addr;
-    }
-    else if constexpr (Mode == 6) {
+    } else if constexpr (Mode == 6) {
         uint32_t ea;
-        GetExtendedEffectiveAddress(getA<Reg, uint32_t>(), sizeof(Type), &ea);
+        getExtendedEffectiveAddress(getA<Reg, uint32_t>(), sizeof(Type), &ea);
         return ea;
-    }
-    else if constexpr (Mode == 7) {
+    } else if constexpr (Mode == 7) {
         if constexpr (Reg == 0) {
             uint32_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
             PC += 2;
             return addr;
-        }
-        else if constexpr (Reg == 1) {
+        } else if constexpr (Reg == 1) {
             uint32_t addr = *(uint32_t *)(uintptr_t)PC;
             PC += 4;
             return addr;
-        }
-        else if constexpr (Reg == 2) {
+        } else if constexpr (Reg == 2) {
             int16_t off = *(int16_t *)(uintptr_t)PC;
             uint32_t addr = (uint32_t)(uintptr_t)PC + off;
             PC += 2;
             return addr;
-        }
-        else if constexpr (Reg == 3) {
+        } else if constexpr (Reg == 3) {
             uint32_t ea;
-            GetExtendedEffectiveAddress(PC, sizeof(Type), &ea);
+            getExtendedEffectiveAddress(PC, sizeof(Type), &ea);
             return ea;
-        }
-        else if constexpr (Reg == 4) {
+        } else if constexpr (Reg == 4) {
             if (sizeof(Type) == 1) PC++;
             uint32_t addr = PC;
             PC += sizeof(Type);
             return addr;
-        }
-        else {
-            static_assert(always_false<Reg>, "Mode 7 Reg 4-7 have no addressable EA (immediate/reserved)");
+        } else {
+            static_assert(ALWAYS_FALSE<Reg>, "Mode 7 Reg 4-7 have no addressable EA (immediate/reserved)");
         }
     }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
 requires (Mode < 8 && Reg < 8 && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
-Type LoadFromEA()
+Type loadFromEA()
 {
     if constexpr (Mode == 0) {
         return getD<Reg, Type>();
-    }
-    else if constexpr (Mode == 1) {
+    } else if constexpr (Mode == 1) {
         return getA<Reg, Type>();
-    }
-    else if constexpr (Mode == 7 && Reg == 4) {
+    } else if constexpr (Mode == 7 && Reg == 4) {
         // immediate: lives inline in the instruction stream, not behind an EA
         if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
             Type val = *(Type *)(uintptr_t)PC;
             PC += sizeof(Type);
             return val;
-        }
-        else {
+        } else {
             Type val = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
             PC += 2;
             return val;
         }
-    }
-    else {
-        uint32_t addr = GetEA<Mode, Reg, Type>();
+    } else {
+        uint32_t addr = getEA<Mode, Reg, Type>();
         return *(Type *)(uintptr_t)addr;
     }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires (Mode < 8 && Reg < 8 && !(Mode == 7 && Reg > 1) && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
-void StoreToEA(Type value)
+requires (Mode < 8 && Reg < 8 && !(Mode == 7 && Reg > 1) && 
+          (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
+void storeToEA(Type value)
 {
     if constexpr (Mode == 0) {
         setD<Reg, Type>(value);
-    }
-    else if constexpr (Mode == 1) {
+    } else if constexpr (Mode == 1) {
         setA<Reg, Type>(value);
-    }
-    else {
-        uint32_t addr = GetEA<Mode, Reg, Type>();
+    } else {
+        uint32_t addr = getEA<Mode, Reg, Type>();
         *(Type *)(uintptr_t)addr = value;
     }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type, class Fn>
-requires (Mode < 8 && Reg < 8 && !(Mode == 7 && Reg > 1) && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
-void ReadModifyWriteEA(Fn&& modify)
+requires (Mode < 8 && Reg < 8 && !(Mode == 7 && Reg > 1) && 
+          (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
+void readModifyWriteEA(Fn&& modify)
 {
     if constexpr (Mode == 0) {
         setD<Reg, Type>(modify(getD<Reg, Type>()));
-    }
-    else if constexpr (Mode == 1) {
+    } else if constexpr (Mode == 1) {
         setA<Reg, Type>(modify(getA<Reg, Type>()));
-    }
-    else {
-        uint32_t addr = GetEA<Mode, Reg, Type>();   // side effects (An update, PC advance) happen once, here
+    } else {
+        uint32_t addr = getEA<Mode, Reg, Type>();   // side effects (An update, PC advance) happen once, here
         Type old = *(Type *)(uintptr_t)addr;
         *(Type *)(uintptr_t)addr = modify(old);
     }
 }
 
 template<class Type, bool IsSub>
-static inline std::pair<Type, uint8_t> Arith_WithFlags(Type a, Type b)
+static inline std::pair<Type, uint8_t> arithWithFlags(Type a, Type b)
 {
     constexpr int shift = (sizeof(Type) == 1) ? 24 : (sizeof(Type) == 2) ? 16 : 0;
 
@@ -259,14 +255,16 @@ static inline std::pair<Type, uint8_t> Arith_WithFlags(Type a, Type b)
 
     uint8_t ccr = (uint8_t)(nzcv >> 28);   // N,Z,C,V already in the right bit positions
 
-    if constexpr (IsSub) ccr ^= SR_Calt;   // carry-polarity fix for subtraction
+    if constexpr (IsSub) { 
+        ccr ^= SR_Calt;   // carry-polarity fix for subtraction
+    }
 
     Type rv = (Type)((uint32_t)result >> shift);
     return { rv, ccr };
 }
 
 template<class Type, bool IsSub>
-static inline std::pair<Type, uint8_t> ArithX_WithFlags(Type a, Type b, uint8_t x_in)
+static inline std::pair<Type, uint8_t> arithXWithFlags(Type a, Type b, uint8_t x_in)
 {
     constexpr int shift = (sizeof(Type) == 1) ? 24 : (sizeof(Type) == 2) ? 16 : 0;
 
@@ -300,14 +298,14 @@ static inline std::pair<Type, uint8_t> ArithX_WithFlags(Type a, Type b, uint8_t 
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> Asl_WithFlags(Type value, int count)
+static inline std::pair<Type, uint8_t> aslWithFlags(Type value, int count)
 {
     constexpr int W = sizeof(Type) * 8;
 
     if (count == 0) {
         uint8_t ccr = 0;
-        if (value == 0) ccr |= SR_Z;
-        if (value < 0)  ccr |= SR_N;
+        if (value == 0) { ccr |= SR_Z; }
+        if (value < 0)  { ccr |= SR_N; }
         return { value, ccr };
     }
 
@@ -323,20 +321,20 @@ static inline std::pair<Type, uint8_t> Asl_WithFlags(Type value, int count)
     bool overflow = (x64 >> win) != 0;
 
     uint8_t ccr = 0;
-    if (result == 0) ccr |= SR_Z;
-    if (result < 0)  ccr |= SR_N;
-    if (overflow)    ccr |= SR_Valt;
-    if (carry)       ccr |= SR_Calt;
+    if (result == 0) { ccr |= SR_Z; }
+    if (result < 0)  { ccr |= SR_N; }
+    if (overflow)    { ccr |= SR_Valt; }
+    if (carry)       { ccr |= SR_Calt; }
     return { result, ccr };
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> Asr_WithFlags(Type value, int count)
+static inline std::pair<Type, uint8_t> asrWithFlags(Type value, int count)
 {
     if (count == 0) {
         uint8_t ccr = 0;
-        if (value == 0) ccr |= SR_Z;
-        if (value < 0)  ccr |= SR_N;
+        if (value == 0) { ccr |= SR_Z; }
+        if (value < 0)  { ccr |= SR_N; }
         return { value, ccr };
     }
 
@@ -347,23 +345,23 @@ static inline std::pair<Type, uint8_t> Asr_WithFlags(Type value, int count)
     uint8_t carry = (uint8_t)((uv64 >> (count - 1)) & 1);
 
     uint8_t ccr = 0;
-    if (result == 0) ccr |= SR_Z;
-    if (result < 0)  ccr |= SR_N;
+    if (result == 0) { ccr |= SR_Z; }
+    if (result < 0)  { ccr |= SR_N; }
     // V is always 0 for ASR
-    if (carry) ccr |= SR_Calt;
+    if (carry) { ccr |= SR_Calt; }
     return { result, ccr };
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> Lsl_WithFlags(Type value, int count)
+static inline std::pair<Type, uint8_t> lslWithFlags(Type value, int count)
 {
     constexpr int W = sizeof(Type) * 8;
     using UT = std::make_unsigned_t<Type>;
 
     if (count == 0) {
         uint8_t ccr = 0;
-        if (value == 0) ccr |= SR_Z;
-        if (value < 0)  ccr |= SR_N;
+        if (value == 0) { ccr |= SR_Z; }
+        if (value < 0)  { ccr |= SR_N; }
         return { value, ccr };
     }
 
@@ -372,22 +370,22 @@ static inline std::pair<Type, uint8_t> Lsl_WithFlags(Type value, int count)
     uint8_t carry = (uint8_t)(((uv64 << (count - 1)) >> (W - 1)) & 1);
 
     uint8_t ccr = 0;
-    if (result == 0) ccr |= SR_Z;
-    if (result < 0)  ccr |= SR_N;
+    if (result == 0) { ccr |= SR_Z; }
+    if (result < 0)  { ccr |= SR_N; }
     // V is always 0 for LSL
-    if (carry) ccr |= SR_C;
+    if (carry) { ccr |= SR_C; }
     return { result, ccr };
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> Lsr_WithFlags(Type value, int count)
+static inline std::pair<Type, uint8_t> lsrWithFlags(Type value, int count)
 {
     using UT = std::make_unsigned_t<Type>;
 
     if (count == 0) {
         uint8_t ccr = 0;
-        if (value == 0) ccr |= SR_Z;
-        if (value < 0)  ccr |= SR_N;
+        if (value == 0) { ccr |= SR_Z; }
+        if (value < 0)  { ccr |= SR_N; }
         return { value, ccr };
     }
 
@@ -396,10 +394,10 @@ static inline std::pair<Type, uint8_t> Lsr_WithFlags(Type value, int count)
     uint8_t carry = (uint8_t)((uv64 >> (count - 1)) & 1);
 
     uint8_t ccr = 0;
-    if (result == 0) ccr |= SR_Z;
-    if (result < 0)  ccr |= SR_N;   // provably always false for count >= 1, harmless to leave uniform
+    if (result == 0) { ccr |= SR_Z; }
+    if (result < 0)  { ccr |= SR_N; }  // provably always false for count >= 1, harmless to leave uniform
     // V is always 0 for LSR
-    if (carry) ccr |= SR_C;
+    if (carry) { ccr |= SR_C; }
     return { result, ccr };
 }
 
@@ -428,5 +426,3 @@ void INTERPRET_lineF(uint32_t opcode);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _EMU68_M68K_INTERPRETER_HPP_ */
