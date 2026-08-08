@@ -6,10 +6,7 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
 extern "C" {
-    #include "M68k.h"
-    #include "support.h"
 
 static inline struct M68KState *getCTX()
 {
@@ -18,10 +15,8 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-    void M68K_SaveContext(struct M68KState *ctx);
-    void M68K_LoadContext(struct M68KState *ctx);
-
-
+void M68K_SaveContext(struct M68KState *ctx);
+void M68K_LoadContext(struct M68KState *ctx);
 
 }
 
@@ -31,7 +26,7 @@ template<uint8_t Mode, uint8_t Reg>
 void ROR_EA(uint32_t)
 {
     PC += 2;
-    ReadModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
+    readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         uint32_t sr = SR & ~SR_NZVC;
         
         v = (v >> 1) | (v << 15);
@@ -52,7 +47,7 @@ template<uint8_t Mode, uint8_t Reg>
 void ROL_EA(uint32_t)
 {
     PC += 2;
-    ReadModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
+    readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         uint32_t sr = SR & ~SR_NZVC;
         
         v = (v << 1) | (v >> 15);
@@ -84,8 +79,7 @@ void ROR_IMM(uint32_t opcode)
 
     if (v == 0) {
         sr |= SR_Z;
-    }
-    else {
+    } else {
         v = (v >> count) | (v << (bitcount - count));
 
         if (v & (1 << (bitcount - 1))) {
@@ -113,8 +107,7 @@ void ROL_IMM(uint32_t opcode)
 
     if (v == 0) {
         sr |= SR_Z;
-    }
-    else {
+    } else {
         v = (v << count) | (v >> (bitcount - count));
 
         if (v & (1 << (bitcount - 1))) {
@@ -138,12 +131,12 @@ void ASx_Reg(uint32_t)
     Type v = getD<Reg, Type>();
 
     int count;
-    if constexpr (RegCount) count = getD<CountOrReg, uint32_t>() & 63;
-    else                    count = (CountOrReg == 0) ? 8 : CountOrReg;
+    if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
+    else                    { count = (CountOrReg == 0) ? 8 : CountOrReg; }
 
     auto [result, ccr] = [&] {
-        if constexpr (Left) return Asl_WithFlags<Type>(v, count);
-        else                return Asr_WithFlags<Type>(v, count);
+        if constexpr (Left) { return aslWithFlags<Type>(v, count); }
+        else                { return asrWithFlags<Type>(v, count); }
     }();
 
     if constexpr (!RegCount) {
@@ -162,8 +155,8 @@ template<uint8_t Mode, uint8_t Reg, bool Left, class Type>
 void ASx_Mem(uint32_t)
 {
     PC += 2;
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Left ? Asl_WithFlags<Type>(v, 1) : Asr_WithFlags<Type>(v, 1);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Left ? aslWithFlags<Type>(v, 1) : asrWithFlags<Type>(v, 1);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -177,12 +170,12 @@ void LSx_Reg(uint32_t)
     Type v = getD<Reg, Type>();
 
     int count;
-    if constexpr (RegCount) count = getD<CountOrReg, uint32_t>() & 63;
-    else                    count = (CountOrReg == 0) ? 8 : CountOrReg;
+    if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
+    else                    { count = (CountOrReg == 0) ? 8 : CountOrReg; }
 
     auto [result, ccr] = [&] {
-        if constexpr (Left) return Lsl_WithFlags<Type>(v, count);
-        else                return Lsr_WithFlags<Type>(v, count);
+        if constexpr (Left) { return lslWithFlags<Type>(v, count); }
+        else                { return lsrWithFlags<Type>(v, count); }
     }();
 
     if constexpr (!RegCount) {
@@ -201,8 +194,8 @@ template<uint8_t Mode, uint8_t Reg, bool Left, class Type>
 void LSx_Mem(uint32_t)
 {
     PC += 2;
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Left ? Lsl_WithFlags<Type>(v, 1) : Lsr_WithFlags<Type>(v, 1);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = Left ? lslWithFlags<Type>(v, 1) : lsrWithFlags<Type>(v, 1);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -233,18 +226,19 @@ void LSx_Mem(uint32_t)
     }((base_offset), std::make_index_sequence<64>{});
 
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
 
     FILL_MOD2_to_72(    03300,  ROR_EA);
     FILL_MOD2_to_72(    03700,  ROL_EA);
@@ -293,7 +287,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_lineE(uint32_t opcode)

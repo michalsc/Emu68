@@ -6,28 +6,6 @@
 
 #include "RegisterMapping.h"
 
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
-
-extern "C" {
-
-    void M68K_LoadContext(struct M68KState *ctx);
-    void M68K_SaveContext(struct M68KState *ctx);
-    void M68K_PrintContext(struct M68KState *ctx);
-
-
-static inline struct M68KState *getCTX()
-{
-    struct M68KState *ctx;
-    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
-    return ctx;
-}
-}
-
-
 namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, class Type>
@@ -40,13 +18,12 @@ void ANDI(uint32_t)
     if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
         immediate = *(Type *)(uintptr_t)PC;
         PC += sizeof(Type);
-    }
-    else {
+    } else {
         immediate = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
         PC += 2;
     }
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v &= immediate;
@@ -72,13 +49,12 @@ void ORI(uint32_t)
     if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
         immediate = *(Type *)(uintptr_t)PC;
         PC += sizeof(Type);
-    }
-    else {
+    } else {
         immediate = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
         PC += 2;
     }
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v |= immediate;
@@ -104,13 +80,12 @@ void EORI(uint32_t)
     if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
         immediate = *(Type *)(uintptr_t)PC;
         PC += sizeof(Type);
-    }
-    else {
+    } else {
         immediate = (Type)*(uint16_t *)(uintptr_t)PC; // byte imm still occupies a full word
         PC += 2;
     }
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v ^= immediate;
@@ -139,8 +114,8 @@ void ADDI(uint32_t)
         PC += 2;
     }
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Arith_WithFlags<Type, false>(v, immediate);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithWithFlags<Type, false>(v, immediate);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -159,8 +134,8 @@ void SUBI(uint32_t)
         PC += 2;
     }
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Arith_WithFlags<Type, true>(v, immediate);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -179,8 +154,8 @@ void CMPI(uint32_t)
         PC += 2;
     }
 
-    Type v = LoadFromEA<Mode, Reg, Type>();
-    auto [result, ccr] = Arith_WithFlags<Type, true>(v, immediate);
+    Type v = loadFromEA<Mode, Reg, Type>();
+    auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
     (void)result;                          // discarded — CMPI keeps only the flags
     SR = (SR & ~SR_NZVC) | ccr;            // X untouched
 }
@@ -203,12 +178,12 @@ void ORI_to_SR(uint32_t)
         sr |= immed;
         changed ^= sr;
 
-        HandleChangedSR(sr, changed);
+        handleChangedSR(sr, changed);
 
         SR = sr;
         PC += 4;
     } else {
-        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
@@ -230,12 +205,12 @@ void ANDI_to_SR(uint32_t)
         sr &= immed;
         changed ^= sr;
 
-        HandleChangedSR(sr, changed);
+        handleChangedSR(sr, changed);
 
         SR = sr;
         PC += 4;
     } else {
-        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
@@ -257,12 +232,12 @@ void EORI_to_SR(uint32_t)
         sr ^= immed;
         changed ^= sr;
 
-        HandleChangedSR(sr, changed);
+        handleChangedSR(sr, changed);
         
         SR = sr;
         PC += 4;
     } else {
-        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
@@ -329,7 +304,7 @@ void BTST_IMM_EA(uint32_t)
     uint8_t v;
     
     PC += 4;
-    v = LoadFromEA<Mode, Reg, uint8_t>();
+    v = loadFromEA<Mode, Reg, uint8_t>();
 
     if (v & mask) {
         SR &= ~SR_Z;
@@ -344,7 +319,7 @@ void BSET_IMM_EA(uint32_t)
     uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     PC += 4;
     
-    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+    readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
             SR &= ~SR_Z;
         } else {
@@ -360,7 +335,7 @@ void BCLR_IMM_EA(uint32_t)
     uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     PC += 4;
     
-    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+    readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
             SR &= ~SR_Z;
         } else {
@@ -376,7 +351,7 @@ void BCHG_IMM_EA(uint32_t)
     uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
     PC += 4;
     
-    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+    readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
             SR &= ~SR_Z;
         } else {
@@ -393,7 +368,7 @@ void BTST_REG(uint32_t)
     uint8_t v;
     
     PC += 2;
-    v = LoadFromEA<Mode, Reg, uint8_t>();
+    v = loadFromEA<Mode, Reg, uint8_t>();
 
     if (v & mask) {
         SR &= ~SR_Z;
@@ -408,7 +383,7 @@ void BSET_REG(uint32_t)
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
     PC += 2;
 
-    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+    readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
             SR &= ~SR_Z;
         } else {
@@ -424,7 +399,7 @@ void BCLR_REG(uint32_t)
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
     PC += 2;
 
-    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+    readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
             SR &= ~SR_Z;
         } else {
@@ -440,7 +415,7 @@ void BCHG_REG(uint32_t)
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
     PC += 2;
 
-    ReadModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
+    readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
             SR &= ~SR_Z;
         } else {
@@ -545,18 +520,19 @@ void BCHG_REG_Dn(uint32_t)
              name<2 + ((Is >> 3) & 7), (Is & 7)>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
     
     FILL_IMM_OP(00000, ORI, BYTE);
     FILL_IMM_OP(00100, ORI, WORD);
@@ -673,7 +649,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line0(uint32_t opcode)

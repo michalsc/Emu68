@@ -6,12 +6,6 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
 namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An, class Type>
@@ -19,7 +13,7 @@ requires (sizeof(Type) > 1)
 void SUBA(uint32_t)
 {
     PC = PC + 2;
-    Type val = LoadFromEA<Mode, Reg, Type>(); 
+    Type val = loadFromEA<Mode, Reg, Type>(); 
     setA<An, LONG>(getA<An, LONG>() - val);
 }
 
@@ -30,8 +24,8 @@ void SUB_Dn_to_EA(uint32_t)
     Type dval = getD<Dn, Type>();
     PC = PC + 2;
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Arith_WithFlags<Type, true>(v, dval);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithWithFlags<Type, true>(v, dval);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -42,9 +36,9 @@ requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
 void SUB_EA_to_Dn(uint32_t)
 {
     PC = PC + 2;
-    Type val = LoadFromEA<Mode, Reg, Type>();
+    Type val = loadFromEA<Mode, Reg, Type>();
 
-    auto [result, ccr] = Arith_WithFlags<Type, true>(getD<Dn, Type>(), val);
+    auto [result, ccr] = arithWithFlags<Type, true>(getD<Dn, Type>(), val);
     SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
     setD<Dn, Type>(result);
 }
@@ -62,19 +56,19 @@ void SUBX(uint32_t)
         a = getD<Ry, Type>();
         b = getD<Rx, Type>();
     } else {
-        uint32_t srcAddr = GetEA<4, Ry, Type>();
-        uint32_t dstAddr = GetEA<4, Rx, Type>();
+        uint32_t srcAddr = getEA<4, Ry, Type>();
+        uint32_t dstAddr = getEA<4, Rx, Type>();
         a = *(Type *)(uintptr_t)srcAddr;
         b = *(Type *)(uintptr_t)dstAddr;
         dst = (Type *)(uintptr_t)dstAddr;
     }
 
-    auto [result, ccr] = ArithX_WithFlags<Type, true>(b, a, x_in);
+    auto [result, ccr] = arithXWithFlags<Type, true>(b, a, x_in);
     ccr = (ccr & ~SR_Z) | (ccr & SR & SR_Z);
     SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
 
-    if constexpr (!MemForm) setD<Rx, Type>(result);
-    else *dst = result;
+    if constexpr (!MemForm) { setD<Rx, Type>(result); }
+    else                    { *dst = result; }
 }
 
 #define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
@@ -106,18 +100,19 @@ void SUBX(uint32_t)
     }((base_offset), std::make_index_sequence<64>{});
 
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
 
     FILL_ALL_RD_EAs(        00700,  SUBA,         0,  LONG);
     FILL_ALL_RD_EAs(        01700,  SUBA,         1,  LONG);
@@ -204,7 +199,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line9(uint32_t opcode)

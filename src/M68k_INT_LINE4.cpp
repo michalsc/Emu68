@@ -6,22 +6,16 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
 register uint64_t (*ARMCode)() __asm__("x12");
 
 extern "C" {
 
-    extern int disasm;
-    extern int debug;
-    extern uint32_t debug_range_min;
-    extern uint32_t debug_range_max;
-    void M68K_LoadContext(struct M68KState *ctx);
-    void M68K_SaveContext(struct M68KState *ctx);
+extern int disasm;
+extern int debug;
+extern uint32_t debug_range_min;
+extern uint32_t debug_range_max;
+void M68K_LoadContext(struct M68KState *ctx);
+void M68K_SaveContext(struct M68KState *ctx);
 
 }
 
@@ -33,7 +27,7 @@ template<uint8_t Mode, uint8_t Reg>
 void MOVE_to_CCR(uint32_t)
 {
     PC += 2;
-    WORD val = LoadFromEA<Mode, Reg, WORD>() & SR_CCR;
+    WORD val = loadFromEA<Mode, Reg, WORD>() & SR_CCR;
     SR = (SR & 0xff00) | (val & 0x00ff);
 }
 
@@ -46,16 +40,16 @@ void MOVE_to_SR(uint32_t)
     /* Modifying SR requires supervisor rights */
     if (sr & SR_S) {
         PC += 2;
-        WORD val = LoadFromEA<Mode, Reg, WORD>() & SR_ALL;
+        WORD val = loadFromEA<Mode, Reg, WORD>() & SR_ALL;
 
         sr = val;
         changed ^= sr;
 
-        HandleChangedSR(sr, changed);
+        handleChangedSR(sr, changed);
         
         SR = sr;
     } else {
-        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
@@ -85,7 +79,7 @@ void CLR(uint32_t)
     SR = sr | SR_Z;
     PC += 2;
 
-    StoreToEA<Mode, Reg, Type>(0);
+    storeToEA<Mode, Reg, Type>(0);
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
@@ -93,7 +87,7 @@ void TST(uint32_t)
 {
     uint16_t sr = SR & ~SR_NZVC;
     PC += 2;
-    Type val = LoadFromEA<Mode, Reg, Type>();
+    Type val = loadFromEA<Mode, Reg, Type>();
     if (val == 0) {
         sr |= SR_Z;
     } else if (val < 0) {
@@ -106,7 +100,7 @@ template<uint8_t Mode, uint8_t Reg, class Type>
 void NOT(uint32_t)
 {
     PC += 2;
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
         
         v = ~v;
@@ -126,8 +120,8 @@ template<uint8_t Mode, uint8_t Reg, class Type>
 void NEG(uint32_t)
 {
     PC += 2;
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Arith_WithFlags<Type, true>(0, v);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithWithFlags<Type, true>(0, v);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -142,7 +136,7 @@ static inline struct M68KState *getCTX()
 
 void TRAP(uint32_t opcode)
 {
-    Exception_F0(VECTOR_INT_TRAP(opcode & 15));
+    exceptionF0(VECTOR_INT_TRAP(opcode & 15));
 }
 
 void RTS(uint32_t)
@@ -174,7 +168,7 @@ template<uint8_t Mode, uint8_t Reg, uint8_t An>
 void LEA(uint32_t)
 {
     PC += 2;
-    setA<An, uint32_t>(GetEA<Mode, Reg, uint32_t>());
+    setA<An, uint32_t>(getEA<Mode, Reg, uint32_t>());
 }
 
 template<uint8_t Mode, uint8_t Reg>
@@ -182,14 +176,14 @@ void PEA(uint32_t)
 {
     PC += 2;
     A7 -= 4;
-    *(uint32_t*)(uintptr_t)A7 = GetEA<Mode, Reg, uint32_t>();
+    *(uint32_t*)(uintptr_t)A7 = getEA<Mode, Reg, uint32_t>();
 }
 
 template<uint8_t Mode, uint8_t Reg>
 void JMP(uint32_t)
 {
     PC += 2;
-    PC = GetEA<Mode, Reg, uint32_t>();
+    PC = getEA<Mode, Reg, uint32_t>();
 }
 
 template<uint8_t Mode, uint8_t Reg>
@@ -198,8 +192,8 @@ void JSR(uint32_t)
     uint32_t new_pc;
     PC += 2;
     A7 -= 4;
-    new_pc = GetEA<Mode, Reg, uint32_t>();
-    *(uint32_t*)(intptr_t)A7 = PC; 
+    new_pc = getEA<Mode, Reg, uint32_t>();
+    *(uint32_t*)(uintptr_t)A7 = PC; 
     PC = new_pc;
 }
 
@@ -300,8 +294,7 @@ void MOVEC(uint32_t opcode)
             // Register to Control Register
             uint32_t dn = opcode2 & 0x8000 ? getAn<uint32_t>(reg) : getDn<uint32_t>(reg);
 
-            switch(cr)
-            {
+            switch (cr) {
                 case 0x000: ctx->SFC = dn & 7;                      break;
                 case 0x001: ctx->DFC = dn & 7;                      break;
                 case 0x002: CACR = dn & 0x80008000; ARMCode = 0;    break;
@@ -329,14 +322,12 @@ void MOVEC(uint32_t opcode)
                                 *ctx->PPC_EE_FLAG = 255;
                                 asm volatile("sev":::"memory");
                             }                                       break;
-                default:    Exception_F0(VECTOR_PRIVILEGE_VIOLATION); return;
+                default:    exceptionF0(VECTOR_PRIVILEGE_VIOLATION); return;
             }
 
             /* Do not allow enabling MMU for now */
             ctx->TCR &= ~0x8000;
-        }
-        else
-        {
+        } else {
             // Control Register to Register
             uint64_t val = 0;
 
@@ -377,7 +368,7 @@ void MOVEC(uint32_t opcode)
                 case 0x805: val = ctx->MMUSR;                               break;
                 case 0x806: val = ctx->URP;                                 break;
                 case 0x807: val = ctx->SRP;                                 break;
-                default:    Exception_F0(VECTOR_PRIVILEGE_VIOLATION);       return;
+                default:    exceptionF0(VECTOR_PRIVILEGE_VIOLATION);       return;
             }
 
             if (opcode2 & 0x8000) {
@@ -387,10 +378,8 @@ void MOVEC(uint32_t opcode)
             }
         }
         PC += 4;
-    }
-    else
-    {
-        Exception_F0(VECTOR_PRIVILEGE_VIOLATION);
+    } else {
+        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
 
@@ -404,12 +393,11 @@ void DIVU_L(uint32_t)
 
     PC += 4;
 
-    uint32_t src = LoadFromEA<Mode, Reg, uint32_t>();
+    uint32_t src = loadFromEA<Mode, Reg, uint32_t>();
 
     if (src == 0) {
-        Exception_F2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
-    }
-    else {
+        exceptionF2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+    } else {
         uint32_t dq = getDn<uint32_t>((opcode2 >> 12) & 7);
 
         /* 64 / 32 -> 32 divide */
@@ -418,13 +406,10 @@ void DIVU_L(uint32_t)
             value = (value << 32) | dq;
 
             /* If reminder register is the same as destination, skip reminder */
-            if ((opcode2 & 7) == ((opcode2 >> 12) & 7))
-            {
+            if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
                 value = value / src;
                 setDn((opcode2 >> 12) & 7, (uint32_t)value);
-            }
-            else
-            {
+            } else {
                 uint64_t rem;
                 rem = value % src;
                 value = value / src;
@@ -446,18 +431,12 @@ void DIVU_L(uint32_t)
 
                 SR = sr;
             }
-        }
-        else 
-        /* 32 / 32 -> 32 divide */
-        {
+        } else  /* 32 / 32 -> 32 divide */ {
             /* If reminder register is the same as destination, skip reminder */
-            if ((opcode2 & 7) == ((opcode2 >> 12) & 7))
-            {
+            if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
                 dq = dq / src;
                 setDn((opcode2 >> 12) & 7, dq);
-            }
-            else
-            {
+            } else {
                 uint32_t rem;
                 rem = dq % src;
                 dq = dq / src;
@@ -487,7 +466,7 @@ void MULU_L(uint32_t)
 
     /* Signed (bit 11 set) or unsigned (bit 11 clear) */
     if (opcode2 & (1 << 11)) {
-        int32_t src = LoadFromEA<Mode, Reg, int32_t>();
+        int32_t src = loadFromEA<Mode, Reg, int32_t>();
         int32_t di = getDn<int32_t>((opcode2 >> 12) & 7);
         int64_t value = (int64_t)di * (int64_t)src;
 
@@ -503,10 +482,7 @@ void MULU_L(uint32_t)
             }
 
             SR = sr;
-        }
-        else 
-        /* 32 * 32 -> 32 multiply */
-        {
+        } else /* 32 * 32 -> 32 multiply */ {
             setDn((opcode2 >> 12) & 7, (uint32_t)value);
 
             /* 
@@ -527,7 +503,7 @@ void MULU_L(uint32_t)
         }
     }
     else {
-        uint32_t src = LoadFromEA<Mode, Reg, uint32_t>();
+        uint32_t src = loadFromEA<Mode, Reg, uint32_t>();
         uint32_t di = getDn<uint32_t>((opcode2 >> 12) & 7);
         uint64_t value = (uint64_t)di * (uint64_t)src;
 
@@ -543,10 +519,7 @@ void MULU_L(uint32_t)
             }
 
             SR = sr;
-        }
-        else 
-        /* 32 * 32 -> 32 multiply */
-        {
+        } else  /* 32 * 32 -> 32 multiply */ {
             setDn((opcode2 >> 12) & 7, (uint32_t)value);
 
             if (value >> 32) {
@@ -757,18 +730,19 @@ MOVEM_L_regs_from_An_PostInc(7);
              name<2 + (Is >> 3), Is & 7>), ...); \
     }((base_offset), std::make_index_sequence<45>{});
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
 
     FILL_MOD0(              02300, MOVE_to_CCR);    /* MOVE to CCR Dn */
     FILL_MOD2_to_75(        02300, MOVE_to_CCR);    /* MOVE to CCR all other modes */
@@ -980,7 +954,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line4(uint32_t opcode)

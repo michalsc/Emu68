@@ -6,25 +6,19 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
 namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, bool IsAn, uint8_t DstReg, class Type>
 void CMP(uint32_t)
 {
     PC += 2;
-    Type eaval = LoadFromEA<Mode, Reg, Type>();
+    Type eaval = loadFromEA<Mode, Reg, Type>();
     Type regval;
 
-    if constexpr (IsAn) regval = getA<DstReg, Type>();
-    else                regval = getD<DstReg, Type>();
+    if constexpr (IsAn) { regval = getA<DstReg, Type>(); }
+    else                { regval = getD<DstReg, Type>(); }
 
-    auto [result, ccr] = Arith_WithFlags<Type, true>(regval, eaval);
+    auto [result, ccr] = arithWithFlags<Type, true>(regval, eaval);
 
     (void)result;
     SR = (SR & ~SR_NZVC) | ccr;
@@ -58,18 +52,19 @@ void CMP(uint32_t)
     (fillOne.template operator()<Is>(), ...); \
 }(std::make_index_sequence<8 * 64>{});
 
-static consteval std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static consteval std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
 
     FILL_ALL_CMP(BYTE);
     FILL_ALL_CMP(WORD);
@@ -83,7 +78,7 @@ static consteval std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_lineB(uint32_t opcode)

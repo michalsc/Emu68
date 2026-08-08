@@ -6,12 +6,6 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
 namespace Emu68::M68k::Interpreter {
 
 
@@ -22,7 +16,7 @@ void MULU_W(uint32_t)
     uint16_t src;
 
     PC += 2;
-    src = LoadFromEA<Mode, Reg, uint16_t>();
+    src = loadFromEA<Mode, Reg, uint16_t>();
 
     uint32_t dval = getD<Dn, uint16_t>() * src;
 
@@ -44,7 +38,7 @@ void MULS_W(uint32_t)
     int16_t src;
 
     PC += 2;
-    src = LoadFromEA<Mode, Reg, int16_t>();
+    src = loadFromEA<Mode, Reg, int16_t>();
 
     int32_t dval = getD<Dn, int16_t>() * src;
 
@@ -66,7 +60,7 @@ void AND_Dn_to_EA(uint32_t)
     Type dval = getD<Dn, Type>();
     PC = PC + 2;
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v &= dval;
@@ -88,7 +82,7 @@ void AND_EA_to_Dn(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
     PC = PC + 2;
-    Type val = LoadFromEA<Mode, Reg, Type>();
+    Type val = loadFromEA<Mode, Reg, Type>();
     Type dval = getD<Dn, Type>();
 
     dval &= val;
@@ -114,17 +108,15 @@ void EXG(uint32_t)
         tmp = getA<Rx, uint32_t>();
         setA<Rx, uint32_t>(getA<Ry, uint32_t>());
         setA<Ry, uint32_t>(tmp);
-    }
-    else if constexpr(!RxIsA && !RyIsA) {
+    } else if constexpr(!RxIsA && !RyIsA) {
         tmp = getD<Rx, uint32_t>();
         setD<Rx, uint32_t>(getD<Ry, uint32_t>());
         setD<Ry, uint32_t>(tmp);
-    }
-    else if constexpr(!RxIsA && RyIsA) {
+    } else if constexpr(!RxIsA && RyIsA) {
         tmp = getD<Rx, uint32_t>();
         setD<Rx, uint32_t>(getA<Ry, uint32_t>());
         setA<Ry, uint32_t>(tmp);
-    } else static_assert(false, "RegX must be Dn for EXG.L An, Dn");
+    } else static_assert(ALWAYS_FALSE<Rx>, "RegX must be Dn for EXG.L An, Dn");
 }
 
 #define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
@@ -165,7 +157,7 @@ void EXG(uint32_t)
              EXG<(Is >> 3), Ax, Is & 7, Ay>), ...); \
     }((base_offset), std::make_index_sequence<64>{});
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
@@ -176,7 +168,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
 
     FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 0);
     FILL_ALL_RD_EAs_no_An_reg(  00700,  MULS_W, 1);
@@ -259,7 +251,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_lineC(uint32_t opcode)

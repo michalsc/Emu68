@@ -6,17 +6,11 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
 
 extern "C" {
 
-    void M68K_LoadContext(struct M68KState *ctx);
-    void M68K_SaveContext(struct M68KState *ctx);
+void M68K_LoadContext(struct M68KState *ctx);
+void M68K_SaveContext(struct M68KState *ctx);
 
 }
 
@@ -37,13 +31,10 @@ void BSR(uint32_t opcode)
     uint32_t ret_pc = pc;
     uint32_t ptr = getA<7, uint32_t>() - 4;
 
-    if (bra_off == 0)
-    {
+    if (bra_off == 0) {
         bra_off = *(int16_t*)(uintptr_t)pc;
         ret_pc += 2;
-    }
-    else if (bra_off == -1)
-    {
+    } else if (bra_off == -1) {
         bra_off = *(int32_t*)(uintptr_t)pc;
         ret_pc += 4;
     }
@@ -61,18 +52,15 @@ void Bcc(uint32_t opcode)
     uint32_t pc = PC + 2;
     uint32_t next_pc = pc;
 
-    if (bra_off == 0)
-    {
+    if (bra_off == 0) {
         bra_off = *(int16_t*)(uintptr_t)pc;
         next_pc += 2;
-    }
-    else if (bra_off == -1)
-    {
+    } else if (bra_off == -1) {
         bra_off = *(int32_t*)(uintptr_t)pc;
         next_pc += 4;
     }
 
-    if (EvalCond<InstCC>()) {
+    if (evalCond<InstCC>()) {
         pc += bra_off;
     } else {
         pc = next_pc;

@@ -6,12 +6,6 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
 namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
@@ -22,10 +16,10 @@ void DIVS_W(uint32_t)
     uint32_t orig_PC = PC;
 
     PC += 2;
-    src = LoadFromEA<Mode, Reg, int16_t>();
+    src = loadFromEA<Mode, Reg, int16_t>();
 
     if (src == 0) {
-        Exception_F2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+        exceptionF2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
     } else {
         int32_t dval = getD<Dn, int32_t>();
         int32_t drem;
@@ -58,10 +52,10 @@ void DIVU_W(uint32_t)
     uint32_t orig_PC = PC;
 
     PC += 2;
-    src = LoadFromEA<Mode, Reg, uint16_t>();
+    src = loadFromEA<Mode, Reg, uint16_t>();
 
     if (src == 0) {
-        Exception_F2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+        exceptionF2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
     } else {
         uint32_t dval = getD<Dn, uint32_t>();
         uint32_t drem;
@@ -93,7 +87,7 @@ void OR_Dn_to_EA(uint32_t)
     Type dval = getD<Dn, Type>();
     PC = PC + 2;
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v |= dval;
@@ -115,7 +109,7 @@ void OR_EA_to_Dn(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
     PC = PC + 2;
-    Type val = LoadFromEA<Mode, Reg, Type>();
+    Type val = loadFromEA<Mode, Reg, Type>();
     Type dval = getD<Dn, Type>();
 
     dval |= val;
@@ -164,18 +158,19 @@ void OR_EA_to_Dn(uint32_t)
     }((base_offset), std::make_index_sequence<45>{});
 
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
 
     FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 0);
     FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 1);
@@ -254,7 +249,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line8(uint32_t opcode)

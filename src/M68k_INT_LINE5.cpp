@@ -7,17 +7,10 @@
 
 #include "RegisterMapping.h"
 
-#define _REGLOCK_H
-extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-}
-
-
 extern "C" {
 
-    void M68K_LoadContext(struct M68KState *ctx);
-    void M68K_SaveContext(struct M68KState *ctx);
+void M68K_LoadContext(struct M68KState *ctx);
+void M68K_SaveContext(struct M68KState *ctx);
 
 }
 
@@ -30,14 +23,13 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
-
 template<unsigned reg, uint8_t InstCC>
 void DBcc(uint32_t)
 {
     uint32_t pc_continue = PC + 4;
     uint32_t pc_loop = PC + 2 + *(int16_t *)(uintptr_t)(PC + 2);
     
-    if (EvalCond<InstCC>()) {
+    if (evalCond<InstCC>()) {
         PC = pc_continue;
     } else {
         int16_t cnt = getD<reg, int16_t>() - 1;
@@ -53,7 +45,7 @@ void DBcc(uint32_t)
 template<unsigned reg, uint8_t InstCC>
 void Scc_Dn(uint32_t)
 {    
-    if (EvalCond<InstCC>()) {
+    if (evalCond<InstCC>()) {
         setD<reg, uint8_t>(-1);
     } else {
         setD<reg, uint8_t>(0);
@@ -65,7 +57,7 @@ template<unsigned reg, uint8_t InstCC>
 void Scc_An_Addr(uint32_t)
 {
     uintptr_t addr = getA<reg, uintptr_t>();
-    if (EvalCond<InstCC>()) {
+    if (evalCond<InstCC>()) {
         *(uint8_t *)addr = 0xff;
     } else {
         *(uint8_t *)addr = 0x00;
@@ -77,14 +69,14 @@ template<unsigned reg, uint8_t InstCC>
 void Scc_An_Addr_PostInc(uint32_t)
 {
     uintptr_t addr = getA<reg, uintptr_t>();
-    if (EvalCond<InstCC>()) {
+    if (evalCond<InstCC>()) {
         *(uint8_t *)addr = 0xff;
     } else {
         *(uint8_t *)addr = 0x00;
     }
     
-    if (reg != 7) addr += 1;
-    else addr += 2;
+    if (reg != 7) { addr += 1; }
+    else          { addr += 2; }
 
     setA<reg, uint32_t>(addr);
     PC += 2;
@@ -94,10 +86,10 @@ template<unsigned reg, uint8_t InstCC>
 void Scc_An_Addr_PreDec(uint32_t)
 {
     uint32_t addr = getA<reg, uintptr_t>();
-    if (reg != 7) addr -= 1;
-    else addr -= 2;
+    if (reg != 7) { addr -= 1; }
+    else          { addr -= 2; }
 
-    if (EvalCond<InstCC>()) {
+    if (evalCond<InstCC>()) {
         *(uint8_t *)(uintptr_t)addr = 0xff;
     } else {
         *(uint8_t *)(uintptr_t)addr = 0x00;
@@ -115,10 +107,10 @@ void Scc_Generic(uint32_t opcode)
 
     PC += 2;
 
-    if (EvalCond<InstCC>()) {
-        StoreToEffectiveAddress(dst_reg, 0xff, 1, mode);
+    if (evalCond<InstCC>()) {
+        storeToEffectiveAddress(dst_reg, 0xff, 1, mode);
     } else {
-        StoreToEffectiveAddress(dst_reg, 0x00, 1, mode);
+        storeToEffectiveAddress(dst_reg, 0x00, 1, mode);
     }
 }
 
@@ -126,12 +118,12 @@ template<uint8_t Mode, uint8_t Reg, class Type>
 void ADDQ(uint32_t opcode)
 {
     uint32_t immediate = (opcode >> 9) & 7;
-    if (immediate == 0) immediate = 8;
+    if (immediate == 0) { immediate = 8; }
 
     PC += 2;
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Arith_WithFlags<Type, false>(v, immediate);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithWithFlags<Type, false>(v, immediate);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -142,12 +134,12 @@ template<uint8_t Mode, uint8_t Reg, class Type>
 void SUBQ(uint32_t opcode)
 {
     uint32_t immediate = (opcode >> 9) & 7;
-    if (immediate == 0) immediate = 8;
+    if (immediate == 0) { immediate = 8; }
 
     PC += 2;
 
-    ReadModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = Arith_WithFlags<Type, true>(v, immediate);
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     });
@@ -170,18 +162,19 @@ void SUBQ(uint32_t opcode)
     }((base_offset), std::make_index_sequence<42>{});
 
 
-static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
 
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
+        for (int i = first; i <= last; ++i) {
             table[i] = func;
+        }
     };
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
-    fill(00000, 07777, UNIMPLEMENTED);
+    fill(00000, 07777, ILLEGAL);
     
     /* Fill all Dn and all CC combinations for DBcc Dn, offset */
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
@@ -298,7 +291,7 @@ static constexpr std::array<INTERPRET_Function, 4096> BuildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::BuildInsnTable();
+static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line5(uint32_t opcode)
