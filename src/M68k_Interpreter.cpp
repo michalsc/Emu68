@@ -170,14 +170,14 @@ template void setFPn<double>(int reg, double value);
 
 namespace Emu68::M68k::Interpreter {
 
-static inline struct M68KState *getCTX()
+[[gnu::always_inline]] inline struct M68KState *getCTX()
 {
     struct M68KState *ctx;
     __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
 }
 
-void Exception_F0(uint32_t exception)
+void exceptionF0(uint32_t exception)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
@@ -187,8 +187,7 @@ void Exception_F0(uint32_t exception)
         USP = A7;
         if (unlikely(origSR & SR_M)) {
             A7 = MSP - 8;
-        }
-        else {
+        } else {
             A7 = ISP - 8;
         }
     } else {
@@ -222,7 +221,7 @@ void Exception_F0(uint32_t exception)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
-void Exception_F1(uint32_t exception)
+void exceptionF1(uint32_t exception)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
@@ -232,8 +231,7 @@ void Exception_F1(uint32_t exception)
         USP = A7;
         if (unlikely(origSR & SR_M)) {
             A7 = MSP - 8;
-        }
-        else {
+        } else {
             A7 = ISP - 8;
         }
     } else {
@@ -267,7 +265,7 @@ void Exception_F1(uint32_t exception)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
-void Exception_F2(uint32_t exception, uint32_t ea)
+void exceptionF2(uint32_t exception, uint32_t ea)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
@@ -277,8 +275,7 @@ void Exception_F2(uint32_t exception, uint32_t ea)
         USP = A7;
         if (unlikely(origSR & SR_M)) {
             A7 = MSP - 12;
-        }
-        else {
+        } else {
             A7 = ISP - 12;
         }
     } else {
@@ -313,7 +310,7 @@ void Exception_F2(uint32_t exception, uint32_t ea)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
-void Exception_F3(uint32_t exception, uint32_t ea)
+void exceptionF3(uint32_t exception, uint32_t ea)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
@@ -323,8 +320,7 @@ void Exception_F3(uint32_t exception, uint32_t ea)
         USP = A7;
         if (unlikely(origSR & SR_M)) {
             A7 = MSP - 12;
-        }
-        else {
+        } else {
             A7 = ISP - 12;
         }
     } else {
@@ -359,7 +355,7 @@ void Exception_F3(uint32_t exception, uint32_t ea)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
-void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc)
+void exceptionF4(uint32_t exception, uint32_t ea, uint32_t pc)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
@@ -369,8 +365,7 @@ void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc)
         USP = A7;
         if (unlikely(origSR & SR_M)) {
             A7 = MSP - 16;
-        }
-        else {
+        } else {
             A7 = ISP - 16;
         }
     } else {
@@ -406,7 +401,7 @@ void Exception_F4(uint32_t exception, uint32_t ea, uint32_t pc)
     PC = *(uint32_t *)(uintptr_t)vbr;
 }
 
-void UNIMPLEMENTED(uint32_t opcode)
+void ILLEGAL(uint32_t opcode)
 {
     M68K_SaveContext(getCTX());
     disasm_open();
@@ -415,7 +410,7 @@ void UNIMPLEMENTED(uint32_t opcode)
     M68K_PrintContext(getCTX());
     M68K_LoadContext(getCTX());
 
-    Exception_F0(VECTOR_ILLEGAL_INSTRUCTION);
+    exceptionF0(VECTOR_ILLEGAL_INSTRUCTION);
 }
 
 void LoadFrom_EA_Mod0(int src_reg, uint8_t size, void *out)
@@ -559,7 +554,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
             An = 0;
         }
 
-        switch(ext_word & M68K_EA_BD_SIZE) {
+        switch (ext_word & M68K_EA_BD_SIZE) {
             case M68K_EA_BD_SIZE_WORD:
                 base_displacement = *(int16_t*)(uintptr_t)PC;
                 PC += 2;
@@ -582,7 +577,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
             index_value *= scale;
         }
 
-        switch(ext_word & 3) {
+        switch (ext_word & 3) {
             case 2:
                 outer_displacement = *(int16_t*)(uintptr_t)PC;
                 PC += 2;
@@ -600,12 +595,10 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
         if ((ext_word & 3) == 0) {
             // No memory indirect action (000), or reserved (100, don't-care)
             indirect_address = An + base_displacement + index_value;
-        }
-        else if ((ext_word & 4) == 0) {
+        } else if ((ext_word & 4) == 0) {
             // Indirect preindexed: index folded in before the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
-        }
-        else {
+        } else {
             // Indirect postindexed: index added after the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
         }
@@ -678,9 +671,7 @@ void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
             default:
                 __builtin_unreachable();
         }
-    }
-    else if (src_reg == 1)
-    {
+    } else if (src_reg == 1) {
         uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
         PC += 4;
         switch (size) {
@@ -696,9 +687,7 @@ void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
             default:
                 __builtin_unreachable();
         }
-    }
-    else if (src_reg == 2)
-    {
+    } else if (src_reg == 2) {
         int16_t off = *(int16_t *)(uintptr_t)PC;
         uint32_t addr = (uint32_t)(uintptr_t)PC + off;
         PC += 2;
@@ -715,13 +704,9 @@ void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
             default:
                 __builtin_unreachable();
         }
-    }
-    else if (src_reg == 3)
-    {
+    } else if (src_reg == 3) {
         LoadFrom_EA_EXT(PC, size, out);
-    }
-    else if (src_reg == 4)
-    {
+    } else if (src_reg == 4) {
         switch (size) {
             case 4:
                 *(uint32_t *)out = *(uint32_t *)(uintptr_t)PC;
@@ -738,16 +723,14 @@ void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
             default:
                 __builtin_unreachable();
         }
-    }
-    else
-    {
+    } else {
         __builtin_unreachable();
     }
 }
 
-void LoadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode)
+void loadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode)
 {
-    switch(mode) {
+    switch (mode) {
         case 0: [[unlikely]] LoadFrom_EA_Mod0(src_reg, size, out); return;
         case 1: [[unlikely]] LoadFrom_EA_Mod1(src_reg, size, out); return;
         case 2: [[unlikely]] LoadFrom_EA_Mod2(src_reg, size, out); return;
@@ -797,7 +780,7 @@ void Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
     PC += 2;
 }
 
-void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
+void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
 {
     uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
@@ -815,7 +798,7 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
             An = 0;
         }
 
-        switch(ext_word & M68K_EA_BD_SIZE) {
+        switch (ext_word & M68K_EA_BD_SIZE) {
             case M68K_EA_BD_SIZE_WORD:
                 base_displacement = *(int16_t*)(uintptr_t)PC;
                 PC += 2;
@@ -838,7 +821,7 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
             index_value *= scale;
         }
 
-        switch(ext_word & 3) {
+        switch (ext_word & 3) {
             case 2:
                 outer_displacement = *(int16_t*)(uintptr_t)PC;
                 PC += 2;
@@ -856,12 +839,10 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
         if ((ext_word & 3) == 0) {
             // No memory indirect action (000), or reserved (100, don't-care)
             indirect_address = An + base_displacement + index_value;
-        }
-        else if ((ext_word & 4) == 0) {
+        } else if ((ext_word & 4) == 0) {
             // Indirect preindexed: index folded in before the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
-        }
-        else {
+        } else {
             // Indirect postindexed: index added after the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
         }
@@ -888,7 +869,7 @@ void GetExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
 
 void Get_EA_Mod6(uint8_t src_reg, uint8_t size, uint32_t *out)
 {
-    GetExtendedEffectiveAddress(getAn<uint32_t>(src_reg), size, out);
+    getExtendedEffectiveAddress(getAn<uint32_t>(src_reg), size, out);
 }
 
 void Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
@@ -897,36 +878,26 @@ void Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
     {
         *out = (uint32_t)*(int16_t *)(uintptr_t)PC;
         PC += 2;
-    }
-    else if (src_reg == 1)
-    {
+    } else if (src_reg == 1) {
         *out = *(uint32_t *)(uintptr_t)PC;
         PC += 4;
-    }
-    else if (src_reg == 2)
-    {
+    } else if (src_reg == 2) {
         int16_t off = *(int16_t *)(uintptr_t)PC;
         *out = (uint32_t)(uintptr_t)PC + off;
         PC += 2;
-    }
-    else if (src_reg == 3)
-    {
-        GetExtendedEffectiveAddress(PC, size, out);
-    }
-    else if (src_reg == 4)
-    {
+    } else if (src_reg == 3) {
+        getExtendedEffectiveAddress(PC, size, out);
+    } else if (src_reg == 4) {
         *out = PC;
         PC += size;
-    }
-    else
-    {
+    } else {
         __builtin_unreachable();
     }
 }
 
-void GetEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode)
+void getEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode)
 {
-    switch(mode) {
+    switch (mode) {
         // mode 0 and 1 cannot return EA address at all
         case 2: [[unlikely]] Get_EA_Mod2(src_reg, size, out); return;
         case 3: [[unlikely]] Get_EA_Mod3(src_reg, size, out); return;
@@ -1076,7 +1047,7 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
             An = getAn<uint32_t>(dst_reg);
         }
 
-        switch(ext_word & M68K_EA_BD_SIZE) {
+        switch (ext_word & M68K_EA_BD_SIZE) {
             case M68K_EA_BD_SIZE_WORD:
                 base_displacement = *(int16_t*)(uintptr_t)PC;
                 PC += 2;
@@ -1099,7 +1070,7 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
             index_value *= scale;
         }
 
-        switch(ext_word & 3) {
+        switch (ext_word & 3) {
             case 2:
                 outer_displacement = *(int16_t*)(uintptr_t)PC;
                 PC += 2;
@@ -1117,12 +1088,10 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
         if ((ext_word & 3) == 0) {
             // No memory indirect action (000), or reserved (100, don't-care)
             indirect_address = An + base_displacement + index_value;
-        }
-        else if ((ext_word & 4) == 0) {
+        } else if ((ext_word & 4) == 0) {
             // Indirect preindexed: index folded in before the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
-        }
-        else {
+        } else {
             // Indirect postindexed: index added after the dereference
             indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
         }
@@ -1192,9 +1161,7 @@ void StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
             default:
                 __builtin_unreachable();
         }
-    }
-    else if (dst_reg == 1)
-    {
+    } else if (dst_reg == 1) {
         uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
         PC += 4;
         switch (size) {
@@ -1210,16 +1177,14 @@ void StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
             default:
                 __builtin_unreachable();
         }
-    }
-    else
-    {
+    } else {
         __builtin_unreachable();
     }
 }
 
-void StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode)
+void storeToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode)
 {
-    switch(mode) {
+    switch (mode) {
         case 0: [[unlikely]] StoreTo_EA_Mod0(dst_reg, value, size); return;
         case 1: [[unlikely]] StoreTo_EA_Mod1(dst_reg, value, size); return;
         case 2: [[unlikely]] StoreTo_EA_Mod2(dst_reg, value, size); return;
@@ -1233,7 +1198,7 @@ void StoreToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint
     __builtin_unreachable();
 }
 
-void HandleChangedSR(uint32_t sr, uint32_t changed)
+void handleChangedSR(uint32_t sr, uint32_t changed)
 {
     /* Check if M flag has changed its value */
     if (changed & SR_M) {
