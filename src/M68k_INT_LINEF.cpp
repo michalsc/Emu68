@@ -86,33 +86,33 @@ namespace Emu68::M68k::Interpreter {
     return result;
 }
 
-template<uint8_t Mode = DEFAULT, uint8_t Reg = DEFAULT>
+template<uint8_t Mode = DEFAULT_EA, uint8_t Reg = DEFAULT_EA>
 void FSAVE(uint32_t opcode)
 {
-    uint8_t mode = (Mode == DEFAULT) ? ((opcode >> 3) & 7) : Mode;
-    uint8_t reg = (Reg == DEFAULT) ? (opcode & 7) : Reg;
+    uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+    uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
 
     PC += 2;
 
     /* Save only IDLE frame, we not need to record any changes here */
-    if constexpr (Mode == DEFAULT || Reg == DEFAULT) { 
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) { 
         storeToEffectiveAddress(reg, 0x41000000, 4, mode);
     } else {
         storeToEA<Mode, Reg, uint32_t>(0x41000000);
     }
 }
 
-template<uint8_t Mode = DEFAULT, uint8_t Reg = DEFAULT>
+template<uint8_t Mode = DEFAULT_EA, uint8_t Reg = DEFAULT_EA>
 void FRESTORE(uint32_t opcode)
 {
     uint32_t state;
-    uint8_t mode = (Mode == DEFAULT) ? ((opcode >> 3) & 7) : Mode;
-    uint8_t reg = (Reg == DEFAULT) ? (opcode & 7) : Reg;
+    uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+    uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
 
     PC += 2;
 
     /* Restore frame header */
-    if constexpr (Mode == DEFAULT || Reg == DEFAULT) {
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         loadFromEffectiveAddress(reg, 4, &state, mode);
     } else { 
         state = loadFromEA<Mode, Reg, uint32_t>();
@@ -214,15 +214,15 @@ void FBcc(uint32_t)
 template<bool RegToReg, uint8_t DstReg, uint8_t SrcReg, bool UpdateDst = true, class Fn>
 bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 {
-    uint8_t src = (SrcReg == DEFAULT) ? (opcode2 >> 10) & 7 : SrcReg;
-    uint8_t dst = (DstReg == DEFAULT) ? (opcode2 >> 7) & 7 : DstReg;
+    uint8_t src = (SrcReg == DEFAULT_EA) ? (opcode2 >> 10) & 7 : SrcReg;
+    uint8_t dst = (DstReg == DEFAULT_EA) ? (opcode2 >> 7) & 7 : DstReg;
     double value;
 
     if constexpr (RegToReg) {
-        if constexpr (DstReg == DEFAULT) {
+        if constexpr (DstReg == DEFAULT_EA) {
             value = modify(getFPn<double>(src));
             if constexpr (UpdateDst) { setFPn<double>(dst, value); }
-        } else if constexpr (SrcReg == DEFAULT) {
+        } else if constexpr (SrcReg == DEFAULT_EA) {
             value = modify(getFPn<double>(src));
             if constexpr (UpdateDst) { setFP<DstReg, double>(value); }
         } else {
@@ -238,7 +238,7 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
         
         value = modify(value);
 
-        if constexpr (DstReg == DEFAULT) {
+        if constexpr (DstReg == DEFAULT_EA) {
             if constexpr (UpdateDst) setFPn<double>(dst, value);
         } else {
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
@@ -253,15 +253,15 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 template<bool RegToReg, uint8_t DstReg, uint8_t SrcReg, bool UpdateDst = true, class Fn>
 bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 {
-    uint8_t src = (SrcReg == DEFAULT) ? (opcode2 >> 10) & 7 : SrcReg;
-    uint8_t dst = (DstReg == DEFAULT) ? (opcode2 >> 7) & 7 : DstReg;
+    uint8_t src = (SrcReg == DEFAULT_EA) ? (opcode2 >> 10) & 7 : SrcReg;
+    uint8_t dst = (DstReg == DEFAULT_EA) ? (opcode2 >> 7) & 7 : DstReg;
     double value;
 
     if constexpr (RegToReg) {
-        if constexpr (DstReg == DEFAULT) {
+        if constexpr (DstReg == DEFAULT_EA) {
             value = modify(getFPn<double>(src), getFPn<double>(dst));
             if constexpr (UpdateDst) { setFPn<double>(dst, value); }
-        } else if constexpr (SrcReg == DEFAULT) {
+        } else if constexpr (SrcReg == DEFAULT_EA) {
             value = modify(getFPn<double>(src), getFP<DstReg, double>());
             if constexpr (UpdateDst) { setFP<DstReg, double>(value); }
         } else {
@@ -275,7 +275,7 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 
         if (!loadFromEA(mode, reg, format, value)) { return false; }
 
-        if constexpr (DstReg == DEFAULT) {
+        if constexpr (DstReg == DEFAULT_EA) {
             value = modify(value, getFPn<double>(dst));
             if constexpr (UpdateDst) { setFPn<double>(dst, value); }
         } else {
@@ -291,7 +291,7 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 
 /* Dyadic operations */
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FADD(uint32_t opcode, uint32_t opcode2)
 {
     return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
@@ -301,13 +301,13 @@ bool FADD(uint32_t opcode, uint32_t opcode2)
     });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FCMP(uint32_t opcode, uint32_t opcode2)
 {
     return DYADIC<RegToReg, DstReg, SrcReg, false>(opcode, opcode2, [](double op1, double op2) -> double { return op2 - op1; });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FDIV(uint32_t opcode, uint32_t opcode2)
 {
     return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
@@ -319,7 +319,7 @@ bool FDIV(uint32_t opcode, uint32_t opcode2)
 
 // FMOD
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FMUL(uint32_t opcode, uint32_t opcode2)
 {
     return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
@@ -337,7 +337,7 @@ bool FMUL(uint32_t opcode, uint32_t opcode2)
 
 // FSGLMUL
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FSUB(uint32_t opcode, uint32_t opcode2)
 {
     return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
@@ -349,55 +349,55 @@ bool FSUB(uint32_t opcode, uint32_t opcode2)
 
 /* Monadic operations */
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FABS(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return fabs(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FACOS(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return acos(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FASIN(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return asin(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FATAN(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return atan(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FATANH(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return atanh(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FCOS(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return cos(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FCOSH(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return cosh(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FETOX(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return exp(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FETOXM1(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return expm1(value); });
@@ -407,43 +407,43 @@ bool FETOXM1(uint32_t opcode, uint32_t opcode2)
 
 // FGETMAN
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FINT(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { asm volatile("frinti %d0, %d0" : "=w"(value) : "0"(value)); return value; });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FINTRZ(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { asm volatile("frintz %d0, %d0" : "=w"(value) : "0"(value)); return value; });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FLOG10(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return log10(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FLOG2(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return log2(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FLOGN(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return log(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FLOGNP1(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return log1p(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FMOVE(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { 
@@ -452,7 +452,7 @@ bool FMOVE(uint32_t opcode, uint32_t opcode2)
     });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT, bool SingleRounding = false>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FNEG(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { 
@@ -461,7 +461,7 @@ bool FNEG(uint32_t opcode, uint32_t opcode2)
     });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FSIN(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return sin(value); });
@@ -469,43 +469,43 @@ bool FSIN(uint32_t opcode, uint32_t opcode2)
 
 // FSINCOS - special case!
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FSINH(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return sinh(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FSQRT(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return sqrt(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FTAN(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return tan(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FTANH(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return tanh(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FTENTOX(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return exp10(value); });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FTST(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg, false>(opcode, opcode2, [](double value) -> double { return value; });
 }
 
-template<bool RegToReg, uint8_t DstReg = DEFAULT, uint8_t SrcReg = DEFAULT>
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FTWOTOX(uint32_t opcode, uint32_t opcode2)
 {
     return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return exp2(value); });
@@ -836,33 +836,33 @@ static consteval std::array<INTERPRET_FPU_Function, 128> buildExtensionFieldServ
     table[0x18] = FABS<RegToReg>;
     table[0x19] = FCOSH<RegToReg>;
     table[0x1A] = FNEG<RegToReg>;
-    table[0x5A] = FNEG<RegToReg, DEFAULT, DEFAULT, true>;   // FSNEG
+    table[0x5A] = FNEG<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSNEG
     table[0x5E] = FNEG<RegToReg>;   // FDNEG
     table[0x1C] = FACOS<RegToReg>;
     table[0x1D] = FCOS<RegToReg>;
     //table[0x1E] = FGETEXP<RegToReg>;
     //table[0x1F] = FGETMAN<RegToReg>;
     table[0x20] = FDIV<RegToReg>;
-    table[0x60] = FDIV<RegToReg, DEFAULT, DEFAULT, true>;   // FSDIV
+    table[0x60] = FDIV<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSDIV
     table[0x64] = FDIV<RegToReg>;   // FDDIV
     //table[0x21] = FMOD<RegToReg>;
     table[0x22] = FADD<RegToReg>;
-    table[0x62] = FADD<RegToReg, DEFAULT, DEFAULT, true>;   // FSADD
+    table[0x62] = FADD<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSADD
     table[0x66] = FADD<RegToReg>;   // FDADD
     table[0x23] = FMUL<RegToReg>;
-    table[0x63] = FMUL<RegToReg, DEFAULT, DEFAULT, true>;   // FSMUL
+    table[0x63] = FMUL<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSMUL
     table[0x67] = FMUL<RegToReg>;   // FDMUL
     //table[0x24] = FSGLDIV<RegToReg>;
     //table[0x25] = FREM<RegToReg>;
     //table[0x26] = FSCALE<RegToReg>;
     //table[0x27] = FSGLMUL<RegToReg>;
     table[0x28] = FSUB<RegToReg>;
-    table[0x68] = FSUB<RegToReg, DEFAULT, DEFAULT, true>;   // FSSUB
+    table[0x68] = FSUB<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSSUB
     table[0x6c] = FSUB<RegToReg>;   // FDSUB
     /* table[0x30..0x37] = FSINCOS */
     table[0x38] = FCMP<RegToReg>;
     table[0x3A] = FTST<RegToReg>;
-    table[0x40] = FMOVE<RegToReg, DEFAULT, DEFAULT, true>; // FSMOVE
+    table[0x40] = FMOVE<RegToReg, DEFAULT_EA, DEFAULT_EA, true>; // FSMOVE
     table[0x44] = FMOVE<RegToReg>; // FDMOVE
 
     return table;
@@ -917,7 +917,7 @@ void handleGeneralType(uint32_t opcode)
         if constexpr (specialized) ((table[base + EA(mod, (rmin + Dreg))] = \
             name<mod, (rmin + Dreg)>), ...); \
         else ((table[base + EA(mod, (rmin) + Dreg)] = \
-            name<DEFAULT, DEFAULT>), ...); \
+            name<DEFAULT_EA, DEFAULT_EA>), ...); \
     }((base_offset), std::make_index_sequence<(rmax - rmin + 1)>{});
 
 #define FILL_Bcc(long) \

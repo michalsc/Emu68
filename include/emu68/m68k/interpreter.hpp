@@ -121,12 +121,24 @@ bool evalCondFPU()
 
 template<auto...> constexpr bool ALWAYS_FALSE = false;
 
-#define DEFAULT 255
+inline constexpr uint8_t DEFAULT_EA = 255;
+
+/* Few concepts for constraining the templates below */
+template<uint8_t Mode> concept ValidMode  = Mode < 8;
+template<uint8_t Mode> concept MemoryMode = Mode >= 2 && Mode < 8;  // excludes Dn/An direct
+template<uint8_t Reg>  concept ValidReg   = Reg < 8;
+
+template<class Type> concept IntEASize = sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4;
+template<class Type> concept AnyEASize = IntEASize<Type> || sizeof(Type) == 8 || sizeof(Type) == 12;
+
+template<uint8_t Mode, uint8_t Reg> concept SourceEA7 = !(Mode == 7 && Reg > 4); // imm/abs/pc-rel all valid
+template<uint8_t Mode, uint8_t Reg> concept DestEA7   = !(Mode == 7 && Reg > 1); // abs.W/abs.L only
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires (Mode >= 2 && Mode < 8 && Reg < 8 && 
-          (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4 ||
-           sizeof(Type) == 8 || sizeof(Type) == 12))
+concept ValidIntEA = ValidMode<Mode> && ValidReg<Reg> && IntEASize<Type>;
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+requires MemoryMode<Mode> && ValidReg<Reg> && AnyEASize<Type>
 uint32_t getEA()
 {
     if constexpr (Mode == 2) {
@@ -178,7 +190,7 @@ uint32_t getEA()
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires (Mode < 8 && Reg < 8 && (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
+requires ValidIntEA<Mode, Reg, Type> && SourceEA7<Mode, Reg>
 Type loadFromEA()
 {
     if constexpr (Mode == 0) {
@@ -203,8 +215,7 @@ Type loadFromEA()
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires (Mode < 8 && Reg < 8 && !(Mode == 7 && Reg > 1) && 
-          (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
+requires ValidIntEA<Mode, Reg, Type> && DestEA7<Mode, Reg>
 void storeToEA(Type value)
 {
     if constexpr (Mode == 0) {
@@ -218,8 +229,7 @@ void storeToEA(Type value)
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type, class Fn>
-requires (Mode < 8 && Reg < 8 && !(Mode == 7 && Reg > 1) && 
-          (sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4))
+requires ValidIntEA<Mode, Reg, Type> && DestEA7<Mode, Reg>
 void readModifyWriteEA(Fn&& modify)
 {
     if constexpr (Mode == 0) {

@@ -12,28 +12,30 @@ namespace Emu68::M68k::Interpreter {
 template<uint8_t SrcMode, uint8_t SrcReg, uint8_t DstMode, uint8_t DstReg, class Type>
 void MOVE(uint32_t opcode)
 {
-    // Determine whether this is a regular move or rather movea (move to An)
-    const bool is_movea = (DstMode == DEFAULT) ? ((opcode >> 6) & 7) == 1 : DstMode == 1;
     Type value;
 
     PC += 2;
     
     // Fetch data from source, either using generic function or templated fetch
-    if constexpr (SrcMode == DEFAULT || SrcReg == DEFAULT) {
-        const uint8_t srcMode = (SrcMode == DEFAULT) ? (opcode >> 3) & 7 : SrcMode;
-        const uint8_t srcReg  = (SrcReg == DEFAULT) ? (opcode) & 7 : SrcReg;
+    if constexpr (SrcMode == DEFAULT_EA || SrcReg == DEFAULT_EA) {
+        const uint8_t srcMode = (SrcMode == DEFAULT_EA) ? (opcode >> 3) & 7 : SrcMode;
+        const uint8_t srcReg  = (SrcReg == DEFAULT_EA) ? (opcode) & 7 : SrcReg;
         loadFromEffectiveAddress(srcReg, sizeof(Type), &value, srcMode);
     } else {
         value = loadFromEA<SrcMode, SrcReg, Type>();
     }
     
+    bool is_movea;
+
     // Store data to destination, either generic or templated store
-    if constexpr (DstMode == DEFAULT || DstReg == DEFAULT) {
-        const uint8_t dstMode = (DstMode == DEFAULT) ? (opcode >> 6) & 7 : DstMode;
-        const uint8_t dstReg  = (DstReg == DEFAULT) ? (opcode >> 9) & 7 : DstReg;
+    if constexpr (DstMode == DEFAULT_EA || DstReg == DEFAULT_EA) {
+        const uint8_t dstMode = (DstMode == DEFAULT_EA) ? (opcode >> 6) & 7 : DstMode;
+        const uint8_t dstReg  = (DstReg == DEFAULT_EA) ? (opcode >> 9) & 7 : DstReg;
         storeToEffectiveAddress(dstReg, value, sizeof(Type), dstMode);
+        is_movea = (dstMode == 1);
     } else {
         storeToEA<DstMode, DstReg, Type>(value);
+        is_movea = (DstMode == 1);
     }
 
     // If instruction was not MOVEA, update flags
@@ -65,8 +67,9 @@ inline constexpr uint32_t SrcSpecializeMask =
 inline constexpr uint32_t DstSpecializeMask = 
       classBit(EAClass::Dn)      | classBit(EAClass::An)
     | classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
-    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An);
-    // AbsW and AbsL omitted in stores as these are most likely rare enough.
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An)
+    | classBit(EAClass::AbsL);
+    // AbsW omitted in stores as this is most likely rare enough.
     // D8AnXn omitted; D16PC/D8PCXn/Imm are not valid destinations anyway.
 
 template <class Type, uint32_t SrcMask, uint32_t DstMask>
@@ -89,10 +92,10 @@ consteval void fillMoveTable(std::array<INTERPRET_Function, 4096>& table)
             constexpr bool hotDst =
                 (DstMask >> static_cast<unsigned>(classifyEA(DstMode, DstReg))) & 1u;
 
-            constexpr uint8_t S  = hotSrc ? SrcMode : DEFAULT;
-            constexpr uint8_t Sr = hotSrc ? SrcReg  : DEFAULT;
-            constexpr uint8_t D  = hotDst ? DstMode : DEFAULT;
-            constexpr uint8_t Dr = hotDst ? DstReg  : DEFAULT;
+            constexpr uint8_t S  = hotSrc ? SrcMode : DEFAULT_EA;
+            constexpr uint8_t Sr = hotSrc ? SrcReg  : DEFAULT_EA;
+            constexpr uint8_t D  = hotDst ? DstMode : DEFAULT_EA;
+            constexpr uint8_t Dr = hotDst ? DstReg  : DEFAULT_EA;
 
             table[base + SrcI] = MOVE<S, Sr, D, Dr, Type>;
         }
