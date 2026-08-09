@@ -2232,6 +2232,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
 #include "disasm.h"
 
+__attribute__((used))
 void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     int handled = 0;
@@ -2417,6 +2418,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
     }
 }
 
+__attribute__((used))
 void IRQHandler(uint32_t , uint64_t *)
 {
     uint64_t elr, spsr, esr, far, cpu_id;
