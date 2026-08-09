@@ -10,37 +10,82 @@ namespace Emu68::M68k::Interpreter {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An, class Type>
 requires (sizeof(Type) > 1)
-void ADDA(uint32_t)
+void ADDA(uint32_t opcode)
 {
+    Type val;
+
     PC = PC + 2;
-    Type val = loadFromEA<Mode, Reg, Type>(); 
+    
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+        uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        val = loadFromEA<Type>(mode, reg);
+    } else {
+        val = loadFromEA<Mode, Reg, Type>(); 
+    }
+
     setA<An, LONG>(getA<An, LONG>() + val);
 }
 
 template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 requires (Mode > 1)
-void ADD_Dn_to_EA(uint32_t)
+void ADD_Dn_to_EA(uint32_t opcode)
 {
-    Type addend = getD<Dn, Type>();
+    Type addend;
+
+    if constexpr (Dn == DEFAULT_EA) {
+        addend = getDn<Type>((opcode >> 9) & 7);
+    } else {
+        addend = getD<Dn, Type>();
+    }
+
     PC = PC + 2;
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = arithWithFlags<Type, false>(v, addend);
-        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
-        return result;
-    });
+    auto oper = [&](Type v) -> Type {
+            auto [result, ccr] = arithWithFlags<Type, false>(v, addend);
+            SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+            return result;
+        };
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+        uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<Type>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>(oper);
+    }
 }
 
 template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
-void ADD_EA_to_Dn(uint32_t)
+void ADD_EA_to_Dn(uint32_t opcode)
 {
     PC = PC + 2;
-    Type addend = loadFromEA<Mode, Reg, Type>();
+    Type addend;
+    Type dval;
+    
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+        uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        addend = loadFromEA<Type>(mode, reg);
+    } else {
+        addend = loadFromEA<Mode, Reg, Type>(); 
+    }
 
-    auto [result, ccr] = arithWithFlags<Type, false>(getD<Dn, Type>(), addend);
+    if constexpr (Dn == DEFAULT_EA) {
+        dval = getDn<Type>((opcode >> 9) & 7);
+    } else {
+        dval = getD<Dn, Type>();
+    }
+
+    auto [result, ccr] = arithWithFlags<Type, false>(dval, addend);
     SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
-    setD<Dn, Type>(result);
+
+    if constexpr (Dn == DEFAULT_EA) {
+        setDn<Type>((opcode >> 9) & 7, result);
+    } else {
+        setD<Dn, Type>(result);
+    }
 }
 
 template<bool MemForm, uint8_t Rx, uint8_t Ry, class Type>

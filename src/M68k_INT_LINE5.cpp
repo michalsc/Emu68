@@ -108,9 +108,9 @@ void Scc_Generic(uint32_t opcode)
     PC += 2;
 
     if (evalCond<InstCC>()) {
-        storeToEffectiveAddress(dst_reg, 0xff, 1, mode);
+        storeToEA<UBYTE>(mode, dst_reg, 0xff);
     } else {
-        storeToEffectiveAddress(dst_reg, 0x00, 1, mode);
+        storeToEA<UBYTE>(mode, dst_reg, 0x00);
     }
 }
 
