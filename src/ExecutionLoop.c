@@ -415,8 +415,6 @@ void InterpreterLoop()
 
     kprintf("[INT] Starting interpreter loop\n");
 
-    ARMCode = (void*)-1;
-
     if (disasm) {
         M68K_SaveContext(ctx);
         disasm_open();
@@ -425,6 +423,9 @@ void InterpreterLoop()
 
     /* Prepare vector 0; 1 which gets added to the INSN_COUNTER after every executed instruction */
     asm volatile("mov v22.d[1], xzr\n\tmov v22.d[0], %0"::"r"(1));
+
+    extern INTERPRET_Function __interpreter_jumptable_start;
+    ARMCode = (uint64_t (*)())&__interpreter_jumptable_start;
 
     do
     {
@@ -446,7 +447,6 @@ void InterpreterLoop()
         
         /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
         
-#if 1
         uint16_t opcode = *(uint16_t *)(uintptr_t)PC;
         
         if (disasm)
@@ -456,56 +456,10 @@ void InterpreterLoop()
             M68K_LoadContext(ctx);
         }
 
-        switch(opcode & 0xf000) {
-            case 0x0000: INTERPRET_line0(opcode); break;
-            case 0x1000: INTERPRET_line1(opcode); break;
-            case 0x2000: INTERPRET_line2(opcode); break;
-            case 0x3000: INTERPRET_line3(opcode); break;
-            case 0x4000: INTERPRET_line4(opcode); break;
-            case 0x5000: INTERPRET_line5(opcode); break;
-            case 0x6000: INTERPRET_line6(opcode); break;
-            case 0x7000: INTERPRET_line7(opcode); break;
-            case 0x8000: INTERPRET_line8(opcode); break;
-            case 0x9000: INTERPRET_line9(opcode); break;
-            case 0xa000: INTERPRET_lineA(opcode); break;
-            case 0xb000: INTERPRET_lineB(opcode); break;
-            case 0xc000: INTERPRET_lineC(opcode); break;
-            case 0xd000: INTERPRET_lineD(opcode); break;
-            case 0xe000: INTERPRET_lineE(opcode); break;
-            case 0xf000: INTERPRET_lineF(opcode); break;
-        }
+        ((INTERPRET_Function*)ARMCode)[opcode](opcode);
 
         reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reg_q22);
 
-#else
-        /* This is a FAKE interpreter loop! Beware */
-        struct M68KTranslationUnit *node = NULL;
-
-        /* Uncached mode - reset LastPC */
-        setLastPC(~0);
-
-        /* Save context since C code will be called */
-        M68K_SaveContext(ctx);
-
-        /* Find the unit */
-        node = FindUnitNoLRU();
-
-        /* If node is found verify it */
-        if (likely(node != NULL))
-        {
-            node = M68K_VerifyUnitCRC32(node);
-        }
-        /* If node was not found or invalidated, translate code */
-        if (unlikely(node == NULL))
-        {
-            /* Get the code */
-            node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)getCTX()->PC);
-        }
-
-        M68K_LoadContext(getCTX());
-        uint32_t (*code)() = node->mt_ARMEntryPoint;
-        if (code() == 0) return;
-#endif
     } while(ARMCode != NULL);
 
     if (disasm) {
