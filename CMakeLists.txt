@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.14.0)
 project(Emu68 VERSION 1.1.0)
 set(PROJECT_VERSION 1.1.0-alpha.2)
 
-#set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 include(ExternalProject)
 
 set(PPC_ROM_HEADER ${CMAKE_BINARY_DIR}/include/ppc_rom.h)
@@ -29,14 +28,24 @@ get_verstring(VERSTRING)
 get_git_sha(GIT_SHA)
 
 set(CMAKE_C_EXTENSIONS ON)
-set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
+set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Preserve flags used by Emu68 m68k and PPC context
 set(CONTEXT_RESERVE_FLAGS 
-        "-ffixed-q19 -ffixed-v19 -ffixed-d19 -ffixed-q20 -ffixed-v20 \
-         -ffixed-d20 -ffixed-q21 -ffixed-v21 -ffixed-d21 -ffixed-v22 \
-         -ffixed-d22 -ffixed-v23 -ffixed-d23 -ffixed-v24 -ffixed-d24 \
-         -ffixed-v25 -ffixed-d25 -ffixed-v26 -ffixed-d26")
+    -ffixed-q19 -ffixed-v19 -ffixed-d19
+    -ffixed-q20 -ffixed-v20 -ffixed-d20
+    -ffixed-q21 -ffixed-v21 -ffixed-d21
+    -ffixed-q22 -ffixed-v22 -ffixed-d22
+    -ffixed-q23 -ffixed-v23 -ffixed-d23
+    -ffixed-q24 -ffixed-v24 -ffixed-d24
+    -ffixed-q25 -ffixed-v25 -ffixed-d25
+    -ffixed-q26 -ffixed-v26 -ffixed-d26
+)
 
 set(M68K_FIXED_REGS 
         "-ffixed-x12 -ffixed-x18 -ffixed-x19 -ffixed-x20 -ffixed-x21 \
@@ -49,11 +58,7 @@ set(M68K_SAVED_TEMPS
          -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11"
 )
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CONTEXT_RESERVE_FLAGS}")
-    
-    # Optional: Add to all subdirectories
-#add_compile_options(${CONTEXT_RESERVE_FLAGS})
+add_compile_options(${CONTEXT_RESERVE_FLAGS})
 
 set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
@@ -173,11 +178,11 @@ set(OVERLAY_FILES
 build_devicetree(OVERLAY_FILES)
 
 set_source_files_properties(src/math/96bit.c PROPERTIES COMPILE_FLAGS 
-    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS}" ${CONTEXT_RESERVE_FLAGS})
 set_source_files_properties(src/math/__rem_pio2_large.c PROPERTIES COMPILE_FLAGS
-    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS}" ${CONTEXT_RESERVE_FLAGS})
 set_source_files_properties(src/math/__rem_pio2.c PROPERTIES COMPILE_FLAGS
-    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+    "-Wno-error=maybe-uninitialized ${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS}" ${CONTEXT_RESERVE_FLAGS})
 
 set_source_files_properties(
     src/M68k_Interpreter.cpp 
@@ -196,12 +201,12 @@ set_source_files_properties(
     src/M68k_INT_LINEF.cpp 
     src/M68k_INT_MOVE.cpp 
     PROPERTIES COMPILE_FLAGS 
-    "${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_FIXED_REGS}" ${CONTEXT_RESERVE_FLAGS})
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/ExecutionLoop.c PROPERTIES COMPILE_FLAGS 
-    "${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_FIXED_REGS}" ${CONTEXT_RESERVE_FLAGS})
 
 
 # TODO: PPC need a check which regs need really to be saved here...
@@ -209,30 +214,30 @@ set_source_files_properties(src/PPC_Translator.cpp PROPERTIES COMPILE_FLAGS
     "-fcall-used-x4 -fcall-used-x5 -fcall-used-x6 -fcall-used-x7 -fcall-used-x8 \
      -fcall-used-x9 -fcall-used-x10 -fcall-used-x11 -ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+     -ffixed-x27 -ffixed-x28 -ffixed-x29" ${CONTEXT_RESERVE_FLAGS})
 
 set_source_files_properties(src/PPC_ExecutionLoop.cpp PROPERTIES COMPILE_FLAGS 
     "-ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+     -ffixed-x27 -ffixed-x28 -ffixed-x29" ${CONTEXT_RESERVE_FLAGS})
 
 
 set_source_files_properties(src/LRUCache.cpp PROPERTIES COMPILE_FLAGS 
     "-ffixed-x12 -ffixed-x18  \
      -ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-     -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+     -ffixed-x27 -ffixed-x28 -ffixed-x29" ${CONTEXT_RESERVE_FLAGS})
 
 # Exception entry may be called from translated code directly so it breaks the C ABI for aarch64. 
 # All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/M68k_ExceptionEntry.c PROPERTIES COMPILE_FLAGS 
-    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS} ${CONTEXT_RESERVE_FLAGS}")
+    "${M68K_SAVED_TEMPS} ${M68K_FIXED_REGS}" ${CONTEXT_RESERVE_FLAGS})
 
 # ExecutionLoop breaks the C ABI for aarch64. All m68k registers are fixed (x13-x29)
 # The temporary arm code and PC are fixed too (x12, x18)
 set_source_files_properties(src/aarch64/vectors.c PROPERTIES COMPILE_FLAGS 
      "-ffixed-x19 -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 -ffixed-x24 -ffixed-x25 -ffixed-x26 \
-      -ffixed-x27 -ffixed-x28 -ffixed-x29 ${CONTEXT_RESERVE_FLAGS}")
+      -ffixed-x27 -ffixed-x28 -ffixed-x29" ${CONTEXT_RESERVE_FLAGS})
 
 if (${TARGET} IN_LIST SUPPORTED_TARGETS)
     message("-- Selected target machine: ${TARGET}")
@@ -308,9 +313,6 @@ else()
     message(FATAL_ERROR "Wrong variant selected: ${VARIANT}")
 endif()
 
-add_link_options(-Wl,--build-id -nostdlib -nostartfiles -static)
-add_compile_options(-mbig-endian -fno-exceptions -fno-unwind-tables -fno-stack-protector -fno-asynchronous-unwind-tables -fno-pic -fno-pie -no-pie -ffreestanding -Wall -Wextra -Werror)
-
 list(APPEND ARCH_FILES
     src/aarch64/start.c
     src/aarch64/mmu.c
@@ -320,8 +322,39 @@ list(APPEND ARCH_FILES
 )
 
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/ldscript-be64.lds)
-add_link_options(-Wl,-EB -Wl,-Map -Wl,${CMAKE_BINARY_DIR}/Emu68.map -Wl,--format=elf64-bigaarch64 -T ${LINKER_SCRIPT})
-add_compile_options(-falign-functions=32 -march=armv8-a+crc -mtune=cortex-a76 -fomit-frame-pointer -O3 -ffixed-x12)
+add_link_options(
+    -Wl,--build-id
+    -nostdlib
+    -nostartfiles
+    -nodefaultlibs
+    -static
+    -static-libgcc
+    -Wl,-EB
+    -Wl,-Map,${CMAKE_BINARY_DIR}/Emu68.map
+    -Wl,--format=elf64-bigaarch64
+    -T ${LINKER_SCRIPT}
+)
+
+add_compile_options(
+    -mbig-endian
+    -ffreestanding
+    -O3
+    -march=armv8-a+crc
+    -mtune=cortex-a72
+    -fomit-frame-pointer
+    -fno-exceptions
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+    -fno-stack-protector
+    -fno-pic
+    -fno-pie
+    -fno-semantic-interposition
+    -falign-functions=32
+    -Wall
+    -Wextra
+    -Werror
+    -ffixed-x12
+)
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
     add_compile_options(-mno-outline-atomics)
@@ -334,6 +367,7 @@ add_executable(Emu68.elf
     ${EMU68_FILES}
 )
 
+# Disable exceptions and RTTI for all C++ files
 target_compile_options(Emu68.elf
   PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions>
 )
