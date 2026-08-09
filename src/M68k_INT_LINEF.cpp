@@ -35,7 +35,7 @@ static inline struct M68KState *getCTX()
 
 }
 
-namespace Emu68::M68k::Interpreter {
+namespace Emu68::M68k::Interpreter::LineF {
 
 [[gnu::noinline]] void resetFPUState()
 {
@@ -96,7 +96,7 @@ void FSAVE(uint32_t opcode)
 
     /* Save only IDLE frame, we not need to record any changes here */
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) { 
-        storeToEffectiveAddress(reg, 0x41000000, 4, mode);
+        storeToEA<uint32_t>(mode, reg, 0x41000000);
     } else {
         storeToEA<Mode, Reg, uint32_t>(0x41000000);
     }
@@ -113,7 +113,7 @@ void FRESTORE(uint32_t opcode)
 
     /* Restore frame header */
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
-        loadFromEffectiveAddress(reg, 4, &state, mode);
+        state = loadFromEA<LONG>(mode, reg);
     } else { 
         state = loadFromEA<Mode, Reg, uint32_t>();
     }
@@ -128,7 +128,7 @@ bool ILLEGAL(uint32_t opcode, uint32_t)
 {
     PC -= 4;
 
-    ILLEGAL(opcode);
+    ::Emu68::M68k::Interpreter::ILLEGAL(opcode);
 
     return 0;
 }
@@ -160,10 +160,10 @@ bool ILLEGAL(uint32_t opcode, uint32_t)
             float f;
         } u32;
         switch (format) {
-            case 0: out = (double)getDn<int32_t>(reg); return true;
-            case 1: u32.u32 = getDn<int32_t>(reg); out = u32.f; return true;
-            case 4: out = (double)getDn<int16_t>(reg); return true;
-            case 6: out = (double)getDn<int8_t>(reg); return true;
+            case 0: out = (double)getD<int32_t>(reg); return true;
+            case 1: u32.u32 = getD<int32_t>(reg); out = u32.f; return true;
+            case 4: out = (double)getD<int16_t>(reg); return true;
+            case 6: out = (double)getD<int8_t>(reg); return true;
         }
     }
 
@@ -172,7 +172,14 @@ bool ILLEGAL(uint32_t opcode, uint32_t)
         return false;
     }
 
-    getEffectiveAddress(reg, size, &addr, mode);
+    switch (size)
+    {
+        case 1: addr = getEA<uint8_t>(mode, reg); break;
+        case 2: addr = getEA<uint16_t>(mode, reg); break;
+        case 4: addr = getEA<float>(mode, reg); break;
+        case 8: addr = getEA<double>(mode, reg); break;
+        case 12: addr = getEA<uint32_t[3]>(mode, reg); break;
+    }
 
     switch (format) {
         case 0: out = *(int32_t *)(uintptr_t)addr; break;
@@ -220,10 +227,10 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 
     if constexpr (RegToReg) {
         if constexpr (DstReg == DEFAULT_EA) {
-            value = modify(getFPn<double>(src));
-            if constexpr (UpdateDst) { setFPn<double>(dst, value); }
+            value = modify(getFP<double>(src));
+            if constexpr (UpdateDst) { setFP<double>(dst, value); }
         } else if constexpr (SrcReg == DEFAULT_EA) {
-            value = modify(getFPn<double>(src));
+            value = modify(getFP<double>(src));
             if constexpr (UpdateDst) { setFP<DstReg, double>(value); }
         } else {
             value = modify(getFP<SrcReg, double>());
@@ -239,7 +246,7 @@ bool MONADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
         value = modify(value);
 
         if constexpr (DstReg == DEFAULT_EA) {
-            if constexpr (UpdateDst) setFPn<double>(dst, value);
+            if constexpr (UpdateDst) setFP<double>(dst, value);
         } else {
             if constexpr (UpdateDst) setFP<DstReg, double>(value);
         }
@@ -259,10 +266,10 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
 
     if constexpr (RegToReg) {
         if constexpr (DstReg == DEFAULT_EA) {
-            value = modify(getFPn<double>(src), getFPn<double>(dst));
-            if constexpr (UpdateDst) { setFPn<double>(dst, value); }
+            value = modify(getFP<double>(src), getFP<double>(dst));
+            if constexpr (UpdateDst) { setFP<double>(dst, value); }
         } else if constexpr (SrcReg == DEFAULT_EA) {
-            value = modify(getFPn<double>(src), getFP<DstReg, double>());
+            value = modify(getFP<double>(src), getFP<DstReg, double>());
             if constexpr (UpdateDst) { setFP<DstReg, double>(value); }
         } else {
             value = modify(getFP<SrcReg, double>(), getFP<DstReg, double>());
@@ -276,8 +283,8 @@ bool DYADIC(uint32_t opcode, uint32_t opcode2, Fn&& modify)
         if (!loadFromEA(mode, reg, format, value)) { return false; }
 
         if constexpr (DstReg == DEFAULT_EA) {
-            value = modify(value, getFPn<double>(dst));
-            if constexpr (UpdateDst) { setFPn<double>(dst, value); }
+            value = modify(value, getFP<double>(dst));
+            if constexpr (UpdateDst) { setFP<double>(dst, value); }
         } else {
             value = modify(value, getFP<DstReg, double>());
             if constexpr (UpdateDst) { setFP<DstReg, double>(value); }
@@ -513,7 +520,7 @@ bool FTWOTOX(uint32_t opcode, uint32_t opcode2)
 
 bool FMOVECR(uint8_t ry, uint8_t extension)
 {
-    setFPn<double>(ry, FPUConstants[extension]);
+    setFP<double>(ry, FPUConstants[extension]);
 
     return true;
 }
@@ -542,12 +549,12 @@ bool FMOVEM_to_EA(uint32_t opcode, uint32_t opcode2)
 
     /* Dynamic register list? Get registers from integer reg */
     if ((opcode2 & (1 << 11)) != 0) {
-        reglist = getDn<uint8_t>((reglist >> 4) & 7);
+        reglist = getD<uint8_t>((reglist >> 4) & 7);
     }
     
     /* Predecrement mode is different as we need to update the address */
     if (mode == 4) {
-        addr = getAn<uint32_t>(reg);
+        addr = getA<uint32_t>(reg);
 
         if (postinc_mode) {
             if (reglist & 0b10000000) { addr -= 12; f64.d = FP0; Store96bit(f64.u64, addr); }
@@ -569,9 +576,9 @@ bool FMOVEM_to_EA(uint32_t opcode, uint32_t opcode2)
             if (reglist & 0b00000001) { addr -= 12; f64.d = FP0; Store96bit(f64.u64, addr); }
         }
 
-        setAn<uint32_t>(reg, addr);
+        setA<uint32_t>(reg, addr);
     } else {
-        getEffectiveAddress(reg, 0, &addr, mode);
+        addr = getEA<void>(mode, reg);
         if (postinc_mode) {
             if (reglist & 0b10000000) { f64.d = FP0; Store96bit(f64.u64, addr); addr += 12; }
             if (reglist & 0b01000000) { f64.d = FP1; Store96bit(f64.u64, addr); addr += 12; }
@@ -620,10 +627,10 @@ bool FMOVEM_from_EA(uint32_t opcode, uint32_t opcode2)
 
     /* Dynamic register list? Get registers from integer reg */
     if ((opcode2 & (1 << 11)) != 0) {
-        reglist = getDn<uint8_t>((reglist >> 4) & 7);
+        reglist = getD<uint8_t>((reglist >> 4) & 7);
     }
     
-    getEffectiveAddress(reg, 0, &addr, mode);
+    addr = getEA<void>(mode, reg);
 
     if (postinc_mode) {
         if (reglist & 0b10000000) { f64.u64 = Load96bit(0, addr); FP0 = f64.d; addr += 12; }
@@ -647,7 +654,7 @@ bool FMOVEM_from_EA(uint32_t opcode, uint32_t opcode2)
     
     /* Postincrement mode: update the address */
     if (mode == 3) {
-        setAn<uint32_t>(reg, addr);
+        setA<uint32_t>(reg, addr);
     }
 
     return true;
@@ -665,13 +672,13 @@ bool FMOVE_Sys_to_EA(uint32_t opcode, uint32_t opcode2)
     /* Dn mode allows moving only one system register to Dn */
     if (mode == 0) {
         switch (reglist) {
-            case 4: setDn<uint32_t>(reg, FPCR); break;
-            case 2: setDn<uint32_t>(reg, FPSR); break;
-            case 1: setDn<uint32_t>(reg, FPIAR); break;
+            case 4: setD<uint32_t>(reg, FPCR); break;
+            case 2: setD<uint32_t>(reg, FPSR); break;
+            case 1: setD<uint32_t>(reg, FPIAR); break;
             default: handled = false;
         }
     } else if (mode == 1) {
-        if (reglist == 1) setAn<uint32_t>(reg, FPIAR);
+        if (reglist == 1) setA<uint32_t>(reg, FPIAR);
         else handled = false;
     } else {
         uint32_t size = 0;
@@ -681,7 +688,11 @@ bool FMOVE_Sys_to_EA(uint32_t opcode, uint32_t opcode2)
         if (reglist & 2) size += 4;
         if (reglist & 4) size += 4;
 
-        getEffectiveAddress(reg, size, &addr, mode);
+        switch (size) {
+            case 4: addr = getEA<uint32_t>(mode, reg); break;
+            case 8: addr = getEA<uint32_t[2]>(mode, reg); break;
+            case 12: addr = getEA<uint32_t[3]>(mode, reg); break;
+        }
 
         if (reglist & 4) { *(uint32_t*)(uintptr_t)addr = FPCR; addr += 4; }
         if (reglist & 2) { *(uint32_t*)(uintptr_t)addr = FPSR; addr += 4; }
@@ -703,13 +714,13 @@ bool FMOVE_EA_to_Sys(uint32_t opcode, uint32_t opcode2)
     /* Dn mode allows moving only one system register to Dn */
     if (mode == 0) {
         switch (reglist) {
-            case 4: FPCR = getDn<uint32_t>(reg); break;
-            case 2: FPSR = getDn<uint32_t>(reg); break;
-            case 1: FPIAR = getDn<uint32_t>(reg); break;
+            case 4: FPCR = getD<uint32_t>(reg); break;
+            case 2: FPSR = getD<uint32_t>(reg); break;
+            case 1: FPIAR = getD<uint32_t>(reg); break;
             default: handled = false;
         }
     } else if (mode == 1) {
-        if (reglist == 1) FPIAR = getAn<uint32_t>(reg);
+        if (reglist == 1) FPIAR = getA<uint32_t>(reg);
         else handled = false;
     } else {
         uint32_t size = 0;
@@ -719,7 +730,11 @@ bool FMOVE_EA_to_Sys(uint32_t opcode, uint32_t opcode2)
         if (reglist & 2) size += 4;
         if (reglist & 4) size += 4;
 
-        getEffectiveAddress(reg, size, &addr, mode);
+        switch (size) {
+            case 4: addr = getEA<uint32_t>(mode, reg); break;
+            case 8: addr = getEA<uint32_t[2]>(mode, reg); break;
+            case 12: addr = getEA<uint32_t[3]>(mode, reg); break;
+        }
 
         if (reglist & 4) { FPCR = *(uint32_t*)(uintptr_t)addr; addr += 4; }
         if (reglist & 2) { FPSR = *(uint32_t*)(uintptr_t)addr; addr += 4; }
@@ -750,8 +765,6 @@ bool FMOVE_to_EA(uint32_t opcode, uint32_t opcode2)
     uint8_t mode = (opcode >> 3) & 7;
     uint8_t reg = opcode & 7;
     uint8_t format = (opcode2 >> 10) & 7;
-    uint32_t addr;
-    int size;
     int k;
     union {
         uint64_t u64;
@@ -762,43 +775,49 @@ bool FMOVE_to_EA(uint32_t opcode, uint32_t opcode2)
         float f;
     } f32;
 
-    double value = getFPn<double>((opcode2 >> 7) & 7);
+    double value = getFP<double>((opcode2 >> 7) & 7);
 
     if (mode == 1) { return false; }
 
     if (mode == 0 && (format == 0 || format == 1 || format == 4 || format == 6)) {
         switch (format) {
-            case 0: setDn<int32_t>(reg, (int32_t)value); break;
-            case 1: f32.f = value; setDn<uint32_t>(reg, f32.u32); break;
-            case 4: setDn<int16_t>(reg, (int16_t)value); break;
-            case 6: setDn<int8_t>(reg, (int8_t)value); break;
+            case 0: setD<int32_t>(reg, (int32_t)value); break;
+            case 1: f32.f = value; setD<uint32_t>(reg, f32.u32); break;
+            case 4: setD<int16_t>(reg, (int16_t)value); break;
+            case 6: setD<int8_t>(reg, (int8_t)value); break;
         }
         return true;
     } else {
         if (mode < 2) { return false; }
 
         switch (format) {
-            case 0: size = 4; break;
-            case 1: size = 4; break;
-            case 2: size = 12; break;
-            case 3: size = 12; k = opcode2 & 0x7f; break;
-            case 4: size = 2; break;
-            case 5: size = 8; break;
-            case 6: size = 1; break;
-            case 7: size = 12; k = getDn<uint8_t>((opcode2 >> 4) & 7); break;
-        }
-
-        getEffectiveAddress(reg, size, &addr, mode);
-
-        switch (format) {
-            case 0: *(int32_t*)(uintptr_t)addr = (int32_t)value; break;
-            case 1: *(float*)(uintptr_t)addr = (float)value; break;
-            case 2: f64.d = value; Store96bit(f64.u64, addr); break;
-            case 3: *(packed_t*)(uintptr_t)addr = DoubleToPacked(value, k); break;
-            case 4: *(uint16_t*)(uintptr_t)addr = (int16_t)value; break;
-            case 5: *(double*)(uintptr_t)addr = value; break;
-            case 6: *(int8_t*)(uintptr_t)addr = (int8_t)value; break;
-            case 7: *(packed_t*)(uintptr_t)addr = DoubleToPacked(value, k); break;
+            case 0: 
+                *(int32_t*)(uintptr_t)getEA<uint32_t>(mode, reg) = (int32_t)value; 
+                break;
+            case 1: 
+                *(float*)(uintptr_t)getEA<float>(mode, reg) = (float)value;
+                break;
+            case 2: 
+                f64.d = value;
+                Store96bit(f64.u64, getEA<uint32_t[3]>(mode, reg));
+                break;
+            case 3:
+                k = opcode2 & 0x7f;
+                *(packed_t*)(uintptr_t)getEA<uint32_t[3]>(mode, reg) = DoubleToPacked(value, k);
+                break;
+            case 4: 
+                *(uint16_t*)(uintptr_t)getEA<uint16_t>(mode, reg) = (int16_t)value;
+                break;
+            case 5: 
+                *(double*)(uintptr_t)getEA<double>(mode, reg) = value;
+                break;
+            case 6:
+                *(int8_t*)(uintptr_t)getEA<uint8_t>(mode, reg) = (int8_t)value; 
+                break;
+            case 7: 
+                k = getD<uint8_t>((opcode2 >> 4) & 7); 
+                *(packed_t*)(uintptr_t)getEA<uint32_t[3]>(mode, reg) = DoubleToPacked(value, k);
+                break;
         }
     }
 
@@ -922,12 +941,12 @@ void handleGeneralType(uint32_t opcode)
 
 #define FILL_Bcc(long) \
     [&]<std::size_t... cc>(std::index_sequence<cc...>) { \
-        if constexpr(long) ((table[cc + 0300] = \
+        if constexpr(long) ((table[cc + 01300] = \
             FBcc<true, cc>), ...); \
-        else ((table[cc + 0200] = \
+        else ((table[cc + 01200] = \
             FBcc<false, cc>), ...); \
     }(std::make_index_sequence<32>{});
-
+#if 0
 static consteval std::array<INTERPRET_Function, 512> buildFPUTable()
 {
     std::array<INTERPRET_Function, 512> table{};
@@ -970,17 +989,54 @@ static consteval std::array<INTERPRET_Function, 512> buildFPUTable()
 
     return table;
 }
+#endif
 
-} // Emu68::M68k::Interpreter
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
+{
+    std::array<INTERPRET_Function, 4096> table{};
+    for (auto& e : table) e = ::Emu68::M68k::Interpreter::ILLEGAL;
 
-static constexpr auto InsnTable_FPU = Emu68::M68k::Interpreter::buildFPUTable();
+    auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
+    auto fill = [&table](int first, int last, INTERPRET_Function func) {
+        for (int i = first; i <= last; ++i) {
+            table[i] = func;
+        }
+    };
+
+    /* Type 0b000: General FPU instructions */
+    fill(01000, 01077, handleGeneralType);
+
+    /* Type 0b001: FDBcc, FScc, FTRAPcc */
+
+    /* Type 0b010: FBcc.W */
+    FILL_Bcc(false);
+
+    /* Type 0b011: FBcc.L */
+    FILL_Bcc(true);
+
+    /* Type 0b100: FSAVE, specialized and generic version */
+    FILL_MOD(01400, 2, 0, 7, FSAVE, true);
+    FILL_MOD(01400, 4, 0, 7, FSAVE, true);
+    FILL_MOD(01400, 5, 0, 7, FSAVE, false);
+    FILL_MOD(01400, 6, 0, 7, FSAVE, false);
+    FILL_MOD(01400, 7, 0, 1, FSAVE, false);
+
+    /* Type 0b101:FRESTORE, specialized and generic version */
+    FILL_MOD(01500, 2, 0, 7, FRESTORE, true);
+    FILL_MOD(01500, 3, 0, 7, FRESTORE, true);
+    FILL_MOD(01500, 5, 0, 7, FRESTORE, false);
+    FILL_MOD(01500, 6, 0, 7, FRESTORE, false);
+    FILL_MOD(01500, 7, 0, 3, FRESTORE, false);
+
+    return table;
+}
+
+constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.f"))) = buildInsnTable();
+
+} // Emu68::M68k::Interpreter::LineF
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_lineF(uint32_t opcode)
 {
-    switch ((opcode >> 9) & 7)
-    {
-        case 1:     InsnTable_FPU[opcode & 0x1ff](opcode); break;
-        default:    Emu68::M68k::Interpreter::ILLEGAL(opcode);
-    }
+    Emu68::M68k::Interpreter::LineF::InsnTable[opcode & 4095](opcode);
 }
