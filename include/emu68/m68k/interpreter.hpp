@@ -19,6 +19,25 @@ extern "C" {
 
 namespace Emu68::M68k::Interpreter {
 
+/* Few concepts for constraining the templates below */
+template<uint8_t Mode> concept ValidMode  = Mode < 8;
+template<uint8_t Mode> concept MemoryMode = Mode >= 2 && Mode < 8;  // excludes Dn/An direct
+template<uint8_t Reg>  concept ValidReg   = Reg < 8;
+
+template<class Type> concept IntEASize = sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4;
+template<class Type> concept AnyEASize = IntEASize<Type> || sizeof(Type) == 8 || sizeof(Type) == 12;
+
+template<uint8_t Mode, uint8_t Reg> concept SourceEA7 = !(Mode == 7 && Reg > 4); // imm/abs/pc-rel all valid
+template<uint8_t Mode, uint8_t Reg> concept DestEA7   = !(Mode == 7 && Reg > 1); // abs.W/abs.L only
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+concept ValidIntEA = ValidMode<Mode> && ValidReg<Reg> && IntEASize<Type>;
+
+template<uint8_t Mode, class Type>
+concept ByteCompatibleMode = (Mode != 1) || sizeof(Type) > 1;
+
+template<class Type> concept WordOrLongSize = sizeof(Type) == 2 || sizeof(Type) == 4;
+
 void exceptionF0(uint32_t exception);
 void exceptionF1(uint32_t exception);
 void exceptionF2(uint32_t exception, uint32_t ea);
@@ -39,21 +58,6 @@ void storeToEA(uint32_t mode, uint32_t reg, Type value);
 
 void handleChangedSR(uint32_t sr, uint32_t changed);
 void ILLEGAL(uint32_t opcode);
-
-enum class EAClass : uint8_t {
-    Dn, An, Ind, IndPost, IndPre, D16An, D8AnXn,   // modes 0..6
-    AbsW, AbsL, D16PC, D8PCXn, Imm                 // mode 7, reg 0..4
-};
-
-constexpr EAClass classifyEA(unsigned mode, unsigned reg) {
-    if (mode < 7) return static_cast<EAClass>(mode);
-    constexpr EAClass sub[5] = {
-        EAClass::AbsW, EAClass::AbsL, EAClass::D16PC, EAClass::D8PCXn, EAClass::Imm
-    };
-    return sub[reg];
-}
-
-constexpr uint32_t classBit(EAClass c) { return 1u << static_cast<unsigned>(c); }
 
 template<uint8_t InstCC> requires (InstCC < 16)
 bool evalCond()
@@ -131,20 +135,6 @@ bool evalCondFPU()
 template<auto...> constexpr bool ALWAYS_FALSE = false;
 
 inline constexpr uint8_t DEFAULT_EA = 255;
-
-/* Few concepts for constraining the templates below */
-template<uint8_t Mode> concept ValidMode  = Mode < 8;
-template<uint8_t Mode> concept MemoryMode = Mode >= 2 && Mode < 8;  // excludes Dn/An direct
-template<uint8_t Reg>  concept ValidReg   = Reg < 8;
-
-template<class Type> concept IntEASize = sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4;
-template<class Type> concept AnyEASize = IntEASize<Type> || sizeof(Type) == 8 || sizeof(Type) == 12;
-
-template<uint8_t Mode, uint8_t Reg> concept SourceEA7 = !(Mode == 7 && Reg > 4); // imm/abs/pc-rel all valid
-template<uint8_t Mode, uint8_t Reg> concept DestEA7   = !(Mode == 7 && Reg > 1); // abs.W/abs.L only
-
-template<uint8_t Mode, uint8_t Reg, class Type>
-concept ValidIntEA = ValidMode<Mode> && ValidReg<Reg> && IntEASize<Type>;
 
 template<uint8_t Mode, uint8_t Reg, class Type>
 requires MemoryMode<Mode> && ValidReg<Reg> && AnyEASize<Type>
@@ -429,6 +419,65 @@ static inline std::pair<Type, uint8_t> lsrWithFlags(Type value, int count)
     if (carry) { ccr |= SR_C; }
     return { result, ccr };
 }
+
+// Specializations for templates
+
+enum class EAClass : uint8_t {
+    Dn, An, Ind, IndPost, IndPre, D16An, D8AnXn,   // modes 0..6
+    AbsW, AbsL, D16PC, D8PCXn, Imm                 // mode 7, reg 0..4
+};
+
+constexpr EAClass classifyEA(unsigned mode, unsigned reg) {
+    if (mode < 7) return static_cast<EAClass>(mode);
+    constexpr EAClass sub[5] = {
+        EAClass::AbsW, EAClass::AbsL, EAClass::D16PC, EAClass::D8PCXn, EAClass::Imm
+    };
+    return sub[reg];
+}
+
+constexpr uint32_t classBit(EAClass c) { return 1u << static_cast<unsigned>(c); }
+
+template <unsigned BitOffset, unsigned Width>
+struct FieldBase {
+    static constexpr unsigned bitOffset = BitOffset;
+    static constexpr unsigned size      = 1u << Width;
+};
+
+// Register operand (Dn/An/Rx/Ry). HotMask bit v => register v is specialized;
+// otherwise the handler decodes it from the opcode at runtime via DEFAULT_EA.
+template <unsigned BitOffset, unsigned Width = 3, uint64_t HotMask = -1ULL>
+struct RegField : FieldBase<BitOffset, Width> {
+    static constexpr bool valid(unsigned)   { return true; }
+    static constexpr bool hot(unsigned v)   { return (HotMask >> v) & 1u; }
+    static constexpr uint8_t arg(unsigned v) { return hot(v) ? uint8_t(v) : DEFAULT_EA; }
+};
+
+// EA field combines Register and EA mode in one, gets
+template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
+struct EAField : FieldBase<BitOffset, 6> {
+    template <unsigned V>
+    static constexpr bool valid() {
+        constexpr unsigned mode = V >> 3, reg = V & 7;
+        if constexpr (Write) return MemoryMode<mode> && DestEA7<mode, reg> && ByteCompatibleMode<mode, Type>;
+        else                 return SourceEA7<mode, reg> && ByteCompatibleMode<mode, Type>;
+    }
+
+    static constexpr bool hot(unsigned v) {
+        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
+    }
+    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
+    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
+};
+
+// A field consumed by the handler at runtime (immediate data, displacement,
+// etc.) that never influences which function handles the opcode. Every
+// value maps to the same already-selected handler; it contributes no
+// template arguments, it just widens the fill loop so the "don't care"
+// combinations get a table entry too.
+template <unsigned BitOffset, unsigned Width>
+struct ImmField : FieldBase<BitOffset, Width> {
+    static constexpr bool valid(unsigned) { return true; }
+};
 
 } // Emu68::M68k::Interpreter
 
