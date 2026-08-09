@@ -23,7 +23,7 @@ extern "C" {
 }
 
 template<class Type>
-Type getDn(int reg)
+Type getD(int reg)
 {
     if constexpr (std::is_same<Type, uint8_t>::value || std::is_same<Type, int8_t>::value) {
         switch (reg) {
@@ -50,15 +50,15 @@ Type getDn(int reg)
     __builtin_unreachable();
 }
 
-template BYTE getDn<BYTE>(int);
-template WORD getDn<WORD>(int);
-template LONG getDn<LONG>(int);
-template UBYTE getDn<UBYTE>(int);
-template UWORD getDn<UWORD>(int);
-template ULONG getDn<ULONG>(int);
+template BYTE getD<BYTE>(int);
+template WORD getD<WORD>(int);
+template LONG getD<LONG>(int);
+template UBYTE getD<UBYTE>(int);
+template UWORD getD<UWORD>(int);
+template ULONG getD<ULONG>(int);
 
 template<class Type>
-void setDn(int reg, Type val)
+void setD(int reg, Type val)
 {
     if constexpr (std::is_same<Type, uint8_t>::value || std::is_same<Type, int8_t>::value) {
         switch (reg) {
@@ -87,15 +87,15 @@ void setDn(int reg, Type val)
     }
 }
 
-template void setDn<BYTE>(int reg, BYTE val);
-template void setDn<WORD>(int reg, WORD val);
-template void setDn<LONG>(int reg, LONG val);
-template void setDn<UBYTE>(int reg, UBYTE val);
-template void setDn<UWORD>(int reg, UWORD val);
-template void setDn<ULONG>(int reg, ULONG val);
+template void setD<BYTE>(int reg, BYTE val);
+template void setD<WORD>(int reg, WORD val);
+template void setD<LONG>(int reg, LONG val);
+template void setD<UBYTE>(int reg, UBYTE val);
+template void setD<UWORD>(int reg, UWORD val);
+template void setD<ULONG>(int reg, ULONG val);
 
 template<class Type>
-Type getAn(int reg)
+Type getA(int reg)
 {
     switch (reg) {
         case 0: return (Type)A0; case 1: return (Type)A1;
@@ -106,13 +106,13 @@ Type getAn(int reg)
     __builtin_unreachable();
 }
 
-template WORD getAn<WORD>(int reg);
-template LONG getAn<LONG>(int reg);
-template UWORD getAn<UWORD>(int reg);
-template ULONG getAn<ULONG>(int reg);
+template WORD getA<WORD>(int reg);
+template LONG getA<LONG>(int reg);
+template UWORD getA<UWORD>(int reg);
+template ULONG getA<ULONG>(int reg);
 
 template<class Type>
-void setAn(int reg, Type value)
+void setA(int reg, Type value)
 {
     if constexpr (std::is_same<Type, uint16_t>::value || std::is_same<Type, int16_t>::value) {
         switch (reg) {
@@ -133,13 +133,13 @@ void setAn(int reg, Type value)
     }
 }
 
-template void setAn<WORD>(int reg, WORD value);
-template void setAn<LONG>(int reg, LONG value);
-template void setAn<UWORD>(int reg, UWORD value);
-template void setAn<ULONG>(int reg, ULONG value);
+template void setA<WORD>(int reg, WORD value);
+template void setA<LONG>(int reg, LONG value);
+template void setA<UWORD>(int reg, UWORD value);
+template void setA<ULONG>(int reg, ULONG value);
 
 template<class Type>
-Type getFPn(int reg)
+Type getFP(int reg)
 {
     switch (reg) {
         case 0: return (Type)FP0; case 1: return (Type)FP1;
@@ -150,11 +150,11 @@ Type getFPn(int reg)
     __builtin_unreachable();
 }
 
-template float getFPn<float>(int reg);
-template double getFPn<double>(int reg);
+template float getFP<float>(int reg);
+template double getFP<double>(int reg);
 
 template<class Type>
-void setFPn(int reg, Type value)
+void setFP(int reg, Type value)
 {
     switch (reg) {
         case 0: FP0 = value; break; case 1: FP1 = value; break;
@@ -165,8 +165,8 @@ void setFPn(int reg, Type value)
     }
 }
 
-template void setFPn<float>(int reg, float value);
-template void setFPn<double>(int reg, double value);
+template void setFP<float>(int reg, float value);
+template void setFP<double>(int reg, double value);
 
 namespace Emu68::M68k::Interpreter {
 
@@ -413,134 +413,55 @@ void ILLEGAL(uint32_t opcode)
     exceptionF0(VECTOR_ILLEGAL_INSTRUCTION);
 }
 
-void LoadFrom_EA_Mod0(int src_reg, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_Mod2(uint32_t, uint32_t reg)
 {
-    uint32_t dn = getDn<uint32_t>(src_reg);
+    uint32_t addr = getA<uint32_t>(reg);
 
-    switch (size) {
-        case 4:
-            *(uint32_t *)out = dn;
-            return;
-        case 2:
-            *(uint16_t *)out = dn;
-            return;
-        case 1:
-            *(uint8_t *)out = dn;
-            return;
-    }
-
-    __builtin_unreachable();
+    return *(Type*)(uintptr_t)addr;
 }
 
-void LoadFrom_EA_Mod1(uint8_t src_reg, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_Mod3(uint32_t, uint32_t reg)
 {
-    uint32_t an = getAn<uint32_t>(src_reg);
+    uint32_t addr = getA<uint32_t>(reg);
 
-    switch (size) {
-        case 4:
-            *(uint32_t *)out = an;
-            return;
-        case 2:
-            *(uint16_t *)out = an;
-            return;
-    }
+    Type retval = *(Type*)(uintptr_t)addr;
 
-    __builtin_unreachable();
+    addr += sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1:0;
+
+    setA<uint32_t>(reg, addr);
+
+    return retval;
 }
 
-void LoadFrom_EA_Mod2(uint8_t src_reg, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_Mod4(uint32_t, uint32_t reg)
 {
-    uint32_t addr = getAn<uint32_t>(src_reg);
+    uint32_t addr = getA<uint32_t>(reg);
 
-    switch (size) {
-        case 4:
-            *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-            return;
-        case 2:
-            *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-            return;
-        case 1:
-            *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-            return;
-    }
+    addr -= sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1:0;
 
-    __builtin_unreachable();
+    setA<uint32_t>(reg, addr);
+
+    return *(Type*)(uintptr_t)addr;
 }
 
-void LoadFrom_EA_Mod3(uint8_t src_reg, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_Mod5(uint32_t, uint32_t reg)
 {
-    uint32_t addr = getAn<uint32_t>(src_reg);
-
-    switch (size) {
-        case 4:
-            *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-            addr += 4;
-            setAn<uint32_t>(src_reg, addr);
-            return;
-        case 2:
-            *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-            addr += 2;
-            setAn<uint32_t>(src_reg, addr);
-            return;
-        case 1:
-            *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-            addr += (src_reg == 7) ? 2 : 1;
-            setAn<uint32_t>(src_reg, addr);
-            return;
-    }
-
-    __builtin_unreachable();
-}
-
-void LoadFrom_EA_Mod4(uint8_t src_reg, uint8_t size, void *out)
-{
-    uint32_t addr = getAn<uint32_t>(src_reg);
-    switch (size) {
-        case 4:
-            addr -= 4;
-            setAn<uint32_t>(src_reg, addr);
-            *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-            return;
-        case 2:
-            addr -= 2;
-            setAn<uint32_t>(src_reg, addr);
-            *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-            return;
-        case 1:
-            addr -= (src_reg == 7) ? 2 : 1;
-            setAn<uint32_t>(src_reg, addr);
-            *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-            return;
-    }
-
-    __builtin_unreachable();
-}
-
-void LoadFrom_EA_Mod5(uint8_t src_reg, uint8_t size, void *out)
-{
-    uint32_t addr = getAn<uint32_t>(src_reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getA<uint32_t>(reg) + *(int16_t*)(uintptr_t)PC;
     PC += 2;
 
-    switch (size) {
-        case 4:
-            *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-            return;
-        case 2:
-            *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-            return;
-        case 1:
-            *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-            return;
-    }
-    
-    __builtin_unreachable();
+    return *(Type*)(uintptr_t)addr;
 }
 
-void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_EXT(uint32_t base)
 {
-    uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
-    uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
-    uint8_t index_reg = (ext_word & M68K_EA_REG) >> 12;
+    uint16_t ext_word = *(uint16_t*)(uintptr_t)PC;
+    uint32_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
+    uint32_t index_reg = (ext_word & M68K_EA_REG) >> 12;
 
     PC += 2;
     
@@ -551,7 +472,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
         uint32_t index_value = 0;
 
         if (ext_word & M68K_EA_BS) {
-            An = 0;
+            base = 0;
         }
 
         switch (ext_word & M68K_EA_BD_SIZE) {
@@ -568,7 +489,7 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
         }
 
         if ((ext_word & M68K_EA_IS) == 0) {
-            index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
+            index_value = (ext_word & M68K_EA_DA) ? getA<uint32_t>(index_reg) : getD<uint32_t>(index_reg);
 
             if ((ext_word & M68K_EA_WL) == 0) {
                 index_value = (int16_t)index_value;
@@ -594,193 +515,139 @@ void LoadFrom_EA_EXT(uint32_t An, uint8_t size, void *out)
 
         if ((ext_word & 3) == 0) {
             // No memory indirect action (000), or reserved (100, don't-care)
-            indirect_address = An + base_displacement + index_value;
+            indirect_address = base + base_displacement + index_value;
         } else if ((ext_word & 4) == 0) {
             // Indirect preindexed: index folded in before the dereference
-            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
+            indirect_address = *(uint32_t *)(uintptr_t)(base + base_displacement + index_value);
         } else {
             // Indirect postindexed: index added after the dereference
-            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
+            indirect_address = *(uint32_t *)(uintptr_t)(base + base_displacement) + index_value;
         }
 
         indirect_address += outer_displacement;
 
-        switch (size) {
-            case 4:
-                *(uint32_t *)out = *(uint32_t *)(uintptr_t)indirect_address;
-                break;
-            case 2:
-                *(uint16_t *)out = *(uint16_t *)(uintptr_t)indirect_address;
-                break;
-            case 1:
-                *(uint8_t *)out = *(uint8_t *)(uintptr_t)indirect_address;
-                break;
-            default:
-                __builtin_unreachable();
-        }
+        return *(Type*)(uintptr_t)indirect_address;
     }
     else
     {
         int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getA<uint32_t>(index_reg) : getD<uint32_t>(index_reg);
 
         if ((ext_word & M68K_EA_WL) == 0) {
             index_value = (int16_t)index_value;
         }
 
-        An += displacement;
-        An += index_value * scale;
+        base += displacement;
+        base += index_value * scale;
 
-        switch (size) {
-            case 4:
-                *(uint32_t *)out = *(uint32_t *)(uintptr_t)An;
-                break;
-            case 2:
-                *(uint16_t *)out = *(uint16_t *)(uintptr_t)An;
-                break;
-            case 1:
-                *(uint8_t *)out = *(uint8_t *)(uintptr_t)An;
-                break;
-            default:
-                __builtin_unreachable();
-        }
+        return *(Type*)(uintptr_t)base;
     }
 }
 
-void LoadFrom_EA_Mod6(uint8_t src_reg, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_Mod6(uint32_t, uint32_t reg)
 {
-    LoadFrom_EA_EXT(getAn<uint32_t>(src_reg), size, out);
+    return loadFromEA_EXT<Type>(getA<uint32_t>(reg));
 }
 
-void LoadFrom_EA_Mod7(uint8_t src_reg, uint8_t size, void *out)
+template<class Type>
+Type loadFromEA_Mod7(uint32_t, uint32_t reg)
 {
-    if (src_reg == 0)
+    if (reg == 0)
     {
         uintptr_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
         PC += 2;
-        switch (size) {
-            case 4:
-                *(uint32_t *)out = *(uint32_t *)addr;
-                break;
-            case 2:
-                *(uint16_t *)out = *(uint16_t *)addr;
-                break;
-            case 1:
-                *(uint8_t *)out = *(uint8_t *)addr;
-                break;
-            default:
-                __builtin_unreachable();
-        }
-    } else if (src_reg == 1) {
+        return *(Type*)addr;
+    } else if (reg == 1) {
         uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
         PC += 4;
-        switch (size) {
-            case 4:
-                *(uint32_t *)out = *(uint32_t *)addr;
-                break;
-            case 2:
-                *(uint16_t *)out = *(uint16_t *)addr;
-                break;
-            case 1:
-                *(uint8_t *)out = *(uint8_t *)addr;
-                break;
-            default:
-                __builtin_unreachable();
-        }
-    } else if (src_reg == 2) {
+        return *(Type*)addr;
+    } else if (reg == 2) {
         int16_t off = *(int16_t *)(uintptr_t)PC;
         uint32_t addr = (uint32_t)(uintptr_t)PC + off;
         PC += 2;
-        switch (size) {
-            case 4:
-                *(uint32_t *)out = *(uint32_t *)(uintptr_t)addr;
-                break;
-            case 2:
-                *(uint16_t *)out = *(uint16_t *)(uintptr_t)addr;
-                break;
-            case 1:
-                *(uint8_t *)out = *(uint8_t *)(uintptr_t)addr;
-                break;
-            default:
-                __builtin_unreachable();
-        }
-    } else if (src_reg == 3) {
-        LoadFrom_EA_EXT(PC, size, out);
-    } else if (src_reg == 4) {
-        switch (size) {
-            case 4:
-                *(uint32_t *)out = *(uint32_t *)(uintptr_t)PC;
-                PC += 4;
-                break;
-            case 2:
-                *(uint16_t *)out = *(uint16_t *)(uintptr_t)PC;
-                PC += 2;
-                break;
-            case 1:
-                *(uint8_t *)out = *(uint16_t *)(uintptr_t)PC;
-                PC += 2;
-                break;
-            default:
-                __builtin_unreachable();
+        return *(Type*)(uintptr_t)addr;
+    } else if (reg == 3) {
+        return loadFromEA_EXT<Type>(PC);
+    } else if (reg == 4) {
+        if (sizeof(Type) > 1) {
+            Type val = *(Type*)(uintptr_t)PC;
+            PC += sizeof(Type);
+            return val;
+        } else {
+            Type val = (Type)*(uint16_t*)(uintptr_t)PC;
+            PC += sizeof(uint16_t);
+            return val;
         }
     } else {
         __builtin_unreachable();
     }
 }
 
-void loadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode)
+template<class Type>
+Type loadFromEA(uint32_t mode, uint32_t reg)
 {
     switch (mode) {
-        case 0: [[unlikely]] LoadFrom_EA_Mod0(src_reg, size, out); return;
-        case 1: [[unlikely]] LoadFrom_EA_Mod1(src_reg, size, out); return;
-        case 2: [[unlikely]] LoadFrom_EA_Mod2(src_reg, size, out); return;
-        case 3: [[unlikely]] LoadFrom_EA_Mod3(src_reg, size, out); return;
-        case 4: [[unlikely]] LoadFrom_EA_Mod4(src_reg, size, out); return;
-        case 5: LoadFrom_EA_Mod5(src_reg, size, out); return;
-        case 6: LoadFrom_EA_Mod6(src_reg, size, out); return;
-        case 7: LoadFrom_EA_Mod7(src_reg, size, out); return;
+        case 0: [[unlikely]] return getD<Type>(reg);
+        case 1: [[unlikely]] return WordOrLongSize<Type> ? getA<Type>(reg) : 0;
+        case 2: [[unlikely]] return loadFromEA_Mod2<Type>(mode, reg);
+        case 3: [[unlikely]] return loadFromEA_Mod3<Type>(mode, reg);
+        case 4: [[unlikely]] return loadFromEA_Mod4<Type>(mode, reg);
+        case 5: return loadFromEA_Mod5<Type>(mode, reg);
+        case 6: return loadFromEA_Mod6<Type>(mode, reg);
+        case 7: return loadFromEA_Mod7<Type>(mode, reg);
     }
 
     __builtin_unreachable();
 }
 
-void Get_EA_Mod2(uint8_t src_reg, uint8_t, uint32_t *out)
+template LONG loadFromEA<LONG>(uint32_t mode, uint32_t reg);
+template WORD loadFromEA<WORD>(uint32_t mode, uint32_t reg);
+template BYTE loadFromEA<BYTE>(uint32_t mode, uint32_t reg);
+template ULONG loadFromEA<ULONG>(uint32_t mode, uint32_t reg);
+template UWORD loadFromEA<UWORD>(uint32_t mode, uint32_t reg);
+template UBYTE loadFromEA<UBYTE>(uint32_t mode, uint32_t reg);
+
+template<class Type>
+uint32_t getEA_Mod3(uint32_t, uint32_t reg)
 {
-    *out = getAn<uint32_t>(src_reg);
+    uint32_t addr = getA<uint32_t>(reg);
+    uint32_t retval = addr;
+
+    if constexpr (!std::is_same<Type, void>::value) {
+        addr += sizeof(Type);
+        if (reg == 7 && sizeof(Type) == 1) addr++;
+
+        setA<uint32_t>(reg, addr);
+    }
+
+    return retval;
 }
 
-void Get_EA_Mod3(uint8_t src_reg, uint8_t size, uint32_t *out)
+template<class Type>
+uint32_t getEA_Mod4(uint32_t, uint32_t reg)
 {
-    uint32_t addr = getAn<uint32_t>(src_reg);
+    uint32_t addr = getA<uint32_t>(reg);
+
+    if constexpr (!std::is_same<Type, void>::value) {
+        addr -= sizeof(Type);
+        if (reg == 7 && sizeof(Type) == 1) addr--;
+        setA<uint32_t>(reg, addr);
+    }
     
-    *out = addr;
-    if (size > 0) {
-        addr += size;
-        if (src_reg == 7 && size == 1) addr++;
-
-        setAn<uint32_t>(src_reg, addr);
-    }
+    return addr;
 }
 
-void Get_EA_Mod4(uint8_t src_reg, uint8_t size, uint32_t *out)
+template<class Type>
+uint32_t getEA_Mod5(uint32_t, uint32_t reg)
 {
-    uint32_t addr = getAn<uint32_t>(src_reg);
-
-    if (size > 0) {
-        addr -= size;
-        if (src_reg == 7 && size == 1) addr--;
-        setAn<uint32_t>(src_reg, addr);
-    }
-    *out = addr;
-}
-
-void Get_EA_Mod5(uint8_t src_reg, uint8_t, uint32_t *out)
-{
-    *out = getAn<uint32_t>(src_reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getA<uint32_t>(reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
+    return addr;
 }
 
-void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
+template<class Type>
+uint32_t getExtendedEA(uint32_t base)
 {
     uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
@@ -795,7 +662,7 @@ void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
         uint32_t index_value = 0;
 
         if (ext_word & M68K_EA_BS) {
-            An = 0;
+            base = 0;
         }
 
         switch (ext_word & M68K_EA_BD_SIZE) {
@@ -812,7 +679,7 @@ void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
         }
 
         if ((ext_word & M68K_EA_IS) == 0) {
-            index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
+            index_value = (ext_word & M68K_EA_DA) ? getA<uint32_t>(index_reg) : getD<uint32_t>(index_reg);
 
             if ((ext_word & M68K_EA_WL) == 0) {
                 index_value = (int16_t)index_value;
@@ -838,197 +705,135 @@ void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out)
         
         if ((ext_word & 3) == 0) {
             // No memory indirect action (000), or reserved (100, don't-care)
-            indirect_address = An + base_displacement + index_value;
+            indirect_address = base + base_displacement + index_value;
         } else if ((ext_word & 4) == 0) {
             // Indirect preindexed: index folded in before the dereference
-            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement + index_value);
+            indirect_address = *(uint32_t *)(uintptr_t)(base + base_displacement + index_value);
         } else {
             // Indirect postindexed: index added after the dereference
-            indirect_address = *(uint32_t *)(uintptr_t)(An + base_displacement) + index_value;
+            indirect_address = *(uint32_t *)(uintptr_t)(base + base_displacement) + index_value;
         }
 
         indirect_address += outer_displacement;
 
-        *out = indirect_address;
+        return indirect_address;
     }
     else
     {
         int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getA<uint32_t>(index_reg) : getD<uint32_t>(index_reg);
 
         if ((ext_word & M68K_EA_WL) == 0) {
             index_value = (int16_t)index_value;
         }
 
-        An += displacement;
-        An += index_value * scale;
+        base += displacement;
+        base += index_value * scale;
 
-        *out = An;
+        return base;
     }
 }
 
-void Get_EA_Mod6(uint8_t src_reg, uint8_t size, uint32_t *out)
+template<class Type>
+uint32_t getEA_Mod6(uint32_t, uint32_t reg)
 {
-    getExtendedEffectiveAddress(getAn<uint32_t>(src_reg), size, out);
+    return getExtendedEA<Type>(getA<uint32_t>(reg));
 }
 
-void Get_EA_Mod7(uint8_t src_reg, uint8_t size, uint32_t *out)
+template<class Type>
+uint32_t getEA_Mod7(uint32_t, uint32_t reg)
 {
-    if (src_reg == 0)
+    if (reg == 0)
     {
-        *out = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        uint32_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
         PC += 2;
-    } else if (src_reg == 1) {
-        *out = *(uint32_t *)(uintptr_t)PC;
+        return addr;
+    } else if (reg == 1) {
+        uint32_t addr = *(uint32_t *)(uintptr_t)PC;
         PC += 4;
-    } else if (src_reg == 2) {
+        return addr;
+    } else if (reg == 2) {
         int16_t off = *(int16_t *)(uintptr_t)PC;
-        *out = (uint32_t)(uintptr_t)PC + off;
+        uint32_t addr = (uint32_t)(uintptr_t)PC + off;
         PC += 2;
-    } else if (src_reg == 3) {
-        getExtendedEffectiveAddress(PC, size, out);
-    } else if (src_reg == 4) {
-        *out = PC;
-        PC += size;
+        return addr;
+    } else if (reg == 3) {
+        return getExtendedEA<Type>(PC);
+    } else if (reg == 4) {
+        uint32_t addr = PC;
+        if constexpr (!std::is_same<Type, void>::value) {
+            PC += sizeof(Type);
+        }
+        return addr;
     } else {
         __builtin_unreachable();
     }
 }
 
-void getEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode)
+template<class Type>
+uint32_t getEA(uint32_t mode, uint32_t reg)
 {
     switch (mode) {
         // mode 0 and 1 cannot return EA address at all
-        case 2: [[unlikely]] Get_EA_Mod2(src_reg, size, out); return;
-        case 3: [[unlikely]] Get_EA_Mod3(src_reg, size, out); return;
-        case 4: [[unlikely]] Get_EA_Mod4(src_reg, size, out); return;
-        case 5: Get_EA_Mod5(src_reg, size, out); return;
-        case 6: Get_EA_Mod6(src_reg, size, out); return;
-        case 7: Get_EA_Mod7(src_reg, size, out); return;
-    }
-}
-
-void StoreTo_EA_Mod0(uint8_t dst_reg, uint32_t value, uint8_t size)
-{
-    switch (size) {
-        case 4:
-            setDn<uint32_t>(dst_reg, value);
-            return;
-        case 2:
-            setDn<uint16_t>(dst_reg, value);
-            return;
-        case 1:
-            setDn<uint8_t>(dst_reg, value);
-            return;
+        case 2: [[unlikely]] return getA<uint32_t>(reg);
+        case 3: [[unlikely]] return getEA_Mod3<Type>(mode, reg);
+        case 4: [[unlikely]] return getEA_Mod4<Type>(mode, reg);
+        case 5: return getEA_Mod5<Type>(mode, reg);
+        case 6: return getEA_Mod6<Type>(mode, reg);
+        case 7: return getEA_Mod7<Type>(mode, reg);
     }
 
     __builtin_unreachable();
 }
 
-void StoreTo_EA_Mod1(uint8_t dst_reg, uint32_t value, uint8_t size)
-{
-    switch (size) {
-        case 4:
-            setAn(dst_reg, value);
-            return;
-        case 2:
-            setAn<int16_t>(dst_reg, (int16_t)value);
-            return;
-    }
+template uint32_t getEA<void>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<BYTE>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<WORD>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<LONG>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<UBYTE>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<UWORD>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<ULONG>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<float>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<double>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<uint32_t[2]>(uint32_t mode, uint32_t reg);
+template uint32_t getEA<uint32_t[3]>(uint32_t mode, uint32_t reg);
 
-    __builtin_unreachable();
+template<class Type>
+void storeToEA_Mod2(uint32_t, uint32_t reg, Type value)
+{
+    uintptr_t addr = getA<uint32_t>(reg);
+
+    *(Type*)addr = value;
 }
 
-void StoreTo_EA_Mod2(uint8_t dst_reg, uint32_t value, uint8_t size)
+template<class Type>
+void storeToEA_Mod3(uint32_t, uint32_t reg, Type value)
 {
-    uintptr_t addr = getAn<uint32_t>(dst_reg);
-
-    switch (size) {
-        case 4:
-            *(uint32_t *)addr = value;
-            return;
-        case 2:
-            *(uint16_t *)addr = value;
-            return;
-        case 1:
-            *(uint8_t *)addr = value;
-            return;
-    }
-
-    __builtin_unreachable();
+    uintptr_t addr = getA<uint32_t>(reg);
+    *(Type*)addr = value;
+    addr += sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1 : 0;
+    setA<uint32_t>(reg, addr);
 }
 
-void StoreTo_EA_Mod3(uint8_t dst_reg, uint32_t value, uint8_t size)
+template<class Type>
+void storeToEA_Mod4(uint32_t, uint32_t reg, Type value)
 {
-    uintptr_t addr = getAn<uint32_t>(dst_reg);
-
-    switch (size) {
-        case 4:
-            *(uint32_t *)addr = value;
-            addr += 4;
-            setAn<uint32_t>(dst_reg, addr);
-            return;
-        case 2:
-            *(uint16_t *)addr = value;
-            addr += 2;
-            setAn<uint32_t>(dst_reg, addr);
-            return;
-        case 1:
-            *(uint8_t *)addr = value;
-            addr += (dst_reg == 7) ? 2 : 1;
-            setAn<uint32_t>(dst_reg, addr);
-            return;
-    }
-
-    __builtin_unreachable();
+    uintptr_t addr = getA<uint32_t>(reg);
+    addr -= sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1 : 0;
+    *(Type*)addr = value;
+    setA<uint32_t>(reg, addr);
 }
 
-void StoreTo_EA_Mod4(uint8_t dst_reg, uint32_t value, uint8_t size)
+template<class Type>
+void storeToEA_Mod5(uint32_t, uint32_t reg, Type value)
 {
-    uint32_t addr = getAn<uint32_t>(dst_reg);
-
-    switch (size) {
-        case 4:
-            addr -= 4;
-            setAn<uint32_t>(dst_reg, addr);
-            *(uint32_t *)(uintptr_t)addr = value;
-            return;
-        case 2:
-            addr -= 2;
-            setAn<uint32_t>(dst_reg, addr);
-            *(uint16_t *)(uintptr_t)addr = value;
-            return;
-        case 1:
-            addr -= (dst_reg == 7) ? 2 : 1;
-            setAn<uint32_t>(dst_reg, addr);
-            *(uint8_t *)(uintptr_t)addr = value;
-            return;
-    }
-
-    __builtin_unreachable();
-}
-
-void StoreTo_EA_Mod5(uint8_t dst_reg, uint32_t value, uint8_t size)
-{
-    uint32_t addr = getAn<uint32_t>(dst_reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getA<uint32_t>(reg) + *(int16_t *)(uintptr_t)PC;
     PC += 2;
-
-    switch (size) {
-        case 4:
-            *(uint32_t *)(uintptr_t)addr = value;
-            return;
-        case 2:
-            *(uint16_t *)(uintptr_t)addr = value;
-            return;
-        case 1:
-            *(uint8_t *)(uintptr_t)addr = value;
-            return;
-    }
-    
-    __builtin_unreachable();
+    *(Type*)(uintptr_t)addr = value;
 }
 
-void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
+template<class Type>
+void storeToEA_Mod6(uint32_t, uint32_t reg, Type value)
 {
     uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
@@ -1044,7 +849,7 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
         uint32_t index_value = 0;
 
         if ((ext_word & M68K_EA_BS) == 0) {
-            An = getAn<uint32_t>(dst_reg);
+            An = getA<uint32_t>(reg);
         }
 
         switch (ext_word & M68K_EA_BD_SIZE) {
@@ -1061,7 +866,7 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
         }
 
         if ((ext_word & M68K_EA_IS) == 0) {
-            index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
+            index_value = (ext_word & M68K_EA_DA) ? getA<uint32_t>(index_reg) : getD<uint32_t>(index_reg);
 
             if ((ext_word & M68K_EA_WL) == 0) {
                 index_value = (int16_t)index_value;
@@ -1098,26 +903,14 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
 
         indirect_address += outer_displacement;
 
-        switch (size) {
-            case 4:
-                *(uint32_t *)(uintptr_t)indirect_address = value;
-                break;
-            case 2:
-                *(uint16_t *)(uintptr_t)indirect_address = value;
-                break;
-            case 1:
-                *(uint8_t *)(uintptr_t)indirect_address = value;
-                break;
-            default:
-                __builtin_unreachable();
-        }
+        *(Type*)(uintptr_t)indirect_address = value;
     }
     else
     {
         int8_t displacement = ext_word & M68K_EA_OFF8;
-        uint32_t index_value = (ext_word & M68K_EA_DA) ? getAn<uint32_t>(index_reg) : getDn<uint32_t>(index_reg);
+        uint32_t index_value = (ext_word & M68K_EA_DA) ? getA<uint32_t>(index_reg) : getD<uint32_t>(index_reg);
         
-        An = getAn<uint32_t>(dst_reg);
+        An = getA<uint32_t>(reg);
 
         if ((ext_word & M68K_EA_WL) == 0) {
             index_value = (int16_t)index_value;
@@ -1126,77 +919,49 @@ void StoreTo_EA_Mod6(uint8_t dst_reg, uint32_t value, uint8_t size)
         An += displacement;
         An += index_value * scale;
 
-        switch (size) {
-            case 4:
-                *(uint32_t *)(uintptr_t)An = value;
-                break;
-            case 2:
-                *(uint16_t *)(uintptr_t)An = value;
-                break;
-            case 1:
-                *(uint8_t *)(uintptr_t)An = value;
-                break;
-            default:
-                __builtin_unreachable();
-        }
+        *(Type*)(uintptr_t)An = value;
     }
 }
 
-void StoreTo_EA_Mod7(uint8_t dst_reg, uint32_t value, uint8_t size)
+template<class Type>
+void storeToEA_Mod7(uint32_t, uint32_t reg, Type value)
 {
-    if (dst_reg == 0)
-    {
+    if (reg == 0) {
         uintptr_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
         PC += 2;
-        switch (size) {
-            case 4:
-                *(uint32_t *)addr = value;
-                break;
-            case 2:
-                *(uint16_t *)addr = value;
-                break;
-            case 1:
-                *(uint8_t *)addr = value;
-                break;
-            default:
-                __builtin_unreachable();
-        }
-    } else if (dst_reg == 1) {
+        *(Type*)addr = value;
+    } else if (reg == 1) {
         uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
         PC += 4;
-        switch (size) {
-            case 4:
-                *(uint32_t *)addr = value;
-                break;
-            case 2:
-                *(uint16_t *)addr = value;
-                break;
-            case 1:
-                *(uint8_t *)addr = value;
-                break;
-            default:
-                __builtin_unreachable();
-        }
+        *(Type*)addr = value;
     } else {
         __builtin_unreachable();
     }
 }
 
-void storeToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode)
+template<class Type>
+void storeToEA(uint32_t mode, uint32_t reg, Type value)
 {
     switch (mode) {
-        case 0: [[unlikely]] StoreTo_EA_Mod0(dst_reg, value, size); return;
-        case 1: [[unlikely]] StoreTo_EA_Mod1(dst_reg, value, size); return;
-        case 2: [[unlikely]] StoreTo_EA_Mod2(dst_reg, value, size); return;
-        case 3: [[unlikely]] StoreTo_EA_Mod3(dst_reg, value, size); return;
-        case 4: [[unlikely]] StoreTo_EA_Mod4(dst_reg, value, size); return;
-        case 5: StoreTo_EA_Mod5(dst_reg, value, size); return;
-        case 6: StoreTo_EA_Mod6(dst_reg, value, size); return;
-        case 7: StoreTo_EA_Mod7(dst_reg, value, size); return;
+        case 0: [[unlikely]] setD<Type>(reg, value); return;
+        case 1: [[unlikely]] if constexpr(WordOrLongSize<Type>) setA<Type>(reg, value); return;
+        case 2: [[unlikely]] storeToEA_Mod2<Type>(mode, reg, value); return;
+        case 3: [[unlikely]] storeToEA_Mod3<Type>(mode, reg, value); return;
+        case 4: [[unlikely]] storeToEA_Mod4<Type>(mode, reg, value); return;
+        case 5: storeToEA_Mod5<Type>(mode, reg, value); return;
+        case 6: storeToEA_Mod6<Type>(mode, reg, value); return;
+        case 7: storeToEA_Mod7<Type>(mode, reg, value); return;
     }
 
     __builtin_unreachable();
 }
+
+template void storeToEA<BYTE>(uint32_t mode, uint32_t reg, BYTE value);
+template void storeToEA<WORD>(uint32_t mode, uint32_t reg, WORD value);
+template void storeToEA<LONG>(uint32_t mode, uint32_t reg, LONG value);
+template void storeToEA<UBYTE>(uint32_t mode, uint32_t reg, UBYTE value);
+template void storeToEA<UWORD>(uint32_t mode, uint32_t reg, UWORD value);
+template void storeToEA<ULONG>(uint32_t mode, uint32_t reg, ULONG value);
 
 void handleChangedSR(uint32_t sr, uint32_t changed)
 {

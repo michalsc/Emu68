@@ -24,10 +24,19 @@ void exceptionF1(uint32_t exception);
 void exceptionF2(uint32_t exception, uint32_t ea);
 void exceptionF3(uint32_t exception, uint32_t ea);
 void exceptionF4(uint32_t exception, uint32_t ea, uint32_t pc);
-void loadFromEffectiveAddress(uint8_t src_reg, uint8_t size, void *out, uint8_t mode);
-void storeToEffectiveAddress(uint8_t dst_reg, uint32_t value, uint8_t size, uint8_t mode);
-void getEffectiveAddress(uint8_t src_reg, uint8_t size, uint32_t *out, uint8_t mode);
-void getExtendedEffectiveAddress(uint32_t An, uint8_t, uint32_t *out);
+
+template<class Type>
+Type loadFromEA(uint32_t mode, uint32_t reg);
+
+template<class Type>
+uint32_t getEA(uint32_t mode, uint32_t reg);
+
+template<class Type>
+uint32_t getExtendedEA(uint32_t reg);
+
+template<class Type>
+void storeToEA(uint32_t mode, uint32_t reg, Type value);
+
 void handleChangedSR(uint32_t sr, uint32_t changed);
 void ILLEGAL(uint32_t opcode);
 
@@ -157,9 +166,7 @@ uint32_t getEA()
         PC += 2;
         return addr;
     } else if constexpr (Mode == 6) {
-        uint32_t ea;
-        getExtendedEffectiveAddress(getA<Reg, uint32_t>(), sizeof(Type), &ea);
-        return ea;
+        return getExtendedEA<Type>(getA<Reg, uint32_t>());
     } else if constexpr (Mode == 7) {
         if constexpr (Reg == 0) {
             uint32_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
@@ -175,9 +182,7 @@ uint32_t getEA()
             PC += 2;
             return addr;
         } else if constexpr (Reg == 3) {
-            uint32_t ea;
-            getExtendedEffectiveAddress(PC, sizeof(Type), &ea);
-            return ea;
+            return getExtendedEA<Type>(PC);
         } else if constexpr (Reg == 4) {
             if (sizeof(Type) == 1) PC++;
             uint32_t addr = PC;
@@ -234,10 +239,24 @@ void readModifyWriteEA(Fn&& modify)
 {
     if constexpr (Mode == 0) {
         setD<Reg, Type>(modify(getD<Reg, Type>()));
-    } else if constexpr (Mode == 1) {
+    } else if constexpr (Mode == 1 && WordOrLongSize<Type>) {
         setA<Reg, Type>(modify(getA<Reg, Type>()));
     } else {
         uint32_t addr = getEA<Mode, Reg, Type>();   // side effects (An update, PC advance) happen once, here
+        Type old = *(Type *)(uintptr_t)addr;
+        *(Type *)(uintptr_t)addr = modify(old);
+    }
+}
+
+template<class Type, class Fn>
+void readModifyWriteEA(uint32_t mode, uint32_t reg, Fn&& modify)
+{
+    if (mode == 0) {
+        setD<Type>(reg, modify(getD<Type>(reg)));
+    } else if (mode == 1 && WordOrLongSize<Type>) {
+        setA<Type>(reg, modify(getA<Type>(reg)));
+    } else {
+        uint32_t addr = getEA<Type>(mode, reg);   // side effects happen once, here
         Type old = *(Type *)(uintptr_t)addr;
         *(Type *)(uintptr_t)addr = modify(old);
     }
