@@ -6,7 +6,7 @@
 
 #include "RegisterMapping.h"
 
-namespace Emu68::M68k::Interpreter {
+namespace Emu68::M68k::Interpreter::Line9 {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An, class Type>
 requires (sizeof(Type) > 1)
@@ -197,13 +197,13 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-} // Emu68::M68k::Interpreter
+constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.9"))) = buildInsnTable();
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
+} // Emu68::M68k::Interpreter::Line9
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line9(uint32_t opcode)
 {
-    InsnTable[opcode & 0xfff](opcode);
+    Emu68::M68k::Interpreter::Line9::InsnTable[opcode & 0xfff](opcode);
 }
 

@@ -42,6 +42,26 @@ SECTIONS
     }
     .rodata1 : { *(.rodata1) }
 
+    .rodata2 : {
+        __interpreter_jumptable_start = .;
+        *(.int.jumptable.0)
+        *(.int.jumptable.1)
+        *(.int.jumptable.2)
+        *(.int.jumptable.3)
+        *(.int.jumptable.4)
+        *(.int.jumptable.5)
+        *(.int.jumptable.6)
+        *(.int.jumptable.7)
+        *(.int.jumptable.8)
+        *(.int.jumptable.9)
+        *(.int.jumptable.a)
+        *(.int.jumptable.b)
+        *(.int.jumptable.c)
+        *(.int.jumptable.d)
+        *(.int.jumptable.e)
+        *(.int.jumptable.f)
+    }
+
     .sdata2 : { *(.sdata2) *(.sdata2.*) *(.gnu.linkonce.s2.*) }
 
     .data ALIGN(0x1000) :

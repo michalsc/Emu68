@@ -20,7 +20,7 @@ void M68K_LoadContext(struct M68KState *ctx);
 
 }
 
-namespace Emu68::M68k::Interpreter {
+namespace Emu68::M68k::Interpreter::LineE {
 
 template<uint8_t Mode, uint8_t Reg>
 void ROR_EA(uint32_t)
@@ -285,13 +285,13 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-} // Emu68::M68k::Interpreter
+constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.e"))) = buildInsnTable();
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
+} // Emu68::M68k::Interpreter::LineE
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_lineE(uint32_t opcode)
 {
-    InsnTable[opcode & 0xfff](opcode);
+    Emu68::M68k::Interpreter::LineE::InsnTable[opcode & 0xfff](opcode);
 }
 

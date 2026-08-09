@@ -6,7 +6,7 @@
 
 #include "RegisterMapping.h"
 
-namespace Emu68::M68k::Interpreter {
+namespace Emu68::M68k::Interpreter::LineD {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An, class Type>
 requires (sizeof(Type) > 1)
@@ -116,138 +116,106 @@ void ADDX(uint32_t)
     else                    { *dst = result; }
 }
 
-#define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
-    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
-        ((table[base + EA((Is >> 3), Is & 7)] = \
-             name<(Is >> 3), Is & 7, reg, size>), ...); \
-    }((base_offset), std::make_index_sequence<61>{});
+template <class Type, template<uint8_t,uint8_t,uint8_t,class> class Op,
+          class EAF, class RegF>
+constexpr void fillEAReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned eaV  = I / RegF::size;
+        constexpr unsigned regV = I % RegF::size;
 
-#define FILL_ALL_RD_EAs_no_An(base_offset, name, reg, size) \
-    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
-        ((table[base + EA(0, Dreg)] = \
-            name<0, Dreg, reg, size>), ...); \
-    }((base_offset), std::make_index_sequence<8>{}); \
-    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
-        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
-             name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
-    }((base_offset), std::make_index_sequence<45>{});
+        if constexpr (EAF::template valid<eaV>() && RegF::valid(regV)) {
+            int idx = base + (eaV << EAF::bitOffset) + (regV << RegF::bitOffset);
+            table[idx] = Op<EAF::modeArg(eaV), EAF::regArg(eaV), RegF::arg(regV), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<EAF::size * RegF::size>{});
+}
 
-#define FILL_ALL_WR_EAs(base_offset, name, reg, size) \
-    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
-        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
-             name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
-    }((base_offset), std::make_index_sequence<42>{});
+template <class Type, template<uint8_t,uint8_t,class> class Op, class F1, class F2>
+constexpr void fillRegReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned v1 = I / F2::size;
+        constexpr unsigned v2 = I % F2::size;
+        if constexpr (F1::valid(v1) && F2::valid(v2)) {
+            int idx = base + (v1 << F1::bitOffset) + (v2 << F2::bitOffset);
+            table[idx] = Op<F1::arg(v1), F2::arg(v2), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F1::size * F2::size>{});
+}
 
-#define FILL_ADDX(base_offset, mem_form, size) \
-    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
-        ((table[base + ((Is >> 3) << 9) + (Is & 7)] = \
-             ADDX<mem_form, (Is >> 3), Is & 7, size>), ...); \
-    }((base_offset), std::make_index_sequence<64>{});
+// hot on the source side: registers, simple indirects, d16(An), and the
+// mode-7 forms that show up constantly in Kickstart/AmigaOS code —
+// abs.W ("4.w"), abs.L, d16(PC), immediate.
+inline constexpr uint32_t SrcSpecializeMask = 
+      classBit(EAClass::Dn)      | classBit(EAClass::An)
+    | classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An)
+    | classBit(EAClass::D16PC)   | classBit(EAClass::Imm);
+    // D8AnXn / D8PCXn omitted: extension-word decode is rare enough
+    // AbsW / AbsL omitted: adding a constant from RAM location is rare
 
+inline constexpr uint32_t DstSpecializeMask = 
+      classBit(EAClass::Dn)      | classBit(EAClass::An)
+    | classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An)
+    | classBit(EAClass::AbsL);
+    // AbsW / AbsL omitted: adding to a fixed memory location is rare.
+    // D8AnXn omitted; D16PC/D8PCXn/Imm are not valid destinations anyway.
+
+template <uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+struct ADDA_Op { static constexpr auto value = ADDA<Mode, Reg, Dn, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+struct ADD_EA_to_Dn_Op { static constexpr auto value = ADD_EA_to_Dn<Mode, Reg, Dn, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+struct ADD_Dn_to_EA_Op { static constexpr auto value = ADD_Dn_to_EA<Mode, Reg, Dn, Type>; };
+
+template <uint8_t Rx, uint8_t Ry, class Type>
+struct ADDX_Reg_Op { static constexpr auto value = ADDX<false, Rx, Ry, Type>; };
+
+template <uint8_t Rx, uint8_t Ry, class Type>
+struct ADDX_Mem_Op { static constexpr auto value = ADDX<true, Rx, Ry, Type>; };
 
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
+    for (auto& e : table) e = ILLEGAL;
 
-    auto fill = [&table](int first, int last, INTERPRET_Function func) {
-        for (int i = first; i <= last; ++i)
-            table[i] = func;
-    };
+    fillEAReg<WORD, ADDA_Op, EAField<0,WORD,false,SrcSpecializeMask>, RegField<9>>(table, 00300);
+    fillEAReg<LONG, ADDA_Op, EAField<0,LONG,false,SrcSpecializeMask>, RegField<9>>(table, 00700);
 
-    auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
+    fillEAReg<BYTE, ADD_EA_to_Dn_Op, EAField<0,BYTE,false,SrcSpecializeMask>, RegField<9>>(table, 00000);
+    fillEAReg<WORD, ADD_EA_to_Dn_Op, EAField<0,WORD,false,SrcSpecializeMask>, RegField<9>>(table, 00100);
+    fillEAReg<LONG, ADD_EA_to_Dn_Op, EAField<0,LONG,false,SrcSpecializeMask>, RegField<9>>(table, 00200);
 
-    fill(00000, 07777, ILLEGAL);
+    fillEAReg<BYTE, ADD_Dn_to_EA_Op, EAField<0,BYTE,true,DstSpecializeMask>, RegField<9>>(table, 00400);
+    fillEAReg<WORD, ADD_Dn_to_EA_Op, EAField<0,WORD,true,DstSpecializeMask>, RegField<9>>(table, 00500);
+    fillEAReg<LONG, ADD_Dn_to_EA_Op, EAField<0,LONG,true,DstSpecializeMask>, RegField<9>>(table, 00600);
 
-    FILL_ALL_RD_EAs(        00700,  ADDA,         0,  LONG);
-    FILL_ALL_RD_EAs(        01700,  ADDA,         1,  LONG);
-    FILL_ALL_RD_EAs(        02700,  ADDA,         2,  LONG);
-    FILL_ALL_RD_EAs(        03700,  ADDA,         3,  LONG);
-    FILL_ALL_RD_EAs(        04700,  ADDA,         4,  LONG);
-    FILL_ALL_RD_EAs(        05700,  ADDA,         5,  LONG);
-    FILL_ALL_RD_EAs(        06700,  ADDA,         6,  LONG);
-    FILL_ALL_RD_EAs(        07700,  ADDA,         7,  LONG);
-
-    FILL_ALL_RD_EAs(        00300,  ADDA,         0,  WORD);
-    FILL_ALL_RD_EAs(        01300,  ADDA,         1,  WORD);
-    FILL_ALL_RD_EAs(        02300,  ADDA,         2,  WORD);
-    FILL_ALL_RD_EAs(        03300,  ADDA,         3,  WORD);
-    FILL_ALL_RD_EAs(        04300,  ADDA,         4,  WORD);
-    FILL_ALL_RD_EAs(        05300,  ADDA,         5,  WORD);
-    FILL_ALL_RD_EAs(        06300,  ADDA,         6,  WORD);
-    FILL_ALL_RD_EAs(        07300,  ADDA,         7,  WORD);
-
-    FILL_ALL_RD_EAs_no_An(  00000,  ADD_EA_to_Dn, 0,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  01000,  ADD_EA_to_Dn, 1,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  02000,  ADD_EA_to_Dn, 2,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  03000,  ADD_EA_to_Dn, 3,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  04000,  ADD_EA_to_Dn, 4,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  05000,  ADD_EA_to_Dn, 5,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  06000,  ADD_EA_to_Dn, 6,  BYTE);
-    FILL_ALL_RD_EAs_no_An(  07000,  ADD_EA_to_Dn, 7,  BYTE);
-
-    FILL_ALL_RD_EAs(        00100,  ADD_EA_to_Dn, 0,  WORD);
-    FILL_ALL_RD_EAs(        01100,  ADD_EA_to_Dn, 1,  WORD);
-    FILL_ALL_RD_EAs(        02100,  ADD_EA_to_Dn, 2,  WORD);
-    FILL_ALL_RD_EAs(        03100,  ADD_EA_to_Dn, 3,  WORD);
-    FILL_ALL_RD_EAs(        04100,  ADD_EA_to_Dn, 4,  WORD);
-    FILL_ALL_RD_EAs(        05100,  ADD_EA_to_Dn, 5,  WORD);
-    FILL_ALL_RD_EAs(        06100,  ADD_EA_to_Dn, 6,  WORD);
-    FILL_ALL_RD_EAs(        07100,  ADD_EA_to_Dn, 7,  WORD);
-
-    FILL_ALL_RD_EAs(        00200,  ADD_EA_to_Dn, 0,  LONG);
-    FILL_ALL_RD_EAs(        01200,  ADD_EA_to_Dn, 1,  LONG);
-    FILL_ALL_RD_EAs(        02200,  ADD_EA_to_Dn, 2,  LONG);
-    FILL_ALL_RD_EAs(        03200,  ADD_EA_to_Dn, 3,  LONG);
-    FILL_ALL_RD_EAs(        04200,  ADD_EA_to_Dn, 4,  LONG);
-    FILL_ALL_RD_EAs(        05200,  ADD_EA_to_Dn, 5,  LONG);
-    FILL_ALL_RD_EAs(        06200,  ADD_EA_to_Dn, 6,  LONG);
-    FILL_ALL_RD_EAs(        07200,  ADD_EA_to_Dn, 7,  LONG);
-
-    FILL_ALL_WR_EAs(        00400,  ADD_Dn_to_EA, 0,  BYTE);
-    FILL_ALL_WR_EAs(        01400,  ADD_Dn_to_EA, 1,  BYTE);
-    FILL_ALL_WR_EAs(        02400,  ADD_Dn_to_EA, 2,  BYTE);
-    FILL_ALL_WR_EAs(        03400,  ADD_Dn_to_EA, 3,  BYTE);
-    FILL_ALL_WR_EAs(        04400,  ADD_Dn_to_EA, 4,  BYTE);
-    FILL_ALL_WR_EAs(        05400,  ADD_Dn_to_EA, 5,  BYTE);
-    FILL_ALL_WR_EAs(        06400,  ADD_Dn_to_EA, 6,  BYTE);
-    FILL_ALL_WR_EAs(        07400,  ADD_Dn_to_EA, 7,  BYTE);
-
-    FILL_ALL_WR_EAs(        00500,  ADD_Dn_to_EA, 0,  WORD);
-    FILL_ALL_WR_EAs(        01500,  ADD_Dn_to_EA, 1,  WORD);
-    FILL_ALL_WR_EAs(        02500,  ADD_Dn_to_EA, 2,  WORD);
-    FILL_ALL_WR_EAs(        03500,  ADD_Dn_to_EA, 3,  WORD);
-    FILL_ALL_WR_EAs(        04500,  ADD_Dn_to_EA, 4,  WORD);
-    FILL_ALL_WR_EAs(        05500,  ADD_Dn_to_EA, 5,  WORD);
-    FILL_ALL_WR_EAs(        06500,  ADD_Dn_to_EA, 6,  WORD);
-    FILL_ALL_WR_EAs(        07500,  ADD_Dn_to_EA, 7,  WORD);
-
-    FILL_ALL_WR_EAs(        00600,  ADD_Dn_to_EA, 0,  LONG);
-    FILL_ALL_WR_EAs(        01600,  ADD_Dn_to_EA, 1,  LONG);
-    FILL_ALL_WR_EAs(        02600,  ADD_Dn_to_EA, 2,  LONG);
-    FILL_ALL_WR_EAs(        03600,  ADD_Dn_to_EA, 3,  LONG);
-    FILL_ALL_WR_EAs(        04600,  ADD_Dn_to_EA, 4,  LONG);
-    FILL_ALL_WR_EAs(        05600,  ADD_Dn_to_EA, 5,  LONG);
-    FILL_ALL_WR_EAs(        06600,  ADD_Dn_to_EA, 6,  LONG);
-    FILL_ALL_WR_EAs(        07600,  ADD_Dn_to_EA, 7,  LONG);
-
-    FILL_ADDX(              00400,  false,            BYTE);
-    FILL_ADDX(              00500,  false,            WORD);
-    FILL_ADDX(              00600,  false,            LONG);
-    
-    FILL_ADDX(              00410,  true,             BYTE);
-    FILL_ADDX(              00510,  true,             WORD);
-    FILL_ADDX(              00610,  true,             LONG);
+    fillRegReg<BYTE, ADDX_Reg_Op, RegField<9>, RegField<0>>(table, 00400);
+    fillRegReg<WORD, ADDX_Reg_Op, RegField<9>, RegField<0>>(table, 00500);
+    fillRegReg<LONG, ADDX_Reg_Op, RegField<9>, RegField<0>>(table, 00600);
+    fillRegReg<BYTE, ADDX_Mem_Op, RegField<9>, RegField<0>>(table, 00410);
+    fillRegReg<WORD, ADDX_Mem_Op, RegField<9>, RegField<0>>(table, 00510);
+    fillRegReg<LONG, ADDX_Mem_Op, RegField<9>, RegField<0>>(table, 00610);
 
     return table;
 }
 
-} // Emu68::M68k::Interpreter
+constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.d"))) = buildInsnTable();
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
+} // Emu68::M68k::Interpreter::LineD
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_lineD(uint32_t opcode)
 {
-    InsnTable[opcode & 0xfff](opcode);
+    Emu68::M68k::Interpreter::LineD::InsnTable[opcode & 0xfff](opcode);
 }
-

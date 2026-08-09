@@ -20,7 +20,7 @@ void MOVE(uint32_t opcode)
     if constexpr (SrcMode == DEFAULT_EA || SrcReg == DEFAULT_EA) {
         const uint8_t srcMode = (SrcMode == DEFAULT_EA) ? (opcode >> 3) & 7 : SrcMode;
         const uint8_t srcReg  = (SrcReg == DEFAULT_EA) ? (opcode) & 7 : SrcReg;
-        loadFromEffectiveAddress(srcReg, sizeof(Type), &value, srcMode);
+        value = loadFromEA<Type>(srcMode, srcReg);
     } else {
         value = loadFromEA<SrcMode, SrcReg, Type>();
     }
@@ -31,7 +31,7 @@ void MOVE(uint32_t opcode)
     if constexpr (DstMode == DEFAULT_EA || DstReg == DEFAULT_EA) {
         const uint8_t dstMode = (DstMode == DEFAULT_EA) ? (opcode >> 6) & 7 : DstMode;
         const uint8_t dstReg  = (DstReg == DEFAULT_EA) ? (opcode >> 9) & 7 : DstReg;
-        storeToEffectiveAddress(dstReg, value, sizeof(Type), dstMode);
+        storeToEA<Type>(dstMode, dstReg, value);
         is_movea = (dstMode == 1);
     } else {
         storeToEA<DstMode, DstReg, Type>(value);
@@ -119,9 +119,9 @@ static consteval std::array<INTERPRET_Function, 4096> buildInsnTable()
 
 } // Emu68::M68k::Interpreter
 
-static constexpr auto InsnTable_L = Emu68::M68k::Interpreter::buildInsnTable<LONG>();
-static constexpr auto InsnTable_W = Emu68::M68k::Interpreter::buildInsnTable<WORD>();
-static constexpr auto InsnTable_B = Emu68::M68k::Interpreter::buildInsnTable<BYTE>();
+static constexpr auto InsnTable_L __attribute__((section(".int.jumptable.2"))) = Emu68::M68k::Interpreter::buildInsnTable<LONG>();
+static constexpr auto InsnTable_W __attribute__((section(".int.jumptable.3"))) = Emu68::M68k::Interpreter::buildInsnTable<WORD>();
+static constexpr auto InsnTable_B __attribute__((section(".int.jumptable.1"))) = Emu68::M68k::Interpreter::buildInsnTable<BYTE>();
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line1(uint32_t opcode)

@@ -14,7 +14,7 @@ void M68K_SaveContext(struct M68KState *ctx);
 
 }
 
-namespace Emu68::M68k::Interpreter {
+namespace Emu68::M68k::Interpreter::Line5 {
 
 static inline struct M68KState *getCTX()
 {
@@ -289,12 +289,13 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-} // Emu68::M68k::Interpreter
+constexpr auto InsnTable __attribute__((section(".int.jumptable.5"))) = buildInsnTable();
 
-static constexpr auto InsnTable = Emu68::M68k::Interpreter::buildInsnTable();
+} // Emu68::M68k::Interpreter::Line5
+
 
 __attribute__((optimize("no-optimize-sibling-calls")))
 void INTERPRET_line5(uint32_t opcode)
 {
-    InsnTable[opcode & 4095](opcode);
+    Emu68::M68k::Interpreter::Line5::InsnTable[opcode & 4095](opcode);
 }
