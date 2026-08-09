@@ -137,17 +137,22 @@ static inline void setFPCR(uint32_t fpcr)
 #include <type_traits> 
 
 template<class Type>
-Type getDn(int reg);
+Type getD(int reg);
+
 template<class Type>
-void setDn(int reg, Type val);
+void setD(int reg, Type val);
+
 template<class Type>
-Type getAn(int reg);
+Type getA(int reg);
+
 template<class Type>
-void setAn(int reg, Type val);
+void setA(int reg, Type val);
+
 template<class Type>
-Type getFPn(int reg);
+Type getFP(int reg);
+
 template<class Type>
-void setFPn(int reg, Type val);
+void setFP(int reg, Type val);
 
 template <unsigned reg, class type> requires (reg < 8)
 [[gnu::always_inline]] inline type getD()
