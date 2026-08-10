@@ -9,7 +9,7 @@
 namespace Emu68::M68k::Interpreter::LineD {
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An, class Type>
-requires (sizeof(Type) > 1)
+requires (sizeof(Type) > 1 && An < 8)
 void ADDA(uint32_t opcode)
 {
     Type val;
@@ -42,10 +42,10 @@ void ADD_Dn_to_EA(uint32_t opcode)
     PC = PC + 2;
 
     auto oper = [&](Type v) -> Type {
-            auto [result, ccr] = arithWithFlags<Type, false>(v, addend);
-            SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
-            return result;
-        };
+        auto [result, ccr] = arithWithFlags<Type, false>(v, addend);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    };
 
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
