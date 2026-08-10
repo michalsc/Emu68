@@ -9,7 +9,7 @@
 namespace Emu68::M68k::Interpreter::Line0 {
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-void ANDI(uint32_t)
+void ANDI(uint32_t opcode)
 {
     Type immediate;
 
@@ -23,7 +23,7 @@ void ANDI(uint32_t)
         PC += 2;
     }
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    auto oper = [&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v &= immediate;
@@ -36,11 +36,19 @@ void ANDI(uint32_t)
         SR = sr;
 
         return v;
-    });
+    };
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<Type>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>(oper);
+    }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-void ORI(uint32_t)
+void ORI(uint32_t opcode)
 {
     Type immediate;
 
@@ -54,7 +62,7 @@ void ORI(uint32_t)
         PC += 2;
     }
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    auto oper = [&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v |= immediate;
@@ -67,11 +75,19 @@ void ORI(uint32_t)
         SR = sr;
 
         return v;
-    });
+    };
+    
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<Type>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>(oper);
+    }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-void EORI(uint32_t)
+void EORI(uint32_t opcode)
 {
     Type immediate;
 
@@ -85,7 +101,7 @@ void EORI(uint32_t)
         PC += 2;
     }
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    auto oper = [&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
 
         v ^= immediate;
@@ -98,11 +114,19 @@ void EORI(uint32_t)
         SR = sr;
 
         return v;
-    });
+    };
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<Type>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>(oper);
+    }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-void ADDI(uint32_t)
+void ADDI(uint32_t opcode)
 {
     Type immediate;
     PC += 2;
@@ -114,15 +138,23 @@ void ADDI(uint32_t)
         PC += 2;
     }
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    auto oper = [&](Type v) -> Type {
         auto [result, ccr] = arithWithFlags<Type, false>(v, immediate);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
-    });
+    };
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<Type>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>(oper);
+    }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-void SUBI(uint32_t)
+void SUBI(uint32_t opcode)
 {
     Type immediate;
     PC += 2;
@@ -134,15 +166,23 @@ void SUBI(uint32_t)
         PC += 2;
     }
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+    auto oper = [&](Type v) -> Type {
         auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
-    });
+    };
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<Type>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>(oper);
+    }
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-void CMPI(uint32_t)
+void CMPI(uint32_t opcode)
 {
     Type immediate;
     PC += 2;
@@ -154,7 +194,16 @@ void CMPI(uint32_t)
         PC += 2;
     }
 
-    Type v = loadFromEA<Mode, Reg, Type>();
+    Type v;
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        v = loadFromEA<Type>(mode, reg);
+    } else {
+        v = loadFromEA<Mode, Reg, Type>();
+    }
+
     auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
     (void)result;                          // discarded — CMPI keeps only the flags
     SR = (SR & ~SR_NZVC) | ccr;            // X untouched
@@ -240,7 +289,6 @@ void EORI_to_SR(uint32_t)
         exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
     }
 }
-
 
 template<uint8_t Dn>
 void BTST_IMM_Dn(uint32_t)
