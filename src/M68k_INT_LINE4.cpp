@@ -53,6 +53,20 @@ void MOVE_to_SR(uint32_t)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg>
+void MOVE_from_SR(uint32_t)
+{
+    uint32_t sr = SR;
+
+    /* Reading SR requires supervisor rights */
+    if (sr & SR_S) {
+        PC += 2;
+        storeToEA<Mode, Reg, WORD>(sr);
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 void MOVE_to_USP(uint32_t opcode)
 {
     /* Accessing USP requires supervisor rights */
@@ -971,6 +985,9 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     FILL_MOD0(              03300, MOVE_to_SR);     /* MOVE to SR Dn */
     FILL_MOD2_to_75(        03300, MOVE_to_SR);     /* MOVE to SR all other modes */
+
+    FILL_MOD0(              00300, MOVE_from_SR);   /* MOVE from SR Dn */
+    FILL_MOD2_to_72(        00300, MOVE_from_SR);   /* MOVE from SR all other modes */
 
     FILL_MOD0_reg_only(     04100, SWAP);           /* SWAP Dn */
 
