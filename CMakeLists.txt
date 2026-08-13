@@ -58,8 +58,6 @@ set(M68K_SAVED_TEMPS
          -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11"
 )
 
-add_compile_options(${CONTEXT_RESERVE_FLAGS})
-
 set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
@@ -354,6 +352,7 @@ add_compile_options(
     -Wextra
     -Werror
     -ffixed-x12
+    ${CONTEXT_RESERVE_FLAGS}
 )
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
