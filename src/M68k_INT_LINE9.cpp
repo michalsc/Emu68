@@ -182,6 +182,23 @@ struct SUBX_Reg_Op { static constexpr auto value = SUBX<false, Rx, Ry, Type>; };
 template <uint8_t Rx, uint8_t Ry, class Type>
 struct SUBX_Mem_Op { static constexpr auto value = SUBX<true, Rx, Ry, Type>; };
 
+// EA field combines Register and EA mode in one, gets
+template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
+struct EAField : FieldBase<BitOffset, 6> {
+    template <unsigned V>
+    static constexpr bool valid() {
+        constexpr unsigned mode = V >> 3, reg = V & 7;
+        if constexpr (Write) return MemoryMode<mode> && DestEA7<mode, reg> && ByteCompatibleMode<mode, Type>;
+        else                 return SourceEA7<mode, reg> && ByteCompatibleMode<mode, Type>;
+    }
+
+    static constexpr bool hot(unsigned v) {
+        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
+    }
+    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
+    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
+};
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
