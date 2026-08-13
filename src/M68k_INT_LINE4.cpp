@@ -192,6 +192,38 @@ void RTR(uint32_t)
     A7 += 6;
 }
 
+void RTE(uint32_t)
+{
+    uint32_t sr, changedSR;
+
+    sr = SR;
+    changedSR = sr;
+
+    if (SR & SR_S) {
+        /* Fetch SR, PC and Frame format */
+        ExceptionFrameFormat frame = static_cast<ExceptionFrameFormat>(*(uint16_t*)((uintptr_t)A7 + 6) & 0xf000);
+        uint32_t newPC = *(uint32_t*)((uintptr_t)A7 + 2);
+        
+        sr = swapVC(*(uint16_t*)((uintptr_t)A7) & SR_ALL);
+
+        if (frame != ExceptionFrameFormat::FORMAT_0 && frame != ExceptionFrameFormat::FORMAT_2) {
+            raiseException(VECTOR_FORMAT_ERROR, ExceptionFrameFormat::FORMAT_0, 0, 0);
+        }
+
+        A7 += 8;
+        if (frame == ExceptionFrameFormat::FORMAT_2) A7 += 4;
+
+        PC = newPC;
+        changedSR ^= sr;
+
+        handleChangedSR(sr, changedSR);
+
+        SR = sr;
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 void RTD(uint32_t)
 {
     int32_t displacement = *(int16_t*)(uintptr_t)(PC + 2);
@@ -1072,6 +1104,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[04347] =     MOVEM_L_regs_to_A7_PreDec;
 #endif
     table[07161] =     NOP;
+    table[07163] =     RTE;
     table[07164] =     RTD;
     table[07165] =     RTS;
     table[07167] =     RTR;
@@ -1093,7 +1126,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     
     [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
     [0xe72]           = { EMIT_STOP, NULL, SR_S, SR_ALL, 2, 0, 0 },
-    [0xe73]           = { EMIT_RTE, NULL, SR_S, SR_ALL, 1, 0, 0 },
+    
     [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
     
     [04110 ... 04117] = { EMIT_BKPT, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
