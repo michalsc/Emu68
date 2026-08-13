@@ -405,8 +405,6 @@ void ProcessIRQ(struct M68KState *ctx)
     }
 }
 
-register uint64x2_t reg_q22 asm("q22");
-
 void InterpreterLoop()
 {
     struct M68KState *ctx = getCTX();
