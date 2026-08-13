@@ -11,7 +11,6 @@
 #include <support.h>
 #include <config.h>
 #include <arm_neon.h>
-#include <emu68/m68k/interpreter.hpp>
 
 #include "disasm.h"
 #include "RegisterMapping.h"
