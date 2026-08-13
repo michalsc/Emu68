@@ -22,6 +22,8 @@ namespace Emu68::M68k::Interpreter {
 /* Few concepts for constraining the templates below */
 template<uint8_t Mode> concept ValidMode  = Mode < 8;
 template<uint8_t Mode> concept MemoryMode = Mode >= 2 && Mode < 8;  // excludes Dn/An direct
+template<uint8_t Mode> concept PostIncMode = Mode == 3;
+template<uint8_t Mode> concept PreDecMode = Mode == 4;
 template<uint8_t Reg>  concept ValidReg   = Reg < 8;
 template<uint8_t Mode> concept DRegMode   = Mode == 0;
 template<uint8_t Mode> concept ARegMode   = Mode == 1;
@@ -135,20 +137,26 @@ template<auto...> constexpr bool ALWAYS_FALSE = false;
 inline constexpr uint8_t DEFAULT_EA = 255;
 
 template<uint8_t Mode, uint8_t Reg, class Type>
-requires MemoryMode<Mode> && ValidReg<Reg> && AnyEASize<Type>
+requires MemoryMode<Mode> && ValidReg<Reg> && (AnyEASize<Type> || std::is_same<Type, void>::value)
 uint32_t getEA()
 {
     if constexpr (Mode == 2) {
         return getA<Reg, uint32_t>();
     } else if constexpr (Mode == 3) {
         uint32_t addr = getA<Reg, uint32_t>();
-        uint32_t next = addr + sizeof(Type) + ((sizeof(Type) == 1 && Reg == 7) ? 1 : 0);
-        setA<Reg, uint32_t>(next);
+        if constexpr (!std::is_same<Type, void>::value) {
+            uint32_t next = addr + sizeof(Type) + ((sizeof(Type) == 1 && Reg == 7) ? 1 : 0);
+            setA<Reg, uint32_t>(next);
+        }
         return addr;
     } else if constexpr (Mode == 4) {
-        uint32_t addr = getA<Reg, uint32_t>() - sizeof(Type) - ((sizeof(Type) == 1 && Reg == 7) ? 1 : 0);
-        setA<Reg, uint32_t>(addr);
-        return addr;
+        if constexpr (!std::is_same<Type, void>::value) {
+            uint32_t addr = getA<Reg, uint32_t>() - sizeof(Type) - ((sizeof(Type) == 1 && Reg == 7) ? 1 : 0);
+            setA<Reg, uint32_t>(addr);
+            return addr;
+        } else {
+            return getA<Reg, uint32_t>();
+        }
     } else if constexpr (Mode == 5) {
         uint32_t addr = getA<Reg, uint32_t>() + *(int16_t *)(uintptr_t)PC;
         PC += 2;
@@ -450,22 +458,7 @@ struct RegField : FieldBase<BitOffset, Width> {
     static constexpr uint8_t arg(unsigned v) { return hot(v) ? uint8_t(v) : DEFAULT_EA; }
 };
 
-// EA field combines Register and EA mode in one, gets
-template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
-struct EAField : FieldBase<BitOffset, 6> {
-    template <unsigned V>
-    static constexpr bool valid() {
-        constexpr unsigned mode = V >> 3, reg = V & 7;
-        if constexpr (Write) return MemoryMode<mode> && DestEA7<mode, reg> && ByteCompatibleMode<mode, Type>;
-        else                 return SourceEA7<mode, reg> && ByteCompatibleMode<mode, Type>;
-    }
 
-    static constexpr bool hot(unsigned v) {
-        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
-    }
-    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
-    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
-};
 
 // A field consumed by the handler at runtime (immediate data, displacement,
 // etc.) that never influences which function handles the opcode. Every
