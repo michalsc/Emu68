@@ -211,14 +211,14 @@ void CMPI(uint32_t opcode)
 
 void ORI_to_CCR(uint32_t)
 {
-    uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+    uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
     SR = SR | immed;
     PC += 4;
 }
 
 void ORI_to_SR(uint32_t)
 {
-    uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
+    uint16_t immed = swapVC(*(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL);
     uint16_t sr = SR;
     uint16_t changed = sr;
     
@@ -238,14 +238,14 @@ void ORI_to_SR(uint32_t)
 
 void ANDI_to_CCR(uint32_t)
 {
-	uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+	uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
     SR = SR & immed;
 	PC += 4;
 }
 
 void ANDI_to_SR(uint32_t)
 {
-    uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
+    uint16_t immed = swapVC(*(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL);
     uint16_t sr = SR;
     uint16_t changed = sr;
     
@@ -265,14 +265,14 @@ void ANDI_to_SR(uint32_t)
 
 void EORI_to_CCR(uint32_t)
 {
-    uint16_t immed = *(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR;
+    uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
     SR = SR ^ immed;
     PC += 4;
 }
 
 void EORI_to_SR(uint32_t)
 {
-    uint16_t immed = *(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL;
+    uint16_t immed = swapVC(*(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL);
     uint16_t sr = SR;
     uint16_t changed = sr;
     

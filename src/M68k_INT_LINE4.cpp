@@ -27,7 +27,7 @@ template<uint8_t Mode, uint8_t Reg>
 void MOVE_to_CCR(uint32_t)
 {
     PC += 2;
-    WORD val = loadFromEA<Mode, Reg, WORD>() & SR_CCR;
+    WORD val = swapVC(loadFromEA<Mode, Reg, WORD>() & SR_CCR);
     SR = (SR & 0xff00) | (val & 0x00ff);
 }
 
@@ -40,7 +40,7 @@ void MOVE_to_SR(uint32_t)
     /* Modifying SR requires supervisor rights */
     if (sr & SR_S) {
         PC += 2;
-        WORD val = loadFromEA<Mode, Reg, WORD>() & SR_ALL;
+        WORD val = swapVC(loadFromEA<Mode, Reg, WORD>() & SR_ALL);
 
         sr = val;
         changed ^= sr;
@@ -61,7 +61,7 @@ void MOVE_from_SR(uint32_t)
     /* Reading SR requires supervisor rights */
     if (sr & SR_S) {
         PC += 2;
-        storeToEA<Mode, Reg, WORD>(sr);
+        storeToEA<Mode, Reg, WORD>(swapVC(sr));
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -187,7 +187,7 @@ void RTS(uint32_t)
 
 void RTR(uint32_t)
 {
-    SR = (SR & ~SR_CCR) | (*(uint16_t*)(uintptr_t)A7 & SR_CCR);
+    SR = (SR & ~SR_CCR) | swapVC((*(uint16_t*)(uintptr_t)A7 & SR_CCR));
     PC = *(uint32_t *)(uintptr_t)(A7 + 2);
     A7 += 6;
 }

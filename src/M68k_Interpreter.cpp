@@ -208,15 +208,8 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     /* Push the exception frame */
     void* sp = (void*)(uintptr_t)A7;
 
-    /* Invert V and C flags */
-    uint32_t tmp = origSR;
-    uint32_t tmp2;
-
-    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
-    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-
     /* Prepare frame */
-    *(uint16_t*)(uintptr_t)sp = tmp;
+    *(uint16_t*)(uintptr_t)sp = swapVC(origSR);
     *(uint32_t*)((uintptr_t)sp + 2) = PC;
     *(uint16_t*)((uintptr_t)sp + 6) = exception | static_cast<uint32_t>(format);
     if (format >= ExceptionFrameFormat::FORMAT_2) {
@@ -225,7 +218,6 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
             *(uint32_t*)((uintptr_t)sp + 12) = pc;
         }
     }
-    
 
     /* Set SR to supervisor and clear trace flags */
     origSR |= SR_S;
