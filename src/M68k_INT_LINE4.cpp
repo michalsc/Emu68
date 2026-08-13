@@ -565,7 +565,155 @@ void MULU_L(uint32_t)
     } 
 }
 
+template<uint8_t Mode, uint8_t Reg, bool Write, class Type>
+void MOVEM(uint32_t opcode)
+{
+    bool constexpr PreDecMode = Write && Mode == 4;
+    const uint16_t regMask = *(uint16_t*)(uintptr_t)(PC + 2);
+    uint32_t baseptr;
+    bool update_reg;
 
+    PC += 4;
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        baseptr = getEA<void>(mode, reg);
+        update_reg = mode == 3 || mode == 4;
+    } else {
+        baseptr = getEA<Mode, Reg, void>();
+        update_reg = Mode == 3 || Mode == 4;
+    }
+
+    if constexpr (sizeof(Type) == 4) {
+        uint32_t *base = (uint32_t*)(uintptr_t)baseptr;
+
+        if (Write) {
+            if (PreDecMode) {
+                if (regMask & 0x0001) *--base = A7;
+                if (regMask & 0x0002) *--base = A6;
+                if (regMask & 0x0004) *--base = A5;
+                if (regMask & 0x0008) *--base = A4;
+                if (regMask & 0x0010) *--base = A3;
+                if (regMask & 0x0020) *--base = A2;
+                if (regMask & 0x0040) *--base = A1;
+                if (regMask & 0x0080) *--base = A0;
+                if (regMask & 0x0100) *--base = D7;
+                if (regMask & 0x0200) *--base = D6;
+                if (regMask & 0x0400) *--base = D5;
+                if (regMask & 0x0800) *--base = D4;
+                if (regMask & 0x1000) *--base = D3;
+                if (regMask & 0x2000) *--base = D2;
+                if (regMask & 0x4000) *--base = D1;
+                if (regMask & 0x8000) *--base = D0;
+            } else {
+                if (regMask & 0x0001) *base++ = D0;
+                if (regMask & 0x0002) *base++ = D1;
+                if (regMask & 0x0004) *base++ = D2;
+                if (regMask & 0x0008) *base++ = D3;
+                if (regMask & 0x0010) *base++ = D4;
+                if (regMask & 0x0020) *base++ = D5;
+                if (regMask & 0x0040) *base++ = D6;
+                if (regMask & 0x0080) *base++ = D7;
+                if (regMask & 0x0100) *base++ = A0;
+                if (regMask & 0x0200) *base++ = A1;
+                if (regMask & 0x0400) *base++ = A2;
+                if (regMask & 0x0800) *base++ = A3;
+                if (regMask & 0x1000) *base++ = A4;
+                if (regMask & 0x2000) *base++ = A5;
+                if (regMask & 0x4000) *base++ = A6;
+                if (regMask & 0x8000) *base++ = A7;
+            }
+        } else {
+            if (regMask & 0x0001) D0 = *base++;
+            if (regMask & 0x0002) D1 = *base++;
+            if (regMask & 0x0004) D2 = *base++;
+            if (regMask & 0x0008) D3 = *base++;
+            if (regMask & 0x0010) D4 = *base++;
+            if (regMask & 0x0020) D5 = *base++;
+            if (regMask & 0x0040) D6 = *base++;
+            if (regMask & 0x0080) D7 = *base++;
+            if (regMask & 0x0100) A0 = *base++;
+            if (regMask & 0x0200) A1 = *base++;
+            if (regMask & 0x0400) A2 = *base++;
+            if (regMask & 0x0800) A3 = *base++;
+            if (regMask & 0x1000) A4 = *base++;
+            if (regMask & 0x2000) A5 = *base++;
+            if (regMask & 0x4000) A6 = *base++;
+            if (regMask & 0x8000) A7 = *base++;
+        }
+
+        baseptr = (uint32_t)(uintptr_t)base;
+    } else {
+        int16_t *base = (int16_t*)(uintptr_t)baseptr;
+
+        if (Write) {
+            if (PreDecMode) {
+                if (regMask & 0x0001) *--base = A7;
+                if (regMask & 0x0002) *--base = A6;
+                if (regMask & 0x0004) *--base = A5;
+                if (regMask & 0x0008) *--base = A4;
+                if (regMask & 0x0010) *--base = A3;
+                if (regMask & 0x0020) *--base = A2;
+                if (regMask & 0x0040) *--base = A1;
+                if (regMask & 0x0080) *--base = A0;
+                if (regMask & 0x0100) *--base = D7;
+                if (regMask & 0x0200) *--base = D6;
+                if (regMask & 0x0400) *--base = D5;
+                if (regMask & 0x0800) *--base = D4;
+                if (regMask & 0x1000) *--base = D3;
+                if (regMask & 0x2000) *--base = D2;
+                if (regMask & 0x4000) *--base = D1;
+                if (regMask & 0x8000) *--base = D0;
+            } else {
+                if (regMask & 0x0001) *base++ = D0;
+                if (regMask & 0x0002) *base++ = D1;
+                if (regMask & 0x0004) *base++ = D2;
+                if (regMask & 0x0008) *base++ = D3;
+                if (regMask & 0x0010) *base++ = D4;
+                if (regMask & 0x0020) *base++ = D5;
+                if (regMask & 0x0040) *base++ = D6;
+                if (regMask & 0x0080) *base++ = D7;
+                if (regMask & 0x0100) *base++ = A0;
+                if (regMask & 0x0200) *base++ = A1;
+                if (regMask & 0x0400) *base++ = A2;
+                if (regMask & 0x0800) *base++ = A3;
+                if (regMask & 0x1000) *base++ = A4;
+                if (regMask & 0x2000) *base++ = A5;
+                if (regMask & 0x4000) *base++ = A6;
+                if (regMask & 0x8000) *base++ = A7;
+            }
+        } else {
+            if (regMask & 0x0001) D0 = (int32_t)*base++;
+            if (regMask & 0x0002) D1 = (int32_t)*base++;
+            if (regMask & 0x0004) D2 = (int32_t)*base++;
+            if (regMask & 0x0008) D3 = (int32_t)*base++;
+            if (regMask & 0x0010) D4 = (int32_t)*base++;
+            if (regMask & 0x0020) D5 = (int32_t)*base++;
+            if (regMask & 0x0040) D6 = (int32_t)*base++;
+            if (regMask & 0x0080) D7 = (int32_t)*base++;
+            if (regMask & 0x0100) A0 = (int32_t)*base++;
+            if (regMask & 0x0200) A1 = (int32_t)*base++;
+            if (regMask & 0x0400) A2 = (int32_t)*base++;
+            if (regMask & 0x0800) A3 = (int32_t)*base++;
+            if (regMask & 0x1000) A4 = (int32_t)*base++;
+            if (regMask & 0x2000) A5 = (int32_t)*base++;
+            if (regMask & 0x4000) A6 = (int32_t)*base++;
+            if (regMask & 0x8000) A7 = (int32_t)*base++;
+        }
+
+        baseptr = (uint32_t)(uintptr_t)base;
+    }
+
+    if (update_reg) {
+        if constexpr (Reg == DEFAULT_EA) {
+            setA<uint32_t>(opcode & 7, baseptr);
+        } else {
+            setA<Reg, uint32_t>(baseptr);
+        }
+    }
+}
+#if 0
 #define MOVEM_L_regs_to_An_Addr(reg) \
 void MOVEM_L_regs_to_A##reg##_Addr(uint32_t) \
 { \
@@ -669,6 +817,7 @@ MOVEM_L_regs_from_An_PostInc(4);
 MOVEM_L_regs_from_An_PostInc(5);
 MOVEM_L_regs_from_An_PostInc(6);
 MOVEM_L_regs_from_An_PostInc(7);
+#endif
 
 #define FILL_PEA_ALIKE(base_offset, name) \
     [&]<std::size_t... Areg>(int base, std::index_sequence<Areg...>) { \
@@ -758,6 +907,51 @@ MOVEM_L_regs_from_An_PostInc(7);
              name<2 + (Is >> 3), Is & 7>), ...); \
     }((base_offset), std::make_index_sequence<45>{});
 
+template <class Type, bool Write, template<uint8_t,uint8_t,bool,class> class Op,
+          class EAF>
+constexpr void fillEA(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned eaV  = I;
+
+        if constexpr (EAF::template valid<eaV>()) {
+            int idx = base + (eaV << EAF::bitOffset);
+            table[idx] = Op<EAF::modeArg(eaV), EAF::regArg(eaV), Write, Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<EAF::size>{});
+}
+
+inline constexpr uint32_t MMSrcSpecializeMask = 
+      classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
+    | classBit(EAClass::D16An)   | classBit(EAClass::D16PC);
+
+inline constexpr uint32_t MMDstSpecializeMask = 
+      classBit(EAClass::Ind)     | classBit(EAClass::IndPre)  
+    | classBit(EAClass::D16An);
+
+template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
+struct MOVEM_Op { static constexpr auto value = MOVEM<Mode, Reg, Write, Type>; };
+
+// EA field combines Register and EA mode in one, gets
+template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
+struct EAFieldMM : FieldBase<BitOffset, 6> {
+    template <unsigned V>
+    static constexpr bool valid() {
+        constexpr unsigned mode = V >> 3, reg = V & 7;
+        if constexpr (Write) return MemoryMode<mode> && DestEA7<mode, reg> && !PostIncMode<mode>;
+        else                 return MemoryMode<mode> && SourceEA7<mode, reg> && !PreDecMode<mode>;
+    }
+
+    static constexpr bool hot(unsigned v) {
+        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
+    }
+    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
+    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
+};
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -828,6 +1022,11 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_ALL_RD_EAs_no_An_no_size(  06100,  DIVU_L);
     FILL_ALL_RD_EAs_no_An_no_size(  06000,  MULU_L);
 
+    fillEA<LONG, false, MOVEM_Op, EAFieldMM<0, LONG, false, MMSrcSpecializeMask>>(table, 06300);
+    fillEA<WORD, false, MOVEM_Op, EAFieldMM<0, WORD, false, MMSrcSpecializeMask>>(table, 06200);
+    fillEA<LONG, true, MOVEM_Op, EAFieldMM<0, LONG, true, MMDstSpecializeMask>>(table, 04300);
+    fillEA<WORD, true, MOVEM_Op, EAFieldMM<0, WORD, true, MMDstSpecializeMask>>(table, 04200);
+#if 0
     table[04320] =     MOVEM_L_regs_to_A0_Addr;
     table[04321] =     MOVEM_L_regs_to_A1_Addr;
     table[04322] =     MOVEM_L_regs_to_A2_Addr;
@@ -854,7 +1053,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[04345] =     MOVEM_L_regs_to_A5_PreDec;
     table[04346] =     MOVEM_L_regs_to_A6_PreDec;
     table[04347] =     MOVEM_L_regs_to_A7_PreDec;
-
+#endif
     table[07161] =     NOP;
     table[07164] =     RTD;
     table[07165] =     RTS;
