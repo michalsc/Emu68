@@ -8,17 +8,19 @@
 
 #define _REGLOCK_H
 extern "C" {
-    #include "M68k.h"
-    #include "support.h"
-    #include "disasm.h"
+
+#include "M68k.h"
+#include "support.h"
+#include "disasm.h"
+
 }
 
 
 extern "C" {
 
-    void M68K_LoadContext(struct M68KState *ctx);
-    void M68K_SaveContext(struct M68KState *ctx);
-    void M68K_PrintContext(struct M68KState *ctx);
+void M68K_LoadContext(struct M68KState* ctx);
+void M68K_SaveContext(struct M68KState* ctx);
+void M68K_PrintContext(struct M68KState* ctx);
 
 }
 
@@ -170,32 +172,41 @@ template void setFP<double>(int reg, double value);
 
 namespace Emu68::M68k::Interpreter {
 
-[[gnu::always_inline]] inline struct M68KState *getCTX()
+[[gnu::always_inline]] inline struct M68KState* getCTX()
 {
-    struct M68KState *ctx;
+    struct M68KState* ctx;
     __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
 }
 
-void exceptionF0(uint32_t exception)
+void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea, uint32_t pc)
 {
     /* Get the SR register as it is now */
     uint32_t origSR = SR;
+    uint32_t stack_frame_size = 0;
+
+    switch (format) {
+        case ExceptionFrameFormat::FORMAT_0: [[fallthrough]];
+        case ExceptionFrameFormat::FORMAT_1: stack_frame_size = 8; break;
+        case ExceptionFrameFormat::FORMAT_2: [[fallthrough]];
+        case ExceptionFrameFormat::FORMAT_3: stack_frame_size = 12; break;
+        case ExceptionFrameFormat::FORMAT_4: stack_frame_size = 16; break;
+    }
 
     /* If we were in user mode, switch stack and reserve space for exception frame */
     if (likely(origSR & SR_S) == 0) {
         USP = A7;
         if (unlikely(origSR & SR_M)) {
-            A7 = MSP - 8;
+            A7 = MSP - stack_frame_size;
         } else {
-            A7 = ISP - 8;
+            A7 = ISP - stack_frame_size;
         }
     } else {
-        A7 -= 8;
+        A7 -= stack_frame_size;
     }
 
     /* Push the exception frame */
-    void *sp = (void *)(uintptr_t)A7;
+    void* sp = (void*)(uintptr_t)A7;
 
     /* Invert V and C flags */
     uint32_t tmp = origSR;
@@ -205,9 +216,16 @@ void exceptionF0(uint32_t exception)
     tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
 
     /* Prepare frame */
-    *(uint16_t *)(uintptr_t)sp = tmp;
-    *(uint32_t *)((uintptr_t)sp + 2) = PC;
-    *(uint16_t *)((uintptr_t)sp + 6) = exception;
+    *(uint16_t*)(uintptr_t)sp = tmp;
+    *(uint32_t*)((uintptr_t)sp + 2) = PC;
+    *(uint16_t*)((uintptr_t)sp + 6) = exception | static_cast<uint32_t>(format);
+    if (format >= ExceptionFrameFormat::FORMAT_2) {
+        *(uint32_t*)((uintptr_t)sp + 8) = ea;
+        if (format >= ExceptionFrameFormat::FORMAT_4) {
+            *(uint32_t*)((uintptr_t)sp + 12) = pc;
+        }
+    }
+    
 
     /* Set SR to supervisor and clear trace flags */
     origSR |= SR_S;
@@ -218,187 +236,7 @@ void exceptionF0(uint32_t exception)
 
     /* Get the vector address */
     uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
-    PC = *(uint32_t *)(uintptr_t)vbr;
-}
-
-void exceptionF1(uint32_t exception)
-{
-    /* Get the SR register as it is now */
-    uint32_t origSR = SR;
-
-    /* If we were in user mode, switch stack and reserve space for exception frame */
-    if (likely(origSR & SR_S) == 0) {
-        USP = A7;
-        if (unlikely(origSR & SR_M)) {
-            A7 = MSP - 8;
-        } else {
-            A7 = ISP - 8;
-        }
-    } else {
-        A7 -= 8;
-    }
-
-    /* Push the exception frame */
-    void *sp = (void *)(uintptr_t)A7;
-
-    /* Invert V and C flags */
-    uint32_t tmp = origSR;
-    uint32_t tmp2;
-
-    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
-    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-
-    /* Prepare frame */
-    *(uint16_t *)(uintptr_t)sp = tmp;
-    *(uint32_t *)((uintptr_t)sp + 2) = PC;
-    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x1000;
-
-    /* Set SR to supervisor and clear trace flags */
-    origSR |= SR_S;
-    origSR &= ~(SR_T0 | SR_T1);
-
-    /* Set the new SR */
-    SR = origSR;
-
-    /* Get the vector address */
-    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
-    PC = *(uint32_t *)(uintptr_t)vbr;
-}
-
-void exceptionF2(uint32_t exception, uint32_t ea)
-{
-    /* Get the SR register as it is now */
-    uint32_t origSR = SR;
-
-    /* If we were in user mode, switch stack and reserve space for exception frame */
-    if (likely(origSR & SR_S) == 0) {
-        USP = A7;
-        if (unlikely(origSR & SR_M)) {
-            A7 = MSP - 12;
-        } else {
-            A7 = ISP - 12;
-        }
-    } else {
-        A7 -= 12;
-    }
-
-    /* Push the exception frame */
-    void *sp = (void *)(uintptr_t)A7;
-
-    /* Invert V and C flags */
-    uint32_t tmp = origSR;
-    uint32_t tmp2;
-
-    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
-    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-
-    /* Prepare frame */
-    *(uint16_t *)(uintptr_t)sp = tmp;
-    *(uint32_t *)((uintptr_t)sp + 2) = PC;
-    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x2000;
-    *(uint32_t *)((uintptr_t)sp + 8) = ea;
-
-    /* Set SR to supervisor and clear trace flags */
-    origSR |= SR_S;
-    origSR &= ~(SR_T0 | SR_T1);
-
-    /* Set the new SR */
-    SR = origSR;
-
-    /* Get the vector address */
-    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
-    PC = *(uint32_t *)(uintptr_t)vbr;
-}
-
-void exceptionF3(uint32_t exception, uint32_t ea)
-{
-    /* Get the SR register as it is now */
-    uint32_t origSR = SR;
-
-    /* If we were in user mode, switch stack and reserve space for exception frame */
-    if (likely(origSR & SR_S) == 0) {
-        USP = A7;
-        if (unlikely(origSR & SR_M)) {
-            A7 = MSP - 12;
-        } else {
-            A7 = ISP - 12;
-        }
-    } else {
-        A7 -= 12;
-    }
-
-    /* Push the exception frame */
-    void *sp = (void *)(uintptr_t)A7;
-
-    /* Invert V and C flags */
-    uint32_t tmp = origSR;
-    uint32_t tmp2;
-
-    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
-    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-
-    /* Prepare frame */
-    *(uint16_t *)(uintptr_t)sp = tmp;
-    *(uint32_t *)((uintptr_t)sp + 2) = PC;
-    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x3000;
-    *(uint32_t *)((uintptr_t)sp + 8) = ea;
-
-    /* Set SR to supervisor and clear trace flags */
-    origSR |= SR_S;
-    origSR &= ~(SR_T0 | SR_T1);
-
-    /* Set the new SR */
-    SR = origSR;
-
-    /* Get the vector address */
-    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
-    PC = *(uint32_t *)(uintptr_t)vbr;
-}
-
-void exceptionF4(uint32_t exception, uint32_t ea, uint32_t pc)
-{
-    /* Get the SR register as it is now */
-    uint32_t origSR = SR;
-
-    /* If we were in user mode, switch stack and reserve space for exception frame */
-    if (likely(origSR & SR_S) == 0) {
-        USP = A7;
-        if (unlikely(origSR & SR_M)) {
-            A7 = MSP - 16;
-        } else {
-            A7 = ISP - 16;
-        }
-    } else {
-        A7 -= 16;
-    }
-
-    /* Push the exception frame */
-    void *sp = (void *)(uintptr_t)A7;
-
-    /* Invert V and C flags */
-    uint32_t tmp = origSR;
-    uint32_t tmp2;
-
-    asm volatile("rbit %0, %1":"=r"(tmp2):"r"(tmp));
-    tmp = (tmp & ~3) | ((tmp2 >> 30) & 3);
-
-    /* Prepare frame */
-    *(uint16_t *)(uintptr_t)sp = tmp;
-    *(uint32_t *)((uintptr_t)sp + 2) = PC;
-    *(uint16_t *)((uintptr_t)sp + 6) = exception | 0x4000;
-    *(uint32_t *)((uintptr_t)sp + 8) = ea;
-    *(uint32_t *)((uintptr_t)sp + 12) = pc;
-
-    /* Set SR to supervisor and clear trace flags */
-    origSR |= SR_S;
-    origSR &= ~(SR_T0 | SR_T1);
-
-    /* Set the new SR */
-    SR = origSR;
-
-    /* Get the vector address */
-    uint32_t vbr = getCTX()->VBR + (exception & 0x0fff);
-    PC = *(uint32_t *)(uintptr_t)vbr;
+    PC = *(uint32_t*)(uintptr_t)vbr;
 }
 
 void ILLEGAL(uint32_t opcode)
@@ -410,7 +248,8 @@ void ILLEGAL(uint32_t opcode)
     M68K_PrintContext(getCTX());
     M68K_LoadContext(getCTX());
 
-    exceptionF0(VECTOR_ILLEGAL_INSTRUCTION);
+    while(1);
+    raiseException(VECTOR_ILLEGAL_INSTRUCTION, ExceptionFrameFormat::FORMAT_0, 0, 0);
 }
 
 template<class Type>
@@ -555,15 +394,15 @@ Type loadFromEA_Mod7(uint32_t, uint32_t reg)
 {
     if (reg == 0)
     {
-        uintptr_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        uintptr_t addr = (uint32_t)*(int16_t*)(uintptr_t)PC;
         PC += 2;
         return *(Type*)addr;
     } else if (reg == 1) {
-        uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
+        uintptr_t addr = *(uint32_t*)(uintptr_t)PC;
         PC += 4;
         return *(Type*)addr;
     } else if (reg == 2) {
-        int16_t off = *(int16_t *)(uintptr_t)PC;
+        int16_t off = *(int16_t*)(uintptr_t)PC;
         uint32_t addr = (uint32_t)(uintptr_t)PC + off;
         PC += 2;
         return *(Type*)(uintptr_t)addr;
@@ -641,7 +480,7 @@ uint32_t getEA_Mod4(uint32_t, uint32_t reg)
 template<class Type>
 uint32_t getEA_Mod5(uint32_t, uint32_t reg)
 {
-    uint32_t addr = getA<uint32_t>(reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getA<uint32_t>(reg) + *(int16_t*)(uintptr_t)PC;
     PC += 2;
     return addr;
 }
@@ -649,7 +488,7 @@ uint32_t getEA_Mod5(uint32_t, uint32_t reg)
 template<class Type>
 uint32_t getExtendedEA(uint32_t base)
 {
-    uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
+    uint16_t ext_word = *(uint16_t*)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
     uint8_t index_reg = (ext_word & M68K_EA_REG) >> 12;
 
@@ -745,15 +584,15 @@ uint32_t getEA_Mod7(uint32_t, uint32_t reg)
 {
     if (reg == 0)
     {
-        uint32_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        uint32_t addr = (uint32_t)*(int16_t*)(uintptr_t)PC;
         PC += 2;
         return addr;
     } else if (reg == 1) {
-        uint32_t addr = *(uint32_t *)(uintptr_t)PC;
+        uint32_t addr = *(uint32_t*)(uintptr_t)PC;
         PC += 4;
         return addr;
     } else if (reg == 2) {
-        int16_t off = *(int16_t *)(uintptr_t)PC;
+        int16_t off = *(int16_t*)(uintptr_t)PC;
         uint32_t addr = (uint32_t)(uintptr_t)PC + off;
         PC += 2;
         return addr;
@@ -827,7 +666,7 @@ void storeToEA_Mod4(uint32_t, uint32_t reg, Type value)
 template<class Type>
 void storeToEA_Mod5(uint32_t, uint32_t reg, Type value)
 {
-    uint32_t addr = getA<uint32_t>(reg) + *(int16_t *)(uintptr_t)PC;
+    uint32_t addr = getA<uint32_t>(reg) + *(int16_t*)(uintptr_t)PC;
     PC += 2;
     *(Type*)(uintptr_t)addr = value;
 }
@@ -835,7 +674,7 @@ void storeToEA_Mod5(uint32_t, uint32_t reg, Type value)
 template<class Type>
 void storeToEA_Mod6(uint32_t, uint32_t reg, Type value)
 {
-    uint16_t ext_word = *(uint16_t *)(uintptr_t)PC;
+    uint16_t ext_word = *(uint16_t*)(uintptr_t)PC;
     uint8_t scale = 1 << ((ext_word & M68K_EA_SCALE) >> 9);
     uint8_t index_reg = (ext_word & M68K_EA_REG) >> 12;
     uint32_t An = 0;
@@ -927,11 +766,11 @@ template<class Type>
 void storeToEA_Mod7(uint32_t, uint32_t reg, Type value)
 {
     if (reg == 0) {
-        uintptr_t addr = (uint32_t)*(int16_t *)(uintptr_t)PC;
+        uintptr_t addr = (uint32_t)*(int16_t*)(uintptr_t)PC;
         PC += 2;
         *(Type*)addr = value;
     } else if (reg == 1) {
-        uintptr_t addr = *(uint32_t *)(uintptr_t)PC;
+        uintptr_t addr = *(uint32_t*)(uintptr_t)PC;
         PC += 4;
         *(Type*)addr = value;
     } else {

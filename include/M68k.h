@@ -730,6 +730,18 @@ struct FPUOpcodeDef {
     uint8_t             od_OpSize;
 };
 
+#ifdef __cplusplus
+
+enum class ExceptionFrameFormat {
+    FORMAT_0 = 0x0000,
+    FORMAT_1 = 0x1000,
+    FORMAT_2 = 0x2000,
+    FORMAT_3 = 0x3000,
+    FORMAT_4 = 0x4000
+};
+
+#endif
+
 void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
 #ifdef __cplusplus

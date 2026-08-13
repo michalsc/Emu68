@@ -23,6 +23,8 @@ namespace Emu68::M68k::Interpreter {
 template<uint8_t Mode> concept ValidMode  = Mode < 8;
 template<uint8_t Mode> concept MemoryMode = Mode >= 2 && Mode < 8;  // excludes Dn/An direct
 template<uint8_t Reg>  concept ValidReg   = Reg < 8;
+template<uint8_t Mode> concept DRegMode   = Mode == 0;
+template<uint8_t Mode> concept ARegMode   = Mode == 1;
 
 template<class Type> concept IntEASize = sizeof(Type) == 1 || sizeof(Type) == 2 || sizeof(Type) == 4;
 template<class Type> concept AnyEASize = IntEASize<Type> || sizeof(Type) == 8 || sizeof(Type) == 12;
@@ -38,11 +40,7 @@ concept ByteCompatibleMode = (Mode != 1) || sizeof(Type) > 1;
 
 template<class Type> concept WordOrLongSize = sizeof(Type) == 2 || sizeof(Type) == 4;
 
-void exceptionF0(uint32_t exception);
-void exceptionF1(uint32_t exception);
-void exceptionF2(uint32_t exception, uint32_t ea);
-void exceptionF3(uint32_t exception, uint32_t ea);
-void exceptionF4(uint32_t exception, uint32_t ea, uint32_t pc);
+void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea, uint32_t pc);
 
 template<class Type>
 Type loadFromEA(uint32_t mode, uint32_t reg);
@@ -483,23 +481,6 @@ struct ImmField : FieldBase<BitOffset, Width> {
 
 extern "C" {
 #endif
-
-void INTERPRET_line0(uint32_t opcode);
-void INTERPRET_line1(uint32_t opcode);
-void INTERPRET_line2(uint32_t opcode);
-void INTERPRET_line3(uint32_t opcode);
-void INTERPRET_line4(uint32_t opcode);
-void INTERPRET_line5(uint32_t opcode);
-void INTERPRET_line6(uint32_t opcode);
-void INTERPRET_line7(uint32_t opcode);
-void INTERPRET_line8(uint32_t opcode);
-void INTERPRET_line9(uint32_t opcode);
-void INTERPRET_lineA(uint32_t opcode);
-void INTERPRET_lineB(uint32_t opcode);
-void INTERPRET_lineC(uint32_t opcode);
-void INTERPRET_lineD(uint32_t opcode);
-void INTERPRET_lineE(uint32_t opcode);
-void INTERPRET_lineF(uint32_t opcode);
 
 #ifdef __cplusplus
 }
