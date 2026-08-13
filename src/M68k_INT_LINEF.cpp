@@ -10,9 +10,13 @@
 extern "C" {
 
 #include "math/libm.h"
+#include "cache.h"
 
 uint64_t Load96bit(uintptr_t __ignore, uintptr_t base);
 uint64_t Store96bit(uint64_t value, uintptr_t base);
+void invalidate_entire_dcache(void);
+extern int dcache_mask_bits;
+extern uint32_t EPOCH;
 
 typedef union 
 {
@@ -945,6 +949,77 @@ void handleGeneralType(uint32_t opcode)
     }
 }
 
+/* PFLUSH in all variants is ignored as long as there is no MMU */
+void PFLUSH(uint32_t)
+{
+    /* PFLUSH requires supervisor rights */
+    if (SR & SR_S) {
+        PC += 2;
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
+/* PTEST in all variants is ignored as long as there is no MMU */
+void PTEST(uint32_t)
+{
+    /* PTEST requires supervisor rights */
+    if (SR & SR_S) {
+        PC += 2;
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
+/* CINV - cache invalidate */
+void CINV(uint32_t opcode)
+{
+    /* CINV requires supervisor rights */
+    if (SR & SR_S) {
+        const bool data_cache = (opcode & (1 << 6)) != 0;
+        const bool insn_cache = (opcode & (1 << 7)) != 0;
+        const int scope = (opcode >> 3) & 3;
+
+        if (scope == 0) {
+            raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+        } else {
+            PC += 2;
+
+            if (data_cache) {
+                uint32_t tmp;
+
+                switch (scope) {
+                    case 1: // Line
+                        tmp = getA<uint32_t>(opcode & 7);
+                        tmp &= (1 << dcache_mask_bits) - 1;
+                        asm volatile("dc ivac, %0; dsb sy;"::"r"(tmp));
+                        break;
+                    case 2: // Page
+                        tmp = getA<uint32_t>(opcode & 7);
+                        tmp = tmp & ~4095;
+                        for (int i=0; i < (1 << (12 - dcache_mask_bits)); i++) {
+                            asm volatile("dc ivac, %0"::"r"(tmp));
+                            tmp += 1 << dcache_mask_bits;
+                        }
+                        asm volatile("dsb sy");
+                        break;
+                    case 3: // All
+                        invalidate_entire_dcache();
+                        break;
+                }
+            }
+
+            if (insn_cache) {
+                cache_invalidate_all(ICACHE);
+                LRU_InvalidateAll();
+                EPOCH++;
+            }
+        }
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 #define FILL_MOD(base_offset, mod, rmin, rmax, name, specialized) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
         if constexpr (specialized) ((table[base + EA(mod, (rmin + Dreg))] = \
@@ -1042,15 +1117,22 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_MOD(01500, 6, 0, 7, FRESTORE, false);
     FILL_MOD(01500, 7, 0, 3, FRESTORE, false);
 
+    /* PFLUSH/PFLUSHA */
+    fill(02400, 02437, PFLUSH);
+
+    /* PTEST */
+    fill(02510, 02517, PTEST);
+    fill(02550, 02557, PTEST);
+
+    /* CINV */
+    fill(02010, 02037, CINV);
+    fill(02110, 02137, CINV);
+    fill(02210, 02237, CINV);
+    fill(02310, 02337, CINV);
+
     return table;
 }
 
-constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.f"))) = buildInsnTable();
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.f"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::LineF
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_lineF(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::LineF::InsnTable[opcode & 4095](opcode);
-}
