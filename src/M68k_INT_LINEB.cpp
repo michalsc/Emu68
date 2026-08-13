@@ -24,6 +24,19 @@ void CMP(uint32_t)
     SR = (SR & ~SR_NZVC) | ccr;
 }
 
+template<uint8_t SrcReg, uint8_t DstReg, class Type>
+void CMPM(uint32_t)
+{
+    PC += 2;
+    Type src = loadFromEA<3, SrcReg, Type>();
+    Type dst = loadFromEA<3, DstReg, Type>();
+
+    auto [result, ccr] = arithWithFlags<Type, true>(dst, src);
+
+    (void)result;
+    SR = (SR & ~SR_NZVC) | ccr;
+}
+
 #define FILL_ALL_CMP(size) \
 [&]<std::size_t... Is>(std::index_sequence<Is...>) consteval { \
     auto fillOne = [&]<std::size_t I>() consteval { \
@@ -52,6 +65,25 @@ void CMP(uint32_t)
     (fillOne.template operator()<Is>(), ...); \
 }(std::make_index_sequence<8 * 64>{});
 
+template <class Type, template<uint8_t,uint8_t,class> class Op, class F1, class F2>
+constexpr void fillRegReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned v1 = I / F2::size;
+        constexpr unsigned v2 = I % F2::size;
+        if constexpr (F1::valid(v1) && F2::valid(v2)) {
+            int idx = base + (v1 << F1::bitOffset) + (v2 << F2::bitOffset);
+            table[idx] = Op<F1::arg(v1), F2::arg(v2), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F1::size * F2::size>{});
+}
+
+template <uint8_t Rx, uint8_t Ry, class Type>
+struct CMPM_Op { static constexpr auto value = CMPM<Rx, Ry, Type>; };
+
 static consteval std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -73,6 +105,10 @@ static consteval std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_ALL_CMPA(WORD);
     FILL_ALL_CMPA(LONG);
 
+    fillRegReg<BYTE, CMPM_Op, RegField<0>, RegField<9>>(table, 00410);
+    fillRegReg<WORD, CMPM_Op, RegField<0>, RegField<9>>(table, 00510);
+    fillRegReg<LONG, CMPM_Op, RegField<0>, RegField<9>>(table, 00610);
+    
     return table;
 }
 
