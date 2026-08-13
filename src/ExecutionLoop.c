@@ -457,7 +457,7 @@ void InterpreterLoop()
 
         ((INTERPRET_Function*)ARMCode)[opcode](opcode);
 
-        reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reg_q22);
+        reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reserved_reg_q22);
 
     } while(ARMCode != NULL);
 
