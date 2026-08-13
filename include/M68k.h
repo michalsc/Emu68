@@ -742,6 +742,18 @@ enum class ExceptionFrameFormat {
 
 #endif
 
+/* Swap V and C flags, used when storing SR/CCR to memory or loading from there */
+[[gnu::always_inline]] inline uint32_t swapVC(uint32_t src)
+{
+    uint32_t retval;
+    uint32_t tmp;
+
+    asm volatile("rbit %0, %1":"=r"(tmp):"r"(src));
+    retval = (src & ~3) | ((tmp >> 30) & 3);
+
+    return retval;
+}
+
 void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
 #ifdef __cplusplus
