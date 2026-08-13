@@ -77,6 +77,20 @@ namespace Emu68::M68k::Interpreter::LineF {
     FPSR = fpsr;
 }
 
+[[gnu::always_inline]] inline double roundToInt(double value)
+{
+    double result;
+    asm volatile("frinti %d0, %d1":"=w"(result):"w"(value));
+    return result;
+}
+
+[[gnu::always_inline]] inline double roundToIntZero(double value)
+{
+    double result;
+    asm volatile("frintz %d0, %d1":"=w"(result):"w"(value));
+    return result;
+}
+
 [[gnu::always_inline]] inline double roundToSingle(double value)
 {
     float f;
@@ -417,13 +431,13 @@ bool FETOXM1(uint32_t opcode, uint32_t opcode2)
 template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FINT(uint32_t opcode, uint32_t opcode2)
 {
-    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { asm volatile("frinti %d0, %d0" : "=w"(value) : "0"(value)); return value; });
+    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return roundToInt(value); });
 }
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
 bool FINTRZ(uint32_t opcode, uint32_t opcode2)
 {
-    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { asm volatile("frintz %d0, %d0" : "=w"(value) : "0"(value)); return value; });
+    return MONADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double value) -> double { return roundToIntZero(value); });
 }
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA>
