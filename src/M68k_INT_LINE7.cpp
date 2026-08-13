@@ -53,33 +53,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.7"))) = buildInsnTable();
-
-#if 0
-static constexpr std::array<INTERPRET_Function, 16> InsnTable = {
-    MOVEQ<0>,
-    ILLEGAL,
-    MOVEQ<1>,
-    ILLEGAL,
-    MOVEQ<2>,
-    ILLEGAL,
-    MOVEQ<3>,
-    ILLEGAL,
-    MOVEQ<4>,
-    ILLEGAL,
-    MOVEQ<5>,
-    ILLEGAL,
-    MOVEQ<6>,
-    ILLEGAL,
-    MOVEQ<7>,
-    ILLEGAL
-};
-#endif
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.7"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::Line7
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line7(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::Line7::InsnTable[opcode & 4095](opcode);
-}

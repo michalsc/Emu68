@@ -153,34 +153,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.6"))) = buildInsnTable();
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.6"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::Line6
-
-#if 0
-static constexpr std::array<INTERPRET_Function, 16> InsnTable = {
-    Emu68::M68k::Interpreter::Bcc<M_CC_T>, // BRA is alias for Bcc with condition TRUE
-    Emu68::M68k::Interpreter::BSR,
-    Emu68::M68k::Interpreter::Bcc<M_CC_HI>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_LS>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_CC>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_CS>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_NE>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_EQ>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_VC>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_VS>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_PL>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_MI>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_GE>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_LT>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_GT>,
-    Emu68::M68k::Interpreter::Bcc<M_CC_LE>
-};
-#endif
-//static constexpr auto InsnTable __attribute__((section(".int.jumptable.6"))) = Emu68::M68k::Interpreter::buildInsnTable();
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line6(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::Line6::InsnTable[opcode & 4095](opcode);
-}

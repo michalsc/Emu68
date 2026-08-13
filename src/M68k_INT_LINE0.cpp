@@ -232,7 +232,7 @@ void ORI_to_SR(uint32_t)
         SR = sr;
         PC += 4;
     } else {
-        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
 }
 
@@ -259,7 +259,7 @@ void ANDI_to_SR(uint32_t)
         SR = sr;
         PC += 4;
     } else {
-        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
 }
 
@@ -286,7 +286,7 @@ void EORI_to_SR(uint32_t)
         SR = sr;
         PC += 4;
     } else {
-        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
 }
 
@@ -524,16 +524,6 @@ void BCHG_REG_Dn(uint32_t)
     PC += 2;
 }
 
-#define FILL_IMM_OP(base_offset, name, type) \
-    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
-        ((table[base + EA(0, Dreg)] = \
-             name<0, Dreg, type>), ...); \
-    }((base_offset), std::make_index_sequence<8>{}); \
-    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
-        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
-             name<2 + (Is >> 3), Is & 7, type>), ...); \
-    }((base_offset), std::make_index_sequence<42>{});
-
 #define FILL_Bxxx_Dn(base_offset, name) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + ((Is >> 3) << 9) + EA(0, Is & 7)] = \
@@ -568,6 +558,47 @@ void BCHG_REG_Dn(uint32_t)
              name<2 + ((Is >> 3) & 7), (Is & 7)>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+
+template <class Type, template<uint8_t,uint8_t,class> class Op,
+          class EAF>
+constexpr void fillImmedOpEA(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned eaV  = I;
+
+        if constexpr (EAF::template valid<eaV>() && (EAF::modeArg(eaV) >= 2 || EAF::modeArg(eaV) == 0)) {
+            int idx = base + (eaV << EAF::bitOffset);
+            table[idx] = Op<EAF::modeArg(eaV), EAF::regArg(eaV), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<EAF::size>{});
+}
+
+inline constexpr uint32_t ImmedOpSpecializeMask = 
+      classBit(EAClass::Dn)
+    | classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An);
+
+template <uint8_t Mode, uint8_t Reg, class Type>
+struct ORI_Op { static constexpr auto value = ORI<Mode, Reg, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, class Type>
+struct ANDI_Op { static constexpr auto value = ANDI<Mode, Reg, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, class Type>
+struct SUBI_Op { static constexpr auto value = SUBI<Mode, Reg, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, class Type>
+struct ADDI_Op { static constexpr auto value = ADDI<Mode, Reg, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, class Type>
+struct EORI_Op { static constexpr auto value = EORI<Mode, Reg, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, class Type>
+struct CMPI_Op { static constexpr auto value = CMPI<Mode, Reg, Type>; };
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -582,29 +613,29 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     fill(00000, 07777, ILLEGAL);
     
-    FILL_IMM_OP(00000, ORI, BYTE);
-    FILL_IMM_OP(00100, ORI, WORD);
-    FILL_IMM_OP(00200, ORI, LONG);
+    fillImmedOpEA<BYTE, ORI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 00000);
+    fillImmedOpEA<WORD, ORI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 00100);
+    fillImmedOpEA<LONG, ORI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 00200);
 
-    FILL_IMM_OP(01000, ANDI, BYTE);
-    FILL_IMM_OP(01100, ANDI, WORD);
-    FILL_IMM_OP(01200, ANDI, LONG);
+    fillImmedOpEA<BYTE, ANDI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 01000);
+    fillImmedOpEA<WORD, ANDI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 01100);
+    fillImmedOpEA<LONG, ANDI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 01200);
 
-    FILL_IMM_OP(02000, SUBI, BYTE);
-    FILL_IMM_OP(02100, SUBI, WORD);
-    FILL_IMM_OP(02200, SUBI, LONG);
+    fillImmedOpEA<BYTE, SUBI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 02000);
+    fillImmedOpEA<WORD, SUBI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 02100);
+    fillImmedOpEA<LONG, SUBI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 02200);
 
-    FILL_IMM_OP(03000, ADDI, BYTE);
-    FILL_IMM_OP(03100, ADDI, WORD);
-    FILL_IMM_OP(03200, ADDI, LONG);
+    fillImmedOpEA<BYTE, ADDI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 03000);
+    fillImmedOpEA<WORD, ADDI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 03100);
+    fillImmedOpEA<LONG, ADDI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 03200);
 
-    FILL_IMM_OP(05000, EORI, BYTE);
-    FILL_IMM_OP(05100, EORI, WORD);
-    FILL_IMM_OP(05200, EORI, LONG);
+    fillImmedOpEA<BYTE, EORI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 05000);
+    fillImmedOpEA<WORD, EORI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 05100);
+    fillImmedOpEA<LONG, EORI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 05200);
 
-    FILL_IMM_OP(06000, CMPI, BYTE);
-    FILL_IMM_OP(06100, CMPI, WORD);
-    FILL_IMM_OP(06200, CMPI, LONG);
+    fillImmedOpEA<BYTE, CMPI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 06000);
+    fillImmedOpEA<WORD, CMPI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 06100);
+    fillImmedOpEA<LONG, CMPI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 06200);
 
     table[00074] = ORI_to_CCR;
     table[01074] = ANDI_to_CCR;
@@ -695,12 +726,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.0"))) = buildInsnTable();
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.0"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::Line0
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line0(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::Line0::InsnTable[opcode & 0xfff](opcode);
-}

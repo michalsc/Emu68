@@ -19,7 +19,7 @@ void DIVS_W(uint32_t)
     src = loadFromEA<Mode, Reg, int16_t>();
 
     if (src == 0) {
-        exceptionF2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+        raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         int32_t dval = getD<Dn, int32_t>();
         int32_t drem;
@@ -55,7 +55,7 @@ void DIVU_W(uint32_t)
     src = loadFromEA<Mode, Reg, uint16_t>();
 
     if (src == 0) {
-        exceptionF2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+        raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         uint32_t dval = getD<Dn, uint32_t>();
         uint32_t drem;
@@ -247,13 +247,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.8"))) = buildInsnTable();
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.8"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::Line8
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line8(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::Line8::InsnTable[opcode & 0xfff](opcode);
-}
-

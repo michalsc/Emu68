@@ -15,12 +15,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-constexpr auto InsnTable __attribute__((aligned(4096),section(".int.jumptable.a"))) = buildInsnTable();
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.a"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::LineA
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_lineA(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::LineA::InsnTable[opcode & 0xfff](opcode);
-}

@@ -117,26 +117,8 @@ static consteval std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
+static constexpr auto InsnTable_L __attribute__((used,section(".int.jumptable.2"))) = buildInsnTable<LONG>();
+static constexpr auto InsnTable_W __attribute__((used,section(".int.jumptable.3"))) = buildInsnTable<WORD>();
+static constexpr auto InsnTable_B __attribute__((used,section(".int.jumptable.1"))) = buildInsnTable<BYTE>();
+
 } // Emu68::M68k::Interpreter
-
-static constexpr auto InsnTable_L __attribute__((section(".int.jumptable.2"))) = Emu68::M68k::Interpreter::buildInsnTable<LONG>();
-static constexpr auto InsnTable_W __attribute__((section(".int.jumptable.3"))) = Emu68::M68k::Interpreter::buildInsnTable<WORD>();
-static constexpr auto InsnTable_B __attribute__((section(".int.jumptable.1"))) = Emu68::M68k::Interpreter::buildInsnTable<BYTE>();
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line1(uint32_t opcode)
-{
-    InsnTable_B[opcode & 0xfff](opcode);
-}
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line2(uint32_t opcode)
-{
-    InsnTable_L[opcode & 0xfff](opcode);
-}
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line3(uint32_t opcode)
-{
-    InsnTable_W[opcode & 0xfff](opcode);
-}

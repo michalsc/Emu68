@@ -49,7 +49,33 @@ void MOVE_to_SR(uint32_t)
         
         SR = sr;
     } else {
-        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
+void MOVE_to_USP(uint32_t opcode)
+{
+    /* Accessing USP requires supervisor rights */
+    if (SR & SR_S) {
+        PC += 2;
+        
+        USP = getA<ULONG>(opcode & 7);
+
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
+void MOVE_from_USP(uint32_t opcode)
+{
+    /* Accessing USP requires supervisor rights */
+    if (SR & SR_S) {
+        PC += 2;
+        
+        setA<ULONG>(opcode & 7, USP);
+
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
 }
 
@@ -136,7 +162,7 @@ static inline struct M68KState *getCTX()
 
 void TRAP(uint32_t opcode)
 {
-    exceptionF0(VECTOR_INT_TRAP(opcode & 15));
+    raiseException(VECTOR_INT_TRAP(opcode & 15), ExceptionFrameFormat::FORMAT_0, 0, 0);
 }
 
 void RTS(uint32_t)
@@ -322,7 +348,8 @@ void MOVEC(uint32_t opcode)
                                 *ctx->PPC_EE_FLAG = 255;
                                 asm volatile("sev":::"memory");
                             }                                       break;
-                default:    exceptionF0(VECTOR_PRIVILEGE_VIOLATION); return;
+                default:    raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+                                                                    return;
             }
 
             /* Do not allow enabling MMU for now */
@@ -368,7 +395,8 @@ void MOVEC(uint32_t opcode)
                 case 0x805: val = ctx->MMUSR;                               break;
                 case 0x806: val = ctx->URP;                                 break;
                 case 0x807: val = ctx->SRP;                                 break;
-                default:    exceptionF0(VECTOR_PRIVILEGE_VIOLATION);       return;
+                default:    raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+                                                                            return;
             }
 
             if (opcode2 & 0x8000) {
@@ -379,7 +407,7 @@ void MOVEC(uint32_t opcode)
         }
         PC += 4;
     } else {
-        exceptionF0(VECTOR_PRIVILEGE_VIOLATION);
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
 }
 
@@ -396,7 +424,7 @@ void DIVU_L(uint32_t)
     uint32_t src = loadFromEA<Mode, Reg, uint32_t>();
 
     if (src == 0) {
-        exceptionF2(VECTOR_DIVIDE_BY_ZERO, orig_PC);
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         uint32_t dq = getD<uint32_t>((opcode2 >> 12) & 7);
 
@@ -835,6 +863,8 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[07173] =     MOVEC;
 
     fill(07100, 07117, TRAP);
+    fill(07140, 07147, MOVE_to_USP);
+    fill(07150, 07157, MOVE_from_USP);
 
     #if 0
     [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
@@ -850,7 +880,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     [0xe73]           = { EMIT_RTE, NULL, SR_S, SR_ALL, 1, 0, 0 },
     [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
     
-    [0xe60 ... 0xe6f] = { EMIT_MOVEUSP, NULL, SR_S, 0, 1, 0, 4 },
     [04110 ... 04117] = { EMIT_BKPT, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
 
     [00000 ... 00007] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
@@ -952,14 +981,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     return table;
 }
 
-constexpr auto InsnTable __attribute__((section(".int.jumptable.4"))) = buildInsnTable();
+constexpr auto InsnTable __attribute__((used,section(".int.jumptable.4"))) = buildInsnTable();
 
 } // Emu68::M68k::Interpreter::Line4
-
-
-
-__attribute__((optimize("no-optimize-sibling-calls")))
-void INTERPRET_line4(uint32_t opcode)
-{
-    Emu68::M68k::Interpreter::Line4::InsnTable[opcode & 0xfff](opcode);
-}
