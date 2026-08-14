@@ -37,6 +37,28 @@ void CMPM(uint32_t)
     SR = (SR & ~SR_NZVC) | ccr;
 }
 
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+void EOR_Dn_to_EA(uint32_t)
+{
+    Type dval = getD<Dn, Type>();
+    PC = PC + 2;
+
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        uint32_t sr = SR & ~SR_NZVC;
+
+        v ^= dval;
+
+        if (v == 0) {
+            sr |= SR_Z;
+        } else if (v < 0) {
+            sr |= SR_N;
+        }
+        SR = sr;
+
+        return v;
+    });
+}
+
 #define FILL_ALL_CMP(size) \
 [&]<std::size_t... Is>(std::index_sequence<Is...>) consteval { \
     auto fillOne = [&]<std::size_t I>() consteval { \
@@ -64,6 +86,16 @@ void CMPM(uint32_t)
     }; \
     (fillOne.template operator()<Is>(), ...); \
 }(std::make_index_sequence<8 * 64>{});
+
+#define FILL_ALL_WR_EAs(base_offset, name, reg, size) \
+    [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
+        ((table[base + EA(0, Dreg)] = \
+            name<0, Dreg, reg, size>), ...); \
+    }((base_offset), std::make_index_sequence<8>{}); \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
+             name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
+    }((base_offset), std::make_index_sequence<42>{});
 
 template <class Type, template<uint8_t,uint8_t,class> class Op, class F1, class F2>
 constexpr void fillRegReg(std::array<INTERPRET_Function, 4096>& table, int base)
@@ -108,7 +140,34 @@ static consteval std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillRegReg<BYTE, CMPM_Op, RegField<0>, RegField<9>>(table, 00410);
     fillRegReg<WORD, CMPM_Op, RegField<0>, RegField<9>>(table, 00510);
     fillRegReg<LONG, CMPM_Op, RegField<0>, RegField<9>>(table, 00610);
-    
+
+    FILL_ALL_WR_EAs(        00400,  EOR_Dn_to_EA, 0,  BYTE);
+    FILL_ALL_WR_EAs(        01400,  EOR_Dn_to_EA, 1,  BYTE);
+    FILL_ALL_WR_EAs(        02400,  EOR_Dn_to_EA, 2,  BYTE);
+    FILL_ALL_WR_EAs(        03400,  EOR_Dn_to_EA, 3,  BYTE);
+    FILL_ALL_WR_EAs(        04400,  EOR_Dn_to_EA, 4,  BYTE);
+    FILL_ALL_WR_EAs(        05400,  EOR_Dn_to_EA, 5,  BYTE);
+    FILL_ALL_WR_EAs(        06400,  EOR_Dn_to_EA, 6,  BYTE);
+    FILL_ALL_WR_EAs(        07400,  EOR_Dn_to_EA, 7,  BYTE);
+
+    FILL_ALL_WR_EAs(        00500,  EOR_Dn_to_EA, 0,  WORD);
+    FILL_ALL_WR_EAs(        01500,  EOR_Dn_to_EA, 1,  WORD);
+    FILL_ALL_WR_EAs(        02500,  EOR_Dn_to_EA, 2,  WORD);
+    FILL_ALL_WR_EAs(        03500,  EOR_Dn_to_EA, 3,  WORD);
+    FILL_ALL_WR_EAs(        04500,  EOR_Dn_to_EA, 4,  WORD);
+    FILL_ALL_WR_EAs(        05500,  EOR_Dn_to_EA, 5,  WORD);
+    FILL_ALL_WR_EAs(        06500,  EOR_Dn_to_EA, 6,  WORD);
+    FILL_ALL_WR_EAs(        07500,  EOR_Dn_to_EA, 7,  WORD);
+
+    FILL_ALL_WR_EAs(        00600,  EOR_Dn_to_EA, 0,  LONG);
+    FILL_ALL_WR_EAs(        01600,  EOR_Dn_to_EA, 1,  LONG);
+    FILL_ALL_WR_EAs(        02600,  EOR_Dn_to_EA, 2,  LONG);
+    FILL_ALL_WR_EAs(        03600,  EOR_Dn_to_EA, 3,  LONG);
+    FILL_ALL_WR_EAs(        04600,  EOR_Dn_to_EA, 4,  LONG);
+    FILL_ALL_WR_EAs(        05600,  EOR_Dn_to_EA, 5,  LONG);
+    FILL_ALL_WR_EAs(        06600,  EOR_Dn_to_EA, 6,  LONG);
+    FILL_ALL_WR_EAs(        07600,  EOR_Dn_to_EA, 7,  LONG);
+
     return table;
 }
 
