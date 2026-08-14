@@ -1020,6 +1020,55 @@ void CINV(uint32_t opcode)
     }
 }
 
+/* CPUSH - cache flush and invalidate */
+void CPUSH(uint32_t opcode)
+{
+    /* CPUSH requires supervisor rights */
+    if (SR & SR_S) {
+        const bool data_cache = (opcode & (1 << 6)) != 0;
+        const bool insn_cache = (opcode & (1 << 7)) != 0;
+        const int scope = (opcode >> 3) & 3;
+
+        if (scope == 0) {
+            raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+        } else {
+            PC += 2;
+
+            if (data_cache) {
+                uint32_t tmp;
+
+                switch (scope) {
+                    case 1: // Line
+                        tmp = getA<uint32_t>(opcode & 7);
+                        tmp &= (1 << dcache_mask_bits) - 1;
+                        asm volatile("dc civac, %0; dsb sy;"::"r"(tmp));
+                        break;
+                    case 2: // Page
+                        tmp = getA<uint32_t>(opcode & 7);
+                        tmp = tmp & ~4095;
+                        for (int i=0; i < (1 << (12 - dcache_mask_bits)); i++) {
+                            asm volatile("dc civac, %0"::"r"(tmp));
+                            tmp += 1 << dcache_mask_bits;
+                        }
+                        asm volatile("dsb sy");
+                        break;
+                    case 3: // All
+                        clear_entire_dcache();
+                        break;
+                }
+            }
+
+            if (insn_cache) {
+                cache_invalidate_all(ICACHE);
+                LRU_InvalidateAll();
+                EPOCH++;
+            }
+        }
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 #define FILL_MOD(base_offset, mod, rmin, rmax, name, specialized) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
         if constexpr (specialized) ((table[base + EA(mod, (rmin + Dreg))] = \
@@ -1129,6 +1178,12 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fill(02110, 02137, CINV);
     fill(02210, 02237, CINV);
     fill(02310, 02337, CINV);
+
+    /* CPUSH */
+    fill(02050, 02077, CPUSH);
+    fill(02150, 02177, CPUSH);
+    fill(02250, 02277, CPUSH);
+    fill(02350, 02377, CPUSH);
 
     return table;
 }
