@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdarg>
 #include <arm_neon.h>
 #include <array>
 
@@ -177,6 +178,22 @@ namespace Emu68::M68k::Interpreter {
     struct M68KState* ctx;
     __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
     return ctx;
+}
+
+void putByte(void *data, char c)
+{
+    (void)data;
+    *(volatile uint8_t *)0xdeadbeef = c;
+}
+
+void bug(const char * format, ...)
+{
+    va_list v;
+    M68K_SaveContext(getCTX());
+    va_start(v, format);
+    vkprintf_pc(putByte, 0, format, v);
+    va_end(v);
+    M68K_LoadContext(getCTX());
 }
 
 void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea, uint32_t pc)

@@ -42,6 +42,8 @@ concept ByteCompatibleMode = (Mode != 1) || sizeof(Type) > 1;
 
 template<class Type> concept WordOrLongSize = sizeof(Type) == 2 || sizeof(Type) == 4;
 
+void bug(const char * format, ...);
+
 void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea, uint32_t pc);
 
 template<class Type>
