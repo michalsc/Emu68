@@ -483,6 +483,13 @@ void DIVU_L(uint32_t)
             /* If reminder register is the same as destination, skip reminder */
             if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
                 value = value / src;
+                
+                /* Overflow! */
+                if (value & 0xffffffff00000000ULL) {
+                    SR = (SR & ~SR_Calt) | SR_Valt;
+                    return;
+                }
+
                 setD((opcode2 >> 12) & 7, (uint32_t)value);
             } else {
                 uint64_t rem;
