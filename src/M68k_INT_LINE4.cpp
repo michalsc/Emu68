@@ -504,15 +504,15 @@ void DIVU_L(uint32_t)
 
                 setD(opcode2 & 7, (uint32_t)rem);
                 setD((opcode2 >> 12) & 7, (uint32_t)value);
-
-                if ((int32_t)value == 0) {
-                    sr |= SR_Z;
-                } else if ((int32_t)value < 0) {
-                    sr |= SR_N;
-                }
-
-                SR = sr;
             }
+
+            if ((int32_t)value == 0) {
+                sr |= SR_Z;
+            } else if ((int32_t)value < 0) {
+                sr |= SR_N;
+            }
+
+            SR = sr;
         } else  /* 32 / 32 -> 32 divide */ {
             /* If reminder register is the same as destination, skip reminder */
             if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
