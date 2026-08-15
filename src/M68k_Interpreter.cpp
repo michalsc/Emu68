@@ -608,9 +608,10 @@ uint32_t getEA_Mod7(uint32_t, uint32_t reg)
     } else if (reg == 3) {
         return getExtendedEA<Type>(PC);
     } else if (reg == 4) {
-        uint32_t addr = PC;
+        uint32_t addr = PC + 1;
         if constexpr (!std::is_same<Type, void>::value) {
             PC += sizeof(Type);
+            if (sizeof(Type) == 1) PC++;
         }
         return addr;
     } else {
