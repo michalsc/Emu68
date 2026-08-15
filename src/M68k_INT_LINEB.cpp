@@ -12,16 +12,20 @@ template<uint8_t Mode, uint8_t Reg, bool IsAn, uint8_t DstReg, class Type>
 void CMP(uint32_t)
 {
     PC += 2;
-    Type eaval = loadFromEA<Mode, Reg, Type>();
-    Type regval;
 
-    if constexpr (IsAn) { regval = getA<DstReg, Type>(); }
-    else                { regval = getD<DstReg, Type>(); }
-
-    auto [result, ccr] = arithWithFlags<Type, true>(regval, eaval);
-
-    (void)result;
-    SR = (SR & ~SR_NZVC) | ccr;
+    if constexpr (IsAn) {
+        int32_t eaval  = loadFromEA<Mode, Reg, Type>();   // WORD->int32 sign-extends; no-op for LONG
+        int32_t regval = getA<DstReg, int32_t>();
+        auto [result, ccr] = arithWithFlags<int32_t, true>(regval, eaval);
+        (void)result;
+        SR = (SR & ~SR_NZVC) | ccr;
+    } else {
+        Type eaval  = loadFromEA<Mode, Reg, Type>();
+        Type regval = getD<DstReg, Type>();
+        auto [result, ccr] = arithWithFlags<Type, true>(regval, eaval);
+        (void)result;
+        SR = (SR & ~SR_NZVC) | ccr;
+    }
 }
 
 template<uint8_t SrcReg, uint8_t DstReg, class Type>
