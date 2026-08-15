@@ -208,6 +208,7 @@ void RTE(uint32_t)
 
         if (frame != ExceptionFrameFormat::FORMAT_0 && frame != ExceptionFrameFormat::FORMAT_2) {
             raiseException(VECTOR_FORMAT_ERROR, ExceptionFrameFormat::FORMAT_0, 0, 0);
+            return;
         }
 
         A7 += 8;
