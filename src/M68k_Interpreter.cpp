@@ -276,7 +276,7 @@ Type loadFromEA_Mod3(uint32_t, uint32_t reg)
 
     Type retval = *(Type*)(uintptr_t)addr;
 
-    addr += sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1:0;
+    addr += sizeof(Type) + ((reg == 7 && sizeof(Type) == 1) ? 1 : 0);
 
     setA<uint32_t>(reg, addr);
 
@@ -288,7 +288,7 @@ Type loadFromEA_Mod4(uint32_t, uint32_t reg)
 {
     uint32_t addr = getA<uint32_t>(reg);
 
-    addr -= sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1:0;
+    addr -= sizeof(Type) + ((reg == 7 && sizeof(Type) == 1) ? 1 : 0);
 
     setA<uint32_t>(reg, addr);
 
@@ -659,7 +659,7 @@ void storeToEA_Mod3(uint32_t, uint32_t reg, Type value)
 {
     uintptr_t addr = getA<uint32_t>(reg);
     *(Type*)addr = value;
-    addr += sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1 : 0;
+    addr += sizeof(Type) + ((reg == 7 && sizeof(Type) == 1) ? 1 : 0);
     setA<uint32_t>(reg, addr);
 }
 
@@ -667,7 +667,7 @@ template<class Type>
 void storeToEA_Mod4(uint32_t, uint32_t reg, Type value)
 {
     uintptr_t addr = getA<uint32_t>(reg);
-    addr -= sizeof(Type) + (reg == 7 && sizeof(Type) == 1) ? 1 : 0;
+    addr -= sizeof(Type) + ((reg == 7 && sizeof(Type) == 1) ? 1 : 0);
     *(Type*)addr = value;
     setA<uint32_t>(reg, addr);
 }
