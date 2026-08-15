@@ -6,22 +6,7 @@
 
 #include "RegisterMapping.h"
 
-
-extern "C" {
-
-void M68K_LoadContext(struct M68KState *ctx);
-void M68K_SaveContext(struct M68KState *ctx);
-
-}
-
 namespace Emu68::M68k::Interpreter::Line6 {
-
-static inline struct M68KState *getCTX()
-{
-    struct M68KState *ctx;
-    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
-    return ctx;
-}
 
 template<class Type>
 void BSR(uint32_t opcode)
@@ -133,7 +118,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[0xf00] = Bcc<M_CC_LE, WORD>;
 
     /* Special fill - LONG branches, **must** follow after generic fill */
-    table[0x0ff] = Bcc<M_CC_T, WORD>;
+    table[0x0ff] = Bcc<M_CC_T, LONG>;
     table[0x1ff] = BSR<LONG>;
     table[0x2ff] = Bcc<M_CC_HI, LONG>;
     table[0x3ff] = Bcc<M_CC_LS, LONG>;
