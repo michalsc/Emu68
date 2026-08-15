@@ -96,7 +96,7 @@ void MOVE_from_USP(uint32_t opcode)
 template<uint8_t Dn> requires (Dn < 8)
 void SWAP(uint32_t)
 {
-    uint32_t sr = SR & ~SR_CCR;
+    uint32_t sr = SR & ~SR_NZVC;
     uint32_t val = getD<Dn, uint32_t>();
 
     if (unlikely(val == 0)) {
