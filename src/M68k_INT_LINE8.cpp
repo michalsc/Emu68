@@ -24,8 +24,8 @@ void DIVS_W(uint32_t)
         int32_t dval = getD<Dn, int32_t>();
         int32_t drem;
 
-        dval = dval / (int32_t)src;
         drem = dval % (int32_t)src;
+        dval = dval / (int32_t)src;
 
         if ((int32_t)dval != (int16_t)dval) {
             SR = (SR & ~SR_Calt) | SR_Valt;
@@ -60,8 +60,8 @@ void DIVU_W(uint32_t)
         uint32_t dval = getD<Dn, uint32_t>();
         uint32_t drem;
 
-        dval = dval / (uint32_t)src;
         drem = dval % (uint32_t)src;
+        dval = dval / (uint32_t)src;
 
         if (dval > 0xffff) {
             SR = (SR & ~SR_Calt) | SR_Valt;
