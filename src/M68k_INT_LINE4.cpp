@@ -575,9 +575,9 @@ void MULU_L(uint32_t)
                 sr |= SR_Valt;
             }
 
-            if (value == 0) {
+            if ((int32_t)value == 0) {
                 sr |= SR_Z;
-            } else if (value < 0) {
+            } else if ((int32_t)value < 0) {
                 sr |= SR_N;
             }
 
@@ -608,9 +608,9 @@ void MULU_L(uint32_t)
                 sr |= SR_Valt;
             }
 
-            if ((int64_t)value == 0) {
+            if ((int32_t)value == 0) {
                 sr |= SR_Z;
-            } else if ((int64_t)value < 0) {
+            } else if ((int32_t)value < 0) {
                 sr |= SR_N;
             }
 
