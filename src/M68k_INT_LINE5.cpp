@@ -122,13 +122,17 @@ void ADDQ(uint32_t opcode)
 
     PC += 2;
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = arithWithFlags<Type, false>(v, immediate);
-        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
-        return result;
-    });
+    if constexpr (Mode == 1) {
+        /* An destination: full 32-bit add, CCR unaffected */
+        setA<Reg, uint32_t>(getA<Reg, uint32_t>() + immediate);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+            auto [result, ccr] = arithWithFlags<Type, false>(v, immediate);
+            SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+            return result;
+        });
+    }
 }
-
 
 template<uint8_t Mode, uint8_t Reg, class Type>
 void SUBQ(uint32_t opcode)
@@ -138,11 +142,16 @@ void SUBQ(uint32_t opcode)
 
     PC += 2;
 
-    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
-        auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
-        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
-        return result;
-    });
+    if constexpr (Mode == 1) {
+        /* An destination: full 32-bit add, CCR unaffected */
+        setA<Reg, uint32_t>(getA<Reg, uint32_t>() - immediate);
+    } else {
+        readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+            auto [result, ccr] = arithWithFlags<Type, true>(v, immediate);
+            SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+            return result;
+        });
+    }
 }
 
 #define FILL_ALL_WR_EAs(base_offset, name, size) \
