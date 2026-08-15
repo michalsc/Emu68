@@ -239,7 +239,7 @@ void ORI_to_SR(uint32_t)
 void ANDI_to_CCR(uint32_t)
 {
 	uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
-    SR = SR & immed;
+    SR = (SR & ~SR_CCR) | (SR & immed);
 	PC += 4;
 }
 
@@ -660,7 +660,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     table[00174] = ORI_to_SR;
     table[01174] = ANDI_to_SR;
-    table[05174] = ORI_to_SR;
+    table[05174] = EORI_to_SR;
 
     FILL_Bxxx_Dn(00400, BTST_REG_Dn);
     FILL_Bxxx_Dn(00500, BCHG_REG_Dn);
