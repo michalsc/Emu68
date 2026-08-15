@@ -34,7 +34,7 @@ void SUB_Dn_to_EA(uint32_t opcode)
     PC = PC + 2;
 
     if constexpr (Dn == DEFAULT_EA) {
-        dval = getDn<Type>((opcode >> 9) & 7);
+        dval = getD<Type>((opcode >> 9) & 7);
     } else {
         dval = getD<Dn, Type>();
     }
@@ -71,7 +71,7 @@ void SUB_EA_to_Dn(uint32_t opcode)
     }
 
     if constexpr (Dn == DEFAULT_EA) {
-        dval = getDn<Type>((opcode >> 9) & 7);
+        dval = getD<Type>((opcode >> 9) & 7);
     } else {
         dval = getD<Dn, Type>();
     }
@@ -80,7 +80,7 @@ void SUB_EA_to_Dn(uint32_t opcode)
     SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
 
     if constexpr (Dn == DEFAULT_EA) {
-        setDn<Type>((opcode >> 9) & 7, result);
+        setD<Type>((opcode >> 9) & 7, result);
     } else {
         setD<Dn, Type>(result);
     }
