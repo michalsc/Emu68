@@ -471,7 +471,7 @@ void DIVU_L(uint32_t)
     uint32_t src = loadFromEA<Mode, Reg, uint32_t>();
 
     if (src == 0) {
-        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
+        raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         uint32_t dq = getD<uint32_t>((opcode2 >> 12) & 7);
 
