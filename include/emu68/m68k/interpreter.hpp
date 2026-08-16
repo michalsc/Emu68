@@ -400,7 +400,7 @@ static inline std::pair<Type, uint8_t> lslWithFlags(Type value, int count)
     if (result == 0) { ccr |= SR_Z; }
     if (result < 0)  { ccr |= SR_N; }
     // V is always 0 for LSL
-    if (carry) { ccr |= SR_C; }
+    if (carry) { ccr |= SR_Calt; }
     return { result, ccr };
 }
 
@@ -424,7 +424,7 @@ static inline std::pair<Type, uint8_t> lsrWithFlags(Type value, int count)
     if (result == 0) { ccr |= SR_Z; }
     if (result < 0)  { ccr |= SR_N; }  // provably always false for count >= 1, harmless to leave uniform
     // V is always 0 for LSR
-    if (carry) { ccr |= SR_C; }
+    if (carry) { ccr |= SR_Calt; }
     return { result, ccr };
 }
 
