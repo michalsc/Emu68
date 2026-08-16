@@ -187,6 +187,97 @@ void LSx_Mem(uint32_t)
     });
 }
 
+template<class Type>
+static inline constexpr std::pair<Type, bool> roxRotate(Type v, uint32_t count, bool x_in, bool left)
+{
+    constexpr uint32_t bitcount = sizeof(Type) * 8;
+    constexpr uint32_t ringbits = bitcount + 1;
+    constexpr uint64_t valmask = (uint64_t(1) << bitcount) - 1;
+    constexpr uint64_t ringmask = (uint64_t(1) << ringbits) - 1;
+ 
+    uint64_t ring = (uint64_t(x_in) << bitcount) | v;
+    uint32_t c = count % ringbits;
+ 
+    uint64_t rotated = ring;
+    if (c != 0) {
+        rotated = left
+            ? ((ring << c) | (ring >> (ringbits - c))) & ringmask
+            : ((ring >> c) | (ring << (ringbits - c))) & ringmask;
+    }
+ 
+    bool new_x = (rotated >> bitcount) & 1;
+    Type result = static_cast<Type>(rotated & valmask);
+    return { result, new_x };
+}
+
+template<class Type>
+static inline constexpr std::pair<Type, uint32_t> roxWithFlags(Type v, uint32_t count, bool x_in, bool left)
+{
+    constexpr uint32_t bitcount = sizeof(Type) * 8;
+    auto [result, new_x] = roxRotate<Type>(v, count, x_in, left);
+ 
+    uint32_t ccr = 0;
+    if (result == 0) {
+        ccr |= SR_Z;
+    } else if (result & (Type(1) << (bitcount - 1))) {
+        ccr |= SR_N;
+    }
+    if (new_x) {
+        ccr |= SR_Calt;
+    }
+ 
+    return { result, ccr };
+}
+
+template<bool Left, bool RegCount, uint8_t CountOrReg, uint8_t Reg, class Type>
+void ROXx_Reg(uint32_t)
+{
+    PC += 2;
+    Type v = getD<Reg, Type>();
+    bool x_in = (SR & SR_X) != 0;
+ 
+    uint32_t count;
+    if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
+    else                    { count = (CountOrReg == 0) ? 8 : CountOrReg; }
+ 
+    auto [result, ccr] = roxWithFlags<Type>(v, count, x_in, Left);
+ 
+    if constexpr (!RegCount) {
+        // immediate count is always 1..8 -- X always updated, same shape as ASx_Reg/LSx_Reg
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+    } else {
+        uint32_t mask = SR_NZVC | (count != 0 ? SR_X : 0);
+        uint32_t bits = ccr | ((count != 0 && (ccr & SR_Calt)) ? SR_X : 0);
+        SR = (SR & ~mask) | bits;
+    }
+ 
+    setD<Reg, Type>(result);
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void ROXR_Mem(uint32_t)
+{
+    PC += 2;
+    readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
+        bool x_in = (SR & SR_X) != 0;
+        auto [result, ccr] = roxWithFlags<uint16_t>(v, 1, x_in, false);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void ROXL_Mem(uint32_t)
+{
+    PC += 2;
+    readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
+        bool x_in = (SR & SR_X) != 0;
+        auto [result, ccr] = roxWithFlags<uint16_t>(v, 1, x_in, true);
+        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
 #define FILL_MOD2_to_72(base_offset, name) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA(2 + (Is >> 3), Is & 7)] = \
@@ -265,8 +356,24 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_SHIFT_REG(     00610,  LSx_Reg, true,  false, LONG);
     FILL_SHIFT_REG(     00650,  LSx_Reg, true,  true,  LONG);
 
-    FILL_MOD2_to_72_sz( 01300,  LSx_Mem, false, WORD);   // ASR <ea>
-    FILL_MOD2_to_72_sz( 01700,  LSx_Mem, true,  WORD);   // ASL <ea>
+    FILL_MOD2_to_72_sz( 01300,  LSx_Mem, false, WORD);          // ASR <ea>
+    FILL_MOD2_to_72_sz( 01700,  LSx_Mem, true,  WORD);          // ASL <ea>
+
+    FILL_SHIFT_REG(     00020,  ROXx_Reg, false, false, BYTE);  // ROXR.B #n,Dn
+    FILL_SHIFT_REG(     00060,  ROXx_Reg, false, true,  BYTE);  // ROXR.B Dn,Dn
+    FILL_SHIFT_REG(     00120,  ROXx_Reg, false, false, WORD);
+    FILL_SHIFT_REG(     00160,  ROXx_Reg, false, true,  WORD);
+    FILL_SHIFT_REG(     00220,  ROXx_Reg, false, false, LONG);
+    FILL_SHIFT_REG(     00260,  ROXx_Reg, false, true,  LONG);
+    FILL_SHIFT_REG(     00420,  ROXx_Reg, true,  false, BYTE);  // ROXL.B #n,Dn
+    FILL_SHIFT_REG(     00460,  ROXx_Reg, true,  true,  BYTE);
+    FILL_SHIFT_REG(     00520,  ROXx_Reg, true,  false, WORD);
+    FILL_SHIFT_REG(     00560,  ROXx_Reg, true,  true,  WORD);
+    FILL_SHIFT_REG(     00620,  ROXx_Reg, true,  false, LONG);
+    FILL_SHIFT_REG(     00660,  ROXx_Reg, true,  true,  LONG);
+
+    FILL_MOD2_to_72(    02300,  ROXR_Mem);
+    FILL_MOD2_to_72(    02700,  ROXL_Mem);
 
     return table;
 }
