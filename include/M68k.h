@@ -748,7 +748,7 @@ enum class ExceptionFrameFormat {
     uint32_t retval;
     uint32_t tmp;
 
-    asm volatile("rbit %0, %1":"=r"(tmp):"r"(src));
+    asm volatile("rbit %w0, %w1":"=r"(tmp):"r"(src));
     retval = (src & ~3) | ((tmp >> 30) & 3);
 
     return retval;
