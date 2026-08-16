@@ -2084,6 +2084,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 tmp = RA_AllocARMRegister(ctx);
                 uint32_t mask = number_to_mask(0x80008000);
                 EMIT(ctx, 
+                    mov_reg(12, 31),
                     and_immed(tmp, reg, (mask >> 16) & 0x3f, mask & 0x3f),
                     mov_reg_to_simd(REG_CACR, tmp)
                 );
@@ -3347,6 +3348,8 @@ void check_cacr()
     uint32_t change;
 
     asm volatile("mov %w0, " REG_CACR_ASM : "=r"(cacr));
+
+kprintf("new CACR=%08x\n", cacr);
 
     change = old_cacr ^ cacr;
     old_cacr = cacr;
