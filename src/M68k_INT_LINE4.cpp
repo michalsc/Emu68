@@ -20,7 +20,12 @@ extern uint32_t debug_range_max;
 
 namespace Emu68::M68k::Interpreter::Line4 {
 
-
+static inline struct M68KState *getCTX()
+{
+    struct M68KState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    return ctx;
+}
 
 template<uint8_t Mode, uint8_t Reg>
 void MOVE_to_CCR(uint32_t)
@@ -47,6 +52,33 @@ void MOVE_to_SR(uint32_t)
         handleChangedSR(sr, changed);
         
         SR = sr;
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
+void STOP(uint32_t)
+{
+    uint32_t sr = SR;
+    uint32_t changed = sr;
+
+    /* Modifying SR requires supervisor rights */
+    if (sr & SR_S) {
+        uint32_t newSR = swapVC(*(uint16_t*)(uintptr_t)(PC + 2));
+
+        PC += 4;
+
+        sr = newSR;
+        changed ^= sr;
+
+        handleChangedSR(sr, changed);
+        
+        SR = sr;
+
+        /* SR is set to new value, start spinning on the pending IRQ's */
+        while(getCTX()->INT64 == 0) {
+            asm volatile("wfe":::"memory");
+        }
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -166,12 +198,6 @@ void NEG(uint32_t)
     });
 }
 
-static inline struct M68KState *getCTX()
-{
-    struct M68KState *ctx;
-    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
-    return ctx;
-}
 
 void TRAP(uint32_t opcode)
 {
@@ -1076,6 +1102,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[04347] =     MOVEM_L_regs_to_A7_PreDec;
 #endif
     table[07161] =     NOP;
+    table[07162] =     STOP;
     table[07163] =     RTE;
     table[07164] =     RTD;
     table[07165] =     RTS;
@@ -1097,7 +1124,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     [01350 ... 01371] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 1, 2 },
     
     [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
-    [0xe72]           = { EMIT_STOP, NULL, SR_S, SR_ALL, 2, 0, 0 },
+    
     
     [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
     
