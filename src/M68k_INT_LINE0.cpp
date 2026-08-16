@@ -140,7 +140,7 @@ void ADDI(uint32_t opcode)
 
     auto oper = [&](Type v) -> Type {
         auto [result, ccr] = arithWithFlags<Type, false>(v, immediate);
-        SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        SR = (SR & ~(SR_CCR)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
         return result;
     };
 
@@ -558,6 +558,12 @@ void BCHG_REG_Dn(uint32_t)
              name<2 + ((Is >> 3) & 7), (Is & 7)>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+#define FILL_BTST_IMM_EA(base_offset, name) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + EA(2 + ((Is >> 3) & 7), Is & 7)] = \
+             name<2 + ((Is >> 3) & 7), (Is & 7)>), ...); \
+    }((base_offset), std::make_index_sequence<44>{});
+
 
 template <class Type, template<uint8_t,uint8_t,class> class Op,
           class EAF>
@@ -579,7 +585,8 @@ constexpr void fillImmedOpEA(std::array<INTERPRET_Function, 4096>& table, int ba
 inline constexpr uint32_t ImmedOpSpecializeMask = 
       classBit(EAClass::Dn)
     | classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
-    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An);
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An)
+    | classBit(EAClass::Imm);
 
 template <uint8_t Mode, uint8_t Reg, class Type>
 struct ORI_Op { static constexpr auto value = ORI<Mode, Reg, Type>; };
@@ -675,7 +682,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_Bxxx_IMM(04100, BCHG_IMM_Dn);
     FILL_Bxxx_IMM(04200, BCLR_IMM_Dn);
     FILL_Bxxx_IMM(04300, BSET_IMM_Dn);
-    FILL_Bxxx_IMM_EA(04000, BTST_IMM_EA);
+    FILL_BTST_IMM_EA(04000, BTST_IMM_EA);
     FILL_Bxxx_IMM_EA(04100, BCHG_IMM_EA);
     FILL_Bxxx_IMM_EA(04200, BCLR_IMM_EA);
     FILL_Bxxx_IMM_EA(04300, BSET_IMM_EA);
