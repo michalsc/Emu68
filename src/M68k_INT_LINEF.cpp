@@ -142,11 +142,16 @@ void FRESTORE(uint32_t opcode)
     }
 }
 
-bool ILLEGAL(uint32_t opcode, uint32_t)
+void ILLEGAL_LINE_F(uint32_t)
+{
+    raiseException(VECTOR_LINE_F, ExceptionFrameFormat::FORMAT_0, 0, 0);
+}
+
+bool ILLEGAL_LINE_F(uint32_t opcode, uint32_t)
 {
     PC -= 4;
 
-    ::Emu68::M68k::Interpreter::ILLEGAL(opcode);
+    ILLEGAL_LINE_F(opcode);
 
     return 0;
 }
@@ -848,7 +853,7 @@ static consteval std::array<INTERPRET_FPU_Function, 128> buildExtensionFieldServ
     std::array<INTERPRET_FPU_Function, 128> table{};
 
     for (int i = 0; i < 128; ++i) {
-        table[i] = ILLEGAL;
+        table[i] = ILLEGAL_LINE_F;
     }
 
     table[0x00] = FMOVE<RegToReg>;
@@ -945,7 +950,7 @@ void handleGeneralType(uint32_t opcode)
     }
 
     if (!handled) {
-        ILLEGAL(opcode, opcode2);
+        ILLEGAL_LINE_F(opcode, opcode2);
     }
 }
 
@@ -1132,7 +1137,7 @@ static consteval std::array<INTERPRET_Function, 512> buildFPUTable()
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
-    for (auto& e : table) e = ::Emu68::M68k::Interpreter::ILLEGAL;
+    for (auto& e : table) e = ILLEGAL_LINE_F;
 
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
     auto fill = [&table](int first, int last, INTERPRET_Function func) {
