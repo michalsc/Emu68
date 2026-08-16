@@ -2,7 +2,8 @@
 #include <arm_neon.h>
 #include <array>
 
-#include <emu68/m68k/interpreter.hpp>
+#include <emu68/m68k/interpreter>
+#include <emu68/m68k/bcd_arithmetic>
 
 #include "RegisterMapping.h"
 
@@ -124,6 +125,40 @@ void OR_EA_to_Dn(uint32_t)
     setD<Dn, Type>(dval);
 }
 
+void SBCD(uint32_t opcode)
+{
+    const bool memForm = (opcode & (1 << 4)) != 0;
+    const int rx = (opcode >> 9) & 7;
+    const int ry = opcode & 7;
+
+    PC += 2;
+    uint8_t x_in = (SR & SR_X) ? 1 : 0;
+ 
+    uint8_t a, b;
+    uint8_t *dst;
+ 
+    if (!memForm) {
+        a = getD<uint8_t>(ry);
+        b = getD<uint8_t>(rx);
+    } else {
+        uint32_t srcAddr = getEA<uint8_t>(4, ry);
+        uint32_t dstAddr = getEA<uint8_t>(4, rx);
+        a = *(uint8_t *)(uintptr_t)srcAddr;
+        b = *(uint8_t *)(uintptr_t)dstAddr;
+        dst = (uint8_t *)(uintptr_t)dstAddr;
+    }
+ 
+    auto [result, carry] = bcdSub(b, a, x_in);
+ 
+    uint32_t sr = SR;
+    uint32_t ccr = (result == 0 ? SR_Z : 0) | (carry ? SR_Calt : 0);
+    ccr = (ccr & ~SR_Z) | (ccr & sr & SR_Z);
+    SR = (sr & ~(SR_X | SR_Z | SR_Calt)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+ 
+    if (!memForm) { setD<uint8_t>(rx, result); }
+    else          { *dst = result; }
+}
+
 #define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA((Is >> 3), Is & 7)] = \
@@ -146,7 +181,6 @@ void OR_EA_to_Dn(uint32_t)
              name<2 + (Is >> 3), Is & 7, reg, size>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
-
 #define FILL_ALL_RD_EAs_no_An_reg(base_offset, name, reg) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
         ((table[base + EA(0, Dreg) + (reg << 9)] = \
@@ -157,6 +191,11 @@ void OR_EA_to_Dn(uint32_t)
              name<2 + (Is >> 3), Is & 7, reg>), ...); \
     }((base_offset), std::make_index_sequence<45>{});
 
+#define FILL_SBCD(base_offset) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + (Is & 15) + ((Is >> 4) << 9)] = \
+             SBCD), ...); \
+    }((base_offset), std::make_index_sequence<128>{});
 
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
@@ -171,6 +210,8 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
     fill(00000, 07777, ILLEGAL);
+
+    FILL_SBCD(00400);
 
     FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 0);
     FILL_ALL_RD_EAs_no_An_reg(  00700,  DIVS_W, 1);

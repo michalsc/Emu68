@@ -2,7 +2,8 @@
 #include <arm_neon.h>
 #include <array>
 
-#include <emu68/m68k/interpreter.hpp>
+#include <emu68/m68k/interpreter>
+#include <emu68/m68k/bcd_arithmetic>
 
 #include "RegisterMapping.h"
 
@@ -768,6 +769,33 @@ void MOVEM(uint32_t opcode)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg>
+requires (Mode != 1)
+void NBCD(uint32_t opcode)
+{
+    PC = PC + 2;
+    uint8_t x_in = (SR & SR_X) ? 1 : 0;
+ 
+    auto oper = [&](uint8_t v) -> uint8_t {
+        auto [result, carry] = bcdSub(0, v, x_in);
+ 
+        uint32_t ccr = (result == 0 ? SR_Z : 0) | (carry ? SR_Calt : 0);
+        uint32_t sr = SR;
+        ccr = (ccr & ~SR_Z) | (ccr & sr & SR_Z);
+        SR = (sr & ~(SR_X | SR_Z | SR_Calt)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+ 
+        return result;
+    };
+ 
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+        uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        readModifyWriteEA<uint8_t>(mode, reg, oper);
+    } else {
+        readModifyWriteEA<Mode, Reg, uint8_t>(oper);
+    }
+}
+
 #define FILL_PEA_ALIKE(base_offset, name) \
     [&]<std::size_t... Areg>(int base, std::index_sequence<Areg...>) { \
         ((table[base + EA(2, Areg)] = \
@@ -881,8 +909,13 @@ inline constexpr uint32_t MMDstSpecializeMask =
       classBit(EAClass::Ind)     | classBit(EAClass::IndPre)  
     | classBit(EAClass::D16An);
 
+inline constexpr uint32_t NBCDSpecializeMask = 0;
+
 template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
 struct MOVEM_Op { static constexpr auto value = MOVEM<Mode, Reg, Write, Type>; };
+
+template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
+struct NBCD_Op { static constexpr auto value = NBCD<Mode, Reg>; };
 
 // EA field combines Register and EA mode in one, gets
 template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
@@ -892,6 +925,21 @@ struct EAFieldMM : FieldBase<BitOffset, 6> {
         constexpr unsigned mode = V >> 3, reg = V & 7;
         if constexpr (Write) return MemoryMode<mode> && DestEA7<mode, reg> && !PostIncMode<mode>;
         else                 return MemoryMode<mode> && SourceEA7<mode, reg> && !PreDecMode<mode>;
+    }
+
+    static constexpr bool hot(unsigned v) {
+        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
+    }
+    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
+    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
+};
+
+template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
+struct EAFieldNBCD : FieldBase<BitOffset, 6> {
+    template <unsigned V>
+    static constexpr bool valid() {
+        constexpr unsigned mode = V >> 3, reg = V & 7;
+        return (MemoryMode<mode> || DRegMode<mode>) && DestEA7<mode, reg>;
     }
 
     static constexpr bool hot(unsigned v) {
@@ -978,6 +1026,8 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillEA<WORD, false, MOVEM_Op, EAFieldMM<0, WORD, false, MMSrcSpecializeMask>>(table, 06200);
     fillEA<LONG, true, MOVEM_Op, EAFieldMM<0, LONG, true, MMDstSpecializeMask>>(table, 04300);
     fillEA<WORD, true, MOVEM_Op, EAFieldMM<0, WORD, true, MMDstSpecializeMask>>(table, 04200);
+
+    fillEA<BYTE, true, NBCD_Op, EAFieldNBCD<0, BYTE, true, NBCDSpecializeMask>>(table, 04000);
 #if 0
     table[04320] =     MOVEM_L_regs_to_A0_Addr;
     table[04321] =     MOVEM_L_regs_to_A1_Addr;

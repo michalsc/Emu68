@@ -2,7 +2,8 @@
 #include <arm_neon.h>
 #include <array>
 
-#include <emu68/m68k/interpreter.hpp>
+#include <emu68/m68k/interpreter>
+#include <emu68/m68k/bcd_arithmetic>
 
 #include "RegisterMapping.h"
 
@@ -119,6 +120,40 @@ void EXG(uint32_t)
     } else static_assert(ALWAYS_FALSE<Rx>, "RegX must be Dn for EXG.L An, Dn");
 }
 
+void ABCD(uint32_t opcode)
+{
+    const bool memForm = (opcode & (1 << 3)) != 0;
+    const int rx = (opcode >> 9) & 7;
+    const int ry = opcode & 7;
+    
+    PC += 2;
+    uint8_t x_in = (SR & SR_X) ? 1 : 0;
+ 
+    uint8_t a, b;
+    uint8_t* dst;
+ 
+    if (!memForm) {
+        a = getD<uint8_t>(ry);
+        b = getD<uint8_t>(rx);
+    } else {
+        uint32_t srcAddr = getEA<uint8_t>(4, ry);
+        uint32_t dstAddr = getEA<uint8_t>(4, rx);
+        a = *(uint8_t*)(uintptr_t)srcAddr;
+        b = *(uint8_t*)(uintptr_t)dstAddr;
+        dst = (uint8_t*)(uintptr_t)dstAddr;
+    }
+ 
+    auto [result, carry] = bcdAdd(b, a, x_in);
+ 
+    uint32_t sr = SR;
+    uint32_t ccr = (result == 0 ? SR_Z : 0) | (carry ? SR_Calt : 0);
+    ccr = (ccr & ~SR_Z) | (ccr & sr & SR_Z);
+    SR = (sr & ~(SR_X | SR_Z | SR_Calt)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+ 
+    if (!memForm) { setD<uint8_t>(rx, result); }
+    else          { *dst = result; }
+}
+
 #define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA((Is >> 3), Is & 7)] = \
@@ -157,6 +192,12 @@ void EXG(uint32_t)
              EXG<(Is >> 3), Ax, Is & 7, Ay>), ...); \
     }((base_offset), std::make_index_sequence<64>{});
 
+#define FILL_ABCD(base_offset) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + (Is & 15) + ((Is >> 4) << 9)] = \
+             ABCD), ...); \
+    }((base_offset), std::make_index_sequence<128>{});
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -191,6 +232,8 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_EXG(                   00500,  false,  false);
     FILL_EXG(                   00510,  true,   true);
     FILL_EXG(                   00610,  false,  true);
+
+    FILL_ABCD(                  00400);
 
     FILL_ALL_RD_EAs_no_An(      00000,  AND_EA_to_Dn, 0,  BYTE);
     FILL_ALL_RD_EAs_no_An(      01000,  AND_EA_to_Dn, 1,  BYTE);
