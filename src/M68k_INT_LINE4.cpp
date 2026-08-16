@@ -394,7 +394,7 @@ void MOVEC(uint32_t opcode)
                                 *ctx->PPC_EE_FLAG = 255;
                                 asm volatile("sev":::"memory");
                             }                                       break;
-                default:    raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+                default:    raiseException(VECTOR_ILLEGAL_INSTRUCTION, ExceptionFrameFormat::FORMAT_0, 0, 0);
                                                                     return;
             }
 
@@ -441,7 +441,7 @@ void MOVEC(uint32_t opcode)
                 case 0x805: val = ctx->MMUSR;                               break;
                 case 0x806: val = ctx->URP;                                 break;
                 case 0x807: val = ctx->SRP;                                 break;
-                default:    raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+                default:    raiseException(VECTOR_ILLEGAL_INSTRUCTION, ExceptionFrameFormat::FORMAT_0, 0, 0);
                                                                             return;
             }
 
@@ -457,7 +457,7 @@ void MOVEC(uint32_t opcode)
     }
 }
 
-
+// TODO: add signed DIVS_L...
 template<uint8_t Mode, uint8_t Reg>
 void DIVU_L(uint32_t)
 {
