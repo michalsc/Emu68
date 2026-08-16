@@ -3,7 +3,7 @@
 #include <arm_neon.h>
 #include <array>
 
-#include <emu68/m68k/interpreter.hpp>
+#include <emu68/m68k/interpreter>
 
 #include "RegisterMapping.h"
 

@@ -3,7 +3,7 @@
 #include <array>
 #include <utility>
 
-#include <emu68/m68k/interpreter.hpp>
+#include <emu68/m68k/interpreter>
 
 #include "RegisterMapping.h"
 
