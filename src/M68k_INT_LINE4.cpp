@@ -767,6 +767,20 @@ void MOVEM(uint32_t opcode)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg, class Type>
+void NEGX(uint32_t)
+{
+    uint32_t sr = SR;
+    uint8_t x_in = (sr & SR_X) ? 1 : 0;
+    PC += 2;
+    readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
+        auto [result, ccr] = arithXWithFlags<Type, true>(0, v, x_in);
+        ccr = (ccr & ~SR_Z) | (ccr & sr & SR_Z);
+        SR = (sr & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
+        return result;
+    });
+}
+
 template<uint8_t Mode, uint8_t Reg>
 requires (Mode != 1)
 void NBCD(uint32_t opcode)
@@ -983,12 +997,19 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_ALL_RD_EAs(        05100, TST, WORD);
     FILL_ALL_RD_EAs(        05200, TST, LONG);
 
-    FILL_MOD0_size(         02000, NEG, BYTE);      /* NOT.B Dn */
-    FILL_MOD2_to_72_size(   02000, NEG, BYTE);      /* NOT.B all other modes */
-    FILL_MOD0_size(         02100, NEG, WORD);      /* NOT.W Dn */
-    FILL_MOD2_to_72_size(   02100, NEG, WORD);      /* NOT.W all other modes */
-    FILL_MOD0_size(         02200, NEG, LONG);      /* NOT.L Dn */
-    FILL_MOD2_to_72_size(   02200, NEG, LONG);      /* NOT.L all other modes */
+    FILL_MOD0_size(         02000, NEG, BYTE);      /* NEG.B Dn */
+    FILL_MOD2_to_72_size(   02000, NEG, BYTE);      /* NEG.B all other modes */
+    FILL_MOD0_size(         02100, NEG, WORD);      /* NEG.W Dn */
+    FILL_MOD2_to_72_size(   02100, NEG, WORD);      /* NEG.W all other modes */
+    FILL_MOD0_size(         02200, NEG, LONG);      /* NEG.L Dn */
+    FILL_MOD2_to_72_size(   02200, NEG, LONG);      /* NEG.L all other modes */
+
+    FILL_MOD0_size(         00000, NEGX, BYTE);      /* NEGX.B Dn */
+    FILL_MOD2_to_72_size(   00000, NEGX, BYTE);      /* NEGX.B all other modes */
+    FILL_MOD0_size(         00100, NEGX, WORD);      /* NEGX.W Dn */
+    FILL_MOD2_to_72_size(   00100, NEGX, WORD);      /* NEGX.W all other modes */
+    FILL_MOD0_size(         00200, NEGX, LONG);      /* NEGX.L Dn */
+    FILL_MOD2_to_72_size(   00200, NEGX, LONG);      /* NEGX.L all other modes */
 
     FILL_MOD0_size(         03000, NOT, BYTE);      /* NOT.B Dn */
     FILL_MOD2_to_72_size(   03000, NOT, BYTE);      /* NOT.B all other modes */
