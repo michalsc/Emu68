@@ -7,21 +7,7 @@
 
 #include "RegisterMapping.h"
 
-extern "C" {
-
-void M68K_LoadContext(struct M68KState *ctx);
-void M68K_SaveContext(struct M68KState *ctx);
-
-}
-
 namespace Emu68::M68k::Interpreter::Line5 {
-
-static inline struct M68KState *getCTX()
-{
-    struct M68KState *ctx;
-    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
-    return ctx;
-}
 
 template<unsigned reg, uint8_t InstCC>
 void DBcc(uint32_t)

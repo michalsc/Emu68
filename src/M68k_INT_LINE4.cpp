@@ -15,8 +15,6 @@ extern int disasm;
 extern int debug;
 extern uint32_t debug_range_min;
 extern uint32_t debug_range_max;
-void M68K_LoadContext(struct M68KState *ctx);
-void M68K_SaveContext(struct M68KState *ctx);
 
 }
 
