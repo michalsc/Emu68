@@ -8,10 +8,15 @@
 
 namespace Emu68::M68k::Interpreter::LineA {
 
+void ILLEGAL_LINE_A(uint32_t)
+{
+    raiseException(VECTOR_LINE_A, ExceptionFrameFormat::FORMAT_0, 0, 0);
+}
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
-    for (auto& e : table) e = ILLEGAL;
+    for (auto& e : table) e = ILLEGAL_LINE_A;
     return table;
 }
 
