@@ -3349,8 +3349,6 @@ void check_cacr()
 
     asm volatile("mov %w0, " REG_CACR_ASM : "=r"(cacr));
 
-kprintf("new CACR=%08x\n", cacr);
-
     change = old_cacr ^ cacr;
     old_cacr = cacr;
 
