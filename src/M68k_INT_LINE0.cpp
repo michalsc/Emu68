@@ -536,6 +536,12 @@ void BCHG_REG_Dn(uint32_t)
              name<2 + ((Is >> 3) & 7), (Is & 7), dn>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+#define FILL_BTST_Dn_EA(base_offset, name, dn) \
+    [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
+        ((table[base + (dn << 9) + EA(2 + ((Is >> 3) & 7), Is & 7)] = \
+             name<2 + ((Is >> 3) & 7), (Is & 7), dn>), ...); \
+    }((base_offset), std::make_index_sequence<44>{});
+
 #define FILL_Bxxx_EA(base_offset, name) \
     FILL_Bxxx_Dn_EA(base_offset, name, 0) \
     FILL_Bxxx_Dn_EA(base_offset, name, 1) \
@@ -545,6 +551,16 @@ void BCHG_REG_Dn(uint32_t)
     FILL_Bxxx_Dn_EA(base_offset, name, 5) \
     FILL_Bxxx_Dn_EA(base_offset, name, 6) \
     FILL_Bxxx_Dn_EA(base_offset, name, 7)
+
+#define FILL_BTST_EA(base_offset, name) \
+    FILL_BTST_Dn_EA(base_offset, name, 0) \
+    FILL_BTST_Dn_EA(base_offset, name, 1) \
+    FILL_BTST_Dn_EA(base_offset, name, 2) \
+    FILL_BTST_Dn_EA(base_offset, name, 3) \
+    FILL_BTST_Dn_EA(base_offset, name, 4) \
+    FILL_BTST_Dn_EA(base_offset, name, 5) \
+    FILL_BTST_Dn_EA(base_offset, name, 6) \
+    FILL_BTST_Dn_EA(base_offset, name, 7)
 
 #define FILL_Bxxx_IMM(base_offset, name) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
@@ -673,7 +689,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_Bxxx_Dn(00500, BCHG_REG_Dn);
     FILL_Bxxx_Dn(00600, BCLR_REG_Dn);
     FILL_Bxxx_Dn(00700, BSET_REG_Dn);
-    FILL_Bxxx_EA(00400, BTST_REG);
+    FILL_BTST_EA(00400, BTST_REG);
     FILL_Bxxx_EA(00500, BCHG_REG);
     FILL_Bxxx_EA(00600, BCLR_REG);
     FILL_Bxxx_EA(00700, BSET_REG);
