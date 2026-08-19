@@ -657,9 +657,9 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillImmedOpEA<WORD, EORI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 05100);
     fillImmedOpEA<LONG, EORI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 05200);
 
-    fillImmedOpEA<BYTE, CMPI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 06000);
-    fillImmedOpEA<WORD, CMPI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 06100);
-    fillImmedOpEA<LONG, CMPI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 06200);
+    fillImmedOpEA<BYTE, CMPI_Op, EAField<0,BYTE,false,ImmedOpSpecializeMask> >(table, 06000);
+    fillImmedOpEA<WORD, CMPI_Op, EAField<0,WORD,false,ImmedOpSpecializeMask> >(table, 06100);
+    fillImmedOpEA<LONG, CMPI_Op, EAField<0,LONG,false,ImmedOpSpecializeMask> >(table, 06200);
 
     table[00074] = ORI_to_CCR;
     table[01074] = ANDI_to_CCR;
