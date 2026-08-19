@@ -669,14 +669,14 @@ void MOVEM(uint32_t opcode)
 
         if (Write) {
             if (PreDecMode) {
-                if (regMask & 0x0001) *--base = A7;
-                if (regMask & 0x0002) *--base = A6;
-                if (regMask & 0x0004) *--base = A5;
-                if (regMask & 0x0008) *--base = A4;
-                if (regMask & 0x0010) *--base = A3;
-                if (regMask & 0x0020) *--base = A2;
-                if (regMask & 0x0040) *--base = A1;
-                if (regMask & 0x0080) *--base = A0;
+                if (regMask & 0x0001) *--base = Reg == 7 ? A7 - 4 : A7;
+                if (regMask & 0x0002) *--base = Reg == 6 ? A6 - 4 : A6;
+                if (regMask & 0x0004) *--base = Reg == 5 ? A5 - 4 : A5;
+                if (regMask & 0x0008) *--base = Reg == 4 ? A4 - 4 : A4;
+                if (regMask & 0x0010) *--base = Reg == 3 ? A3 - 4 : A3;
+                if (regMask & 0x0020) *--base = Reg == 2 ? A2 - 4 : A2;
+                if (regMask & 0x0040) *--base = Reg == 1 ? A1 - 4 : A1;
+                if (regMask & 0x0080) *--base = Reg == 0 ? A0 - 4 : A0;
                 if (regMask & 0x0100) *--base = D7;
                 if (regMask & 0x0200) *--base = D6;
                 if (regMask & 0x0400) *--base = D5;
@@ -728,14 +728,14 @@ void MOVEM(uint32_t opcode)
 
         if (Write) {
             if (PreDecMode) {
-                if (regMask & 0x0001) *--base = A7;
-                if (regMask & 0x0002) *--base = A6;
-                if (regMask & 0x0004) *--base = A5;
-                if (regMask & 0x0008) *--base = A4;
-                if (regMask & 0x0010) *--base = A3;
-                if (regMask & 0x0020) *--base = A2;
-                if (regMask & 0x0040) *--base = A1;
-                if (regMask & 0x0080) *--base = A0;
+                if (regMask & 0x0001) *--base = Reg == 7 ? A7 - 4 : A7;
+                if (regMask & 0x0002) *--base = Reg == 6 ? A6 - 4 : A6;
+                if (regMask & 0x0004) *--base = Reg == 5 ? A5 - 4 : A5;
+                if (regMask & 0x0008) *--base = Reg == 4 ? A4 - 4 : A4;
+                if (regMask & 0x0010) *--base = Reg == 3 ? A3 - 4 : A3;
+                if (regMask & 0x0020) *--base = Reg == 2 ? A2 - 4 : A2;
+                if (regMask & 0x0040) *--base = Reg == 1 ? A1 - 4 : A1;
+                if (regMask & 0x0080) *--base = Reg == 0 ? A0 - 4 : A0;
                 if (regMask & 0x0100) *--base = D7;
                 if (regMask & 0x0200) *--base = D6;
                 if (regMask & 0x0400) *--base = D5;
