@@ -540,7 +540,7 @@ void BCHG_REG_Dn(uint32_t)
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + (dn << 9) + EA(2 + ((Is >> 3) & 7), Is & 7)] = \
              name<2 + ((Is >> 3) & 7), (Is & 7), dn>), ...); \
-    }((base_offset), std::make_index_sequence<44>{});
+    }((base_offset), std::make_index_sequence<45>{});
 
 #define FILL_Bxxx_EA(base_offset, name) \
     FILL_Bxxx_Dn_EA(base_offset, name, 0) \
