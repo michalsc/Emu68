@@ -538,7 +538,8 @@ void JITLoop()
 
         /* Prepare ARM pointer in x12 and call it */
         ARMCode = (void*)code;
-        if (unlikely(ARMCode() == 0)) return;
+        ARMCode();
+        if (unlikely(ARMCode == 0)) return;
     }
 }
 
