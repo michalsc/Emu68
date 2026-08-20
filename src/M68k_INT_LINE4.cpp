@@ -302,11 +302,11 @@ template<uint8_t Mode, uint8_t Reg>
 void JSR(uint32_t)
 {
     uint32_t new_pc;
-    PC += 2;
-    A7 -= 4;
+    advancePC(2);
     new_pc = getEA<Mode, Reg, uint32_t>();
-    *(uint32_t*)(uintptr_t)A7 = PC; 
-    PC = new_pc;
+    A7 -= 4;
+    *(uint32_t*)(uintptr_t)A7 = getPC(); 
+    setPC(new_pc);
 }
 
 template<uint8_t An>
