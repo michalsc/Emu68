@@ -13,7 +13,8 @@ requires (sizeof(Type) > 1 && An < 8)
 void SUBA(uint32_t opcode)
 {
     Type val;
-    PC = PC + 2;
+    
+    advancePC(2);
 
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
@@ -31,7 +32,8 @@ requires (Mode > 1)
 void SUB_Dn_to_EA(uint32_t opcode)
 {
     Type dval;
-    PC = PC + 2;
+    
+    advancePC(2);
 
     if constexpr (Dn == DEFAULT_EA) {
         dval = getD<Type>((opcode >> 9) & 7);
@@ -58,9 +60,10 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
 void SUB_EA_to_Dn(uint32_t opcode)
 {
-    PC = PC + 2;
     Type dval;
     Type val;
+
+    advancePC(2);
 
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
@@ -89,12 +92,13 @@ void SUB_EA_to_Dn(uint32_t opcode)
 template<bool MemForm, uint8_t Rx, uint8_t Ry, class Type>
 void SUBX(uint32_t)
 {
-    PC += 2;
     uint8_t x_in = (SR & SR_X) ? 1 : 0;
 
     Type a, b;
     Type *dst;
 
+    advancePC(2);
+    
     if constexpr (!MemForm) {
         a = getD<Ry, Type>();
         b = getD<Rx, Type>();

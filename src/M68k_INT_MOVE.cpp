@@ -14,7 +14,7 @@ void MOVE(uint32_t opcode)
 {
     Type value;
 
-    PC += 2;
+    advancePC(2);
     
     // Fetch data from source, either using generic function or templated fetch
     if constexpr (SrcMode == DEFAULT_EA || SrcReg == DEFAULT_EA) {

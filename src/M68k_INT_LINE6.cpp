@@ -12,7 +12,7 @@ template<class Type>
 void BSR(uint32_t opcode)
 {
     int32_t bra_off = (int8_t)(opcode & 0xff);
-    uint32_t pc = PC + 2;
+    uint32_t pc = getPC<uint32_t>(2);
     uint32_t ret_pc = pc;
     uint32_t ptr = getA<7, uint32_t>() - 4;
 
@@ -25,7 +25,7 @@ void BSR(uint32_t opcode)
     }
 
     pc += bra_off;
-    PC = pc;
+    setPC(pc);
     *(uint32_t *)(uintptr_t)ptr = ret_pc;
     setA<7>(ptr);
 }
@@ -34,7 +34,7 @@ template<uint8_t InstCC, class Type>
 void Bcc(uint32_t opcode)
 {
     int32_t bra_off = (int8_t)(opcode & 0xff);
-    uint32_t pc = PC + 2;
+    uint32_t pc = getPC<uint32_t>(2);
     uint32_t next_pc = pc;
 
     if constexpr (sizeof(Type) == 2) {
@@ -51,7 +51,7 @@ void Bcc(uint32_t opcode)
         pc = next_pc;
     }
 
-    PC = pc;
+    setPC(pc);
 }
 
 

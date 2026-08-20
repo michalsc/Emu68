@@ -14,12 +14,13 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
 void MULU_W(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    uint16_t src;
+    uint32_t src;
 
-    PC += 2;
+    advancePC(2);
+
     src = loadFromEA<Mode, Reg, uint16_t>();
 
-    uint32_t dval = getD<Dn, uint16_t>() * src;
+    uint32_t dval = (uint32_t)getD<Dn, uint16_t>() * src;
 
     setD<Dn, uint32_t>(dval);
 
@@ -36,12 +37,13 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn>
 void MULS_W(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    int16_t src;
+    int32_t src;
 
-    PC += 2;
+    advancePC(2);
+
     src = loadFromEA<Mode, Reg, int16_t>();
 
-    int32_t dval = getD<Dn, int16_t>() * src;
+    int32_t dval = (int32_t)getD<Dn, int16_t>() * src;
 
     setD<Dn, uint32_t>(dval);
 
@@ -59,7 +61,9 @@ requires (Mode > 1)
 void AND_Dn_to_EA(uint32_t)
 {
     Type dval = getD<Dn, Type>();
-    PC = PC + 2;
+    
+    advancePC(2);
+    commitPC();
 
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
@@ -82,7 +86,10 @@ requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
 void AND_EA_to_Dn(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    PC = PC + 2;
+    
+    advancePC(2);
+    commitPC();
+
     Type val = loadFromEA<Mode, Reg, Type>();
     Type dval = getD<Dn, Type>();
 
@@ -102,8 +109,9 @@ template<uint8_t Rx, bool RxIsA, uint8_t Ry, bool RyIsA>
 requires (Rx < 8 && Ry < 8)
 void EXG(uint32_t)
 {
-    PC = PC + 2;
     uint32_t tmp;
+
+    advancePC(2);
 
     if constexpr (RxIsA && RyIsA) {
         tmp = getA<Rx, uint32_t>();
@@ -126,7 +134,8 @@ void ABCD(uint32_t opcode)
     const int rx = (opcode >> 9) & 7;
     const int ry = opcode & 7;
     
-    PC += 2;
+    advancePC(2);
+    
     uint8_t x_in = (SR & SR_X) ? 1 : 0;
  
     uint8_t a, b;

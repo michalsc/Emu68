@@ -11,7 +11,8 @@ namespace Emu68::M68k::Interpreter::LineE {
 template<uint8_t Mode, uint8_t Reg>
 void ROR_EA(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+
     readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         uint32_t sr = SR & ~SR_NZVC;
         
@@ -32,7 +33,8 @@ void ROR_EA(uint32_t)
 template<uint8_t Mode, uint8_t Reg>
 void ROL_EA(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+
     readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         uint32_t sr = SR & ~SR_NZVC;
         
@@ -174,18 +176,22 @@ void ROL_IMM(uint32_t opcode)
     }
 
     SR = sr;
-    PC += 2;
+    advancePC(2);
 }
 
 template<bool Left, bool RegCount, uint8_t CountOrReg, uint8_t Reg, class Type>
 void ASx_Reg(uint32_t)
 {
-    PC += 2;
     Type v = getD<Reg, Type>();
+    
+    advancePC(2);
+
 
     int count;
     if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
     else                    { count = (CountOrReg == 0) ? 8 : CountOrReg; }
+    
+    commitPC();
 
     auto [result, ccr] = [&] {
         if constexpr (Left) { return aslWithFlags<Type>(v, count); }
@@ -207,7 +213,8 @@ void ASx_Reg(uint32_t)
 template<uint8_t Mode, uint8_t Reg, bool Left, class Type>
 void ASx_Mem(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         auto [result, ccr] = Left ? aslWithFlags<Type>(v, 1) : asrWithFlags<Type>(v, 1);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
@@ -219,8 +226,10 @@ void ASx_Mem(uint32_t)
 template<bool Left, bool RegCount, uint8_t CountOrReg, uint8_t Reg, class Type>
 void LSx_Reg(uint32_t)
 {
-    PC += 2;
     Type v = getD<Reg, Type>();
+
+    advancePC(2);
+    commitPC();
 
     int count;
     if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
@@ -246,7 +255,9 @@ void LSx_Reg(uint32_t)
 template<uint8_t Mode, uint8_t Reg, bool Left, class Type>
 void LSx_Mem(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+    commitPC();
+
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         auto [result, ccr] = Left ? lslWithFlags<Type>(v, 1) : lsrWithFlags<Type>(v, 1);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
@@ -299,10 +310,11 @@ static inline constexpr std::pair<Type, uint32_t> roxWithFlags(Type v, uint32_t 
 template<bool Left, bool RegCount, uint8_t CountOrReg, uint8_t Reg, class Type>
 void ROXx_Reg(uint32_t)
 {
-    PC += 2;
     Type v = getD<Reg, Type>();
     bool x_in = (SR & SR_X) != 0;
  
+    advancePC(2);
+
     uint32_t count;
     if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
     else                    { count = (CountOrReg == 0) ? 8 : CountOrReg; }
@@ -324,7 +336,8 @@ void ROXx_Reg(uint32_t)
 template<uint8_t Mode, uint8_t Reg>
 void ROXR_Mem(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+
     readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         bool x_in = (SR & SR_X) != 0;
         auto [result, ccr] = roxWithFlags<uint16_t>(v, 1, x_in, false);
@@ -336,7 +349,8 @@ void ROXR_Mem(uint32_t)
 template<uint8_t Mode, uint8_t Reg>
 void ROXL_Mem(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+    
     readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         bool x_in = (SR & SR_X) != 0;
         auto [result, ccr] = roxWithFlags<uint16_t>(v, 1, x_in, true);

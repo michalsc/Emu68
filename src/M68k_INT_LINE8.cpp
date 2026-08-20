@@ -14,9 +14,9 @@ void DIVS_W(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
     int16_t src;
-    uint32_t orig_PC = PC;
+    uint32_t orig_PC = getPC();
 
-    PC += 2;
+    advancePC(2);
     src = loadFromEA<Mode, Reg, int16_t>();
 
     if (src == 0) {
@@ -50,9 +50,9 @@ void DIVU_W(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
     uint16_t src;
-    uint32_t orig_PC = PC;
+    uint32_t orig_PC = getPC();
 
-    PC += 2;
+    advancePC(2);
     src = loadFromEA<Mode, Reg, uint16_t>();
 
     if (src == 0) {
@@ -86,7 +86,8 @@ requires (Mode > 1)
 void OR_Dn_to_EA(uint32_t)
 {
     Type dval = getD<Dn, Type>();
-    PC = PC + 2;
+    
+    advancePC(2);
 
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
@@ -109,7 +110,9 @@ requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
 void OR_EA_to_Dn(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    PC = PC + 2;
+    
+    advancePC(2);
+
     Type val = loadFromEA<Mode, Reg, Type>();
     Type dval = getD<Dn, Type>();
 
@@ -131,7 +134,8 @@ void SBCD(uint32_t opcode)
     const int rx = (opcode >> 9) & 7;
     const int ry = opcode & 7;
 
-    PC += 2;
+    advancePC(2);
+
     uint8_t x_in = (SR & SR_X) ? 1 : 0;
  
     uint8_t a, b;

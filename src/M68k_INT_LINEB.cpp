@@ -11,7 +11,7 @@ namespace Emu68::M68k::Interpreter::LineB {
 template<uint8_t Mode, uint8_t Reg, bool IsAn, uint8_t DstReg, class Type>
 void CMP(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
 
     if constexpr (IsAn) {
         int32_t eaval  = loadFromEA<Mode, Reg, Type>();   // WORD->int32 sign-extends; no-op for LONG
@@ -31,7 +31,8 @@ void CMP(uint32_t)
 template<uint8_t SrcReg, uint8_t DstReg, class Type>
 void CMPM(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+
     Type src = loadFromEA<3, SrcReg, Type>();
     Type dst = loadFromEA<3, DstReg, Type>();
 
@@ -45,7 +46,8 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 void EOR_Dn_to_EA(uint32_t)
 {
     Type dval = getD<Dn, Type>();
-    PC = PC + 2;
+    
+    advancePC(2);
 
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;

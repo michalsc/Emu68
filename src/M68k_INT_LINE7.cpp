@@ -20,7 +20,7 @@ void MOVEQ(uint32_t opcode)
         sr |= SR_N;
     }
     SR = sr;
-    PC += 2;
+    advancePC(2);
 }
 
 template <class Type, template<uint8_t, class> class Op, class DispatchF, class ImmF>

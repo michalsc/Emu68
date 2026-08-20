@@ -14,7 +14,7 @@ void ADDA(uint32_t opcode)
 {
     Type val;
 
-    PC = PC + 2;
+    advancePC(2);
     
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
@@ -39,7 +39,7 @@ void ADD_Dn_to_EA(uint32_t opcode)
         addend = getD<Dn, Type>();
     }
 
-    PC = PC + 2;
+    advancePC(2);
 
     auto oper = [&](Type v) -> Type {
         auto [result, ccr] = arithWithFlags<Type, false>(v, addend);
@@ -60,10 +60,11 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 requires (Mode != 1 || (Mode == 1 && sizeof(Type) > 1))
 void ADD_EA_to_Dn(uint32_t opcode)
 {
-    PC = PC + 2;
     Type addend;
     Type dval;
     
+    advancePC(2);
+
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
         uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
@@ -91,12 +92,13 @@ void ADD_EA_to_Dn(uint32_t opcode)
 template<bool MemForm, uint8_t Rx, uint8_t Ry, class Type>
 void ADDX(uint32_t)
 {
-    PC += 2;
     uint8_t x_in = (SR & SR_X) ? 1 : 0;
 
     Type a, b;
     Type *dst;
 
+    advancePC(2);
+    
     if constexpr (!MemForm) {
         a = getD<Ry, Type>();
         b = getD<Rx, Type>();

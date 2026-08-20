@@ -12,18 +12,18 @@ namespace Emu68::M68k::Interpreter::Line5 {
 template<unsigned reg, uint8_t InstCC>
 void DBcc(uint32_t)
 {
-    uint32_t pc_continue = PC + 4;
-    uint32_t pc_loop = PC + 2 + *(int16_t *)(uintptr_t)(PC + 2);
+    uint32_t pc_continue = getPC<uint32_t>(4);
+    uint32_t pc_loop = getPC<uint32_t>(2) + *getPC<int16_t*>(2);
     
     if (evalCond<InstCC>()) {
-        PC = pc_continue;
+        setPC(pc_continue);
     } else {
         int16_t cnt = getD<reg, int16_t>() - 1;
         setD<reg, int16_t>(cnt);
         if (unlikely(cnt == -1)) {
-            PC = pc_continue;
+            setPC(pc_continue);
         } else {
-            PC = pc_loop;
+            setPC(pc_loop);
         }
     }
 }
@@ -36,7 +36,7 @@ void Scc_Dn(uint32_t)
     } else {
         setD<reg, uint8_t>(0);
     }
-    PC += 2;
+    advancePC(2);
 }
 
 template<unsigned reg, uint8_t InstCC>
@@ -48,7 +48,7 @@ void Scc_An_Addr(uint32_t)
     } else {
         *(uint8_t *)addr = 0x00;
     }
-    PC += 2;
+    advancePC(2);
 }
 
 template<unsigned reg, uint8_t InstCC>
@@ -65,7 +65,7 @@ void Scc_An_Addr_PostInc(uint32_t)
     else          { addr += 2; }
 
     setA<reg, uint32_t>(addr);
-    PC += 2;
+    advancePC(2);
 }
 
 template<unsigned reg, uint8_t InstCC>
@@ -82,7 +82,7 @@ void Scc_An_Addr_PreDec(uint32_t)
     }
 
     setA<reg, uint32_t>(addr);
-    PC += 2;
+    advancePC(2);
 }
 
 template<uint8_t InstCC>
@@ -91,7 +91,7 @@ void Scc_Generic(uint32_t opcode)
     uint8_t dst_reg = opcode & 7;
     uint8_t mode = (opcode >> 3) & 7;
 
-    PC += 2;
+    advancePC(2);
 
     if (evalCond<InstCC>()) {
         storeToEA<UBYTE>(mode, dst_reg, 0xff);
@@ -106,7 +106,7 @@ void ADDQ(uint32_t opcode)
     uint32_t immediate = (opcode >> 9) & 7;
     if (immediate == 0) { immediate = 8; }
 
-    PC += 2;
+    advancePC(2);
 
     if constexpr (Mode == 1) {
         /* An destination: full 32-bit add, CCR unaffected */
@@ -126,7 +126,7 @@ void SUBQ(uint32_t opcode)
     uint32_t immediate = (opcode >> 9) & 7;
     if (immediate == 0) { immediate = 8; }
 
-    PC += 2;
+    advancePC(2);
 
     if constexpr (Mode == 1) {
         /* An destination: full 32-bit add, CCR unaffected */

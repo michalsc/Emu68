@@ -110,7 +110,7 @@ void FSAVE(uint32_t opcode)
     uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
     uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
 
-    PC += 2;
+    advancePC(2);
 
     /* Save only IDLE frame, we not need to record any changes here */
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) { 
@@ -127,7 +127,7 @@ void FRESTORE(uint32_t opcode)
     uint8_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
     uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
 
-    PC += 2;
+    advancePC(2);
 
     /* Restore frame header */
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
@@ -149,7 +149,7 @@ void ILLEGAL_LINE_F(uint32_t)
 
 bool ILLEGAL_LINE_F(uint32_t opcode, uint32_t)
 {
-    PC -= 4;
+    advancePC(-4);
 
     ILLEGAL_LINE_F(opcode);
 
@@ -220,7 +220,7 @@ bool ILLEGAL_LINE_F(uint32_t opcode, uint32_t)
 template<bool LongJump, uint8_t InstCC>
 void FBcc(uint32_t)
 {
-    uint32_t pc = PC + 2;
+    uint32_t pc = getPC<uint32_t>(2);
     uint32_t next_pc = pc;
     int32_t bra_off;
 
@@ -238,7 +238,7 @@ void FBcc(uint32_t)
         pc = next_pc;
     }
 
-    PC = pc;
+    setPC(pc);
 }
 
 template<bool RegToReg, uint8_t DstReg, uint8_t SrcReg, bool UpdateDst = true, class Fn>
@@ -915,14 +915,14 @@ static constexpr auto ExtensionFieldService_EaToReg = buildExtensionFieldService
 
 void handleGeneralType(uint32_t opcode)
 {
-    uint32_t opcode2 = *(uint16_t *)(uintptr_t)(PC + 2);
+    uint32_t opcode2 = *getPC<uint16_t*>(2);
     uint8_t opclass = (opcode2 >> 13) & 7;
     uint8_t rx = (opcode2 >> 10) & 7;
     uint8_t ry = (opcode2 >> 7) & 7;
     uint8_t extension = opcode2 & 0x7f;
     bool handled = false;
 
-    PC += 4;
+    advancePC(4);
 
     if ((opclass == 0) && ((opcode & 0x3f) == 0)) {
         handled = ExtensionFieldService_RegToReg[extension](opcode, opcode2);
@@ -959,7 +959,7 @@ void PFLUSH(uint32_t)
 {
     /* PFLUSH requires supervisor rights */
     if (SR & SR_S) {
-        PC += 2;
+        advancePC(2);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -970,7 +970,7 @@ void PTEST(uint32_t)
 {
     /* PTEST requires supervisor rights */
     if (SR & SR_S) {
-        PC += 2;
+        advancePC(2);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -988,7 +988,7 @@ void CINV(uint32_t opcode)
         if (scope == 0) {
             raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
         } else {
-            PC += 2;
+            advancePC(2);
 
             if (data_cache) {
                 uint32_t tmp;
@@ -1037,7 +1037,7 @@ void CPUSH(uint32_t opcode)
         if (scope == 0) {
             raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
         } else {
-            PC += 2;
+            advancePC(2);
 
             if (data_cache) {
                 uint32_t tmp;
