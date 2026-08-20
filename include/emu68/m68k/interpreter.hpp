@@ -203,7 +203,29 @@ Type loadFromEA()
     if constexpr (Mode == 0) {
         return getD<Reg, Type>();
     } else if constexpr (Mode == 1) {
-        return getA<Reg, Type>();
+        return getA<Reg, Type>(); 
+    } else if constexpr (Mode == 2) {
+        return *(Type*)getA<Reg, uintptr_t>(); 
+    } else if constexpr (Mode == 3) {
+        Type val;
+        Type* ptr = (Type*)getA<Reg, uintptr_t>();
+        if constexpr (Reg != 7 || sizeof(Type) > 1) {
+            val = *ptr++;
+        } else {
+            val = *ptr; ptr += 2;
+        }
+        setA<Reg, uint32_t>((uintptr_t)ptr);
+        return val;
+    } else if constexpr (Mode == 4) {
+        Type val;
+        Type* ptr = (Type*)getA<Reg, uintptr_t>();
+        if constexpr (Reg != 7 || sizeof(Type) > 1) {
+            val = *--ptr;
+        } else {
+            ptr -= 2; val = *ptr;
+        } 
+        setA<Reg, uint32_t>((uintptr_t)ptr);
+        return val;
     } else if constexpr (Mode == 7 && Reg == 4) {
         // immediate: lives inline in the instruction stream, not behind an EA
         if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
@@ -228,7 +250,25 @@ void storeToEA(Type value)
     if constexpr (Mode == 0) {
         setD<Reg, Type>(value);
     } else if constexpr (Mode == 1) {
-        setA<Reg, Type>(value);
+        setA<Reg, Type>(value); 
+    } else if constexpr (Mode == 2) {
+        *(Type*)getA<Reg, uintptr_t>() = value;
+    } else if constexpr (Mode == 3) {
+        Type* ptr = (Type*)getA<Reg, uintptr_t>();
+        if constexpr (Reg != 7 || sizeof(Type) > 1) {
+            *ptr++ = value;
+        } else {
+            *ptr = value; ptr += 2;
+        }
+        setA<Reg, uint32_t>((uintptr_t)ptr);
+    } else if constexpr (Mode == 4) {
+        Type* ptr = (Type*)getA<Reg, uintptr_t>();
+        if constexpr (Reg != 7 || sizeof(Type) > 1) {
+            *--ptr = value;
+        } else {
+            ptr -= 2; *ptr = value;
+        } 
+        setA<Reg, uint32_t>((uintptr_t)ptr);
     } else {
         uint32_t addr = getEA<Mode, Reg, Type>();
         *(Type *)(uintptr_t)addr = value;
@@ -264,8 +304,17 @@ void readModifyWriteEA(uint32_t mode, uint32_t reg, Fn&& modify)
     }
 }
 
+#if 0
+template<class Type>
+struct ArithResultWithFlags
+{
+    Type value;
+    uint64_t ccr;
+};
+#endif
+
 template<class Type, bool IsSub>
-static inline std::pair<Type, uint8_t> arithWithFlags(Type a, Type b)
+static inline /*ArithResultWithFlags<Type> */ std::pair<Type, uint8_t> arithWithFlags(Type a, Type b)
 {
     constexpr int shift = (sizeof(Type) == 1) ? 24 : (sizeof(Type) == 2) ? 16 : 0;
 
@@ -293,6 +342,41 @@ static inline std::pair<Type, uint8_t> arithWithFlags(Type a, Type b)
     Type rv = (Type)((uint32_t)result >> shift);
     return { rv, ccr };
 }
+
+#if 1
+
+template<class Type, bool IsSub>
+static inline constexpr /*ArithResultWithFlags<Type>*/ std::pair<Type, uint8_t> arithXWithFlags(Type dst, Type src, uint8_t x_in)
+{
+    constexpr uint32_t bitcount = sizeof(Type) * 8;
+    constexpr uint64_t valmask = (uint64_t(1) << bitcount) - 1;
+    constexpr uint64_t signbit = uint64_t(1) << (bitcount - 1);
+ 
+    uint64_t d = uint64_t(dst) & valmask;
+    uint64_t s = uint64_t(src) & valmask;
+ 
+    uint64_t raw = IsSub
+        ? (d + (~s & valmask) + (x_in ? 0 : 1))
+        : (d + s + (x_in ? 1 : 0));
+ 
+    uint64_t result = raw & valmask;
+    bool carry_bit = (raw >> bitcount) & 1;
+    bool carry = IsSub ? !carry_bit : carry_bit;
+ 
+    bool overflow = IsSub
+        ? (((d ^ s) & (d ^ result)) & signbit) != 0
+        : (((d ^ result) & (s ^ result)) & signbit) != 0;
+ 
+    uint8_t ccr = 0;
+    if (result == 0)      { ccr |= SR_Z; }
+    if (result & signbit) { ccr |= SR_N; }
+    if (overflow)         { ccr |= SR_Valt; }
+    if (carry)             { ccr |= SR_Calt; }
+ 
+    return { static_cast<Type>(result), ccr };
+}
+
+#else
 
 template<class Type, bool IsSub>
 static inline std::pair<Type, uint8_t> arithXWithFlags(Type a, Type b, uint8_t x_in)
@@ -327,30 +411,36 @@ static inline std::pair<Type, uint8_t> arithXWithFlags(Type a, Type b, uint8_t x
     Type rv = (Type)((uint32_t)result >> shift);
     return { rv, ccr };
 }
+#endif
 
 template<class Type>
-static inline std::pair<Type, uint8_t> aslWithFlags(Type value, int count)
+static inline /*ArithResultWithFlags<Type>*/ std::pair<Type, uint8_t> aslWithFlags(Type value, int count)
 {
     constexpr int W = sizeof(Type) * 8;
-
+ 
     if (count == 0) {
         uint8_t ccr = 0;
         if (value == 0) { ccr |= SR_Z; }
         if (value < 0)  { ccr |= SR_N; }
         return { value, ccr };
     }
-
+ 
     int64_t  v64  = value;
     uint64_t uv64 = (uint64_t)v64;
-
+ 
     Type result = (Type)(uv64 << count);
     uint8_t carry = (uint8_t)(((uv64 << (count - 1)) >> (W - 1)) & 1);
-
-    int64_t  t64 = v64 >> count;
-    uint64_t x64 = uv64 ^ (uint64_t)t64;
-    int win = (W - count - 1 > 0) ? (W - count - 1) : 0;
-    bool overflow = (x64 >> win) != 0;
-
+ 
+    bool overflow;
+    if (count >= W) {
+        overflow = (value != 0);
+    } else {
+        int64_t  t64 = v64 >> count;
+        uint64_t x64 = uv64 ^ (uint64_t)t64;
+        int win = (W - count - 1 > 0) ? (W - count - 1) : 0;
+        overflow = (x64 >> win) != 0;
+    }
+ 
     uint8_t ccr = 0;
     if (result == 0) { ccr |= SR_Z; }
     if (result < 0)  { ccr |= SR_N; }
@@ -360,7 +450,7 @@ static inline std::pair<Type, uint8_t> aslWithFlags(Type value, int count)
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> asrWithFlags(Type value, int count)
+static inline /*ArithResultWithFlags<Type> */ std::pair<Type, uint8_t> asrWithFlags(Type value, int count)
 {
     if (count == 0) {
         uint8_t ccr = 0;
@@ -384,7 +474,7 @@ static inline std::pair<Type, uint8_t> asrWithFlags(Type value, int count)
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> lslWithFlags(Type value, int count)
+static inline /*ArithResultWithFlags<Type>*/ std::pair<Type, uint8_t> lslWithFlags(Type value, int count)
 {
     constexpr int W = sizeof(Type) * 8;
     using UT = std::make_unsigned_t<Type>;
@@ -409,7 +499,7 @@ static inline std::pair<Type, uint8_t> lslWithFlags(Type value, int count)
 }
 
 template<class Type>
-static inline std::pair<Type, uint8_t> lsrWithFlags(Type value, int count)
+static inline /* ArithResultWithFlags<Type>*/std::pair<Type, uint8_t> lsrWithFlags(Type value, int count)
 {
     using UT = std::make_unsigned_t<Type>;
 
