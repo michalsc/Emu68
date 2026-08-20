@@ -15,6 +15,7 @@ extern int disasm;
 extern int debug;
 extern uint32_t debug_range_min;
 extern uint32_t debug_range_max;
+void do_reset();
 
 }
 
@@ -202,6 +203,18 @@ void NEG(uint32_t)
 void TRAP(uint32_t opcode)
 {
     raiseException(VECTOR_INT_TRAP(opcode & 15), ExceptionFrameFormat::FORMAT_0, 0, 0);
+}
+
+void RESET(uint32_t)
+{
+    if (SR & SR_S) {
+        advancePC(2);
+#ifdef PISTORM_ANY_MODEL
+        safeCall([]() { do_reset(); });
+#endif
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
 }
 
 void RTS(uint32_t)
@@ -1101,6 +1114,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[04346] =     MOVEM_L_regs_to_A6_PreDec;
     table[04347] =     MOVEM_L_regs_to_A7_PreDec;
 #endif
+    table[07160] =     RESET;
     table[07161] =     NOP;
     table[07162] =     STOP;
     table[07163] =     RTE;

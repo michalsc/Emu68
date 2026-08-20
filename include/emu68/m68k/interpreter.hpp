@@ -14,6 +14,10 @@
 extern "C" {
 #include "M68k.h"
 #include "support.h"
+
+void M68K_LoadContext(struct M68KState* ctx);
+void M68K_SaveContext(struct M68KState* ctx);
+
 }
 #include "RegisterMapping.h"
 
@@ -471,6 +475,15 @@ template <unsigned BitOffset, unsigned Width>
 struct ImmField : FieldBase<BitOffset, Width> {
     static constexpr bool valid(unsigned) { return true; }
 };
+
+template <typename F>
+void safeCall(F&& func) {
+    M68KState *ctx;
+    __asm__ volatile("mov %0, " CTX_POINTER_ASM:"=r"(ctx));
+    M68K_SaveContext(ctx);
+    func();
+    M68K_LoadContext(ctx);
+}
 
 } // Emu68::M68k::Interpreter
 
