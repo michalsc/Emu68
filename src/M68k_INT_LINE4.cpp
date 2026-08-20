@@ -497,7 +497,6 @@ void MOVEC(uint32_t opcode)
     }
 }
 
-// TODO: add signed DIVS_L...
 template<uint8_t Mode, uint8_t Reg>
 void DIVU_L(uint32_t)
 {
@@ -507,72 +506,144 @@ void DIVU_L(uint32_t)
 
     PC += 4;
 
-    uint32_t src = loadFromEA<Mode, Reg, uint32_t>();
+    uint32_t _src = loadFromEA<Mode, Reg, uint32_t>();
 
-    if (src == 0) {
+    if (_src == 0) {
         raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
-        uint32_t dq = getD<uint32_t>((opcode2 >> 12) & 7);
+        /* DIVS */
+        if (opcode2 & (1 << 11))
+        {
+            int32_t src = (int32_t)_src;
+            uint32_t dq = getD<uint32_t>((opcode2 >> 12) & 7);
 
-        /* 64 / 32 -> 32 divide */
-        if (opcode2 & (1 << 10)) {
-            uint64_t value = getD<uint32_t>(opcode2 & 7);
-            value = (value << 32) | dq;
+            /* 64 / 32 -> 32 divide */
+            if (opcode2 & (1 << 10)) {
+                int64_t value = getD<uint32_t>(opcode2 & 7);
+                value = (value << 32) | dq;
 
-            /* If reminder register is the same as destination, skip reminder */
-            if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
-                value = value / src;
-                
-                /* Overflow! */
-                if (value & 0xffffffff00000000ULL) {
-                    SR = (SR & ~SR_Calt) | SR_Valt;
-                    return;
+                /* If reminder register is the same as destination, skip reminder */
+                if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
+                    value = value / src;
+                    
+                    /* Overflow! */
+                    if (value != (int64_t)(int32_t)value) {
+                        SR = (SR & ~SR_Calt) | SR_Valt;
+                        return;
+                    }
+
+                    setD((opcode2 >> 12) & 7, (uint32_t)value);
+                } else {
+                    int64_t rem;
+                    rem = value % src;
+                    value = value / src;
+
+                    /* Overflow! */
+                    if (value != (int64_t)(int32_t)value) {
+                        SR = (SR & ~SR_Calt) | SR_Valt;
+                        return;
+                    }
+
+                    setD(opcode2 & 7, (uint32_t)rem);
+                    setD((opcode2 >> 12) & 7, (uint32_t)value);
                 }
 
-                setD((opcode2 >> 12) & 7, (uint32_t)value);
-            } else {
-                uint64_t rem;
-                rem = value % src;
-                value = value / src;
-
-                /* Overflow! */
-                if (value & 0xffffffff00000000ULL) {
-                    SR = (SR & ~SR_Calt) | SR_Valt;
-                    return;
+                if ((int32_t)value == 0) {
+                    sr |= SR_Z;
+                } else if ((int32_t)value < 0) {
+                    sr |= SR_N;
                 }
 
-                setD(opcode2 & 7, (uint32_t)rem);
-                setD((opcode2 >> 12) & 7, (uint32_t)value);
+                SR = sr;
+            } else  /* 32 / 32 -> 32 divide */ {
+                /* If reminder register is the same as destination, skip reminder */
+                if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
+                    dq = (int32_t)dq / src;
+                    setD((opcode2 >> 12) & 7, dq);
+                } else {
+                    int32_t rem;
+                    rem = (int32_t)dq % src;
+                    dq = (int32_t)dq / src;
+
+                    setD(opcode2 & 7, rem);
+                    setD((opcode2 >> 12) & 7, dq);
+                }
+
+                if ((int32_t)dq == 0) {
+                    sr |= SR_Z;
+                } else if ((int32_t)dq < 0) {
+                    sr |= SR_N;
+                }
+
+                SR = sr;
             }
+        }
+        /* DIVU */
+        else
+        {
+            uint32_t src = _src;
+            uint32_t dq = getD<uint32_t>((opcode2 >> 12) & 7);
 
-            if ((int32_t)value == 0) {
-                sr |= SR_Z;
-            } else if ((int32_t)value < 0) {
-                sr |= SR_N;
+            /* 64 / 32 -> 32 divide */
+            if (opcode2 & (1 << 10)) {
+                uint64_t value = getD<uint32_t>(opcode2 & 7);
+                value = (value << 32) | dq;
+
+                /* If reminder register is the same as destination, skip reminder */
+                if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
+                    value = value / src;
+                    
+                    /* Overflow! */
+                    if (value & 0xffffffff00000000ULL) {
+                        SR = (SR & ~SR_Calt) | SR_Valt;
+                        return;
+                    }
+
+                    setD((opcode2 >> 12) & 7, (uint32_t)value);
+                } else {
+                    uint64_t rem;
+                    rem = value % src;
+                    value = value / src;
+
+                    /* Overflow! */
+                    if (value & 0xffffffff00000000ULL) {
+                        SR = (SR & ~SR_Calt) | SR_Valt;
+                        return;
+                    }
+
+                    setD(opcode2 & 7, (uint32_t)rem);
+                    setD((opcode2 >> 12) & 7, (uint32_t)value);
+                }
+
+                if ((int32_t)value == 0) {
+                    sr |= SR_Z;
+                } else if ((int32_t)value < 0) {
+                    sr |= SR_N;
+                }
+
+                SR = sr;
+            } else  /* 32 / 32 -> 32 divide */ {
+                /* If reminder register is the same as destination, skip reminder */
+                if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
+                    dq = dq / src;
+                    setD((opcode2 >> 12) & 7, dq);
+                } else {
+                    uint32_t rem;
+                    rem = dq % src;
+                    dq = dq / src;
+
+                    setD(opcode2 & 7, rem);
+                    setD((opcode2 >> 12) & 7, dq);
+                }
+
+                if ((int32_t)dq == 0) {
+                    sr |= SR_Z;
+                } else if ((int32_t)dq < 0) {
+                    sr |= SR_N;
+                }
+
+                SR = sr;
             }
-
-            SR = sr;
-        } else  /* 32 / 32 -> 32 divide */ {
-            /* If reminder register is the same as destination, skip reminder */
-            if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
-                dq = dq / src;
-                setD((opcode2 >> 12) & 7, dq);
-            } else {
-                uint32_t rem;
-                rem = dq % src;
-                dq = dq / src;
-
-                setD(opcode2 & 7, rem);
-                setD((opcode2 >> 12) & 7, dq);
-            }
-
-            if ((int32_t)dq == 0) {
-                sr |= SR_Z;
-            } else if ((int32_t)dq < 0) {
-                sr |= SR_N;
-            }
-
-            SR = sr;
         }
     }
 }
