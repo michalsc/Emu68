@@ -408,15 +408,8 @@ void ProcessIRQ(struct M68KState *ctx)
 void InterpreterLoop()
 {
     struct M68KState *ctx = getCTX();
-    extern int disasm;
 
     kprintf("[INT] Starting interpreter loop\n");
-
-    if (disasm) {
-        M68K_SaveContext(ctx);
-        disasm_open();
-        M68K_LoadContext(getCTX());
-    }
 
     /* Prepare vector 0; 1 which gets added to the INSN_COUNTER after every executed instruction */
     asm volatile("mov v22.d[1], xzr\n\tmov v22.d[0], %0"::"r"(1));
@@ -428,11 +421,6 @@ void InterpreterLoop()
     {
 #ifndef PISTORM_ANY_MODEL
         if (unlikely(PC == 0)) {
-            if (disasm) {
-                M68K_SaveContext(ctx);
-                disasm_close();
-                M68K_LoadContext(getCTX());
-            }
             return;
         }
 #endif
@@ -444,26 +432,12 @@ void InterpreterLoop()
         
         /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
         
-        uint16_t opcode = *(uint16_t *)(uintptr_t)PC;
-        
-        if (disasm)
-        {
-            M68K_SaveContext(ctx);
-            disasm_print_m68k_only((uint16_t*)(uintptr_t)ctx->PC);
-            M68K_LoadContext(ctx);
-        }
-
+        uint16_t opcode = *(uint16_t*)(uintptr_t)PC;
         ((INTERPRET_Function*)ARMCode)[opcode](opcode);
 
         reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reserved_reg_q22);
 
     } while(ARMCode != NULL);
-
-    if (disasm) {
-        M68K_SaveContext(ctx);
-        disasm_close();
-        M68K_LoadContext(getCTX());
-    }
 }
 
 void JITLoop()
