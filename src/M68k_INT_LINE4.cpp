@@ -285,9 +285,10 @@ void LEA(uint32_t)
 template<uint8_t Mode, uint8_t Reg>
 void PEA(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
+    uint32_t ea = getEA<Mode, Reg, uint32_t>();
     A7 -= 4;
-    *(uint32_t*)(uintptr_t)A7 = getEA<Mode, Reg, uint32_t>();
+    *(uint32_t*)(uintptr_t)A7 = ea;
 }
 
 template<uint8_t Mode, uint8_t Reg>
