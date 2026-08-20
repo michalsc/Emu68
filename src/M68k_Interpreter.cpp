@@ -202,6 +202,19 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     uint32_t origSR = SR;
     uint32_t stack_frame_size = 0;
 
+    #if 1
+    if (exception != VECTOR_PRIVILEGE_VIOLATION) {
+        bug("[INT] raiseException(%x, %d, %08x, %08x) called from %p\n", exception, format, ea, pc, __builtin_return_address(0));
+
+        M68K_SaveContext(getCTX());
+        disasm_open();
+        disasm_print_m68k_only((uint16_t*)(uintptr_t)getCTX()->PC);
+
+        M68K_PrintContext(getCTX());
+        M68K_LoadContext(getCTX());
+    }
+    #endif
+
     switch (format) {
         case ExceptionFrameFormat::FORMAT_0: [[fallthrough]];
         case ExceptionFrameFormat::FORMAT_1: stack_frame_size = 8; break;
@@ -248,17 +261,12 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     PC = *(uint32_t*)(uintptr_t)vbr;
 }
 
-void ILLEGAL(uint32_t opcode)
+void ILLEGAL(uint32_t )
 {
-    M68K_SaveContext(getCTX());
-    disasm_open();
-    kprintf("[INT] opcode %04x at %08x not implemented\n", opcode, PC);
-    disasm_print_m68k_only((uint16_t*)(uintptr_t)getCTX()->PC);
-    M68K_PrintContext(getCTX());
-    M68K_LoadContext(getCTX());
-
-    while(1);
     raiseException(VECTOR_ILLEGAL_INSTRUCTION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+
+    /*if (opcode != 0x4afc)
+        while(1);*/
 }
 
 template<class Type>
