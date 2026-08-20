@@ -334,10 +334,12 @@ void LINK_L(uint32_t)
 template<uint8_t An>
 void UNLK(uint32_t)
 {
-    A7 = getA<An, uint32_t>();
-    setA<An, uint32_t>(*(uint32_t*)(uintptr_t)A7);
+    uint32_t reg = getA<An, uint32_t>();
+    A7 = reg;
+    uint32_t new_an = *(uint32_t*)(uintptr_t)A7;
     A7 += 4;
-    PC += 2;
+    setA<An, uint32_t>(new_an);
+    advancePC(2);
 }
 
 template<uint8_t Dn>
