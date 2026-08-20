@@ -53,6 +53,40 @@ void ROL_EA(uint32_t)
 }
 
 template<uint8_t Dn, class Type>
+void ROR_Reg(uint32_t opcode)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    uint32_t count = getD<uint32_t>((opcode >> 9) & 7) & 63;
+    constexpr uint32_t bitcount = sizeof(Type) * 8;
+
+    Type v = getD<Dn, Type>();
+
+    if (v == 0) {
+        sr |= SR_Z;
+    } else {
+        if (count > 0) {
+            count &= (bitcount - 1);
+
+            v = (v >> count) | (v << (bitcount - count));
+
+            if (v & (1 << (bitcount - 1))) {
+                sr |= SR_N | SR_Calt;
+            }
+
+            setD<Dn, Type>(v);
+        } else {
+            if (v & (1 << (bitcount - 1))) {
+                sr |= SR_N;
+            }
+        }
+    }
+
+    SR = sr;
+    advancePC(2);
+}
+
+
+template<uint8_t Dn, class Type>
 void ROR_IMM(uint32_t opcode)
 {
     uint32_t sr = SR & ~SR_NZVC;
@@ -76,9 +110,42 @@ void ROR_IMM(uint32_t opcode)
     }
 
     SR = sr;
-    PC += 2;
+    advancePC(2);
 }
 
+template<uint8_t Dn, class Type>
+void ROL_Reg(uint32_t opcode)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    uint32_t count = getD<uint32_t>((opcode >> 9) & 7) & 63;
+    constexpr uint32_t bitcount = sizeof(Type) * 8;
+
+    Type v = getD<Dn, Type>();
+
+    if (v == 0) {
+        sr |= SR_Z;
+    } else {
+        if (count > 0) {
+            count = count & (bitcount - 1);
+
+            v = (v << count) | (v >> (bitcount - count));
+
+            if (v & (1 << (bitcount - 1))) {
+                sr |= SR_N;
+            }
+            if (v & 1) {
+                sr |= SR_Calt;
+            }
+
+            setD<Dn, Type>(v);
+        } else if (v & (1 << (bitcount - 1))) {
+            sr |= SR_N;
+        }
+    }
+
+    SR = sr;
+    advancePC(2);
+}
 
 template<uint8_t Dn, class Type>
 void ROL_IMM(uint32_t opcode)
@@ -326,6 +393,13 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_REG_CNT(       00430,  ROL_IMM, uint8_t);
     FILL_REG_CNT(       00530,  ROL_IMM, uint16_t);
     FILL_REG_CNT(       00630,  ROL_IMM, uint32_t);
+
+    FILL_REG_CNT(       00070,  ROR_Reg, uint8_t);
+    FILL_REG_CNT(       00170,  ROR_Reg, uint16_t);
+    FILL_REG_CNT(       00270,  ROR_Reg, uint32_t);
+    FILL_REG_CNT(       00470,  ROL_Reg, uint8_t);
+    FILL_REG_CNT(       00570,  ROL_Reg, uint16_t);
+    FILL_REG_CNT(       00670,  ROL_Reg, uint32_t);
 
     FILL_SHIFT_REG(     00000,  ASx_Reg, false, false, BYTE);   // ASR.B #n,Dn
     FILL_SHIFT_REG(     00040,  ASx_Reg, false, true,  BYTE);   // ASR.B Dn,Dn
