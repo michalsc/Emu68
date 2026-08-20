@@ -32,6 +32,28 @@ register double FP5 asm("d13");
 register double FP6 asm("d14");
 register double FP7 asm("d15");
 
+[[gnu::always_inline]] inline uint32_t getPC()
+{
+    return PC;
+}
+
+[[gnu::always_inline]] inline void setPC(uint32_t pc)
+{
+    PC = pc;
+    //asm volatile("" : "+r"(PC));
+}
+
+[[gnu::always_inline]] inline void advancePC(int delta)
+{
+    PC += delta;
+    //asm volatile("" : "+r"(PC));
+}
+
+[[gnu::always_inline]] inline void commitPC()
+{
+    asm volatile("" : "+r"(PC));
+}
+
 /* 
     Even though SR is 16 bit, we return and set it as a 32 bit value 
     to make compiler happier
@@ -137,6 +159,13 @@ static inline void setFPCR(uint32_t fpcr)
 #include <type_traits> 
 
 template<class Type>
+requires (std::is_pointer<Type>::value || std::is_same<Type, uint32_t>::value)
+Type getPC(int offset = 0)
+{
+    return (Type)(uintptr_t)(PC + offset);
+}
+
+template<class Type>
 Type getD(int reg);
 
 template<class Type>
@@ -171,34 +200,34 @@ template <unsigned reg, class type> requires (reg < 8 && std::is_integral<type>:
 [[gnu::always_inline]] inline void setD(type value)
 {
     if constexpr (sizeof(type) == 4) {
-        if constexpr (reg == 0)      { D0 = value; }
-        else if constexpr (reg == 1) { D1 = value; }
-        else if constexpr (reg == 2) { D2 = value; }
-        else if constexpr (reg == 3) { D3 = value; }
-        else if constexpr (reg == 4) { D4 = value; }
-        else if constexpr (reg == 5) { D5 = value; }
-        else if constexpr (reg == 6) { D6 = value; }
-        else if constexpr (reg == 7) { D7 = value; }
+        if constexpr (reg == 0)      { D0 = value; asm volatile("" : "+r"(D0)); }
+        else if constexpr (reg == 1) { D1 = value; asm volatile("" : "+r"(D1)); }
+        else if constexpr (reg == 2) { D2 = value; asm volatile("" : "+r"(D2)); }
+        else if constexpr (reg == 3) { D3 = value; asm volatile("" : "+r"(D3)); }
+        else if constexpr (reg == 4) { D4 = value; asm volatile("" : "+r"(D4)); }
+        else if constexpr (reg == 5) { D5 = value; asm volatile("" : "+r"(D5)); }
+        else if constexpr (reg == 6) { D6 = value; asm volatile("" : "+r"(D6)); }
+        else if constexpr (reg == 7) { D7 = value; asm volatile("" : "+r"(D7)); }
     }
     else if constexpr (sizeof(type) == 2) {
-        if constexpr (reg == 0)      { D0 = (D0 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 1) { D1 = (D1 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 2) { D2 = (D2 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 3) { D3 = (D3 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 4) { D4 = (D4 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 5) { D5 = (D5 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 6) { D6 = (D6 & 0xffff0000) | (value & 0x0000ffff); }
-        else if constexpr (reg == 7) { D7 = (D7 & 0xffff0000) | (value & 0x0000ffff); }
+        if constexpr (reg == 0)      { D0 = (D0 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D0)); }
+        else if constexpr (reg == 1) { D1 = (D1 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D1)); }
+        else if constexpr (reg == 2) { D2 = (D2 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D2)); }
+        else if constexpr (reg == 3) { D3 = (D3 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D3)); }
+        else if constexpr (reg == 4) { D4 = (D4 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D4)); }
+        else if constexpr (reg == 5) { D5 = (D5 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D5)); }
+        else if constexpr (reg == 6) { D6 = (D6 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D6)); }
+        else if constexpr (reg == 7) { D7 = (D7 & 0xffff0000) | (value & 0x0000ffff); asm volatile("" : "+r"(D7)); }
     }
     else if constexpr (sizeof(type) == 1) {
-        if constexpr (reg == 0)      { D0 = (D0 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 1) { D1 = (D1 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 2) { D2 = (D2 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 3) { D3 = (D3 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 4) { D4 = (D4 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 5) { D5 = (D5 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 6) { D6 = (D6 & 0xffffff00) | (value & 0x000000ff); }
-        else if constexpr (reg == 7) { D7 = (D7 & 0xffffff00) | (value & 0x000000ff); }
+        if constexpr (reg == 0)      { D0 = (D0 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D0)); }
+        else if constexpr (reg == 1) { D1 = (D1 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D1)); }
+        else if constexpr (reg == 2) { D2 = (D2 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D2)); }
+        else if constexpr (reg == 3) { D3 = (D3 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D3)); }
+        else if constexpr (reg == 4) { D4 = (D4 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D4)); }
+        else if constexpr (reg == 5) { D5 = (D5 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D5)); }
+        else if constexpr (reg == 6) { D6 = (D6 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D6)); }
+        else if constexpr (reg == 7) { D7 = (D7 & 0xffffff00) | (value & 0x000000ff); asm volatile("" : "+r"(D7)); }
     }
 }
 
@@ -219,24 +248,24 @@ template <unsigned reg, class type> requires (reg < 8 && std::is_integral<type>:
 [[gnu::always_inline]] inline void setA(type value)
 {
     if constexpr (sizeof(type) == 4) {
-        if constexpr (reg == 0)      { A0 = value; }
-        else if constexpr (reg == 1) { A1 = value; }
-        else if constexpr (reg == 2) { A2 = value; }
-        else if constexpr (reg == 3) { A3 = value; }
-        else if constexpr (reg == 4) { A4 = value; }
-        else if constexpr (reg == 5) { A5 = value; }
-        else if constexpr (reg == 6) { A6 = value; }
-        else if constexpr (reg == 7) { A7 = value; }
+        if constexpr (reg == 0)      { A0 = value; asm volatile("" : "+r"(A0)); }
+        else if constexpr (reg == 1) { A1 = value; asm volatile("" : "+r"(A1)); }
+        else if constexpr (reg == 2) { A2 = value; asm volatile("" : "+r"(A2)); }
+        else if constexpr (reg == 3) { A3 = value; asm volatile("" : "+r"(A3)); }
+        else if constexpr (reg == 4) { A4 = value; asm volatile("" : "+r"(A4)); }
+        else if constexpr (reg == 5) { A5 = value; asm volatile("" : "+r"(A5)); }
+        else if constexpr (reg == 6) { A6 = value; asm volatile("" : "+r"(A6)); }
+        else if constexpr (reg == 7) { A7 = value; asm volatile("" : "+r"(A7)); }
     }
     else if constexpr (sizeof(type) == 2) {
-        if constexpr (reg == 0)      { A0 = (int16_t)value; }
-        else if constexpr (reg == 1) { A1 = (int16_t)value; }
-        else if constexpr (reg == 2) { A2 = (int16_t)value; }
-        else if constexpr (reg == 3) { A3 = (int16_t)value; }
-        else if constexpr (reg == 4) { A4 = (int16_t)value; }
-        else if constexpr (reg == 5) { A5 = (int16_t)value; }
-        else if constexpr (reg == 6) { A6 = (int16_t)value; }
-        else if constexpr (reg == 7) { A7 = (int16_t)value; }
+        if constexpr (reg == 0)      { A0 = (int16_t)value; asm volatile("" : "+r"(A0)); }
+        else if constexpr (reg == 1) { A1 = (int16_t)value; asm volatile("" : "+r"(A1)); }
+        else if constexpr (reg == 2) { A2 = (int16_t)value; asm volatile("" : "+r"(A2)); }
+        else if constexpr (reg == 3) { A3 = (int16_t)value; asm volatile("" : "+r"(A3)); }
+        else if constexpr (reg == 4) { A4 = (int16_t)value; asm volatile("" : "+r"(A4)); }
+        else if constexpr (reg == 5) { A5 = (int16_t)value; asm volatile("" : "+r"(A5)); }
+        else if constexpr (reg == 6) { A6 = (int16_t)value; asm volatile("" : "+r"(A6)); }
+        else if constexpr (reg == 7) { A7 = (int16_t)value; asm volatile("" : "+r"(A7)); }
     }
 }
 
@@ -256,14 +285,14 @@ template <unsigned reg, class type> requires (reg < 8)
 template <unsigned reg, class type> requires (reg < 8)
 [[gnu::always_inline]] inline void setFP(type value)
 {
-    if constexpr (reg == 0)      { FP0 = value; }
-    else if constexpr (reg == 1) { FP1 = value; }
-    else if constexpr (reg == 2) { FP2 = value; }
-    else if constexpr (reg == 3) { FP3 = value; }
-    else if constexpr (reg == 4) { FP4 = value; }
-    else if constexpr (reg == 5) { FP5 = value; }
-    else if constexpr (reg == 6) { FP6 = value; }
-    else if constexpr (reg == 7) { FP7 = value; }
+    if constexpr (reg == 0)      { FP0 = value; asm volatile("" : "+r"(FP0)); }
+    else if constexpr (reg == 1) { FP1 = value; asm volatile("" : "+r"(FP1)); }
+    else if constexpr (reg == 2) { FP2 = value; asm volatile("" : "+r"(FP2)); }
+    else if constexpr (reg == 3) { FP3 = value; asm volatile("" : "+r"(FP3)); }
+    else if constexpr (reg == 4) { FP4 = value; asm volatile("" : "+r"(FP4)); }
+    else if constexpr (reg == 5) { FP5 = value; asm volatile("" : "+r"(FP5)); }
+    else if constexpr (reg == 6) { FP6 = value; asm volatile("" : "+r"(FP6)); }
+    else if constexpr (reg == 7) { FP7 = value; asm volatile("" : "+r"(FP7)); }
 }
 
 template <auto Get, auto Set>
