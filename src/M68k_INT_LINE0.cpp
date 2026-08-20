@@ -185,13 +185,13 @@ template<uint8_t Mode, uint8_t Reg, class Type>
 void CMPI(uint32_t opcode)
 {
     Type immediate;
-    PC += 2;
+    
     if constexpr (sizeof(Type) == 2 || sizeof(Type) == 4) {
-        immediate = *(Type *)(uintptr_t)PC;
-        PC += sizeof(Type);
+        immediate = *getPC<Type*>(2);
+        advancePC(2 + sizeof(Type));
     } else {
-        immediate = (Type)*(uint16_t *)(uintptr_t)PC;
-        PC += 2;
+        immediate = (Type)*getPC<uint16_t*>(2);
+        advancePC(4);
     }
 
     Type v;
@@ -211,14 +211,14 @@ void CMPI(uint32_t opcode)
 
 void ORI_to_CCR(uint32_t)
 {
-    uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
+    uint16_t immed = swapVC(*getPC<uint8_t*>(3) & SR_CCR);
     SR = SR | immed;
-    PC += 4;
+    advancePC(4);
 }
 
 void ORI_to_SR(uint32_t)
 {
-    uint16_t immed = swapVC(*(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL);
+    uint16_t immed = swapVC(*getPC<uint16_t*>(2) & SR_ALL);
     uint16_t sr = SR;
     uint16_t changed = sr;
     
@@ -230,7 +230,7 @@ void ORI_to_SR(uint32_t)
         handleChangedSR(sr, changed);
 
         SR = sr;
-        PC += 4;
+        advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -238,14 +238,14 @@ void ORI_to_SR(uint32_t)
 
 void ANDI_to_CCR(uint32_t)
 {
-	uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
+    uint16_t immed = swapVC(*getPC<uint8_t*>(3) & SR_CCR);
     SR = (SR & ~SR_CCR) | (SR & immed);
-	PC += 4;
+    advancePC(4);
 }
 
 void ANDI_to_SR(uint32_t)
 {
-    uint16_t immed = swapVC(*(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL);
+    uint16_t immed = swapVC(*getPC<uint16_t*>(2) & SR_ALL);
     uint16_t sr = SR;
     uint16_t changed = sr;
     
@@ -257,7 +257,7 @@ void ANDI_to_SR(uint32_t)
         handleChangedSR(sr, changed);
 
         SR = sr;
-        PC += 4;
+        advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -265,14 +265,14 @@ void ANDI_to_SR(uint32_t)
 
 void EORI_to_CCR(uint32_t)
 {
-    uint16_t immed = swapVC(*(uint8_t *)(uintptr_t)(PC + 3) & SR_CCR);
+    uint16_t immed = swapVC(*getPC<uint8_t*>(3) & SR_CCR);
     SR = SR ^ immed;
-    PC += 4;
+    advancePC(4);
 }
 
 void EORI_to_SR(uint32_t)
 {
-    uint16_t immed = swapVC(*(uint16_t *)(uintptr_t)(PC + 2) & SR_ALL);
+    uint16_t immed = swapVC(*getPC<uint16_t*>(2) & SR_ALL);
     uint16_t sr = SR;
     uint16_t changed = sr;
     
@@ -284,7 +284,7 @@ void EORI_to_SR(uint32_t)
         handleChangedSR(sr, changed);
         
         SR = sr;
-        PC += 4;
+        advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -293,8 +293,8 @@ void EORI_to_SR(uint32_t)
 template<uint8_t Dn>
 void BTST_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 31);
+    advancePC(4);
 
     if (getD<Dn, uint32_t>() & mask) {
         SR &= ~SR_Z;
@@ -306,8 +306,8 @@ void BTST_IMM_Dn(uint32_t)
 template<uint8_t Dn>
 void BSET_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 31);
+    advancePC(4);
     
     if (getD<Dn, uint32_t>() & mask) {
         SR &= ~SR_Z;
@@ -320,8 +320,8 @@ void BSET_IMM_Dn(uint32_t)
 template<uint8_t Dn>
 void BCLR_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 31);
+    advancePC(4);
     
     if (getD<Dn, uint32_t>() & mask) {
         SR &= ~SR_Z;
@@ -334,8 +334,8 @@ void BCLR_IMM_Dn(uint32_t)
 template<uint8_t Dn>
 void BCHG_IMM_Dn(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 31);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 31);
+    advancePC(4);
     
     if (getD<Dn, uint32_t>() & mask) {
         SR &= ~SR_Z;
@@ -348,10 +348,10 @@ void BCHG_IMM_Dn(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BTST_IMM_EA(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 7);
     uint8_t v;
     
-    PC += 4;
+    advancePC(4);
     v = loadFromEA<Mode, Reg, uint8_t>();
 
     if (v & mask) {
@@ -364,8 +364,8 @@ void BTST_IMM_EA(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BSET_IMM_EA(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 7);
+    advancePC(4);
     
     readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
@@ -380,8 +380,8 @@ void BSET_IMM_EA(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BCLR_IMM_EA(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 7);
+    advancePC(4);
     
     readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
@@ -396,8 +396,8 @@ void BCLR_IMM_EA(uint32_t)
 template<uint8_t Mode, uint8_t Reg> requires (Mode > 1)
 void BCHG_IMM_EA(uint32_t)
 {
-    uint32_t mask = 1 << (*(uint8_t *)(uintptr_t)(PC + 3) & 7);
-    PC += 4;
+    uint32_t mask = 1 << (*getPC<uint8_t*>(3) & 7);
+    advancePC(4);
     
     readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
@@ -415,7 +415,7 @@ void BTST_REG(uint32_t)
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
     uint8_t v;
     
-    PC += 2;
+    advancePC(2);
     v = loadFromEA<Mode, Reg, uint8_t>();
 
     if (v & mask) {
@@ -429,7 +429,7 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
 void BSET_REG(uint32_t)
 {
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
-    PC += 2;
+    advancePC(2);
 
     readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
@@ -445,7 +445,7 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
 void BCLR_REG(uint32_t)
 {
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
-    PC += 2;
+    advancePC(2);
 
     readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
@@ -461,7 +461,7 @@ template<uint8_t Mode, uint8_t Reg, uint8_t Dn> requires (Mode > 1)
 void BCHG_REG(uint32_t)
 {
     uint8_t mask = 1 << (getD<Dn, uint32_t>() & 7);
-    PC += 2;
+    advancePC(2);
 
     readModifyWriteEA<Mode, Reg, uint8_t>([&](uint8_t v) -> uint8_t {
         if (v & mask) {
@@ -482,7 +482,7 @@ void BTST_REG_Dn(uint32_t)
     } else {
         SR |= SR_Z;
     }
-    PC += 2;
+    advancePC(2);
 }
 
 template<uint8_t Reg, uint8_t Dn>
@@ -495,7 +495,7 @@ void BSET_REG_Dn(uint32_t)
         SR |= SR_Z;
     }
     setD<Reg, uint32_t>(getD<Reg, uint32_t>() | mask);
-    PC += 2;
+    advancePC(2);
 }
 
 template<uint8_t Reg, uint8_t Dn>
@@ -508,7 +508,7 @@ void BCLR_REG_Dn(uint32_t)
         SR |= SR_Z;
     }
     setD<Reg, uint32_t>(getD<Reg, uint32_t>() & ~mask);
-    PC += 2;
+    advancePC(2);
 }
 
 template<uint8_t Reg, uint8_t Dn>
@@ -521,7 +521,7 @@ void BCHG_REG_Dn(uint32_t)
         SR |= SR_Z;
     }
     setD<Reg, uint32_t>(getD<Reg, uint32_t>() ^ mask);
-    PC += 2;
+    advancePC(2);
 }
 
 #define FILL_Bxxx_Dn(base_offset, name) \

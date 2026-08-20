@@ -31,7 +31,7 @@ static inline struct M68KState *getCTX()
 template<uint8_t Mode, uint8_t Reg>
 void MOVE_to_CCR(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
     WORD val = swapVC(loadFromEA<Mode, Reg, WORD>() & SR_CCR);
     SR = (SR & 0xff00) | (val & 0x00ff);
 }
@@ -44,8 +44,9 @@ void MOVE_to_SR(uint32_t)
 
     /* Modifying SR requires supervisor rights */
     if (sr & SR_S) {
-        PC += 2;
-        WORD val = swapVC(loadFromEA<Mode, Reg, WORD>() & SR_ALL);
+        advancePC(2);
+        commitPC();
+        UWORD val = swapVC(loadFromEA<Mode, Reg, UWORD>()) & SR_ALL;
 
         sr = val;
         changed ^= sr;
@@ -65,9 +66,9 @@ void STOP(uint32_t)
 
     /* Modifying SR requires supervisor rights */
     if (sr & SR_S) {
-        uint32_t newSR = swapVC(*(uint16_t*)(uintptr_t)(PC + 2));
+        uint32_t newSR = swapVC(*getPC<uint16_t*>(2));
 
-        PC += 4;
+        advancePC(4);
 
         sr = newSR;
         changed ^= sr;
@@ -92,7 +93,7 @@ void MOVE_from_SR(uint32_t)
 
     /* Reading SR requires supervisor rights */
     if (sr & SR_S) {
-        PC += 2;
+        advancePC(2);
         storeToEA<Mode, Reg, WORD>(swapVC(sr));
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
@@ -103,7 +104,7 @@ void MOVE_to_USP(uint32_t opcode)
 {
     /* Accessing USP requires supervisor rights */
     if (SR & SR_S) {
-        PC += 2;
+        advancePC(2);
         
         USP = getA<ULONG>(opcode & 7);
 
@@ -116,7 +117,7 @@ void MOVE_from_USP(uint32_t opcode)
 {
     /* Accessing USP requires supervisor rights */
     if (SR & SR_S) {
-        PC += 2;
+        advancePC(2);
         
         setA<ULONG>(opcode & 7, USP);
 
@@ -141,7 +142,7 @@ void SWAP(uint32_t)
         setD<Dn, uint32_t>(val);
     }
     SR = sr;
-    PC += 2;
+    advancePC(2);
 }
 
 template<uint8_t Mode, uint8_t Reg, class Type>
@@ -149,7 +150,7 @@ void CLR(uint32_t)
 {
     uint16_t sr = SR & ~SR_NZVC;
     SR = sr | SR_Z;
-    PC += 2;
+    advancePC(2);
 
     storeToEA<Mode, Reg, Type>(0);
 }
@@ -158,7 +159,7 @@ template<uint8_t Mode, uint8_t Reg, class Type>
 void TST(uint32_t)
 {
     uint16_t sr = SR & ~SR_NZVC;
-    PC += 2;
+    advancePC(2);
     Type val = loadFromEA<Mode, Reg, Type>();
     if (val == 0) {
         sr |= SR_Z;
@@ -171,7 +172,7 @@ void TST(uint32_t)
 template<uint8_t Mode, uint8_t Reg, class Type>
 void NOT(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         uint32_t sr = SR & ~SR_NZVC;
         
@@ -191,7 +192,7 @@ void NOT(uint32_t)
 template<uint8_t Mode, uint8_t Reg, class Type>
 void NEG(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         auto [result, ccr] = arithWithFlags<Type, true>(0, v);
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
@@ -219,14 +220,14 @@ void RESET(uint32_t)
 
 void RTS(uint32_t)
 {
-    PC = *(uint32_t *)(uintptr_t)A7;
+    setPC(*(uint32_t *)(uintptr_t)getA<7, uint32_t>());
     A7 += 4;
 }
 
 void RTR(uint32_t)
 {
     SR = (SR & ~SR_CCR) | swapVC((*(uint16_t*)(uintptr_t)A7 & SR_CCR));
-    PC = *(uint32_t *)(uintptr_t)(A7 + 2);
+    setPC(*(uint32_t *)(uintptr_t)(A7 + 2));
     A7 += 6;
 }
 
@@ -252,7 +253,7 @@ void RTE(uint32_t)
         A7 += 8;
         if (frame == ExceptionFrameFormat::FORMAT_2) A7 += 4;
 
-        PC = newPC;
+        setPC(newPC);
         changedSR ^= sr;
 
         handleChangedSR(sr, changedSR);
@@ -265,20 +266,20 @@ void RTE(uint32_t)
 
 void RTD(uint32_t)
 {
-    int32_t displacement = *(int16_t*)(uintptr_t)(PC + 2);
-    PC = *(uint32_t *)(uintptr_t)A7;
+    int32_t displacement = *getPC<int16_t*>(2);
+    setPC(*(uint32_t *)(uintptr_t)A7);
     A7 += 4 + displacement;
 }
 
 void NOP(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
 }
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An>
 void LEA(uint32_t)
 {
-    PC += 2;
+    advancePC(2);
     setA<An, uint32_t>(getEA<Mode, Reg, uint32_t>());
 }
 
@@ -294,8 +295,8 @@ void PEA(uint32_t)
 template<uint8_t Mode, uint8_t Reg>
 void JMP(uint32_t)
 {
-    PC += 2;
-    PC = getEA<Mode, Reg, uint32_t>();
+    advancePC(2);
+    setPC(getEA<Mode, Reg, uint32_t>());
 }
 
 template<uint8_t Mode, uint8_t Reg>
@@ -312,23 +313,23 @@ void JSR(uint32_t)
 template<uint8_t An>
 void LINK_W(uint32_t)
 {
-    int16_t displ = *(int16_t*)(intptr_t)(PC + 2);
+    int16_t displ = *getPC<int16_t*>(2);
     A7 -= 4;
     *(uint32_t *)(uintptr_t)A7 = getA<An, uint32_t>();
     setA<An, uint32_t>(A7);
     A7 += displ;
-    PC += 4;
+    advancePC(4);
 }
 
 template<uint8_t An>
 void LINK_L(uint32_t)
 {
-    int32_t displ = *(int32_t*)(intptr_t)(PC + 2);
+    int32_t displ = *getPC<int32_t*>(2);
     A7 -= 4;
     *(uint32_t *)(uintptr_t)A7 = getA<An, uint32_t>();
     setA<An, uint32_t>(A7);
     A7 += displ;
-    PC += 6;
+    advancePC(6);
 }
 
 template<uint8_t An>
@@ -346,7 +347,7 @@ template<uint8_t Dn>
 void EXT_B_to_W(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    PC += 2;
+    advancePC(2);
     WORD val = getD<Dn, BYTE>();
     setD<Dn, WORD>(val);
 
@@ -363,7 +364,7 @@ template<uint8_t Dn>
 void EXT_W_to_L(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    PC += 2;
+    advancePC(2);
     LONG val = getD<Dn, WORD>();
     setD<Dn, LONG>(val);
 
@@ -380,7 +381,7 @@ template<uint8_t Dn>
 void EXT_B_to_L(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    PC += 2;
+    advancePC(2);
     LONG val = getD<Dn, BYTE>();
     setD<Dn, LONG>(val);
 
@@ -399,7 +400,7 @@ void MOVEC(uint32_t opcode)
     if (SR & SR_S)
     {
         struct M68KState *ctx = getCTX();
-        uint16_t opcode2 = *(uint16_t*)(uintptr_t)(PC + 2);
+        uint16_t opcode2 = *getPC<uint16_t*>(2);
         uint16_t cr = opcode2 & 0x0fff;
         uint8_t reg = (opcode2 >> 12) & 7;
         
@@ -413,10 +414,10 @@ void MOVEC(uint32_t opcode)
                 case 0x001: ctx->DFC = dn & 7;                      break;
                 case 0x002: CACR = dn & 0x80008000; ARMCode = 0;    break;
                 case 0x003: ctx->TCR = (dn & 0xc000);               break;
-                case 0x004: ctx->ITT0 = dn & 0x1c9b;                break;
-                case 0x005: ctx->ITT1 = dn & 0x1c9b;                break;
-                case 0x006: ctx->DTT0 = dn & 0x1c9b;                break;
-                case 0x007: ctx->DTT1 = dn & 0x1c9b;                break;
+                case 0x004: ctx->ITT0 = dn & ~0x1c9b;               break;
+                case 0x005: ctx->ITT1 = dn & ~0x1c9b;               break;
+                case 0x006: ctx->DTT0 = dn & ~0x1c9b;               break;
+                case 0x007: ctx->DTT1 = dn & ~0x1c9b;               break;
                 case 0x800: USP = dn;                               break;
                 case 0x801: ctx->VBR = dn;                          break;
                 case 0x803: if (SR & SR_M) A7 = dn; else MSP = dn;  break;
@@ -458,8 +459,8 @@ void MOVEC(uint32_t opcode)
                 case 0x0e1: asm volatile("mrs %0, CNTPCT_EL0":"=r"(val));   break;
                 case 0x0e2: asm volatile("mrs %0, CNTPCT_EL0":"=r"(val)); 
                             val >>= 32;                                     break;
-                case 0x0e3: asm volatile("mov %w0, v22.s[0]":"=r"(val));    break;
-                case 0x0e4: asm volatile("mov %w0, v22.s[1]":"=r"(val));    break;
+                case 0x0e3: asm volatile("mov %w0, v20.s[0]":"=r"(val));    break;
+                case 0x0e4: asm volatile("mov %w0, v20.s[1]":"=r"(val));    break;
                 case 0x0e5: asm volatile("mrs %0, PMCCNTR_EL0":"=r"(val));  break;
                 case 0x0e6: asm volatile("mrs %0, PMCCNTR_EL0":"=r"(val));
                             val >>= 32;                                     break;
@@ -493,7 +494,7 @@ void MOVEC(uint32_t opcode)
                 setD(reg, (uint32_t)val);
             }
         }
-        PC += 4;
+        advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -503,10 +504,10 @@ template<uint8_t Mode, uint8_t Reg>
 void DIVU_L(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    uint16_t opcode2 = *(uint16_t *)(uintptr_t)(PC + 2);
-    uint32_t orig_PC = PC;
+    uint16_t opcode2 = *getPC<uint16_t*>(2);
+    uint32_t orig_PC = getPC();
 
-    PC += 4;
+    advancePC(4);
 
     uint32_t _src = loadFromEA<Mode, Reg, uint32_t>();
 
@@ -654,9 +655,9 @@ template<uint8_t Mode, uint8_t Reg>
 void MULU_L(uint32_t)
 {
     uint32_t sr = SR & ~SR_NZVC;
-    uint16_t opcode2 = *(uint16_t *)(uintptr_t)(PC + 2);
+    uint16_t opcode2 = *getPC<uint16_t*>(2);
 
-    PC += 4;
+    advancePC(4);
 
     /* Signed (bit 11 set) or unsigned (bit 11 clear) */
     if (opcode2 & (1 << 11)) {
@@ -735,11 +736,11 @@ template<uint8_t Mode, uint8_t Reg, bool Write, class Type>
 void MOVEM(uint32_t opcode)
 {
     bool constexpr PreDecMode = Write && Mode == 4;
-    const uint16_t regMask = *(uint16_t*)(uintptr_t)(PC + 2);
+    const uint16_t regMask = *getPC<uint16_t*>(2);
     uint32_t baseptr;
     bool update_reg;
 
-    PC += 4;
+    advancePC(4);
 
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
         uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
@@ -885,7 +886,7 @@ void NEGX(uint32_t)
 {
     uint32_t sr = SR;
     uint8_t x_in = (sr & SR_X) ? 1 : 0;
-    PC += 2;
+    advancePC(2);
     readModifyWriteEA<Mode, Reg, Type>([&](Type v) -> Type {
         auto [result, ccr] = arithXWithFlags<Type, true>(0, v, x_in);
         ccr = (ccr & ~SR_Z) | (ccr & sr & SR_Z);
@@ -898,7 +899,7 @@ template<uint8_t Mode, uint8_t Reg>
 requires (Mode != 1)
 void NBCD(uint32_t opcode)
 {
-    PC = PC + 2;
+    advancePC(2);
     uint8_t x_in = (SR & SR_X) ? 1 : 0;
  
     auto oper = [&](uint8_t v) -> uint8_t {
