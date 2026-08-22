@@ -203,6 +203,8 @@ void NEG(uint32_t)
 
 void TRAP(uint32_t opcode)
 {
+    advancePC(2);
+    commitPC();
     raiseException(VECTOR_INT_TRAP(opcode & 15), ExceptionFrameFormat::FORMAT_0, 0, 0);
 }
 
