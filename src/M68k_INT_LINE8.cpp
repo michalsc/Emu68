@@ -130,17 +130,18 @@ void OR_EA_to_Dn(uint32_t)
 
 void SBCD(uint32_t opcode)
 {
-    const bool memForm = (opcode & (1 << 4)) != 0;
+    const bool memForm = (opcode & (1 << 3)) != 0;
     const int rx = (opcode >> 9) & 7;
     const int ry = opcode & 7;
 
     advancePC(2);
+    commitPC();
 
     uint8_t x_in = (SR & SR_X) ? 1 : 0;
  
     uint8_t a, b;
-    uint8_t *dst;
- 
+    uint8_t *dst = nullptr;
+
     if (!memForm) {
         a = getD<uint8_t>(ry);
         b = getD<uint8_t>(rx);
@@ -151,14 +152,14 @@ void SBCD(uint32_t opcode)
         b = *(uint8_t *)(uintptr_t)dstAddr;
         dst = (uint8_t *)(uintptr_t)dstAddr;
     }
- 
+
     auto [result, carry] = bcdSub(b, a, x_in);
  
     uint32_t sr = SR;
     uint32_t ccr = (result == 0 ? SR_Z : 0) | (carry ? SR_Calt : 0);
     ccr = (ccr & ~SR_Z) | (ccr & sr & SR_Z);
     SR = (sr & ~(SR_X | SR_Z | SR_Calt)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
- 
+
     if (!memForm) { setD<uint8_t>(rx, result); }
     else          { *dst = result; }
 }
