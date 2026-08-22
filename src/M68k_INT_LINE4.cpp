@@ -208,6 +208,15 @@ void TRAP(uint32_t opcode)
     raiseException(VECTOR_INT_TRAP(opcode & 15), ExceptionFrameFormat::FORMAT_0, 0, 0);
 }
 
+void TRAPV(uint32_t)
+{
+    advancePC(2);
+    commitPC();
+    if (SR & SR_Valt) {
+        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 void RESET(uint32_t)
 {
     if (SR & SR_S) {
@@ -1197,6 +1206,7 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     table[07163] =     RTE;
     table[07164] =     RTD;
     table[07165] =     RTS;
+    table[07166] =     TRAPV;
     table[07167] =     RTR;
     table[07172] =     MOVEC;
     table[07173] =     MOVEC;
