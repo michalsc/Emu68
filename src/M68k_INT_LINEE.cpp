@@ -273,16 +273,16 @@ static inline constexpr std::pair<Type, bool> roxRotate(Type v, uint32_t count, 
     constexpr uint64_t valmask = (uint64_t(1) << bitcount) - 1;
     constexpr uint64_t ringmask = (uint64_t(1) << ringbits) - 1;
  
-    uint64_t ring = (uint64_t(x_in) << bitcount) | v;
+    uint64_t ring = (uint64_t(x_in) << bitcount) | (v & valmask);
     uint32_t c = count % ringbits;
- 
+
     uint64_t rotated = ring;
     if (c != 0) {
         rotated = left
             ? ((ring << c) | (ring >> (ringbits - c))) & ringmask
             : ((ring >> c) | (ring << (ringbits - c))) & ringmask;
     }
- 
+
     bool new_x = (rotated >> bitcount) & 1;
     Type result = static_cast<Type>(rotated & valmask);
     return { result, new_x };
@@ -314,13 +314,14 @@ void ROXx_Reg(uint32_t)
     bool x_in = (SR & SR_X) != 0;
  
     advancePC(2);
+    commitPC();
 
     uint32_t count;
     if constexpr (RegCount) { count = getD<CountOrReg, uint32_t>() & 63; }
     else                    { count = (CountOrReg == 0) ? 8 : CountOrReg; }
- 
+
     auto [result, ccr] = roxWithFlags<Type>(v, count, x_in, Left);
- 
+
     if constexpr (!RegCount) {
         // immediate count is always 1..8 -- X always updated, same shape as ASx_Reg/LSx_Reg
         SR = (SR & ~(SR_X | SR_NZVC)) | ccr | ((ccr & SR_Calt) ? SR_X : 0);
@@ -337,6 +338,7 @@ template<uint8_t Mode, uint8_t Reg>
 void ROXR_Mem(uint32_t)
 {
     advancePC(2);
+    commitPC();
 
     readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         bool x_in = (SR & SR_X) != 0;
@@ -350,6 +352,7 @@ template<uint8_t Mode, uint8_t Reg>
 void ROXL_Mem(uint32_t)
 {
     advancePC(2);
+    commitPC();
     
     readModifyWriteEA<Mode, Reg, uint16_t>([&](uint16_t v) -> uint16_t {
         bool x_in = (SR & SR_X) != 0;
