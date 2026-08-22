@@ -164,6 +164,60 @@ void SBCD(uint32_t opcode)
     else          { *dst = result; }
 }
 
+template<bool MemForm>
+void PACK(uint32_t opcode)
+{
+    uint32_t tmp;
+    const int RegX = opcode & 7;
+    const int RegY = (opcode >> 9) & 7;
+    const uint32_t extension = *getPC<uint16_t*>(2);
+
+    advancePC(4);
+    commitPC();
+
+    if constexpr (MemForm) {
+        tmp = loadFromEA<uint16_t>(4, RegX);
+    } else {
+        tmp = getD<uint32_t>(RegX);
+    }
+
+    tmp += extension;
+    tmp = (tmp & 0x0f) | ((tmp >> 4) & 0xf0);
+
+    if constexpr (MemForm) {
+        storeToEA<uint8_t>(4, RegY, tmp);
+    } else {
+        setD<uint8_t>(RegY, tmp);
+    }
+}
+
+template<bool MemForm>
+void UNPK(uint32_t opcode)
+{
+    uint32_t tmp;
+    const int RegX = opcode & 7;
+    const int RegY = (opcode >> 9) & 7;
+    const uint32_t extension = *getPC<uint16_t*>(2);
+
+    advancePC(4);
+    commitPC();
+
+    if constexpr (MemForm) {
+        tmp = loadFromEA<uint8_t>(4, RegX);
+    } else {
+        tmp = getD<uint32_t>(RegX);
+    }
+
+    tmp = (tmp & 0x0f) | ((tmp & 0xf0) << 4);
+    tmp += extension;
+
+    if constexpr (MemForm) {
+        storeToEA<uint16_t>(4, RegY, tmp);
+    } else {
+        setD<uint16_t>(RegY, tmp);
+    }
+}
+
 #define FILL_ALL_RD_EAs(base_offset, name, reg, size) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA((Is >> 3), Is & 7)] = \
@@ -202,6 +256,34 @@ void SBCD(uint32_t opcode)
              SBCD), ...); \
     }((base_offset), std::make_index_sequence<128>{});
 
+template <class Type, template<uint8_t,uint8_t,class> class Op, class F1, class F2>
+constexpr void fillRegReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned v1 = I / F2::size;
+        constexpr unsigned v2 = I % F2::size;
+        if constexpr (F1::valid(v1) && F2::valid(v2)) {
+            int idx = base + (v1 << F1::bitOffset) + (v2 << F2::bitOffset);
+            table[idx] = Op<F1::arg(v1), F2::arg(v2), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F1::size * F2::size>{});
+}
+
+template<uint8_t RegX, uint8_t RegY, class Type>
+struct PACK_Mem_Op { static constexpr auto value = PACK<true>; };
+
+template<uint8_t RegX, uint8_t RegY, class Type>
+struct PACK_Reg_Op { static constexpr auto value = PACK<false>; };
+
+template<uint8_t RegX, uint8_t RegY, class Type>
+struct UNPK_Mem_Op { static constexpr auto value = UNPK<true>; };
+
+template<uint8_t RegX, uint8_t RegY, class Type>
+struct UNPK_Reg_Op { static constexpr auto value = UNPK<false>; };
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -215,6 +297,11 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     auto EA = [](int mode, int reg) constexpr { return (mode << 3) | reg; };
 
     fill(00000, 07777, ILLEGAL);
+
+    fillRegReg<void, PACK_Mem_Op, RegField<0>, RegField<9>>(table, 00510);
+    fillRegReg<void, PACK_Reg_Op, RegField<0>, RegField<9>>(table, 00500);
+    fillRegReg<void, UNPK_Mem_Op, RegField<0>, RegField<9>>(table, 00610);
+    fillRegReg<void, UNPK_Reg_Op, RegField<0>, RegField<9>>(table, 00600);
 
     FILL_SBCD(00400);
 
