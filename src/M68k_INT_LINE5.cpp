@@ -142,6 +142,8 @@ void SUBQ(uint32_t opcode)
 
 void TRAPcc(uint32_t opcode)
 {
+    uint32_t orig_PC = getPC();
+
     switch (opcode & 7) {
         case 2: advancePC(4); break;
         case 3: advancePC(6); break;
@@ -151,7 +153,7 @@ void TRAPcc(uint32_t opcode)
     commitPC();
 
     if (evalCond((opcode >> 8) & 15)) {
-        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_0, 0, 0);
+        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     }
 }
 

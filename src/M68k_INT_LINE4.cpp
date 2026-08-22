@@ -210,10 +210,11 @@ void TRAP(uint32_t opcode)
 
 void TRAPV(uint32_t)
 {
+    uint32_t orig_PC = getPC();
     advancePC(2);
     commitPC();
     if (SR & SR_Valt) {
-        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_0, 0, 0);
+        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     }
 }
 
