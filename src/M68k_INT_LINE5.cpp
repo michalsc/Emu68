@@ -140,6 +140,21 @@ void SUBQ(uint32_t opcode)
     }
 }
 
+void TRAPcc(uint32_t opcode)
+{
+    switch (opcode & 7) {
+        case 2: advancePC(4); break;
+        case 3: advancePC(6); break;
+        case 4: advancePC(2); break;
+        default: __builtin_unreachable();
+    }
+    commitPC();
+
+    if (evalCond((opcode >> 8) & 15)) {
+        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 #define FILL_ALL_WR_EAs(base_offset, name, size) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + EA((Is >> 3), Is & 7)] = \
@@ -156,6 +171,22 @@ void SUBQ(uint32_t opcode)
              name<2 + (Is >> 3), Is & 7, size>), ...); \
     }((base_offset), std::make_index_sequence<42>{});
 
+template <uint8_t InstCC, class Type>
+struct TRAPcc_Op { static constexpr auto value = TRAPcc; };
+
+template <class Type, template<uint8_t,class> class Op, class F>
+constexpr void fillReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        if constexpr (F::valid(I)) {
+            int idx = base + (I << F::bitOffset);
+            table[idx] = Op<F::arg(I), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F::size>{});
+}
 
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
@@ -270,6 +301,10 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     FILL_ALL_WR_EAs(        05600, SUBQ, LONG);
     FILL_ALL_WR_EAs(        06600, SUBQ, LONG);
     FILL_ALL_WR_EAs(        07600, SUBQ, LONG);
+
+    fillReg<void, TRAPcc_Op, RegField<8, 4>>(table, 00372);
+    fillReg<void, TRAPcc_Op, RegField<8, 4>>(table, 00373);
+    fillReg<void, TRAPcc_Op, RegField<8, 4>>(table, 00374);
 
     #if 0
     [0372]          = { EMIT_TRAPcc, NULL, SR_CCR, 0, 2, 0, 0 },
