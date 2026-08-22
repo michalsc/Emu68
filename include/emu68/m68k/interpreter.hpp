@@ -94,6 +94,35 @@ bool evalCond()
     }
 }
 
+[[gnu::always_inline]] inline bool evalCond(int instCC)
+{
+    if (instCC == M_CC_T) { return true; }
+    else if (instCC == M_CC_F) { return false; }
+    else {
+        const uint8_t cc = SR & 0x0f;
+        const bool c = (cc & SR_Calt) != 0;
+        const bool z = (cc & SR_Z)    != 0;
+        const bool v = (cc & SR_Valt) != 0;
+        const bool n = (cc & SR_N)    != 0;
+
+        if (instCC == M_CC_HI)      { return !c && !z; }
+        else if (instCC == M_CC_LS) { return c || z; }
+        else if (instCC == M_CC_CC) { return !c; }
+        else if (instCC == M_CC_CS) { return c; }
+        else if (instCC == M_CC_NE) { return !z; }
+        else if (instCC == M_CC_EQ) { return z; }
+        else if (instCC == M_CC_VC) { return !v; }
+        else if (instCC == M_CC_VS) { return v; }
+        else if (instCC == M_CC_PL) { return !n; }
+        else if (instCC == M_CC_MI) { return n; }
+        else if (instCC == M_CC_GE) { return n == v; }
+        else if (instCC == M_CC_LT) { return n != v; }
+        else if (instCC == M_CC_GT) { return !z && (n == v); }
+        else if (instCC == M_CC_LE) { return z || (n != v); }
+    }
+    __builtin_unreachable();
+}
+
 template<uint8_t InstCC> requires (InstCC < 32)
 bool evalCondFPU()
 {
