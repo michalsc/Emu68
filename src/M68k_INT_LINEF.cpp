@@ -347,6 +347,15 @@ bool FDIV(uint32_t opcode, uint32_t opcode2)
     });
 }
 
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
+bool FSGLDIV(uint32_t opcode, uint32_t opcode2)
+{
+    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
+        double result = op2 / op1; 
+        return roundToSingle(result);
+    });
+}
+
 // FMOD
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
@@ -359,13 +368,18 @@ bool FMUL(uint32_t opcode, uint32_t opcode2)
     });
 }
 
+template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
+bool FSGLMUL(uint32_t opcode, uint32_t opcode2)
+{
+    return DYADIC<RegToReg, DstReg, SrcReg>(opcode, opcode2, [](double op1, double op2) -> double { 
+        double result = op2 * op1; 
+        return roundToSingle(result);
+    });
+}
+
 // FREM
 
 // FSCALE
-
-// FSGLDIV
-
-// FSGLMUL
 
 template<bool RegToReg, uint8_t DstReg = DEFAULT_EA, uint8_t SrcReg = DEFAULT_EA, bool SingleRounding = false>
 bool FSUB(uint32_t opcode, uint32_t opcode2)
@@ -894,10 +908,10 @@ static consteval std::array<INTERPRET_FPU_Function, 128> buildExtensionFieldServ
     table[0x23] = FMUL<RegToReg>;
     table[0x63] = FMUL<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSMUL
     table[0x67] = FMUL<RegToReg>;   // FDMUL
-    //table[0x24] = FSGLDIV<RegToReg>;
+    table[0x24] = FSGLDIV<RegToReg>;
     //table[0x25] = FREM<RegToReg>;
     //table[0x26] = FSCALE<RegToReg>;
-    //table[0x27] = FSGLMUL<RegToReg>;
+    table[0x27] = FSGLMUL<RegToReg>;
     table[0x28] = FSUB<RegToReg>;
     table[0x68] = FSUB<RegToReg, DEFAULT_EA, DEFAULT_EA, true>;   // FSSUB
     table[0x6c] = FSUB<RegToReg>;   // FDSUB
