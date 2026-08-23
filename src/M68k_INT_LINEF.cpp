@@ -1074,6 +1074,48 @@ void CPUSH(uint32_t opcode)
     }
 }
 
+template<bool RegToReg, uint8_t Reg, uint8_t Mode>
+void MOVE16(uint32_t)
+{
+    if constexpr (RegToReg) {
+        uint32_t regAy = (*getPC<uint16_t*>(2) >> 12) & 7;
+        uint32_t regAyAddr = getA<uint32_t>(regAy);
+        uint128_t* src;
+        uint128_t* dst;
+
+        advancePC(4);
+        commitPC();
+
+        dst = (uint128_t*)((uintptr_t)regAyAddr & ~15);
+        src = (uint128_t*)((uintptr_t)getA<Reg, uint32_t>() & ~15);
+        
+        *dst = *src;
+
+        setA<Reg, uint32_t>(getA<Reg, uint32_t>() + 16);
+        setA<uint32_t>(regAy, regAyAddr + 16);
+    } else {
+        uintptr_t mem = *getPC<uint32_t*>(2) & ~15;
+
+        advancePC(6);
+        commitPC();
+
+        uint128_t* memaddr = (uint128_t*)mem;
+        uint128_t* regaddr = (uint128_t*)((uintptr_t)getA<Reg, uint32_t>() & ~15);
+
+        /* If bit 0 of opmode is set, direction is memory addr to reg addr */
+        if constexpr ((Mode & 1) == 1) {
+            *regaddr = *memaddr;
+        } else {
+            *memaddr = *regaddr;
+        }
+
+        /* If bit 1 of opmode is clear, update Reg */
+        if constexpr ((Mode & 2) == 0) {
+            setA<Reg, uint32_t>(getA<Reg, uint32_t>() + 16);
+        }
+    }
+}
+
 #define FILL_MOD(base_offset, mod, rmin, rmax, name, specialized) \
     [&]<std::size_t... Dreg>(int base, std::index_sequence<Dreg...>) { \
         if constexpr (specialized) ((table[base + EA(mod, (rmin + Dreg))] = \
@@ -1134,6 +1176,43 @@ static consteval std::array<INTERPRET_Function, 512> buildFPUTable()
 }
 #endif
 
+
+template <uint8_t Reg, uint8_t Mode>
+struct MOVE16_RegMem_Op { static constexpr auto value = MOVE16<false, Reg, Mode>; };
+
+template <uint8_t Reg>
+struct MOVE16_RegReg_Op { static constexpr auto value = MOVE16<true, Reg, 0>; };
+
+template <template<uint8_t,uint8_t> class Op, class F1, class F2>
+constexpr void fillRegReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned v1 = I / F2::size;
+        constexpr unsigned v2 = I % F2::size;
+        if constexpr (F1::valid(v1) && F2::valid(v2)) {
+            int idx = base + (v1 << F1::bitOffset) + (v2 << F2::bitOffset);
+            table[idx] = Op<F1::arg(v1), F2::arg(v2)>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F1::size * F2::size>{});
+}
+
+template <template<uint8_t> class Op, class F>
+constexpr void fillReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        if constexpr (F::valid(I)) {
+            int idx = base + (I << F::bitOffset);
+            table[idx] = Op<F::arg(I)>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F::size>{});
+}
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -1189,6 +1268,9 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fill(02150, 02177, CPUSH);
     fill(02250, 02277, CPUSH);
     fill(02350, 02377, CPUSH);
+
+    fillReg<MOVE16_RegReg_Op, RegField<0, 3>>(table, 03040);
+    fillRegReg<MOVE16_RegMem_Op, RegField<0, 3>, RegField<3, 2>>(table, 03000);
 
     return table;
 }
