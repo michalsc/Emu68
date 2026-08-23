@@ -945,6 +945,55 @@ void NBCD(uint32_t opcode)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg>
+requires (Mode != 1)
+void TAS(uint32_t opcode)
+{
+    uint32_t sr = SR & ~SR_NZVC;
+    advancePC(2);
+
+    auto setFlagsFromOriginal = [&](BYTE val) {
+        if (val == 0) {
+            sr |= SR_Z;
+        } else if (val < 0) {
+            sr |= SR_N;
+        }
+    };
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? ((opcode >> 3) & 7) : Mode;
+        uint32_t reg  = (Reg  == DEFAULT_EA) ? (opcode & 7)        : Reg;
+
+        if (mode == 0) {
+            BYTE val = getD<BYTE>(reg);
+            setFlagsFromOriginal(val);
+            setD<BYTE>(reg, val | 0x80);
+        } else {
+            UBYTE *addr = (UBYTE *)(uintptr_t)getEA<BYTE>(mode, reg);
+            BYTE val = (BYTE)__atomic_fetch_or(addr, 0x80, __ATOMIC_SEQ_CST);
+            setFlagsFromOriginal(val);
+        }
+    } else {
+        if constexpr (Mode == 0) {
+            BYTE val = getD<BYTE>(Reg);
+            setFlagsFromOriginal(val);
+            setD<BYTE>(Reg, val | 0x80);
+        } else {
+            UBYTE *addr = (UBYTE *)(uintptr_t)getEA<Mode, Reg, BYTE>();
+            BYTE val = (BYTE)__atomic_fetch_or(addr, 0x80, __ATOMIC_SEQ_CST);
+            setFlagsFromOriginal(val);
+        }
+    }
+
+    SR = sr;
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void CHK(uint32_t opcode)
+{
+    
+}
+
 #define FILL_PEA_ALIKE(base_offset, name) \
     [&]<std::size_t... Areg>(int base, std::index_sequence<Areg...>) { \
         ((table[base + EA(2, Areg)] = \
@@ -1060,11 +1109,22 @@ inline constexpr uint32_t MMDstSpecializeMask =
 
 inline constexpr uint32_t NBCDSpecializeMask = 0;
 
+inline constexpr uint32_t AlterableNoAnMask =
+      classBit(EAClass::Dn)      | classBit(EAClass::Ind)
+    | classBit(EAClass::IndPost) | classBit(EAClass::IndPre)
+    | classBit(EAClass::D16An)   | classBit(EAClass::D8AnXn)
+    | classBit(EAClass::AbsW)    | classBit(EAClass::AbsL);
+
+inline constexpr uint32_t TASSpecializeMask = classBit(EAClass::Dn);
+
 template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
 struct MOVEM_Op { static constexpr auto value = MOVEM<Mode, Reg, Write, Type>; };
 
 template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
 struct NBCD_Op { static constexpr auto value = NBCD<Mode, Reg>; };
+
+template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
+struct TAS_Op { static constexpr auto value = TAS<Mode, Reg>; };
 
 // EA field combines Register and EA mode in one, gets
 template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
@@ -1187,34 +1247,8 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillEA<WORD, true, MOVEM_Op, EAFieldMM<0, WORD, true, MMDstSpecializeMask>>(table, 04200);
 
     fillEA<BYTE, true, NBCD_Op, EAFieldNBCD<0, BYTE, true, NBCDSpecializeMask>>(table, 04000);
-#if 0
-    table[04320] =     MOVEM_L_regs_to_A0_Addr;
-    table[04321] =     MOVEM_L_regs_to_A1_Addr;
-    table[04322] =     MOVEM_L_regs_to_A2_Addr;
-    table[04323] =     MOVEM_L_regs_to_A3_Addr;
-    table[04324] =     MOVEM_L_regs_to_A4_Addr;
-    table[04325] =     MOVEM_L_regs_to_A5_Addr;
-    table[04326] =     MOVEM_L_regs_to_A6_Addr;
-    table[04327] =     MOVEM_L_regs_to_A7_Addr;
+    fillEA<BYTE, true, TAS_Op, EAFieldNBCD<0, BYTE, true, TASSpecializeMask>>(table, 05300);
 
-    table[06330] =     MOVEM_L_regs_from_A0_PostInc;
-    table[06331] =     MOVEM_L_regs_from_A1_PostInc;
-    table[06332] =     MOVEM_L_regs_from_A2_PostInc;
-    table[06333] =     MOVEM_L_regs_from_A3_PostInc;
-    table[06334] =     MOVEM_L_regs_from_A4_PostInc;
-    table[06335] =     MOVEM_L_regs_from_A5_PostInc;
-    table[06336] =     MOVEM_L_regs_from_A6_PostInc;
-    table[06337] =     MOVEM_L_regs_from_A7_PostInc;
-
-    table[04340] =     MOVEM_L_regs_to_A0_PreDec;
-    table[04341] =     MOVEM_L_regs_to_A1_PreDec;
-    table[04342] =     MOVEM_L_regs_to_A2_PreDec;
-    table[04343] =     MOVEM_L_regs_to_A3_PreDec;
-    table[04344] =     MOVEM_L_regs_to_A4_PreDec;
-    table[04345] =     MOVEM_L_regs_to_A5_PreDec;
-    table[04346] =     MOVEM_L_regs_to_A6_PreDec;
-    table[04347] =     MOVEM_L_regs_to_A7_PreDec;
-#endif
     table[07160] =     RESET;
     table[07161] =     NOP;
     table[07162] =     STOP;
@@ -1231,36 +1265,8 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fill(07150, 07157, MOVE_from_USP);
 
     #if 0
-    [00300 ... 00307] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
-    [00320 ... 00347] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 0, 2 },
-    [00350 ... 00371] = { EMIT_MOVEfromSR, NULL, SR_ALL, 0, 1, 1, 2 },
-
-    [01300 ... 01307] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 0, 2 },
-    [01320 ... 01347] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 0, 2 },
-    [01350 ... 01371] = { EMIT_MOVEfromCCR, NULL, SR_CCR, 0, 1, 1, 2 },
-    
-    [0xe70]           = { EMIT_RESET, NULL, SR_S, 0, 1, 0, 0 },
-    
-    
-    [0xe76]           = { EMIT_TRAPV, NULL, SR_CCR, 0, 1, 0, 0 },
     
     [04110 ... 04117] = { EMIT_BKPT, NULL, SR_ALL, 0, 1, 0, 0 },      // BKPT
-
-    [00000 ... 00007] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
-    [00100 ... 00107] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
-    [00200 ... 00207] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
-
-    [00020 ... 00047] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 1 },
-    [00120 ... 00147] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 2 },
-    [00220 ... 00247] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 0, 4 },
-    
-    [00050 ... 00071] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 1 },
-    [00150 ... 00171] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 2 },
-    [00250 ... 00271] = { EMIT_NEGX, NULL, SR_XZ, SR_CCR, 1, 1, 4 },
-
-    [04000 ... 04007] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
-    [04020 ... 04047] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 0, 1 },
-    [04050 ... 04071] = { EMIT_NBCD, NULL, SR_XZ, SR_XZC, 1, 1, 1 },
 
     [05300 ... 05307] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
     [05320 ... 05347] = { EMIT_TAS, NULL, 0, SR_NZVC, 1, 0, 1 },
@@ -1272,18 +1278,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     [06100 ... 06107] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 0, 4 },
     [06120 ... 06147] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 0, 4 },
     [06150 ... 06174] = { EMIT_MUL_DIV, NULL, 0, SR_NZVC, 2, 1, 4 },
-
-    [04220 ... 04227] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 2 },
-    [04320 ... 04327] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
-    [04240 ... 04247] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 2 },
-    [04340 ... 04347] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
-    [04250 ... 04271] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 2 },
-    [04350 ... 04371] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 4 },
-
-    [06220 ... 06237] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 2 },
-    [06320 ... 06337] = { EMIT_MOVEM, NULL, 0, 0, 2, 0, 4 },
-    [06250 ... 06273] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 2 },
-    [06350 ... 06373] = { EMIT_MOVEM, NULL, 0, 0, 2, 1, 4 },
 
     [00600 ... 00607] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
     [00620 ... 00647] = { EMIT_CHK, NULL, SR_CCR, SR_NZVC, 1, 0, 2 },
