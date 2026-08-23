@@ -100,6 +100,17 @@ void MOVE_from_SR(uint32_t)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg>
+void MOVE_from_CCR(uint32_t)
+{
+    uint32_t sr = SR & SR_CCR;
+
+    advancePC(2);
+    commitPC();
+
+    storeToEA<Mode, Reg, WORD>(swapVC(sr));
+}
+
 void MOVE_to_USP(uint32_t opcode)
 {
     /* Accessing USP requires supervisor rights */
@@ -1109,6 +1120,9 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     FILL_MOD0(              00300, MOVE_from_SR);   /* MOVE from SR Dn */
     FILL_MOD2_to_72(        00300, MOVE_from_SR);   /* MOVE from SR all other modes */
+
+    FILL_MOD0(              01300, MOVE_from_CCR);   /* MOVE from SR Dn */
+    FILL_MOD2_to_72(        01300, MOVE_from_CCR);   /* MOVE from SR all other modes */
 
     FILL_MOD0_reg_only(     04100, SWAP);           /* SWAP Dn */
 
