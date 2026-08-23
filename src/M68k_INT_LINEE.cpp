@@ -362,210 +362,183 @@ void ROXL_Mem(uint32_t)
     });
 }
 
+struct BitFieldOperand {
+    uint64_t aligned, raw;
+    bool dn_mode;
+    uint32_t ea, operand_reg;
+    int32_t offset, bit_pos;   // offset: as decoded (BFFFO's result needs it); bit_pos: reduced for addressing
+    int width, fetch_bytes, ext_reg;
+    uint32_t sr;
+};
+
+template<uint8_t Mode, uint8_t Reg>
+BitFieldOperand resolveBitField(uint32_t opcode)
+{
+    BitFieldOperand op{};
+    uint16_t opcode2 = *getPC<uint16_t*>(2);
+
+    advancePC(4);   // must precede any getEA call below - it consumes further extension words
+    commitPC();
+
+    op.ext_reg = (opcode2 >> 12) & 7;
+    op.offset  = (opcode2 & (1 << 11)) ? getD<int32_t>((opcode2 >> 6) & 7) : (opcode2 >> 6) & 31;
+    op.width   = (opcode2 & (1 << 5))  ? getD<uint32_t>(opcode2 & 7) & 31  : opcode2 & 31;
+    if (op.width == 0) { op.width = 32; }
+    op.bit_pos = op.offset;
+
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        int mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        int reg = (Reg == DEFAULT_EA) ? opcode & 7 : Reg;
+        if (mode == 0) {
+            op.operand_reg = reg;
+            op.raw = (uint64_t)getD<uint32_t>(reg) << 32;
+            op.bit_pos &= 31;
+            op.dn_mode = true;
+        } else {
+            op.ea = getEA<void>(mode, reg);
+        }
+    } else if constexpr (Mode == 0) {
+        op.operand_reg = Reg;
+        op.raw = (uint64_t)getD<Reg, uint32_t>() << 32;
+        op.bit_pos &= 31;
+        op.dn_mode = true;
+    } else {
+        op.ea = getEA<Mode, Reg, void>();
+    }
+
+    if (!op.dn_mode) {
+        op.ea += op.bit_pos >> 3;
+        op.bit_pos &= 7;
+        int total = op.bit_pos + op.width;
+        op.fetch_bytes = (total > 32) ? 8 : (total > 16) ? 4 : (total > 8) ? 2 : 1;
+        switch (op.fetch_bytes) {
+            case 8: op.raw = *(uint64_t*)(uintptr_t)op.ea; break;
+            case 4: op.raw = (uint64_t)*(uint32_t*)(uintptr_t)op.ea << 32; break;
+            case 2: op.raw = (uint64_t)*(uint16_t*)(uintptr_t)op.ea << 48; break;
+            default: op.raw = (uint64_t)*(uint8_t*)(uintptr_t)op.ea << 56; break;
+        }
+    }
+
+    op.aligned = op.dn_mode ? ((op.raw << op.bit_pos) | (op.raw >> (32 - op.bit_pos)))
+                             : (op.raw << op.bit_pos);
+
+    uint32_t sr = SR & ~SR_NZVC;
+    if ((int64_t)op.aligned < 0) { sr |= SR_N; }
+    if ((op.aligned >> (64 - op.width)) == 0) { sr |= SR_Z; }
+    op.sr = sr;
+
+    return op;
+}
+
+void commitBitField(const BitFieldOperand& op, uint32_t new_field)
+{
+    uint64_t mask = ~0ULL << (64 - op.width);
+    uint64_t new_aligned = (uint64_t)new_field << (64 - op.width);
+
+    if (op.dn_mode) {
+        uint32_t rotated = (uint32_t)(op.aligned >> 32);
+        uint32_t mask32 = (uint32_t)(mask >> 32);
+        uint32_t merged = (rotated & ~mask32) | ((uint32_t)(new_aligned >> 32) & mask32);
+        uint32_t result = (merged >> op.bit_pos) | (merged << ((32 - op.bit_pos) & 31));
+        setD<uint32_t>(op.operand_reg, result);
+        return;
+    }
+
+    uint64_t raw_mask = mask >> op.bit_pos;
+    uint64_t merged = (op.raw & ~raw_mask) | ((new_aligned >> op.bit_pos) & raw_mask);
+    switch (op.fetch_bytes) {
+        case 8: *(uint64_t*)(uintptr_t)op.ea = merged; break;
+        case 4: *(uint32_t*)(uintptr_t)op.ea = (uint32_t)(merged >> 32); break;
+        case 2: *(uint16_t*)(uintptr_t)op.ea = (uint16_t)(merged >> 48); break;
+        default: *(uint8_t*)(uintptr_t)op.ea = (uint8_t)(merged >> 56); break;
+    }
+}
+
 template<uint8_t Mode, uint8_t Reg, bool Signed>
 void BFEXT(uint32_t opcode)
 {
-    uint32_t sr = SR & ~SR_NZVC;
-    bool load_from_ea = false;
-    bool dn_mode = false;
-    uint32_t ea = 0;
-    int64_t value;
-    int32_t offset;
-    int width;
-    int dreg;
-    uint16_t opcode2 = *getPC<uint16_t*>(2);
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    uint32_t result;
 
-    advancePC(4);
-    commitPC();
-
-    dreg = (opcode2 >> 12) & 7;
-
-    if (opcode2 & (1 << 11)) {
-        offset = getD<int32_t>((opcode2 >> 6) & 7);
-    } else {
-        offset = (opcode2 >> 6) & 31;
-    }
-
-    if (opcode2 & (1 << 5)) {
-        width = getD<uint32_t>(opcode2 & 7) & 31;
-    } else {
-        width = opcode2 & 31;
-    }
-
-    if (width == 0) { width = 32; }
-
-    /* 
-        Either determine the EA from where the data shall be fetched, or
-        get if from Dn if a direct Dn mode was selected.
-    */
-    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA)
-    {
-        int mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
-        int reg = (Reg == DEFAULT_EA) ? opcode & 7 : Reg;
-
-        if (mode == 0) {
-            value = (int64_t)getD<uint32_t>(reg) << 32;
-            offset &= 31;
-            dn_mode = true;
-        } else {
-            ea = getEA<void>(mode, reg);
-            load_from_ea = true;
-        }
-    } else {
-        if constexpr (Mode == 0) {
-            value = (int64_t)getD<Reg, uint32_t>() << 32;
-            offset &= 31;
-            dn_mode = true;
-        } else {
-            ea = getEA<Mode, Reg, void>();
-            load_from_ea = true;
-        }
-    }
-
-    /* If load from EA is necessary, determine the data length and fetch it */
-    if (load_from_ea) {
-        /* Advance EA by the offset */
-        ea += offset >> 3;
-
-        /* Reset offset to sub-byte */
-        offset &= 7;
-
-        /* Fetch data, unlike real 68040 we fetch more */
-        if ((offset + width) > 32) {
-            value = *(uint64_t*)(uintptr_t)ea;
-        } else if ((offset + width) > 16) {
-            value = *(uint32_t*)(uintptr_t)ea;
-            value <<= 32;
-        } else if ((offset + width) > 8) {
-            value = *(uint16_t*)(uintptr_t)ea;
-            value <<= 48;
-        } else {
-            value = *(uint8_t*)(uintptr_t)ea;
-            value <<= 56;
-        }
-    }
-
-    /* 
-        Now, the value to extract the bitfield from is at the topmost bits of
-        64-bit integer ``value``. Extract them by arithmetic shift left first, and
-        then right
-    */
-
-    if (dn_mode) {
-        value = value << offset | ((uint64_t)value >> (32 - offset));
-    } else {
-        value = value << offset;
-    }
-    if (value < 0) { sr |= SR_N; }
     if constexpr (Signed) {
-        value >>= 64 - width;
+        result = (uint32_t)((int64_t)op.aligned >> (64 - op.width));
     } else {
-        value = (uint64_t)value >> (64 - width);
+        result = (uint32_t)(op.aligned >> (64 - op.width));
     }
-    
-    if (value == 0) { sr |= SR_Z; }
 
-    /* Update D and SR */
-    setD<uint32_t>(dreg, value);
-    SR = sr;
+    setD<uint32_t>(op.ext_reg, result);
+    SR = op.sr;
 }
 
 template<uint8_t Mode, uint8_t Reg>
 void BFTST(uint32_t opcode)
 {
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    SR = op.sr;
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void BFCHG(uint32_t opcode)
+{
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    uint32_t old_field = (uint32_t)(op.aligned >> (64 - op.width));
+    commitBitField(op, ~old_field);
+    SR = op.sr;
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void BFCLR(uint32_t opcode)
+{
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    commitBitField(op, 0);
+    SR = op.sr;
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void BFSET(uint32_t opcode)
+{
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    commitBitField(op, 0xFFFFFFFFu);
+    SR = op.sr;
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void BFFFO(uint32_t opcode)
+{
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    uint64_t field_mask = ~0ULL << (64 - op.width);
+    uint64_t masked = op.aligned & field_mask;
+
+    uint32_t result;
+    if (masked == 0) {
+        result = (uint32_t)(op.offset + op.width);
+    } else {
+        int leading = __builtin_clzll(masked);
+        result = (uint32_t)(op.offset + leading);
+    }
+
+    setD<uint32_t>(op.ext_reg, result);
+    SR = op.sr;
+}
+
+template<uint8_t Mode, uint8_t Reg>
+void BFINS(uint32_t opcode)
+{
+    BitFieldOperand op = resolveBitField<Mode, Reg>(opcode);
+    uint32_t insert = getD<uint32_t>(op.ext_reg);
+
+    /* N/Z come from the inserted value, not the field being overwritten */
     uint32_t sr = SR & ~SR_NZVC;
-    bool load_from_ea = false;
-    bool dn_mode = false;
-    uint32_t ea = 0;
-    int64_t value;
-    int32_t offset;
-    int width;
-    uint16_t opcode2 = *getPC<uint16_t*>(2);
-
-    advancePC(4);
-    commitPC();
-
-    if (opcode2 & (1 << 11)) {
-        offset = getD<int32_t>((opcode2 >> 6) & 7);
+    if (op.width < 32) {
+        uint32_t field = insert & ((1u << op.width) - 1);
+        if (field & (1u << (op.width - 1))) { sr |= SR_N; }
+        if (field == 0) { sr |= SR_Z; }
     } else {
-        offset = (opcode2 >> 6) & 31;
+        if (insert & 0x80000000u) { sr |= SR_N; }
+        if (insert == 0) { sr |= SR_Z; }
     }
 
-    if (opcode2 & (1 << 5)) {
-        width = getD<uint32_t>(opcode2 & 7) & 31;
-    } else {
-        width = opcode2 & 31;
-    }
-
-    if (width == 0) { width = 32; }
-
-    /* 
-        Either determine the EA from where the data shall be fetched, or
-        get if from Dn if a direct Dn mode was selected.
-    */
-    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA)
-    {
-        int mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
-        int reg = (Reg == DEFAULT_EA) ? opcode & 7 : Reg;
-
-        if (mode == 0) {
-            value = (int64_t)getD<uint32_t>(reg) << 32;
-            offset &= 31;
-            dn_mode = true;
-        } else {
-            ea = getEA<void>(mode, reg);
-            load_from_ea = true;
-        }
-    } else {
-        if constexpr (Mode == 0) {
-            value = (int64_t)getD<Reg, uint32_t>() << 32;
-            offset &= 31;
-            dn_mode = true;
-        } else {
-            ea = getEA<Mode, Reg, void>();
-            load_from_ea = true;
-        }
-    }
-
-    /* If load from EA is necessary, determine the data length and fetch it */
-    if (load_from_ea) {
-        /* Advance EA by the offset */
-        ea += offset >> 3;
-
-        /* Reset offset to sub-byte */
-        offset &= 7;
-
-        /* Fetch data, unlike real 68040 we fetch more */
-        if ((offset + width) > 32) {
-            value = *(uint64_t*)(uintptr_t)ea;
-        } else if ((offset + width) > 16) {
-            value = *(uint32_t*)(uintptr_t)ea;
-            value <<= 32;
-        } else if ((offset + width) > 8) {
-            value = *(uint16_t*)(uintptr_t)ea;
-            value <<= 48;
-        } else {
-            value = *(uint8_t*)(uintptr_t)ea;
-            value <<= 56;
-        }
-    }
-
-    /* 
-        Now, the value to extract the bitfield from is at the topmost bits of
-        64-bit integer ``value``. Extract them by arithmetic shift left first, and
-        then right
-    */
-
-    if (dn_mode) {
-        value = value << offset | ((uint64_t)value >> (32 - offset));
-    } else {
-        value = value << offset;
-    }
-    if (value < 0) { sr |= SR_N; }
-    value = value >> (64 - width);
-    
-    if (value == 0) { sr |= SR_Z; }
-
+    commitBitField(op, insert);
     SR = sr;
 }
 
@@ -677,6 +650,21 @@ struct BFEXTS_Op { static constexpr auto value = BFEXT<Mode, Reg, true>; };
 template <uint8_t Mode, uint8_t Reg>
 struct BFTST_Op { static constexpr auto value = BFTST<Mode, Reg>; };
 
+template <uint8_t Mode, uint8_t Reg>
+struct BFCHG_Op { static constexpr auto value = BFCHG<Mode, Reg>; };
+
+template <uint8_t Mode, uint8_t Reg>
+struct BFCLR_Op { static constexpr auto value = BFCLR<Mode, Reg>; };
+
+template <uint8_t Mode, uint8_t Reg>
+struct BFSET_Op { static constexpr auto value = BFSET<Mode, Reg>; };
+
+template <uint8_t Mode, uint8_t Reg>
+struct BFFFO_Op { static constexpr auto value = BFFFO<Mode, Reg>; };
+
+template <uint8_t Mode, uint8_t Reg>
+struct BFINS_Op { static constexpr auto value = BFINS<Mode, Reg>; };
+
 static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 {
     std::array<INTERPRET_Function, 4096> table{};
@@ -759,6 +747,12 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillEA<LONG, false, BFEXTU_Op, EAField<0, LONG, false, BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 04700);
     fillEA<LONG, false, BFEXTS_Op, EAField<0, LONG, false, BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 05700);
     fillEA<LONG, false, BFTST_Op,  EAField<0, LONG, false, BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 04300);
+    fillEA<LONG, false, BFFFO_Op,  EAField<0, LONG, false, BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 06700);
+
+    fillEA<LONG, true,  BFCHG_Op,  EAField<0, LONG, true,  BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 05300);
+    fillEA<LONG, true,  BFCLR_Op,  EAField<0, LONG, true,  BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 06300);
+    fillEA<LONG, true,  BFSET_Op,  EAField<0, LONG, true,  BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 07300);
+    fillEA<LONG, true,  BFINS_Op,  EAField<0, LONG, true,  BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 07700);
 
 //    FILL_BFxxx_RO(      05700,  BFEXT, true);   // BFEXTS
 //    FILL_BFxxx_RO(      04700,  BFEXT, false);  // BFEXTU
