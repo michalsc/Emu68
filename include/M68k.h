@@ -173,7 +173,7 @@ struct M68KState
     uint32_t DTT1;
 
     /* Async IRQ part */
-    union {
+    volatile union {
         struct {
             uint8_t ARM;
             uint8_t ARM_err;
