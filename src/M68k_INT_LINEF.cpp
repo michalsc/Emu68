@@ -11,6 +11,7 @@ extern "C" {
 
 #include "math/libm.h"
 #include "cache.h"
+#include "disasm.h"
 
 uint64_t Load96bit(uintptr_t __ignore, uintptr_t base);
 uint64_t Store96bit(uint64_t value, uintptr_t base);
@@ -558,6 +559,7 @@ bool FTWOTOX(uint32_t opcode, uint32_t opcode2)
 bool FMOVECR(uint8_t ry, uint8_t extension)
 {
     setFP<double>(ry, FPUConstants[extension]);
+    updateFlagsFPU(FPUConstants[extension]);
 
     return true;
 }
@@ -970,7 +972,7 @@ void handleGeneralType(uint32_t opcode)
 
 void FDBcc(uint32_t opcode)
 {
-    uint32_t predicate = *getPC<uint16_t*>(2) & 0x3f;
+    uint32_t predicate = *getPC<uint16_t*>(2) & 0x1f;
     uint32_t pc_continue = getPC<uint32_t>(6);
     uint32_t pc_loop = getPC<uint32_t>(4) + *getPC<int16_t*>(4);
 
@@ -992,13 +994,13 @@ void FDBcc(uint32_t opcode)
 
 void FScc(uint32_t opcode)
 {
-    uint32_t predicate = *getPC<uint16_t*>(2) & 0x3f;
-    
+    uint32_t predicate = *getPC<uint16_t*>(2) & 0x1f;
+
     advancePC(4);
     commitPC();
 
     if (evalCondFPU(predicate)) {
-        storeToEA<uint8_t>((opcode >> 3) & 7, opcode & 7, -1);
+        storeToEA<uint8_t>((opcode >> 3) & 7, opcode & 7, 0xff);
     } else {
         storeToEA<uint8_t>((opcode >> 3) & 7, opcode & 7, 0);
     }
@@ -1006,7 +1008,7 @@ void FScc(uint32_t opcode)
 
 void FTRAPcc(uint32_t opcode)
 {
-    uint32_t predicate = *getPC<uint16_t*>(2) & 0x3f;
+    uint32_t predicate = *getPC<uint16_t*>(2) & 0x1f;
     uint32_t orig_PC = getPC();
 
     switch (opcode & 7) {
