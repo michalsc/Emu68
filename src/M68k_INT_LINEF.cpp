@@ -968,6 +968,61 @@ void handleGeneralType(uint32_t opcode)
     }
 }
 
+void FDBcc(uint32_t opcode)
+{
+    uint32_t predicate = *getPC<uint16_t*>(2) & 0x3f;
+    uint32_t pc_continue = getPC<uint32_t>(6);
+    uint32_t pc_loop = getPC<uint32_t>(4) + *getPC<int16_t*>(4);
+
+    if (evalCondFPU(predicate)) {
+        setPC(pc_continue);
+    } else {
+        const int reg = opcode & 7;
+        int16_t cnt = getD<int16_t>(reg) - 1;
+        setD<int16_t>(reg, cnt);
+        if (unlikely(cnt == -1)) {
+            setPC(pc_continue);
+        } else {
+            setPC(pc_loop);
+        }
+    }
+
+    commitPC();
+}
+
+void FScc(uint32_t opcode)
+{
+    uint32_t predicate = *getPC<uint16_t*>(2) & 0x3f;
+    
+    advancePC(4);
+    commitPC();
+
+    if (evalCondFPU(predicate)) {
+        storeToEA<uint8_t>((opcode >> 3) & 7, opcode & 7, -1);
+    } else {
+        storeToEA<uint8_t>((opcode >> 3) & 7, opcode & 7, 0);
+    }
+}
+
+void FTRAPcc(uint32_t opcode)
+{
+    uint32_t predicate = *getPC<uint16_t*>(2) & 0x3f;
+    uint32_t orig_PC = getPC();
+
+    switch (opcode & 7) {
+        case 2: advancePC(6); break;
+        case 3: advancePC(8); break;
+        case 4: advancePC(4); break;
+        default: __builtin_unreachable();
+    }
+    
+    commitPC();
+
+    if (evalCondFPU(predicate)) {
+        raiseException(VECTOR_TRAPcc, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
+    }
+}
+
 /* PFLUSH in all variants is ignored as long as there is no MMU */
 void PFLUSH(uint32_t)
 {
@@ -1243,6 +1298,11 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fill(01000, 01077, handleGeneralType);
 
     /* Type 0b001: FDBcc, FScc, FTRAPcc */
+    fill(01100, 01107, FScc);
+    fill(01120, 01167, FScc);
+    fill(01170, 01171, FScc);
+    fill(01110, 01117, FDBcc);
+    fill(01172, 01174, FTRAPcc);
 
     /* Type 0b010: FBcc.W */
     FILL_Bcc(false);
