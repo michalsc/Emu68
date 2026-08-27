@@ -167,6 +167,51 @@ bool evalCondFPU()
     }
 }
 
+[[gnu::always_inline]] inline bool evalCondFPU(uint32_t InstCC)
+{
+    if (InstCC == F_CC_T) { return true; }
+    else if (InstCC == F_CC_ST) { return true; }
+    else if (InstCC == F_CC_F) { return false; }
+    else if (InstCC == F_CC_SF) { return false; }
+    else {
+        const uint32_t cc = FPSR;
+        const bool n   = (cc & FPSRF_N)   != 0;
+        const bool z   = (cc & FPSRF_Z)   != 0;
+        const bool nan = (cc & FPSRF_NAN) != 0;
+
+        if (InstCC == F_CC_EQ)        { return z; }
+        else if (InstCC == F_CC_SEQ)  { return z; }
+        else if (InstCC == F_CC_NE)   { return !z; }
+        else if (InstCC == F_CC_SNE)  { return !z; }
+        else if (InstCC == F_CC_OR)   { return !nan; }
+        else if (InstCC == F_CC_UN)   { return nan; }
+        else if (InstCC == F_CC_GT)   { return !nan && !z && !n; } 
+        else if (InstCC == F_CC_NGT)  { return nan || z || n; }
+        else if (InstCC == F_CC_OGT)  { return !nan && !z && !n; } 
+        else if (InstCC == F_CC_ULE)  { return nan || z || n; }
+        else if (InstCC == F_CC_GL)   { return !nan && !z; }
+        else if (InstCC == F_CC_NGL)  { return nan || z; }
+        else if (InstCC == F_CC_OGL)  { return !nan && !z; }
+        else if (InstCC == F_CC_UEQ)  { return nan || z; }
+        else if (InstCC == F_CC_GE)   { return z || (!nan && !n); }
+        else if (InstCC == F_CC_NGE)  { return nan || (n && !z); }
+        else if (InstCC == F_CC_LT)   { return !nan && n && !z; }
+        else if (InstCC == F_CC_NLT)  { return nan || z || !n; }
+        else if (InstCC == F_CC_LE)   { return !nan && (n || z); }
+        else if (InstCC == F_CC_NLE)  { return nan || (!z && !n); }
+        else if (InstCC == F_CC_GLE)  { return !nan; }
+        else if (InstCC == F_CC_NGLE) { return nan; }
+        else if (InstCC == F_CC_OGE)  { return z || (!nan && !n); }
+        else if (InstCC == F_CC_ULT)  { return nan || (n && !z); }
+        else if (InstCC == F_CC_OLT)  { return !nan && n && !z; }
+        else if (InstCC == F_CC_UGE)  { return nan || z || !n; }
+        else if (InstCC == F_CC_OLE)  { return !nan && (n || z); }
+        else if (InstCC == F_CC_UGT)  { return nan || (!n && !z); }
+    }
+
+    __builtin_unreachable();
+}
+
 template<auto...> constexpr bool ALWAYS_FALSE = false;
 
 inline constexpr uint8_t DEFAULT_EA = 255;
