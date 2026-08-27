@@ -754,9 +754,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillEA<LONG, true,  BFSET_Op,  EAField<0, LONG, true,  BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 07300);
     fillEA<LONG, true,  BFINS_Op,  EAField<0, LONG, true,  BitFieldValidMask, BitFieldOpSpecializeMask>>(table, 07700);
 
-//    FILL_BFxxx_RO(      05700,  BFEXT, true);   // BFEXTS
-//    FILL_BFxxx_RO(      04700,  BFEXT, false);  // BFEXTU
-
     return table;
 }
 
