@@ -719,9 +719,9 @@ void FPU_FetchData(struct TranslatorContext *ctx, uint8_t *reg, uint16_t opcode,
                     } ud;
                     ud.i = (uint64_t)cache_read_64(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
                     /* Check if immediate constant is possible */
-                    if ((ud.i & 0xffffffffffULL) == 0 && 
-                            ((ud.i & 0x7fc0000000000000ULL) == 0x4000000000000000ULL || 
-                             (ud.i & 0x7fc0000000000000ULL) == 0x3fc0000000000000ULL)) {
+                    if ((ud.i & 0x0000ffffffffffffULL) == 0 && 
+                       ((ud.i & 0x7fc0000000000000ULL) == 0x4000000000000000ULL || 
+                        (ud.i & 0x7fc0000000000000ULL) == 0x3fc0000000000000ULL)) {
                         uint8_t imm = (ud.i >> 48) & 0x7f;
                         if (ud.i & 0x8000000000000000ULL) imm |= 0x80;
                         EMIT(ctx, fmov(*reg, imm));
