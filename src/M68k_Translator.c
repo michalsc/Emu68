@@ -192,14 +192,16 @@ uint16_t ReturnStackDepth = 0;
 
 void M68K_PushReturnAddress(uint16_t *ret_addr)
 {
-    if (ReturnStackDepth >= RTSTACK_SIZE) {
-        for (int i=1; i < RTSTACK_SIZE; i++) {
-            ReturnStack[i-1] = ReturnStack[i];
+    if (EMU68_USE_RETURN_STACK) {
+        if (ReturnStackDepth >= RTSTACK_SIZE) {
+            for (int i=1; i < RTSTACK_SIZE; i++) {
+                ReturnStack[i-1] = ReturnStack[i];
+            }
+            ReturnStackDepth--;
         }
-        ReturnStackDepth--;
-    }
 
-    ReturnStack[ReturnStackDepth++] = ret_addr;
+        ReturnStack[ReturnStackDepth++] = ret_addr;
+    }
 }
 
 uint16_t *M68K_PopReturnAddress(uint8_t *success)
