@@ -805,6 +805,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
         if (unit->mt_JIT_CONTROL != __m68k_state->JIT_CONTROL ||
             unit->mt_JIT_CONTROL2 != __m68k_state->JIT_CONTROL2)
         {
+            LRU_InvalidateByM68kAddress(unit->mt_M68kAddress);
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
@@ -851,6 +852,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
         /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
         if (fp != unit->mt_Fingerprint || crc != unit->mt_CRC32)
         {
+            LRU_InvalidateByM68kAddress(unit->mt_M68kAddress);   
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
@@ -898,6 +900,7 @@ struct M68KTranslationUnit *M68K_VerifyUnitCRC32(struct M68KTranslationUnit *uni
         /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
         if (crc != unit->mt_CRC32)
         {
+            LRU_InvalidateByM68kAddress(unit->mt_M68kAddress);
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
