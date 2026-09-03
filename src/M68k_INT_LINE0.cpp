@@ -524,6 +524,102 @@ void BCHG_REG_Dn(uint32_t)
     advancePC(2);
 }
 
+template<uint8_t mode>
+void MOVEP(uint32_t opcode)
+{
+    int16_t offset = *getPC<int16_t*>(2);
+    int dreg = (opcode >> 9) & 7;
+    int areg = opcode & 7;
+    
+    advancePC(4);
+    commitPC();
+
+    uintptr_t addr = getA<uint32_t>(areg) + offset;
+
+    /* Register to memory? */
+    if constexpr (mode & 2) {
+        uint32_t data = getD<uint32_t>(dreg);
+
+        /* Longword transfer ? */
+        if constexpr (mode & 1) {
+            *(uint8_t *)(addr + 0) = (data >> 24) & 0xff;
+            *(uint8_t *)(addr + 2) = (data >> 16) & 0xff;
+            *(uint8_t *)(addr + 4) = (data >> 8) & 0xff;
+            *(uint8_t *)(addr + 6) = data & 0xff;
+        } else {
+            *(uint8_t *)(addr + 0) = (data >> 8) & 0xff;
+            *(uint8_t *)(addr + 2) = data & 0xff;
+        }
+    } else { /* Memory to register */
+        uint32_t data;
+
+        /* Longword transfer ? */
+        if constexpr (mode & 1) {
+            data = *(uint8_t *)(addr + 0);
+            data = (data << 8) | *(uint8_t *)(addr + 2);
+            data = (data << 8) | *(uint8_t *)(addr + 4);
+            data = (data << 8) | *(uint8_t *)(addr + 6);
+            setD<uint32_t>(dreg, data);
+        } else {
+            data = *(uint8_t *)(addr + 0);
+            data = (data << 8) | *(uint8_t *)(addr + 2);
+            setD<uint16_t>(dreg, data);
+        }
+    }
+}
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+void MOVES(uint32_t opcode)
+{
+    /* 
+        MOVES shall use SFC and DFC but we do not support them (yet) - this turns MOVES effectively 
+        into 8/16/32 bit load from EA or store to EA 
+    */
+    if (SR & SR_S) {
+        uint16_t opcode2 = *getPC<uint16_t*>(2);
+        const bool useAn = (opcode2 & 0x8000) != 0;
+        const int reg = (opcode2 >> 12) & 7;
+        const bool EAtoReg = (opcode2 & 0x0800) == 0;
+        uint32_t ea = 0;
+
+        advancePC(4);
+        commitPC();
+
+        if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+            uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+            uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+            ea = getEA<Type>(mode, reg);
+        } else {
+            ea = getEA<Mode, Reg, Type>();
+        }
+
+        if (EAtoReg) {
+            if (useAn) {
+                /* When An is destination, BYTE is still supported - it is sign-extended */
+                setA<uint32_t>(reg, *(Type*)(uintptr_t)ea);
+            } else {
+                setD<Type>(reg, *(Type*)(uintptr_t)ea);
+            }
+        } else {
+            Type v = 0;
+            
+            if (useAn) {
+                if constexpr (sizeof(Type) > 1) {
+                    v = getA<Type>(reg);
+                } else {
+                    v = getA<uint32_t>(reg);
+                }
+            } else {
+                v = getD<Type>(reg);
+            }
+
+            *(Type*)(uintptr_t)ea = v;
+        }
+    } else {
+        raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    }
+}
+
 #define FILL_Bxxx_Dn(base_offset, name) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + ((Is >> 3) << 9) + EA(0, Is & 7)] = \
@@ -581,6 +677,22 @@ void BCHG_REG_Dn(uint32_t)
     }((base_offset), std::make_index_sequence<44>{});
 
 
+template <class Type, template<uint8_t,uint8_t,class> class Op, class F1, class F2>
+constexpr void fillRegReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned v1 = I / F2::size;
+        constexpr unsigned v2 = I % F2::size;
+        if constexpr (F1::valid(v1) && F2::valid(v2)) {
+            int idx = base + (v1 << F1::bitOffset) + (v2 << F2::bitOffset);
+            table[idx] = Op<F1::arg(v1), F2::arg(v2), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<F1::size * F2::size>{});
+}
+
 template <class Type, template<uint8_t,uint8_t,class> class Op,
           class EAF>
 constexpr void fillImmedOpEA(std::array<INTERPRET_Function, 4096>& table, int base)
@@ -597,6 +709,52 @@ constexpr void fillImmedOpEA(std::array<INTERPRET_Function, 4096>& table, int ba
         (fillOne.template operator()<Is>(), ...);
     }(std::make_index_sequence<EAF::size>{});
 }
+
+template <unsigned BitOffset, class Type, bool Write, uint32_t ValidMask, uint32_t HotMask>
+struct EAField : FieldBase<BitOffset, 6> {
+    template <unsigned V>
+    static constexpr bool valid() {
+        constexpr unsigned mode = V >> 3, reg = V & 7;
+        if constexpr (Write) return DestEA7<mode, reg> 
+                                 && ByteCompatibleMode<mode, Type>
+                                 && ValidMask >> static_cast<unsigned>(classifyEA(mode, reg)) & 1u;
+        else                 return SourceEA7<mode, reg> 
+                                 && ByteCompatibleMode<mode, Type>
+                                 && ValidMask >> static_cast<unsigned>(classifyEA(mode, reg)) & 1u;
+    }
+
+    static constexpr bool hot(unsigned v) {
+        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
+    }
+
+    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
+    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
+};
+
+template <class Type, bool Write, template<uint8_t,uint8_t,class> class Op,
+          class EAF>
+constexpr void fillEA(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned eaV  = I;
+
+        if constexpr (EAF::template valid<eaV>()) {
+            int idx = base + (eaV << EAF::bitOffset);
+            table[idx] = Op<EAF::modeArg(eaV), EAF::regArg(eaV), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<EAF::size>{});
+}
+
+inline constexpr uint32_t MOVESEnabledMask = 
+      classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An)
+    | classBit(EAClass::D8AnXn)  | classBit(EAClass::AbsW)
+    | classBit(EAClass::AbsL);
+
+inline constexpr uint32_t MOVESSpecializeMask = 0;
 
 inline constexpr uint32_t ImmedOpSpecializeMask = 
       classBit(EAClass::Dn)
@@ -622,9 +780,24 @@ struct EORI_Op { static constexpr auto value = EORI<Mode, Reg, Type>; };
 template <uint8_t Mode, uint8_t Reg, class Type>
 struct CMPI_Op { static constexpr auto value = CMPI<Mode, Reg, Type>; };
 
+template <uint8_t F1, uint8_t F2, class Type>
+struct MOVEP_D32toM_Op { static constexpr auto value = MOVEP<7>; };
+
+template <uint8_t F1, uint8_t F2, class Type>
+struct MOVEP_D16toM_Op { static constexpr auto value = MOVEP<6>; };
+
+template <uint8_t F1, uint8_t F2, class Type>
+struct MOVEP_MtoD32_Op { static constexpr auto value = MOVEP<5>; };
+
+template <uint8_t F1, uint8_t F2, class Type>
+struct MOVEP_MtoD16_Op { static constexpr auto value = MOVEP<4>; };
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+struct MOVES_Op { static constexpr auto value = MOVES<Mode, Reg, Type>; };
+
 // EA field combines Register and EA mode in one, gets
 template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
-struct EAField : FieldBase<BitOffset, 6> {
+struct EAFieldDef : FieldBase<BitOffset, 6> {
     template <unsigned V>
     static constexpr bool valid() {
         constexpr unsigned mode = V >> 3, reg = V & 7;
@@ -653,29 +826,38 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     fill(00000, 07777, ILLEGAL);
     
-    fillImmedOpEA<BYTE, ORI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 00000);
-    fillImmedOpEA<WORD, ORI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 00100);
-    fillImmedOpEA<LONG, ORI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 00200);
+    fillImmedOpEA<BYTE, ORI_Op, EAFieldDef<0,BYTE,true,ImmedOpSpecializeMask> >(table, 00000);
+    fillImmedOpEA<WORD, ORI_Op, EAFieldDef<0,WORD,true,ImmedOpSpecializeMask> >(table, 00100);
+    fillImmedOpEA<LONG, ORI_Op, EAFieldDef<0,LONG,true,ImmedOpSpecializeMask> >(table, 00200);
 
-    fillImmedOpEA<BYTE, ANDI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 01000);
-    fillImmedOpEA<WORD, ANDI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 01100);
-    fillImmedOpEA<LONG, ANDI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 01200);
+    fillImmedOpEA<BYTE, ANDI_Op, EAFieldDef<0,BYTE,true,ImmedOpSpecializeMask> >(table, 01000);
+    fillImmedOpEA<WORD, ANDI_Op, EAFieldDef<0,WORD,true,ImmedOpSpecializeMask> >(table, 01100);
+    fillImmedOpEA<LONG, ANDI_Op, EAFieldDef<0,LONG,true,ImmedOpSpecializeMask> >(table, 01200);
 
-    fillImmedOpEA<BYTE, SUBI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 02000);
-    fillImmedOpEA<WORD, SUBI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 02100);
-    fillImmedOpEA<LONG, SUBI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 02200);
+    fillImmedOpEA<BYTE, SUBI_Op, EAFieldDef<0,BYTE,true,ImmedOpSpecializeMask> >(table, 02000);
+    fillImmedOpEA<WORD, SUBI_Op, EAFieldDef<0,WORD,true,ImmedOpSpecializeMask> >(table, 02100);
+    fillImmedOpEA<LONG, SUBI_Op, EAFieldDef<0,LONG,true,ImmedOpSpecializeMask> >(table, 02200);
 
-    fillImmedOpEA<BYTE, ADDI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 03000);
-    fillImmedOpEA<WORD, ADDI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 03100);
-    fillImmedOpEA<LONG, ADDI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 03200);
+    fillImmedOpEA<BYTE, ADDI_Op, EAFieldDef<0,BYTE,true,ImmedOpSpecializeMask> >(table, 03000);
+    fillImmedOpEA<WORD, ADDI_Op, EAFieldDef<0,WORD,true,ImmedOpSpecializeMask> >(table, 03100);
+    fillImmedOpEA<LONG, ADDI_Op, EAFieldDef<0,LONG,true,ImmedOpSpecializeMask> >(table, 03200);
 
-    fillImmedOpEA<BYTE, EORI_Op, EAField<0,BYTE,true,ImmedOpSpecializeMask> >(table, 05000);
-    fillImmedOpEA<WORD, EORI_Op, EAField<0,WORD,true,ImmedOpSpecializeMask> >(table, 05100);
-    fillImmedOpEA<LONG, EORI_Op, EAField<0,LONG,true,ImmedOpSpecializeMask> >(table, 05200);
+    fillImmedOpEA<BYTE, EORI_Op, EAFieldDef<0,BYTE,true,ImmedOpSpecializeMask> >(table, 05000);
+    fillImmedOpEA<WORD, EORI_Op, EAFieldDef<0,WORD,true,ImmedOpSpecializeMask> >(table, 05100);
+    fillImmedOpEA<LONG, EORI_Op, EAFieldDef<0,LONG,true,ImmedOpSpecializeMask> >(table, 05200);
 
-    fillImmedOpEA<BYTE, CMPI_Op, EAField<0,BYTE,false,ImmedOpSpecializeMask> >(table, 06000);
-    fillImmedOpEA<WORD, CMPI_Op, EAField<0,WORD,false,ImmedOpSpecializeMask> >(table, 06100);
-    fillImmedOpEA<LONG, CMPI_Op, EAField<0,LONG,false,ImmedOpSpecializeMask> >(table, 06200);
+    fillImmedOpEA<BYTE, CMPI_Op, EAFieldDef<0,BYTE,false,ImmedOpSpecializeMask> >(table, 06000);
+    fillImmedOpEA<WORD, CMPI_Op, EAFieldDef<0,WORD,false,ImmedOpSpecializeMask> >(table, 06100);
+    fillImmedOpEA<LONG, CMPI_Op, EAFieldDef<0,LONG,false,ImmedOpSpecializeMask> >(table, 06200);
+
+    fillRegReg<WORD, MOVEP_MtoD16_Op, RegField<9>, RegField<0> >(table, 00410);
+    fillRegReg<WORD, MOVEP_MtoD32_Op, RegField<9>, RegField<0> >(table, 00510);
+    fillRegReg<WORD, MOVEP_D16toM_Op, RegField<9>, RegField<0> >(table, 00610);
+    fillRegReg<WORD, MOVEP_D32toM_Op, RegField<9>, RegField<0> >(table, 00710);
+
+    fillEA<BYTE, true, MOVES_Op, EAField<0, BYTE, true, MOVESEnabledMask, MOVESSpecializeMask> >(table, 07000);
+    fillEA<WORD, true, MOVES_Op, EAField<0, WORD, true, MOVESEnabledMask, MOVESSpecializeMask> >(table, 07100);
+    fillEA<LONG, true, MOVES_Op, EAField<0, LONG, true, MOVESEnabledMask, MOVESSpecializeMask> >(table, 07200);
 
     table[00074] = ORI_to_CCR;
     table[01074] = ANDI_to_CCR;
