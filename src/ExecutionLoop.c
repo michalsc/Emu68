@@ -39,32 +39,135 @@ static inline struct M68KState *getCTX()
     return ctx;
 }
 
+static inline void setCTX(struct M68KState *ctx)
+{
+    __asm__ volatile("mov "CTX_POINTER_ASM",%0"::"r"(ctx));
+}
+
 static inline void setLastPC(uint32_t pc)
 {
     __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(pc));
 }
 
 extern struct List ICache[EMU68_HASHSIZE];
-void M68K_LoadContext(struct M68KState *ctx);
-void M68K_SaveContext(struct M68KState *ctx);
+//void M68K_LoadContext(struct M68KState *ctx);
+//void M68K_SaveContext(struct M68KState *ctx);
 void M68K_PrintContext(struct M68KState *ctx);
+
+void M68K_LoadContext(struct M68KState *ctx)
+{
+    setCTX(ctx);
+
+    uint32x4_t tmp = vdupq_n_u32(0);
+    tmp = vsetq_lane_u32(ctx->CACR, tmp, 0);
+    tmp = vsetq_lane_u32(ctx->USP.u32, tmp, 1);
+    tmp = vsetq_lane_u32(ctx->ISP.u32, tmp, 2);
+    tmp = vsetq_lane_u32(ctx->MSP.u32, tmp, 3);
+    reserved_reg_q21 = vreinterpretq_u64_u32(tmp);
+
+    reserved_reg_q20 = vsetq_lane_u64(ctx->INSN_COUNT, reserved_reg_q20, 0);
+
+    reserved_reg_q19 = vreinterpretq_u64_u32(vsetq_lane_u32(ctx->FPSR, vreinterpretq_u32_u64(reserved_reg_q19), 0));
+    reserved_reg_q19 = vreinterpretq_u64_u32(vsetq_lane_u32(ctx->FPIAR, vreinterpretq_u32_u64(reserved_reg_q19), 1));
+    reserved_reg_q19 = vreinterpretq_u64_u16(vsetq_lane_u16(ctx->FPCR, vreinterpretq_u16_u64(reserved_reg_q19), 4));
+    reserved_reg_q19 = vreinterpretq_u64_u16(vsetq_lane_u16(swapVC(ctx->SR), vreinterpretq_u16_u64(reserved_reg_q19), 5));
+
+    PC = ctx->PC;
+
+    D0 = ctx->D[0].u32; D1 = ctx->D[1].u32;
+    D2 = ctx->D[2].u32; D3 = ctx->D[3].u32;
+    D4 = ctx->D[4].u32; D5 = ctx->D[5].u32;
+    D6 = ctx->D[6].u32; D7 = ctx->D[7].u32;
+
+    A0 = ctx->A[0].u32; A1 = ctx->A[1].u32;
+    A2 = ctx->A[2].u32; A3 = ctx->A[3].u32;
+    A4 = ctx->A[4].u32; A5 = ctx->A[5].u32;
+    A6 = ctx->A[6].u32; A7 = ctx->A[7].u32;
+
+    FP0 = ctx->FP[0].d; FP1 = ctx->FP[1].d;
+    FP2 = ctx->FP[2].d; FP3 = ctx->FP[3].d;
+    FP4 = ctx->FP[4].d; FP5 = ctx->FP[5].d;
+    FP6 = ctx->FP[6].d; FP7 = ctx->FP[7].d;
+
+    if (ctx->SR & SR_S) {
+        if (ctx->SR & SR_M) {
+            A7 = ctx->MSP.u32;
+        } else {
+            A7 = ctx->ISP.u32;
+        }
+    } else {
+        A7 = ctx->USP.u32;
+    }
+}
+
+void M68K_SaveContext(struct M68KState *ctx)
+{
+    ctx->CACR = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q21), 0);
+    ctx->INSN_COUNT = vgetq_lane_u64(reserved_reg_q20, 0);
+    ctx->FPSR = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q19), 0);
+    ctx->FPIAR = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q19), 1);
+    ctx->FPCR = vgetq_lane_u16(vreinterpretq_u16_u64(reserved_reg_q19), 4);
+    ctx->SR = swapVC(vgetq_lane_u16(vreinterpretq_u16_u64(reserved_reg_q19), 5));
+    
+    ctx->PC = PC;
+
+    ctx->D[0].u32 = D0; ctx->D[1].u32 = D1;
+    ctx->D[2].u32 = D2; ctx->D[3].u32 = D3;
+    ctx->D[4].u32 = D4; ctx->D[5].u32 = D5;
+    ctx->D[6].u32 = D6; ctx->D[7].u32 = D7;
+
+    ctx->A[0].u32 = A0; ctx->A[1].u32 = A1;
+    ctx->A[2].u32 = A2; ctx->A[3].u32 = A3;
+    ctx->A[4].u32 = A4; ctx->A[5].u32 = A5;
+    ctx->A[6].u32 = A6; ctx->A[7].u32 = A7;
+
+    ctx->FP[0].d = FP0; ctx->FP[1].d = FP1;
+    ctx->FP[2].d = FP2; ctx->FP[3].d = FP3;
+    ctx->FP[4].d = FP4; ctx->FP[5].d = FP5;
+    ctx->FP[6].d = FP6; ctx->FP[7].d = FP7;
+
+    if (ctx->SR & SR_S) {
+        if (ctx->SR & SR_M) {
+            ctx->MSP.u32 = A7;
+            ctx->ISP.u32 = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q21), 2);
+        } else {
+            ctx->ISP.u32 = A7;
+            ctx->MSP.u32 = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q21), 3);
+        }
+        ctx->USP.u32 = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q21), 1);
+    } else {
+        ctx->USP.u32 = A7;
+        ctx->ISP.u32 = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q21), 2);
+        ctx->MSP.u32 = vgetq_lane_u32(vreinterpretq_u32_u64(reserved_reg_q21), 3);
+    }
+} 
 
 struct Entry {
     uintptr_t m68k;
     uint32_t *arm;
 };
 
-struct Entry    LRU_cache[EMU68_LRU_WAY_COUNT * EMU68_LRU_SET_COUNT] __attribute__((aligned(64)));
-uint32_t        LRU_alloc[EMU68_LRU_SET_COUNT];
+struct LRU {
+    uint64_t        alloc[EMU68_LRU_SET_COUNT];
+    struct Entry    cache[EMU68_LRU_WAY_COUNT * EMU68_LRU_SET_COUNT];
+} __attribute__((aligned(64)));
 
-#define ADDR_2_SET(addr) (((addr) >> 4) % EMU68_LRU_SET_COUNT)
-#define BIT_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (32 - EMU68_LRU_WAY_COUNT))
+static struct LRU LRU;
 
-static uint32_t* LRU_FindBlock(uint32_t address)
+static_assert((EMU68_LRU_SET_COUNT * sizeof(uint64_t)) % 64 == 0,
+              "cache[] must land on its own cache line");
+static_assert((EMU68_LRU_WAY_COUNT * sizeof(struct Entry)) % 64 == 0,
+              "each set must fit in whole cache lines");
+
+#define ADDR_2_SET(addr) (((addr) >> 2) % EMU68_LRU_SET_COUNT)
+#define ALLOC_MASK (((1ULL << EMU68_LRU_WAY_COUNT) - 1) << (sizeof(LRU.alloc[0]) * 8 - EMU68_LRU_WAY_COUNT))
+#define ALLOC_TOP_BIT (1ULL << (sizeof(LRU.alloc[0]) * 8 - 1))
+
+static uint32_t* LRU_FindBlock(struct LRU *lru, uint32_t address)
 {
     const uint32_t set = ADDR_2_SET(address);
-    struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
-    uint32_t mask = 0x80000000;
+    struct Entry *e = &lru->cache[set * EMU68_LRU_WAY_COUNT];
+    uint64_t mask = ALLOC_TOP_BIT;
     
     for (int i=0; i < EMU68_LRU_WAY_COUNT; i++, mask >>= 1)
     {
@@ -73,9 +176,9 @@ static uint32_t* LRU_FindBlock(uint32_t address)
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(e[i].arm));
 
-            uint32_t current = LRU_alloc[set] & ~mask; 
-            if (current >> (32 - EMU68_LRU_WAY_COUNT) == 0) current = ~mask;
-            LRU_alloc[set] = current;
+            uint64_t current = lru->alloc[set] & ~mask; 
+            if ((current & ALLOC_MASK) == 0) current = ~mask;
+            lru->alloc[set] = current;
             
             return e[i].arm;
         }
@@ -84,35 +187,20 @@ static uint32_t* LRU_FindBlock(uint32_t address)
     return NULL;
 }
 
-void LRU_MarkForVerify(uint32_t *addr)
-{
-    for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
-    {
-        if (LRU_cache[i].arm == addr)
-        {
-            uintptr_t e = (uintptr_t)addr;
-            e &= 0x00ffffffffffffffULL;
-            e |= 0xaa00000000000000ULL;
-            LRU_cache[i].arm = (uint32_t *)e;
-            break;
-        }
-    }
-}
-
 void LRU_InvalidateByARMAddress(uint32_t *addr)
 {
     for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
     {
-        if (LRU_cache[i].arm == addr)
+        if (LRU.cache[i].arm == addr)
         {
             const uint32_t set = i / EMU68_LRU_WAY_COUNT;
             const uint32_t way = i % EMU68_LRU_WAY_COUNT;
 
-            LRU_cache[i].arm = (void*)0;
-            LRU_cache[i].m68k = 0xffffffff;
+            LRU.cache[i].arm = (void*)-1;
+            LRU.cache[i].m68k = -1;
             
-            LRU_alloc[set] |= (0x80000000 >> way);
-            break;
+            LRU.alloc[set] |= (ALLOC_TOP_BIT >> way);
+//            break;
         }
     }
 }
@@ -120,16 +208,16 @@ void LRU_InvalidateByARMAddress(uint32_t *addr)
 void LRU_InvalidateByM68kAddress(uint32_t addr)
 {
     const uint32_t set = ADDR_2_SET(addr);
-    struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
+    struct Entry *e = &LRU.cache[set * EMU68_LRU_WAY_COUNT];
 
     for (int i = 0; i < EMU68_LRU_WAY_COUNT; i++)
     {
         if (e[i].m68k == addr)
         {
-            e[i].arm= (void*)0;
-            e[i].m68k = 0xffffffff;
-            LRU_alloc[set] |= (0x80000000 >> i);
-            break;
+            e[i].arm= (void*)-1;
+            e[i].m68k = -1;
+            LRU.alloc[set] |= (ALLOC_TOP_BIT >> i);
+//            break;
         }
     }
 }
@@ -138,40 +226,43 @@ void LRU_InvalidateAll()
 {
     for (int i = 0; i < EMU68_LRU_SET_COUNT * EMU68_LRU_WAY_COUNT; i++)
     {
-        LRU_cache[i].m68k = 0xffffffff;
-        LRU_cache[i].arm = (void*)0;
+        LRU.cache[i].m68k = -1;
+        LRU.cache[i].arm = (void*)-1;
     }
 
     for (int i = 0; i < EMU68_LRU_SET_COUNT; i++)
     {
-        LRU_alloc[i] = 0xffffffff;
+        LRU.alloc[i] = -1;
     }
 }
 
-void LRU_InsertBlock(struct M68KTranslationUnit *unit)
+void LRU_InsertBlock(struct LRU *lru, struct M68KTranslationUnit *unit)
 {
     const uint32_t set = ADDR_2_SET(unit->mt_M68kAddress);
-    struct Entry *e = &LRU_cache[set * EMU68_LRU_WAY_COUNT];
-    int loc = __builtin_clz(LRU_alloc[set]);
-    uint32_t mask = 0x80000000 >> loc;
+    struct Entry *e = &lru->cache[set * EMU68_LRU_WAY_COUNT];
+    int loc = __builtin_clzl(lru->alloc[set]);
+    uint64_t mask = ALLOC_TOP_BIT >> loc;
 
     // Insert new entry
     e[loc].m68k = unit->mt_M68kAddress;
     e[loc].arm = unit->mt_ARMEntryPoint;
 
     // Touch the last used
-    uint32_t current = LRU_alloc[set] & ~mask; 
-    if (current >> (32 - EMU68_LRU_WAY_COUNT) == 0) current = ~mask;
-    LRU_alloc[set] = current;
+    uint64_t current = lru->alloc[set] & ~mask; 
+    if ((current & ALLOC_MASK) == 0) current = ~mask;
+    lru->alloc[set] = current;
 }
 
-static uint32_t* FindUnitQuick()
+static uint32_t* FindUnitQuick(struct LRU *lru, struct List *icache, struct M68KState *ctx)
 {
-#if EMU68_USE_LRU
-    uint32_t *code = LRU_FindBlock(PC);
+    struct M68KTranslationUnit *candidateUnit = NULL;
 
-    if (likely(code != NULL))
+#if EMU68_USE_LRU
+    uint32_t *code = LRU_FindBlock(lru, PC);
+
+    if (likely(code != NULL)) {
         return code;
+    }
 #endif
 
     union {
@@ -194,7 +285,7 @@ static uint32_t* FindUnitQuick()
 
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-    struct List *bucket = &ICache[hash];
+    struct List *bucket = &icache[hash];
 
     /* Go through the list of translated units */
     ForeachNode(bucket, un.node)
@@ -205,16 +296,48 @@ static uint32_t* FindUnitQuick()
             /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
             asm volatile ("prfm plil1keep, [%0]"::"r"(un.unit->mt_ARMEntryPoint));
 
+            /* Node was found and it was not the first one in the bucket, move it to the top now */
+            if (bucket->lh_Head.ln_Next != un.node) {
+                REMOVE(un.node);
+                ADDHEAD(bucket, un.node);
+            }
+
 #if EMU68_USE_LRU
-            LRU_InsertBlock(un.unit);
+            LRU_InsertBlock(lru, un.unit);
 #endif
             return (void*)un.unit->mt_ARMEntryPoint;
+        } else if (un.unit->mt_M68kAddress == u.mt_M68kAddress) {
+            /* 
+                The code from current epoch was not found, but there is a code with right entry point 
+                from previous epoch. Remember it for later.
+            */
+            candidateUnit = un.unit;
         }
     }
 
+    /* No suitable translation was found, but there is a candidate with wrong EPOCH. Verify it now. */
+    M68K_SaveContext(ctx);
+
+    if (candidateUnit != NULL) {
+        candidateUnit = M68K_VerifyUnit(candidateUnit);
+
+        /* 
+            If the unit is still there after verification, it was valid and has now updated EPOCH.
+            Insert it into LRU and return ARM entry point.
+        */
+        if (candidateUnit != NULL) {
+            /* Prefetch first, during prefetch we will insert the entry into LRU */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(candidateUnit->mt_ARMEntryPoint));
+            LRU_InsertBlock(lru, candidateUnit);
+            M68K_LoadContext(ctx);
+            return candidateUnit->mt_ARMEntryPoint;
+        }
+    }
+
+    /* Nothing found. Save context and fall back to new translation then. */
     return NULL;
 }
-
+#if 0
 static inline struct M68KTranslationUnit *FindUnit()
 {
     union {
@@ -241,7 +364,7 @@ static inline struct M68KTranslationUnit *FindUnit()
 
     return NULL;
 }
-
+#endif
 static inline struct M68KTranslationUnit *FindUnitNoLRU()
 {
     union {
@@ -355,21 +478,19 @@ void ProcessIRQ(struct M68KState *ctx)
     /* Any unmasked interrupts? Proceess them */
     if (level == 7 || level > IPL_mask)
     {
-        register uint64_t sp __asm__("r29");
-
         if (likely((SR & SR_S) == 0))
         {
             /* If we are not yet in supervisor mode, the USP needs to be updated */
-            __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(sp));
+            __asm__ volatile("mov "REG_USP_ASM", %w0": :"r"(A7));
 
             /* Load eiter ISP or MSP */
             if (unlikely((SR & SR_M) != 0))
             {
-                __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(sp));
+                __asm__ volatile("mov %w0, "REG_MSP_ASM:"=r"(A7));
             }
             else
             {
-                __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(sp));
+                __asm__ volatile("mov %w0, "REG_ISP_ASM:"=r"(A7));
             }
         }
         
@@ -390,9 +511,9 @@ void ProcessIRQ(struct M68KState *ctx)
         SR |= ((level & 7) << SRB_IPL);
 
         /* Push exception frame */
-        __asm__ volatile("strh %w1, [%0, #-8]!":"=r"(sp):"r"(SRcopy),"0"(sp));
-        __asm__ volatile("str %w1, [%0, #2]": :"r"(sp),"r"(PC));
-        __asm__ volatile("strh %w1, [%0, #6]": :"r"(sp),"r"(vector));
+        __asm__ volatile("strh %w1, [%0, #-8]!":"+r"(A7):"r"(SRcopy));
+        __asm__ volatile("str %w1, [%0, #2]": :"r"(A7),"r"(PC));
+        __asm__ volatile("strh %w1, [%0, #6]": :"r"(A7),"r"(vector));
 
         /* Set SR */
         setSR(SR);
@@ -409,14 +530,18 @@ void InterpreterLoop()
 {
     struct M68KState *ctx = getCTX();
 
-    kprintf("[INT] Starting interpreter loop\n");
-
     /* Prepare vector 0; 1 which gets added to the INSN_COUNTER after every executed instruction */
     asm volatile("mov v22.d[1], xzr\n\tmov v22.d[0], %0"::"r"(1));
 
-    extern INTERPRET_Function __interpreter_jumptable_start;
+    /* ARMCode pointer misused - it will hold interpreter jump table instead */
+    extern INTERPRET_Function __interpreter_jumptable_start __attribute__((aligned(4096)));
     ARMCode = (uint64_t (*)())&__interpreter_jumptable_start;
 
+    /* 
+        Endless lope will break if and only if ARMCode pointer (register w12) 
+        will be reset to NULL. This can happen in interpreter e.g. as a result 
+        of writing to CACR.
+    */
     do
     {
 #ifndef PISTORM_ANY_MODEL
@@ -424,27 +549,35 @@ void InterpreterLoop()
             return;
         }
 #endif
+        /* 
+            Small "improved" version of code below, saves register shuffling 
+            done by gcc which does not handle the global register variables well
+        */
+        uint32_t opcode;
+        void (*code)(uint32_t);
+        asm volatile(
+            "ldrh	%w0, [%2]\n\t"
+            "ldr	%1, [%3, %w0, uxtw #3]\n\t"
+            :"=r"(opcode), "=r"(code), "+r"(PC), "+r"(ARMCode)
+        );
+        code(opcode);
+
+        /* Increase instruction counter */
+        reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reserved_reg_q22);
+
         /* Check if any interrupts are pending, modify PC and stack if necessary */
         if (unlikely(ctx->INT64 != 0))
         {
             ProcessIRQ(ctx);
         }
-        
-        /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
-        
-        uint16_t opcode = *(uint16_t*)(uintptr_t)PC;
-        ((INTERPRET_Function*)ARMCode)[opcode](opcode);
-
-        reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reserved_reg_q22);
-
     } while(ARMCode != NULL);
 }
 
 void JITLoop()
 {
     struct M68KState *ctx = getCTX();
-
-    kprintf("[JIT] Starting JIT loop\n");
+    struct List *cache = ICache;
+    struct LRU* lru = &LRU;
 
     while(1)
     {
@@ -453,67 +586,47 @@ void JITLoop()
             return;
         }
 #endif
+        /*
+            Find unit in the LRU, if faild in the hashtable and if that faild
+            in the "dumpster" along old code portions from previous "cache flush EPOCH"
+            based on the PC value
+        */
+        ARMCode = (void*)FindUnitQuick(lru, cache, ctx);
+
+        /* Unit does not exists? It was neither found nor recycled. Translate! */
+        if (unlikely(ARMCode == NULL))
+        {
+            struct M68KTranslationUnit *unit;
+            uint32_t copyPC = ctx->PC;
+
+            /* Get the code. This never fails */
+            unit = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
+
+#if EMU68_USE_LRU
+            LRU_InsertBlock(lru, unit);
+#endif
+            /* Load CPU context - it was saved in FindUnitQuick */
+            M68K_LoadContext(ctx);
+
+            /* Prepare ARM pointer in x12 */
+            ARMCode = unit->mt_ARMEntryPoint;
+        }
+
+        /* Call the code */
+        ARMCode();
+
+        /* 
+            If the JIT block cleared ARMCode (x12 register) e.g. as a result of
+            writing to CACR, break the JIT loop and let the main loop decide which one
+            to run again.
+        */
+        if (unlikely(ARMCode == 0)) return;
+
         /* Check if any interrupts are pending, modify PC and stack if necessary */
         if (unlikely(ctx->INT64 != 0))
         {
             ProcessIRQ(ctx);
         }
-
-        /* All interrupts masked or new PC loaded and stack swapped, continue with code execution */
-        /* Find unit in the hashtable based on the PC value */
-        uint32_t *code = FindUnitQuick();
-
-        /* Unit does not exists ? */
-        if (unlikely(code == NULL))
-        {
-            /* If we are that far there was no JIT unit found */
-            M68K_SaveContext(ctx);
-
-            uint32_t copyPC = getCTX()->PC;
-
-            /* Perform search without testing Epoch */
-            struct M68KTranslationUnit __attribute__((may_alias)) *node = NULL;
-            struct Node *n;
-            uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-            struct List *bucket = &ICache[hash];
-
-            /* Go through the list of translated units */
-            ForeachNode(bucket, n)
-            {
-                union {
-                    struct Node *n;
-                    struct M68KTranslationUnit *u;
-                } conv;
-
-                conv.n = n;
-                struct M68KTranslationUnit *u = conv.u;
-
-                /* Check if unit is found */
-                if (u->mt_M68kAddress == copyPC)
-                {
-                    /* Node found, most likely Epoch broken */
-                    node = M68K_VerifyUnit(u);
-                    break;
-                }
-            }
-
-            if (node == NULL) {
-                /* Get the code. This never fails */
-                node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
-            }
-
-#if EMU68_USE_LRU
-            LRU_InsertBlock(node);
-#endif
-            /* Load CPU context */
-            M68K_LoadContext(getCTX());
-            code = node->mt_ARMEntryPoint;
-        }
-
-        /* Prepare ARM pointer in x12 and call it */
-        ARMCode = (void*)code;
-        ARMCode();
-        if (unlikely(ARMCode == 0)) return;
     }
 }
 
@@ -525,13 +638,12 @@ void MainLoop()
 
     M68K_LoadContext(ctx);
 
-    __asm__ volatile("mov v28.d[0], xzr");
-
     /* The JIT loop is running forever */
     while(1)
     {
 #ifndef PISTORM_ANY_MODEL
         if (unlikely(PC == 0)) {
+            M68K_SaveContext(ctx);
             return;
         }
 #endif
@@ -545,135 +657,6 @@ void MainLoop()
         {
             InterpreterLoop();
         }
-#if 0
-
-        /* Load m68k context and last used PC counter into temporary register */ 
-        LastPC = getLastPC();
-        ctx = getCTX();
-
-#ifndef PISTORM_ANY_MODEL
-        if (unlikely(PC == 0)) {
-            M68K_SaveContext(ctx);
-            return;
-        }
-#endif
-
-        /* If (unlikely) there was interrupt pending, check if it needs to be processed */
-        if (unlikely(ctx->INT64 != 0))
-        {
-            ProcessIRQ(ctx);
-        }
-
-        /* Check if JIT cache is enabled */
-        uint32_t cacr;
-        __asm__ volatile("mov %w0, "REG_CACR_ASM:"=r"(cacr));
-
-        if (likely(cacr & CACR_IE))
-        {
-            /* The last PC is the same as currently set PC? */
-            if (LastPC == PC)
-            {
-                /* Jump to the code now */
-                ARMCode();
-                continue;
-            }
-            else
-            {
-                /* Find unit in the hashtable based on the PC value */
-                uint32_t *code = FindUnitQuick();
-
-                /* Unit exists ? */
-                if (code != NULL)
-                {
-                    /* Store m68k PC of corresponding ARM code in CTX_LAST_PC */
-                    __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
-
-                    /* This is the case, load entry point into x12 */
-                    ARMCode = (void*)code;
-                    
-                    ARMCode();
-
-                    /* Go back to beginning of the loop */
-                    continue;
-                }
-
-                /* If we are that far there was no JIT unit found */
-                M68K_SaveContext(ctx);
-
-                uint32_t copyPC = getCTX()->PC;
-
-                /* Perform search without testing Epoch */
-                struct M68KTranslationUnit __attribute__((may_alias)) *node = NULL;
-                struct Node *n;
-                uint32_t hash = (copyPC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-                struct List *bucket = &ICache[hash];
-
-                /* Go through the list of translated units */
-                ForeachNode(bucket, n)
-                {
-                    union {
-                        struct Node *n;
-                        struct M68KTranslationUnit *u;
-                    } conv;
-
-                    conv.n = n;
-                    struct M68KTranslationUnit *u = conv.u;
-
-                    /* Check if unit is found */
-                    if (u->mt_M68kAddress == copyPC)
-                    {
-                        /* Node found, most likely Epoch broken */
-                        node = M68K_VerifyUnit(u);
-                        break;
-                    }
-                }
-
-                if (node == NULL) {
-                    /* Get the code. This never fails */
-                    node = M68K_GetTranslationUnit((void*)(uintptr_t)copyPC);
-                }
-
-#if EMU68_USE_LRU
-                LRU_InsertBlock(node);
-#endif
-                /* Load CPU context */
-                M68K_LoadContext(getCTX());
-                __asm__ volatile("mov "CTX_LAST_PC_ASM", %w0": :"r"(PC));
-                /* Prepare ARM pointer in x12 and call it */
-                ARMCode = node->mt_ARMEntryPoint;
-                ARMCode();
-            }
-        }
-        else
-        {
-            struct M68KTranslationUnit *node = NULL;
-
-            /* Uncached mode - reset LastPC */
-            setLastPC(~0);
-
-            /* Save context since C code will be called */
-            M68K_SaveContext(ctx);
-
-            /* Find the unit */
-            node = FindUnitNoLRU();
-
-            /* If node is found verify it */
-            if (likely(node != NULL))
-            {
-                node = M68K_VerifyUnitCRC32(node);
-            }
-            /* If node was not found or invalidated, translate code */
-            if (unlikely(node == NULL))
-            {
-                /* Get the code */
-                node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)getCTX()->PC);
-            }
-
-            M68K_LoadContext(getCTX());
-            ARMCode = node->mt_ARMEntryPoint;
-            ARMCode();
-        }
-#endif
     }
 }
 
