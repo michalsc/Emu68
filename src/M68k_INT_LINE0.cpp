@@ -620,6 +620,87 @@ void MOVES(uint32_t opcode)
     }
 }
 
+template<uint8_t Mode, uint8_t Reg, class Type>
+void CAS(uint32_t opcode)
+{
+    uint16_t opcode2 = *getPC<uint16_t*>(2);
+    uint8_t du = (opcode2 >> 6) & 7;
+    uint8_t dc = opcode2 & 7;
+
+    advancePC(4);
+    commitPC();
+
+    uint32_t addr;
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        addr = getEA<Type>(mode, reg);
+    } else {
+        addr = getEA<Mode, Reg, Type>();
+    }
+
+    Type* ptr = (Type*)(uintptr_t)addr;
+    Type dc_val = getD<Type>(dc);
+    Type expected = dc_val;
+
+    bool matched = __atomic_compare_exchange_n(ptr, &expected, getD<Type>(du), false,
+                                                __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+
+    auto [result, ccr] = arithWithFlags<Type, true>(expected, dc_val);
+    (void)result;
+    SR = (SR & ~SR_NZVC) | ccr;
+
+    if (!matched) {
+        setD<Type>(dc, expected);
+    }
+}
+
+template<class Type>
+void CAS2(uint32_t)
+{
+    uint16_t opcode2 = *getPC<uint16_t*>(2);
+    uint16_t opcode3 = *getPC<uint16_t*>(4);
+
+    advancePC(6);
+    commitPC();
+
+    uint32_t rn1 = (opcode2 & 0x8000) ? getA<uint32_t>((opcode2 >> 12) & 7) : getD<uint32_t>((opcode2 >> 12) & 7);
+    uint32_t rn2 = (opcode3 & 0x8000) ? getA<uint32_t>((opcode3 >> 12) & 7) : getD<uint32_t>((opcode3 >> 12) & 7);
+
+    uint8_t du1 = (opcode2 >> 6) & 7;
+    uint8_t du2 = (opcode3 >> 6) & 7;
+    uint8_t dc1 = opcode2 & 7;
+    uint8_t dc2 = opcode3 & 7;
+
+    Type* p1 = (Type*)(uintptr_t)rn1;
+    Type* p2 = (Type*)(uintptr_t)rn2;
+
+    Type v1 = *p1;
+    Type v2 = *p2;
+
+    auto [result1, ccr1] = arithWithFlags<Type, true>(v1, getD<Type>(dc1));
+    (void)result1;
+
+    if (ccr1 & SR_Z) {
+        auto [result2, ccr2] = arithWithFlags<Type, true>(v2, getD<Type>(dc2));
+        (void)result2;
+
+        if (ccr2 & SR_Z) {
+            /* 68040 stores Du2 first, then Du1 */
+            *p2 = getD<Type>(du2);
+            *p1 = getD<Type>(du1);
+        } else {
+            setD<Type>(dc1, v1);
+            setD<Type>(dc2, v2);
+        }
+
+        SR = (SR & ~SR_NZVC) | ccr2;
+    } else {
+        setD<Type>(dc1, v1);
+        SR = (SR & ~SR_NZVC) | ccr1;
+    }
+}
+
 #define FILL_Bxxx_Dn(base_offset, name) \
     [&]<std::size_t... Is>(int base, std::index_sequence<Is...>) { \
         ((table[base + ((Is >> 3) << 9) + EA(0, Is & 7)] = \
@@ -756,6 +837,16 @@ inline constexpr uint32_t MOVESEnabledMask =
 
 inline constexpr uint32_t MOVESSpecializeMask = 0;
 
+inline constexpr uint32_t CASEnabledMask = 
+      classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
+    | classBit(EAClass::IndPre)  | classBit(EAClass::D16An)
+    | classBit(EAClass::D8AnXn)  | classBit(EAClass::AbsW)
+    | classBit(EAClass::AbsL);
+
+inline constexpr uint32_t CASSpecializeMask = 
+      classBit(EAClass::Ind)     | classBit(EAClass::D16An)
+    | classBit(EAClass::AbsW)    | classBit(EAClass::AbsL);
+
 inline constexpr uint32_t ImmedOpSpecializeMask = 
       classBit(EAClass::Dn)
     | classBit(EAClass::Ind)     | classBit(EAClass::IndPost)
@@ -794,6 +885,9 @@ struct MOVEP_MtoD16_Op { static constexpr auto value = MOVEP<4>; };
 
 template<uint8_t Mode, uint8_t Reg, class Type>
 struct MOVES_Op { static constexpr auto value = MOVES<Mode, Reg, Type>; };
+
+template<uint8_t Mode, uint8_t Reg, class Type>
+struct CAS_Op { static constexpr auto value = CAS<Mode, Reg, Type>; };
 
 // EA field combines Register and EA mode in one, gets
 template <unsigned BitOffset, class Type, bool Write, uint32_t HotMask>
@@ -858,6 +952,13 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fillEA<BYTE, true, MOVES_Op, EAField<0, BYTE, true, MOVESEnabledMask, MOVESSpecializeMask> >(table, 07000);
     fillEA<WORD, true, MOVES_Op, EAField<0, WORD, true, MOVESEnabledMask, MOVESSpecializeMask> >(table, 07100);
     fillEA<LONG, true, MOVES_Op, EAField<0, LONG, true, MOVESEnabledMask, MOVESSpecializeMask> >(table, 07200);
+
+    fillEA<BYTE, true, CAS_Op, EAField<0, BYTE, true, CASEnabledMask, CASSpecializeMask> >(table, 05300);
+    fillEA<WORD, true, CAS_Op, EAField<0, WORD, true, CASEnabledMask, CASSpecializeMask> >(table, 06300);
+    fillEA<LONG, true, CAS_Op, EAField<0, LONG, true, CASEnabledMask, CASSpecializeMask> >(table, 07300);
+
+    table[06374] = CAS2<WORD>;
+    table[07374] = CAS2<LONG>;
 
     table[00074] = ORI_to_CCR;
     table[01074] = ANDI_to_CCR;
