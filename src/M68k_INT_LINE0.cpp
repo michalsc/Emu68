@@ -641,10 +641,24 @@ void CAS(uint32_t opcode)
 
     Type* ptr = (Type*)(uintptr_t)addr;
     Type dc_val = getD<Type>(dc);
+    Type du_val = getD<Type>(du);
     Type expected = dc_val;
+    bool matched;
 
-    bool matched = __atomic_compare_exchange_n(ptr, &expected, getD<Type>(du), false,
-                                                __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    if ((addr & (sizeof(Type) - 1)) == 0) {
+        /* Atomic operation allowed on properly aligned address, only */
+        matched = __atomic_compare_exchange_n(ptr, &expected, du_val, false,
+                                               __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    } else {
+        Type v = *ptr;
+        if (v == dc_val) {
+            *ptr = du_val;
+            matched = true;
+        } else {
+            expected = v;
+            matched = false;
+        }
+    }
 
     auto [result, ccr] = arithWithFlags<Type, true>(expected, dc_val);
     (void)result;
@@ -988,13 +1002,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     #if 0
 
-	[05320 ... 05347] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 0, 1 },
-	[05350 ... 05371] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 1, 1 },
-	[06320 ... 06347] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 0, 2 },
-	[06350 ... 06371] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 1, 2 },
-	[07320 ... 07347] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 0, 4 },
-	[07350 ... 07371] = { EMIT_CAS, NULL, 0, SR_NZVC, 2, 1, 4 },
-
 	[0xcfc]			  = { EMIT_CAS2, NULL, 0, SR_NZVC, 3, 0, 2 },
 	[0xefc]			  = { EMIT_CAS2, NULL, 0, SR_NZVC, 3, 0, 4 },
 
@@ -1004,46 +1011,6 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 	[01350 ... 01373] = { EMIT_CMP2, NULL, SR_CCR, SR_NZVC, 2, 1, 2 },
 	[02320 ... 02327] = { EMIT_CMP2, NULL, SR_CCR, SR_NZVC, 2, 0, 4 },
 	[02350 ... 02373] = { EMIT_CMP2, NULL, SR_CCR, SR_NZVC, 2, 1, 4 },
-
-	[00410 ... 00417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[00510 ... 00517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[00610 ... 00617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[00710 ... 00717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[01410 ... 01417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[01510 ... 01517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[01610 ... 01617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[01710 ... 01717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[02410 ... 02417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[02510 ... 02517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[02610 ... 02617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[02710 ... 02717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[03410 ... 03417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[03510 ... 03517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[03610 ... 03617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[03710 ... 03717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[04410 ... 04417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[04510 ... 04517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[04610 ... 04617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[04710 ... 04717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[05410 ... 05417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[05510 ... 05517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[05610 ... 05617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[05710 ... 05717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[06410 ... 06417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[06510 ... 06517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[06610 ... 06617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[06710 ... 06717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[07410 ... 07417] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[07510 ... 07517] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-	[07610 ... 07617] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 2 },
-	[07710 ... 07717] = { EMIT_MOVEP, NULL, 0, 0, 2, 0, 4 },
-
-	[07020 ... 07047] = { EMIT_MOVES, NULL, SR_S, 0, 2, 0, 1 },
-	[07050 ... 07071] = { EMIT_MOVES, NULL, SR_S, 0, 2, 1, 1 },
-	[07120 ... 07147] = { EMIT_MOVES, NULL, SR_S, 0, 2, 0, 2 },
-	[07150 ... 07171] = { EMIT_MOVES, NULL, SR_S, 0, 2, 1, 2 },
-	[07220 ... 07247] = { EMIT_MOVES, NULL, SR_S, 0, 2, 0, 4 },
-	[07250 ... 07271] = { EMIT_MOVES, NULL, SR_S, 0, 2, 1, 4 },
     #endif
 
     return table;
