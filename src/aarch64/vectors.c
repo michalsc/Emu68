@@ -1971,8 +1971,8 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
             SYSPutValueToReg(tmp, opcode & 31, ctx);
         }
     }
-    /* LDXR register - no exclusive in this case!!! But m68k bus does not support it anyway */
-    else if ((opcode & 0x3ffffc00) == 0x085f7c00)
+    /* LD(A)XR register - no exclusive in this case!!! But m68k bus does not support it anyway */
+    else if ((opcode & 0x3fff7c00) == 0x085f7c00)
     {
         uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, far);
