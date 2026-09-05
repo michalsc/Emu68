@@ -1726,7 +1726,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         }
     }
     /* FLDD post-index */
-    else if ((opcode & 0xfee00c00) == 0xbc400c00)
+    else if ((opcode & 0xfee00c00) == 0xfc400c00)
     {
         int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
         uint64_t ptr = SYSGetValueFromReg((opcode >> 5) & 31, ctx);
