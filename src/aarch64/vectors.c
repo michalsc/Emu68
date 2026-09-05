@@ -1816,7 +1816,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         SYSPutValueToReg(ptr + offset, (opcode >> 5) & 31, ctx);
     }
     /* LDPSW */
-    if ((opcode & 0xffc00000) == 0x69400000)
+    else if ((opcode & 0xffc00000) == 0x69400000)
     {
         size = 4;
         
