@@ -1,0 +1,17 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68: emu68 {
+                logo-color = <0x00000000>;
+            };
+        };
+    };
+
+    __overrides__ {
+        color = <&emu68>,"logo-color:0{gray=0,black=1,purple=2,clay=3,regal=4,reef=5,orchid=6,dune=7,ember=8,moss=9,bone=10,wb13=11,wb20=12,wb20i=13,=0}";
+    };
+};
