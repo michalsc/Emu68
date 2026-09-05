@@ -22,6 +22,7 @@ extern "C" {
 void M68K_LoadContext(struct M68KState* ctx);
 void M68K_SaveContext(struct M68KState* ctx);
 void M68K_PrintContext(struct M68KState* ctx);
+extern int debug_not_implemented;
 
 }
 
@@ -261,12 +262,20 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     PC = *(uint32_t*)(uintptr_t)vbr;
 }
 
-void ILLEGAL(uint32_t )
+void ILLEGAL(uint32_t opcode)
 {
-    raiseException(VECTOR_ILLEGAL_INSTRUCTION, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    if (opcode != 0x4afc && debug_not_implemented != 0) {
+        safeCall([&](){
+            kprintf("[INT] ILLEGAL INSTRUCTION %04x at %08x\n", opcode, getPC());
 
-    /*if (opcode != 0x4afc)
-        while(1);*/
+            disasm_open();
+            disasm_print_m68k_only((uint16_t*)(uintptr_t)getCTX()->PC);
+
+            M68K_PrintContext(getCTX());
+        });
+    }
+
+    raiseException(VECTOR_ILLEGAL_INSTRUCTION, ExceptionFrameFormat::FORMAT_0, 0, 0);
 }
 
 template<class Type>
