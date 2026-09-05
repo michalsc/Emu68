@@ -869,6 +869,12 @@ void boot(void *dtree)
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
     dt_add_property(e, "support", supporters, supporters_size);
 
+    if (!dt_find_property(e, "logo-color"))
+    {
+        uint32_t color = 0;
+        dt_add_property(e, "logo-color", &color, 4);
+    }
+
     if (ppc_enable) {
         if (!dt_find_property(e, "ppc-enable"))
         {

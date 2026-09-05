@@ -51,8 +51,164 @@ extern uint32_t firmware_size;
 uint32_t text_x = 0;
 uint32_t text_y = 0;
 const int modulo = 192;
-int purple = 0;
-int black = 0;
+enum LogoTheme theme = GRAY;
+
+uint16_t map_color(uint8_t gray)
+{
+    if (theme == CLAY) {
+        gray = 240 - gray;
+        int r=-385,g=-171,b=-71;
+        r += (gray * 902) >> 8;
+        g += (gray * 434) >> 8;
+        b += (gray * 211) >> 8;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == REGAL) {
+        gray = 240 - gray;
+        int r=-456,g=-271,b=69;
+        r += (gray * 1030) >> 8;
+        g += (gray * 668) >> 8;
+        b += (gray * 11) >> 8;
+        if (r<0) {r=0;} if (g<0) {g=0;} if (b<0) {b=0;}
+        if (r>255) {r=255;} if (g>255) {g=255;} if (b>255) {b=255;}
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == REEF) {
+        gray = 240 - gray;
+        int r=-540,g=-97,b=-18;
+        r += (gray * 1191) >> 8;
+        g += (gray * 334) >> 8;
+        b += (gray * 167) >> 8;
+        if (r<0) {r=0;} if (g<0) {g=0;} if (b<0) {b=0;}
+        if (r>255) {r=255;} if (g>255) {g=255;} if (b>255) {b=255;}
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == ORCHID) {
+        gray = 240 - gray;
+        int r=-229,g=-473,b=-302;
+        r += (gray * 584) >> 8;
+        g += (gray * 1069) >> 8;
+        b += (gray * 768) >> 8;
+        if (r<0) {r=0;} if (g<0) {g=0;} if (b<0) {b=0;}
+        if (r>255) {r=255;} if (g>255) {g=255;} if (b>255) {b=255;}
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == DUNE) {
+        gray = 240 - gray;
+        int r=-426,g=-315,b=-173;
+        r += (gray * 1007) >> 8;
+        g += (gray * 796) >> 8;
+        b += (gray * 518) >> 8;
+        if (r<0) { r=0; } if (g<0) { g=0; } if (b<0) { b=0; }
+        if (r>255) { r=255; } if (g>255) { g=255; } if (b>255) { b=255; }
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == EMBER) {
+        gray = 240 - gray;
+        int r=-432,g=-239,b=-239;
+        r += (gray * 996) >> 8;
+        g += (gray * 584) >> 8;
+        b += (gray * 584) >> 8;
+        if (r<0) { r=0; } if (g<0) { g=0; } if (b<0) { b=0; }
+        if (r>255) { r=255; } if (g>255) { g=255; } if (b>255) { b=255; }
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == MOSS) {
+        gray = 240 - gray;
+        int r=806,g=684,b=708;
+        r += (gray * -1197) / 256;
+        g += (gray * -941) / 256;
+        b += (gray * -1002) / 256;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == BONE) { 
+        gray = 240 - gray;
+        int r=-510,g=-492,b=-439;
+        r += (gray * 1152) >> 8;
+        g += (gray * 1113) >> 8;
+        b += (gray * 1007) >> 8;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == PURPLE) {
+        gray = 240 - gray;
+        int r=-330,g=-343,b=-91;
+        r += (gray * 848) >> 8;
+        g += (gray * 768) >> 8;
+        b += (gray * 341) >> 8;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == WB13) {
+        gray = 240 - gray;
+        int r=-665,g=-48,b=613;
+        r += (gray * 1419) >> 8;
+        g += (gray * 284) >> 8;
+        b += (gray * -946) / 256;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == WB20i) {
+        gray = 240 - gray;
+        int r=-75,g=47,b=232;
+        r += (gray * 378) >> 8;
+        g += (gray * 189) >> 8;
+        b += (gray * -95) / 256;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == WB20) {
+        gray = 240 - gray;
+        int r=347,g=259,b=126;
+        r += (gray * -378) / 256;
+        g += (gray * -189) / 256;
+        b += (gray * 95) >> 8;
+
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
+        if (r > 255) r = 255;
+        if (g > 255) g = 255;
+        if (b > 255) b = 255;
+        return (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
+    } else if (theme == BLACK) {
+        int g = ((120 - (int)gray) * 5) / 4;
+        if (g < 0)
+            g = 0;
+        if (g > 255)
+            g = 255;
+        return (g >> 3) | ((g >> 2) << 5) | ((g >> 3) << 11);
+    } else {
+        return (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
+    }
+}
 
 void put_char(uint8_t c)
 {
@@ -71,18 +227,11 @@ void put_char(uint8_t c)
 
             for (int y = 0; y < 16; y++) {
                 const uint8_t byte = *data;
+                const uint16_t color = LE16(map_color(40));
 
                 for (int x=0; x < 8; x++) {
                     if (byte & (0x80 >> x)) {
-                        if (purple) {
-                            pos_in_image[x] = LE16(0xed51);
-                        }
-                        else if (black) {
-                            pos_in_image[x] = LE16(0x630c);
-                        }
-                        else {
-                            pos_in_image[x] = 0;
-                        }
+                        pos_in_image[x] = color;
                     }
                 }
 
@@ -154,6 +303,7 @@ struct EmuLogo *rle_decode(uint8_t *logo_rle, uint32_t length)
     return logo;
 }
 
+
 void draw_logo(struct EmuLogo *logo, uint32_t start_x, uint32_t start_y)
 {
     uint32_t pix_cnt = logo->el_Width * logo->el_Height;
@@ -164,38 +314,7 @@ void draw_logo(struct EmuLogo *logo, uint32_t start_x, uint32_t start_y)
 
     while(pix_cnt > 0) {
         uint8_t gray = *data++;
-        uint16_t color;
-
-        if (purple)
-        {
-            gray = 240 - gray;
-            int r=-330,g=-343,b=-91;
-            r += (gray * 848) >> 8;
-            g += (gray * 768) >> 8;
-            b += (gray * 341) >> 8;
-
-            if (r < 0) r = 0;
-            if (g < 0) g = 0;
-            if (b < 0) b = 0;
-            if (r > 255) r = 255;
-            if (g > 255) g = 255;
-            if (b > 255) b = 255;
-            color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
-        }
-        else if (black)
-        {
-            int g = ((120 - (int)gray) * 5) / 4;
-            if (g < 0)
-                g = 0;
-            if (g > 255)
-                g = 255;
-
-            color = (g >> 3) | ((g >> 2) << 5) | ((g >> 3) << 11);
-        }
-        else
-        {
-            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
-        }
+        uint16_t color = map_color(gray);
 
         pix_cnt--;
         buff[x++] = LE16(color);
@@ -214,22 +333,13 @@ void display_logo()
     uint32_t start_x, start_y;
     of_node_t *e = NULL;
 
-    e = dt_find_node("/chosen");
+    e = dt_find_node("/emu68");
     if (e)
     {
-        of_property_t * prop = dt_find_property(e, "bootargs");
+        of_property_t * prop = dt_find_property(e, "logo-color");
         if (prop)
         {
-            const char *tok;
-            if ((tok = find_token(prop->op_value, "logo=")))
-            {
-                tok += 5;
-
-                if (strncmp(tok, "purple", 6) == 0)
-                    purple = 1;
-                else if (strncmp(tok, "black", 5) == 0)
-                    black = 1;
-            }
+            theme = (enum LogoTheme)*(uint32_t*)prop->op_value;
         }
     }
 
@@ -273,33 +383,7 @@ void display_logo()
     /* First clear the screen. Use color in top left corner of RLE image for that */
     {
         uint8_t gray = data[0];
-        uint16_t color;
-
-        if (purple)
-        {
-            gray = 240 - gray;
-            int r=-330,g=-343,b=-91;
-            r += (gray * 848) >> 8;
-            g += (gray * 768) >> 8;
-            b += (gray * 341) >> 8;
-
-            if (r < 0) r = 0;
-            if (g < 0) g = 0;
-            if (b < 0) b = 0;
-            if (r > 255) r = 255;
-            if (g > 255) g = 255;
-            if (b > 255) b = 255;
-            color = (b >> 3) | ((g >> 2) << 5) | ((r >> 3) << 11);
-        }
-        else if (black)
-        {
-            gray = 0;
-            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
-        }
-        else
-        {
-            color = (gray >> 3) | ((gray >> 2) << 5) | ((gray >> 3) << 11);
-        }
+        uint16_t color = map_color(gray);
 
         for (int i=0; i < sz.width * sz.height; i++)
             fb[i] = LE16(color);

@@ -153,6 +153,7 @@ set(OVERLAY_FILES
     src/overlays/pal.dts
     src/overlays/ntsc.dts
     src/overlays/noscsi.dts
+    src/overlays/logo.dts
 )
 
 build_devicetree(OVERLAY_FILES)
