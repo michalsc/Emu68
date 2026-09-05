@@ -1885,13 +1885,12 @@ void boot(void *dtree)
         of_property_t * prop = dt_find_property(n, "status");
         if (prop && strcmp(prop->op_value, "okay") == 0)
         {
-            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
+            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0) * 1024;
             uint32_t iter = dt_get_property_value_u32(n, "iterations", 1, 0);
             kprintf("[BOOT] Calling buptest with size %d and iterations %d\n", size, iter);
             ps_buptest(size, iter);
         }
     }
-    
 
     n = dt_find_node("/emu68/diag/membench");
     if (n != NULL)
@@ -1900,8 +1899,8 @@ void boot(void *dtree)
         if (prop && strcmp(prop->op_value, "okay") == 0)
         {
             uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
-            kprintf("[BOOT] Calling membench with size %d\n", size);
-            ps_memtest(size / 1024);
+            kprintf("[BOOT] Calling membench with size %d\n", size * 1024);
+            ps_memtest(size);
         }
 
     }

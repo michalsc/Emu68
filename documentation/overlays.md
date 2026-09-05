@@ -95,10 +95,10 @@ This overlay controls several diagnostic features of Emu68 with following parame
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
 | ``buptest``               | Enables simplistic bus test of the pistorm                                                     |
 | ``bupiter=num``           | The integer ``num`` determines number of bus test loops to run                                 |
-| ``bupsize=num``           | The integer ``num`` determines the number of bytes to test, starting from address 0            |
+| ``bupsize=num``           | The integer ``num`` determines the number of kilobytes to test, starting from address 0        |
 | ``membench``              | Enables small memory benchmark of the pistorm                                                  |
 | ``membase=num``           | The integer ``num`` determines the base address where benchmark should work                    |
-| ``memsize=num``           | The integer ``num`` determines the block size in bytes where benchmarks shall run              |
+| ``memsize=num``           | The integer ``num`` determines the block size in kilobytes where benchmarks shall run          |
 | ``debug_not_implemented`` | When enabled, unimplemented instructions will be also reported over the debug interface        |
 | ``debug``                 | Enables debug output of JIT translator. Use with care as it will generate really a lot of data |
 | ``disassemble``           | Enables side-by-side debug output of M68k/PPC and translated AArch64 code                      |

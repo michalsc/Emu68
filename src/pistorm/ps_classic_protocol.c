@@ -1402,9 +1402,8 @@ void ps_buptest(unsigned int test_size, unsigned int maxiter)
 
     _seed = tmp;
 
-    kprintf_pc(__putc, NULL, "BUPTest with size %dK requested through commandline\n", test_size);
+    kprintf_pc(__putc, NULL, "BUPTest with size %dK requested through commandline\n", test_size / 1024);
 
-    test_size *= 1024;
     uint32_t frac = test_size / 16;
 
     uint8_t *garbage = tlsf_malloc(tlsf, test_size);
