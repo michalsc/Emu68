@@ -988,10 +988,46 @@ void TAS(uint32_t opcode)
     SR = sr;
 }
 
-template<uint8_t Mode, uint8_t Reg, class Type>
+template<uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
 void CHK(uint32_t opcode)
 {
-    
+    uint32_t opcode_address = getPC();
+
+    advancePC(2);
+    commitPC();
+
+    Type bound;
+    if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
+        uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
+        uint32_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
+        bound = loadFromEA<Type>(mode, reg);
+    } else {
+        bound = loadFromEA<Mode, Reg, Type>();
+    }
+
+    Type dn;
+    if constexpr (Dn == DEFAULT_EA) {
+        dn = getD<Type>((opcode >> 9) & 7);
+    } else {
+        dn = getD<Dn, Type>();
+    }
+
+    uint32_t sr = SR & ~(SR_N | SR_Calt);
+    if (bound < 0) {
+        sr |= SR_N;
+    }
+
+    if (dn < 0) {
+        sr |= SR_N;
+        SR = sr;
+        raiseException(VECTOR_CHK, ExceptionFrameFormat::FORMAT_2, opcode_address, 0);
+    } else if (dn > bound) {
+        sr &= ~SR_N;
+        SR = sr;
+        raiseException(VECTOR_CHK, ExceptionFrameFormat::FORMAT_2, opcode_address, 0);
+    } else {
+        SR = sr;
+    }
 }
 
 #define FILL_PEA_ALIKE(base_offset, name) \
@@ -1082,6 +1118,9 @@ void CHK(uint32_t opcode)
              name<2 + (Is >> 3), Is & 7>), ...); \
     }((base_offset), std::make_index_sequence<45>{});
 
+template <uint8_t Mode, uint8_t Reg, uint8_t Dn, class Type>
+struct CHK_Op { static constexpr auto value = CHK<Mode, Reg, Dn, Type>; };
+
 template <class Type, bool Write, template<uint8_t,uint8_t,bool,class> class Op,
           class EAF>
 constexpr void fillEA(std::array<INTERPRET_Function, 4096>& table, int base)
@@ -1097,6 +1136,24 @@ constexpr void fillEA(std::array<INTERPRET_Function, 4096>& table, int base)
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (fillOne.template operator()<Is>(), ...);
     }(std::make_index_sequence<EAF::size>{});
+}
+
+template <class Type, template<uint8_t,uint8_t,uint8_t,class> class Op,
+          class EAF, class RegF>
+constexpr void fillEAReg(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned eaV  = I / RegF::size;
+        constexpr unsigned regV = I % RegF::size;
+
+        if constexpr (EAF::template valid<eaV>() && RegF::valid(regV)) {
+            int idx = base + (eaV << EAF::bitOffset) + (regV << RegF::bitOffset);
+            table[idx] = Op<EAF::modeArg(eaV), EAF::regArg(eaV), RegF::arg(regV), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<EAF::size * RegF::size>{});
 }
 
 inline constexpr uint32_t MMSrcSpecializeMask = 
@@ -1115,7 +1172,18 @@ inline constexpr uint32_t AlterableNoAnMask =
     | classBit(EAClass::D16An)   | classBit(EAClass::D8AnXn)
     | classBit(EAClass::AbsW)    | classBit(EAClass::AbsL);
 
-inline constexpr uint32_t TASSpecializeMask = classBit(EAClass::Dn);
+inline constexpr uint32_t TASSpecializeMask = 
+      classBit(EAClass::Dn)      | classBit(EAClass::Ind);
+
+inline constexpr uint32_t CHKEnabledMask = 
+      classBit(EAClass::Dn)      | classBit(EAClass::Ind)
+    | classBit(EAClass::IndPost) | classBit(EAClass::IndPre)
+    | classBit(EAClass::D16An)   | classBit(EAClass::D8AnXn)
+    | classBit(EAClass::AbsW)    | classBit(EAClass::AbsL)
+    | classBit(EAClass::D16PC)   | classBit(EAClass::D8PCXn)
+    | classBit(EAClass::Imm);
+
+inline constexpr uint32_t CHKSpecializeMask = 0;
 
 template <uint8_t Mode, uint8_t Reg, bool Write, class Type>
 struct MOVEM_Op { static constexpr auto value = MOVEM<Mode, Reg, Write, Type>; };
@@ -1154,6 +1222,27 @@ struct EAFieldNBCD : FieldBase<BitOffset, 6> {
     static constexpr bool hot(unsigned v) {
         return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
     }
+    static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
+    static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
+};
+
+template <unsigned BitOffset, class Type, bool Write, uint32_t ValidMask, uint32_t HotMask>
+struct EAField : FieldBase<BitOffset, 6> {
+    template <unsigned V>
+    static constexpr bool valid() {
+        constexpr unsigned mode = V >> 3, reg = V & 7;
+        if constexpr (Write) return DestEA7<mode, reg> 
+                                 && ByteCompatibleMode<mode, Type>
+                                 && ValidMask >> static_cast<unsigned>(classifyEA(mode, reg)) & 1u;
+        else                 return SourceEA7<mode, reg> 
+                                 && ByteCompatibleMode<mode, Type>
+                                 && ValidMask >> static_cast<unsigned>(classifyEA(mode, reg)) & 1u;
+    }
+
+    static constexpr bool hot(unsigned v) {
+        return (HotMask >> static_cast<unsigned>(classifyEA(v >> 3, v & 7))) & 1u;
+    }
+
     static constexpr uint8_t modeArg(unsigned v) { return hot(v) ? uint8_t(v >> 3) : DEFAULT_EA; }
     static constexpr uint8_t regArg(unsigned v)  { return hot(v) ? uint8_t(v & 7)  : DEFAULT_EA; }
 };
@@ -1248,6 +1337,9 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
 
     fillEA<BYTE, true, NBCD_Op, EAFieldNBCD<0, BYTE, true, NBCDSpecializeMask>>(table, 04000);
     fillEA<BYTE, true, TAS_Op, EAFieldNBCD<0, BYTE, true, TASSpecializeMask>>(table, 05300);
+
+    fillEAReg<WORD, CHK_Op, EAField<0, WORD, false, CHKEnabledMask, CHKSpecializeMask>, RegField<9>>(table, 00600);
+    fillEAReg<LONG, CHK_Op, EAField<0, LONG, false, CHKEnabledMask, CHKSpecializeMask>, RegField<9>>(table, 00400);
 
     table[07160] =     RESET;
     table[07161] =     NOP;
