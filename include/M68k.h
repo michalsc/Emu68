@@ -37,6 +37,87 @@ struct M68KLocalState
     int32_t         mls_PCRel;
 };
 
+
+struct M68KState
+{
+    /* Integer part */
+
+    union {
+        uint8_t u8[4];
+        int8_t s8[4];
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
+    } D[8];
+    union {
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
+    } A[8];
+    union {
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
+    } MSP, ISP, USP;
+
+    uint32_t PC;
+    uint16_t SR;
+    uint32_t VBR;
+    uint32_t CACR;
+
+    /* FPU Part */
+    uint32_t FPSR;
+    uint32_t FPIAR;
+    uint16_t FPCR;
+    union {
+		uint8_t B;
+		uint16_t W;
+		uint32_t L;
+	    float S;
+		double d;
+		uint64_t u64;
+		uint32_t u32[2];
+    } FP[8];   // Double precision! Extended is "emulated" in load/store only
+
+    /* More control registers.. */
+    uint8_t  SFC;
+    uint8_t  DFC;
+    uint16_t TCR;
+    uint32_t URP;
+    uint32_t SRP;
+    uint32_t MMUSR;
+    uint32_t ITT0;
+    uint32_t ITT1;
+    uint32_t DTT0;
+    uint32_t DTT1;
+
+    /* Async IRQ part */
+    volatile union {
+        struct {
+            uint8_t ARM;
+            uint8_t ARM_err;
+            uint8_t IPL;
+            uint8_t RESET;
+            uint8_t PPC;
+        } INTF;
+        uint64_t INT64;
+    } __attribute__((aligned(8)));
+    uint64_t INSN_COUNT;
+
+    uint32_t JIT_CACHE_MISS;
+    uint32_t JIT_UNIT_COUNT;
+    uint32_t JIT_CACHE_TOTAL;
+    uint32_t JIT_CACHE_FREE;
+    uint32_t JIT_SOFTFLUSH_THRESH;
+    uint32_t JIT_CONTROL;
+    uint32_t JIT_CONTROL2;
+
+    volatile uint8_t * PPC_EE_FLAG;
+};
+
 struct M68KTranslationUnit
 {
     /* Hot part of the structure shall preferably reside in one or at most two cache lines */
@@ -116,85 +197,6 @@ struct TranslatorContext {
     };
 };
 
-struct M68KState
-{
-    /* Integer part */
-
-    union {
-        uint8_t u8[4];
-        int8_t s8[4];
-        uint16_t u16[2];
-        int16_t s16[2];
-        uint32_t u32;
-        int32_t s32;
-    } D[8];
-    union {
-        uint16_t u16[2];
-        int16_t s16[2];
-        uint32_t u32;
-        int32_t s32;
-    } A[8];
-    union {
-        uint16_t u16[2];
-        int16_t s16[2];
-        uint32_t u32;
-        int32_t s32;
-    } USP, MSP, ISP;
-
-    uint32_t PC;
-    uint16_t SR;
-    uint32_t VBR;
-    uint32_t CACR;
-
-    /* FPU Part */
-    uint32_t FPSR;
-    uint32_t FPIAR;
-    uint16_t FPCR;
-    union {
-		uint8_t B;
-		uint16_t W;
-		uint32_t L;
-	    float S;
-		double d;
-		uint64_t u64;
-		uint32_t u32[2];
-    } FP[8];   // Double precision! Extended is "emulated" in load/store only
-
-    /* More control registers.. */
-    uint8_t  SFC;
-    uint8_t  DFC;
-    uint16_t TCR;
-    uint32_t URP;
-    uint32_t SRP;
-    uint32_t MMUSR;
-    uint32_t ITT0;
-    uint32_t ITT1;
-    uint32_t DTT0;
-    uint32_t DTT1;
-
-    /* Async IRQ part */
-    volatile union {
-        struct {
-            uint8_t ARM;
-            uint8_t ARM_err;
-            uint8_t IPL;
-            uint8_t RESET;
-            uint8_t PPC;
-        } INTF;
-        uint64_t INT64;
-    } __attribute__((aligned(8)));
-    uint64_t INSN_COUNT;
-
-    uint32_t JIT_CACHE_MISS;
-    uint32_t JIT_UNIT_COUNT;
-    uint32_t JIT_CACHE_TOTAL;
-    uint32_t JIT_CACHE_FREE;
-    uint32_t JIT_SOFTFLUSH_THRESH;
-    uint32_t JIT_CONTROL;
-    uint32_t JIT_CONTROL2;
-
-    volatile uint8_t * PPC_EE_FLAG;
-};
 
 #define JCCB_SOFT               0
 #define JCCF_SOFT               0x00000001
