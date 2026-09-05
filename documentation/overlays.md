@@ -93,7 +93,7 @@ This overlay controls several diagnostic features of Emu68 with following parame
 
 | Parameter                 | Description                                                                                    |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
-| ``buptesst``              | Enables simplistic bus test of the pistorm                                                     |
+| ``buptest``               | Enables simplistic bus test of the pistorm                                                     |
 | ``bupiter=num``           | The integer ``num`` determines number of bus test loops to run                                 |
 | ``bupsize=num``           | The integer ``num`` determines the number of bytes to test, starting from address 0            |
 | ``membench``              | Enables small memory benchmark of the pistorm                                                  |
