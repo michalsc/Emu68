@@ -1263,6 +1263,11 @@ static uint32_t EMIT_MOVEtoSR(struct TranslatorContext *ctx, uint16_t opcode)
         and_reg(cc, changed, src, LSL, 0),
         eor_reg(changed, orig, cc, LSL, 0),
 
+        /* If trace bits changed, break JIT loop */
+        tbz(changed, SRB_T0, 3),
+        tbz(changed, SRB_T1, 2),
+        mov_reg(12, WZR),
+
         /* If neither S nor M changed, go further */
         ands_immed(31, changed, 2, 32 - SRB_M),
         b_cc(A64_CC_EQ, 12),
@@ -1689,6 +1694,11 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
         mov_immed_u16(cc, new_sr, 0),
         eor_reg(changed, orig, cc, LSL, 0),
 
+        /* If trace bits changed, break JIT loop */
+        tbz(changed, SRB_T0, 3),
+        tbz(changed, SRB_T1, 2),
+        mov_reg(12, WZR),
+
         /* Perform eventual stack switch */
 
         /* If neither S nor M changed, go further */
@@ -1832,6 +1842,11 @@ static uint32_t EMIT_RTE(struct TranslatorContext *ctx, uint16_t opcode)
         mov_reg(orig, cc),
         eor_reg(changed, changed, cc, LSL, 0),
         eor_reg(cc, changed, cc, LSL, 0),
+
+        /* If trace bits changed, break JIT loop */
+        tbz(changed, SRB_T0, 3),
+        tbz(changed, SRB_T1, 2),
+        mov_reg(12, WZR),
 
         /* Now since stack is cleaned up, perform eventual stack switch */
         /* If neither S nor M changed, go further */
