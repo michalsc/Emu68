@@ -449,7 +449,7 @@ void MOVEC(uint32_t opcode)
                 case 0x806: ctx->URP = dn & 0xfffffe00;             break;
                 case 0x807: ctx->SRP = dn & 0xfffffe00;             break;
                 case 0x0ea: ctx->JIT_SOFTFLUSH_THRESH = dn;         break;
-                case 0x0eb: ctx->JIT_CONTROL = dn;                  break;
+                case 0x0eb: ctx->JIT_CONTROL = dn; ARMCode = 0;     break;
                 case 0x0ed: debug = dn & 3; disasm = (dn >> 2) & 1; break;
                 case 0x0ee: debug_range_min = dn;                   break;
                 case 0x0ef: debug_range_max = dn;                   break;

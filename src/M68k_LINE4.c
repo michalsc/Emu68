@@ -2084,7 +2084,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 tmp = RA_AllocARMRegister(ctx);
                 uint32_t mask = number_to_mask(0x80008000);
                 EMIT(ctx, 
-                    mov_reg(12, 31),
+                    mov_reg(12, XZR), // <-- reset x12 so that the JIT loop breaks
                     and_immed(tmp, reg, (mask >> 16) & 0x3f, mask & 0x3f),
                     mov_reg_to_simd(REG_CACR, tmp)
                 );
@@ -2143,7 +2143,10 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 EMIT(ctx, str_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_SOFTFLUSH_THRESH)));
                 break;
             case 0x0eb: /* JITCTRL - JIT control register */
-                EMIT(ctx, str_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL)));
+                EMIT(ctx, 
+                    mov_reg(12, XZR), // <-- reset x12 so that the JIT loop breaks
+                    str_offset(ctxreg, reg, __builtin_offsetof(struct M68KState, JIT_CONTROL))
+                );
                 break;
             case 0x0ed: /* DBGCTRL */
             {
