@@ -2000,51 +2000,15 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
 
     kprintf("[JIT]     INSN_COUNT = 0x%016lx\n", m68k->INSN_COUNT);
+    kprintf("[JIT]     JITCTRL = %08x\n", m68k->JIT_CONTROL);
 }
-/*
-uint16_t *framebuffer __attribute__((weak)) = NULL;
-uint32_t pitch  __attribute__((weak))= 0;
-uint32_t fb_width  __attribute__((weak))= 0;
-uint32_t fb_height  __attribute__((weak))= 0;
-*/
+
 extern uint16_t *framebuffer;
 extern uint32_t pitch;
 extern uint32_t fb_width;
 extern uint32_t fb_height;
 
 void ExecutionLoop(struct M68KState *ctx);
-
-void  __attribute__((used)) stub_FindUnit()
-{
-    __asm__ volatile(
-"       .align  8                           \n"
-"FindUnit:                                  \n"
-"       adrp    x4, ICache                  \n"
-"       add     x4, x4, :lo12:ICache        \n"
-"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
-"       ldr     x0, [x4, x0]                \n"
-"       b       1f                          \n"
-"3:                                         \n" // 2 -> 5
-"       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    2f                          \n"
-"       mov     x0, x4                      \n"
-"1:     ldr     x4, [x0]                    \n"
-"       ldr     x5, [x0, #32]               \n"
-"       cbnz    x4, 3b                      \n"
-"       mov     x0, #0                      \n"
-"4:     ret                                 \n"
-"2:     ldp     x6, x4, [x0, #16]           \n"
-"       ldr     x5, [x4, #8]                \n"
-"       cbz     x5, 4b                      \n"
-"       stp     x4, x5, [x0, #16]           \n"
-"       add     x7, x0, #0x10               \n" // 4 -> 7
-"       str     x7, [x5]                    \n"
-"       stp     x6, x7, [x4]                \n"
-"       str     x4, [x6, #8]                \n"
-"       ret                                 \n"
-
-::[reg_pc]"i"(REG_PC));
-}
 
 #ifdef PISTORM_ANY_MODEL
 extern volatile unsigned char bus_lock;
