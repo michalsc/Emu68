@@ -2123,6 +2123,12 @@ void M68K_StartEmu(void *addr, void *fdt)
         }       
     }
 
+    /* Enable interpreter on start if requested through overlay */
+    node = dt_find_node("/emu68/defaults");
+    if (node && dt_find_property(node, "enable-interpreter")) {
+        __m68k.JIT_CONTROL |= JCCF_INTERPRETER;
+    }
+
     kprintf("[JIT]\n");
     M68K_PrintContext(&__m68k);
 
