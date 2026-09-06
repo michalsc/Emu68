@@ -75,6 +75,7 @@ Main overlay controlling behavior of Emu68 with following parameters:
 | Parameter             | Description                                                                     |
 | --------------------- | ------------------------------------------------------------------------------- |
 | ``no_fpu``            | Disables the FPU entirely. Every FPU instruction will throw an exception        |
+| ``interpreter``       | Enable interpreter which activates when instruction cache is disabled           |
 | ``vbr_move``          | Forces 68040.library to move VBR to FAST memory                                 |
 | ``m68k_jit_size=num`` | The integer ``num`` determines size of the M68k JIT cache in megabytes          |
 | ``ppc_enable``        | Activates PPC JIT translator running in parallel on another AArch64 CPU core    |
