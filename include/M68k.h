@@ -199,8 +199,9 @@ struct TranslatorContext {
 
 
 #define JCCB_SOFT               0
-#define JCCF_SOFT               0x00000001
-#define JCCB_SOFT_LIMIT         1
+#define JCCF_SOFT               (1 << JCCB_SOFT)
+#define JCCB_INTERPRETER        0
+#define JCCF_INTERPRETER        (1 << JCCB_INTERPRETER)
 #define JCCB_INSN_DEPTH         24
 #define JCCB_INSN_DEPTH_MASK    0xff
 #define JCCB_INLINE_RANGE       8
