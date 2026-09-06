@@ -829,8 +829,15 @@ template void storeToEA<UBYTE>(uint32_t mode, uint32_t reg, UBYTE value);
 template void storeToEA<UWORD>(uint32_t mode, uint32_t reg, UWORD value);
 template void storeToEA<ULONG>(uint32_t mode, uint32_t reg, ULONG value);
 
+register uint64_t (*ARMCode)() __asm__("x12");
+
 void handleChangedSR(uint32_t sr, uint32_t changed)
 {
+    /* Check if T flags have changed. If yes, break the loop */
+    if (changed & (SR_T0 | SR_T1)) {
+        ARMCode = nullptr;
+    }
+
     /* Check if M flag has changed its value */
     if (changed & SR_M) {
         /* M is set, store A7 to ISP and move MSP to A7 */
