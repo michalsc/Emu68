@@ -337,8 +337,8 @@ static uint32_t* FindUnitQuick(struct LRU *lru, struct List *icache, struct M68K
     /* Nothing found. Save context and fall back to new translation then. */
     return NULL;
 }
-#if 0
-static inline struct M68KTranslationUnit *FindUnit()
+
+static inline struct M68KTranslationUnit *FindUnitNoLRU(struct List *icache)
 {
     union {
         struct Node * node;
@@ -347,7 +347,7 @@ static inline struct M68KTranslationUnit *FindUnit()
 
     /* Perform search */
     uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-    struct List *bucket = &ICache[hash];
+    struct List *bucket = &icache[hash];
 
     /* Go through the list of translated units */
     ForeachNode(bucket, un.node)
@@ -355,33 +355,15 @@ static inline struct M68KTranslationUnit *FindUnit()
         /* Check if unit is found */
         if (un.unit->mt_M68kAddress == PC)
         {
-#if EMU68_USE_LRU
-            LRU_InsertBlock(un.unit);
-#endif
-            return un.unit;
-        }
-    }
+            /* Tell CPU we are going to execute the code soon, give it time to prefetch eventually */
+            asm volatile ("prfm plil1keep, [%0]"::"r"(un.unit->mt_ARMEntryPoint));
 
-    return NULL;
-}
-#endif
-static inline struct M68KTranslationUnit *FindUnitNoLRU()
-{
-    union {
-        struct Node * node;
-        struct M68KTranslationUnit * unit;
-    } un;
+            /* Node was found and it was not the first one in the bucket, move it to the top now */
+            if (bucket->lh_Head.ln_Next != un.node) {
+                REMOVE(un.node);
+                ADDHEAD(bucket, un.node);
+            }
 
-    /* Perform search */
-    uint32_t hash = (PC >> EMU68_HASHSHIFT) & EMU68_HASHMASK;
-    struct List *bucket = &ICache[hash];
-
-    /* Go through the list of translated units */
-    ForeachNode(bucket, un.node)
-    {
-        /* Check if unit is found */
-        if (un.unit->mt_M68kAddress == PC)
-        {
             return un.unit;
         }
     }
@@ -570,7 +552,7 @@ void InterpreterLoop()
         {
             ProcessIRQ(ctx);
         }
-    } while(ARMCode != NULL);
+    } while(likely(ARMCode != NULL));
 }
 
 void JITLoop()
@@ -615,18 +597,70 @@ void JITLoop()
         /* Call the code */
         ARMCode();
 
+        /* Check if any interrupts are pending, modify PC and stack if necessary */
+        if (unlikely(ctx->INT64 != 0))
+        {
+            ProcessIRQ(ctx);
+        }
+        
         /* 
             If the JIT block cleared ARMCode (x12 register) e.g. as a result of
             writing to CACR, break the JIT loop and let the main loop decide which one
             to run again.
         */
         if (unlikely(ARMCode == 0)) return;
+    }
+}
+
+void JITLoopWithCRC32()
+{
+    struct M68KState *ctx = getCTX();
+    struct List *cache = ICache;
+
+    while(1)
+    {
+#ifndef PISTORM_ANY_MODEL
+        if (unlikely(PC == 0)) {
+            return;
+        }
+#endif
+        /*
+            Find unit without checking LRU
+        */
+        struct M68KTranslationUnit *node = FindUnitNoLRU(cache);
+
+        /* Save context, functions called below can */
+        M68K_SaveContext(ctx);
+
+        /* If unit was found, verify CRC32 */
+        if (likely(node != NULL)) {
+            node = M68K_VerifyUnitCRC32(node);
+        }
+
+        /* If unit was not found or was destroyed by VerifyUnit, translate it now */
+        if (unlikely(node == NULL)) {
+            node = M68K_GetTranslationUnit((uint16_t *)(uintptr_t)ctx->PC);
+        }
+
+        ARMCode = node->mt_ARMEntryPoint;
+
+        M68K_LoadContext(ctx);
+
+        /* Call the code */
+        ARMCode();
 
         /* Check if any interrupts are pending, modify PC and stack if necessary */
         if (unlikely(ctx->INT64 != 0))
         {
             ProcessIRQ(ctx);
         }
+
+        /* 
+            If the JIT block cleared ARMCode (x12 register) e.g. as a result of
+            writing to CACR, break the JIT loop and let the main loop decide which one
+            to run again.
+        */
+        if (unlikely(ARMCode == 0)) return;
     }
 }
 
@@ -647,15 +681,28 @@ void MainLoop()
             return;
         }
 #endif
+        /* Get SR register */
+        uint32_t sr = vgetq_lane_u16(vreinterpretq_u16_u64(reserved_reg_q19), 5);
 
-        /* Check if JIT cache is enabled */
-        if (likely(getCACR() & CACR_IE))
+        /* If trace mode is enabled go to interpreter */
+        if (unlikely((sr & (SR_T0 | SR_T1)) != 0))
+        {
+            InterpreterLoop();
+        }
+        /* If caches are enabled, go into JIT loop */
+        else if (likely(getCACR() & CACR_IE))
         {
             JITLoop();
         }
-        else
+        /* Caches disabled and interpreter requested? */
+        else if (ctx->JIT_CONTROL & JCCF_INTERPRETER)
         {
             InterpreterLoop();
+        }
+        /* Caches disabled but interpreter not requested, do it "the old way" */
+        else
+        {
+            JITLoopWithCRC32();
         }
     }
 }
