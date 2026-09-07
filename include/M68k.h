@@ -200,7 +200,7 @@ struct TranslatorContext {
 
 #define JCCB_SOFT               0
 #define JCCF_SOFT               (1 << JCCB_SOFT)
-#define JCCB_INTERPRETER        0
+#define JCCB_INTERPRETER        1
 #define JCCF_INTERPRETER        (1 << JCCB_INTERPRETER)
 #define JCCB_INSN_DEPTH         24
 #define JCCB_INSN_DEPTH_MASK    0xff
