@@ -40,7 +40,9 @@ void DIVS_W(uint32_t)
             return;
         }
 
-        setD<Dn, uint32_t>((drem << 16) | ((uint32_t)dval & 0xffff));
+        setD<Dn, uint32_t>(
+            (static_cast<uint32_t>(drem) << 16) | 
+            (static_cast<uint32_t>(dval) & 0xffff));
 
         if ((int16_t)dval == 0) {
             sr |= SR_Z;
@@ -76,7 +78,9 @@ void DIVU_W(uint32_t)
             return;
         }
 
-        setD<Dn, uint32_t>((drem << 16) | dval);
+        setD<Dn, uint32_t>(
+            (static_cast<uint32_t>(drem) << 16) | 
+            (static_cast<uint32_t>(dval) & 0xffff));
 
         if ((int16_t)dval == 0) {
             sr |= SR_Z;
