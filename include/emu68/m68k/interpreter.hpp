@@ -388,13 +388,14 @@ struct ArithResultWithFlags
 #endif
 
 template<class Type, bool IsSub>
-static inline /*ArithResultWithFlags<Type> */ std::pair<Type, uint8_t> arithWithFlags(Type a, Type b)
+static inline std::pair<Type, uint8_t> arithWithFlags(Type a, Type b)
 {
     constexpr int shift = (sizeof(Type) == 1) ? 24 : (sizeof(Type) == 2) ? 16 : 0;
 
-    int32_t sa = (int32_t)a << shift;
-    int32_t sb = (int32_t)b << shift;
-    int32_t result;
+    using UnsignedType = std::make_unsigned_t<Type>;
+    uint32_t sa = static_cast<uint32_t>(static_cast<UnsignedType>(a)) << shift;
+    uint32_t sb = static_cast<uint32_t>(static_cast<UnsignedType>(b)) << shift;
+    uint32_t result;
     uint32_t nzcv;
 
     if constexpr (IsSub) {
