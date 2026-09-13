@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <arm_neon.h>
 #include <array>
+#include <limits>
 
 #include <emu68/m68k/interpreter>
 #include <emu68/m68k/bcd_arithmetic>
@@ -23,6 +24,12 @@ void DIVS_W(uint32_t)
         raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         int32_t dval = getD<Dn, int32_t>();
+
+        if (unlikely(dval == std::numeric_limits<int32_t>::min() && src == -1)) {
+            SR = (SR & ~SR_Calt) | SR_Valt;
+            return;
+        }
+
         int32_t drem;
 
         drem = dval % (int32_t)src;

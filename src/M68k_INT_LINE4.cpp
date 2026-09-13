@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <arm_neon.h>
 #include <array>
+#include <limits>
 
 #include <emu68/m68k/interpreter>
 #include <emu68/m68k/bcd_arithmetic>
@@ -548,6 +549,11 @@ void DIVU_L(uint32_t)
                 int64_t value = getD<uint32_t>(opcode2 & 7);
                 value = (value << 32) | dq;
 
+                if (unlikely(value == std::numeric_limits<int64_t>::min() && src == -1)) {
+                    SR = (SR & ~SR_Calt) | SR_Valt;
+                    return;
+                }
+
                 /* If reminder register is the same as destination, skip reminder */
                 if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
                     value = value / src;
@@ -582,14 +588,21 @@ void DIVU_L(uint32_t)
 
                 SR = sr;
             } else  /* 32 / 32 -> 32 divide */ {
+                int32_t dividend = static_cast<int32_t>(dq);
+
+                if (unlikely(dividend == std::numeric_limits<int32_t>::min() && src == -1)) {
+                    SR = (SR & ~SR_Calt) | SR_Valt;
+                    return;
+                }
+
                 /* If reminder register is the same as destination, skip reminder */
                 if ((opcode2 & 7) == ((opcode2 >> 12) & 7)) {
-                    dq = (int32_t)dq / src;
+                    dq = dividend / src;
                     setD((opcode2 >> 12) & 7, dq);
                 } else {
                     int32_t rem;
-                    rem = (int32_t)dq % src;
-                    dq = (int32_t)dq / src;
+                    rem = dividend % src;
+                    dq = dividend / src;
 
                     setD(opcode2 & 7, rem);
                     setD((opcode2 >> 12) & 7, dq);
