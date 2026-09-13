@@ -493,7 +493,7 @@ void MOVEC(uint32_t opcode)
                 case 0x0ea: val = ctx->JIT_SOFTFLUSH_THRESH;                break;
                 case 0x0eb: val = ctx->JIT_CONTROL;                         break;
                 case 0x0ec: val = ctx->JIT_CACHE_MISS;                      break;
-                case 0x0ed: val = (debug & 3) | disasm ? 4 : 0;             break;
+                case 0x0ed: val = (debug & 3) | (disasm ? 4 : 0);           break;
                 case 0x0ee: val = debug_range_min;                          break;
                 case 0x0ef: val = debug_range_max;                          break;
                 case 0x1e0: val = ctx->JIT_CONTROL2;
