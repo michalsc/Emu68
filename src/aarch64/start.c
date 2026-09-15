@@ -2083,6 +2083,7 @@ void boot(void *dtree)
     for (;;)
     {
         M68K_StartEmu(0, NULL);
+#ifdef PISTORM_ANY_MODEL
         if (keyboard_rom_switch)
         {
             multirom_switch_next();
@@ -2090,6 +2091,7 @@ void boot(void *dtree)
             __asm__ volatile("sev");
             continue;
         }
+#endif
         break;
     }
 
