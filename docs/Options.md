@@ -4,6 +4,12 @@ Since Emu68 JIT is not aware of surrounding hardware or peripherals attached to 
 
 ## Options in cmdline.txt
 
+### rom_slot=N (PiStorm multi-ROM variant)
+
+Selects zero-based ROM slot `N` from a pack created with
+`tools/make_rom_pack.py`. See [MultiROM.md](MultiROM.md). If omitted, slot 0 is
+used. This option does not affect a normal single-ROM `initramfs` image.
+
 The cmdline.txt is a one-line file which is passed directly into the device tree available on the M68k through a resource. It can be found in the ``bootargs`` property of the ``/chosen`` node like in the following example:
 
 ```c
@@ -115,4 +121,3 @@ The same set of options as in case of ``brcm-sdhc.device``. Replace ``sd``  with
   Swaps DF0 with DF2 floppy drive.
 * ``swap_df0_with_df3`` 
   Swaps DF0 with DF3 floppy drive.
-

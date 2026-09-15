@@ -552,6 +552,7 @@ int recalc_checksum = 0;
 int buptest = 0;
 int bupiter = 5;
 int fast_page0 = 0;
+uint32_t rom_slot = 0;
 #endif
 
 uint8_t slot_set = 0;
@@ -798,8 +799,75 @@ void parse_cmdline(const char *cmdline)
                 break;
         }
     }
+    if ((tok = find_token(cmdline, "rom_slot=")))
+    {
+        tok += 9;
+        uint32_t slot = 0;
+        while (*tok >= '0' && *tok <= '9')
+        {
+            slot = slot * 10 + *tok++ - '0';
+            if (slot > 255) { slot = 255; break; }
+        }
+        rom_slot = slot;
+    }
 #endif
 }
+
+#ifdef PISTORM_ANY_MODEL
+#define ROM_PACK_MAGIC "EM68ROM\0"
+#define ROM_PACK_HEADER_SIZE 16
+#define ROM_PACK_ENTRY_SIZE 48
+#define ROM_PACK_MAX_ENTRIES 16
+
+static uint32_t read_le32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void select_rom_slot(void *image, uintptr_t *image_size)
+{
+    uint8_t *pack = (uint8_t *)image;
+    if (*image_size < ROM_PACK_HEADER_SIZE || memcmp(pack, ROM_PACK_MAGIC, 8) != 0)
+        return;
+
+    uint32_t version = read_le32(pack + 8);
+    uint32_t count = read_le32(pack + 12);
+    uintptr_t table_size = ROM_PACK_HEADER_SIZE + (uintptr_t)count * ROM_PACK_ENTRY_SIZE;
+    if (version != 1 || count == 0 || count > ROM_PACK_MAX_ENTRIES || table_size > *image_size)
+    {
+        kprintf("[BOOT] Invalid multi-ROM pack\n");
+        *image_size = 0;
+        return;
+    }
+
+    uint32_t selected = rom_slot;
+    if (selected >= count)
+    {
+        kprintf("[BOOT] ROM slot %d is unavailable; using slot 0\n", selected);
+        selected = 0;
+    }
+
+    const uint8_t *entry = pack + ROM_PACK_HEADER_SIZE + (uintptr_t)selected * ROM_PACK_ENTRY_SIZE;
+    uint32_t offset = read_le32(entry);
+    uint32_t size = read_le32(entry + 4);
+    if ((size != 262144 && size != 524288 && size != 1048576 && size != 2097152) ||
+        offset < table_size || (uintptr_t)offset > *image_size ||
+        (uintptr_t)size > *image_size - (uintptr_t)offset)
+    {
+        kprintf("[BOOT] Invalid ROM in slot %d\n", selected);
+        *image_size = 0;
+        return;
+    }
+
+    char name[41];
+    memcpy(name, entry + 8, 40);
+    name[40] = 0;
+    kprintf("[BOOT] Selected ROM slot %d: %s (%d bytes)\n", selected, name, size);
+    memmove(pack, pack + offset, size);
+    *image_size = size;
+}
+#endif
 
 void boot(void *dtree)
 {
@@ -1754,6 +1822,8 @@ void boot(void *dtree)
     {
         extern uint32_t rom_mapped;
 
+        select_rom_slot(initramfs_loc, &initramfs_size);
+
         kprintf("[BOOT] Loading ROM from %p, size %d\n", initramfs_loc, initramfs_size);
         mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             
@@ -1822,7 +1892,9 @@ void boot(void *dtree)
             }
         }
 
-        rom_mapped = 1;
+        if (initramfs_size == 262144 || initramfs_size == 524288 ||
+            initramfs_size == 1048576 || initramfs_size == 2097152)
+            rom_mapped = 1;
 
         tlsf_free(tlsf, initramfs_loc);
     }
