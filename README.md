@@ -1,6 +1,60 @@
 # Emu68
 M68K emulation for ARM
 
+## PiStorm32 multi-Kickstart selector
+
+The `pistorm32-multirom` branch adds a keyboard-controlled Kickstart ROM
+selector for PiStorm and PiStorm32/32-Lite systems. It keeps several ROM images
+in one pack and changes ROM without editing the SD card between boots.
+
+No Kickstart ROM images are included or downloaded. You must provide ROM files
+that you are licensed to use.
+
+### Create a ROM pack
+
+Clone this branch and create a pack from two or more ROM images:
+
+```bash
+git clone --branch pistorm32-multirom https://github.com/Matrixite/Emu68.git
+cd Emu68
+python3 tools/make_rom_pack.py kickstarts.pack kick13.rom kick31.rom
+```
+
+Packs can contain up to 16 ROMs. Supported sizes are 256 KiB, 512 KiB, 1 MiB
+and 2 MiB. All ROMs in a keyboard-switchable pack must be the same size. Slot
+numbers follow the order of the filenames in the command, starting at slot 0.
+
+### Configure the SD card
+
+Copy `kickstarts.pack` to the FAT32 boot partition and use it as the initramfs
+in `config.txt`:
+
+```ini
+initramfs kickstarts.pack
+```
+
+The optional `rom_slot=N` setting in the single-line `cmdline.txt` chooses the
+initial zero-based slot. Slot 0 is used when the option is omitted or invalid:
+
+```text
+rom_slot=0
+```
+
+Other Emu68 command-line options can remain on the same line.
+
+### Switch ROM with the keyboard
+
+- Press Ctrl-Amiga-Amiga briefly for a normal reset using the current ROM.
+- Hold Ctrl-Amiga-Amiga for approximately three seconds to load the next ROM.
+- Holding it on the final slot wraps around to slot 0.
+
+The ROM pack remains in memory while Emu68 is running. A complete power cycle
+starts again from the slot selected by `rom_slot=N`. A traditional single ROM,
+such as `initramfs kick.rom`, remains compatible and keeps the original reset
+behaviour.
+
+More details are available in [the multi-ROM guide](docs/MultiROM.md).
+
 
 
 # Building instructions
