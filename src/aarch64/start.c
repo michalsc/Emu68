@@ -552,6 +552,12 @@ int recalc_checksum = 0;
 int buptest = 0;
 int bupiter = 5;
 int fast_page0 = 0;
+uint32_t rom_slot = 0;
+volatile uint32_t keyboard_rom_switch = 0;
+static uint8_t *rom_pack_saved = NULL;
+static uintptr_t rom_pack_saved_size = 0;
+static uint32_t rom_pack_count = 0;
+static uint32_t rom_pack_rom_size = 0;
 #endif
 
 uint8_t slot_set = 0;
@@ -798,8 +804,172 @@ void parse_cmdline(const char *cmdline)
                 break;
         }
     }
+    if ((tok = find_token(cmdline, "rom_slot=")))
+    {
+        tok += 9;
+        uint32_t slot = 0;
+        while (*tok >= '0' && *tok <= '9')
+        {
+            slot = slot * 10 + *tok++ - '0';
+            if (slot > 255) { slot = 255; break; }
+        }
+        rom_slot = slot;
+    }
 #endif
 }
+
+#ifdef PISTORM_ANY_MODEL
+#define ROM_PACK_MAGIC "EM68ROM\0"
+#define ROM_PACK_HEADER_SIZE 16
+#define ROM_PACK_ENTRY_SIZE 48
+#define ROM_PACK_MAX_ENTRIES 16
+
+static uint32_t read_le32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void select_rom_slot(void *image, uintptr_t *image_size)
+{
+    uint8_t *pack = (uint8_t *)image;
+    if (*image_size < ROM_PACK_HEADER_SIZE ||
+        strncmp((const char *)pack, ROM_PACK_MAGIC, 8) != 0)
+        return;
+
+    uint32_t version = read_le32(pack + 8);
+    uint32_t count = read_le32(pack + 12);
+    uintptr_t table_size = ROM_PACK_HEADER_SIZE + (uintptr_t)count * ROM_PACK_ENTRY_SIZE;
+    if (version != 1 || count == 0 || count > ROM_PACK_MAX_ENTRIES || table_size > *image_size)
+    {
+        kprintf("[BOOT] Invalid multi-ROM pack\n");
+        *image_size = 0;
+        return;
+    }
+
+    uint32_t selected = rom_slot;
+    if (selected >= count)
+    {
+        kprintf("[BOOT] ROM slot %d is unavailable; using slot 0\n", selected);
+        selected = 0;
+    }
+
+    const uint8_t *entry = pack + ROM_PACK_HEADER_SIZE + (uintptr_t)selected * ROM_PACK_ENTRY_SIZE;
+    uint32_t offset = read_le32(entry);
+    uint32_t size = read_le32(entry + 4);
+    if ((size != 262144 && size != 524288 && size != 1048576 && size != 2097152) ||
+        offset < table_size || (uintptr_t)offset > *image_size ||
+        (uintptr_t)size > *image_size - (uintptr_t)offset)
+    {
+        kprintf("[BOOT] Invalid ROM in slot %d\n", selected);
+        *image_size = 0;
+        return;
+    }
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        const uint8_t *candidate = pack + ROM_PACK_HEADER_SIZE + (uintptr_t)i * ROM_PACK_ENTRY_SIZE;
+        if (read_le32(candidate + 4) != size)
+        {
+            kprintf("[BOOT] Multi-ROM keyboard switching requires equal-sized ROMs\n");
+            *image_size = 0;
+            return;
+        }
+    }
+
+    rom_pack_saved = tlsf_malloc(tlsf, *image_size);
+    if (rom_pack_saved == NULL)
+    {
+        kprintf("[BOOT] Cannot retain multi-ROM pack\n");
+        *image_size = 0;
+        return;
+    }
+    memcpy(rom_pack_saved, pack, *image_size);
+    rom_pack_saved_size = *image_size;
+    rom_pack_count = count;
+    rom_pack_rom_size = size;
+
+    char name[41];
+    memcpy(name, entry + 8, 40);
+    name[40] = 0;
+    kprintf("[BOOT] Selected ROM slot %d: %s (%d bytes)\n", selected, name, size);
+    memmove(pack, pack + offset, size);
+    *image_size = size;
+}
+
+static void copy_saved_rom(uint32_t slot)
+{
+    const uint8_t *entry = rom_pack_saved + ROM_PACK_HEADER_SIZE +
+                           (uintptr_t)slot * ROM_PACK_ENTRY_SIZE;
+    uint32_t offset = read_le32(entry);
+    const uint8_t *src = rom_pack_saved + offset;
+    uint32_t size = rom_pack_rom_size;
+
+    if ((uintptr_t)offset + size > rom_pack_saved_size)
+        return;
+
+    if (size == 262144)
+    {
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)src, 262144 / 4);
+        DuffCopy((void*)0xffffff9000fc0000, (const uint32_t *)src, 262144 / 4);
+        DuffCopy((void*)0xffffff9000e00000, (void*)0xffffff9000f80000, 524288 / 4);
+    }
+    else if (size == 524288)
+    {
+        DuffCopy((void*)0xffffff9000e00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)src, 524288 / 4);
+    }
+    else if (size == 1048576)
+    {
+        DuffCopy((void*)0xffffff9000e00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)(src + 524288), 524288 / 4);
+    }
+    else if (size == 2097152)
+    {
+        DuffCopy((void*)0xffffff9000e00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000a80000, (const uint32_t *)(src + 524288), 524288 / 4);
+        DuffCopy((void*)0xffffff9000b00000, (const uint32_t *)(src + 1048576), 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)(src + 1572864), 524288 / 4);
+    }
+
+    uint8_t *rom = (uint8_t *)0xffffff9000f80000;
+    if (rom[2] == 0xf9 && rom[3] == 0x4e)
+    {
+        for (uint32_t i = 0; i < 524288; i += 2)
+        {
+            uint8_t t = rom[i]; rom[i] = rom[i + 1]; rom[i + 1] = t;
+        }
+        if (size == 1048576 || size == 2097152)
+        {
+            rom = (uint8_t *)0xffffff9000e00000;
+            for (uint32_t i = 0; i < 524288; i += 2)
+            {
+                uint8_t t = rom[i]; rom[i] = rom[i + 1]; rom[i + 1] = t;
+            }
+        }
+        if (size == 2097152)
+        {
+            rom = (uint8_t *)0xffffff9000a80000;
+            for (uint32_t i = 0; i < 1048576; i += 2)
+            {
+                uint8_t t = rom[i]; rom[i] = rom[i + 1]; rom[i + 1] = t;
+            }
+        }
+    }
+    clear_entire_dcache();
+}
+
+void multirom_switch_next(void)
+{
+    if (rom_pack_saved == NULL || rom_pack_count < 2)
+        return;
+    rom_slot = (rom_slot + 1) % rom_pack_count;
+    copy_saved_rom(rom_slot);
+    kprintf("[BOOT] Long keyboard reset selected ROM slot %d\n", rom_slot);
+    ps_send_reset();
+}
+#endif
 
 void boot(void *dtree)
 {
@@ -1754,6 +1924,8 @@ void boot(void *dtree)
     {
         extern uint32_t rom_mapped;
 
+        select_rom_slot(initramfs_loc, &initramfs_size);
+
         kprintf("[BOOT] Loading ROM from %p, size %d\n", initramfs_loc, initramfs_size);
         mmu_map(0xf80000, 0xf80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
             
@@ -1822,7 +1994,9 @@ void boot(void *dtree)
             }
         }
 
-        rom_mapped = 1;
+        if (initramfs_size == 262144 || initramfs_size == 524288 ||
+            initramfs_size == 1048576 || initramfs_size == 2097152)
+            rom_mapped = 1;
 
         tlsf_free(tlsf, initramfs_loc);
     }
@@ -1907,7 +2081,20 @@ void boot(void *dtree)
     }
 #endif
 
-    M68K_StartEmu(0, NULL);
+    for (;;)
+    {
+        M68K_StartEmu(0, NULL);
+#ifdef PISTORM_ANY_MODEL
+        if (keyboard_rom_switch)
+        {
+            multirom_switch_next();
+            keyboard_rom_switch = 0;
+            __asm__ volatile("sev");
+            continue;
+        }
+#endif
+        break;
+    }
 
     while(1) __asm__ volatile("wfe");
 }

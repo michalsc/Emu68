@@ -70,4 +70,6 @@ hdmi_force_hotplug=1
 # NOTE: The default firmware for PS32Lite is already embedded in Emu68!!! Above instruction is
 # for test/development purposes **ONLY**
 # initramfs firmware.bin.gz,DiagROM
+# A plain ROM remains supported. This variant can alternatively use a pack
+# created with tools/make_rom_pack.py and rom_slot=N in cmdline.txt.
 initramfs kick.rom

@@ -143,6 +143,7 @@ void ps_write_status_reg(unsigned int value);
 void ps_setup_protocol();
 void ps_reset_state_machine();
 void ps_pulse_reset();
+void ps_send_reset();
 
 void bitbang_putByte(uint8_t byte);
 void fastSerial_putByte(uint8_t byte);

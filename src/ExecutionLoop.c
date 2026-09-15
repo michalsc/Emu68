@@ -310,6 +310,14 @@ void MainLoop()
     /* The JIT loop is running forever */
     while(1)
     {   
+#ifdef PISTORM_ANY_MODEL
+        extern volatile uint32_t keyboard_rom_switch;
+        if (unlikely(keyboard_rom_switch))
+        {
+            M68K_SaveContext(ctx);
+            return;
+        }
+#endif
         /* Load m68k context and last used PC counter into temporary register */ 
         LastPC = getLastPC();
         ctx = getCTX();
