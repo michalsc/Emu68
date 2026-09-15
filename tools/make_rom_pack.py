@@ -26,6 +26,9 @@ def main() -> None:
             parser.error(f"{path}: unsupported size {len(data)} bytes")
         images.append((path.name.encode("utf-8")[:39], data))
 
+    if len({len(data) for _, data in images}) != 1:
+        parser.error("all ROMs in a keyboard-switchable pack must have the same size")
+
     offset = 16 + len(images) * ENTRY_SIZE
     entries = []
     payload = bytearray()

@@ -16,6 +16,9 @@ of `cmdline.txt`, for example:
 rom_slot=1
 ```
 
-Changing the slot requires editing `cmdline.txt` and rebooting. Slot `0` is the
-default and fallback. Plain 256 KiB, 512 KiB, 1 MiB and 2 MiB ROM files remain
-supported. In the example, slot 0 is `kick13.rom` and slot 1 is `kick31.rom`.
+Hold Ctrl-Amiga-Amiga for about three seconds to advance to the next ROM and
+wrap around after the last slot. A short keyboard reset keeps its original
+behaviour and does not change slots. All ROMs in a keyboard-switchable pack
+must have the same size. Slot `0` is the default and fallback. Plain 256 KiB,
+512 KiB, 1 MiB and 2 MiB ROM files remain supported. In the example, slot 0 is
+`kick13.rom` and slot 1 is `kick31.rom`.

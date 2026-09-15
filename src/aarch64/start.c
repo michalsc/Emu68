@@ -553,6 +553,11 @@ int buptest = 0;
 int bupiter = 5;
 int fast_page0 = 0;
 uint32_t rom_slot = 0;
+volatile uint32_t keyboard_rom_switch = 0;
+static uint8_t *rom_pack_saved = NULL;
+static uintptr_t rom_pack_saved_size = 0;
+static uint32_t rom_pack_count = 0;
+static uint32_t rom_pack_rom_size = 0;
 #endif
 
 uint8_t slot_set = 0;
@@ -860,12 +865,108 @@ static void select_rom_slot(void *image, uintptr_t *image_size)
         return;
     }
 
+    for (uint32_t i = 0; i < count; i++)
+    {
+        const uint8_t *candidate = pack + ROM_PACK_HEADER_SIZE + (uintptr_t)i * ROM_PACK_ENTRY_SIZE;
+        if (read_le32(candidate + 4) != size)
+        {
+            kprintf("[BOOT] Multi-ROM keyboard switching requires equal-sized ROMs\n");
+            *image_size = 0;
+            return;
+        }
+    }
+
+    rom_pack_saved = tlsf_malloc(tlsf, *image_size);
+    if (rom_pack_saved == NULL)
+    {
+        kprintf("[BOOT] Cannot retain multi-ROM pack\n");
+        *image_size = 0;
+        return;
+    }
+    memcpy(rom_pack_saved, pack, *image_size);
+    rom_pack_saved_size = *image_size;
+    rom_pack_count = count;
+    rom_pack_rom_size = size;
+
     char name[41];
     memcpy(name, entry + 8, 40);
     name[40] = 0;
     kprintf("[BOOT] Selected ROM slot %d: %s (%d bytes)\n", selected, name, size);
     memmove(pack, pack + offset, size);
     *image_size = size;
+}
+
+static void copy_saved_rom(uint32_t slot)
+{
+    const uint8_t *entry = rom_pack_saved + ROM_PACK_HEADER_SIZE +
+                           (uintptr_t)slot * ROM_PACK_ENTRY_SIZE;
+    uint32_t offset = read_le32(entry);
+    const uint8_t *src = rom_pack_saved + offset;
+    uint32_t size = rom_pack_rom_size;
+
+    if ((uintptr_t)offset + size > rom_pack_saved_size)
+        return;
+
+    if (size == 262144)
+    {
+        DuffCopy((void*)0xffffff9000f80000, src, 262144 / 4);
+        DuffCopy((void*)0xffffff9000fc0000, src, 262144 / 4);
+        DuffCopy((void*)0xffffff9000e00000, (void*)0xffffff9000f80000, 524288 / 4);
+    }
+    else if (size == 524288)
+    {
+        DuffCopy((void*)0xffffff9000e00000, src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, src, 524288 / 4);
+    }
+    else if (size == 1048576)
+    {
+        DuffCopy((void*)0xffffff9000e00000, src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f00000, src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, src + 524288, 524288 / 4);
+    }
+    else if (size == 2097152)
+    {
+        DuffCopy((void*)0xffffff9000e00000, src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000a80000, src + 524288, 524288 / 4);
+        DuffCopy((void*)0xffffff9000b00000, src + 1048576, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, src + 1572864, 524288 / 4);
+    }
+
+    uint8_t *rom = (uint8_t *)0xffffff9000f80000;
+    if (rom[2] == 0xf9 && rom[3] == 0x4e)
+    {
+        for (uint32_t i = 0; i < 524288; i += 2)
+        {
+            uint8_t t = rom[i]; rom[i] = rom[i + 1]; rom[i + 1] = t;
+        }
+        if (size == 1048576 || size == 2097152)
+        {
+            rom = (uint8_t *)0xffffff9000e00000;
+            for (uint32_t i = 0; i < 524288; i += 2)
+            {
+                uint8_t t = rom[i]; rom[i] = rom[i + 1]; rom[i + 1] = t;
+            }
+        }
+        if (size == 2097152)
+        {
+            rom = (uint8_t *)0xffffff9000a80000;
+            for (uint32_t i = 0; i < 1048576; i += 2)
+            {
+                uint8_t t = rom[i]; rom[i] = rom[i + 1]; rom[i + 1] = t;
+            }
+        }
+    }
+    clear_entire_dcache();
+}
+
+void multirom_switch_next(void)
+{
+    if (rom_pack_saved == NULL || rom_pack_count < 2)
+        return;
+    rom_slot = (rom_slot + 1) % rom_pack_count;
+    copy_saved_rom(rom_slot);
+    kprintf("[BOOT] Long keyboard reset selected ROM slot %d\n", rom_slot);
+    ps_send_reset();
 }
 #endif
 
@@ -1979,7 +2080,18 @@ void boot(void *dtree)
     }
 #endif
 
-    M68K_StartEmu(0, NULL);
+    for (;;)
+    {
+        M68K_StartEmu(0, NULL);
+        if (keyboard_rom_switch)
+        {
+            multirom_switch_next();
+            keyboard_rom_switch = 0;
+            __asm__ volatile("sev");
+            continue;
+        }
+        break;
+    }
 
     while(1) __asm__ volatile("wfe");
 }

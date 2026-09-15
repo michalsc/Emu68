@@ -2261,8 +2261,32 @@ void ps_housekeeper()
 
             if ((pin & (1 << PIN_KBRESET)) == 0 && ignore_reset == 0)
             {
-                kprintf("[HKEEP] Houskeeper will reset RasPi now...\n");
-                pi_reset();
+                uint64_t pressed_at = get_microseconds();
+                int did_switch = 0;
+                while ((LE32(GPIO->GPLEV0) & (1 << PIN_KBRESET)) == 0)
+                {
+                    if (get_microseconds() - pressed_at >= 3000000)
+                    {
+                        extern volatile uint32_t keyboard_rom_switch;
+                        kprintf("[HKEEP] Long keyboard reset: switching Kickstart ROM\n");
+                        ignore_reset = 1;
+                        while ((LE32(GPIO->GPLEV0) & (1 << PIN_KBRESET)) == 0)
+                            asm volatile("wfe");
+                        keyboard_rom_switch = 1;
+                        asm volatile("sev");
+                        while (keyboard_rom_switch)
+                            asm volatile("wfe");
+                        ignore_reset = 0;
+                        did_switch = 1;
+                        break;
+                    }
+                    asm volatile("wfe");
+                }
+                if (!did_switch)
+                {
+                    kprintf("[HKEEP] Short keyboard reset: resetting RasPi\n");
+                    pi_reset();
+                }
             }
         }
     }
