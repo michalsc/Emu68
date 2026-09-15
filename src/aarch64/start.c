@@ -833,7 +833,8 @@ static uint32_t read_le32(const uint8_t *p)
 static void select_rom_slot(void *image, uintptr_t *image_size)
 {
     uint8_t *pack = (uint8_t *)image;
-    if (*image_size < ROM_PACK_HEADER_SIZE || memcmp(pack, ROM_PACK_MAGIC, 8) != 0)
+    if (*image_size < ROM_PACK_HEADER_SIZE ||
+        strncmp((const char *)pack, ROM_PACK_MAGIC, 8) != 0)
         return;
 
     uint32_t version = read_le32(pack + 8);
@@ -909,27 +910,27 @@ static void copy_saved_rom(uint32_t slot)
 
     if (size == 262144)
     {
-        DuffCopy((void*)0xffffff9000f80000, src, 262144 / 4);
-        DuffCopy((void*)0xffffff9000fc0000, src, 262144 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)src, 262144 / 4);
+        DuffCopy((void*)0xffffff9000fc0000, (const uint32_t *)src, 262144 / 4);
         DuffCopy((void*)0xffffff9000e00000, (void*)0xffffff9000f80000, 524288 / 4);
     }
     else if (size == 524288)
     {
-        DuffCopy((void*)0xffffff9000e00000, src, 524288 / 4);
-        DuffCopy((void*)0xffffff9000f80000, src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000e00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)src, 524288 / 4);
     }
     else if (size == 1048576)
     {
-        DuffCopy((void*)0xffffff9000e00000, src, 524288 / 4);
-        DuffCopy((void*)0xffffff9000f00000, src, 524288 / 4);
-        DuffCopy((void*)0xffffff9000f80000, src + 524288, 524288 / 4);
+        DuffCopy((void*)0xffffff9000e00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)(src + 524288), 524288 / 4);
     }
     else if (size == 2097152)
     {
-        DuffCopy((void*)0xffffff9000e00000, src, 524288 / 4);
-        DuffCopy((void*)0xffffff9000a80000, src + 524288, 524288 / 4);
-        DuffCopy((void*)0xffffff9000b00000, src + 1048576, 524288 / 4);
-        DuffCopy((void*)0xffffff9000f80000, src + 1572864, 524288 / 4);
+        DuffCopy((void*)0xffffff9000e00000, (const uint32_t *)src, 524288 / 4);
+        DuffCopy((void*)0xffffff9000a80000, (const uint32_t *)(src + 524288), 524288 / 4);
+        DuffCopy((void*)0xffffff9000b00000, (const uint32_t *)(src + 1048576), 524288 / 4);
+        DuffCopy((void*)0xffffff9000f80000, (const uint32_t *)(src + 1572864), 524288 / 4);
     }
 
     uint8_t *rom = (uint8_t *)0xffffff9000f80000;
