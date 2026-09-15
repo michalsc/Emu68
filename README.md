@@ -48,10 +48,28 @@ Other Emu68 command-line options can remain on the same line.
 - Hold Ctrl-Amiga-Amiga for approximately three seconds to load the next ROM.
 - Holding it on the final slot wraps around to slot 0.
 
+### How ROM switching works
+
+There is no on-screen ROM-selection menu. Emu68's PiStorm housekeeper monitors
+the keyboard-reset line and measures how long Ctrl-Amiga-Amiga is held. A short
+press follows the normal reset path. After a hold of approximately three
+seconds, Emu68 performs the following sequence:
+
+1. Pauses the emulated 68K execution loop.
+2. Advances the active ROM slot, wrapping from the final slot to slot 0.
+3. Copies the selected Kickstart into the mapped Amiga ROM address.
+4. Corrects byte-swapped ROM data when necessary.
+5. Flushes the processor cache.
+6. Resets the Amiga-side hardware state.
+7. Restarts 68K execution using the new Kickstart reset vectors.
+
 The ROM pack remains in memory while Emu68 is running. A complete power cycle
 starts again from the slot selected by `rom_slot=N`. A traditional single ROM,
 such as `initramfs kick.rom`, remains compatible and keeps the original reset
 behaviour.
+
+The slot selected at runtime is not written to the SD card. To change the ROM
+used after a complete power cycle, update `rom_slot=N` in `cmdline.txt`.
 
 More details are available in [the multi-ROM guide](docs/MultiROM.md).
 
