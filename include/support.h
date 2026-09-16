@@ -135,6 +135,7 @@ int strncmp(const char *s1, const char *s2, size_t n);
 void *memmove(void *dst, const void *src, size_t sz);
 void *memcpy(void *dst, const void *src, size_t sz);
 void *memset(void *ptr, int fill, size_t sz);
+#undef strstr
 char *strstr(const char *str, const char *find);
 void bzero(void *ptr, size_t sz);
 void platform_init();
