@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.14.0)
 project(Emu68 VERSION 1.1.0)
 set(PROJECT_VERSION 1.1.0-beta.1)
 
+option(ENABLE_DISASM "Enable disassembler" OFF)
+
 include(ExternalProject)
 
 set(PPC_ROM_HEADER ${CMAKE_BINARY_DIR}/include/ppc_rom.h)
@@ -79,6 +81,7 @@ set(BASE_FILES
     src/disasm.c
     src/findtoken.c
     src/cache.c
+    src/globals.c
 )
 
 set(EMU68_FILES
@@ -383,13 +386,18 @@ add_dependencies(Emu68.elf ppc_rom)
 
 add_subdirectory(external)
 
-target_link_libraries(Emu68.elf capstone_static libdeflate_static)
+target_link_libraries(Emu68.elf libdeflate_static)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/external/capstone/include)
 target_include_directories(Emu68.elf PRIVATE ${CMAKE_BINARY_DIR}/include)
 target_compile_definitions(Emu68.elf PRIVATE 
     EMU68_VERSION_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}
     EMU68_VERSION_MINOR=${CMAKE_PROJECT_VERSION_MINOR}
 )
+
+if(ENABLE_DISASM)
+    target_compile_definitions(Emu68.elf PRIVATE EMU68_ENABLE_DISASM=1)
+    target_link_libraries(Emu68.elf capstone_static)
+endif()
 
 configure_file(include/version.h.in include/version.h @ONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/.git/index)
