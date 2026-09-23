@@ -14,6 +14,8 @@
 
 extern void *tlsf;
 
+#ifdef EMU68_ENABLE_DISASM
+
 void *my_malloc(size_t size)
 {
     return tlsf_malloc(tlsf, size);
@@ -92,7 +94,7 @@ void disasm_open()
 {
     cs_err err;
     err = cs_open(CS_ARCH_M68K, CS_MODE_BIG_ENDIAN | CS_MODE_M68K_040, &h_m68k);
-    err = cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &h_arm);
+    err = cs_open(CS_ARCH_AARCH64, CS_MODE_ARM, &h_arm);
     err = cs_open(CS_ARCH_PPC, CS_MODE_32 | CS_MODE_BIG_ENDIAN, &h_ppc);
 
     (void)err;
@@ -291,3 +293,5 @@ void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr
     if (count_arm)
         cs_free(insn_arm, count_arm);
 }
+
+#endif
