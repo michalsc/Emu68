@@ -148,6 +148,24 @@ void __printf_chk(int, const char *restrict format, ...)
     va_end(v);
 }
 
+
+void __fprintf_chk(void *, int, const char *restrict format, ...)
+{
+    (void)format;
+
+    va_list v;
+    va_start(v, format);
+
+    while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE))
+        __asm__ volatile("yield");
+
+    vkprintf_pc(putByte, (void *)ARM_PERIIOBASE, format, v);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
+    va_end(v);
+}
+
 void kprintf(const char * restrict format, ...)
 {
     va_list v;
