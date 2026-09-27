@@ -106,6 +106,7 @@ struct M68KState
         uint64_t INT64;
     } __attribute__((aligned(8)));
     uint64_t INSN_COUNT;
+    uint64_t IDLE_TIME;
 
     uint32_t JIT_CACHE_MISS;
     uint32_t JIT_UNIT_COUNT;

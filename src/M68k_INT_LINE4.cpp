@@ -78,10 +78,24 @@ void STOP(uint32_t)
         
         SR = sr;
 
-        /* SR is set to new value, start spinning on the pending IRQ's */
-        while(getCTX()->INT64 == 0) {
-            asm volatile("wfe":::"memory");
+        /* 
+            SR is set to new value, start spinning on the pending IRQ's.
+            If trace mode is active, do not enter the stopped state - the
+            trace exception must be taken immediately after this instruction.
+        */
+        uint64_t t0, t1;
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t0));
+        if ((sr & (SR_T0 | SR_T1)) == 0) {
+#ifndef PISTORM_ANY_MODEL
+            asm volatile("wfi":::"memory");
+#else
+            while(getCTX()->INT64 == 0) {
+                asm volatile("wfe":::"memory");
+            }
+#endif
         }
+        asm volatile("mrs %0, CNTPCT_EL0":"=r"(t1));
+        getCTX()->IDLE_TIME += t1 - t0;
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -500,6 +514,8 @@ void MOVEC(uint32_t opcode)
                 case 0x1e0: val = ctx->JIT_CONTROL2;
                             val |= ctx->INTF.PPC ? 0x40000000 : 0;
                             val |= ctx->INTF.ARM ? 0x20000000 : 0;          break;
+                case 0x1e1: val = ctx->IDLE_TIME;                           break;
+                case 0x1e2: val = ctx->IDLE_TIME >> 32;                     break;
                 case 0x003: val = ctx->TCR;                                 break;
                 case 0x004: val = ctx->ITT0;                                break;
                 case 0x005: val = ctx->ITT1;                                break;

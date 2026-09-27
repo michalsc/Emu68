@@ -1732,12 +1732,16 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
         msr_imm(3, 6, 7)  // Mask interrupts
     );
 
+    uint8_t timereg = RA_AllocARMRegister(ctx);
+    uint8_t tmpreg = RA_AllocARMRegister(ctx);
+    uint8_t ctxReg = RA_GetCTX(ctx);
+
+    EMIT(ctx, mrs(timereg, sys_CNTPCT_EL0));
+
 #ifndef PISTORM_ANY_MODEL
     /* Non pistorm machines wait for interrupt only */
     EMIT(ctx, wfi());
 #else
-    uint8_t tmpreg = RA_AllocARMRegister(ctx);
-    uint8_t ctxReg = RA_GetCTX(ctx);
     uint32_t *start, *end;
 
     // Don't wait for event if IRQ is already pending
@@ -1755,9 +1759,18 @@ static uint32_t EMIT_STOP(struct TranslatorContext *ctx, uint16_t opcode)
     );
     end = ctx->tc_CodePtr;
     EMIT(ctx, cbz_64(tmpreg, start - end));
+#endif
+
+    EMIT(ctx, 
+        mrs(tmpreg, sys_CNTPCT_EL0),
+        sub64_reg(timereg, tmpreg, timereg, LSL, 0),
+        ldr64_offset(ctxReg, tmpreg, __builtin_offsetof(struct M68KState, IDLE_TIME)),
+        add64_reg(timereg, timereg, tmpreg, LSL, 0),
+        str64_offset(ctxReg, timereg, __builtin_offsetof(struct M68KState, IDLE_TIME))
+    );
 
     RA_FreeARMRegister(ctx, tmpreg);
-#endif
+    RA_FreeARMRegister(ctx, timereg);
 
     *tmpptr = b(ctx->tc_CodePtr - tmpptr);
 
@@ -2367,6 +2380,22 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 tmp = RA_AllocARMRegister(ctx);
                 EMIT(ctx, 
                     mrs(tmp, sys_CNTPCT_EL0),
+                    lsr64(reg, tmp, 32)
+                );
+                RA_FreeARMRegister(ctx, tmp);
+                break;
+            case 0x1e1: /* IDLELO - lower 32 bits of the idle time */
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    ldr64_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, IDLE_TIME)),
+                    mov_reg(reg, tmp)
+                );
+                RA_FreeARMRegister(ctx, tmp);
+                break;
+            case 0x1e2: /* IDLEHI - higher 32 bits of the idle time */
+                tmp = RA_AllocARMRegister(ctx);
+                EMIT(ctx, 
+                    ldr64_offset(ctxreg, tmp, __builtin_offsetof(struct M68KState, IDLE_TIME)),
                     lsr64(reg, tmp, 32)
                 );
                 RA_FreeARMRegister(ctx, tmp);
