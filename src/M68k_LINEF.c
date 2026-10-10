@@ -5324,6 +5324,82 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
         insn_consumed = 1;
         EMIT_AdvancePC(ctx, 6);
     }
+    /* CACHE DMA RANGE: data-cache maintenance over [An, An+Dn) in one pass,
+     * stepping by the real cache-line size and closed by a single trailing DSB.
+     * No leading barrier: ARMv8 orders a DC-by-VA op in program order against
+     * earlier loads/stores to Normal cacheable memory within the same line
+     * (ARM ARM, "Ordering and completion of data and instruction cache
+     * instructions"), which is exactly the stores this range maintains — the
+     * same reasoning as Linux arm64 dcache_by_line_op. The legacy CINV/CPUSH
+     * handlers below keep their leading dsb.
+     *
+     * Encoding: SCOPE (4:3) is 00, reserved and illegal on a real 68040.
+     *   Operation word  1111 0100 CC P 00 nnn
+     *     CC  (7:6) cache field, must be 01 (data). 00/10/11 with this scope
+     *               reach no handler and take the Line-F vector
+     *     P   (5)   0 = CINV  -> invalidate        (dc ivac)
+     *               1 = CPUSH -> clean+invalidate  (dc civac), or with N set
+     *                            clean only, line stays valid (dc cvac)
+     *     nnn (2:0) An = base address
+     *   Extension word  0 ddd s N S 000000000
+     *     ddd (14:12) Dn = byte length
+     *     s   (11)    0 = word length, 1 = long length
+     *     N   (10)    no-invalidate (only meaningful with CPUSH)
+     *     S   (9)     no-sync: suppress the trailing DSB. Batch by issuing N
+     *                 ranges with S set, then closing with one non-S op or an
+     *                 m68k NOP (a bare dsb sy). A zero-length range emits
+     *                 nothing at all, so it never acts as a barrier.
+     *
+     * CINV is a sharp primitive: we are at EL1 with HCR_EL2.VM == 0, so 
+     * dc ivac genuinely discards. The loop maintains whole lines, so the caller
+     * must own every line the range touches — a partial end line loses whatever
+     * a neighbour had dirtied there. Callers that cannot promise that must clean
+     * the two end lines first, which is what 68040.library's CachePostDMA does.
+     *
+     * Data cache only, translated code is untouched, so translation continues. */
+    else if ((opcode & 0xff00) == 0xf400 && (opcode & 0x0018) == 0 && (opcode & 0x00c0) == 0x40)
+    {
+        extern int dcache_mask_bits;
+        uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+        uint8_t reg_len = RA_MapM68kRegister(ctx, (opcode2 >> 12) & 7);  /* Dn = length */
+        uint8_t base = RA_AllocARMRegister(ctx);
+        uint8_t end = RA_AllocARMRegister(ctx);
+        uint8_t len = reg_len;
+        int no_sync = (opcode2 & 0x0200) != 0;  /* S: caller batches, closes the barrier itself */
+
+        /* word-size length: use only the low 16 bits without clobbering Dn */
+        if (!(opcode2 & 0x0800)) {
+            len = RA_AllocARMRegister(ctx);
+            EMIT(ctx, uxth(len, reg_len));
+        }
+
+        /* zero-length range maintains no line at all (cbz skips everything below) */
+        EMIT(ctx, cbz(len, no_sync ? 7 : 8));
+        EMIT(ctx,
+            add_reg(end, reg_An, len, LSL, 0),              /* end  = An + len       */
+            bic_immed(base, reg_An, dcache_mask_bits, 0));  /* base = An & ~(line-1)  */
+        if (!(opcode & 0x20))                               /* CINV  -> invalidate   */
+            EMIT(ctx, dc_ivac(base));
+        else if (opcode2 & 0x0400)                          /* CPUSH+NI -> clean     */
+            EMIT(ctx, dc_cvac(base));
+        else                                                /* CPUSH -> clean+inval  */
+            EMIT(ctx, dc_civac(base));
+        EMIT(ctx,
+            add_immed(base, base, 1 << dcache_mask_bits),   /* base += line size     */
+            cmp_reg(base, end, LSL, 0),
+            b_cc(A64_CC_CC, -3));                           /* loop while base < end */
+        if (!no_sync)
+            EMIT(ctx, dsb_sy());                            /* visible to DMA master */
+
+        if (len != reg_len)
+            RA_FreeARMRegister(ctx, len);
+        RA_FreeARMRegister(ctx, base);
+        RA_FreeARMRegister(ctx, end);
+
+        ctx->tc_M68kCodePtr += 2;
+        insn_consumed = 1;
+        EMIT_AdvancePC(ctx, 4);
+    }
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400 && (opcode & 0x0018) != 0)
     {
