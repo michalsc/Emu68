@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include "M68k.h"
+#include "globals.h"
+
 
 register uint32_t PC asm("w18");
 register uint32_t D0 asm("w19");
