@@ -23,6 +23,8 @@
 register uint64_t (*ARMCode)() __asm__("x12");
 extern uint32_t EPOCH;
 
+extern void M68K_RaiseTraceException(void);
+
 #if 0
 static inline uint32_t getLastPC()
 {
@@ -555,6 +557,74 @@ void InterpreterLoop()
     } while(likely(ARMCode != NULL));
 }
 
+void TraceInterpreterLoop()
+{
+    struct M68KState *ctx = getCTX();
+
+    /* Prepare vector 0; 1 which gets added to the INSN_COUNTER after every executed instruction */
+    asm volatile("mov v22.d[1], xzr\n\tmov v22.d[0], %0"::"r"(1));
+
+    /* ARMCode pointer misused - it will hold interpreter jump table instead */
+    extern INTERPRET_Function __interpreter_jumptable_start __attribute__((aligned(4096)));
+    ARMCode = (uint64_t (*)())&__interpreter_jumptable_start;
+
+    /*
+        Same as InterpreterLoop(), but additionally tracks whether the executed
+        instruction was a "change of flow" instruction (globals.trace_branch_flag) and,
+        depending on the T0/T1 trace bits, raises the trace exception after each
+        instruction (T1) or only after a change-of-flow instruction (T0 alone,
+        per the 68020/030/040 "trace on change of flow" mode).
+    */
+    do
+    {
+#ifndef PISTORM_ANY_MODEL
+        if (unlikely(PC == 0)) {
+            return;
+        }
+#endif
+        globals.trace_branch_flag = false;
+
+        uint32_t opcode;
+        void (*code)(uint32_t);
+        asm volatile(
+            "ldrh	%w0, [%2]\n\t"
+            "ldr	%1, [%3, %w0, uxtw #3]\n\t"
+            :"=r"(opcode), "=r"(code), "+r"(PC), "+r"(ARMCode)
+        );
+        code(opcode);
+
+        /* Increase instruction counter */
+        reserved_reg_q20 = vaddq_u64(reserved_reg_q20, reserved_reg_q22);
+
+        /*
+            Per the 68k exception priority rules, within Group 1 Trace has
+            priority over Interrupt (and over Illegal Instruction / Privilege
+            Violation). So check trace first. If a trace exception is taken,
+            PC now points at the trace vector's handler - do NOT also process
+            a pending interrupt on this same boundary (that would stack an
+            interrupt frame with the wrong return address); it stays pending
+            and is picked up on the next loop iteration instead.
+        */
+        bool traceTaken = false;
+        {
+            uint32_t tbits = getSR() & (SR_T0 | SR_T1);
+            if (tbits == SR_T1) {
+                M68K_RaiseTraceException();
+                traceTaken = true;
+            } else if (tbits == SR_T0 && globals.trace_branch_flag) {
+                M68K_RaiseTraceException();
+                traceTaken = true;
+            }
+        }
+
+        /* Check if any interrupts are pending, modify PC and stack if necessary */
+        if (!traceTaken && unlikely(ctx->INT64 != 0))
+        {
+            ProcessIRQ(ctx);
+        }
+    } while (likely(ARMCode != NULL) && (getSR() & (SR_T0 | SR_T1)) != 0);
+}
+
 void JITLoop()
 {
     struct M68KState *ctx = getCTX();
@@ -687,7 +757,7 @@ void MainLoop()
         /* If trace mode is enabled go to interpreter */
         if (unlikely((sr & (SR_T0 | SR_T1)) != 0))
         {
-            InterpreterLoop();
+            TraceInterpreterLoop();
         }
         /* If caches are enabled, go into JIT loop */
         else if (likely(getCACR() & CACR_IE))

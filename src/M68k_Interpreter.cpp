@@ -22,7 +22,6 @@ extern "C" {
 void M68K_LoadContext(struct M68KState* ctx);
 void M68K_SaveContext(struct M68KState* ctx);
 void M68K_PrintContext(struct M68KState* ctx);
-extern int debug_not_implemented;
 
 }
 
@@ -208,9 +207,9 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
         bug("[INT] raiseException(%x, %d, %08x, %08x) called from %p\n", exception, format, ea, pc, __builtin_return_address(0));
 
         M68K_SaveContext(getCTX());
-        disasm_open();
+        #ifdef EMU68_ENABLE_DISASM
         disasm_print_m68k_only((uint16_t*)(uintptr_t)getCTX()->PC);
-
+        #endif
         M68K_PrintContext(getCTX());
         M68K_LoadContext(getCTX());
     }
@@ -262,14 +261,20 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     PC = *(uint32_t*)(uintptr_t)vbr;
 }
 
+extern "C" void M68K_RaiseTraceException()
+{
+    raiseException(VECTOR_TRACE, ExceptionFrameFormat::FORMAT_0, 0, 0);
+}
+
 void ILLEGAL(uint32_t opcode)
 {
-    if (opcode != 0x4afc && debug_not_implemented != 0) {
+    if (opcode != 0x4afc && globals.debug_not_implemented != 0) {
         safeCall([&](){
             kprintf("[INT] ILLEGAL INSTRUCTION %04x at %08x\n", opcode, getPC());
 
-            disasm_open();
+            #ifdef EMU68_ENABLE_DISASM
             disasm_print_m68k_only((uint16_t*)(uintptr_t)getCTX()->PC);
+            #endif
 
             M68K_PrintContext(getCTX());
         });

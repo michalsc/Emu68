@@ -12,11 +12,11 @@ extern "C" {
 #include "math/libm.h"
 #include "cache.h"
 #include "disasm.h"
+#include "globals.h"
 
 uint64_t Load96bit(uintptr_t __ignore, uintptr_t base);
 uint64_t Store96bit(uint64_t value, uintptr_t base);
 void invalidate_entire_dcache(void);
-extern int dcache_mask_bits;
 extern uint32_t EPOCH;
 
 typedef union 
@@ -112,6 +112,7 @@ void FSAVE(uint32_t opcode)
     uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
 
     advancePC(2);
+    globals.trace_branch_flag = true;
 
     /* Save only IDLE frame, we not need to record any changes here */
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) { 
@@ -129,6 +130,7 @@ void FRESTORE(uint32_t opcode)
     uint8_t reg = (Reg == DEFAULT_EA) ? (opcode & 7) : Reg;
 
     advancePC(2);
+    globals.trace_branch_flag = true;
 
     /* Restore frame header */
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
@@ -235,6 +237,7 @@ void FBcc(uint32_t)
 
     if (evalCondFPU<InstCC>()) {
         pc += bra_off;
+        globals.trace_branch_flag = true;
     } else {
         pc = next_pc;
     }
@@ -960,9 +963,11 @@ void handleGeneralType(uint32_t opcode)
     }
     else if ((opclass == 6) && ((ry & 6) == 0)) {
         handled = FMOVEM_from_EA(opcode, opcode2);
+        if (handled) globals.trace_branch_flag = true;
     }
     else if ((opclass == 7) && ((ry & 6) == 0)) {
         handled = FMOVEM_to_EA(opcode, opcode2);
+        if (handled) globals.trace_branch_flag = true;
     }
 
     if (!handled) {
@@ -989,6 +994,7 @@ void FDBcc(uint32_t opcode)
         }
     }
 
+    globals.trace_branch_flag = true;
     commitPC();
 }
 
@@ -1031,6 +1037,7 @@ void PFLUSH(uint32_t)
     /* PFLUSH requires supervisor rights */
     if (SR & SR_S) {
         advancePC(2);
+        globals.trace_branch_flag = true;
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -1042,6 +1049,7 @@ void PTEST(uint32_t)
     /* PTEST requires supervisor rights */
     if (SR & SR_S) {
         advancePC(2);
+        globals.trace_branch_flag = true;
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -1060,6 +1068,7 @@ void CINV(uint32_t opcode)
             raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
         } else {
             advancePC(2);
+            globals.trace_branch_flag = true;
 
             if (data_cache) {
                 uint32_t tmp;
@@ -1067,15 +1076,15 @@ void CINV(uint32_t opcode)
                 switch (scope) {
                     case 1: // Line
                         tmp = getA<uint32_t>(opcode & 7);
-                        tmp &= (1 << dcache_mask_bits) - 1;
+                        tmp &= (1 << globals.dcache_mask_bits) - 1;
                         asm volatile("dc ivac, %0; dsb sy;"::"r"(tmp));
                         break;
                     case 2: // Page
                         tmp = getA<uint32_t>(opcode & 7);
                         tmp = tmp & ~4095;
-                        for (int i=0; i < (1 << (12 - dcache_mask_bits)); i++) {
+                        for (int i=0; i < (1 << (12 - globals.dcache_mask_bits)); i++) {
                             asm volatile("dc ivac, %0"::"r"(tmp));
-                            tmp += 1 << dcache_mask_bits;
+                            tmp += 1 << globals.dcache_mask_bits;
                         }
                         asm volatile("dsb sy");
                         break;
@@ -1109,6 +1118,7 @@ void CPUSH(uint32_t opcode)
             raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
         } else {
             advancePC(2);
+            globals.trace_branch_flag = true;
 
             if (data_cache) {
                 uint32_t tmp;
@@ -1116,15 +1126,15 @@ void CPUSH(uint32_t opcode)
                 switch (scope) {
                     case 1: // Line
                         tmp = getA<uint32_t>(opcode & 7);
-                        tmp &= (1 << dcache_mask_bits) - 1;
+                        tmp &= (1 << globals.dcache_mask_bits) - 1;
                         asm volatile("dc civac, %0; dsb sy;"::"r"(tmp));
                         break;
                     case 2: // Page
                         tmp = getA<uint32_t>(opcode & 7);
                         tmp = tmp & ~4095;
-                        for (int i=0; i < (1 << (12 - dcache_mask_bits)); i++) {
+                        for (int i=0; i < (1 << (12 - globals.dcache_mask_bits)); i++) {
                             asm volatile("dc civac, %0"::"r"(tmp));
-                            tmp += 1 << dcache_mask_bits;
+                            tmp += 1 << globals.dcache_mask_bits;
                         }
                         asm volatile("dsb sy");
                         break;

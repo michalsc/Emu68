@@ -24,6 +24,7 @@ void DBcc(uint32_t)
             setPC(pc_continue);
         } else {
             setPC(pc_loop);
+            globals.trace_branch_flag = true;
         }
     }
 }

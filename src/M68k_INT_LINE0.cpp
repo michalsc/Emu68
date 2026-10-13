@@ -230,6 +230,7 @@ void ORI_to_SR(uint32_t)
         handleChangedSR(sr, changed);
 
         SR = sr;
+        globals.trace_branch_flag = true;
         advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
@@ -257,6 +258,7 @@ void ANDI_to_SR(uint32_t)
         handleChangedSR(sr, changed);
 
         SR = sr;
+        globals.trace_branch_flag = true;
         advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
@@ -284,6 +286,7 @@ void EORI_to_SR(uint32_t)
         handleChangedSR(sr, changed);
         
         SR = sr;
+        globals.trace_branch_flag = true;
         advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
@@ -584,6 +587,7 @@ void MOVES(uint32_t opcode)
 
         advancePC(4);
         commitPC();
+        globals.trace_branch_flag = true;
 
         if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
             uint32_t mode = (Mode == DEFAULT_EA) ? (opcode >> 3) & 7 : Mode;
@@ -629,6 +633,7 @@ void CAS(uint32_t opcode)
 
     advancePC(4);
     commitPC();
+    globals.trace_branch_flag = true;
 
     uint32_t addr;
     if constexpr (Mode == DEFAULT_EA || Reg == DEFAULT_EA) {
@@ -677,6 +682,7 @@ void CAS2(uint32_t)
 
     advancePC(6);
     commitPC();
+    globals.trace_branch_flag = true;
 
     uint32_t rn1 = (opcode2 & 0x8000) ? getA<uint32_t>((opcode2 >> 12) & 7) : getD<uint32_t>((opcode2 >> 12) & 7);
     uint32_t rn2 = (opcode3 & 0x8000) ? getA<uint32_t>((opcode3 >> 12) & 7) : getD<uint32_t>((opcode3 >> 12) & 7);

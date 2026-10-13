@@ -12,10 +12,6 @@ register uint64_t (*ARMCode)() __asm__("x12");
 
 extern "C" {
 
-extern int disasm;
-extern int debug;
-extern uint32_t debug_range_min;
-extern uint32_t debug_range_max;
 void do_reset();
 
 }
@@ -55,6 +51,7 @@ void MOVE_to_SR(uint32_t)
         handleChangedSR(sr, changed);
         
         SR = sr;
+        globals.trace_branch_flag = true;
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
     }
@@ -77,6 +74,7 @@ void STOP(uint32_t)
         handleChangedSR(sr, changed);
         
         SR = sr;
+        globals.trace_branch_flag = true;
 
         /* 
             SR is set to new value, start spinning on the pending IRQ's.
@@ -133,6 +131,7 @@ void MOVE_to_USP(uint32_t opcode)
         advancePC(2);
         
         USP = getA<ULONG>(opcode & 7);
+        globals.trace_branch_flag = true;
 
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
@@ -146,6 +145,7 @@ void MOVE_from_USP(uint32_t opcode)
         advancePC(2);
         
         setA<ULONG>(opcode & 7, USP);
+        globals.trace_branch_flag = true;
 
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);
@@ -260,6 +260,7 @@ void RTS(uint32_t)
 {
     setPC(*(uint32_t *)(uintptr_t)getA<7, uint32_t>());
     A7 += 4;
+    globals.trace_branch_flag = true;
 }
 
 void RTR(uint32_t)
@@ -267,6 +268,7 @@ void RTR(uint32_t)
     SR = (SR & ~SR_CCR) | swapVC((*(uint16_t*)(uintptr_t)A7 & SR_CCR));
     setPC(*(uint32_t *)(uintptr_t)(A7 + 2));
     A7 += 6;
+    globals.trace_branch_flag = true;
 }
 
 void RTE(uint32_t)
@@ -292,6 +294,7 @@ void RTE(uint32_t)
         if (frame == ExceptionFrameFormat::FORMAT_2) A7 += 4;
 
         setPC(newPC);
+        globals.trace_branch_flag = true;
         changedSR ^= sr;
 
         handleChangedSR(sr, changedSR);
@@ -307,11 +310,13 @@ void RTD(uint32_t)
     int32_t displacement = *getPC<int16_t*>(2);
     setPC(*(uint32_t *)(uintptr_t)A7);
     A7 += 4 + displacement;
+    globals.trace_branch_flag = true;
 }
 
 void NOP(uint32_t)
 {
     advancePC(2);
+    globals.trace_branch_flag = true;
 }
 
 template<uint8_t Mode, uint8_t Reg, uint8_t An>
@@ -335,6 +340,7 @@ void JMP(uint32_t)
 {
     advancePC(2);
     setPC(getEA<Mode, Reg, uint32_t>());
+    globals.trace_branch_flag = true;
 }
 
 template<uint8_t Mode, uint8_t Reg>
@@ -346,6 +352,7 @@ void JSR(uint32_t)
     A7 -= 4;
     *(uint32_t*)(uintptr_t)A7 = getPC(); 
     setPC(new_pc);
+    globals.trace_branch_flag = true;
 }
 
 template<uint8_t An>
@@ -465,9 +472,10 @@ void MOVEC(uint32_t opcode)
                 case 0x807: ctx->SRP = dn & 0xfffffe00;             break;
                 case 0x0ea: ctx->JIT_SOFTFLUSH_THRESH = dn;         break;
                 case 0x0eb: ctx->JIT_CONTROL = dn; ARMCode = 0;     break;
-                case 0x0ed: debug = dn & 3; disasm = (dn >> 2) & 1; break;
-                case 0x0ee: debug_range_min = dn;                   break;
-                case 0x0ef: debug_range_max = dn;                   break;
+                case 0x0ed: globals.debug = dn & 3;
+                            globals.disasm = (dn >> 2) & 1;         break;
+                case 0x0ee: globals.debug_range_min = dn;           break;
+                case 0x0ef: globals.debug_range_max = dn;           break;
                 case 0x1e0: ctx->JIT_CONTROL2 = dn & 0x1fffffff;
                             if (dn & 0x20000000) ctx->INTF.ARM = 0;
                             if (dn & 0x40000000) ctx->INTF.PPC = 0;
@@ -508,9 +516,10 @@ void MOVEC(uint32_t opcode)
                 case 0x0ea: val = ctx->JIT_SOFTFLUSH_THRESH;                break;
                 case 0x0eb: val = ctx->JIT_CONTROL;                         break;
                 case 0x0ec: val = ctx->JIT_CACHE_MISS;                      break;
-                case 0x0ed: val = (debug & 3) | (disasm ? 4 : 0);           break;
-                case 0x0ee: val = debug_range_min;                          break;
-                case 0x0ef: val = debug_range_max;                          break;
+                case 0x0ed: val = (globals.debug & 3);
+                            val |= (globals.disasm ? 4 : 0);                break;
+                case 0x0ee: val = globals.debug_range_min;                  break;
+                case 0x0ef: val = globals.debug_range_max;                  break;
                 case 0x1e0: val = ctx->JIT_CONTROL2;
                             val |= ctx->INTF.PPC ? 0x40000000 : 0;
                             val |= ctx->INTF.ARM ? 0x20000000 : 0;          break;
@@ -534,6 +543,7 @@ void MOVEC(uint32_t opcode)
                 setD(reg, (uint32_t)val);
             }
         }
+        globals.trace_branch_flag = true;
         advancePC(4);
     } else {
         raiseException(VECTOR_PRIVILEGE_VIOLATION, ExceptionFrameFormat::FORMAT_0, 0, 0);

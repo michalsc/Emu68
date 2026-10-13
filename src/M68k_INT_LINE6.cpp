@@ -26,6 +26,7 @@ void BSR(uint32_t opcode)
 
     pc += bra_off;
     setPC(pc);
+    globals.trace_branch_flag = true;
     *(uint32_t *)(uintptr_t)ptr = ret_pc;
     setA<7>(ptr);
 }
@@ -47,6 +48,7 @@ void Bcc(uint32_t opcode)
 
     if (evalCond<InstCC>()) {
         pc += bra_off;
+        globals.trace_branch_flag = true;
     } else {
         pc = next_pc;
     }
