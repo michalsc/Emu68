@@ -829,6 +829,18 @@ void boot(void *dtree)
 
     make_emu68_node();
 
+    if (!dt_find_property(e, "logo-color"))
+    {
+        uint32_t color = 0;
+        dt_add_property(e, "logo-color", &color, 4);
+    }
+
+    /* Capability marker for m68k guests: this build decodes the private LINE-F
+       data-cache range opcodes (EMIT_lineF, 0xF460/0xF440 + ext word).
+       Value = capability revision. */
+    uint32_t dcache_range_ops = 1;
+    dt_add_property(e, "dcache-range-ops", &dcache_range_ops, sizeof(dcache_range_ops));
+
     if (globals.ppc_enable) {
         if (!dt_find_property(e, "enable-ppc"))
         {
