@@ -15,6 +15,7 @@
 #include <tlsf.h>
 #include <devicetree.h>
 #include <DuffCopy.h>
+#include "globals.h"
 
 __attribute__((aligned(4096)))
 #include "./emu68rom.h"
@@ -200,7 +201,6 @@ static void build_fdt()
 static void map(struct ExpansionBoard *board)
 {
     uint32_t total_length = 0;
-    extern int ppc_enable;
     void *rom_modules = 0;
     void *virt_base = (void*)((uintptr_t)board->map_base + 0x1000);
     
@@ -211,7 +211,7 @@ static void map(struct ExpansionBoard *board)
 
     for (int i=0; roms[i].rom_base; i++)
     {
-        if (!ppc_enable && roms[i].rom_base == powerpc_library)
+        if (!globals.ppc_enable && roms[i].rom_base == powerpc_library)
             continue;
 
         roms[i].load_size = GetHunkFileSize(roms[i].rom_base);
@@ -229,7 +229,7 @@ static void map(struct ExpansionBoard *board)
 
     for (int i=0; roms[i].rom_base; i++)
     {
-        if (!ppc_enable && roms[i].rom_base == powerpc_library)
+        if (!globals.ppc_enable && roms[i].rom_base == powerpc_library)
             continue;
 
         LoadHunkFile(roms[i].rom_base, rom_modules, virt_base);
