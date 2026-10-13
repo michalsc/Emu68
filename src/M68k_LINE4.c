@@ -12,6 +12,7 @@
 #include "RegisterAllocator.h"
 #include "cache.h"
 #include "tlsf.h"
+#include "globals.h"
 
 extern uint32_t insn_count;
 
@@ -2064,10 +2065,6 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t sp = 0xff;
     uint32_t *tmpptr;
     int illegal = 0;
-    extern uint32_t debug_range_min;
-    extern uint32_t debug_range_max;
-    extern int disasm;
-    extern int debug;
     union {
         uint16_t u16[4];
         uint64_t u64;
@@ -2180,7 +2177,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             {
                 uint8_t tmp2 = RA_AllocARMRegister(ctx);
                 tmp = RA_AllocARMRegister(ctx);
-                u.u64 = (uintptr_t)&debug;
+                u.u64 = (uintptr_t)&globals.debug;
                 EMIT(ctx, 
                     mov64_immed_u16(tmp, u.u16[3], 0),
                     movk64_immed_u16(tmp, u.u16[2], 1),
@@ -2189,24 +2186,24 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                     ubfx(tmp2, reg, 0, 2),
                     str_offset(tmp, tmp2, 0)
                 );
-                if (_abs((intptr_t)&debug - (intptr_t)&disasm) < 255)
+                if (_abs((intptr_t)&globals.debug - (intptr_t)&globals.disasm) < 255)
                 {
-                    int delta = (uintptr_t)&disasm - (uintptr_t)&debug;
+                    intptr_t delta = (uintptr_t)&globals.disasm - (uintptr_t)&globals.debug;
                     EMIT(ctx, 
                         ubfx(tmp2, reg, 2, 1),
-                        stur_offset(tmp, tmp2, delta)
+                        sturb_offset(tmp, tmp2, delta)
                     );
                 }
                 else
                 {
-                    u.u64 = (uintptr_t)&disasm;
+                    u.u64 = (uintptr_t)&globals.disasm;
                     EMIT(ctx, 
                         mov64_immed_u16(tmp, u.u16[3], 0),
                         movk64_immed_u16(tmp, u.u16[2], 1),
                         movk64_immed_u16(tmp, u.u16[1], 2),
                         movk64_immed_u16(tmp, u.u16[0], 3),
                         ubfx(tmp2, reg, 2, 1),
-                        str_offset(tmp, tmp2, 0)
+                        strb_offset(tmp, tmp2, 0)
                     );
                 }
                 RA_FreeARMRegister(ctx, tmp);
@@ -2215,7 +2212,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             }
             case 0x0ee: /* DBGADDRLO */
                 tmp = RA_AllocARMRegister(ctx);
-                u.u64 = (uintptr_t)&debug_range_min;
+                u.u64 = (uintptr_t)&globals.debug_range_min;
                 EMIT(ctx, 
                     mov64_immed_u16(tmp, u.u16[3], 0),
                     movk64_immed_u16(tmp, u.u16[2], 1),
@@ -2227,7 +2224,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 break;
             case 0x0ef: /* DBGADDRHI */
                 tmp = RA_AllocARMRegister(ctx);
-                u.u64 = (uintptr_t)&debug_range_max;
+                u.u64 = (uintptr_t)&globals.debug_range_max;
                 EMIT(ctx, 
                     mov64_immed_u16(tmp, u.u16[3], 0),
                     movk64_immed_u16(tmp, u.u16[2], 1),
@@ -2460,7 +2457,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             {
                 uint8_t tmp2 = RA_AllocARMRegister(ctx);
                 tmp = RA_AllocARMRegister(ctx);
-                u.u64 = (uintptr_t)&debug;
+                u.u64 = (uintptr_t)&globals.debug;
                 EMIT(ctx, 
                     mov64_immed_u16(tmp, u.u16[3], 0),
                     movk64_immed_u16(tmp, u.u16[2], 1),
@@ -2471,20 +2468,20 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                     ubfx(reg, tmp2, 0, 2)
                 );
 
-                if (_abs((intptr_t)&debug - (intptr_t)&disasm) < 255)
+                if (_abs((intptr_t)&globals.debug - (intptr_t)&globals.disasm) < 255)
                 {
-                    int delta = (uintptr_t)&disasm - (uintptr_t)&debug;
-                    EMIT(ctx, ldur_offset(tmp, tmp2, delta));
+                    intptr_t delta = (uintptr_t)&globals.disasm - (uintptr_t)&globals.debug;
+                    EMIT(ctx, ldurb_offset(tmp, tmp2, delta));
                 }
                 else
                 {
-                    u.u64 = (uintptr_t)&disasm;
+                    u.u64 = (uintptr_t)&globals.disasm;
                     EMIT(ctx, 
                         mov64_immed_u16(tmp, u.u16[3], 0),
                         movk64_immed_u16(tmp, u.u16[2], 1),
                         movk64_immed_u16(tmp, u.u16[1], 2),
                         movk64_immed_u16(tmp, u.u16[0], 3),
-                        ldr_offset(tmp, tmp2, 0)
+                        ldrb_offset(tmp, tmp2, 0)
                     );
                 }
                 EMIT(ctx, 
@@ -2498,7 +2495,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
             }
             case 0x0ee: /* DBGADDRLO */
                 tmp = RA_AllocARMRegister(ctx);
-                u.u64 = (uintptr_t)&debug_range_min;
+                u.u64 = (uintptr_t)&globals.debug_range_min;
                 EMIT(ctx, 
                     mov64_immed_u16(tmp, u.u16[3], 0),
                     movk64_immed_u16(tmp, u.u16[2], 1),
@@ -2510,7 +2507,7 @@ static uint32_t EMIT_MOVEC(struct TranslatorContext *ctx, uint16_t opcode)
                 break;
             case 0x0ef: /* DBGADDRHI */
                 tmp = RA_AllocARMRegister(ctx);
-                u.u64 = (uintptr_t)&debug_range_max;
+                u.u64 = (uintptr_t)&globals.debug_range_max;
                 EMIT(ctx, 
                     mov64_immed_u16(tmp, u.u16[3], 0),
                     movk64_immed_u16(tmp, u.u16[2], 1),
@@ -2826,7 +2823,6 @@ static uint32_t EMIT_MOVEM(struct TranslatorContext *ctx, uint16_t opcode)
     uint16_t mask = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
     uint8_t block_size = 0;
     uint8_t ext_words = 0;
-    extern int debug;
     uint32_t *ptr_orig = ctx->tc_CodePtr;
 
     ctx->tc_M68kCodePtr++;
@@ -3331,8 +3327,7 @@ uint32_t EMIT_line4(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
 
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 
