@@ -22,6 +22,7 @@
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 #include "version.h"
+#include "globals.h"
 #include "logo/logo_emu68.h"
 #include "logo/logo_ppc.h"
 #include "logo/logo_pistorm.h"
@@ -392,7 +393,7 @@ void display_logo()
     /* Then draw logos according to current settings */
     draw_logo(emu68logo, start_x, start_y);
 
-    if (dt_find_property(dt_find_node("/emu68"), "ppc-enable"))
+    if (dt_find_property(dt_find_node("/emu68"), "enable-ppc"))
     {
         struct EmuLogo *ppclogo = rle_decode(logo_ppc, logo_ppc_len);
         draw_logo(ppclogo, start_x + emu68logo->el_Width, start_y + 49);
@@ -433,12 +434,12 @@ extern unsigned char pistorm_get_model();
     #endif
 }
 
+#if 0
 uintptr_t top_of_ram;
+#endif
 
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
-
-extern int block_c0;
 #endif
 
 // Helper function to map peripheral ranges
@@ -489,10 +490,12 @@ void map_peripheral_ranges(char *node_name, uint32_t *start_map)
 
         ranges[pos_acpu] = BE32(*start_map << 21);
 
+        #if 0
         if (addr_bus == 0x40000000) {
             extern uintptr_t local_intc_base;
             local_intc_base = *start_map << 21;
         }
+        #endif
 
         // Round up length to nearest 2 MiB and calculate addend for next mapping
         uint32_t addend = (addr_len + (1 << 21) - 1) >> 21;
@@ -670,7 +673,7 @@ void platform_post_init()
     kprintf("[BOOT] sending RESET signal to Amiga\n");
     ps_pulse_reset();
 
-    block_c0 = 0;
+    globals.block_c0 = false;
 
     ps_write_8_int(0xde1000, 0);
     if (ps_read_8_int(0xde1000) & 0x80)
@@ -682,13 +685,13 @@ void platform_post_init()
                 if (ps_read_8_int(0xde1000) & 0x80)
                 {
                     kprintf("[BOOT] Gayle appears to be present\n");
-                    block_c0 = 1;
+                    globals.block_c0 = true;
                 }
             }
         }
     }
 
-    if (block_c0 == 0)
+    if (globals.block_c0 == false)
     {
         kprintf("[BOOT] Gayle not detected\n");
     }
