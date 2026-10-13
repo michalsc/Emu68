@@ -5307,7 +5307,6 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
      * Data cache only, translated code is untouched, so translation continues. */
     else if ((opcode & 0xff00) == 0xf400 && (opcode & 0x0018) == 0 && (opcode & 0x00c0) == 0x40)
     {
-        extern int dcache_mask_bits;
         uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
         uint8_t reg_len = RA_MapM68kRegister(ctx, (opcode2 >> 12) & 7);  /* Dn = length */
         uint8_t base = RA_AllocARMRegister(ctx);
@@ -5325,7 +5324,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
         EMIT(ctx, cbz(len, no_sync ? 7 : 8));
         EMIT(ctx,
             add_reg(end, reg_An, len, LSL, 0),              /* end  = An + len       */
-            bic_immed(base, reg_An, dcache_mask_bits, 0));  /* base = An & ~(line-1)  */
+            bic_immed(base, reg_An, globals.dcache_mask_bits, 0));  /* base = An & ~(line-1)  */
         if (!(opcode & 0x20))                               /* CINV  -> invalidate   */
             EMIT(ctx, dc_ivac(base));
         else if (opcode2 & 0x0400)                          /* CPUSH+NI -> clean     */
@@ -5333,7 +5332,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
         else                                                /* CPUSH -> clean+inval  */
             EMIT(ctx, dc_civac(base));
         EMIT(ctx,
-            add_immed(base, base, 1 << dcache_mask_bits),   /* base += line size     */
+            add_immed(base, base, 1 << globals.dcache_mask_bits),   /* base += line size     */
             cmp_reg(base, end, LSL, 0),
             b_cc(A64_CC_CC, -3));                           /* loop while base < end */
         if (!no_sync)
