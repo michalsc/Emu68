@@ -13,6 +13,7 @@
 #include "tlsf.h"
 #include "A64.h"
 #include "devicetree.h"
+#include "globals.h"
 
 #define DV2P(x) /* x */
 #define DMAP(x) /* x */
@@ -227,8 +228,6 @@ extern uint32_t vid_memory;
 extern uintptr_t vid_base;
 extern uintptr_t unicam_base;
 extern uintptr_t unicam_size;
-extern void* m68k_jit_phys_base;
-extern void* ppc_jit_phys_base;
 
 void mmu_init()
 {
@@ -281,13 +280,13 @@ void mmu_init()
 
                 uint32_t m68k_jit_size = dt_get_property_value_u32(e, "m68k-jit-size", 0, FALSE) << 20;
                 size -= m68k_jit_size;
-                m68k_jit_phys_base = (void *)(addr + size);
+                globals.m68k_jit_phys_base = (void *)(addr + size);
 
-                if (dt_find_property(e, "ppc-enable"))
+                if (dt_find_property(e, "enable-ppc"))
                 {
                     uint32_t ppc_jit_size = dt_get_property_value_u32(e, "ppc-jit-size", 0, FALSE) << 20;
                     size -= ppc_jit_size;
-                    ppc_jit_phys_base = (void *)(addr + size);
+                    globals.ppc_jit_phys_base = (void *)(addr + size);
                 }
             }
 
