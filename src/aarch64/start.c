@@ -818,6 +818,8 @@ void boot(void *dtree)
 
     make_emu68_node();
 
+    e = dt_find_node("/emu68");
+
     if (!dt_find_property(e, "logo-color"))
     {
         uint32_t color = 0;
