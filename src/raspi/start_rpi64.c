@@ -34,8 +34,6 @@
 void _start();
 void _boot();
 void move_kernel(intptr_t from, intptr_t to);
-extern uint64_t mmu_user_L1[512];
-extern uint64_t mmu_user_L2[4*512];
 
 void M68K_StartEmu(void *addr);
 
