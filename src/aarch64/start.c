@@ -712,7 +712,8 @@ void make_emu68_node()
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object) + 1);
     dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
-    dt_add_property(e, "support", supporters, supporters_size);
+    dt_add_property(e, "contributors", contributors, contributors_size);
+    dt_add_property(e, "supporters", supporters, supporters_size);
 
     if (!dt_find_property(e, "logo-color"))
     {

@@ -10,6 +10,20 @@
 #ifndef _SPONSORING_H
 #define _SPONSORING_H
 
+unsigned char contributors[] = {
+    "Michal Schulz\0"
+    "Marlon Beijer\0"
+    "Tomaz Kac\0"
+    "Michael Pye\0"
+    "Adam Polkosnik\0"
+    "Michael Rasmussen\0"
+    "Claude Schwarz\0"
+    "Christophe Thibault\0"
+    "Marcel Verdaasdonk\0"
+    "Lukasz Winczura\0"
+};
+const unsigned long contributors_size = sizeof(contributors);
+
 unsigned char supporters[] = {
     "Alberto Benítez Sánchez\0"
     "Alexander Holland\0"
