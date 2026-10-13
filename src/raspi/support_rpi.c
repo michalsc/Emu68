@@ -551,3 +551,8 @@ void setup_serial()
 }
 
 #endif
+
+bool is_serial_up()
+{
+    return serial_up;
+}

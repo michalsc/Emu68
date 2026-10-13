@@ -96,3 +96,8 @@ void setup_serial()
     }
 */
 }
+
+bool is_serial_up()
+{
+    return serial_up;
+}

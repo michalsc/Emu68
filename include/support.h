@@ -142,6 +142,8 @@ void platform_init();
 void platform_post_init();
 void platform_report_stealth();
 void setup_serial();
+bool is_serial_up();
+
 const char * find_token(const char * string, const char * token);
 
 extern void * firmware_file;
