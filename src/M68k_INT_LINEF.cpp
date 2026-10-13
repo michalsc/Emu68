@@ -1076,7 +1076,7 @@ void CINV(uint32_t opcode)
                 switch (scope) {
                     case 1: // Line
                         tmp = getA<uint32_t>(opcode & 7);
-                        tmp &= (1 << globals.dcache_mask_bits) - 1;
+                        tmp &= ~((1 << globals.dcache_mask_bits) - 1);
                         asm volatile("dc ivac, %0; dsb sy;"::"r"(tmp));
                         break;
                     case 2: // Page
@@ -1126,7 +1126,7 @@ void CPUSH(uint32_t opcode)
                 switch (scope) {
                     case 1: // Line
                         tmp = getA<uint32_t>(opcode & 7);
-                        tmp &= (1 << globals.dcache_mask_bits) - 1;
+                        tmp &= ~((1 << globals.dcache_mask_bits) - 1);
                         asm volatile("dc civac, %0; dsb sy;"::"r"(tmp));
                         break;
                     case 2: // Page
