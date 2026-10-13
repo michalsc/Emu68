@@ -1155,6 +1155,91 @@ void CPUSH(uint32_t opcode)
     }
 }
 
+/* CACHE DMA RANGE: data-cache maintenance over [An, An+Dn) in one pass,
+ * stepping by the real cache-line size and closed by a single trailing DSB.
+ * No leading barrier: ARMv8 orders a DC-by-VA op in program order against
+ * earlier loads/stores to Normal cacheable memory within the same line
+ * (ARM ARM, "Ordering and completion of data and instruction cache
+ * instructions"), which is exactly the stores this range maintains — the
+ * same reasoning as Linux arm64 dcache_by_line_op. The legacy CINV/CPUSH
+ * handlers below keep their leading dsb.
+ *
+ * Encoding: SCOPE (4:3) is 00, reserved and illegal on a real 68040.
+ *   Operation word  1111 0100 CC P 00 nnn
+ *     CC  (7:6) cache field, must be 01 (data). 00/10/11 with this scope
+ *               reach no handler and take the Line-F vector
+ *     P   (5)   0 = CINV  -> invalidate        (dc ivac)
+ *               1 = CPUSH -> clean+invalidate  (dc civac), or with N set
+ *                            clean only, line stays valid (dc cvac)
+ *     nnn (2:0) An = base address
+ *   Extension word  0 ddd s N S 000000000
+ *     ddd (14:12) Dn = byte length
+ *     s   (11)    0 = word length, 1 = long length
+ *     N   (10)    no-invalidate (only meaningful with CPUSH)
+ *     S   (9)     no-sync: suppress the trailing DSB. Batch by issuing N
+ *                 ranges with S set, then closing with one non-S op or an
+ *                 m68k NOP (a bare dsb sy). A zero-length range emits
+ *                 nothing at all, so it never acts as a barrier.
+ *
+ * CINV is a sharp primitive: we are at EL1 with HCR_EL2.VM == 0, so 
+ * dc ivac genuinely discards. The loop maintains whole lines, so the caller
+ * must own every line the range touches — a partial end line loses whatever
+ * a neighbour had dirtied there. Callers that cannot promise that must clean
+ * the two end lines first, which is what 68040.library's CachePostDMA does.
+ *
+ * Data cache only, translated code is untouched, so translation continues.
+ */
+void CACHE_DMA_RANGE(uint32_t opcode)
+{
+    uint32_t opcode2 = *getPC<uint16_t*>(2);
+    const bool is_cpush = (opcode & (1 << 5)) != 0;
+    const bool is_cinv = !is_cpush;
+    const int nnn = opcode & 7;
+    const int ddd = (opcode2 >> 12) & 7;
+    const bool word_length = (opcode2 & (1 << 11)) == 0;
+    const bool no_invalidate = (opcode2 & (1 << 10)) != 0;
+    const bool no_sync = (opcode2 & (1 << 9)) != 0;
+
+    advancePC(4);
+    commitPC();
+
+    uint32_t length = getD<uint32_t>(ddd);
+    uint32_t base = getA<uint32_t>(nnn);
+
+    /* If length is word, trim the value obtained form Dn */
+    if (word_length) {
+        length &= 0xffff;
+    }
+
+    /* If length is not zero, perform operation, otherwise it is a no-op */
+    if (length != 0)
+    {
+        const uint32_t end = base + length;
+
+        /* Round base down to cache line size */
+        base &= ~(uint32_t)((1 << globals.dcache_mask_bits) - 1);
+
+        /* Repeat for whole range, go line by line */
+        while (base < end) {
+            if (is_cinv) {
+                asm volatile("dc ivac, %0"::"r"(base));
+            }
+            else if (no_invalidate) {
+                asm volatile("dc cvac, %0"::"r"(base));
+            }
+            else {
+                asm volatile("dc civac, %0"::"r"(base));
+            }
+
+            base += 1 << globals.dcache_mask_bits;
+        }
+
+        if (!no_sync) {
+            asm volatile("dsb sy");
+        }
+    }
+}
+
 template<bool RegToReg, uint8_t Reg, uint8_t Mode>
 void MOVE16(uint32_t)
 {
@@ -1354,6 +1439,9 @@ static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
     fill(02150, 02177, CPUSH);
     fill(02250, 02277, CPUSH);
     fill(02350, 02377, CPUSH);
+
+    fill(02100, 02107, CACHE_DMA_RANGE);
+    fill(02140, 02147, CACHE_DMA_RANGE);
 
     fillReg<MOVE16_RegReg_Op, RegField<0, 3>>(table, 03040);
     fillRegReg<MOVE16_RegMem_Op, RegField<0, 3>, RegField<3, 2>>(table, 03000);
