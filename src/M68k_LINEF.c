@@ -15,6 +15,7 @@
 #include "tlsf.h"
 #include "math/libm.h"
 #include "cache.h"
+#include "globals.h"
 
 extern uint8_t reg_Load96;
 extern uint8_t reg_Save96;
@@ -5176,8 +5177,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     return insn_consumed;
 }
 
-int DisableFPU = 0;
-
 uint32_t EMIT_lineF(struct TranslatorContext *ctx)
 {
     uint32_t insn_consumed = 1;
@@ -5185,7 +5184,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
 
     /* Check destination coprocessor - if it is FPU go to separate function */
-    if (DisableFPU == 0 && (opcode & 0x0e00) == 0x0200)
+    if (globals.fpu_disable == false && (opcode & 0x0e00) == 0x0200)
     {
         return EMIT_FPU(ctx);
     }
@@ -5276,7 +5275,6 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400 && (opcode & 0x0018) != 0)
     {
-        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
         uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
@@ -5291,7 +5289,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
                         dsb_sy(),
-                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
+                        bic_immed(tmp, reg_An, globals.dcache_mask_bits, 0),
                         dc_ivac(tmp),
                         dsb_sy()
                     );
@@ -5303,9 +5301,9 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     EMIT(ctx, 
                         dsb_sy(),
                         bic_immed(tmp, reg_An, 12, 0),
-                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
+                        mov_immed_u16(tmp2, 1 << (12 - globals.dcache_mask_bits), 0),
                         dc_ivac(tmp),
-                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
+                        add_immed(tmp, tmp, 1 << globals.dcache_mask_bits),
                         subs_immed(tmp2, tmp2, 1),
                         b_cc(A64_CC_NE, -3),
                         dsb_sy()
@@ -5391,7 +5389,6 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     /* CPUSH */
     else if ((opcode & 0xff20) == 0xf420 && (opcode & 0x0018) != 0)
     {
-        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
         uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
@@ -5406,7 +5403,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
                         dsb_sy(),
-                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
+                        bic_immed(tmp, reg_An, globals.dcache_mask_bits, 0),
                         dc_civac(tmp),
                         dsb_sy()
                     );
@@ -5418,9 +5415,9 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     EMIT(ctx, 
                         dsb_sy(),
                         bic_immed(tmp, reg_An, 12, 0),
-                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
+                        mov_immed_u16(tmp2, 1 << (12 - globals.dcache_mask_bits), 0),
                         dc_civac(tmp),
-                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
+                        add_immed(tmp, tmp, 1 << globals.dcache_mask_bits),
                         subs_immed(tmp2, tmp2, 1),
                         b_cc(A64_CC_NE, -3),
                         dsb_sy()
@@ -5508,8 +5505,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
         
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 

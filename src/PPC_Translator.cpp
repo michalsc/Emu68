@@ -31,8 +31,7 @@
 #include "cache.h"
 #include "mmu.h"
 #include "devicetree.h"
-
-extern void* ppc_jit_virt_base;
+#include "globals.h"
 
 namespace Emu68::PPC {
 
@@ -41,7 +40,7 @@ register void (*ARMCode)() __asm__("x12");
 
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
-TLSF jit_ppc(ppc_jit_virt_base, dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20);
+TLSF jit_ppc(globals.ppc_jit_virt_base, dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20);
 
 PPCTranslatorContext local_translator;
 ReturnStack return_stack;
@@ -1183,20 +1182,12 @@ static __used__ int EMIT_subfex(PPCTranslatorContext *tc, uint32_t opcode)
     return -1;
 }
 
-
-extern "C" {
-
-extern int debug;
-extern int disasm;
-
-}
-
 static inline int globalDebug() {
-    return debug;
+    return globals.debug;
 }
 
-static inline int globalDisasm() {
-    return disasm;
+static inline bool globalDisasm() {
+    return globals.disasm;
 }
 
 
@@ -1413,12 +1404,9 @@ static inline int EmitINSN(PPCTranslatorContext *tc)
 
     if (count < 1) {
         kprintf("[PPC] UNIMPLEMENTED %08x @ %08x...\n", opcode, (uint32_t)(uintptr_t)tc->getPC());
-
-        if (!disasm) {
-            disasm_open();
-        }
-
+        #ifdef EMU68_ENABLE_DISASM
         disasm_print_ppc_only(tc->getPC());
+        #endif
 
         while(1);
     }
@@ -1486,10 +1474,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
     if (local_translator.getTempAllocMask()) {
         kprintf("[PPC] Temporary register alloc mask on translate start is non-zero %x\n", local_translator.getTempAllocMask());
         while(1);
-    }
-
-    if (disasm) {
-        disasm_open();
     }
 
     return_stack.reset();
@@ -1796,11 +1780,12 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
                 }
                 exit_num++;
             }
+            #ifdef EMU68_ENABLE_DISASM
             disasm_print_ppc(
                 disasm_ptr->do_PPCAddr, disasm_ptr->do_PPCCount,
                 disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, local_translator.tc_CodeStart);
+            #endif
         }
-        disasm_close();
     }
 
     if (debug)

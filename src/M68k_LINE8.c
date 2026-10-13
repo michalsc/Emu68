@@ -12,6 +12,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "globals.h"
 
 #define EMIT_DIVU_reg EMIT_MUL_DIV
 #define EMIT_DIVU_mem EMIT_MUL_DIV
@@ -594,8 +595,7 @@ uint32_t EMIT_line8(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
         
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 

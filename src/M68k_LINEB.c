@@ -11,6 +11,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "globals.h"
 
 static uint32_t EMIT_CMPA(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMPA_reg")));
 static uint32_t EMIT_CMPA_reg(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_CMPA_mem")));
@@ -389,8 +390,7 @@ uint32_t EMIT_lineB(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
 
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 

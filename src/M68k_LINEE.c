@@ -11,6 +11,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "globals.h"
 
 static uint32_t EMIT_ASR_mem(struct TranslatorContext *ctx, uint16_t opcode) __attribute__((alias("EMIT_ASL_mem")));
 static uint32_t EMIT_ASL_mem(struct TranslatorContext *ctx, uint16_t opcode)
@@ -6784,8 +6785,7 @@ uint32_t EMIT_lineE(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
 
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 
