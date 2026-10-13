@@ -224,11 +224,6 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
 
 struct MemoryBlock *sys_memory;
 
-extern uint32_t vid_memory;
-extern uintptr_t vid_base;
-extern uintptr_t unicam_base;
-extern uintptr_t unicam_size;
-
 void mmu_init()
 {
     /*
@@ -253,6 +248,9 @@ void mmu_init()
         sys_memory = tlsf_malloc(tlsf, (1 + block_count) * sizeof(struct MemoryBlock));
         for (int block=0; block < block_count; block++)
         {
+            bool unicam_set = false;
+            bool vc4_set = false;
+            of_property_t *p = NULL;
             int last_block = (block == block_count - 1);
             uintptr_t addr = 0;
             uintptr_t size = 0;
@@ -290,20 +288,38 @@ void mmu_init()
                 }
             }
 
-            if (vid_memory != 0 && vid_base == 0) {
-                if (addr + size <= 0x40000000) {
-                    size -= (vid_memory + 2) << 20;
-                    vid_base = addr + size + (2 << 20);
-                    update_needed = 1;
+            /* 
+                If /emu68/vc4-mem property exists, check if its base address is 0. If so, 
+                then we can assign it a base address here, provided the memory block ends below 1GB,
+                and adjust the size of the memory block accordingly. 
+            */
+            if (!vc4_set && (p = dt_find_property(dt_find_node("/emu68"), "vc4-mem"))) {
+                uint32_t *reg = p->op_value;
+                if (reg[1] != 0 && reg[0] == 0) {
+                    if (addr + size <= 0x40000000) {
+                        size -= (reg[1] + 0x00200000);
+                        reg[0] = addr + size + (2 << 20);
+                        update_needed = 1;
+                        vc4_set = true;
+                    }
                 }
             }
 
-            if (unicam_size != 0 && unicam_base == 0) {
-                if (addr + size <= 0x40000000) {
-                    size -= (unicam_size + 0x1fffff) & ~0x1fffff;
-                    size -= 2 << 20;
-                    unicam_base = addr + size + (2 << 20);
-                    update_needed = 1;
+            /* 
+                If /emu68/unicam-mem property exists, check if its base address is 0. If so,
+                then we can assign it a base address here, provided the memory block ends below 1GB,
+                and adjust the size of the memory block accordingly. 
+            */ 
+            if (!unicam_set && (p = dt_find_property(dt_find_node("/emu68"), "unicam-mem"))) {
+                uint32_t *reg = p->op_value;
+                if (reg[1] != 0 && reg[0] == 0) {
+                    if (addr + size <= 0x40000000) {
+                        size -= (reg[1] + 0x1fffff) & ~0x1fffff;
+                        size -= 2 << 20;
+                        reg[0] = addr + size + (2 << 20);
+                        update_needed = 1;
+                        unicam_set = true;
+                    }
                 }
             }
 

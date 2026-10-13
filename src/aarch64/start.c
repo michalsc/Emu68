@@ -472,10 +472,6 @@ void secondary_boot(void)
 
     while(1) { __asm__ volatile("wfe"); }
 }
-uintptr_t vid_base;
-
-uintptr_t unicam_base;
-uintptr_t unicam_size = 2 * 1024 * 1024;
 
 /* Amiga checksum, taken from AROS source code */
 int amiga_checksum(uint8_t *mem, uintptr_t size, uintptr_t chkoff, int update)
@@ -530,7 +526,6 @@ static void my_free(void *ptr)
 void *firmware_file = NULL;
 uint32_t firmware_size = 0;
 uint32_t cs_dist = 1;
-uint32_t vid_memory = 16;
 #ifdef PISTORM_ANY_MODEL
 int rom_copy = 0;
 int recalc_checksum = 0;
@@ -754,6 +749,19 @@ void make_emu68_node()
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
+    /* Create vc4-mem property if it doesn't exist */
+    if (!dt_find_property(e, "vc4-mem"))
+    {
+        uint32_t reg[2] = { 0x00000000, 0x01000000 };
+        dt_add_property(e, "vc4-mem", reg, sizeof(reg));
+    }
+    else
+    {
+        /* vc4-mem property exists, user passed the requested size in megabytes */
+        uint32_t *reg = (uint32_t*)dt_find_property(e, "vc4-mem")->op_value;
+        reg[1] = reg[1] << 20;
+    }
+
     globals.zorro_disable = !!dt_find_property(e, "disable-zorro");
     globals.fpu_disable = !!dt_find_property(e, "disable-fpu");
     globals.fast_page_zero = !!dt_find_property(e, "fast-page-zero");
@@ -802,9 +810,6 @@ void boot(void *dtree)
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
     __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
-
-    /* Set default VID memory size */
-    vid_memory = 16;
 
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
@@ -904,6 +909,8 @@ void boot(void *dtree)
     /* Verify the unicam buffer has necessary size */
     if ((e = dt_find_node("/emu68/unicam")) != NULL)
     {
+        /* If /emu68/unicam node exists, it also created unicam-mem property in /emu68 */
+        uint32_t *reg = dt_find_property(dt_find_node("/emu68"), "unicam-mem")->op_value;
         of_property_t *sz = dt_find_property(e, "size");
         of_property_t *bp = dt_find_property(e, "bpp");
         uint32_t bpp = *(uint32_t *)bp->op_value;
@@ -915,10 +922,11 @@ void boot(void *dtree)
         uint32_t necessary_size = ((bpp * w * h * 2) + 7) / 8;
 
         /* Roundup size to multiple of 2MB */
-        necessary_size = (necessary_size + 2 * 1024 * 1024) & ~(2 * 1024 * 1024 - 1);
+        necessary_size = (necessary_size + 2 * 1024 * 1024 - 1) & ~(2 * 1024 * 1024 - 1);
 
-        if (unicam_size < necessary_size)
-            unicam_size = necessary_size;
+        /* The reg[0] is the base address, reg[1] is the size */
+        if (reg[1] < necessary_size)
+            reg[1] = necessary_size;
     }
 
     make_emu68_defaults_node();
@@ -1155,22 +1163,6 @@ void boot(void *dtree)
             range += block_size / 4;
         }
 
-        if (vid_base)
-        {
-            kprintf("[BOOT] VC4 framebuffer memory: %p-%p (%d MiB)\n", 
-                vid_base,
-                vid_base + (vid_memory << 20) - 1, 
-                vid_memory);
-        }
-
-        if (unicam_base)
-        {
-            kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
-                unicam_base,
-                unicam_base + unicam_size - 1, 
-                unicam_size >> 20);
-        }
-
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
         intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0x7fffe00000;
 
@@ -1228,22 +1220,22 @@ void boot(void *dtree)
         /* Make a hole for 0xdeadbeef */
         mmu_map(0xdeadbeef & ~4095, 0xdeadbeef & ~4095, 4096, 0, 0);
 
-        if (vid_base) {
-            uint32_t reg[] = {
-                vid_base, vid_memory * 1024*1024
-            };
-            dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
-
-            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        if ((p = dt_find_property(dt_find_node("/emu68"), "vc4-mem"))) {
+            uint32_t *reg = p->op_value;
+            kprintf("[BOOT] VC4 framebuffer memory: %p-%p (%d MiB)\n", 
+                reg[0],
+                reg[0] + reg[1] - 1, 
+                reg[1] >> 20);
+            mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
         }
 
-        if (unicam_base) {
-            uint32_t reg[] = { 
-                (uint32_t)unicam_base, (uint32_t)unicam_size
-            };
-            dt_add_property(dt_find_node("/emu68"), "unicam-mem", reg, 8);
-
-            mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        if ((p = dt_find_property(dt_find_node("/emu68"), "unicam-mem"))) {
+            uint32_t *reg = p->op_value;
+            kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
+                reg[0],
+                reg[0] + reg[1] - 1, 
+                reg[1] >> 20);
+            mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_UNCACHED, 0);
         }
 
         uint32_t m68k_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "m68k-jit-size", 0, FALSE) << 20;
