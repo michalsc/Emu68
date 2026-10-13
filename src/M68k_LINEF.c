@@ -2045,12 +2045,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVECR reg */
     if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVECR\n");
-            shown = 1;
-        }
-
         union {
             double d;
             uint64_t u64;
@@ -2110,12 +2104,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FABS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0018 || (opcode2 & 0xa07b) == 0x0058))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FABS\n");
-            shown = 1;
-        }
-
         val_FPIAR = (uintptr_t)&ctx->tc_M68kCodePtr[-1];
 
         uint8_t fp_src = 0xff;
@@ -2152,12 +2140,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FADD */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0022 || (opcode2 & 0xa07b) == 0x0062))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FADD\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -2194,11 +2176,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FNOP as well as FBF.W to *any* target */
     else if (opcode == 0xf280)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FNOP\n");
-            shown = 1;
-        }
         EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
         ctx->tc_M68kCodePtr += ext_count;
         EMIT_FlushPC(ctx);
@@ -2206,12 +2183,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FBcc\n");
-            shown = 1;
-        }
-
         uint8_t fpsr = RA_GetFPSR(ctx);
         uint8_t predicate = opcode & 0x3f;
         uint8_t success_condition = 0;
@@ -2628,12 +2599,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FDBcc */
     else if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FDBcc\n");
-            shown = 1;
-        }
-        
         /* Extract predicate ignoring signalling flags*/
         uint8_t predicate = opcode2 & 0x0f;
 
@@ -2766,12 +2731,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FCMP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0038)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FCMP\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2794,11 +2753,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FDIV */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0020 || (opcode2 & 0xa07b) == 0x0060))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FDIV\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2825,11 +2779,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSGLDIV */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0024))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSGLDIV\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2860,11 +2809,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSINCOS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa078) == 0x0030))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSINCOS\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
         uint8_t fp_dst_cos = opcode2 & 7;
@@ -2918,11 +2862,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FINT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FINT\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2947,11 +2886,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FGETEXP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001e)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FGETEXP\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -2984,11 +2918,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FGETMAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001f)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FGETMAN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -3020,11 +2949,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FINTRZ */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0003)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FINTRZ\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3049,11 +2973,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSCALE */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0026)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSCALE\n");
-            shown = 1;
-        }
         uint8_t int_src = 0xff;
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -3106,11 +3025,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOGN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOGN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3161,12 +3075,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FREM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0025)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FREM\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 1;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3232,12 +3140,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     }
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0021)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOD\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -3283,11 +3185,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOGNP1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0006)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOGNP1\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3338,11 +3235,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOG10 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0015)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOG10\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3393,11 +3285,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOG2 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0016)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOG2\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3448,11 +3335,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FETOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0010)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FETOX\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3503,11 +3385,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FETOXM1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0008)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FETOXM1\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3558,11 +3435,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSINH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0002)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSINH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3613,11 +3485,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FCOSH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0019)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FCOSH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3668,11 +3535,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FATAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000a)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FATAN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3723,11 +3585,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FATANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000d)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FATANH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3778,11 +3635,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FACOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001c)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FACOS\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3833,11 +3685,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FASIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000c)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FASIN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3888,11 +3735,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000f)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FATAN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3943,11 +3785,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0009)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTANH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3998,11 +3835,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTENTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0012)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTENTOX\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4053,11 +3885,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTWOTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0011)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTWOTOX\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4108,11 +3935,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE to REG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE to REG\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4162,11 +3984,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE to MEM */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xe07f) == 0x6000 || (opcode2 & 0xfc00) == 0x6c00 || (opcode2 & 0xfc0f) == 0x7c00))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE to MEM\n");
-            shown = 1;
-        }
         uint8_t fp_src = (opcode2 >> 7) & 7;
         fp_src = RA_MapFPURegister(ctx, fp_src);
         FPU_StoreData(ctx, fp_src, opcode, opcode2, &ext_count);
@@ -4177,11 +3994,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE from special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE from SPECIAL\n");
-            shown = 1;
-        }
         uint8_t reg = 0xff;
         uint8_t dst = 0xff;
 
@@ -4288,11 +4100,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE to special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0x8000)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE to SPECIAL\n");
-            shown = 1;
-        }
         uint8_t src = 0xff;
         uint8_t tmp = 0xff;
         uint8_t reg = 0xff;
@@ -4427,11 +4234,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVEM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVEM\n");
-            shown = 1;
-        }
         char dir = (opcode2 >> 13) & 1;
         uint8_t base_reg = 0xff;
 
@@ -4573,11 +4375,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0023 || (opcode2 & 0xa07b) == 0x0063))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMUL\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4614,11 +4411,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSGLMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0027))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSGLMUL\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4649,11 +4441,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FNEG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x001a || (opcode2 & 0xa07b) == 0x005a))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FNEG\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4688,11 +4475,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTST */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x003a)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTST\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
 
         FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
@@ -4713,11 +4495,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FScc */
     else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FScc\n");
-            shown = 1;
-        }
         uint8_t fpsr = RA_GetFPSR(ctx);
         uint8_t predicate = opcode2 & 0x3f;
         uint8_t success_condition = 0;
@@ -4892,11 +4669,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSQRT\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4931,11 +4703,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSUB */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0028 || (opcode2 & 0xa07b) == 0x0068))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSUB\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4972,11 +4739,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSIN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -5027,11 +4789,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FCOS\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -5085,11 +4842,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
              (opcode & 0x38) != 0x20 &&
              (opcode & 0x3f) <= 0x3b)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FRESTORE\n");
-            shown = 1;
-        }
         uint8_t tmp = -1;
         ext_count = 0;
         uint32_t *tmp_ptr;
@@ -5150,11 +4902,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
              (opcode & 0x38) != 0x18 &&
              (opcode & 0x3f) <= 0x39)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSAVE\n");
-            shown = 1;
-        }
         uint8_t tmp = RA_AllocARMRegister(ctx);
         
         ext_count = 0;
