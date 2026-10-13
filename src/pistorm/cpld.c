@@ -1,6 +1,6 @@
 /*
  * © Copyright 2026 Claude Schwarz
- * SPDX-License-Identifier: MPL
+ * SPDX-License-Identifier: MPL-2.0
  *
  * This file is a host adapter for the Lib(X)SVF library.
  * The Lib(X)SVF library itself is distributed under a different license.
