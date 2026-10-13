@@ -14,7 +14,7 @@
 
 extern void *tlsf;
 
-#ifdef EMU68_ENABLE_DISASM
+#if defined(EMU68_ENABLE_DISASM) || defined(PISTORM_CLASSIC)
 
 void *my_malloc(size_t size)
 {
@@ -68,7 +68,9 @@ int my_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 
     return p.written;
 }
+#endif
 
+#if defined(EMU68_ENABLE_DISASM)
 void disasm_init()
 {
     cs_opt_mem setup;
