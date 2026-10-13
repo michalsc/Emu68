@@ -651,23 +651,6 @@ void parse_cmdline(const char *cmdline)
     }
 #endif
 
-    if ((tok = find_token(cmdline, "vc4.mem=")))
-    {
-        uint32_t vmem = 0;
-
-        for (int i = 0; i < 3; i++)
-        {
-            if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                break;
-
-            vmem = vmem * 10 + tok[8 + i] - '0';
-        }
-
-        if (vmem <= 256)
-        {
-            vid_memory = vmem & ~1;
-        }
-    }
     if ((tok = find_token(cmdline, "checksum_rom")))
     {
         recalc_checksum = 1;
