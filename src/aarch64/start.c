@@ -1963,11 +1963,6 @@ void M68K_StartEmu(void *addr, void *fdt)
             __m68k.JIT_CONTROL2 = (__m68k.JIT_CONTROL2 & ~(JC2_CCR_SCAN_MASK << JC2B_CCR_SCAN_DEPTH))
                                | (val << JC2B_CCR_SCAN_DEPTH);
         }
-        if (dt_find_property(node, "branch-inline-distance")) {
-            uint32_t val = dt_get_property_value_u32(node, "branch-inline-distance", 0, 0);
-            __m68k.JIT_CONTROL2 = (__m68k.JIT_CONTROL2 & ~(JC2_CCR_SCAN_MASK << JC2B_CCR_SCAN_DEPTH))
-                               | (val << JC2B_CCR_SCAN_DEPTH);
-        }
         if (dt_find_property(node, "chip-slowdown-distance")) { 
             uint32_t val = dt_get_property_value_u32(node, "chip-slowdown-distance", 0, 0);
             __m68k.JIT_CONTROL2 = (__m68k.JIT_CONTROL2 & ~(JC2_CHIP_SLOWDOWN_RATIO_MASK << JC2B_CHIP_SLOWDOWN_RATIO))
