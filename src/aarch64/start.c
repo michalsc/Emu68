@@ -1253,8 +1253,6 @@ void boot(void *dtree)
         mmu_map((uintptr_t)globals.m68k_jit_phys_base, (uintptr_t)globals.m68k_jit_virt_base, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
         mmu_map((uintptr_t)globals.m68k_jit_phys_base, (uintptr_t)globals.m68k_jit_virt_base | 0x0000001000000000ULL, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
-        kprintf("%p %p %x  \n", globals.m68k_jit_phys_base, globals.m68k_jit_virt_base, m68k_jit_size);
-
         jit_tlsf = tlsf_init_with_memory((void*)globals.m68k_jit_virt_base, m68k_jit_size);
 
         /* If PPC was enabled, create proper MMU map here */
