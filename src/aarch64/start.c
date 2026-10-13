@@ -1952,6 +1952,8 @@ void M68K_StartEmu(void *addr, void *fdt)
 
     clear_entire_dcache();
 
+    mmu_print_stats();
+
 __asm__ volatile(
 "       dsb     ish                 \n"
 "       tlbi    VMALLE1IS           \n" /* Flush tlb */

@@ -19,6 +19,7 @@ extern "C" {
 void mmu_init();
 uintptr_t mmu_virt2phys(uintptr_t addr);
 void mmu_map(uintptr_t phys, uintptr_t virt, uintptr_t length, uint32_t attr_low, uint32_t attr_high);
+void mmu_print_stats(void);
 
 #ifdef __cplusplus
 }
