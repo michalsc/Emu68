@@ -6,6 +6,8 @@
         target-path = "/";
         __overlay__ {
             emu68 {
+                unicam-mem = <0x00000000 0x00200000>; // Default is 2MB window for unicam
+                
                 unicam: unicam {
                     status = "disabled";
                     full-size = /bits/ 16 <720 576>;
