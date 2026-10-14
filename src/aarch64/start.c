@@ -539,6 +539,7 @@ int recalc_checksum = 0;
 
 void force_pistorm_model(uint8_t model);
 
+#if 0
 void parse_cmdline(const char *cmdline)
 {
     const char *tok;
@@ -592,6 +593,7 @@ void parse_cmdline(const char *cmdline)
     }
 #endif
 }
+#endif
 
 void make_emu68_node()
 {
