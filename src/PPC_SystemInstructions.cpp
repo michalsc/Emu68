@@ -634,6 +634,39 @@ int twi(PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+int wait(PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check: reserved bits 6-8, 11-20 and 31 must be zero */
+    if (opcode & 0x039ff801) return -1;
+
+    uint8_t wc = (opcode >> 21) & 3;
+
+    switch (wc) {
+        case 0: {
+            GPR ctx = tc->getCTX();
+            GPR base = GPR::allocate();
+            GPR tmp = GPR::allocate();
+            tc->emit({
+                add64_immed(base, ctx, __builtin_offsetof(PPCState, INT64)),
+                ldxr64(base, tmp),
+                cbnz(tmp, 3),
+                wfe(),
+                b(-3)
+            });
+            break; 
+        }
+        case 1: /* waitrsv: wait until the reservation (exclusive monitor) is lost */
+            tc->emit(wfe());
+            break;
+        default:
+            return -1;
+    }
+
+    tc->advancePC(4);
+
+    return 1;
+}
+
 int eieio(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */

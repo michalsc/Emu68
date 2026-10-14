@@ -422,6 +422,7 @@ void setCRnLogicNoMinus(PPCTranslatorContext *tc, uint8_t cr);
 void setCRnUnsigned(PPCTranslatorContext *tc, uint8_t cr);
 void setCRnSigned(PPCTranslatorContext *tc, uint8_t cr);
 
+int wait(PPCTranslatorContext *tc, uint32_t opcode);
 int addi(PPCTranslatorContext *tc, uint32_t opcode);
 int addis(PPCTranslatorContext *tc, uint32_t opcode);
 int cmpi(PPCTranslatorContext *tc, uint32_t opcode);

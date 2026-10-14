@@ -1256,6 +1256,7 @@ static inline int EMIT_Group_31(PPCTranslatorContext *tc, uint32_t opcode)
         case 0b0000110110: return Emit::dcbst(tc, opcode);
         case 0b0000110111: return Emit::lwzux(tc, opcode);
         case 0b0000111100: return Emit::andcx(tc, opcode);
+        case 0b0000111110: return Emit::wait(tc, opcode);
         case 0b0001001011: return Emit::mulhwx(tc, opcode);
         case 0b0001010011: return Emit::mfmsr(tc, opcode);     // OEA, supervisor
         case 0b0001010110: return Emit::dcbf(tc, opcode);
