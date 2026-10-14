@@ -653,6 +653,9 @@ int wait(PPCTranslatorContext *tc, uint32_t opcode)
                 wfe(),
                 b(-3)
             });
+            tc->advancePC(4);
+            tc->flushPC();
+            tc->emitStop();
             break; 
         }
         case 1: /* waitrsv: wait until the reservation (exclusive monitor) is lost */
