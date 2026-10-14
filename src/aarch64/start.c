@@ -209,33 +209,78 @@ void move_kernel(intptr_t from, intptr_t to);
 __asm__(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
-"move_kernel:                       \n" /* x0: from, x1: to */
-"       stp     x28, x29, [sp, #-16]! \n"
-"       adrp    x2, _boot           \n" /* Clean stack */
-"       mov     w3, w2              \n"
-"1:     sub     x2, x2, #32         \n"
-"       dc      civac, x2           \n"
-"       sub     w3, w3, #32         \n"
-"       cbnz    w3, 1b              \n"
-"       dsb     sy                  \n"
-"       movz    x28, #0xffff, lsl #48\n" /* 0xffffff9000000000 - this is where the phys starts from */
-"       movk    x28, #0xff90, lsl #32\n"
-"       add     x0, x0, x28         \n" /* x0: phys "from" in topmost part of addr space */
-"       add     x1, x1, x28         \n" /* x1: phys "to" in topmost part of addr space */
+"move_kernel:                       \n" /* x0: from, x1: to (physical, 2MB aligned, non-overlapping) */
+"       movz    x8, #0xffff, lsl #48\n" /* x8: 0xffffff9000000000 - cached 1:1 map of physical memory */
+"       movk    x8, #0xff90, lsl #32\n"
+"       add     x0, x0, x8          \n" /* x0: "from" in the 1:1 map */
+"       add     x1, x1, x8          \n" /* x1: "to" in the 1:1 map */
+"       sub     x7, x1, x0          \n" /* x7: delta = (to - from) */
 "       mov     x2, #" xstr(KERNEL_SYS_PAGES << 21) "\n"
 "       mov     x3, x0              \n"
 "       mov     x4, x1              \n"
-"       sub     x7, x1, x0          \n" /* x7: delta = (to - from) */
-"2:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location */
-"       stp     x5, x6, [x4], #16   \n"
+"1:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location. The 1:1 map has the same */
+"       stp     x5, x6, [x4], #16   \n" /* cacheable attributes as the kernel map, so no D-cache */
+"       ldp     x5, x6, [x3], #16   \n" /* maintenance is needed for the copy itself. The stack */
+"       stp     x5, x6, [x4], #16   \n" /* is not touched from here on, so its copy is exact */
 "       ldp     x5, x6, [x3], #16   \n"
 "       stp     x5, x6, [x4], #16   \n"
 "       ldp     x5, x6, [x3], #16   \n"
 "       stp     x5, x6, [x4], #16   \n"
-"       ldp     x5, x6, [x3], #16   \n"
-"       stp     x5, x6, [x4], #16   \n"
-"       sub     x2, x2, #64         \n"
-"       cbnz    x2, 2b              \n"
+"       subs    x2, x2, #64         \n"
+"       b.ne    1b                  \n"
+
+/* Make the copy visible to instruction fetch: clean to PoU, invalidate I-cache */
+
+"       mrs     x9, CTR_EL0         \n"
+"       ubfx    x9, x9, #16, #4     \n"
+"       mov     x10, #4             \n"
+"       lsl     x10, x10, x9        \n" /* x10: smallest D-cache line size */
+"       mov     x3, x1              \n"
+"       mov     x2, #" xstr(KERNEL_SYS_PAGES << 21) "\n"
+"       add     x4, x1, x2          \n"
+"2:     dc      cvau, x3            \n"
+"       add     x3, x3, x10         \n"
+"       cmp     x3, x4              \n"
+"       b.lo    2b                  \n"
+"       dsb     ish                 \n"
+"       ic      iallu               \n"
+"       dsb     ish                 \n"
+"       isb                         \n"
+
+/* Continue execution in the copy, through the 1:1 map */
+
+"       adr     x2, 3f              \n"
+"       and     x2, x2, #0x7fffffffff\n" /* Offset of label 3 within the kernel */
+"       add     x2, x2, x1          \n"
+"       br      x2                  \n"
+
+/*
+    Relocate the MMU tables of the copy. They are not live yet, so neither
+    break-before-make nor per-entry TLB invalidation is needed.
+*/
+
+"3:     mrs     x2, TTBR1_EL1       \n" /* Take address of the current L1 kernel map */
+"       and     x2, x2, #0x7ffffff000\n" /* Discard the top 25 bits and lowest 12 bits */
+"       add     x2, x2, x8          \n" /* Go to the 1:1 map */
+"       add     x2, x2, x7          \n" /* ...and to the L1 map in the copy */
+"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2]            \n" /* Store back */
+"       and     x2, x3, #0x7ffffff000\n" /* L2 table of the copy */
+"       add     x2, x2, x8          \n"
+"       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
+"4:     ldr     x3, [x2]            \n" /* Get entry - 2MB block of the kernel */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2], #8        \n" /* Store back */
+"       subs    x4, x4, #1          \n" /* Repeat for all kernel pages */
+"       b.ne    4b                  \n"
+"       dsb     ish                 \n" /* Make new tables visible to the table walker */
+
+/*
+    Switch to the new tables. We execute from the 1:1 map, which translates to
+    the same physical addresses in old and new tables, so no conflicting TLB
+    entries can be created before the flush below.
+*/
 
 "       mrs     x5, TTBR1_EL1       \n"
 "       add     x5, x5, x7          \n"
@@ -243,45 +288,11 @@ __asm__(
 "       mrs     x5, TTBR0_EL1       \n"
 "       add     x5, x5, x7          \n"
 "       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
-
-"       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
-"       dsb     sy                  \n"
 "       isb                         \n"
-
-/* Fix kernel MMU table */
-
-"       adrp    x5, _boot           \n"
-"       adr     x2, 1f              \n"
-"       and     x2, x2, 0x7fffffffff\n"
-"       add     x2, x2, x1          \n"
-"       br      x2                  \n"
-"1:     mrs     x2, TTBR1_EL1       \n" /* Take address of L1 MMU map */
-"       and     x2, x2, 0x7ffffff000\n" /* Discard the top 25 bits and lowest 12 bits */
-"       add     x2, x2, x28         \n" /* Go to the 1:1 map at top of ram */
-"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
-"       add     x3, x3, x7          \n" /* Add delta */
-"       str     x3, [x2]            \n" /* Store back */
-"       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
-"       dsb     sy                  \n"
-"       isb                         \n"
-"       and     x2, x3, 0x7ffffff000\n" /* Copy L2 pointer to x5, discard the top 25 bits and bottom 12 bits*/
-"       and     x5, x5, 0xffffff8000000000 \n"
-"       add     x2, x2, x28         \n"
-"       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
-"1:     ldr     x3, [x2]            \n" /* Get first entry - pointer to page */
-"       add     x3, x3, x7          \n" /* Add delta */
-"       str     x3, [x2], #8        \n" /* Store back */
-"       dsb     ish                 \n"
-"       tlbi    vae1, x5            \n"
+"       tlbi    vmalle1is           \n" /* Flush tlb */
 "       dsb     ish                 \n"
 "       isb                         \n"
-"       add     x5, x5, #0x200000   \n"
-"       sub     x4, x4, #1          \n" /* Repeat for all kernel pages */
-"       cbnz    x4, 1b              \n"
-"       ldp     x28, x29, [sp], #16 \n"
-"       ret                         \n" /* Return! */
+"       ret                         \n" /* Return to the caller, now in the moved kernel */
 );
 
 #if EMU68_HOST_BIG_ENDIAN
@@ -1269,12 +1280,10 @@ void boot(void *dtree)
         kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);
 
         /*
-            Copy the kernel memory block from origin to new destination, use the top of
-            the kernel space which is a 1:1 map of first 4GB region, uncached
-        */
-        arm_flush_cache((uintptr_t)_boot & 0xffffff8000000000, KERNEL_SYS_PAGES << 21);
+            Copy the kernel memory block from origin to new destination through the
+            cached 1:1 map of physical memory at the top of the kernel space. Both
+            mappings are cacheable, so no D-cache flush is needed beforehand.
 
-        /*
             We use routine in assembler here, because we will move both kernel code *and* stack.
             Playing with C code without knowledge what will happen to the stack after move is ready
             can result in funny Heisenbugs...
