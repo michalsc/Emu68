@@ -639,7 +639,7 @@ int eieio(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03fff800) return -1;
 
-    tc->emit( dmb_sy());
+    tc->emit(dmb_sy());
 
     tc->advancePC(4);
 
@@ -728,10 +728,10 @@ int sync(PPCTranslatorContext *tc, uint32_t opcode)
 
     switch(op) {
         case 0:
-            tc->emit(isb());
+            tc->emit(dmb_sy());
             break;
         case 1:
-            tc->emit(dmb_sy());
+            tc->emit(dmb_ish());
             break;
         default:
             return -1;
