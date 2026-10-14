@@ -1001,8 +1001,8 @@ int sc(PPCTranslatorContext *tc, uint32_t opcode)
         str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1)),
         str_offset(ctx, REG_PC, __builtin_offsetof(PPCState, SRR0)),
         
-        /* Set supervisor mode in MSR */
-        bic_immed(tmp, tmp, 1, 18),
+        /* Set supervisor mode in MSR, clear EE to disable interrupts */
+        bic_immed(tmp, tmp, 2, 18),
 
         /* Load new program counter */
         mov_immed_u16(REG_PC, 0xc00, 0),
