@@ -319,10 +319,6 @@ void print_build_id()
 void M68K_StartEmu(void *addr, void *fdt);
 void __vectors_start(void);
 int limit_2g = 0;
-int emu68_icnt = EMU68_M68K_INSN_DEPTH;
-int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
-int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
-
 
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
@@ -536,13 +532,10 @@ static void my_free(void *ptr)
 
 void *firmware_file = NULL;
 uint32_t firmware_size = 0;
-uint32_t cs_dist = 1;
 #ifdef PISTORM_ANY_MODEL
 int rom_copy = 0;
 int recalc_checksum = 0;
 #endif
-
-uint8_t slot_set = 0;
 
 void force_pistorm_model(uint8_t model);
 
@@ -550,7 +543,6 @@ void parse_cmdline(const char *cmdline)
 {
     const char *tok;
 
-    globals.ppc_enable = !!find_token(cmdline, "ppc_enable");
     limit_2g = !!find_token(cmdline, "limit_2g");
 
 #ifdef PISTORM_ANY_MODEL
@@ -561,106 +553,7 @@ void parse_cmdline(const char *cmdline)
     else if (force_ps32) force_pistorm_model(PISTORM_MODEL_32);
 #endif
 
-    globals.fpu_disable = !!find_token(cmdline, "nofpu");
-    globals.debug = !!find_token(cmdline, "debug");
-    globals.disasm = !!find_token(cmdline, "disassemble");
-
-    if ((tok = find_token(cmdline, "ICNT=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val == 0)
-            val = 1;
-        if (val > 256)
-            val = 256;
-
-        emu68_icnt = val;
-    }
-    if ((tok = find_token(cmdline, "CCRD=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val > 31)
-            val = 31;
-
-        emu68_ccrd = val;
-    }
-    if ((tok = find_token(cmdline, "IRNG=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 7; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val > 65535)
-            val = 65535;
-
-        emu68_irng = val;
-    }
-
-    if ((tok = find_token(cmdline, "cs_dist=")) || (tok = find_token(cmdline, "SCS=")))
-    {
-        uint32_t cs = 0;
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                break;
-
-            cs = cs * 10 + tok[8 + i] - '0';
-        }
-
-        if (cs == 0)
-            cs = 1;
-
-        if (cs > 8)
-        {
-            cs = 8;
-        }
-
-        cs_dist = cs;
-    }
-
 #ifdef PISTORM_ANY_MODEL
-
-#if !defined(PISTORM_CLASSIC)
-    if (find_token(cmdline, "two_slot"))
-    {
-        extern uint32_t use_2slot;
-        use_2slot = 1;
-        slot_set = 1;
-    }
-    else if (find_token(cmdline, "one_slot"))
-    {
-        extern uint32_t use_2slot;
-        use_2slot = 0;
-        slot_set = 1;
-    }
-#endif
 
     if ((tok = find_token(cmdline, "checksum_rom")))
     {
@@ -710,15 +603,6 @@ void make_emu68_node()
         e = dt_make_node("emu68");
         dt_add_node(NULL, e);
     }
-    else
-    {
-        /* If /emu68 has args property, parse it as if was a cmdline */
-        of_property_t *prop = dt_find_property(e, "args");
-        if (prop)
-        {
-            parse_cmdline(prop->op_value);
-        }
-    }
 
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object) + 1);
     dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
@@ -764,99 +648,18 @@ void make_emu68_node()
         }
     }
 
-    globals.zorro_disable = !!dt_find_property(e, "disable-zorro");
-    globals.fpu_disable = !!dt_find_property(e, "disable-fpu");
-    globals.fast_page_zero = !!dt_find_property(e, "fast-page-zero");
-
-}
-
-void make_emu68_defaults_node()
-{
-    struct of_node *e = dt_find_node("/emu68/defaults");
-
     /* 
-        If /emu68/defaults does not exist, create it and populate with default
-        values from globals structure, otherwise it was loaded from overlay - in that
-        case update its values with those from the overlay
+        Capability marker for m68k guests: this build decodes the private LINE-F
+        data-cache range opcodes (EMIT_lineF, 0xF460/0xF440 + ext word).
+        Value = capability revision.
     */
-    if (e == NULL)
-    {
-        e = dt_make_node("defaults");
-
-        dt_add_node(dt_find_node("/emu68"), e);
-    }
-    else
-    {
-    }
-}
-
-void boot(void *dtree)
-{
-    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
-    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
-    uint64_t tmp;
-    uintptr_t top_of_ram = 0;
-    of_property_t *p = NULL;
-    of_node_t *e = NULL;
-    void *initramfs_loc = NULL;
-    uintptr_t initramfs_size = 0;    
-    boot_lock = 0;
-
-    /* Get CTR_EL0 */
-    __asm__ volatile("mrs %0, CTR_EL0":"=r"(globals.dcache_mask_bits));
-    globals.dcache_mask_bits = 2 + ((globals.dcache_mask_bits >> 16) & 15);
-
-    /* Enable caches and cache maintenance instructions from EL0 */
-    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
-    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
-    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
-    tmp &= ~0x18;                   // Disable stack alignment check
-    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
-
-    /* Initialize tlsf */
-    tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
-
-    /* Main tlsf is multithreaded */
-    tlsf_set_flags(tlsf, TLSF_MULTITHREADING);
-
-    /* Initialize memory management for libdeflate */
-    libdeflate_set_memory_allocator(my_malloc, my_free);
-
-    /* Parse device tree */
-    dt_parse((void*)dtree);
-
-    e = dt_find_node("/chosen");
-    if (e)
-    {
-        of_property_t *prop = dt_find_property(e, "bootargs");
-        if (prop)
-        {
-            parse_cmdline(prop->op_value);
-        }
-    }
-
-    make_emu68_node();
-
-    e = dt_find_node("/emu68");
-
-    if (!dt_find_property(e, "logo-color"))
-    {
-        uint32_t color = 0;
-        dt_add_property(e, "logo-color", &color, 4);
-    }
-
-    /* Capability marker for m68k guests: this build decodes the private LINE-F
-       data-cache range opcodes (EMIT_lineF, 0xF460/0xF440 + ext word).
-       Value = capability revision. */
     uint32_t dcache_range_ops = 1;
     dt_add_property(e, "dcache-range-ops", &dcache_range_ops, sizeof(dcache_range_ops));
 
-    if (globals.ppc_enable) {
-        if (!dt_find_property(e, "enable-ppc"))
-        {
-            dt_add_property(e, "enable-ppc", NULL, 0);
-        }
-    }
+    globals.ppc_enable = !!dt_find_property(e, "enable-ppc");
+    globals.zorro_disable = !!dt_find_property(e, "disable-zorro");
+    globals.fpu_disable = !!dt_find_property(e, "disable-fpu");
+    globals.fast_page_zero = !!dt_find_property(e, "fast-page-zero");
 
     bool is_bcm2711 = !!dt_find_node("/scb");
 
@@ -932,67 +735,118 @@ void boot(void *dtree)
         if (reg[1] < necessary_size)
             reg[1] = necessary_size;
     }
+}
 
-    make_emu68_defaults_node();
+void make_emu68_defaults_node()
+{
+    struct of_node *e = dt_find_node("/emu68/defaults");
 
-    /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
-    if ((e = dt_find_node("/emu68/defaults")) == NULL)
+    /* 
+        If /emu68/defaults does not exist, create it and populate with default
+        values from globals structure, otherwise it was loaded from overlay - in that
+        case do a sanity check of the values and fix them if they are out of range.
+    */
+    if (e == NULL)
     {
+        uint32_t emu68_icnt = EMU68_M68K_INSN_DEPTH;
+        uint32_t emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
+        uint32_t emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
+        uint32_t cs_dist = 1;
+
         e = dt_make_node("defaults");
+        
+        dt_add_property(e, "insn-count", &emu68_icnt, 4);
+        dt_add_property(e, "ccr-scan-depth", &emu68_ccrd, 4);
+        dt_add_property(e, "branch-inline-distance", &emu68_irng, 4);
+        dt_add_property(e, "chip-slowdown-distance", &cs_dist, 4);
+
         dt_add_node(dt_find_node("/emu68"), e);
     }
+    else
+    {
+        of_property_t *prop = NULL;
+        
+        // insn-count: 1..256
+        if ((prop = dt_find_property(e, "insn-count")) != NULL)
+        {
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val < 1) val = 1;
+            if (val > 256) val = 256;
+            *(uint32_t *)prop->op_value = val;
+        }
 
-    /* Fill in either compile time defaults or overriden parameters */
-    if ((p = dt_find_property(e, "insn-count")) == NULL)
-    {
-        dt_add_property(e, "insn-count", &emu68_icnt, 4);
-    }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_icnt, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = emu68_icnt;
-    }
+        // ccr-scan-depth: 0..31
+        if ((prop = dt_find_property(e, "ccr-scan-depth")) != NULL)
+        {
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val > 31) val = 31;
+            *(uint32_t *)prop->op_value = val;
+        }
 
-    if ((p = dt_find_property(e, "ccr-scan-depth")) == NULL)
-    {
-        dt_add_property(e, "ccr-scan-depth", &emu68_ccrd, 4);
-    }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = emu68_ccrd;
-    }
-    if ((p = dt_find_property(e, "branch-inline-distance")) == NULL)
-    {
-        dt_add_property(e, "branch-inline-distance", &emu68_irng, 4);
-    }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = emu68_irng;
-    }
+        // branch-inline-distance: 0..65535
+        if ((prop = dt_find_property(e, "branch-inline-distance")) != NULL)
+        {
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val > 65535) val = 65535;
+            *(uint32_t *)prop->op_value = val;
+        }
 
-    if ((p = dt_find_property(e, "chip-slowdown-distance")) == NULL)
-    {
-        dt_add_property(e, "chip-slowdown-distance", &cs_dist, 4);
+        // chip-slowdown-distance: 0..7
+        if ((prop = dt_find_property(e, "chip-slowdown-distance")) != NULL)
+        {
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val > 7) val = 7;
+            *(uint32_t *)prop->op_value = val;
+        }
     }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = cs_dist;
-    }
+}
+
+void boot(void *dtree)
+{
+    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
+    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
+    uint64_t tmp;
+    uintptr_t top_of_ram = 0;
+    of_property_t *p = NULL;
+    of_node_t *e = NULL;
+    void *initramfs_loc = NULL;
+    uintptr_t initramfs_size = 0;    
+    boot_lock = 0;
+
+    /* Get CTR_EL0 */
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(globals.dcache_mask_bits));
+    globals.dcache_mask_bits = 2 + ((globals.dcache_mask_bits >> 16) & 15);
+
+    /* Enable caches and cache maintenance instructions from EL0 */
+    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
+    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
+    tmp &= ~0x18;                   // Disable stack alignment check
+    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+
+    /* Initialize tlsf */
+    tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
+
+    /* Main tlsf is multithreaded */
+    tlsf_set_flags(tlsf, TLSF_MULTITHREADING);
+
+    /* Initialize memory management for libdeflate */
+    libdeflate_set_memory_allocator(my_malloc, my_free);
+
+    /* Parse device tree */
+    dt_parse((void*)dtree);
+
+    /* Build and fix /emu68 node in device tree */
+    make_emu68_node();
+
+    /* Build and fix /emu68/defaults node in device tree */
+    make_emu68_defaults_node();
 
     /*
         At this place we have local memory manager but no MMU set up yet. 
         Nevertheless, attempt to copy initrd image to safe location since it is not guarded in RAM
     */
-    e = dt_find_node("/chosen");
-
-    if (e)
+    if ((e = dt_find_node("/chosen")))
     {
         void *image_start, *image_end;
         of_property_t *p = dt_find_property(e, "linux,initrd-start");
@@ -1690,7 +1544,6 @@ void boot(void *dtree)
             kprintf("[BOOT] Calling membench with size %d\n", size * 1024);
             ps_memtest(size);
         }
-
     }
 
     /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
