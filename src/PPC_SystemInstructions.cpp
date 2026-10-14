@@ -792,7 +792,7 @@ int dcbst(PPCTranslatorContext *tc, uint32_t opcode)
         base = GPR(reg_rb.get());
     } else {
         GPR reg_ra = tc->mapGPRForRead(ra);
-        GPR base = GPR::allocate();
+        base = GPR::allocate();
         tc->emit(add_reg(base, reg_ra, reg_rb, LSL, 0));
     }
 
