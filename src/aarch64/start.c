@@ -1738,35 +1738,36 @@ void M68K_StartEmu(void *addr, void *fdt)
     *(uint32_t *)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 #endif
 
-    of_node_t *node = dt_find_node("/chosen");
+    of_node_t *node = NULL;
+
+#ifdef PISTORM_ANY_MODEL    
+    node = dt_find_node("/emu68");
     if (node)
     {
-        of_property_t * prop = dt_find_property(node, "bootargs");
-        if (prop)
-        {
-#ifdef PISTORM_ANY_MODEL
-            if (strstr(prop->op_value, "enable_c0_slow"))
-                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-            if (strstr(prop->op_value, "enable_c8_slow"))
-                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-            if (strstr(prop->op_value, "enable_d0_slow"))
-                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        if (dt_find_property(node, "enable-c0-slowram")) {
+            mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        }
+        if (dt_find_property(node, "enable-c8-slowram")) {
+            mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        }
+        if (dt_find_property(node, "enable-d0-slowram")) {
+            mmu_map(0xD00000, 0xD00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        }
+        if (dt_find_property(node, "move-slow-to-chip")) {
+            globals.move_slow_to_chip = true;
+        }
+        if (dt_find_property(node, "swap-df0-with-df1")) {
+            globals.swap_df0_with_dfx = 1;
+        }
+        if (dt_find_property(node, "swap-df0-with-df2")) {
+            globals.swap_df0_with_dfx = 2;
+        }
+        if (dt_find_property(node, "swap-df0-with-df3")) {
+            globals.swap_df0_with_dfx = 3;
+        }
 
-            extern uint32_t swap_df0_with_dfx;
-            extern uint32_t move_slow_to_chip;
-
-            if (strstr(prop->op_value, "swap_df0_with_df1"))
-                swap_df0_with_dfx = 1;
-            if (strstr(prop->op_value, "swap_df0_with_df2"))
-                swap_df0_with_dfx = 2;
-            if (strstr(prop->op_value, "swap_df0_with_df3"))
-                swap_df0_with_dfx = 3;
-
-            if (strstr(prop->op_value, "move_slow_to_chip"))
-                move_slow_to_chip = 1;
-#endif
-        }       
     }
+#endif
 
     // Enable debug and disassemble if requested through overlay
     if (dt_find_property(dt_find_node("/emu68/diag"), "enable-debug")) {
@@ -1798,7 +1799,6 @@ void M68K_StartEmu(void *addr, void *fdt)
             __m68k.JIT_CONTROL = (__m68k.JIT_CONTROL & ~(JCCB_INLINE_RANGE_MASK << JCCB_INLINE_RANGE))
                                | (val << JCCB_INLINE_RANGE);
         }
-
         if (dt_find_property(node, "chip-slowdown")) {
             __m68k.JIT_CONTROL2 |= JC2F_CHIP_SLOWDOWN;
         }

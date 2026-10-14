@@ -20,6 +20,8 @@ struct Globals
     bool scsi_disable;
     bool beamcon0_pal_clear;
     bool beamcon0_pal_set;
+    bool move_slow_to_chip;
+    uint8_t swap_df0_with_dfx;
 
     // Globals in /emu68/defaults
     bool fast_page_zero;

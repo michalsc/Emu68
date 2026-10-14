@@ -327,10 +327,7 @@ uint32_t overlay = 1;
 uint32_t z2_ram_autoconf = 1;
 uint64_t z2_ram_base = 0;
 
-uint32_t swap_df0_with_dfx = 0;
-uint32_t spoof_df0_id = 0;
-
-uint32_t move_slow_to_chip = 0;
+static uint32_t spoof_df0_id = 0;
 
 // Amiga specific registers
 enum
@@ -427,10 +424,10 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
     }
 
     if (far == CIABPRB) {
-        if (swap_df0_with_dfx) {
+        if (globals.swap_df0_with_dfx) {
             const int SEL0_BITNUM = 3;
 
-            if ((value & ((1 << (SEL0_BITNUM + swap_df0_with_dfx)) | 0x80)) == 0x80) {
+            if ((value & ((1 << (SEL0_BITNUM + globals.swap_df0_with_dfx)) | 0x80)) == 0x80) {
               // If drive selected but motor off, Amiga is reading drive ID.
               spoof_df0_id = 1;
             } else {
@@ -438,9 +435,9 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
             }
 
             // If the value for SEL0/SELx differ
-            if (((value >> SEL0_BITNUM) & 1) != ((value >> (SEL0_BITNUM + swap_df0_with_dfx)) & 1)) {
+            if (((value >> SEL0_BITNUM) & 1) != ((value >> (SEL0_BITNUM + globals.swap_df0_with_dfx)) & 1)) {
               // Invert both bits to swap them around
-              value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + swap_df0_with_dfx)));
+              value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + globals.swap_df0_with_dfx)));
             }
         }
     }
@@ -471,7 +468,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         return 1;
     }
 
-    if (move_slow_to_chip) {
+    if (globals.move_slow_to_chip) {
         if (far >= 0x080000 && far <= 0x0FFFFF) {
             // A500 JP2 connects Agnus' A19 input to A23 instead of A19 by default, and decodes trapdoor memory at 0xC00000 instead of 0x080000.
             // We can move the trapdoor to chipram simply by rewriting the address.
@@ -616,7 +613,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         }
     }
 
-    if (move_slow_to_chip) {
+    if (globals.move_slow_to_chip) {
         if (far >= 0x080000 && far <= 0x0FFFFF) {
             // A500 JP2 connects Agnus' A19 input to A23 instead of A19 by default, and decodes trapdoor memory at 0xC00000 instead of 0x080000.
             // We can move the trapdoor to chipram simply by rewriting the address.
@@ -683,7 +680,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     }
 
     if (far == CIAAPRA) {
-        if (swap_df0_with_dfx && spoof_df0_id) {
+        if (globals.swap_df0_with_dfx && spoof_df0_id) {
             // DF0 doesn't emit a drive type ID on RDY pin
             // If swapping DF0 with DF1-3 we need to provide this ID so that DF0 continues to function.
             *value = (*value & 0xDF); // Spoof drive id for swapped DF0 by setting RDY low
@@ -691,14 +688,14 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     }
 
     if (far == CIABPRB) {
-        if (swap_df0_with_dfx) {
+        if (globals.swap_df0_with_dfx) {
             const int SEL0_BITNUM = 3;
 
             // SEL0 = 0x80, SEL1 = 0x10, SEL2 = 0x20, SEL3 = 0x40
             // If the value for SEL0/SELx differ
-            if (((*value >> SEL0_BITNUM) & 1) != ((*value >> (SEL0_BITNUM + swap_df0_with_dfx)) & 1)) {
+            if (((*value >> SEL0_BITNUM) & 1) != ((*value >> (SEL0_BITNUM + globals.swap_df0_with_dfx)) & 1)) {
               // Invert both bits to swap them around
-              *value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + swap_df0_with_dfx)));
+              *value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + globals.swap_df0_with_dfx)));
             }
         }
     }
