@@ -439,14 +439,12 @@ void secondary_boot(void)
     
     if (cpu_id == 1)
     {
-        e = dt_find_node("/chosen");
+        e = dt_find_node("/emu68/diag");
         if (e)
         {
-            of_property_t * prop = dt_find_property(e, "bootargs");
-            if (prop)
+            if (dt_find_property(e, "async-log"))
             {
-                if (strstr(prop->op_value, "async_log"))
-                    async_log = 1;
+                async_log = 1;
             }
         }
     }

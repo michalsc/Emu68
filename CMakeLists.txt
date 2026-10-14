@@ -179,6 +179,7 @@ set(OVERLAY_FILES
     src/overlays/pistorm.dts
     src/overlays/slowram.dts
     src/overlays/swap_df0.dts
+    src/overlays/logger.dts
 )
 
 build_devicetree(OVERLAY_FILES)

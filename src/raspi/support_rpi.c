@@ -479,22 +479,19 @@ void setup_serial()
 
     serial_up = 1;
 
-    e = dt_find_node("/chosen");
+    e = dt_find_node("/emu68/diag");
     if (e)
     {
-        of_property_t * prop = dt_find_property(e, "bootargs");
-        if (prop)
-        {
-            if (strstr(prop->op_value, "fast_serial")) {
-                fast_serial = 1;
-                fastSerial_init();
-            }
-            else
-                fast_serial = 0;
-            
-            if (strstr(prop->op_value, "async_log")) {
-                async = 1;
-            }
+        if (dt_find_property(e, "fast-serial")) {
+            fast_serial = 1;
+            fastSerial_init();
+        }
+        else {
+            fast_serial = 0;
+        }
+
+        if (dt_find_property(e, "async-log")) {
+            async = 1;
         }
     }
 
