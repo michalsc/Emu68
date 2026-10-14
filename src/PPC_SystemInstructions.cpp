@@ -898,20 +898,23 @@ int dcbz(PPCTranslatorContext *tc, uint32_t opcode)
     uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
-    GPR base;
+    GPR base = GPR::allocate();
 
     if (ra == 0) {
-        base = GPR(reg_rb.get());
+        GPR reg = GPR(reg_rb.get());
+        tc->emit(bic_immed(base, reg, 5, 0));
     } else {
         GPR reg_ra = tc->mapGPRForRead(ra);
         base = GPR::allocate();
-        tc->emit(add_reg(base, reg_ra, reg_rb, LSL, 0));
+        tc->emit({
+            add_reg(base, reg_ra, reg_rb, LSL, 0),
+            bic_immed(base, base, 5, 0)
+        });
     }
 
     tc->emit({
-        dsb_sy(),
-        dc_zva(base),
-        dsb_sy()
+        stp64(base, XZR, XZR, 0),
+        stp64(base, XZR, XZR, 16)
     });
 
     tc->advancePC(4);
