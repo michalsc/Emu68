@@ -963,9 +963,6 @@ int dcbi(PPCTranslatorContext *tc, uint32_t opcode)
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
 
-    GPR ctx = tc->getCTX();
-    GPR tmp = GPR::allocate();
-
     if (ra == 0) {
         base = GPR(reg_rb.get());
     } else {
