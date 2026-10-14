@@ -16,8 +16,8 @@
 #include "globals.h"
 #include "spinlock.h"
 
-#define DV2P(x) if (is_serial_up()) { x ;} /* x */
-#define DMAP(x) if (is_serial_up()) { x ;} /* x */
+#define DV2P(x) /* if (is_serial_up()) { x ;} */ /* x */
+#define DMAP(x) /* if (is_serial_up()) { x ;} */ /* x */
 
 #define DESC_TYPE_MASK      3ULL
 #define DESC_BLOCK          1ULL                    /* L1 1GB / L2 2MB block */
