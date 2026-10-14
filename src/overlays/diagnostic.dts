@@ -40,7 +40,7 @@
                     // BOOLS are off by default
                     // debug-not-implemented
                     // enable-debug
-                    // enable-disassembe
+                    // enable-disassemble
                     // dump-device-tree
                 };
             };
