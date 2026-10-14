@@ -755,6 +755,13 @@ void make_emu68_node()
         /* vc4-mem property exists, user passed the requested size in megabytes */
         uint32_t *reg = (uint32_t*)dt_find_property(e, "vc4-mem")->op_value;
         reg[1] = reg[1] << 20;
+        
+        /* Ensure minimum size of 8MB, round up to 8MB boundary */
+        if (reg[1] < 0x00800000) {
+            reg[1] = 0x00800000; /* Minimum 8MB */
+        } else {
+            reg[1] = (reg[1] + 0x001FFFFF) & ~0x001FFFFF; /* Round up to nearest 2MB */
+        }
     }
 
     globals.zorro_disable = !!dt_find_property(e, "disable-zorro");
