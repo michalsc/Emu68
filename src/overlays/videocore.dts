@@ -7,6 +7,7 @@
         __overlay__ {
             emu68: emu68 {
                 vc4-mem = <0 16>; // Default is 2MB window for unicam
+                // TODO: Handle two HDMI outputs if available
             };
         };
     };
