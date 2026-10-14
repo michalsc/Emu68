@@ -176,6 +176,7 @@ set(OVERLAY_FILES
     src/overlays/noscsi.dts
     src/overlays/logo.dts
     src/overlays/videocore.dts
+    src/overlays/pistorm.dts
 )
 
 build_devicetree(OVERLAY_FILES)
