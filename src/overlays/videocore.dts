@@ -1,0 +1,17 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68: emu68 {
+                vc4-mem = <0 16>; // Default is 2MB window for unicam
+            };
+        };
+    };
+
+    __overrides__ {
+        mem = <&emu68>,"vc4-mem:4";
+    };
+};
