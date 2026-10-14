@@ -48,6 +48,7 @@ void dt_add_property(of_node_t *node, const char *propname, const void *propvalu
             proplen = 0;
 
         of_property_t *prop = tlsf_malloc(tlsf, sizeof(of_property_t));
+        prop->op_built_in = false;
         prop->op_length = proplen;
         prop->op_name = tlsf_malloc(tlsf, strlen(propname) + 1);
         prop->op_next = node->on_properties;
@@ -65,6 +66,38 @@ void dt_add_property(of_node_t *node, const char *propname, const void *propvalu
         }
 
         node->on_properties = prop;
+    }
+}
+
+void dt_rem_property(of_node_t *node, of_property_t *prop)
+{
+    if (node && prop)
+    {
+        of_property_t *p = node->on_properties;
+        of_property_t *prev = NULL;
+
+        while (p)
+        {
+            if (p == prop)
+            {
+                if (prev)
+                    prev->op_next = p->op_next;
+                else
+                    node->on_properties = p->op_next;
+
+                if (!p->op_built_in)
+                {
+                    if (p->op_name)
+                        tlsf_free(tlsf, p->op_name);
+                    if (p->op_value)
+                        tlsf_free(tlsf, p->op_value);
+                }
+                tlsf_free(tlsf, p);
+                break;
+            }
+            prev = p;
+            p = p->op_next;
+        }
     }
 }
 
@@ -115,6 +148,7 @@ of_node_t * dt_build_node(of_node_t *parent)
                 case FDT_PROP:
                 {
                     of_property_t *p = tlsf_malloc(tlsf, sizeof(of_property_t));
+                    p->op_built_in = true;
                     p->op_length = BE32(*data++);
                     p->op_name = &strings[BE32(*data++)];
                     if (p->op_length)

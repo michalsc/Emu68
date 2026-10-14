@@ -44,6 +44,7 @@ typedef struct of_property {
     char *              op_name;
     void *              op_value;
     uint32_t            op_length;
+    bool                op_built_in;
 } of_property_t;
 
 typedef struct of_node {
