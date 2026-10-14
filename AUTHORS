@@ -1,0 +1,24 @@
+Emu68 is written and maintained by:
+
+    Michal Schulz
+
+with contributions from (in alphabetical order):
+
+    Marlon Beijer
+    Tomaz Kac
+    Michael Pye
+    Adam Polkosnik
+    Michael Rasmussen
+    Claude Schwarz
+    Christophe Thibault
+    Marcel Verdaasdonk
+    Lukasz Winczura
+
+Each contributor retains copyright in their contributions, which are
+licensed under the Mozilla Public License, v. 2.0, like the rest of Emu68.
+Third-party components under external/ and files carrying their own
+copyright notices are covered by those notices.
+
+The authoritative per-line record is the git history:
+    git shortlog -sne        # contributors and commit counts
+    git blame <file>         # who wrote which lines

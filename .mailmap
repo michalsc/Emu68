@@ -1,0 +1,12 @@
+# Canonical author identities for git log / shortlog / blame.
+# Format: Proper Name <proper@email> [Commit Name] <commit@email>
+
+Michal Schulz <michal.schulz@gmx.de> <michal@Michals-iMac-Pro.local>
+Michal Schulz <michal.schulz@gmx.de> <michal.schulz@tu-clausthal.de>
+Michal Schulz <michal.schulz@gmx.de> <michal.schulz@elmitec.de>
+
+Marcel Verdaasdonk <mmcv1987@yahoo.com> CrypticalCode0 <mmcv1987@yahoo.com>
+Claude Schwarz <claude.schwarz@gmail.com> captain-amygdala <claude.schwarz@gmail.com>
+Lukasz Winczura <rondoval@gmail.com> rondoval <rondoval@gmail.com>
+Adam Polkosnik <apolkosnik@gmail.com> Adam Polkosnik [fun] <apolkosnik@gmail.com>
+Tomaz Kac <tomcat@sgn.net> Tom-Cat <tomcat@sgn.net>
