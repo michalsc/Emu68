@@ -1297,29 +1297,6 @@ void boot(void *dtree)
         __asm__ volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
 
         kprintf("[BOOT] MMU tables at %p and %p\n", TTBR0, TTBR1);
-
-        const uint32_t tlb_flusher[] = {
-            LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd508831f),       // tlbi  vmalle1is
-            LE32(0xd5033f9f),       // dsb   sy
-            LE32(0xd5033fdf),       // isb
-            LE32(0xd508831f),       // tlbi  vmalle1is
-            LE32(0xd5033f9f),       // dsb   sy
-            LE32(0xd5033fdf),       // isb
-            LE32(0xd65f03c0)        // ret
-        };
-
-        void *addr = tlsf_malloc_aligned(jit_tlsf, 4*10, 4096);
-        void (*flusher)() = (void (*)())((uintptr_t)addr | 0x1000000000);
-        DuffCopy(addr, tlb_flusher, 10);
-        arm_flush_cache((uintptr_t)addr, 4*10);
-        arm_icache_invalidate((uintptr_t)flusher, 4*10);
-        flusher();
-        tlsf_free(jit_tlsf, addr);
-
-        kprintf("[BOOT] TLB invalidated\n");
     }
 
     extern void (*__init_start)();
