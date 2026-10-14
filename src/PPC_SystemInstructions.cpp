@@ -783,8 +783,8 @@ int dcbst(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
 
@@ -812,8 +812,8 @@ int dcbtst(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -838,8 +838,8 @@ int dcbt(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -864,8 +864,8 @@ int dcbf(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -894,8 +894,8 @@ int dcbz(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -924,8 +924,8 @@ int dcba(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -954,8 +954,8 @@ int dcbi(PPCTranslatorContext *tc, uint32_t opcode)
 
     SupervisorCheck sc(tc);
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
     
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
