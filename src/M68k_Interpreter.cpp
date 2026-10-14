@@ -192,7 +192,7 @@ namespace Emu68::M68k::Interpreter {
 void putByte(void *data, char c)
 {
     (void)data;
-    *(volatile uint8_t *)0xdeadbeef = c;
+    *(volatile uint8_t *)(uintptr_t)globals.debug_port_addr = c;
 }
 
 void bug(const char * format, ...)

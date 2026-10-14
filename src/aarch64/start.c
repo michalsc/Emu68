@@ -826,6 +826,8 @@ void boot(void *dtree)
     tmp &= ~0x18;                   // Disable stack alignment check
     __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
+    globals.debug_port_addr = 0xdeadbeef;
+
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
 
@@ -1077,8 +1079,22 @@ void boot(void *dtree)
             }
         }
 
-        /* Make a hole for 0xdeadbeef */
-        mmu_map(0xdeadbeef & ~4095, 0xdeadbeef & ~4095, 4096, 0, 0);
+        /* If top of ram exceeds debug port address, move debug port beyond it */
+        if (top_of_ram > globals.debug_port_addr)
+        {
+            // Do nothing yet!!! need to check if all contributors are ok with this change
+            // globals.debug_port_addr = 0xff01babe;
+        }
+
+        /* Make a hole for the debug port */
+        mmu_map(globals.debug_port_addr & ~4095, globals.debug_port_addr & ~4095, 4096, 0, 0);
+
+        if ((e = dt_find_node("/emu68/diag")) == NULL) {
+            e = dt_make_node("diag");
+            dt_add_node(dt_find_node("/emu68"), e);
+        }
+
+        dt_add_property(e, "debug-port", &globals.debug_port_addr, 4);
 
         if ((p = dt_find_property(dt_find_node("/emu68"), "vc4-mem"))) {
             uint32_t *reg = p->op_value;

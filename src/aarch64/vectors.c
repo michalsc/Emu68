@@ -397,12 +397,12 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
     }
 
-    if (far == 0xdeadbeef && size == 1) {
+    if (far == globals.debug_port_addr && size == 1) {
         kprintf("%c", value);
         return 1;
     }
 
-    if (far >= 0xff000000) {
+    if (far >= 0xff000000 && far <= 0xff00ffff) {
         kprintf("Z3 write access with far %08x, size %d, value %08x\n", far, size, value);
     }
 
@@ -722,7 +722,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
     
-    if (far == 0xdeadbeef && size == 1) {
+    if (far == globals.debug_port_addr && size == 1) {
         kprintf("%c", value);
         return 1;
     }

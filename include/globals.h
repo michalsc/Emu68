@@ -43,6 +43,9 @@ struct Globals
     void* ppc_jit_phys_base;
     void* m68k_jit_virt_base;
     void* ppc_jit_virt_base;
+
+    // Debug port address
+    uint32_t debug_port_addr;
 };
 
 #ifndef __cplusplus
