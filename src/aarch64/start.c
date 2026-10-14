@@ -1750,6 +1750,16 @@ void M68K_StartEmu(void *addr, void *fdt)
         }       
     }
 
+    // Enable debug and disassemble if requested through overlay
+    if (dt_find_property(dt_find_node("/emu68/diag"), "enable-debug")) {
+        globals.debug = true;
+    }
+
+    if (dt_find_property(dt_find_node("/emu68/diag"), "enable-disassemble")) {
+        globals.disasm = true;
+    }
+
+
     /* Enable interpreter on start if requested through overlay */
     node = dt_find_node("/emu68/defaults");
     if (node)
