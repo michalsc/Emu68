@@ -60,11 +60,11 @@ set(M68K_SAVED_TEMPS
          -fcall-saved-x8 -fcall-saved-x9 -fcall-saved-x10 -fcall-saved-x11"
 )
 
-set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "virt")
+set(SUPPORTED_TARGETS "raspi64" "pbpro" "rockpro64" "de25nano" "virt")
 set(TARGET "raspi64" CACHE STRING "One of target machines: ${SUPPORTED_TARGETS}")
 set_property(CACHE TARGET PROPERTY STRINGS ${SUPPORTED_TARGETS})
 
-set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm-classic")
+set(SUPPORTED_VARIANTS "none" "pistorm" "pistorm-classic" "de25nano")
 set(VARIANT "none" CACHE STRING "Compilation variant: ${SUPPORTED_VARIANTS}")
 set_property(CACHE VARIANT PROPERTY STRINGS ${SUPPORTED_VARIANTS})
 
@@ -277,6 +277,13 @@ if (${TARGET} IN_LIST SUPPORTED_TARGETS)
             src/virt/support_virt.c
         )
         install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION .)
+    elseif(${TARGET} STREQUAL "de25nano")
+        list(APPEND TARGET_FILES
+            src/de25nano/start_de25nano.c
+            src/de25nano/support_de25nano.c
+        )
+        install(FILES ${CMAKE_BINARY_DIR}/Emu68.img.gz DESTINATION . RENAME Emu68-${VARIANT}.gz)
+        add_compile_definitions(DE25_NANO)
     endif()
 
     set(TARGET_ARCH "aarch64")
