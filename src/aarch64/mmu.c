@@ -537,8 +537,145 @@ uintptr_t mmu_virt2phys(uintptr_t addr)
 
 struct MemoryBlock *sys_memory;
 
+void trim_memory()
+{
+    struct List memlist;
+    struct MemoryEntry {
+        struct Node me_Node;
+        uintptr_t me_Base;
+        uintptr_t me_Size;
+    } *me, *next;
+
+    NEWLIST(&memlist);
+
+    /* Construct list of memory regions from the /memory entry in device tree */
+    of_node_t *e = dt_find_node("/memory");
+    if (e != NULL)
+    {
+        of_property_t *p = dt_find_property(e, "reg");
+        uint32_t *range = p->op_value;
+        int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+        int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+        int block_size = 4 * (size_cells + address_cells);
+        int block_count = p->op_length / block_size;
+
+        for (int block=0; block < block_count; block++)
+        {
+            me = tlsf_malloc(tlsf, sizeof(struct MemoryEntry));
+            me->me_Base = 0;
+            me->me_Size = 0;
+
+            for (int i=0; i < address_cells; i++)
+            {
+                me->me_Base = (me->me_Base << 32) | BE32(range[i]);
+            }
+            for (int i=0; i < size_cells; i++)
+            {
+                me->me_Size = (me->me_Size << 32) | BE32(range[i + address_cells]);
+            }
+
+            ADDTAIL(&memlist, &me->me_Node);
+        }
+    }
+
+    /* Go through /reserved-memory */
+    e = dt_find_node("/reserved-memory");
+    if (e)
+    {
+        int size_cells = dt_get_property_value_u32(e, "#size-cells", 1, TRUE);
+        int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
+
+        /* Go through all children of reserved memory */
+        for (of_node_t *child = e->on_children; child; child = child->on_next)
+        {
+            of_property_t *reg = dt_find_property(child, "reg");
+
+            if (reg) {
+                uint32_t *range = reg->op_value;
+                uint64_t rbase = 0;
+                uint64_t rsize = 0;
+                uint64_t rend = 0;
+
+                for (int i=0; i < address_cells; i++)
+                {
+                    rbase = (rbase << 32) | BE32(range[i]);
+                }
+                for (int i=0; i < size_cells; i++)
+                {
+                    rsize = (rsize << 32) | BE32(range[i + address_cells]);
+                }
+
+                rend = rbase + rsize;
+
+                /* Align base and end to 4K */
+                rbase = rbase & ~4095;
+                rend = (rend + 4095) & ~4095;
+
+                /* Go through all entries in memory list */
+                ForeachNodeSafe(&memlist, me, next)
+                {
+                    uintptr_t base = me->me_Base;
+                    uintptr_t end = me->me_Base + me->me_Size;
+
+                    /* If entry is outside trim, continue */
+                    if (rend <= base || rbase >= end) {
+                        continue;
+                    }
+
+                    /* Entry is fully covered, remove it */
+                    if (rbase <= base && rend >= end) {
+                        REMOVE(&me->me_Node);
+                        tlsf_free(tlsf, me);
+                    }
+                    /* Clip block's front */
+                    else if (rbase <= base) {
+                        me->me_Base = rend;
+                        me->me_Size = end - rend;
+                    }
+                    /* Clip block's tail */
+                    else if (rend >= end) {                     /* clip tail */
+                        me->me_Size = rbase - base;
+                    }
+                    else {                                      /* split */
+                        me->me_Size = rbase - base;
+
+                        /* Create new MemoryEntry and insert it into the list right after this one */
+                        struct MemoryEntry *newme = tlsf_malloc(tlsf, sizeof(struct MemoryEntry));
+                        newme->me_Base = rend;
+                        newme->me_Size = end - rend;
+                        newme->me_Node.ln_Next = me->me_Node.ln_Next;
+                        newme->me_Node.ln_Prev = &me->me_Node;
+                        me->me_Node.ln_Next = &newme->me_Node;
+                    }
+                }
+            }
+        }
+    }
+
+    int itemcount = 0;
+
+    ForeachNode(&memlist, next) { itemcount++; }
+
+    struct MemoryBlock * const mb = tlsf_malloc(tlsf, itemcount * sizeof(struct MemoryBlock));
+    struct MemoryBlock *mbe = mb;
+
+    ForeachNodeSafe(&memlist, me, next) {
+        mbe->mb_Base = me->me_Base;
+        mbe->mb_Size = me->me_Size;
+        mbe++;
+        tlsf_free(tlsf, me);
+    }
+
+    e = dt_find_node("/memory");
+    dt_rem_property(e, dt_find_property(e, "reg"));
+    dt_add_property(e, "reg", mb, itemcount * sizeof(struct MemoryBlock));
+}
+
 void mmu_init()
 {
+    /* Adjust /memory/reg by removing all regions masked by /reserved-memory */
+    trim_memory();
+
     /*
         At this stage the user space memory is not set up yet, but the kernel runs in high address
         space, so it is safe to adjust the MMU tables for lower region. Here, only peripherals are
@@ -557,13 +694,16 @@ void mmu_init()
         int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
         int block_size = 4 * (size_cells + address_cells);
         int block_count = p->op_length / block_size;
+#ifdef RASPI
+        bool unicam_set = false;
+        bool vc4_set = false;
+#endif
 
         sys_memory = tlsf_malloc(tlsf, (1 + block_count) * sizeof(struct MemoryBlock));
+
         for (int block=0; block < block_count; block++)
         {
-            bool unicam_set = false;
-            bool vc4_set = false;
-            of_property_t *p = NULL;
+            
             int last_block = (block == block_count - 1);
             uintptr_t addr = 0;
             uintptr_t size = 0;
@@ -601,6 +741,9 @@ void mmu_init()
                 }
             }
 
+#ifdef RASPI
+            of_property_t *p = NULL;
+
             /* 
                 If /emu68/vc4-mem property exists, check if its base address is 0. If so, 
                 then we can assign it a base address here, provided the memory block ends below 1GB,
@@ -635,6 +778,7 @@ void mmu_init()
                     }
                 }
             }
+#endif
 
 #ifdef PISTORM_ANY_MODEL
             // Adjust base and size of the memory block
@@ -663,7 +807,6 @@ void mmu_init()
                     *--storage = (uint32_t)tmp;
                     tmp >>= 32;
                 }
-
             }
 
             sys_memory[block].mb_Base = addr;
