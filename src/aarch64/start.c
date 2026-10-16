@@ -83,6 +83,7 @@ __asm__("   .section .startup           \n"
 "       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
 "       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
 "       msr     SCTLR_EL1, x10      \n"
+"       isb     sy                  \n"
 #endif
 /*
     At this point we have correct endianess and the code is executing, but we do not really know where
@@ -176,6 +177,7 @@ __asm__("   .section .startup           \n"
 "       mrs     x10, SCTLR_EL3      \n" /* If necessary, set endianess of EL3 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL3, x10      \n"
+"       isb     sy                  \n"
 #endif
 "       adr     x10, leave_EL2      \n" /* Fallback to continue_boot in EL2 here below */
 "       msr     ELR_EL3, x10        \n"
@@ -188,6 +190,7 @@ __asm__("   .section .startup           \n"
 "       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL2, x10      \n"
+"       isb     sy                  \n"
 #endif
 "       mrs     x10, MDCR_EL2       \n" /* Enable event counters */
 "       orr     x10, x10, #0x80     \n"
@@ -352,6 +355,7 @@ __asm__(
 "       mrs     x10, SCTLR_EL3      \n" /* If necessary, set endianess of EL3 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL3, x10      \n"
+"       isb     sy                  \n"
 #endif
 "       adr     x10, _sec_leave_EL2 \n" /* Fallback to continue_boot in EL2 here below */
 "       msr     ELR_EL3, x10        \n"
@@ -364,9 +368,11 @@ __asm__(
 "       mrs     x10, SCTLR_EL2      \n" /* If necessary, set endianess of EL2 before fetching any data */
 "       orr     x10, x10, #(1 << 25)\n"
 "       msr     SCTLR_EL2, x10      \n"
+"       isb     sy                  \n"
 "       mrs     x10, SCTLR_EL1      \n" /* If necessary, set endianess of EL1 and EL0 before fetching any data */
 "       orr     x10, x10, #(1 << 25) | (1 << 24)\n"
 "       msr     SCTLR_EL1, x10      \n"
+"       isb     sy                  \n"
 #endif
 "       mrs     x10, MDCR_EL2       \n" /* Enable event counters */
 "       orr     x10, x10, #0x80     \n"
@@ -382,17 +388,19 @@ __asm__(
 
 "       mov     x10, #0x00300000    \n" /* Enable signle and double VFP coprocessors in EL1 and EL0 */
 "       msr     CPACR_EL1, x10      \n"
+"       isb     sy                  \n"
                                         /* Attr0 - write-back cacheable RAM, Attr1 - device, Attr2 - non-cacheable */
 "       ldr     x10, =" xstr(MMU_ATTR_ENTRIES) "\n"
 "       msr     MAIR_EL1, x10       \n" /* Set memory attributes */
 
-"       ldr     x10, =0x1b5193519    \n" /* Upper and lower enabled, both 39bit in size, 36bit IPS */
+"       ldr     x10, =0x1b5193519   \n" /* Upper and lower enabled, both 39bit in size, 36bit IPS */
 "       msr     TCR_EL1, x10        \n"
 
 "       adrp    x10, mmu_user_L1    \n" /* Load table pointers for low and high memory regions */
 "       msr     TTBR0_EL1, x10      \n"
 "       adrp    x10, mmu_kernel_L1  \n"
 "       msr     TTBR1_EL1, x10      \n"
+"       isb     sy                  \n"
 
 "       mrs     x10, SCTLR_EL1      \n"
 "       orr     x10, x10, #1        \n"
@@ -423,9 +431,9 @@ void secondary_boot(void)
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
-    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    __asm__ volatile("msr SCTLR_EL1, %0; isb sy"::"r"(tmp));
 
-    __asm__ volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    __asm__ volatile("msr VBAR_EL1, %0; isb sy"::"r"((uintptr_t)&__vectors_start));
 
     __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
 
@@ -822,7 +830,7 @@ void boot(void *dtree)
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
     tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
     tmp &= ~0x18;                   // Disable stack alignment check
-    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
+    __asm__ volatile("msr SCTLR_EL1, %0; isb sy"::"r"(tmp));
 
     globals.debug_port_addr = 0xdeadbeef;
 
@@ -1223,7 +1231,7 @@ void boot(void *dtree)
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-    __asm__ volatile("msr VBAR_EL1, %0"::"r"((uintptr_t)&__vectors_start));
+    __asm__ volatile("msr VBAR_EL1, %0; isb"::"r"((uintptr_t)&__vectors_start));
     kprintf("[BOOT] VBAR set to %p\n", (uintptr_t)&__vectors_start);
 
     __asm__ volatile("mrs %0, CNTFRQ_EL0":"=r"(tmp));
