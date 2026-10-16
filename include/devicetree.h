@@ -74,6 +74,7 @@ uint32_t dt_get_property_value_u32(void *key, const char *propname, uint32_t def
 of_node_t * dt_make_node(const char *name);
 void dt_add_node(of_node_t *parent, of_node_t *node);
 void dt_add_property(of_node_t *node, const char *propname, const void *propvalue, uint32_t proplen);
+void dt_rem_property(of_node_t *node, of_property_t *prop);
 
 #ifdef __cplusplus
 }
