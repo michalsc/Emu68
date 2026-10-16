@@ -136,6 +136,22 @@ __asm__("   .section .startup           \n"
 "       cbnz    x9, 1b              \n"
 
 /*
+    Flush data cache and invalidate TLB
+*/
+"       adrp    x9, __mmu_start     \n"
+"       add     x9, x9, :lo12:__mmu_start \n"
+"       ldr     w10, =__mmu_size    \n"
+"       add     x10, x9, x10        \n"
+"1:     dc      civac, x9           \n"
+"       add     x9, x9, #64         \n"
+"       cmp     x9, x10             \n"
+"       b.lo    1b                  \n"
+"       dsb     ish                 \n"
+"       tlbi    vmalle1             \n"
+"       dsb     ish                 \n"
+"       isb                         \n"
+
+/*
     MMU Map is prepared. We can continue
 */
 
