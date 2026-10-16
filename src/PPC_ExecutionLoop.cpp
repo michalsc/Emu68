@@ -460,8 +460,8 @@ extern "C" void StartupPPC()
     __asm__ volatile("mrs %0, PMCCNTR_EL0":"=r"(Emu68::PPC::arm_cycle_counter_start));
 
     /* Chain pointers to flag causing interrupt on the counterpart */
-    __m68k_state->PPC_EE_FLAG = &ppc.INT.EXT;
-    ppc.M68K_FLAG = &__m68k_state->INTF.PPC;
+    //__m68k_state->PPC_EE_FLAG = &ppc.INT.EXT;
+    //ppc.M68K_FLAG = &__m68k_state->INTF.PPC;
 
     Emu68::PPC::PPCMainLoop();
 

@@ -101,6 +101,7 @@ __asm__("   .section .startup           \n"
 "       cbnz    w10, 1b             \n"
 "2:                                 \n"
 
+#if 0
 "       adrp    x16, mmu_user_L1    \n" /* x16 - address of user's L1 map */
 "       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n" /* initial setup: 1:1 uncached for first 4GB */
 "       mov     x10, #0x40000000    \n"
@@ -111,7 +112,22 @@ __asm__("   .section .startup           \n"
 "       str     x9, [x16, #16]      \n"
 "       add     x9, x9, x10         \n"
 "       str     x9, [x16, #24]      \n"
-
+#else
+"       adrp    x16, mmu_user_L1    \n"
+"       mov     x10, #0x40000000    \n"
+        /* 0x00000000-0x7FFFFFFF: peripherals + FPGA bridges -> Device-nGnRE, XN */
+"       mov     x9, #" xstr(MMU_ACCESS|MMU_ATTR_DEVICE|MMU_PAGE) "\n"
+"       orr     x9, x9, #(3 << 53)  \n" /* UXN | PXN */
+"       str     x9, [x16, #0]       \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #8]       \n"
+        /* 0x80000000-0xFFFFFFFF: DRAM -> Normal NC for now */
+"       mov     x9, #" xstr(MMU_ISHARE|MMU_ACCESS|MMU_ATTR_UNCACHED|MMU_PAGE) "\n"
+"       orr     x9, x9, #0x80000000 \n"
+"       str     x9, [x16, #16]      \n"
+"       add     x9, x9, x10         \n"
+"       str     x9, [x16, #24]      \n"
+#endif
 "       adrp    x16, mmu_kernel_L1  \n" /* x16 - address of kernel's L1 map */
 "       adrp    x17, mmu_kernel_L2  \n" /* x17 - address of kernel's L2 map */
 
@@ -434,6 +450,33 @@ volatile uint8_t boot_lock;
 
 void serial_writer();
 
+
+static inline uint64_t cntvct(void)
+{ uint64_t v; __asm__ volatile("isb; mrs %0, cntvct_el0" : "=r"(v)); return v; }
+static inline uint64_t cntfrq(void)
+{ uint64_t v; __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(v)); return v; }
+static inline uint64_t pmccntr(void)
+{ uint64_t v; __asm__ volatile("isb; mrs %0, pmccntr_el0" : "=r"(v)); return v; }
+ 
+uint64_t measure_my_core_hz(void)
+{
+    uint64_t pmcr;
+    __asm__ volatile("mrs %0, pmcr_el0" : "=r"(pmcr));
+    pmcr |= 1u;                    /* E: enable */
+    pmcr &= ~(uint64_t)(1u << 3);  /* D=0: count every cycle, not /64 */
+    pmcr |= 1u << 6;               /* LC: 64-bit cycle counter */
+    __asm__ volatile("msr pmcr_el0, %0" :: "r"(pmcr));
+    __asm__ volatile("msr pmccfiltr_el0, %0" :: "r"(1ul << 27)); /* NSH: count at EL2 too */
+    __asm__ volatile("msr pmcntenset_el0, %0" :: "r"(1ul << 31));
+ 
+    uint64_t f  = cntfrq();
+    uint64_t t0 = cntvct(), c0 = pmccntr();
+    while (cntvct() - t0 < f / 10)  /* ~100 ms */
+        ;
+    uint64_t t1 = cntvct(), c1 = pmccntr();
+    return (c1 - c0) * f / (t1 - t0);
+}
+
 void secondary_boot(void)
 {
     uint64_t cpu_id;
@@ -467,6 +510,13 @@ void secondary_boot(void)
     __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
 
     kprintf("[BOOT] Started CPU%d\n", cpu_id);
+    
+    uint64_t midr;
+
+    asm volatile("mrs %0, MIDR_EL1":"=r"(midr));
+    
+    kprintf("[BOOT] CPU%d model: %x\n", cpu_id, midr);
+    kprintf("[BOOT] CPU%d core frequency: %d MHz\n", cpu_id, (measure_my_core_hz() + 500000) / 1000000);
     
     if (cpu_id == 1)
     {
@@ -659,6 +709,9 @@ void make_emu68_node()
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
+    dt_add_property(e, "enable-ppc", NULL, 0);
+
+#ifdef RASPI
     /* Create vc4-mem property if it doesn't exist */
     if (!dt_find_property(e, "vc4-mem"))
     {
@@ -678,6 +731,7 @@ void make_emu68_node()
             reg[1] = (reg[1] + 0x001FFFFF) & ~0x001FFFFF; /* Round up to nearest 2MB */
         }
     }
+#endif
 
     /* 
         Capability marker for m68k guests: this build decodes the private LINE-F
@@ -692,6 +746,7 @@ void make_emu68_node()
     globals.fpu_disable = !!dt_find_property(e, "disable-fpu");
     globals.fast_page_zero = !!dt_find_property(e, "fast-page-zero");
 
+#ifdef RASPI
     bool is_bcm2711 = !!dt_find_node("/scb");
 
     /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
@@ -766,6 +821,7 @@ void make_emu68_node()
         if (reg[1] < necessary_size)
             reg[1] = necessary_size;
     }
+#endif
 }
 
 void make_emu68_defaults_node()
@@ -832,6 +888,27 @@ void make_emu68_defaults_node()
     }
 }
 
+void start_core(uint32_t id, uintptr_t entry_point, uintptr_t stack)
+{
+#ifdef DE25_NANO
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
+    kprintf("[BOOT] Waking up CPU %d\n", id);
+    temp_stack = stack;
+    clear_entire_dcache();
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", entry_point, temp_stack);
+    psci_cpu_on(id << 8, entry_point, 0);
+#else
+    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
+    kprintf("[BOOT] Waking up CPU %d\n", id);
+    temp_stack = stack;
+    *(uint64_t *)(0xffffff90000000e0 + ((id - 1) << 3)) = LE64(entry_point);
+    clear_entire_dcache();
+    kprintf("[BOOT] Boot address set to %p, stack at %p\n", 
+        LE64(*(uint64_t*)(0xffffff90000000e0 + ((id - 1) << 3))), temp_stack);
+    __asm__ volatile("sev");
+#endif
+}
+
 void boot(void *dtree)
 {
     uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
@@ -855,7 +932,11 @@ void boot(void *dtree)
     tmp &= ~0x18;                   // Disable stack alignment check
     __asm__ volatile("msr SCTLR_EL1, %0; isb sy"::"r"(tmp));
 
+#ifdef DE25_NANO
+    globals.debug_port_addr = 0xdeadbeef; //0xbfffff;
+#else
     globals.debug_port_addr = 0xdeadbeef;
+#endif
 
     /* Initialize tlsf */
     tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
@@ -1216,39 +1297,18 @@ void boot(void *dtree)
         InitFunctions++;
     }
 
-    intc_global_init();
+    //intc_global_init();
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) __asm__ volatile("yield");
-    kprintf("[BOOT] Waking up CPU 1\n");
-    temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint64_t *)0xffffff90000000e0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
-    clear_entire_dcache();
-        
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e0), temp_stack);
+    uint64_t midr;
 
-    __asm__ volatile("sev");
+    asm volatile("mrs %0, MIDR_EL1":"=r"(midr));
+    
+    kprintf("[BOOT] CPU%d model: %x\n", 0, midr);
+    kprintf("[BOOT] CPU%d core frequency: %d MHz\n", 0, (measure_my_core_hz() + 500000) / 1000000);
 
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
-
-    kprintf("[BOOT] Waking up CPU 2\n");
-    temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint64_t *)0xffffff90000000e8 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
-    clear_entire_dcache();
-        
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000e8), temp_stack);
-
-    __asm__ volatile("sev");
-
-    while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
-
-    kprintf("[BOOT] Waking up CPU 3\n");
-    temp_stack = (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536;
-    *(uint64_t *)0xffffff90000000f0 = LE64(mmu_virt2phys((intptr_t)_secondary_start));
-    clear_entire_dcache();
-        
-    kprintf("[BOOT] Boot address set to %p, stack at %p\n", LE64(*(uint64_t*)0xffffff90000000f0), temp_stack);
-
-    __asm__ volatile("sev");
+    start_core(1, mmu_virt2phys((intptr_t)_secondary_start), (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536);
+    start_core(2, mmu_virt2phys((intptr_t)_secondary_start), (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536);
+    start_core(3, mmu_virt2phys((intptr_t)_secondary_start), (uintptr_t)tlsf_malloc(tlsf, 65536) + 65536);
 
     while(__atomic_test_and_set(&boot_lock, __ATOMIC_ACQUIRE)) { __asm__ volatile("yield"); }
 
@@ -1266,6 +1326,14 @@ void boot(void *dtree)
     kprintf("[BOOT] PMCR=%08x\n", tmp);
     tmp = 0x80000000; // Enable cycle counter
     __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
+
+//    globals.debug = true;
+//    globals.disasm = true;
+    extern spinlock_t PPCStart;
+    spinlock_release(&PPCStart);
+
+kprintf("xxx");
+while(1) { asm volatile("wfi"); };
 
     platform_post_init();
 
