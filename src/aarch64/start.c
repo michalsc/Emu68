@@ -35,6 +35,9 @@
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
 #endif
+#ifdef DE25_NANO
+#include "psci.h"
+#endif
 
 void _start();
 void _boot();
