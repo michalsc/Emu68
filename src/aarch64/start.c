@@ -443,8 +443,12 @@ void secondary_boot(void)
 
     __asm__ volatile("mrs %0, MPIDR_EL1":"=r"(cpu_id));
    
+#ifdef DE25_NANO
+    cpu_id = (cpu_id >> 8) & 3;
+#else
     cpu_id &= 3;
-    
+#endif
+
     /* Enable caches and cache maintenance instructions from EL0 */
     __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
     tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
