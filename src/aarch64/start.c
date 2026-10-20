@@ -1130,7 +1130,7 @@ void boot(void *dtree)
             mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_UNCACHED, 0);
         }
 
-        if ((p = dt_find_property(dt_find_node("/emu68/cma@0"), "reg)"))) {
+        if ((p = dt_find_property(dt_find_node("/emu68/cma@0"), "reg"))) {
             uint32_t *reg = p->op_value;
             kprintf("[BOOT] CMA memory: %p-%p (%d MiB)\n", 
                 reg[0],
