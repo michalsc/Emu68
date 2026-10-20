@@ -648,6 +648,24 @@ void make_emu68_node()
         }
     }
 
+    /*
+        Check if /emu68/cma node exists. If this is the case, MMU setup will assign 
+        uncached memory for it. For now make sure the second 32 bit word of "reg"
+        property is a size in bytes, aligned to 2M boundary.
+    */
+    of_node_t *cma = dt_find_node("/emu68/cma");
+    if (cma != NULL) {
+        of_property_t *op_reg = dt_find_property(cma, "reg");
+        if (op_reg != NULL) {
+            uint32_t *reg = op_reg->op_value;
+            if (reg[1] < 1024) {
+                reg[1] = reg[1] << 20;
+            }
+
+            reg[1] = (reg[1] + 0x001fffff) & ~0x001fffff;
+        }
+    }
+
     /* 
         Capability marker for m68k guests: this build decodes the private LINE-F
         data-cache range opcodes (EMIT_lineF, 0xF460/0xF440 + ext word).
@@ -1106,6 +1124,15 @@ void boot(void *dtree)
         if ((p = dt_find_property(dt_find_node("/emu68"), "unicam-mem"))) {
             uint32_t *reg = p->op_value;
             kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
+                reg[0],
+                reg[0] + reg[1] - 1, 
+                reg[1] >> 20);
+            mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_UNCACHED, 0);
+        }
+
+        if ((p = dt_find_property(dt_find_node("/emu68/cma@0"), "reg)"))) {
+            uint32_t *reg = p->op_value;
+            kprintf("[BOOT] CMA memory: %p-%p (%d MiB)\n", 
                 reg[0],
                 reg[0] + reg[1] - 1, 
                 reg[1] >> 20);

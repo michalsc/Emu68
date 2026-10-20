@@ -180,6 +180,7 @@ set(OVERLAY_FILES
     src/overlays/slowram.dts
     src/overlays/swap_df0.dts
     src/overlays/logger.dts
+    src/overlays/cma.dts
 )
 
 build_devicetree(OVERLAY_FILES)

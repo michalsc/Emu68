@@ -557,12 +557,13 @@ void mmu_init()
         int address_cells = dt_get_property_value_u32(e, "#address-cells", 1, TRUE);
         int block_size = 4 * (size_cells + address_cells);
         int block_count = p->op_length / block_size;
+        bool unicam_set = false;
+        bool vc4_set = false;
+        bool cma_set = false;
 
         sys_memory = tlsf_malloc(tlsf, (1 + block_count) * sizeof(struct MemoryBlock));
         for (int block=0; block < block_count; block++)
         {
-            bool unicam_set = false;
-            bool vc4_set = false;
             of_property_t *p = NULL;
             int last_block = (block == block_count - 1);
             uintptr_t addr = 0;
@@ -614,6 +615,25 @@ void mmu_init()
                         reg[0] = addr + size + (2 << 20);
                         update_needed = 1;
                         vc4_set = true;
+                    }
+                }
+            }
+
+            /*
+                If /emu68/cma node exists, check its reg property. If base address is set to 0,
+                assign some memory to it now, provided the memory block ends below 1GB (some 
+                Pi peripherals might need it)
+            */
+
+            if (!cma_set && (p = dt_find_property(dt_find_node("/emu68/cma"), "reg"))) {
+                uint32_t *reg = p->op_value;
+                if (reg[1] != 0 && reg[0] == 0) {
+                    if (addr + size <= 0x40000000) {
+                        size -= (reg[1] + 0x1fffff) & ~0x1fffff;
+                        size -= 2 << 20;
+                        reg[0] = addr + size + (2 << 20);
+                        update_needed = 1;
+                        cma_set = true;
                     }
                 }
             }
