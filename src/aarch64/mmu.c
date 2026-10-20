@@ -625,7 +625,7 @@ void mmu_init()
                 Pi peripherals might need it)
             */
 
-            if (!cma_set && (p = dt_find_property(dt_find_node("/emu68/cma"), "reg"))) {
+            if (!cma_set && (p = dt_find_property(dt_find_node("/emu68/cma@0"), "reg"))) {
                 uint32_t *reg = p->op_value;
                 if (reg[1] != 0 && reg[0] == 0) {
                     if (addr + size <= 0x40000000) {
