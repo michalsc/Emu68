@@ -204,6 +204,10 @@ uint32_t EMIT_MULS_L(struct TranslatorContext *ctx, uint16_t opcode)
         }
     }
 
+
+    /* Make sure upper 32 bits of dl remain clear */
+    EMIT(ctx, mov_reg(reg_dl, reg_dl));
+
     RA_FreeARMRegister(ctx, reg_dh);
 
     return 1;
