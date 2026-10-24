@@ -12,7 +12,7 @@ jobs:
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
     # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     strategy:
       matrix:
@@ -33,8 +33,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           build-essential ninja-build device-tree-compiler xxd zip \
-          gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu \
-          gcc-14-powerpc-linux-gnu g++-14-powerpc-linux-gnu
+          gcc-15-aarch64-linux-gnu g++-15-aarch64-linux-gnu \
+          gcc-15-powerpc-linux-gnu g++-15-powerpc-linux-gnu
         sudo cp /usr/aarch64-linux-gnu/include/gnu/stubs-lp64.h /usr/aarch64-linux-gnu/include/gnu/stubs-lp64_be.h
         cmake -E make_directory ${{runner.workspace}}/build
         cmake -E make_directory ${{runner.workspace}}/install
