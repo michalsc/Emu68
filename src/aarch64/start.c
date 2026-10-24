@@ -906,7 +906,6 @@ void boot(void *dtree)
             break;
     }
 #elif defined(PISTORM_CLASSIC)
-    const uint8_t pistorm_model = 0;
     dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm"));
 #endif
 
