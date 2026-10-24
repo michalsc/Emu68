@@ -944,8 +944,8 @@ void boot(void *dtree)
     }
     else
     {
-        #include "../pistorm/efinix_firmware_ps32.h"
-        #include "../pistorm/efinix_firmware_ps16.h"
+        #include "firmware_ps16.bin.gz.h"
+        #include "firmware_ps32.bin.gz.h"
 
         struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
         
