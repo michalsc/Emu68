@@ -11,7 +11,6 @@ function(bin_to_header target)
 
     cmake_path(GET target FILENAME TARGET_NAME)
     cmake_path(GET target PARENT_PATH TARGET_PATH)
-    message(${TARGET_PATH})
 
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}.h
