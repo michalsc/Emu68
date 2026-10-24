@@ -942,6 +942,7 @@ void boot(void *dtree)
             libdeflate_free_decompressor(decomp);
         }
     }
+#if defined(PISTORM)
     else
     {
         #include "firmware_ps16.bin.gz.h"
@@ -983,7 +984,6 @@ void boot(void *dtree)
             libdeflate_free_decompressor(decomp);
         }
     }
-#if defined(PISTORM)
     ps_efinix_setup(pistorm_model);
     ps_efinix_load(firmware_file, firmware_size);
 #endif
