@@ -370,7 +370,7 @@ __constexpr uint32_t cmn_immed_lsl12(uint8_t rn, uint16_t imm12) { ASSERT_REG(rn
 __constexpr uint32_t cmn64_immed_lsl12(uint8_t rn, uint16_t imm12) { ASSERT_REG(rn); return adds64_immed_lsl12(31, rn, imm12); }
 __constexpr uint32_t and_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { ASSERT_REG(rn); ASSERT_REG(rd); return I32(0x12000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 __constexpr uint32_t and64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { ASSERT_REG(rn); ASSERT_REG(rd); return I32(0x92000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
-__constexpr uint32_t bic_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { ASSERT_REG(rn); ASSERT_REG(rd); return and_immed(rd, rn, 32 - width, ror - width); }
+__constexpr uint32_t bic_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { ASSERT_REG(rn); ASSERT_REG(rd); return and_immed(rd, rn, 32 - width, (ror - width) & 31); }
 __constexpr uint32_t bic64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { ASSERT_REG(rn); ASSERT_REG(rd); return and64_immed(rd, rn, 64 - width, ror - width, n); }
 __constexpr uint32_t ands_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror) { RESET_FLAGS(); ASSERT_REG(rn); ASSERT_REG(rd); return I32(0x72000000 | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
 __constexpr uint32_t ands64_immed(uint8_t rd, uint8_t rn, uint8_t width, uint8_t ror, uint8_t n) { RESET_FLAGS(); ASSERT_REG(rn); ASSERT_REG(rd); return I32(0xf2000000 | (n ? (1 << 22) : 0) | (rd & 31) | ((rn & 31) << 5) | (((width - 1) & 0x3f) << 10) | ((ror & 0x3f) << 16)); }
@@ -495,7 +495,7 @@ __constexpr uint32_t ngcs64(uint8_t rd, uint8_t rm) { return sbcs64(rd, 31, rm);
 /* Data processing: conditional select */
 
 __constexpr uint32_t csel(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x1a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
-__constexpr uint32_t csel64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 6) | ((cond & 15) << 12)); }
+__constexpr uint32_t csel64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
 __constexpr uint32_t csinc(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x1a800400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
 __constexpr uint32_t csinc64(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x9a800400 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
 __constexpr uint32_t csinv(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond) { ASSERT_REG(rd); ASSERT_REG(rn); ASSERT_REG(rm); return I32(0x5a800000 | (rd & 31) | ((rn & 31) << 5) | ((rm & 31) << 16) | ((cond & 15) << 12)); }
@@ -593,6 +593,7 @@ __constexpr uint32_t fcmpzs(uint8_t v_src) { RESET_FLAGS(); return INSN_TO_LE(0x
 __constexpr uint32_t fcpyd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e604000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 __constexpr uint32_t fcvtds(uint8_t d_dst, uint8_t s_src) { return I32(0x1e22c000 | (d_dst & 31) | ((s_src & 31) << 5)); }
 __constexpr uint32_t fcvtsd(uint8_t s_dst, uint8_t d_src) { return I32(0x1e624000 | (s_dst & 31) | ((d_src & 31) << 5)); }
+__constexpr uint32_t fcseld(uint8_t v_dst, uint8_t v_n, uint8_t v_m, uint8_t cond) { return I32(0x1e600c00 | (v_dst & 31) | ((v_n & 31) << 5) | ((cond & 15) << 12) | ((v_m & 31) << 16)); }
 __constexpr uint32_t fdivd(uint8_t v_dst, uint8_t v_dividend, uint8_t v_divisor) { return I32(0x1e601800 | (v_dst & 31) | ((v_dividend & 31) << 5) | ((v_divisor & 31) << 16)); }
 __constexpr uint32_t fldd(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc400000 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
 __constexpr uint32_t fldd_preindex(uint8_t v_dst, uint8_t base, int16_t offset9) { return I32(0xfc400c00 | ((base & 31) << 5) | (v_dst & 31) | ((offset9 & 0x1ff) << 12)); }
@@ -608,6 +609,7 @@ __constexpr uint32_t fldq(uint8_t v_dst, uint8_t base, int16_t offset9) { return
 __constexpr uint32_t fldq_pimm(uint8_t v_dst, uint8_t base, uint16_t offset12) { return I32(0x3dc00000 | ((base & 31) << 5) | (v_dst & 31) | ((offset12 & 0xfff) << 10)); }
 __constexpr uint32_t fmaddd(uint8_t v_dst, uint8_t v_n, uint8_t v_m, uint8_t v_a) { return I32(0x1f400000 | ((v_n & 31) << 5) | ((v_a & 31) << 10) | ((v_m & 31) << 16) | (v_dst & 31)); }
 __constexpr uint32_t fmadds(uint8_t v_dst, uint8_t v_n, uint8_t v_m, uint8_t v_a) { return I32(0x1f000000 | ((v_n & 31) << 5) | ((v_a & 31) << 10) | ((v_m & 31) << 16) | (v_dst & 31)); }
+__constexpr uint32_t fnmsubd(uint8_t v_dst, uint8_t v_n, uint8_t v_m, uint8_t v_a) { return I32(0x1f608000 | ((v_n & 31) << 5) | ((v_a & 31) << 10) | ((v_m & 31) << 16) | (v_dst & 31)); }
 
 __constexpr uint32_t fldd_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x5c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
 __constexpr uint32_t flds_pcrel(uint8_t v_dst, int32_t imm19) { return I32(0x1c000000 | (v_dst & 31) | ((imm19 & 0x7ffff) << 5)); }
@@ -622,6 +624,7 @@ __constexpr uint32_t fmdlr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(
 __constexpr uint32_t fmdxr(uint8_t v_dst, uint8_t src) { return mov_reg_to_simd(v_dst, TS_D, 0, src); }
 __constexpr uint32_t fmrs(uint8_t dst, uint8_t v_src) { return mov_simd_to_reg(dst, v_src, TS_S, 0); }
 __constexpr uint32_t fmov_from_reg(uint8_t v_dst, uint8_t src) { return I32(0x9e670000 | (v_dst & 31) | ((src & 31) << 5)); }
+__constexpr uint32_t fmov_to_reg(uint8_t dst, uint8_t v_src) { return I32(0x9e660000 | (dst & 31) | ((v_src & 31) << 5)); }
 
 __constexpr uint32_t fmuld(uint8_t v_dst, uint8_t v_first, uint8_t v_second) { return I32(0x1e600800 | (v_dst & 31) | ((v_first & 31) << 5) | ((v_second & 31) << 16)); }
 __constexpr uint32_t fnegd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e614000 | (v_dst & 31) | ((v_src & 31) << 5)); }
@@ -665,6 +668,7 @@ __constexpr uint32_t fcvtzs_Dto32(uint8_t dst, uint8_t v_src) { return fcvtzs(ds
 __constexpr uint32_t fcvtzs_Dto64(uint8_t dst, uint8_t v_src) { return fcvtzs(dst, v_src, 1, 1); }
 
 __constexpr uint32_t frint64x(uint8_t v_dst, uint8_t v_src) { return I32(0x1e67c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
+__constexpr uint32_t frintxd(uint8_t v_dst, uint8_t v_src) { return I32(0x1e674000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 __constexpr uint32_t frint64z(uint8_t v_dst, uint8_t v_src) { return I32(0x1e65c000 | (v_dst & 31) | ((v_src & 31) << 5)); }
 
 __constexpr uint32_t vadd_2d(uint8_t v_dst, uint8_t v_rn, uint8_t v_rm) { return I32(0x4ee08400 | (v_dst & 31) | ((v_rn & 31) << 5) | ((v_rm & 31) << 16)); }
