@@ -37,14 +37,14 @@ public:
     
     // Auto-allocate from current context
     static FPRImpl allocate() {
-        return FPRImpl(context->allocARMRegister(), true);
+        return FPRImpl(context->allocFPRegister(), true);
     }
 
     FPRImpl() : reg(0xff), auto_managed(false) {}
     
     ~FPRImpl() { 
         if (auto_managed && reg != 0xff && context != nullptr) {
-            context->freeARMRegister(reg); 
+            context->freeFPRegister(reg);
         }
     }
 
@@ -60,7 +60,7 @@ public:
     FPRImpl& operator=(FPRImpl&& other) noexcept {
         if (this != &other) {
             if (auto_managed && reg != 0xff && context != nullptr) {
-                context->freeARMRegister(reg);
+                context->freeFPRegister(reg);
             }
             
             reg = other.reg;

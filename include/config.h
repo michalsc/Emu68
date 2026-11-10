@@ -29,7 +29,14 @@
 #endif
 
 /* Set 1 to propagate SO bit from XER to CRn */
+#ifndef PPC_SO_PROPAGATION
 #define PPC_SO_PROPAGATION      0
+#endif
+
+/* Set 1 to return the NaN PowerPC returns (first NaN operand, quiet), costs few instructions per FPU operation */
+#ifndef PPC_NAN_PROPAGATION
+#define PPC_NAN_PROPAGATION     0
+#endif
 
 #define EMU68_USE_LRU           1
 #define EMU68_LRU_WAY_COUNT     4
