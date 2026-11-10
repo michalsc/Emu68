@@ -47,6 +47,7 @@ ReturnStack return_stack;
 
 extern List<PPCTranslationUnit> ICache[EMU68_HASHSIZE];
 extern List<TranslationUnitLRU> LRU;
+extern LRUCache cache;
 
 PPCLocalState *local_state;
 
@@ -1949,12 +1950,17 @@ PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
             }
 
             for (int i=0; i < 8; i++) {
-                auto n = LRU.remTail()->unit;
+                auto lru = LRU.remTail();
 
-                if (n == nullptr)
+                if (lru == nullptr)
                     break;
 
+                auto n = lru->unit;
+
                 n->remove();
+
+                /* Flush the unit from LRU cache in case it was there */
+                cache.invalidateByAddress(n->ptu_PPCAddress);
                 if (debug > 0)
                 {    
                     kprintf("[PPC] Run out of cache. Removing least recently used cache line node @ %p\n", n);
