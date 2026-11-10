@@ -1,0 +1,14 @@
+name: Policy
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Check AGENTS.md rules
+      run: bash scripts/check-policy.sh
