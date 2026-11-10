@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68: emu68 {
+                // swap-df0-with-df1
+                // swap-df0-with-df2
+                // swap-df0-with-df3
+            };
+        };
+    };
+
+    __overrides__ {
+        with_df1 = <&emu68>,"swap-df0-with-df1?";
+        with_df2 = <&emu68>,"swap-df0-with-df2?";
+        with_df3 = <&emu68>,"swap-df0-with-df3?";
+    };
+};

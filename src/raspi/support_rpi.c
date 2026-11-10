@@ -148,6 +148,24 @@ void __printf_chk(int, const char *restrict format, ...)
     va_end(v);
 }
 
+
+void __fprintf_chk(void *, int, const char *restrict format, ...)
+{
+    (void)format;
+
+    va_list v;
+    va_start(v, format);
+
+    while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE))
+        __asm__ volatile("yield");
+
+    vkprintf_pc(putByte, (void *)ARM_PERIIOBASE, format, v);
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
+    va_end(v);
+}
+
 void kprintf(const char * restrict format, ...)
 {
     va_list v;
@@ -461,22 +479,19 @@ void setup_serial()
 
     serial_up = 1;
 
-    e = dt_find_node("/chosen");
+    e = dt_find_node("/emu68/diag");
     if (e)
     {
-        of_property_t * prop = dt_find_property(e, "bootargs");
-        if (prop)
-        {
-            if (strstr(prop->op_value, "fast_serial")) {
-                fast_serial = 1;
-                fastSerial_init();
-            }
-            else
-                fast_serial = 0;
-            
-            if (strstr(prop->op_value, "async_log")) {
-                async = 1;
-            }
+        if (dt_find_property(e, "fast-serial")) {
+            fast_serial = 1;
+            fastSerial_init();
+        }
+        else {
+            fast_serial = 0;
+        }
+
+        if (dt_find_property(e, "async-log")) {
+            async = 1;
         }
     }
 
@@ -533,3 +548,8 @@ void setup_serial()
 }
 
 #endif
+
+bool is_serial_up()
+{
+    return serial_up;
+}

@@ -1,5 +1,6 @@
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © Emu68 contributors, see AUTHORS
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -11,6 +12,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "globals.h"
 
 /* Line9 is one large SUBX/SUB/SUBA */
 
@@ -752,8 +754,7 @@ uint32_t EMIT_line9(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
 
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 

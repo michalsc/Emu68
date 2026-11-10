@@ -19,6 +19,7 @@
 #include "DuffCopy.h"
 #include "disasm.h"
 #include "cache.h"
+#include "globals.h"
 
 #if SET_FEATURES_AT_RUNTIME
 features_t Features;
@@ -31,16 +32,12 @@ options_t Options = {
 };
 #endif
 
-int disasm = 0;
-int debug = 0;
-const int debug_cnt = 0;
-
 static inline int globalDebug() {
-    return debug;
+    return globals.debug;
 }
 
-static inline int globalDisasm() {
-    return disasm;
+static inline bool globalDisasm() {
+    return globals.disasm;
 }
 
 struct List ICache[EMU68_HASHSIZE];
@@ -107,8 +104,9 @@ uint32_t EMIT_lineA(struct TranslatorContext *ctx)
     uint16_t opcode = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr++);
 
     EMIT_FlushPC(ctx);
-    if (debug)
+    if (globals.debug) {
         EMIT_InjectDebugString(ctx, "[JIT] LINE A exception (opcode %04x) at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
+    }
 
     EMIT_Exception(ctx, VECTOR_LINE_A, 0);
 
@@ -144,7 +142,7 @@ static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
     uint8_t group = opcode >> 12;
 
     host_flags = 0;
-    if (debug > 2)
+    if (globals.debug > 2)
     {
         EMIT(ctx,
             hint(0),
@@ -153,17 +151,8 @@ static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
             movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr), 0)
         );
     }
-    if (debug > 1)
+    if (globals.debug > 1)
         EMIT(ctx, hint(1));
-    if (debug_cnt & 1)
-    {
-        uint8_t reg = RA_AllocARMRegister(ctx);
-        EMIT(ctx,
-            mov_immed_u16(reg, 1, 0),
-            msr(reg, 3, 3, 9, 12, 4)
-        );
-        RA_FreeARMRegister(ctx, reg);
-    }
 
     if ((__m68k_state->JIT_CONTROL2 & JC2F_CHIP_SLOWDOWN) && (uintptr_t)ctx->tc_M68kCodePtr < 0x200000)
     {
@@ -192,14 +181,16 @@ uint16_t ReturnStackDepth = 0;
 
 void M68K_PushReturnAddress(uint16_t *ret_addr)
 {
-    if (ReturnStackDepth >= RTSTACK_SIZE) {
-        for (int i=1; i < RTSTACK_SIZE; i++) {
-            ReturnStack[i-1] = ReturnStack[i];
+    if (EMU68_USE_RETURN_STACK) {
+        if (ReturnStackDepth >= RTSTACK_SIZE) {
+            for (int i=1; i < RTSTACK_SIZE; i++) {
+                ReturnStack[i-1] = ReturnStack[i];
+            }
+            ReturnStackDepth--;
         }
-        ReturnStackDepth--;
-    }
 
-    ReturnStack[ReturnStackDepth++] = ret_addr;
+        ReturnStack[ReturnStackDepth++] = ret_addr;
+    }
 }
 
 uint16_t *M68K_PopReturnAddress(uint8_t *success)
@@ -236,11 +227,6 @@ uint32_t epilogue_size = 0;
 uint32_t conditionals_count = 0;
 
 void M68K_PrintContext(void *);
-
-
-
-uint32_t debug_range_min = 0x00000000;
-uint32_t debug_range_max = 0xffffffff;
 
 // Bad hack: two registers holding addresses of Load96bit and Save96bit
 uint8_t reg_Load96;
@@ -326,7 +312,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
     int debug = 0;
     int disasm = 0;
 
-    if ((uint32_t)(uintptr_t)M68kCodePtr >= debug_range_min && (uint32_t)(uintptr_t)M68kCodePtr <= debug_range_max) {
+    if ((uint32_t)(uintptr_t)M68kCodePtr >= globals.debug_range_min && (uint32_t)(uintptr_t)M68kCodePtr <= globals.debug_range_max) {
         debug = globalDebug();
         disasm = globalDisasm();
     }
@@ -335,10 +321,6 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
         kprintf("[ICache] Temporary register alloc mask on translate start is non-zero %x\n", RA_GetTempAllocMask());
 
         while(1);
-    }
-
-    if (disasm) {
-        disasm_open();
     }
 
     M68K_ResetReturnStack();
@@ -362,16 +344,6 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
     (void)lr_is_saved;
 
     RA_ClearChangedMask();
-
-    if (debug_cnt & 2)
-    {
-        uint8_t reg = RA_AllocARMRegister(&ctx);
-        EMIT(&ctx,
-            mov_immed_u16(reg, 4, 0),
-            msr(reg, 3, 3, 9, 12, 4)
-        );
-        RA_FreeARMRegister(&ctx, reg);
-    }
 
     prologue_size = ctx.tc_CodePtr - ctx.tc_CodeStart;
 
@@ -602,9 +574,9 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
 #endif
     if (val_FPIAR != 0xffffffff)
     {
-        EMIT_LoadImmediate(&ctx, 0, val_FPIAR);
+        EMIT_LoadImmediate(&ctx, 1, val_FPIAR);
         EMIT(&ctx,
-            mov_reg_to_simd(REG_FPIAR, 0)
+            mov_reg_to_simd(REG_FPIAR, 1)
         );
     }
 
@@ -613,6 +585,7 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
         uint32_t *tmpptr = ctx.tc_CodePtr;
         EMIT(&ctx, cbz_64(tmp2, ctx.tc_CodeStart - tmpptr));
     }
+    
     EMIT(&ctx, bx_lr());
     
     uint32_t *_tmpptr = ctx.tc_CodePtr;
@@ -746,11 +719,12 @@ static inline uintptr_t M68K_Translate(uint16_t *M68kCodePtr, uint32_t *arm_star
                 }
                 exit_num++;
             }
+            #ifdef EMU68_ENABLE_DISASM
             disasm_print(
                 disasm_ptr->do_M68kAddr, disasm_ptr->do_M68kCount,
                 disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, arm_start);
+            #endif
         }
-        disasm_close();
     }
 
     // Put a marker at the end of translation unit
@@ -802,6 +776,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
         if (unit->mt_JIT_CONTROL != __m68k_state->JIT_CONTROL ||
             unit->mt_JIT_CONTROL2 != __m68k_state->JIT_CONTROL2)
         {
+            LRU_InvalidateByM68kAddress(unit->mt_M68kAddress);
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
@@ -848,6 +823,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
         /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
         if (fp != unit->mt_Fingerprint || crc != unit->mt_CRC32)
         {
+            LRU_InvalidateByM68kAddress(unit->mt_M68kAddress);   
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
@@ -895,6 +871,7 @@ struct M68KTranslationUnit *M68K_VerifyUnitCRC32(struct M68KTranslationUnit *uni
         /* In case of FP or CRC mismatch, remove the unit and reclaim memory */
         if (crc != unit->mt_CRC32)
         {
+            LRU_InvalidateByM68kAddress(unit->mt_M68kAddress);
             REMOVE(&unit->mt_LRUNode);
             REMOVE(&unit->mt_HashNode);
             tlsf_free(jit_tlsf, unit);
@@ -925,7 +902,7 @@ struct M68KTranslationUnit *M68K_GetTranslationUnit(uint16_t *m68kcodeptr)
 
     int debug = 0;
 
-    if ((uint32_t)(uintptr_t)m68kcodeptr >= debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= debug_range_max) {
+    if ((uint32_t)(uintptr_t)m68kcodeptr >= globals.debug_range_min && (uint32_t)(uintptr_t)m68kcodeptr <= globals.debug_range_max) {
         debug = globalDebug();
     }
 
@@ -1104,19 +1081,20 @@ void M68K_DumpStats()
     unsigned arm_count = 0;
     unsigned total_arm_count = 0;
 
-    if (debug)
+    if (globals.debug) {
         kprintf("[ICache] Listing translation units:\n");
+    }
 
     ForeachNode(&LRU, n)
     {
         cnt++;
         unit = (void *)((char *)n - __builtin_offsetof(struct M68KTranslationUnit, mt_LRUNode));
-        if (debug)
+        if (globals.debug) {
             kprintf("[ICache]   Unit %p, mt_UseCount=%lld, mt_FetchCount=%lld, M68K address %08x (range %08x-%08x)\n[ICache]      M68K insn count=%d, ARM insn count=%d\n", 
                 (void*)unit, unit->mt_UseCount, unit->mt_FetchCount,
                 unit->mt_M68kAddress, unit->mt_M68kLow, unit->mt_M68kHigh, 
                 unit->mt_M68kInsnCnt, unit->mt_ARMInsnCnt);
-
+        }
         size = size + (uintptr_t)(&unit->mt_ARMCode[unit->mt_ARMInsnCnt]) - (uintptr_t)unit;
         m68k_count += unit->mt_M68kInsnCnt;
         total_arm_count += unit->mt_ARMInsnCnt;
@@ -1124,17 +1102,19 @@ void M68K_DumpStats()
     }
     kprintf("[ICache] In total %d units (%d bytes) in cache\n", cnt, size);
 
-    uint32_t mean = 100 * (arm_count);
-    mean = mean / m68k_count;
-    uint32_t mean_n = mean / 100;
-    uint32_t mean_f = mean % 100;
-    kprintf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    if (m68k_count > 0) {
+        uint32_t mean = 100 * (arm_count);
+        mean = mean / m68k_count;
+        uint32_t mean_n = mean / 100;
+        uint32_t mean_f = mean % 100;
+        kprintf("[ICache] Mean ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
 
-    mean = 100 * (total_arm_count);
-    mean = mean / m68k_count;
-    mean_n = mean / 100;
-    mean_f = mean % 100;
-    kprintf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+        mean = 100 * (total_arm_count);
+        mean = mean / m68k_count;
+        mean_n = mean / 100;
+        mean_f = mean % 100;
+        kprintf("[ICache] Mean total ARM instructions per m68k instruction: %d.%02d\n", mean_n, mean_f);
+    }
 }
 
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx)

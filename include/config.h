@@ -29,11 +29,18 @@
 #endif
 
 /* Set 1 to propagate SO bit from XER to CRn */
+#ifndef PPC_SO_PROPAGATION
 #define PPC_SO_PROPAGATION      0
+#endif
+
+/* Set 1 to return the NaN PowerPC returns (first NaN operand, quiet), costs few instructions per FPU operation */
+#ifndef PPC_NAN_PROPAGATION
+#define PPC_NAN_PROPAGATION     0
+#endif
 
 #define EMU68_USE_LRU           1
 #define EMU68_LRU_WAY_COUNT     4
-#define EMU68_LRU_SET_COUNT     128
+#define EMU68_LRU_SET_COUNT     512
 
 #define EMU68_ARM_CACHE_SIZE    (4*1024*1024)
 #define EMU68_M68K_INSN_DEPTH   256
@@ -41,7 +48,7 @@
 #define EMU68_HAS_SETEND        1
 #define EMU68_DEF_BRANCH_TAKEN  0
 #define EMU68_DEF_BRANCH_AUTO   1
-#define EMU68_DEF_BRANCH_AUTO_RANGE 128
+#define EMU68_DEF_BRANCH_AUTO_RANGE 256
 #define EMU68_INSN_COUNTER      1
 #define EMU68_MAX_LOOP_COUNT    8
 #define EMU68_BRANCH_INLINE_DISTANCE 8191

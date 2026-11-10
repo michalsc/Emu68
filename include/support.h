@@ -135,12 +135,15 @@ int strncmp(const char *s1, const char *s2, size_t n);
 void *memmove(void *dst, const void *src, size_t sz);
 void *memcpy(void *dst, const void *src, size_t sz);
 void *memset(void *ptr, int fill, size_t sz);
+#undef strstr
 char *strstr(const char *str, const char *find);
 void bzero(void *ptr, size_t sz);
 void platform_init();
 void platform_post_init();
 void platform_report_stealth();
 void setup_serial();
+bool is_serial_up();
+
 const char * find_token(const char * string, const char * token);
 
 extern void * firmware_file;

@@ -110,13 +110,13 @@ static __inline unsigned long long __DOUBLE_BITS(double __f)
 
 static inline double sqrt(double x)
 {
-    __asm__ volatile("fsqrt %d0, %d0":"+w"(x):"0"(x));
+    __asm__ volatile("fsqrt %d0, %d0":"+w"(x));
     return x;
 }
 
 static inline double fabs(double x)
 {
-    __asm__ volatile("fabs %d0, %d0":"+w"(x):"0"(x));
+    __asm__ volatile("fabs %d0, %d0":"+w"(x));
     return x;
 }
 

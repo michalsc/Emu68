@@ -31,8 +31,7 @@
 #include "cache.h"
 #include "mmu.h"
 #include "devicetree.h"
-
-extern void* ppc_jit_virt_base;
+#include "globals.h"
 
 namespace Emu68::PPC {
 
@@ -41,13 +40,14 @@ register void (*ARMCode)() __asm__("x12");
 
 #define jit_tlsf DO_NOT_USE_jit_tlsf
 
-TLSF jit_ppc(ppc_jit_virt_base, dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20);
+TLSF jit_ppc(globals.ppc_jit_virt_base, dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20);
 
 PPCTranslatorContext local_translator;
 ReturnStack return_stack;
 
 extern List<PPCTranslationUnit> ICache[EMU68_HASHSIZE];
 extern List<TranslationUnitLRU> LRU;
+extern LRUCache cache;
 
 PPCLocalState *local_state;
 
@@ -530,7 +530,7 @@ static __used__ int EMIT_crandc(PPCTranslatorContext *tc, uint32_t opcode)
     GPR tmp = GPR::allocate();
 
     tc->emit({
-        neg_reg(tmp, cr_reg, LSR, (31 - crb)),
+        mvn_reg(tmp, cr_reg, LSR, (31 - crb)),
         and_reg(tmp, tmp, cr_reg, LSR, (31 - cra)),
         bfi(cr_reg, tmp, 31 - crd, 1)
     });
@@ -617,7 +617,7 @@ static __used__ int EMIT_crnand(PPCTranslatorContext *tc, uint32_t opcode)
     tc->emit({
         lsr(tmp, cr_reg, (31 - cra)),
         and_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
-        neg_reg(tmp, tmp, LSL, 0),
+        mvn_reg(tmp, tmp, LSL, 0),
         bfi(cr_reg, tmp, 31 - crd, 1)
     });
     
@@ -638,7 +638,7 @@ static __used__ int EMIT_crnor(PPCTranslatorContext *tc, uint32_t opcode)
     GPR cr_reg = tc->mapGPRForReadAndWrite(CRn);
     GPR tmp = GPR::allocate();
 
-    if (cra == crb) {
+    if (cra == crb && crd == cra) {
         /* Bit change */
         tc->emit(
             eor_immed(cr_reg, cr_reg, 1, (crd + 1) & 31)
@@ -647,7 +647,7 @@ static __used__ int EMIT_crnor(PPCTranslatorContext *tc, uint32_t opcode)
         tc->emit({
             lsr(tmp, cr_reg, (31 - cra)),
             orr_reg(tmp, tmp, cr_reg, LSR, (31 - crb)),
-            neg_reg(tmp, tmp, LSL, 0),
+            mvn_reg(tmp, tmp, LSL, 0),
             bfi(cr_reg, tmp, 31 - crd, 1)
         });
     }
@@ -891,6 +891,14 @@ static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
         }
         else
         {
+            /* LR is updated also if branch is not taken */
+            if (update_lr) {
+                if (pc_offset >= 0) {
+                    tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
+                } else {
+                    tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
+                }
+            }
             int32_t pc_adj = pc_offset;
             tc->emitAddImmediate(REG_PC, pc_adj);
             tc->setPC(tc->getPC() + 1);
@@ -925,6 +933,14 @@ static __used__ int EMIT_bclrx(PPCTranslatorContext *tc, uint32_t opcode)
         }
         else
         {
+            /* LR is updated also if branch is not taken */
+            if (update_lr) {
+                if (pc_offset >= 0) {
+                    tc->emit( add_immed(REG_LR, REG_PC, pc_offset));
+                } else {
+                    tc->emit( sub_immed(REG_LR, REG_PC, -pc_offset));
+                }
+            }
             int32_t pc_adj = pc_offset;
             tc->emitAddImmediate(REG_PC, pc_adj);
         }
@@ -1056,8 +1072,37 @@ static __used__ int EMIT_bcctrx(PPCTranslatorContext *tc, uint32_t opcode)
         tc->emitStop();
 
         tc->resetOffsetPC();
+    } else if (bo & 0b00100) {
+        /* Conditional branch, CTR is not decremented */
+        int8_t pc_offset = 4;
+        uint8_t condition_true = (bo >> 3) & 1;
+        GPR next = GPR::allocate();
+        GPR target = GPR::allocate();
+        GPR reg_cr = tc->mapGPRForRead(CRn);
+
+        tc->getOffsetPC(&pc_offset);
+        tc->resetOffsetPC();
+
+        if (pc_offset >= 0) {
+            tc->emit( add_immed(next, REG_PC, pc_offset));
+        } else {
+            tc->emit( sub_immed(next, REG_PC, -pc_offset));
+        }
+
+        tc->emit({
+            bic_immed(target, REG_CTR, 2, 0),
+            tst_immed(reg_cr, 1, (1 + bi) & 31),
+            csel(REG_PC, target, next, condition_true ? A64_CC_NE : A64_CC_EQ)
+        });
+
+        /* LR is updated also if branch is not taken */
+        if (update_lr) {
+            tc->emit( mov_reg(REG_LR, next));
+        }
+
+        tc->emitStop();
     } else {
-        (void)bi;
+        /* Decrementing CTR is an invalid form of bcctr */
         (void)take_branch;
         return -1;
     }
@@ -1120,7 +1165,7 @@ static __used__ int EMIT_mtcrf(PPCTranslatorContext *tc, uint32_t opcode)
     if (mask == 0xff) {
         tc->emit( mov_reg(reg_cr, reg_rs));
     } else if (mask == 0) {
-        tc->emit( mov_reg(reg_cr, WZR));
+        /* Empty mask, nothing to do */
     } else {
         GPR tmp = GPR::allocate();
         uint32_t mask32 = 0;
@@ -1140,13 +1185,13 @@ static __used__ int EMIT_mtcrf(PPCTranslatorContext *tc, uint32_t opcode)
             tc->emitLoadImmediate(imm, mask32);
             tc->emit({
                 bic_reg(reg_cr, reg_cr, imm, LSL, 0),
-                and_reg(tmp, tmp, imm, LSL, 0),
+                and_reg(tmp, reg_rs, imm, LSL, 0),
                 orr_reg(reg_cr, reg_cr, tmp, LSL, 0)
             });
         } else {
             tc->emit({
                 bic_immed(reg_cr, reg_cr, (encoded >> 16) & 0x3f, encoded & 0x3f),
-                and_immed(tmp, tmp, (encoded >> 16) & 0x3f, encoded & 0x3f),
+                and_immed(tmp, reg_rs, (encoded >> 16) & 0x3f, encoded & 0x3f),
                 orr_reg(reg_cr, reg_cr, tmp, LSL, 0)
             });
         }
@@ -1180,25 +1225,36 @@ static __used__ int EMIT_subfex(PPCTranslatorContext *tc, uint32_t opcode)
         return 1;
     }
 
-    return -1;
-}
-
-
-extern "C" {
-
-extern int debug;
-extern int disasm;
-
+    return Emit::subfex(tc, opcode);
 }
 
 static inline int globalDebug() {
-    return debug;
+    return globals.debug;
 }
 
-static inline int globalDisasm() {
-    return disasm;
+static inline bool globalDisasm() {
+    return globals.disasm;
 }
 
+
+static inline int EMIT_Group_59(PPCTranslatorContext *tc, uint32_t opcode)
+{
+    uint32_t secondary_short = (opcode >> 1) & 0x1f;
+
+    switch (secondary_short) {
+        case 0b10010: return Emit::fdivsx(tc, opcode);
+        case 0b10100: return Emit::fsubsx(tc, opcode);
+        case 0b10101: return Emit::faddsx(tc, opcode);
+        case 0b10110: return Emit::fsqrtsx(tc, opcode);
+        case 0b11001: return Emit::fmulsx(tc, opcode);
+        case 0b11100: return Emit::fmsubsx(tc, opcode);
+        case 0b11101: return Emit::fmaddsx(tc, opcode);
+        case 0b11110: return Emit::fnmsubsx(tc, opcode);
+        case 0b11111: return Emit::fnmaddsx(tc, opcode);
+    }
+
+    return -1;
+}
 
 static inline int EMIT_Group_63(PPCTranslatorContext *tc, uint32_t opcode)
 {
@@ -1207,16 +1263,32 @@ static inline int EMIT_Group_63(PPCTranslatorContext *tc, uint32_t opcode)
 
     switch (secondary_long) {
         case 0b0000000000: return Emit::fcmpu(tc, opcode);
+        case 0b0000001100: return Emit::frspx(tc, opcode);
+        case 0b0000001110: return Emit::fctiwx(tc, opcode);
+        case 0b0000001111: return Emit::fctiwzx(tc, opcode);
+        case 0b0000100000: return Emit::fcmpu(tc, opcode);     // fcmpo, same without FPSCR exceptions
+        case 0b0000100110: return Emit::mtfsb1x(tc, opcode);
+        case 0b0000101000: return Emit::fnegx(tc, opcode);
+        case 0b0001000110: return Emit::mtfsb0x(tc, opcode);
         case 0b0001001000: return Emit::fmrx(tc, opcode);
+        case 0b0010000110: return Emit::mtfsfix(tc, opcode);
+        case 0b0010001000: return Emit::fnabsx(tc, opcode);
+        case 0b0100001000: return Emit::fabsx(tc, opcode);
+        case 0b1001000111: return Emit::mffsx(tc, opcode);
+        case 0b1011000111: return Emit::mtfsfx(tc, opcode);
     }
 
     switch (secondary_short) {
+        case 0b10010: return Emit::fdivx(tc, opcode);
         case 0b10100: return Emit::fsubx(tc, opcode);
         case 0b10101: return Emit::faddx(tc, opcode);
+        case 0b10110: return Emit::fsqrtx(tc, opcode);
+        case 0b10111: return Emit::fselx(tc, opcode);
         case 0b11001: return Emit::fmulx(tc, opcode);
-        case 0b10010: return Emit::fdivx(tc, opcode);
-        case 0b01111: return Emit::fctiwzx(tc, opcode);
+        case 0b11100: return Emit::fmsubx(tc, opcode);
         case 0b11101: return Emit::fmadd(tc, opcode);
+        case 0b11110: return Emit::fnmsubx(tc, opcode);
+        case 0b11111: return Emit::fnmaddx(tc, opcode);
     }
 
     return -1;
@@ -1265,6 +1337,7 @@ static inline int EMIT_Group_31(PPCTranslatorContext *tc, uint32_t opcode)
         case 0b0000110110: return Emit::dcbst(tc, opcode);
         case 0b0000110111: return Emit::lwzux(tc, opcode);
         case 0b0000111100: return Emit::andcx(tc, opcode);
+        case 0b0000111110: return Emit::wait(tc, opcode);
         case 0b0001001011: return Emit::mulhwx(tc, opcode);
         case 0b0001010011: return Emit::mfmsr(tc, opcode);     // OEA, supervisor
         case 0b0001010110: return Emit::dcbf(tc, opcode);
@@ -1279,12 +1352,12 @@ static inline int EMIT_Group_31(PPCTranslatorContext *tc, uint32_t opcode)
         case 0b0010010110: return Emit::stwcx_dot(tc, opcode);
         case 0b0010010111: return Emit::stwx(tc, opcode);
         case 0b0010110111: return Emit::stwux(tc, opcode);
-        //case 0b0011001000: return EMIT_subfzex(tc, opcode);
-        //case 0b0011001010: return EMIT_addzex(tc, opcode);
+        case 0b0011001000: return Emit::subfzex(tc, opcode);
+        case 0b0011001010: return Emit::addzex(tc, opcode);
         //case 0b0011010010: return EMIT_mtsr(tc, opcode);      // OEA, supervisor
         case 0b0011010111: return Emit::stbx(tc, opcode);
-        //case 0b0011101000: return EMIT_subfmex(tc, opcode);
-        //case 0b0011101010: return EMIT_addmex(tc, opcode);
+        case 0b0011101000: return Emit::subfmex(tc, opcode);
+        case 0b0011101010: return Emit::addmex(tc, opcode);
         case 0b0011101011: return Emit::mullwx(tc, opcode);
         //case 0b0011110010: return EMIT_mtsrin(tc, opcode);    // OEA, supervisor
         case 0b0011110110: return Emit::dcbtst(tc, opcode);    // VEA
@@ -1334,17 +1407,30 @@ static inline int EMIT_Group_31(PPCTranslatorContext *tc, uint32_t opcode)
         case 0b1111010110: return Emit::icbi(tc, opcode);
         case 0b1111110110: return Emit::dcbz(tc, opcode);      // VEA
 
+        /* XO forms with OE set */
+        case 0b1000001000: return Emit::subfcx(tc, opcode);
+        case 0b1000001010: return Emit::addcx(tc, opcode);
+        case 0b1000101000: return Emit::subfx(tc, opcode);
+        case 0b1001101000: return Emit::negx(tc, opcode);
+        case 0b1010001000: return EMIT_subfex(tc, opcode);
+        case 0b1010001010: return Emit::addex(tc, opcode);
+        case 0b1011001000: return Emit::subfzex(tc, opcode);
+        case 0b1011001010: return Emit::addzex(tc, opcode);
+        case 0b1011101000: return Emit::subfmex(tc, opcode);
+        case 0b1011101010: return Emit::addmex(tc, opcode);
+        case 0b1100001010: return Emit::addx(tc, opcode);
+
         /* FPU part */
-        //case 0b1000010111: return EMIT_lfsx(tc, opcode);      // FPU
-        //case 0b1000110111: return EMIT_lfsux(tc, opcode);     // FPU
-        //case 0b1001010111: return EMIT_lfdx(tc, opcode);      // FPU
-        //case 0b1001110111: return EMIT_lfdux(tc, opcode);     // FPU
+        case 0b1000010111: return Emit::lfsx(tc, opcode);      // FPU
+        case 0b1000110111: return Emit::lfsux(tc, opcode);     // FPU
+        case 0b1001010111: return Emit::lfdx(tc, opcode);      // FPU
+        case 0b1001110111: return Emit::lfdux(tc, opcode);     // FPU
         case 0b1111010111: return Emit::stfiwx(tc, opcode);    // FPU
-        //case 0b1011110111: return EMIT_stfdux(tc, opcode);    // FPU
-        //case 0b1010010111: return EMIT_stfsx(tc, opcode);     // FPU
-        //case 0b1010110111: return EMIT_stfsux(tc, opcode);    // FPU
+        case 0b1011110111: return Emit::stfdux(tc, opcode);    // FPU
+        case 0b1010010111: return Emit::stfsx(tc, opcode);     // FPU
+        case 0b1010110111: return Emit::stfsux(tc, opcode);    // FPU
         //case 0b1011010101: return EMIT_stswi(tc, opcode);     // FPU
-        //case 0b1011010111: return EMIT_stfdx(tc, opcode);     // FPU
+        case 0b1011010111: return Emit::stfdx(tc, opcode);     // FPU
         
         default: return -1;
     }
@@ -1396,29 +1482,26 @@ static inline int EmitINSN(PPCTranslatorContext *tc)
         case 0b101011: count = Emit::lhau(tc, opcode); break;
         case 0b101100: count = Emit::sth(tc, opcode); break;
         case 0b101101: count = Emit::sthu(tc, opcode); break;
-        //case 0b101110: count = EMIT_lmw(tc, opcode); break;   // Need to be interpreted
-        //case 0b101111: count = EMIT_stmw(tc, opcode); break;  // Need to be interpreted
+        case 0b101110: count = Emit::lmw(tc, opcode); break;
+        case 0b101111: count = Emit::stmw(tc, opcode); break;
         case 0b110000: count = Emit::lfs(tc, opcode); break;
-        //case 0b110001: count = EMIT_lfsu(tc, opcode); break;
+        case 0b110001: count = Emit::lfsu(tc, opcode); break;
         case 0b110010: count = Emit::lfd(tc, opcode); break;
-        //case 0b110011: count = EMIT_lfdu(tc, opcode); break;
+        case 0b110011: count = Emit::lfdu(tc, opcode); break;
         case 0b110100: count = Emit::stfs(tc, opcode); break;
-        //case 0b110101: count = EMIT_stfsu(tc, opcode); break;
+        case 0b110101: count = Emit::stfsu(tc, opcode); break;
         case 0b110110: count = Emit::stfd(tc, opcode); break;
-        //case 0b110111: count = EMIT_stfdu(tc, opcode); break;
-        //case 0b111011: count = EMIT_Group_59(tc, opcode); break;
+        case 0b110111: count = Emit::stfdu(tc, opcode); break;
+        case 0b111011: count = EMIT_Group_59(tc, opcode); break;
         case 0b111111: count = EMIT_Group_63(tc, opcode); break;
         default: break;
     }
 
     if (count < 1) {
         kprintf("[PPC] UNIMPLEMENTED %08x @ %08x...\n", opcode, (uint32_t)(uintptr_t)tc->getPC());
-
-        if (!disasm) {
-            disasm_open();
-        }
-
+        #ifdef EMU68_ENABLE_DISASM
         disasm_print_ppc_only(tc->getPC());
+        #endif
 
         while(1);
     }
@@ -1486,10 +1569,6 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
     if (local_translator.getTempAllocMask()) {
         kprintf("[PPC] Temporary register alloc mask on translate start is non-zero %x\n", local_translator.getTempAllocMask());
         while(1);
-    }
-
-    if (disasm) {
-        disasm_open();
     }
 
     return_stack.reset();
@@ -1796,11 +1875,12 @@ static inline uintptr_t PPC_Translate(uint32_t *PPCCodePtr, uint32_t *InsnCount)
                 }
                 exit_num++;
             }
+            #ifdef EMU68_ENABLE_DISASM
             disasm_print_ppc(
                 disasm_ptr->do_PPCAddr, disasm_ptr->do_PPCCount,
                 disasm_ptr->do_ArmAddr, 4 * disasm_ptr->do_ArmCount, local_translator.tc_CodeStart);
+            #endif
         }
-        disasm_close();
     }
 
     if (debug)
@@ -1870,12 +1950,17 @@ PPCTranslationUnit *PPC_GetTranslationUnit(uint32_t *ppccodeptr)
             }
 
             for (int i=0; i < 8; i++) {
-                auto n = LRU.remTail()->unit;
+                auto lru = LRU.remTail();
 
-                if (n == nullptr)
+                if (lru == nullptr)
                     break;
 
+                auto n = lru->unit;
+
                 n->remove();
+
+                /* Flush the unit from LRU cache in case it was there */
+                cache.invalidateByAddress(n->ptu_PPCAddress);
                 if (debug > 0)
                 {    
                     kprintf("[PPC] Run out of cache. Removing least recently used cache line node @ %p\n", n);

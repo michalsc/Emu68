@@ -1,5 +1,6 @@
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © Emu68 contributors, see AUTHORS
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -15,6 +16,7 @@
 #include "tlsf.h"
 #include "math/libm.h"
 #include "cache.h"
+#include "globals.h"
 
 extern uint8_t reg_Load96;
 extern uint8_t reg_Save96;
@@ -47,59 +49,8 @@ void get_Save96(struct TranslatorContext *ctx)
     }
 }
 
-enum {
-    C_PI = 0,
-    C_PI_2,
-    C_PI_4,
-    C_1_PI,
-    C_2_PI,
-    C_2_SQRTPI,
-    C_1_2PI,
-    C_SQRT2,
-    C_SQRT1_2,
-    C_0_5,
-    C_1_5,
-    C_LOG10_2 = 0x0b,
-    C_E,
-    C_LOG2E,
-    C_LOG10E,
-    C_ZERO,
-    C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
-    C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
 
-    C_SIN_COEFF_SINGLE = 0x1a,
-    C_COS_COEFF_SINGLE = 0x2a,
-
-    C_LN2 = 0x30,
-    C_LN10,
-    C_10P0,
-    C_10P1,
-    C_10P2,
-    C_10P4,
-    C_10P8,
-    C_10P16,
-    C_10P32,
-    C_10P64,
-    C_10P128,
-    C_10P256,
-    C_10P512,
-    C_10P1024,
-    C_10P2048,
-    C_10P4096,
-
-    C_TWO54,
-    C_LN2HI,
-    C_LN2LO,
-    C_LG1,
-    C_LG2,
-    C_LG3,
-    C_LG4,
-    C_LG5,
-    C_LG6,
-    C_LG7
-};
-
-static double const __attribute__((used)) constants[128] = {
+double const __attribute__((used)) FPUConstants[128] = {
     [C_PI] =        3.14159265358979323846264338327950288, /* Official */
     [C_PI_2] =      1.57079632679489661923132169163975144,
     [C_PI_4] =      0.785398163397448309615660845819875721,
@@ -2094,12 +2045,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVECR reg */
     if (opcode == 0xf200 && (opcode2 & 0xfc00) == 0x5c00)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVECR\n");
-            shown = 1;
-        }
-
         union {
             double d;
             uint64_t u64;
@@ -2122,7 +2067,7 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
             EMIT(ctx, fmov_0(fp_dst));
         }
         else {
-            u.u64 = (uintptr_t)constants;
+            u.u64 = (uintptr_t)FPUConstants;
             EMIT(ctx, 
                 mov64_immed_u16(0, u.u16[3], 0),
                 movk64_immed_u16(0, u.u16[2], 1),
@@ -2159,12 +2104,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FABS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0018 || (opcode2 & 0xa07b) == 0x0058))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FABS\n");
-            shown = 1;
-        }
-
         val_FPIAR = (uintptr_t)&ctx->tc_M68kCodePtr[-1];
 
         uint8_t fp_src = 0xff;
@@ -2201,12 +2140,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FADD */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0022 || (opcode2 & 0xa07b) == 0x0062))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FADD\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -2243,11 +2176,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FNOP as well as FBF.W to *any* target */
     else if (opcode == 0xf280)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FNOP\n");
-            shown = 1;
-        }
         EMIT_AdvancePC(ctx, 2 * (ext_count + 1));
         ctx->tc_M68kCodePtr += ext_count;
         EMIT_FlushPC(ctx);
@@ -2255,12 +2183,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FBcc */
     else if ((opcode & 0xff80) == 0xf280)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FBcc\n");
-            shown = 1;
-        }
-
         uint8_t fpsr = RA_GetFPSR(ctx);
         uint8_t predicate = opcode & 0x3f;
         uint8_t success_condition = 0;
@@ -2677,12 +2599,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FDBcc */
     else if ((opcode & 0xfff8) == 0xf248 && (opcode2 & 0xffc0) == 0)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FDBcc\n");
-            shown = 1;
-        }
-        
         /* Extract predicate ignoring signalling flags*/
         uint8_t predicate = opcode2 & 0x0f;
 
@@ -2815,12 +2731,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FCMP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0038)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FCMP\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2843,11 +2753,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FDIV */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0020 || (opcode2 & 0xa07b) == 0x0060))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FDIV\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2874,11 +2779,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSGLDIV */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0024))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSGLDIV\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2909,11 +2809,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSINCOS */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa078) == 0x0030))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSINCOS\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst_sin = (opcode2 >> 7) & 7;
         uint8_t fp_dst_cos = opcode2 & 7;
@@ -2967,11 +2862,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FINT */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0001)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FINT\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -2996,11 +2886,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FGETEXP */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001e)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FGETEXP\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -3033,11 +2918,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FGETMAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001f)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FGETMAN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -3069,11 +2949,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FINTRZ */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0003)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FINTRZ\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3098,11 +2973,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSCALE */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0026)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSCALE\n");
-            shown = 1;
-        }
         uint8_t int_src = 0xff;
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
@@ -3155,11 +3025,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOGN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0014)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOGN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3210,12 +3075,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FREM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0025)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FREM\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 1;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3281,12 +3140,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     }
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0021)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOD\n");
-            shown = 1;
-        }
-
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t tmp = RA_AllocARMRegister(ctx);
@@ -3332,11 +3185,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOGNP1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0006)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOGNP1\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3387,11 +3235,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOG10 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0015)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOG10\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3442,11 +3285,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FLOG2 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0016)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FLOG2\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3497,11 +3335,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FETOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0010)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FETOX\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3552,11 +3385,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FETOXM1 */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0008)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FETOXM1\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3607,11 +3435,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSINH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0002)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSINH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3662,11 +3485,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FCOSH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0019)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FCOSH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3717,11 +3535,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FATAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000a)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FATAN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3772,11 +3585,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FATANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000d)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FATANH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3827,11 +3635,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FACOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001c)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FACOS\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3882,11 +3685,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FASIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000c)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FASIN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3937,11 +3735,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTAN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000f)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FATAN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -3992,11 +3785,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTANH */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0009)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTANH\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4047,11 +3835,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTENTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0012)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTENTOX\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4102,11 +3885,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTWOTOX */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x0011)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTWOTOX\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4157,11 +3935,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE to REG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0000 || (opcode2 & 0xa07b) == 0x0040))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE to REG\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4211,11 +3984,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE to MEM */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xe07f) == 0x6000 || (opcode2 & 0xfc00) == 0x6c00 || (opcode2 & 0xfc0f) == 0x7c00))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE to MEM\n");
-            shown = 1;
-        }
         uint8_t fp_src = (opcode2 >> 7) & 7;
         fp_src = RA_MapFPURegister(ctx, fp_src);
         FPU_StoreData(ctx, fp_src, opcode, opcode2, &ext_count);
@@ -4226,11 +3994,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE from special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0xa000)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE from SPECIAL\n");
-            shown = 1;
-        }
         uint8_t reg = 0xff;
         uint8_t dst = 0xff;
 
@@ -4337,11 +4100,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVE to special */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xe3ff) == 0x8000)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVE to SPECIAL\n");
-            shown = 1;
-        }
         uint8_t src = 0xff;
         uint8_t tmp = 0xff;
         uint8_t reg = 0xff;
@@ -4476,11 +4234,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMOVEM */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xc700) == 0xc000)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMOVEM\n");
-            shown = 1;
-        }
         char dir = (opcode2 >> 13) & 1;
         uint8_t base_reg = 0xff;
 
@@ -4622,11 +4375,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0023 || (opcode2 & 0xa07b) == 0x0063))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FMUL\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4663,11 +4411,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSGLMUL */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0027))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSGLMUL\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -4698,11 +4441,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FNEG */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x001a || (opcode2 & 0xa07b) == 0x005a))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FNEG\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4737,11 +4475,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FTST */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x003a)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FTST\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
 
         FPU_FetchData(ctx, &fp_src, opcode, opcode2, &ext_count, 0);
@@ -4762,11 +4495,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FScc */
     else if ((opcode & 0xffc0) == 0xf240 && (opcode2 & 0xffc0) == 0)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FScc\n");
-            shown = 1;
-        }
         uint8_t fpsr = RA_GetFPSR(ctx);
         uint8_t predicate = opcode2 & 0x3f;
         uint8_t success_condition = 0;
@@ -4941,11 +4669,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSQRT */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0004 || (opcode2 & 0xa07b) == 0x0041))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSQRT\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -4980,11 +4703,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSUB */
     else if ((opcode & 0xffc0) == 0xf200 && ((opcode2 & 0xa07f) == 0x0028 || (opcode2 & 0xa07b) == 0x0068))
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSUB\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0xff;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
         uint8_t precision = 0;
@@ -5021,11 +4739,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FSIN */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x000e)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSIN\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -5076,11 +4789,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     /* FCOS */
     else if ((opcode & 0xffc0) == 0xf200 && (opcode2 & 0xa07f) == 0x001d)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FCOS\n");
-            shown = 1;
-        }
         uint8_t fp_src = 0;
         uint8_t fp_dst = (opcode2 >> 7) & 7;
 
@@ -5134,11 +4842,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
              (opcode & 0x38) != 0x20 &&
              (opcode & 0x3f) <= 0x3b)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FRESTORE\n");
-            shown = 1;
-        }
         uint8_t tmp = -1;
         ext_count = 0;
         uint32_t *tmp_ptr;
@@ -5199,11 +4902,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
              (opcode & 0x38) != 0x18 &&
              (opcode & 0x3f) <= 0x39)
     {
-        static int shown = 0;
-        if (!shown) {
-            kprintf("FSAVE\n");
-            shown = 1;
-        }
         uint8_t tmp = RA_AllocARMRegister(ctx);
         
         ext_count = 0;
@@ -5227,8 +4925,6 @@ uint32_t EMIT_FPU(struct TranslatorContext *ctx)
     return insn_consumed;
 }
 
-int DisableFPU = 0;
-
 uint32_t EMIT_lineF(struct TranslatorContext *ctx)
 {
     uint32_t insn_consumed = 1;
@@ -5236,7 +4932,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     uint16_t opcode2 = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
 
     /* Check destination coprocessor - if it is FPU go to separate function */
-    if (DisableFPU == 0 && (opcode & 0x0e00) == 0x0200)
+    if (globals.fpu_disable == false && (opcode & 0x0e00) == 0x0200)
     {
         return EMIT_FPU(ctx);
     }
@@ -5324,10 +5020,84 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
         insn_consumed = 1;
         EMIT_AdvancePC(ctx, 6);
     }
+    /* CACHE DMA RANGE: data-cache maintenance over [An, An+Dn) in one pass,
+     * stepping by the real cache-line size and closed by a single trailing DSB.
+     * No leading barrier: ARMv8 orders a DC-by-VA op in program order against
+     * earlier loads/stores to Normal cacheable memory within the same line
+     * (ARM ARM, "Ordering and completion of data and instruction cache
+     * instructions"), which is exactly the stores this range maintains — the
+     * same reasoning as Linux arm64 dcache_by_line_op. The legacy CINV/CPUSH
+     * handlers below keep their leading dsb.
+     *
+     * Encoding: SCOPE (4:3) is 00, reserved and illegal on a real 68040.
+     *   Operation word  1111 0100 CC P 00 nnn
+     *     CC  (7:6) cache field, must be 01 (data). 00/10/11 with this scope
+     *               reach no handler and take the Line-F vector
+     *     P   (5)   0 = CINV  -> invalidate        (dc ivac)
+     *               1 = CPUSH -> clean+invalidate  (dc civac), or with N set
+     *                            clean only, line stays valid (dc cvac)
+     *     nnn (2:0) An = base address
+     *   Extension word  0 ddd s N S 000000000
+     *     ddd (14:12) Dn = byte length
+     *     s   (11)    0 = word length, 1 = long length
+     *     N   (10)    no-invalidate (only meaningful with CPUSH)
+     *     S   (9)     no-sync: suppress the trailing DSB. Batch by issuing N
+     *                 ranges with S set, then closing with one non-S op or an
+     *                 m68k NOP (a bare dsb sy). A zero-length range emits
+     *                 nothing at all, so it never acts as a barrier.
+     *
+     * CINV is a sharp primitive: we are at EL1 with HCR_EL2.VM == 0, so 
+     * dc ivac genuinely discards. The loop maintains whole lines, so the caller
+     * must own every line the range touches — a partial end line loses whatever
+     * a neighbour had dirtied there. Callers that cannot promise that must clean
+     * the two end lines first, which is what 68040.library's CachePostDMA does.
+     *
+     * Data cache only, translated code is untouched, so translation continues. */
+    else if ((opcode & 0xff00) == 0xf400 && (opcode & 0x0018) == 0 && (opcode & 0x00c0) == 0x40)
+    {
+        uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
+        uint8_t reg_len = RA_MapM68kRegister(ctx, (opcode2 >> 12) & 7);  /* Dn = length */
+        uint8_t base = RA_AllocARMRegister(ctx);
+        uint8_t end = RA_AllocARMRegister(ctx);
+        uint8_t len = reg_len;
+        int no_sync = (opcode2 & 0x0200) != 0;  /* S: caller batches, closes the barrier itself */
+
+        /* word-size length: use only the low 16 bits without clobbering Dn */
+        if (!(opcode2 & 0x0800)) {
+            len = RA_AllocARMRegister(ctx);
+            EMIT(ctx, uxth(len, reg_len));
+        }
+
+        /* zero-length range maintains no line at all (cbz skips everything below) */
+        EMIT(ctx, cbz(len, no_sync ? 7 : 8));
+        EMIT(ctx,
+            add_reg(end, reg_An, len, LSL, 0),              /* end  = An + len       */
+            bic_immed(base, reg_An, globals.dcache_mask_bits, 0));  /* base = An & ~(line-1)  */
+        if (!(opcode & 0x20))                               /* CINV  -> invalidate   */
+            EMIT(ctx, dc_ivac(base));
+        else if (opcode2 & 0x0400)                          /* CPUSH+NI -> clean     */
+            EMIT(ctx, dc_cvac(base));
+        else                                                /* CPUSH -> clean+inval  */
+            EMIT(ctx, dc_civac(base));
+        EMIT(ctx,
+            add_immed(base, base, 1 << globals.dcache_mask_bits),   /* base += line size     */
+            cmp_reg(base, end, LSL, 0),
+            b_cc(A64_CC_CC, -3));                           /* loop while base < end */
+        if (!no_sync)
+            EMIT(ctx, dsb_sy());                            /* visible to DMA master */
+
+        if (len != reg_len)
+            RA_FreeARMRegister(ctx, len);
+        RA_FreeARMRegister(ctx, base);
+        RA_FreeARMRegister(ctx, end);
+
+        ctx->tc_M68kCodePtr += 2;
+        insn_consumed = 1;
+        EMIT_AdvancePC(ctx, 4);
+    }
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400 && (opcode & 0x0018) != 0)
     {
-        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
         uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
@@ -5342,7 +5112,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
                         dsb_sy(),
-                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
+                        bic_immed(tmp, reg_An, globals.dcache_mask_bits, 0),
                         dc_ivac(tmp),
                         dsb_sy()
                     );
@@ -5354,9 +5124,9 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     EMIT(ctx, 
                         dsb_sy(),
                         bic_immed(tmp, reg_An, 12, 0),
-                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
+                        mov_immed_u16(tmp2, 1 << (12 - globals.dcache_mask_bits), 0),
                         dc_ivac(tmp),
-                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
+                        add_immed(tmp, tmp, 1 << globals.dcache_mask_bits),
                         subs_immed(tmp2, tmp2, 1),
                         b_cc(A64_CC_NE, -3),
                         dsb_sy()
@@ -5442,7 +5212,6 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     /* CPUSH */
     else if ((opcode & 0xff20) == 0xf420 && (opcode & 0x0018) != 0)
     {
-        extern int dcache_mask_bits;
         uint8_t tmp = 0xff;
         uint8_t tmp2 = 0xff;
         uint8_t reg_An = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
@@ -5457,7 +5226,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     tmp = RA_AllocARMRegister(ctx);
                     EMIT(ctx, 
                         dsb_sy(),
-                        bic_immed(tmp, reg_An, dcache_mask_bits, 0),
+                        bic_immed(tmp, reg_An, globals.dcache_mask_bits, 0),
                         dc_civac(tmp),
                         dsb_sy()
                     );
@@ -5469,9 +5238,9 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
                     EMIT(ctx, 
                         dsb_sy(),
                         bic_immed(tmp, reg_An, 12, 0),
-                        mov_immed_u16(tmp2, 1 << (12 - dcache_mask_bits), 0),
+                        mov_immed_u16(tmp2, 1 << (12 - globals.dcache_mask_bits), 0),
                         dc_civac(tmp),
-                        add_immed(tmp, tmp, 1 << dcache_mask_bits),
+                        add_immed(tmp, tmp, 1 << globals.dcache_mask_bits),
                         subs_immed(tmp2, tmp2, 1),
                         b_cc(A64_CC_NE, -3),
                         dsb_sy()
@@ -5559,8 +5328,7 @@ uint32_t EMIT_lineF(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
         
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 

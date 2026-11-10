@@ -109,6 +109,5 @@ static void init()
     }
 }
 
-static void * __attribute__((used, section(".init"))) _init = &init;
-
+static void (* const init_entry)(void) __attribute__((used, section(".init_array"))) = &init;
 static void * __attribute__((used, section(".boards.z2"))) _board = &board;

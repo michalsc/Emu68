@@ -1,0 +1,18 @@
+# Changes in these areas always need maintainer review (see AGENTS.md, "Ask first").
+/AGENTS.md            @michalsc
+/CLAUDE.md            @michalsc
+/CONTRIBUTING.md      @michalsc
+/.github/             @michalsc
+/scripts/check-policy.sh @michalsc
+
+/src/aarch64/         @michalsc
+/src/M68k_*           @michalsc
+/src/PPC_*            @michalsc
+/src/*Translator*     @michalsc
+/src/ExecutionLoop.c  @michalsc
+/src/pistorm/         @michalsc
+/src/boards/          @michalsc
+/src/raspi/           @michalsc
+/CMakeLists.txt       @michalsc
+/cmake/               @michalsc
+/toolchains/          @michalsc

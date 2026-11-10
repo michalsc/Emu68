@@ -1,0 +1,23 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68 {
+                diag: diag {
+                    // fast-serial
+                    // async-log
+                    // disable-serial
+                };
+            };
+        };
+    };
+
+    __overrides__ {
+        fast = <&diag>,"fast-serial?";
+        async = <&diag>,"async-log?";
+        disable = <&diag>,"disable-serial?";
+    };
+};

@@ -15,6 +15,7 @@
 #include <tlsf.h>
 #include <devicetree.h>
 #include <DuffCopy.h>
+#include "globals.h"
 
 __attribute__((aligned(4096)))
 #include "./emu68rom.h"
@@ -26,6 +27,7 @@ __attribute__((aligned(4096)))
 #include "./mailbox.resource.h"
 #include "./powerpc.library.h"
 #include "./gic400.library.h"
+#include "./cma.resource.h"
 
 static struct { 
     void *rom_base;
@@ -40,6 +42,7 @@ static struct {
     { mailbox_resource, sizeof(mailbox_resource), 0},
     { powerpc_library, sizeof(powerpc_library), 0 },
     { gic400_library, sizeof(gic400_library), 0 },
+    { cma_resource, sizeof(cma_resource), 0 },
     { NULL, 0, 0 }
 };
 
@@ -200,7 +203,6 @@ static void build_fdt()
 static void map(struct ExpansionBoard *board)
 {
     uint32_t total_length = 0;
-    extern int ppc_enable;
     void *rom_modules = 0;
     void *virt_base = (void*)((uintptr_t)board->map_base + 0x1000);
     
@@ -211,7 +213,7 @@ static void map(struct ExpansionBoard *board)
 
     for (int i=0; roms[i].rom_base; i++)
     {
-        if (!ppc_enable && roms[i].rom_base == powerpc_library)
+        if (!globals.ppc_enable && roms[i].rom_base == powerpc_library)
             continue;
 
         roms[i].load_size = GetHunkFileSize(roms[i].rom_base);
@@ -229,7 +231,7 @@ static void map(struct ExpansionBoard *board)
 
     for (int i=0; roms[i].rom_base; i++)
     {
-        if (!ppc_enable && roms[i].rom_base == powerpc_library)
+        if (!globals.ppc_enable && roms[i].rom_base == powerpc_library)
             continue;
 
         LoadHunkFile(roms[i].rom_base, rom_modules, virt_base);

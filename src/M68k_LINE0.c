@@ -1,5 +1,6 @@
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © Emu68 contributors, see AUTHORS
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -11,6 +12,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "globals.h"
 
 uint32_t EMIT_CMPI(struct TranslatorContext *ctx, uint16_t opcode)
 {
@@ -854,6 +856,11 @@ uint32_t EMIT_ORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         /* Check what has changed */
         eor_reg(changed, changed, cc, LSL, 0),
 
+        /* If trace bits changed, break JIT loop */
+        tbz(changed, SRB_T0, 3),
+        tbz(changed, SRB_T1, 2),
+        mov_reg(12, WZR),
+
         /* Skip switching ISP/MSP if not changed */
         tbz(changed, SRB_M, 7),
 
@@ -1294,6 +1301,11 @@ uint32_t EMIT_ANDI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         /* Check what has changed */
         eor_reg(changed, orig, cc, LSL, 0),
 
+        /* If trace bits changed, break JIT loop */
+        tbz(changed, SRB_T0, 3),
+        tbz(changed, SRB_T1, 2),
+        mov_reg(12, WZR),
+
         /* If neither S nor M changed, go further */
         ands_immed(31, changed, 2, 32 - SRB_M),
         b_cc(A64_CC_EQ, 12),
@@ -1663,6 +1675,11 @@ uint32_t EMIT_EORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         /* EOR is here */
         mov_reg(orig, cc),
         eor_reg(cc, cc, immed, LSL, 0),
+
+        /* If trace bits changed, break JIT loop */
+        tbz(immed, SRB_T0, 3),
+        tbz(immed, SRB_T1, 2),
+        mov_reg(12, WZR),
 
         /* If neither S nor M changed, go further */
         ands_immed(31, immed, 2, 32 - SRB_M),
@@ -3327,8 +3344,7 @@ uint32_t EMIT_line0(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
 
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx,

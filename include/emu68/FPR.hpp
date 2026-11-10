@@ -1,3 +1,12 @@
+/*
+    Copyright © 2019-2025 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #pragma once
 
 #include <cstdint>
@@ -28,14 +37,14 @@ public:
     
     // Auto-allocate from current context
     static FPRImpl allocate() {
-        return FPRImpl(context->allocARMRegister(), true);
+        return FPRImpl(context->allocFPRegister(), true);
     }
 
     FPRImpl() : reg(0xff), auto_managed(false) {}
     
     ~FPRImpl() { 
         if (auto_managed && reg != 0xff && context != nullptr) {
-            context->freeARMRegister(reg); 
+            context->freeFPRegister(reg);
         }
     }
 
@@ -51,7 +60,7 @@ public:
     FPRImpl& operator=(FPRImpl&& other) noexcept {
         if (this != &other) {
             if (auto_managed && reg != 0xff && context != nullptr) {
-                context->freeARMRegister(reg);
+                context->freeFPRegister(reg);
             }
             
             reg = other.reg;

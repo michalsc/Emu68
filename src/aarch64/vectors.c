@@ -1,5 +1,6 @@
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © Emu68 contributors, see AUTHORS
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -16,6 +17,7 @@
 #include "M68k.h"
 #include "cache.h"
 #include "intc.h"
+#include "globals.h"
 
 #define FULL_CONTEXT 0
 
@@ -325,10 +327,7 @@ uint32_t overlay = 1;
 uint32_t z2_ram_autoconf = 1;
 uint64_t z2_ram_base = 0;
 
-uint32_t swap_df0_with_dfx = 0;
-uint32_t spoof_df0_id = 0;
-
-uint32_t move_slow_to_chip = 0;
+static uint32_t spoof_df0_id = 0;
 
 // Amiga specific registers
 enum
@@ -342,12 +341,6 @@ enum
     INTREQ  = 0xDFF09C,
     INTREQR = 0xDFF01E,
 };
-
-int block_c0;
-extern int zorro_disable;
-extern int disable_scsi;
-extern int beamcon0_pal_clear;
-extern int beamcon0_pal_set;
 
 int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
@@ -366,7 +359,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         return 0;
     }
 
-    if (disable_scsi) {
+    if (globals.scsi_disable) {
         if (far >= 0x00da0000 && far <= 0x00da7fff) {
             return 1;
         }
@@ -401,12 +394,12 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
     }
 
-    if (far == 0xdeadbeef && size == 1) {
+    if (far == globals.debug_port_addr && size == 1) {
         kprintf("%c", value);
         return 1;
     }
 
-    if (far >= 0xff000000) {
+    if (far >= 0xff000000 && far <= 0xff00ffff) {
         kprintf("Z3 write access with far %08x, size %d, value %08x\n", far, size, value);
     }
 
@@ -418,10 +411,9 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         if ((value & 1) != overlay) {
             kprintf("[JIT:SYS] OVL bit changing to %d\n", value & 1);
             overlay = value & 1;
-            extern int fast_page0;
 
             /* If fast_page_zero is active either map to ROM or to physical ARM RAM at address 0 */
-            if (fast_page0)
+            if (globals.fast_page_zero)
             {
                 if (overlay)
                     mmu_map(0xf80000, 0x0, 4096, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
@@ -432,10 +424,10 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
     }
 
     if (far == CIABPRB) {
-        if (swap_df0_with_dfx) {
+        if (globals.swap_df0_with_dfx) {
             const int SEL0_BITNUM = 3;
 
-            if ((value & ((1 << (SEL0_BITNUM + swap_df0_with_dfx)) | 0x80)) == 0x80) {
+            if ((value & ((1 << (SEL0_BITNUM + globals.swap_df0_with_dfx)) | 0x80)) == 0x80) {
               // If drive selected but motor off, Amiga is reading drive ID.
               spoof_df0_id = 1;
             } else {
@@ -443,14 +435,14 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
             }
 
             // If the value for SEL0/SELx differ
-            if (((value >> SEL0_BITNUM) & 1) != ((value >> (SEL0_BITNUM + swap_df0_with_dfx)) & 1)) {
+            if (((value >> SEL0_BITNUM) & 1) != ((value >> (SEL0_BITNUM + globals.swap_df0_with_dfx)) & 1)) {
               // Invert both bits to swap them around
-              value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + swap_df0_with_dfx)));
+              value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + globals.swap_df0_with_dfx)));
             }
         }
     }
 
-    if (!zorro_disable && far >= 0xe80000 && far <= 0xe8ffff && board[board_idx])
+    if (!globals.zorro_disable && far >= 0xe80000 && far <= 0xe8ffff && board[board_idx])
     {
         if (board[board_idx]->is_z3)
         {
@@ -476,7 +468,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         return 1;
     }
 
-    if (move_slow_to_chip) {
+    if (globals.move_slow_to_chip) {
         if (far >= 0x080000 && far <= 0x0FFFFF) {
             // A500 JP2 connects Agnus' A19 input to A23 instead of A19 by default, and decodes trapdoor memory at 0xC00000 instead of 0x080000.
             // We can move the trapdoor to chipram simply by rewriting the address.
@@ -487,7 +479,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
         }
     }
 
-    if ((far >= 0xc00000 && far <= 0xc7ffff) && block_c0)
+    if ((far >= 0xc00000 && far <= 0xc7ffff) && globals.block_c0)
     {
         return 1;
     }
@@ -535,7 +527,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         return 0;
     }
 
-    if (disable_scsi) {
+    if (globals.scsi_disable) {
         if (far >= 0x00da0000 && far <= 0x00da7fff) {
             if (value) { *value = 0xffffffff; }
             if (value2) { *value2 = 0xffffffff; }
@@ -575,13 +567,13 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         return 1;
     }
 
-    if ((far >= 0xc00000 && far <= 0xc7ffff) && block_c0)
+    if ((far >= 0xc00000 && far <= 0xc7ffff) && globals.block_c0)
     {
         *value = 0;
         return 1;
     }
 
-    if (!zorro_disable && far >= 0xe80000 && far <= 0xe8ffff && size == 1)
+    if (!globals.zorro_disable && far >= 0xe80000 && far <= 0xe8ffff && size == 1)
     {
         while(board[board_idx] && !board[board_idx]->enabled) {
             board_idx++;
@@ -621,7 +613,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
         }
     }
 
-    if (move_slow_to_chip) {
+    if (globals.move_slow_to_chip) {
         if (far >= 0x080000 && far <= 0x0FFFFF) {
             // A500 JP2 connects Agnus' A19 input to A23 instead of A19 by default, and decodes trapdoor memory at 0xC00000 instead of 0x080000.
             // We can move the trapdoor to chipram simply by rewriting the address.
@@ -688,7 +680,7 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     }
 
     if (far == CIAAPRA) {
-        if (swap_df0_with_dfx && spoof_df0_id) {
+        if (globals.swap_df0_with_dfx && spoof_df0_id) {
             // DF0 doesn't emit a drive type ID on RDY pin
             // If swapping DF0 with DF1-3 we need to provide this ID so that DF0 continues to function.
             *value = (*value & 0xDF); // Spoof drive id for swapped DF0 by setting RDY low
@@ -696,24 +688,24 @@ int SYSReadValFromAddr(uint64_t *value, uint64_t *value2, int size, uint64_t far
     }
 
     if (far == CIABPRB) {
-        if (swap_df0_with_dfx) {
+        if (globals.swap_df0_with_dfx) {
             const int SEL0_BITNUM = 3;
 
             // SEL0 = 0x80, SEL1 = 0x10, SEL2 = 0x20, SEL3 = 0x40
             // If the value for SEL0/SELx differ
-            if (((*value >> SEL0_BITNUM) & 1) != ((*value >> (SEL0_BITNUM + swap_df0_with_dfx)) & 1)) {
+            if (((*value >> SEL0_BITNUM) & 1) != ((*value >> (SEL0_BITNUM + globals.swap_df0_with_dfx)) & 1)) {
               // Invert both bits to swap them around
-              *value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + swap_df0_with_dfx)));
+              *value ^= ((1 << SEL0_BITNUM) | (1 << (SEL0_BITNUM + globals.swap_df0_with_dfx)));
             }
         }
     }
 
     if (far == VPOSR && size == 2)
     {
-        if (beamcon0_pal_set) {
+        if (globals.beamcon0_pal_set) {
             *value &= 0xef00;
         }
-        else if (beamcon0_pal_clear) {
+        else if (globals.beamcon0_pal_clear) {
             *value |= 0x1000;
         }
     } 
@@ -727,7 +719,7 @@ int SYSWriteValToAddr(uint64_t value, uint64_t value2, int size, uint64_t far)
 {
     D(kprintf("[JIT:SYS] SYSWriteValToAddr(0x%x, %d, %p)\n", value, size, far));
     
-    if (far == 0xdeadbeef && size == 1) {
+    if (far == globals.debug_port_addr && size == 1) {
         kprintf("%c", value);
         return 1;
     }
@@ -1726,7 +1718,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         }
     }
     /* FLDD post-index */
-    else if ((opcode & 0xfee00c00) == 0xbc400c00)
+    else if ((opcode & 0xfee00c00) == 0xfc400c00)
     {
         int16_t offset = ((int16_t)(opcode >> 5)) >> 7;
         uint64_t ptr = SYSGetValueFromReg((opcode >> 5) & 31, ctx);
@@ -1816,7 +1808,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
         SYSPutValueToReg(ptr + offset, (opcode >> 5) & 31, ctx);
     }
     /* LDPSW */
-    if ((opcode & 0xffc00000) == 0x69400000)
+    else if ((opcode & 0xffc00000) == 0x69400000)
     {
         size = 4;
         
@@ -1971,8 +1963,8 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
             SYSPutValueToReg(tmp, opcode & 31, ctx);
         }
     }
-    /* LDXR register - no exclusive in this case!!! But m68k bus does not support it anyway */
-    else if ((opcode & 0x3ffffc00) == 0x085f7c00)
+    /* LD(A)XR register - no exclusive in this case!!! But m68k bus does not support it anyway */
+    else if ((opcode & 0x3fff7c00) == 0x085f7c00)
     {
         uint64_t tmp = 0;
         handled = SYSReadValFromAddr(&tmp, NULL, size, far);
@@ -2232,6 +2224,7 @@ int SYSPageFaultReadHandler(uint32_t vector, uint64_t *ctx, uint64_t elr, uint64
 
 #include "disasm.h"
 
+__attribute__((used))
 void SYSHandler(uint32_t vector, uint64_t *ctx)
 {
     int handled = 0;
@@ -2398,14 +2391,14 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
         kprintf("[JIT:SYS] Exception with vector %04x on CPU%d. ELR=%p, SPSR=%08x, ESR=%p, FAR=%p\n", vector, cpu_id, elr, spsr, esr, far);
         kprintf("[JIT:SYS] Failed instruction: %08x\n", LE32(*(uint32_t*)elr));
         uint32_t *ptr = (uint32_t *)elr;
-        
-        disasm_open();
 
         for (int i=-4; i < 5; i++) {
             kprintf("[JIT:SYS] %08x\n", LE32(ptr[i]));
         }
 
+        #ifdef EMU68_ENABLE_DISASM
         disasm_print_arm_only(ptr);
+        #endif
 
         for (int i=0; i < 16; i++)
         {
@@ -2417,6 +2410,7 @@ void SYSHandler(uint32_t vector, uint64_t *ctx)
     }
 }
 
+__attribute__((used))
 void IRQHandler(uint32_t , uint64_t *)
 {
     uint64_t elr, spsr, esr, far, cpu_id;

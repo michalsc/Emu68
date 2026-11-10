@@ -20,6 +20,18 @@
 
 namespace Emu68::PPC::Emit {
 
+/* OE forms: OV from the A64 V flag, SO is sticky */
+static void setOV(PPCTranslatorContext* tc, uint8_t reg_xer)
+{
+    GPR tmp = GPR::allocate();
+
+    tc->emit({
+        bic_immed(reg_xer, reg_xer, 1, 2),          // OV = 0
+        orr_immed(tmp, reg_xer, 2, 2),              // OV and SO
+        csel(reg_xer, tmp, reg_xer, A64_CC_VS)
+    });
+}
+
 int addi(PPCTranslatorContext* tc, uint32_t opcode)
 {
     uint8_t rd = (opcode >> 21) & 31;
@@ -388,6 +400,8 @@ int rlwimix(PPCTranslatorContext* tc, uint32_t opcode)
     /* If sh is set, rotate left */
     if (sh) {
         tc->emit(ror(tmp, reg_rs, (32 - sh) & 31));
+    } else {
+        tc->emit(mov_reg(tmp, reg_rs));
     }
 
     /* Mask result if me - mb is not 31 */
@@ -404,18 +418,19 @@ int rlwimix(PPCTranslatorContext* tc, uint32_t opcode)
         }
         else if (me < mb)
         {
-            /* mb < me - mask of type 0xf..0..f */
+            /* mb > me - mask of type 0xf..0..f */
             tc->emit({
-                bic_immed(reg_ra, reg_ra, mb - me - 1, me + 1),
-                and_immed(tmp, tmp, mb - me - 1, me + 1),
+                bic_immed(reg_ra, reg_ra, 33 + me - mb, 31 & (me + 1)),
+                and_immed(tmp, tmp, 33 + me - mb, 31 & (me + 1)),
                 orr_reg(reg_ra, reg_ra, tmp, LSL, 0)
             });
         }
-    } else if (update_cr) {
-        if (!sh)
-            tc->emit(adds_immed(reg_ra, reg_rs, 0));
-        else
-            tc->emit(adds_immed(reg_ra, tmp, 0));
+
+        if (update_cr)
+            tc->emit(cmp_immed(reg_ra, 0));
+    } else {
+        /* Full mask, just the rotated value */
+        tc->emit(update_cr ? adds_immed(reg_ra, tmp, 0) : mov_reg(reg_ra, tmp));
     }
 
     if (update_cr) 
@@ -447,11 +462,15 @@ int rlwinmx(PPCTranslatorContext* tc, uint32_t opcode)
     {
         /* shifting left, leaving zeros on right */
         tc->emit(lsl(reg_ra, reg_rs, sh));
+        if (update_cr)
+            tc->emit(cmp_immed(reg_ra, 0));
     }
     else if (me == 31 && sh == (32 - mb))
     {
         /* shifting right, zeros on the left */
         tc->emit(lsr(reg_ra, reg_rs, 32 - sh));
+        if (update_cr)
+            tc->emit(cmp_immed(reg_ra, 0));
     }
     else
     {
@@ -474,17 +493,16 @@ int rlwinmx(PPCTranslatorContext* tc, uint32_t opcode)
             }
             else if (me < mb)
             {
-                /* mb < me - mask of type 0xf..0..f */
+                /* mb > me - mask of type 0xf..0..f */
                 tc->emit(update_cr ?
-                    ands_immed(reg_ra, and_src, mb - me - 1, me + 1) :
-                    and_immed(reg_ra, and_src, mb - me - 1, me + 1)
+                    ands_immed(reg_ra, and_src, 33 + me - mb, 31 & (me + 1)) :
+                    and_immed(reg_ra, and_src, 33 + me - mb, 31 & (me + 1))
                 );
             }
+        } else if (!sh) {
+            tc->emit(update_cr ? adds_immed(reg_ra, reg_rs, 0) : mov_reg(reg_ra, reg_rs));
         } else if (update_cr) {
-            if (!sh)
-                tc->emit(adds_immed(reg_ra, reg_rs, 0));
-            else
-                tc->emit(tst_immed(reg_ra, 32, 0));
+            tc->emit(cmp_immed(reg_ra, 0));
         }
     }
 
@@ -531,10 +549,10 @@ int rlwnmx(PPCTranslatorContext* tc, uint32_t opcode)
         }
         else if (me < mb)
         {
-            /* mb < me - mask of type 0xf..0..f */
+            /* mb > me - mask of type 0xf..0..f */
             tc->emit(update_cr ?
-                ands_immed(reg_ra, reg_ra, mb - me - 1, me + 1) :
-                and_immed(reg_ra, reg_ra, mb - me - 1, me + 1)
+                ands_immed(reg_ra, reg_ra, 33 + me - mb, 31 & (me + 1)) :
+                and_immed(reg_ra, reg_ra, 33 + me - mb, 31 & (me + 1))
             );
         }
     } else if (update_cr) {
@@ -884,16 +902,11 @@ int addx(PPCTranslatorContext* tc, uint32_t opcode)
 
     if (oe) {
         GPR reg_xer = tc->mapGPRForReadAndWrite(XERn);
-        GPR tmp = GPR::allocate();
-
-        tc->emit({
-            orr_immed(reg_xer, reg_xer, 2, 2),
-            bic_immed(tmp, reg_xer, 1, 2),
-            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
-        });
+        setOV(tc, reg_xer);
     }
 
     if (rc) {
+        tc->emit(cmp_immed(reg_rd, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -955,6 +968,8 @@ int addic_dot(PPCTranslatorContext* tc, uint32_t opcode)
         csel(reg_xer, tmp, reg_xer, A64_CC_CS)  // Select CA set or clear in XER depending on A64 C flag
     });
 
+    tc->emit(cmp_immed(reg_rd, 0));
+
     setCRnSigned(tc, 0);
 
     tc->advancePC(4);
@@ -982,16 +997,11 @@ int subfx(PPCTranslatorContext* tc, uint32_t opcode)
 
     if (oe) {
         GPR reg_xer = tc->mapGPRForReadAndWrite(XERn);
-        GPR tmp = GPR::allocate();
-
-        tc->emit({
-            orr_immed(reg_xer, reg_xer, 2, 2),
-            bic_immed(tmp, reg_xer, 1, 2),
-            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
-        });
+        setOV(tc, reg_xer);
     }
 
     if (rc) {
+        tc->emit(cmp_immed(reg_rd, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -1052,14 +1062,11 @@ int subfcx(PPCTranslatorContext* tc, uint32_t opcode)
     });
 
     if (oe) {
-        tc->emit({
-            orr_immed(reg_xer, reg_xer, 2, 2),
-            bic_immed(tmp, reg_xer, 1, 2),
-            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
-        });
+        setOV(tc, reg_xer);
     }
 
     if (rc) {
+        tc->emit(cmp_immed(reg_rd, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -1091,14 +1098,65 @@ int addcx(PPCTranslatorContext* tc, uint32_t opcode)
     });
 
     if (oe) {
-        tc->emit({
-            orr_immed(reg_xer, reg_xer, 2, 2),
-            bic_immed(tmp, reg_xer, 1, 2),
-            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
-        });
+        setOV(tc, reg_xer);
     }
 
     if (rc) {
+        tc->emit(cmp_immed(reg_rd, 0));
+        setCRnSigned(tc, 0);
+    }
+
+    tc->advancePC(4);
+
+    return 1;
+}
+
+/* Operands of the extended add and subtract */
+enum { EXT_RA, EXT_RB, EXT_ZERO, EXT_ONES };
+
+/*
+    adde, subfe, addze, addme, subfze, subfme: rD = first + second + CA. The subtracting forms use the ARM sbcs,
+    first - second - !C, which is first + ~second + C.
+*/
+static int addExtended(PPCTranslatorContext* tc, uint32_t opcode, bool subtract, uint8_t first, uint8_t second)
+{
+    uint8_t rd = (opcode >> 21) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
+    uint8_t oe = (opcode >> 10) & 1;
+    uint8_t rc = opcode & 1;
+    uint8_t ops[2] = { first, second };
+
+    GPR reg_ra = (first == EXT_RA || second == EXT_RA) ? tc->mapGPRForRead(ra) : GPR();
+    GPR reg_rb = (first == EXT_RB || second == EXT_RB) ? tc->mapGPRForRead(rb) : GPR();
+    GPR ones = (first == EXT_ONES) ? GPR::allocate() : GPR();
+    GPR reg_rd = tc->mapGPRForWrite(rd);
+    GPR tmp = GPR::allocate();
+    GPR reg_xer = tc->mapGPRForReadAndWrite(XERn);
+
+    for (int i = 0; i < 2; i++) {
+        switch (ops[i]) {
+            case EXT_RA:    ops[i] = reg_ra; break;
+            case EXT_RB:    ops[i] = reg_rb; break;
+            case EXT_ZERO:  ops[i] = WZR; break;
+            case EXT_ONES:  ops[i] = ones; tc->emit(movn_immed_u16(ones, 0, 0)); break;
+        }
+    }
+
+    tc->emit({
+        ubfx(tmp, reg_xer, 29, 1),                  // Extract CA field into tmp
+        subs_immed(WZR, tmp, 1),                    // Subtract 1, this will set carry bit
+        subtract ? sbcs(reg_rd, ops[0], ops[1]) : adcs(reg_rd, ops[0], ops[1]),
+        cset(tmp, A64_CC_CS),
+        bfi(reg_xer, tmp, 29, 1)                    // CA from A64 C flag
+    });
+
+    if (oe) {
+        setOV(tc, reg_xer);
+    }
+
+    if (rc) {
+        tc->emit(cmp_immed(reg_rd, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -1109,43 +1167,37 @@ int addcx(PPCTranslatorContext* tc, uint32_t opcode)
 
 int addex(PPCTranslatorContext* tc, uint32_t opcode)
 {
-    uint8_t rd = (opcode >> 21) & 31;
-    uint8_t ra = (opcode >> 16) & 31;
-    uint8_t rb = (opcode >> 11) & 31;
-    uint8_t oe = (opcode >> 10) & 1;
-    uint8_t rc = opcode & 1;
+    return addExtended(tc, opcode, false, EXT_RA, EXT_RB);
+}
 
-    GPR reg_ra = tc->mapGPRForRead(ra);
-    GPR reg_rb = tc->mapGPRForRead(rb);
-    GPR reg_rd = tc->mapGPRForWrite(rd);
-    GPR tmp = GPR::allocate();
-    GPR reg_xer = tc->mapGPRForReadAndWrite(XERn);
-    // TODO: Verify if flag set correctly
+/* rD = ~rA + rB + CA */
+int subfex(PPCTranslatorContext* tc, uint32_t opcode)
+{
+    return addExtended(tc, opcode, true, EXT_RB, EXT_RA);
+}
 
-    tc->emit({ 
-        ubfx(tmp, reg_xer, 29, 1),                 // Extract CA field into tmp
-        subs_immed(WZR, tmp, 1),                    // Subtract 1, this will set carry bit
-        bic_immed(reg_xer, reg_xer, 1, 3),          // Clear CA flag in xer
-        adcs(reg_rd, reg_ra, reg_rb),               // Add with carry
-        orr_immed(tmp, reg_xer, 1, 3),              // Set CA flag from xer into tmp
-        csel(reg_xer, tmp, reg_xer, A64_CC_CS)      // Select CA set or clear in XER depending on A64 C flag
-    });
+/* rD = rA + CA */
+int addzex(PPCTranslatorContext* tc, uint32_t opcode)
+{
+    return addExtended(tc, opcode, false, EXT_RA, EXT_ZERO);
+}
 
-    if (oe) {
-        tc->emit({
-            orr_immed(reg_xer, reg_xer, 2, 2),
-            bic_immed(tmp, reg_xer, 1, 2),
-            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
-        });
-    }
+/* rD = rA + CA - 1 */
+int addmex(PPCTranslatorContext* tc, uint32_t opcode)
+{
+    return addExtended(tc, opcode, true, EXT_RA, EXT_ZERO);
+}
 
-    if (rc) {
-        setCRnSigned(tc, 0);
-    }
+/* rD = ~rA + CA */
+int subfzex(PPCTranslatorContext* tc, uint32_t opcode)
+{
+    return addExtended(tc, opcode, true, EXT_ZERO, EXT_RA);
+}
 
-    tc->advancePC(4);
-
-    return 1;
+/* rD = ~rA + CA - 1 */
+int subfmex(PPCTranslatorContext* tc, uint32_t opcode)
+{
+    return addExtended(tc, opcode, true, EXT_ONES, EXT_RA);
 }
 
 int cmp(PPCTranslatorContext* tc, uint32_t opcode)
@@ -1224,16 +1276,11 @@ int negx(PPCTranslatorContext* tc, uint32_t opcode)
 
     if (oe) {
         GPR reg_xer = tc->mapGPRForReadAndWrite(XERn);
-        GPR tmp = GPR::allocate();
-
-        tc->emit({
-            orr_immed(reg_xer, reg_xer, 2, 2),
-            bic_immed(tmp, reg_xer, 1, 2),
-            csel(reg_xer, reg_xer, tmp, A64_CC_VS)
-        });
+        setOV(tc, reg_xer);
     }
 
     if (rc) {
+        tc->emit(cmp_immed(reg_rd, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -1368,10 +1415,15 @@ int srwx(PPCTranslatorContext* tc, uint32_t opcode)
     GPR reg_rs = tc->mapGPRForRead(rs);
     GPR reg_ra = tc->mapGPRForWrite(ra);
 
-    tc->emit(lsrv(reg_ra, reg_rs, reg_rb));
+    /* rB uses 6 bits, shift by 32..63 gives zero - do it in 64 bits on zero-extended value */
+    GPR tmp = GPR::allocate();
+    tc->emit({
+        mov_reg(tmp, reg_rs),
+        lsrv64(tmp, tmp, reg_rb),
+        rc ? adds_immed(reg_ra, tmp, 0) : mov_reg(reg_ra, tmp)
+    });
 
     if (rc) {
-        tc->emit(cmp_immed(reg_ra, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -1392,10 +1444,14 @@ int slwx(PPCTranslatorContext* tc, uint32_t opcode)
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR reg_ra = tc->mapGPRForWrite(ra);
 
-    tc->emit(lslv(reg_ra, reg_rs, reg_rb));
+    /* rB uses 6 bits, shift by 32..63 gives zero - do it in 64 bits and take lower half */
+    GPR tmp = GPR::allocate();
+    tc->emit({
+        lslv64(tmp, reg_rs, reg_rb),
+        rc ? adds_immed(reg_ra, tmp, 0) : mov_reg(reg_ra, tmp)
+    });
 
     if (rc) {
-        tc->emit(cmp_immed(reg_ra, 0));
         setCRnSigned(tc, 0);
     }
 
@@ -1422,7 +1478,7 @@ int srawix(PPCTranslatorContext* tc, uint32_t opcode)
             /* Test if source is signed */
             tst_immed(reg_rs, 1, 1),
             /* If source is signed, put reg_rs to tmp, otherwise zero it */
-            csel(tmp, reg_rs, XZR, A64_CC_EQ),
+            csel(tmp, reg_rs, XZR, A64_CC_NE),
             /* Check the mask - if any bit is 1, set CA to 1 */
             tst_immed(tmp, sh, 0),
             orr_immed(reg_xer, reg_xer, 1, 3),
@@ -1465,7 +1521,7 @@ int srawx(PPCTranslatorContext* tc, uint32_t opcode)
         /* Test if source is signed */
         tst_immed(reg_rs, 1, 1),
         /* If source is signed, put reg_rs to tmp, otherwise zero it */
-        csel(tmp, reg_rs, XZR, A64_CC_EQ),
+        csel(tmp, reg_rs, XZR, A64_CC_NE),
         /* Check the mask - if any bit is 1, set CA to 1 */
         mov_immed_u16(mask, 1, 0),
         lslv64(mask, mask, reg_rb),
@@ -1476,10 +1532,14 @@ int srawx(PPCTranslatorContext* tc, uint32_t opcode)
         csel(reg_xer, reg_xer, tmp, A64_CC_NE)
     });
     
-    tc->emit(asrv(reg_ra, reg_rs, reg_rb));
+    /* rB uses 6 bits, shift by 32..63 gives sign only - do it in 64 bits on sign-extended value */
+    tc->emit({
+        sxtw64(tmp, reg_rs),
+        asrv64(tmp, tmp, reg_rb),
+        rc ? adds_immed(reg_ra, tmp, 0) : mov_reg(reg_ra, tmp)
+    });
 
     if (rc) {
-        tc->emit(cmp_immed(reg_ra, 0));
         setCRnSigned(tc, 0);
     }
 

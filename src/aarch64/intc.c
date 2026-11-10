@@ -12,9 +12,9 @@
 
 /* GIC-400 (GIC-v2) controller used in Pi4 and CM4 */
 
-uintptr_t gic_base;
-uintptr_t gic_base_cpu;
-uintptr_t local_intc_base;
+static uintptr_t gic_base;
+static uintptr_t gic_base_cpu;
+static uintptr_t local_intc_base;
 
 /* Distributor registers */
 

@@ -17,7 +17,7 @@ option(CAPSTONE_ARCHITECTURE_DEFAULT "" OFF)
 option(CAPSTONE_INSTALL "" OFF)
 option(CAPSTONE_M68K_SUPPORT "" ON)
 option(CAPSTONE_PPC_SUPPORT "" ON)
-option(CAPSTONE_ARM64_SUPPORT "" ON)
+option(CAPSTONE_AARCH64_SUPPORT "" ON)
 
 set(LIBDEFLATE_BUILD_STATIC_LIB ON CACHE BOOL "Build the static library")
 set(LIBDEFLATE_BUILD_SHARED_LIB OFF CACHE BOOL "Build the shared library")
@@ -35,5 +35,8 @@ set(LIBDEFLATE_USE_SHARED_LIB OFF CACHE BOOL
        "Link the libdeflate-gzip and test programs to the shared library instead
        of the static library")
 
-add_subdirectory(capstone EXCLUDE_FROM_ALL)
+if (ENABLE_DISASM)
+    add_subdirectory(capstone EXCLUDE_FROM_ALL)
+endif()
+
 add_subdirectory(libdeflate EXCLUDE_FROM_ALL)

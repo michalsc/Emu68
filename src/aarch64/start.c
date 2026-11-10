@@ -1,5 +1,6 @@
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © Emu68 contributors, see AUTHORS
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -30,6 +31,7 @@
 #include "sponsoring.h"
 #include "spinlock.h"
 #include "intc.h"
+#include "globals.h"
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
 #endif
@@ -207,33 +209,78 @@ void move_kernel(intptr_t from, intptr_t to);
 __asm__(
 "       .globl move_kernel          \n"
 "       .type move_kernel,%function \n" /* void move_kernel(intptr_t from, intptr_t to) */
-"move_kernel:                       \n" /* x0: from, x1: to */
-"       stp     x28, x29, [sp, #-16]! \n"
-"       adrp    x2, _boot           \n" /* Clean stack */
-"       mov     w3, w2              \n"
-"1:     sub     x2, x2, #32         \n"
-"       dc      civac, x2           \n"
-"       sub     w3, w3, #32         \n"
-"       cbnz    w3, 1b              \n"
-"       dsb     sy                  \n"
-"       movz    x28, #0xffff, lsl #48\n" /* 0xffffff9000000000 - this is where the phys starts from */
-"       movk    x28, #0xff90, lsl #32\n"
-"       add     x0, x0, x28         \n" /* x0: phys "from" in topmost part of addr space */
-"       add     x1, x1, x28         \n" /* x1: phys "to" in topmost part of addr space */
+"move_kernel:                       \n" /* x0: from, x1: to (physical, 2MB aligned, non-overlapping) */
+"       movz    x8, #0xffff, lsl #48\n" /* x8: 0xffffff9000000000 - cached 1:1 map of physical memory */
+"       movk    x8, #0xff90, lsl #32\n"
+"       add     x0, x0, x8          \n" /* x0: "from" in the 1:1 map */
+"       add     x1, x1, x8          \n" /* x1: "to" in the 1:1 map */
+"       sub     x7, x1, x0          \n" /* x7: delta = (to - from) */
 "       mov     x2, #" xstr(KERNEL_SYS_PAGES << 21) "\n"
 "       mov     x3, x0              \n"
 "       mov     x4, x1              \n"
-"       sub     x7, x1, x0          \n" /* x7: delta = (to - from) */
-"2:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location */
-"       stp     x5, x6, [x4], #16   \n"
+"1:     ldp     x5, x6, [x3], #16   \n" /* Copy kernel to new location. The 1:1 map has the same */
+"       stp     x5, x6, [x4], #16   \n" /* cacheable attributes as the kernel map, so no D-cache */
+"       ldp     x5, x6, [x3], #16   \n" /* maintenance is needed for the copy itself. The stack */
+"       stp     x5, x6, [x4], #16   \n" /* is not touched from here on, so its copy is exact */
 "       ldp     x5, x6, [x3], #16   \n"
 "       stp     x5, x6, [x4], #16   \n"
 "       ldp     x5, x6, [x3], #16   \n"
 "       stp     x5, x6, [x4], #16   \n"
-"       ldp     x5, x6, [x3], #16   \n"
-"       stp     x5, x6, [x4], #16   \n"
-"       sub     x2, x2, #64         \n"
-"       cbnz    x2, 2b              \n"
+"       subs    x2, x2, #64         \n"
+"       b.ne    1b                  \n"
+
+/* Make the copy visible to instruction fetch: clean to PoU, invalidate I-cache */
+
+"       mrs     x9, CTR_EL0         \n"
+"       ubfx    x9, x9, #16, #4     \n"
+"       mov     x10, #4             \n"
+"       lsl     x10, x10, x9        \n" /* x10: smallest D-cache line size */
+"       mov     x3, x1              \n"
+"       mov     x2, #" xstr(KERNEL_SYS_PAGES << 21) "\n"
+"       add     x4, x1, x2          \n"
+"2:     dc      cvau, x3            \n"
+"       add     x3, x3, x10         \n"
+"       cmp     x3, x4              \n"
+"       b.lo    2b                  \n"
+"       dsb     ish                 \n"
+"       ic      iallu               \n"
+"       dsb     ish                 \n"
+"       isb                         \n"
+
+/* Continue execution in the copy, through the 1:1 map */
+
+"       adr     x2, 3f              \n"
+"       and     x2, x2, #0x7fffffffff\n" /* Offset of label 3 within the kernel */
+"       add     x2, x2, x1          \n"
+"       br      x2                  \n"
+
+/*
+    Relocate the MMU tables of the copy. They are not live yet, so neither
+    break-before-make nor per-entry TLB invalidation is needed.
+*/
+
+"3:     mrs     x2, TTBR1_EL1       \n" /* Take address of the current L1 kernel map */
+"       and     x2, x2, #0x7ffffff000\n" /* Discard the top 25 bits and lowest 12 bits */
+"       add     x2, x2, x8          \n" /* Go to the 1:1 map */
+"       add     x2, x2, x7          \n" /* ...and to the L1 map in the copy */
+"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2]            \n" /* Store back */
+"       and     x2, x3, #0x7ffffff000\n" /* L2 table of the copy */
+"       add     x2, x2, x8          \n"
+"       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
+"4:     ldr     x3, [x2]            \n" /* Get entry - 2MB block of the kernel */
+"       add     x3, x3, x7          \n" /* Add delta */
+"       str     x3, [x2], #8        \n" /* Store back */
+"       subs    x4, x4, #1          \n" /* Repeat for all kernel pages */
+"       b.ne    4b                  \n"
+"       dsb     ish                 \n" /* Make new tables visible to the table walker */
+
+/*
+    Switch to the new tables. We execute from the 1:1 map, which translates to
+    the same physical addresses in old and new tables, so no conflicting TLB
+    entries can be created before the flush below.
+*/
 
 "       mrs     x5, TTBR1_EL1       \n"
 "       add     x5, x5, x7          \n"
@@ -241,45 +288,11 @@ __asm__(
 "       mrs     x5, TTBR0_EL1       \n"
 "       add     x5, x5, x7          \n"
 "       msr     TTBR0_EL1, x5       \n" /* Load new TTBR0 */
-
-"       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
-"       dsb     sy                  \n"
 "       isb                         \n"
-
-/* Fix kernel MMU table */
-
-"       adrp    x5, _boot           \n"
-"       adr     x2, 1f              \n"
-"       and     x2, x2, 0x7fffffffff\n"
-"       add     x2, x2, x1          \n"
-"       br      x2                  \n"
-"1:     mrs     x2, TTBR1_EL1       \n" /* Take address of L1 MMU map */
-"       and     x2, x2, 0x7ffffff000\n" /* Discard the top 25 bits and lowest 12 bits */
-"       add     x2, x2, x28         \n" /* Go to the 1:1 map at top of ram */
-"       ldr     x3, [x2]            \n" /* Get first entry - pointer to L2 table */
-"       add     x3, x3, x7          \n" /* Add delta */
-"       str     x3, [x2]            \n" /* Store back */
-"       dsb     ish                 \n"
-"       tlbi    VMALLE1IS           \n" /* Flush tlb */
-"       dsb     sy                  \n"
-"       isb                         \n"
-"       and     x2, x3, 0x7ffffff000\n" /* Copy L2 pointer to x5, discard the top 25 bits and bottom 12 bits*/
-"       and     x5, x5, 0xffffff8000000000 \n"
-"       add     x2, x2, x28         \n"
-"       mov     x4, #" xstr(KERNEL_SYS_PAGES) "\n"
-"1:     ldr     x3, [x2]            \n" /* Get first entry - pointer to page */
-"       add     x3, x3, x7          \n" /* Add delta */
-"       str     x3, [x2], #8        \n" /* Store back */
-"       dsb     ish                 \n"
-"       tlbi    vae1, x5            \n"
+"       tlbi    vmalle1is           \n" /* Flush tlb */
 "       dsb     ish                 \n"
 "       isb                         \n"
-"       add     x5, x5, #0x200000   \n"
-"       sub     x4, x4, #1          \n" /* Repeat for all kernel pages */
-"       cbnz    x4, 1b              \n"
-"       ldp     x28, x29, [sp], #16 \n"
-"       ret                         \n" /* Return! */
+"       ret                         \n" /* Return to the caller, now in the moved kernel */
 );
 
 #if EMU68_HOST_BIG_ENDIAN
@@ -288,7 +301,6 @@ static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64
 static __attribute__((used)) const char bootstrapName[] = "Emu68 runtime/AArch64 LittleEndian";
 #endif
 
-extern uintptr_t local_intc_base;
 extern int __bootstrap_end;
 extern const struct BuildID g_note_build_id;
 
@@ -303,33 +315,13 @@ void print_build_id()
     kprintf("\n");
 }
 
-void* m68k_jit_phys_base = NULL;
-void* ppc_jit_phys_base = NULL;
-void* m68k_jit_virt_base = NULL;
-void* ppc_jit_virt_base = NULL;
 
 void M68K_StartEmu(void *addr, void *fdt);
 void __vectors_start(void);
-extern int debug_cnt;
-int enable_cache = 0;
 int limit_2g = 0;
-int zorro_disable = 0;
-int ppc_enable = 0;
-int chip_slowdown;
-int dbf_slowdown;
-int debug_not_implemented = 0;
-int emu68_icnt = EMU68_M68K_INSN_DEPTH;
-int emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
-int emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
-int dcache_mask_bits;
-int disable_scsi = 0;
-int beamcon0_pal_clear = 0;
-int beamcon0_pal_set = 0;
 
 #ifdef PISTORM_ANY_MODEL
 #include "ps_protocol.h"
-static int blitwait;
-static int membench = 0;
 #endif
 
 extern const char _verstring_object[];
@@ -447,26 +439,24 @@ void secondary_boot(void)
     
     if (cpu_id == 1)
     {
-        e = dt_find_node("/chosen");
+        e = dt_find_node("/emu68/diag");
         if (e)
         {
-            of_property_t * prop = dt_find_property(e, "bootargs");
-            if (prop)
+            if (dt_find_property(e, "async-log"))
             {
-                if (strstr(prop->op_value, "async_log"))
-                    async_log = 1;
+                async_log = 1;
             }
         }
     }
 
-    if (cpu_id == 3 && ppc_enable) {
+    if (cpu_id == 3 && globals.ppc_enable) {
         extern void InitPPC();
         InitPPC();
     }
 
     __atomic_clear(&boot_lock, __ATOMIC_RELEASE);
 
-    if (cpu_id == 3 && ppc_enable) {
+    if (cpu_id == 3 && globals.ppc_enable) {
         extern void StartupPPC();
         StartupPPC();
     }
@@ -487,10 +477,6 @@ void secondary_boot(void)
 
     while(1) { __asm__ volatile("wfe"); }
 }
-uintptr_t vid_base;
-
-uintptr_t unicam_base;
-uintptr_t unicam_size = 2 * 1024 * 1024;
 
 /* Amiga checksum, taken from AROS source code */
 int amiga_checksum(uint8_t *mem, uintptr_t size, uintptr_t chkoff, int update)
@@ -544,27 +530,18 @@ static void my_free(void *ptr)
 
 void *firmware_file = NULL;
 uint32_t firmware_size = 0;
-uint32_t cs_dist = 1;
-uint32_t vid_memory = 16;
 #ifdef PISTORM_ANY_MODEL
 int rom_copy = 0;
 int recalc_checksum = 0;
-int buptest = 0;
-int bupiter = 5;
-int fast_page0 = 0;
 #endif
-
-uint8_t slot_set = 0;
 
 void force_pistorm_model(uint8_t model);
 
+#if 0
 void parse_cmdline(const char *cmdline)
 {
     const char *tok;
 
-    debug_not_implemented = !!find_token(cmdline, "debug_not_implemented");
-    ppc_enable = !!find_token(cmdline, "ppc_enable");
-    enable_cache = !!find_token(cmdline, "enable_cache");
     limit_2g = !!find_token(cmdline, "limit_2g");
 
 #ifdef PISTORM_ANY_MODEL
@@ -575,194 +552,8 @@ void parse_cmdline(const char *cmdline)
     else if (force_ps32) force_pistorm_model(PISTORM_MODEL_32);
 #endif
 
-    extern int disasm;
-    extern int debug;
-    extern int DisableFPU;
-
-    DisableFPU = !!find_token(cmdline, "nofpu");
-    debug = !!find_token(cmdline, "debug");
-    disasm = !!find_token(cmdline, "disassemble");
-
-    if ((tok = find_token(cmdline, "ICNT=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val == 0)
-            val = 1;
-        if (val > 256)
-            val = 256;
-
-        emu68_icnt = val;
-    }
-    if ((tok = find_token(cmdline, "CCRD=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val > 31)
-            val = 31;
-
-        emu68_ccrd = val;
-    }
-    if ((tok = find_token(cmdline, "IRNG=")))
-    {
-        uint32_t val = 0;
-        const char *c = &tok[5];
-
-        for (int i = 0; i < 7; i++)
-        {
-            if (c[i] < '0' || c[i] > '9')
-                break;
-
-            val = val * 10 + c[i] - '0';
-        }
-
-        if (val > 65535)
-            val = 65535;
-
-        emu68_irng = val;
-    }
-
-    if ((tok = find_token(cmdline, "cs_dist=")) || (tok = find_token(cmdline, "SCS=")))
-    {
-        uint32_t cs = 0;
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                break;
-
-            cs = cs * 10 + tok[8 + i] - '0';
-        }
-
-        if (cs == 0)
-            cs = 1;
-
-        if (cs > 8)
-        {
-            cs = 8;
-        }
-
-        cs_dist = cs;
-    }
-
 #ifdef PISTORM_ANY_MODEL
 
-#if !defined(PISTORM_CLASSIC)
-    if (find_token(cmdline, "two_slot"))
-    {
-        extern uint32_t use_2slot;
-        use_2slot = 1;
-        slot_set = 1;
-    }
-    else if (find_token(cmdline, "one_slot"))
-    {
-        extern uint32_t use_2slot;
-        use_2slot = 0;
-        slot_set = 1;
-    }
-#endif
-
-    fast_page0 = !!find_token(cmdline, "fast_page_zero");
-
-    zorro_disable = !!find_token(cmdline, "z3_disable");
-
-    chip_slowdown = find_token(cmdline, "chip_slowdown") || find_token(cmdline, "SC");
-
-    dbf_slowdown = find_token(cmdline, "dbf_slowdown") || find_token(cmdline, "DBF");
-
-    blitwait = find_token(cmdline, "blitwait") || find_token(cmdline, "BW");
-
-    if ((tok = find_token(cmdline, "membench=")))
-    {
-        uint32_t bench = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            if (tok[9 + i] < '0' || tok[9 + i] > '9')
-                break;
-
-            bench = bench * 10 + tok[9 + i] - '0';
-        }
-
-        if (bench > 2047)
-        {
-            bench = 2047;
-        }
-
-        membench = bench;
-    }
-    if ((tok = find_token(cmdline, "buptest=")))
-    {
-        uint32_t bup = 0;
-
-        for (int i = 0; i < 4; i++)
-        {
-            if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                break;
-
-            bup = bup * 10 + tok[8 + i] - '0';
-        }
-
-        if (bup > 2048)
-        {
-            bup = 2048;
-        }
-
-        buptest = bup;
-    }
-    if ((tok = find_token(cmdline, "bupiter=")))
-    {
-        uint32_t iter = 0;
-
-        for (int i = 0; i < 2; i++)
-        {
-            if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                break;
-
-            iter = iter * 10 + tok[8 + i] - '0';
-        }
-
-        if (iter > 9)
-        {
-            iter = 9;
-        }
-
-        bupiter = iter;
-    }
-    if ((tok = find_token(cmdline, "vc4.mem=")))
-    {
-        uint32_t vmem = 0;
-
-        for (int i = 0; i < 3; i++)
-        {
-            if (tok[8 + i] < '0' || tok[8 + i] > '9')
-                break;
-
-            vmem = vmem * 10 + tok[8 + i] - '0';
-        }
-
-        if (vmem <= 256)
-        {
-            vid_memory = vmem & ~1;
-        }
-    }
     if ((tok = find_token(cmdline, "checksum_rom")))
     {
         recalc_checksum = 1;
@@ -800,95 +591,95 @@ void parse_cmdline(const char *cmdline)
     }
 #endif
 }
+#endif
 
-void boot(void *dtree)
+void make_emu68_node()
 {
-    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
-    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
-    uint64_t tmp;
-    uintptr_t top_of_ram = 0;
-    of_property_t *p = NULL;
-    of_node_t *e = NULL;
-    void *initramfs_loc = NULL;
-    uintptr_t initramfs_size = 0;    
-    boot_lock = 0;
-
-    /* Get CTR_EL0 */
-    __asm__ volatile("mrs %0, CTR_EL0":"=r"(dcache_mask_bits));
-    dcache_mask_bits = 2 + ((dcache_mask_bits >> 16) & 15);
-
-    /* Enable caches and cache maintenance instructions from EL0 */
-    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
-    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
-    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
-    tmp &= ~0x18;                   // Disable stack alignment check
-    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
-
-    /* Set default VID memory size */
-    vid_memory = 16;
-
-    /* Initialize tlsf */
-    tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
-
-    /* Main tlsf is multithreaded */
-    tlsf_set_flags(tlsf, TLSF_MULTITHREADING);
-
-    /* Initialize memory management for libdeflate */
-    libdeflate_set_memory_allocator(my_malloc, my_free);
-
-    /* Parse device tree */
-    dt_parse((void*)dtree);
-
-    e = dt_find_node("/chosen");
-    if (e)
-    {
-        of_property_t *prop = dt_find_property(e, "bootargs");
-        if (prop)
-        {
-            parse_cmdline(prop->op_value);
-        }
-    }
-
+    struct of_node *e = dt_find_node("/emu68");
+    
     /* If /emu68 node is not existing yet, create it now, otherwise it was there loaded from overlay */
-    if ((e = dt_find_node("/emu68")) == NULL)
+    if (e == NULL)
     {
         e = dt_make_node("emu68");
         dt_add_node(NULL, e);
     }
-    else
-    {
-        /* If /emu68 has args property, parse it as if was a cmdline */
-        of_property_t *prop = dt_find_property(e, "args");
-        if (prop)
-        {
-            parse_cmdline(prop->op_value);
-        }
-    }
+
     dt_add_property(e, "idstring", &_verstring_object, strlen(_verstring_object) + 1);
     dt_add_property(e, "version", _vernumber_object, sizeof(_vernumber_object));
     dt_add_property(e, "git-hash", GIT_SHA, strlen(GIT_SHA) + 1);
-    dt_add_property(e, "support", supporters, supporters_size);
+    dt_add_property(e, "contributors", contributors, contributors_size);
+    dt_add_property(e, "supporters", supporters, supporters_size);
 
-    if (ppc_enable) {
-        if (!dt_find_property(e, "ppc-enable"))
-        {
-            dt_add_property(e, "ppc-enable", NULL, 0);
-        }
+    if (!dt_find_property(e, "logo-color"))
+    {
+        uint32_t color = 0;
+        dt_add_property(e, "logo-color", &color, 4);
     }
 
-    if ((p = dt_find_property(e, "m68k-jit-size")) == NULL)
+    if (!dt_find_property(e, "m68k-jit-size"))
     {
         uint32_t size = KERNEL_JIT_PAGES * 2;
         dt_add_property(e, "m68k-jit-size", &size, 4);
     }
 
-    if ((p = dt_find_property(e, "ppc-jit-size")) == NULL)
+    if (!dt_find_property(e, "ppc-jit-size"))
     {
         uint32_t size = KERNEL_JIT_PAGES * 2;
         dt_add_property(e, "ppc-jit-size", &size, 4);
     }
 
-    int is_bcm2711 = !!dt_find_node("/scb");
+    /* Create vc4-mem property if it doesn't exist */
+    if (!dt_find_property(e, "vc4-mem"))
+    {
+        uint32_t reg[2] = { 0x00000000, 0x01000000 };
+        dt_add_property(e, "vc4-mem", reg, sizeof(reg));
+    }
+    else
+    {
+        /* vc4-mem property exists, user passed the requested size in megabytes */
+        uint32_t *reg = (uint32_t*)dt_find_property(e, "vc4-mem")->op_value;
+        reg[1] = reg[1] << 20;
+        
+        /* Ensure minimum size of 8MB, round up to 8MB boundary */
+        if (reg[1] < 0x00800000) {
+            reg[1] = 0x00800000; /* Minimum 8MB */
+        } else {
+            reg[1] = (reg[1] + 0x001FFFFF) & ~0x001FFFFF; /* Round up to nearest 2MB */
+        }
+    }
+
+    /*
+        Check if /emu68/cma node exists. If this is the case, MMU setup will assign 
+        uncached memory for it. For now make sure the second 32 bit word of "reg"
+        property is a size in bytes, aligned to 2M boundary.
+    */
+    of_node_t *cma = dt_find_node("/emu68/cma");
+    if (cma != NULL) {
+        of_property_t *op_reg = dt_find_property(cma, "reg");
+        if (op_reg != NULL) {
+            uint32_t *reg = op_reg->op_value;
+            if (reg[1] < 1024) {
+                reg[1] = reg[1] << 20;
+            }
+
+            reg[1] = (reg[1] + 0x001fffff) & ~0x001fffff;
+        }
+    }
+
+    /* 
+        Capability marker for m68k guests: this build decodes the private LINE-F
+        data-cache range opcodes (EMIT_lineF, 0xF460/0xF440 + ext word).
+        Value = capability revision.
+    */
+    uint32_t dcache_range_ops = 1;
+    dt_add_property(e, "dcache-range-ops", &dcache_range_ops, sizeof(dcache_range_ops));
+
+    globals.ppc_enable = !!dt_find_property(e, "enable-ppc");
+    globals.zorro_disable = !!dt_find_property(e, "disable-zorro");
+    globals.fpu_disable = !!dt_find_property(e, "disable-fpu");
+    globals.fast_page_zero = !!dt_find_property(e, "fast-page-zero");
+
+    bool is_bcm2711 = !!dt_find_node("/scb");
 
     /* If /emu68/brcm-emmc does not exist yet (was not loaded from overlay) create it now with sane defaults */
     if ((e = dt_find_node("/emu68/brcm-emmc")) == NULL)
@@ -943,6 +734,8 @@ void boot(void *dtree)
     /* Verify the unicam buffer has necessary size */
     if ((e = dt_find_node("/emu68/unicam")) != NULL)
     {
+        /* If /emu68/unicam node exists, it also created unicam-mem property in /emu68 */
+        uint32_t *reg = dt_find_property(dt_find_node("/emu68"), "unicam-mem")->op_value;
         of_property_t *sz = dt_find_property(e, "size");
         of_property_t *bp = dt_find_property(e, "bpp");
         uint32_t bpp = *(uint32_t *)bp->op_value;
@@ -954,181 +747,126 @@ void boot(void *dtree)
         uint32_t necessary_size = ((bpp * w * h * 2) + 7) / 8;
 
         /* Roundup size to multiple of 2MB */
-        necessary_size = (necessary_size + 2 * 1024 * 1024) & ~(2 * 1024 * 1024 - 1);
+        necessary_size = (necessary_size + 2 * 1024 * 1024 - 1) & ~(2 * 1024 * 1024 - 1);
 
-        if (unicam_size < necessary_size)
-            unicam_size = necessary_size;
+        /* The reg[0] is the base address, reg[1] is the size */
+        if (reg[1] < necessary_size)
+            reg[1] = necessary_size;
     }
+}
 
-    /* Check /emu68/defaults node. If not yet set (through overlay), create it now */
-    if ((e = dt_find_node("/emu68/defaults")) == NULL)
+void make_emu68_defaults_node()
+{
+    struct of_node *e = dt_find_node("/emu68/defaults");
+
+    /* 
+        If /emu68/defaults does not exist, create it and populate with default
+        values from globals structure, otherwise it was loaded from overlay - in that
+        case do a sanity check of the values and fix them if they are out of range.
+    */
+    if (e == NULL)
     {
+        uint32_t emu68_icnt = EMU68_M68K_INSN_DEPTH;
+        uint32_t emu68_ccrd = EMU68_CCR_SCAN_DEPTH;
+        uint32_t emu68_irng = EMU68_BRANCH_INLINE_DISTANCE;
+        uint32_t cs_dist = 1;
+
         e = dt_make_node("defaults");
+        
+        dt_add_property(e, "insn-count", &emu68_icnt, 4);
+        dt_add_property(e, "ccr-scan-depth", &emu68_ccrd, 4);
+        dt_add_property(e, "branch-inline-distance", &emu68_irng, 4);
+        dt_add_property(e, "chip-slowdown-distance", &cs_dist, 4);
+
         dt_add_node(dt_find_node("/emu68"), e);
     }
-
-    /* Fill in either compile time defaults or overriden parameters */
-    if ((p = dt_find_property(e, "insn-count")) == NULL)
-    {
-        dt_add_property(e, "insn-count", &emu68_icnt, 4);
-    }
     else
     {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_icnt, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = emu68_icnt;
-    }
-
-    if ((p = dt_find_property(e, "ccr-scan-depth")) == NULL)
-    {
-        dt_add_property(e, "ccr-scan-depth", &emu68_ccrd, 4);
-    }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = emu68_ccrd;
-    }
-    if ((p = dt_find_property(e, "branch-inline-distance")) == NULL)
-    {
-        dt_add_property(e, "branch-inline-distance", &emu68_irng, 4);
-    }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = emu68_irng;
-    }
-
-    if ((p = dt_find_property(e, "chip-slowdown-distance")) == NULL)
-    {
-        dt_add_property(e, "chip-slowdown-distance", &cs_dist, 4);
-    }
-    else
-    {
-        /* If value stored is 0xffffffff (uninitialized), put there emu68_ccrd, whether it is changed or not */
-        if (*(uint32_t *)p->op_value == 0xffffffff)
-            *(uint32_t *)p->op_value = cs_dist;
-    }
-#ifdef PISTORM_ANY_MODEL
-    if (blitwait && dt_find_property(e, "blitter-wait") == NULL)
-    {
-        dt_add_property(e, "blitter-wait", NULL, 0);
-    }
-
-    if (dbf_slowdown && dt_find_property(e, "dbf-slowdown") == NULL)
-    {
-        dt_add_property(e, "dbf-slowdown", NULL, 0);
-    }
-
-    if (fast_page0 && dt_find_property(e, "fast-page-zero") == NULL)
-    {
-        dt_add_property(e, "fast-page-zero", NULL, 0);
-    }
-
-    if (chip_slowdown && dt_find_property(e, "chip-slowdown") == NULL)
-    {
-        dt_add_property(e, "chip-slowdown", NULL, 0);
-    }
-
-    of_node_t *diag = dt_find_node("/emu68/diag");
-    if (diag == NULL)
-    {
-        diag = dt_make_node("diag");
-        dt_add_node(dt_find_node("/emu68"), diag);
-    }
-
-    if (buptest)
-    {
-        of_node_t *bup = dt_find_node("/emu68/diag/buptest");
-        if (bup == NULL)
+        of_property_t *prop = NULL;
+        
+        // insn-count: 1..256
+        if ((prop = dt_find_property(e, "insn-count")) != NULL)
         {
-            bup = dt_make_node("buptest");
-            dt_add_node(diag, bup);
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val < 1) val = 1;
+            if (val > 256) val = 256;
+            *(uint32_t *)prop->op_value = val;
         }
 
-        if ((p = dt_find_property(bup, "status")) == NULL)
+        // ccr-scan-depth: 0..31
+        if ((prop = dt_find_property(e, "ccr-scan-depth")) != NULL)
         {
-            dt_add_property(bup, "status", "okay", 5);
-        }
-        else
-        {
-            tlsf_free(tlsf, p->op_value);
-            p->op_value = tlsf_malloc(tlsf, 5);
-            p->op_length = 5;
-            memcpy(p->op_value, "okay", 5);
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val > 31) val = 31;
+            *(uint32_t *)prop->op_value = val;
         }
 
-        if ((p = dt_find_property(bup, "size")) == NULL)
+        // branch-inline-distance: 0..65535
+        if ((prop = dt_find_property(e, "branch-inline-distance")) != NULL)
         {
-            uint32_t sz = buptest * 1024;
-            dt_add_property(bup, "size", &sz, 4);
-        }
-        else
-        {
-            *(uint32_t *)p->op_value = buptest * 1024;
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val > 65535) val = 65535;
+            *(uint32_t *)prop->op_value = val;
         }
 
-        if ((p = dt_find_property(bup, "iterations")) == NULL)
+        // chip-slowdown-distance: 0..7
+        if ((prop = dt_find_property(e, "chip-slowdown-distance")) != NULL)
         {
-            dt_add_property(bup, "iterations", &bupiter, 4);
-        }
-        else
-        {
-            *(uint32_t *)p->op_value = bupiter;
+            uint32_t val = *(uint32_t *)prop->op_value;
+            if (val > 7) val = 7;
+            *(uint32_t *)prop->op_value = val;
         }
     }
+}
 
-    if (membench)
-    {
-        of_node_t *mem = dt_find_node("/emu68/diag/membench");
-        if (mem == NULL)
-        {
-            mem = dt_make_node("membench");
-            dt_add_node(diag, mem);
-        }
+void boot(void *dtree)
+{
+    uintptr_t kernel_top_virt = ((uintptr_t)boot + (KERNEL_SYS_PAGES << 21)) & ~((1 << 21)-1);
+    uintptr_t pool_size = kernel_top_virt - (uintptr_t)&__bootstrap_end;
+    uint64_t tmp;
+    uintptr_t top_of_ram = 0;
+    of_property_t *p = NULL;
+    of_node_t *e = NULL;
+    void *initramfs_loc = NULL;
+    uintptr_t initramfs_size = 0;    
+    boot_lock = 0;
 
-        if ((p = dt_find_property(mem, "status")) == NULL)
-        {
-            dt_add_property(mem, "status", "okay", 5);
-        }
-        else
-        {
-            tlsf_free(tlsf, p->op_value);
-            p->op_value = tlsf_malloc(tlsf, 5);
-            p->op_length = 5;
-            memcpy(p->op_value, "okay", 5);
-        }
+    /* Get CTR_EL0 */
+    __asm__ volatile("mrs %0, CTR_EL0":"=r"(globals.dcache_mask_bits));
+    globals.dcache_mask_bits = 2 + ((globals.dcache_mask_bits >> 16) & 15);
 
-        if ((p = dt_find_property(mem, "size")) == NULL)
-        {
-            uint32_t sz = membench * 1024;
-            dt_add_property(mem, "size", &sz, 4);
-        }
-        else
-        {
-            *(uint32_t *)p->op_value = membench * 1024;
-        }
+    /* Enable caches and cache maintenance instructions from EL0 */
+    __asm__ volatile("mrs %0, SCTLR_EL1":"=r"(tmp));
+    tmp |= (1 << 2) | (1 << 12);    // Enable D and I caches
+    tmp |= (1 << 26);               // Enable Cache clear instructions from EL0
+    tmp &= ~0x18;                   // Disable stack alignment check
+    __asm__ volatile("msr SCTLR_EL1, %0"::"r"(tmp));
 
-        if ((p = dt_find_property(mem, "base")) == NULL)
-        {
-            uint32_t sz = 0;
-            dt_add_property(mem, "base", &sz, 4);
-        }
-        else
-        {
-            *(uint32_t *)p->op_value = 0;
-        }
-    }
-#endif
+    globals.debug_port_addr = 0xdeadbeef;
+
+    /* Initialize tlsf */
+    tlsf = tlsf_init_with_memory(&__bootstrap_end, pool_size);
+
+    /* Main tlsf is multithreaded */
+    tlsf_set_flags(tlsf, TLSF_MULTITHREADING);
+
+    /* Initialize memory management for libdeflate */
+    libdeflate_set_memory_allocator(my_malloc, my_free);
+
+    /* Parse device tree */
+    dt_parse((void*)dtree);
+
+    /* Build and fix /emu68 node in device tree */
+    make_emu68_node();
+
+    /* Build and fix /emu68/defaults node in device tree */
+    make_emu68_defaults_node();
 
     /*
         At this place we have local memory manager but no MMU set up yet. 
         Nevertheless, attempt to copy initrd image to safe location since it is not guarded in RAM
     */
-    e = dt_find_node("/chosen");
-
-    if (e)
+    if ((e = dt_find_node("/chosen")))
     {
         void *image_start, *image_end;
         of_property_t *p = dt_find_property(e, "linux,initrd-start");
@@ -1168,7 +906,6 @@ void boot(void *dtree)
             break;
     }
 #elif defined(PISTORM_CLASSIC)
-    const uint8_t pistorm_model = 0;
     dt_add_property(dt_find_node("/emu68"), "variant", "pistorm", sizeof("pistorm"));
 #endif
 
@@ -1204,10 +941,11 @@ void boot(void *dtree)
             libdeflate_free_decompressor(decomp);
         }
     }
+#if defined(PISTORM)
     else
     {
-        #include "../pistorm/efinix_firmware_ps32.h"
-        #include "../pistorm/efinix_firmware_ps16.h"
+        #include "firmware_ps16.bin.gz.h"
+        #include "firmware_ps32.bin.gz.h"
 
         struct libdeflate_decompressor *decomp = libdeflate_alloc_decompressor();
         
@@ -1245,7 +983,6 @@ void boot(void *dtree)
             libdeflate_free_decompressor(decomp);
         }
     }
-#if defined(PISTORM)
     ps_efinix_setup(pistorm_model);
     ps_efinix_load(firmware_file, firmware_size);
 #endif
@@ -1273,7 +1010,10 @@ void boot(void *dtree)
 
     kprintf("[BOOT] Kernel args (%p)\n", dtree);
 
+#ifdef EMU68_ENABLE_DISASM
     disasm_init();
+    disasm_open();
+#endif
 
     e = dt_find_node("/memory");
 
@@ -1300,22 +1040,6 @@ void boot(void *dtree)
             range += block_size / 4;
         }
 
-        if (vid_base)
-        {
-            kprintf("[BOOT] VC4 framebuffer memory: %p-%p (%d MiB)\n", 
-                vid_base,
-                vid_base + (vid_memory << 20) - 1, 
-                vid_memory);
-        }
-
-        if (unicam_base)
-        {
-            kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
-                unicam_base,
-                unicam_base + unicam_size - 1, 
-                unicam_size >> 20);
-        }
-
         intptr_t kernel_new_loc = top_of_ram - (KERNEL_RSRVD_PAGES << 21);
         intptr_t kernel_old_loc = mmu_virt2phys((intptr_t)_boot) & 0x7fffe00000;
 
@@ -1339,6 +1063,7 @@ void boot(void *dtree)
                     sys_memory[block].mb_Base,
                     sys_memory[block].mb_Base + sys_memory[block].mb_Size - 1, 
                     sys_memory[block].mb_Size >> 20);
+            
             
             if (sys_memory[block].mb_Base < 0xf2000000)
             {
@@ -1369,78 +1094,99 @@ void boot(void *dtree)
             }
         }
 
-        /* Make a hole for 0xdeadbeef */
-        mmu_map(0xdeadbeef & ~4095, 0xdeadbeef & ~4095, 4096, 0, 0);
-
-        if (vid_base) {
-            uint32_t reg[] = {
-                vid_base, vid_memory * 1024*1024
-            };
-            dt_add_property(dt_find_node("/emu68"), "vc4-mem", reg, 8);
-
-            mmu_map(vid_base, vid_base, vid_memory * 1024*1024, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        /* If top of ram exceeds debug port address, move debug port beyond it */
+        if (top_of_ram > globals.debug_port_addr)
+        {
+            // Do nothing yet!!! need to check if all contributors are ok with this change
+            // globals.debug_port_addr = 0xff01babe;
         }
 
-        if (unicam_base) {
-            uint32_t reg[] = { 
-                (uint32_t)unicam_base, (uint32_t)unicam_size
-            };
-            dt_add_property(dt_find_node("/emu68"), "unicam-mem", reg, 8);
+        /* Make a hole for the debug port */
+        mmu_map(globals.debug_port_addr & ~4095, globals.debug_port_addr & ~4095, 4096, 0, 0);
 
-            mmu_map(unicam_base, unicam_base, unicam_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        if ((e = dt_find_node("/emu68/diag")) == NULL) {
+            e = dt_make_node("diag");
+            dt_add_node(dt_find_node("/emu68"), e);
+        }
+
+        dt_add_property(e, "debug-port", &globals.debug_port_addr, 4);
+
+        if ((p = dt_find_property(dt_find_node("/emu68"), "vc4-mem"))) {
+            uint32_t *reg = p->op_value;
+            kprintf("[BOOT] VC4 framebuffer memory: %p-%p (%d MiB)\n", 
+                reg[0],
+                reg[0] + reg[1] - 1, 
+                reg[1] >> 20);
+            mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_WRITETHROUGH, 0);
+        }
+
+        if ((p = dt_find_property(dt_find_node("/emu68"), "unicam-mem"))) {
+            uint32_t *reg = p->op_value;
+            kprintf("[BOOT] Unicam framebuffer memory: %p-%p (%d MiB)\n", 
+                reg[0],
+                reg[0] + reg[1] - 1, 
+                reg[1] >> 20);
+            mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_UNCACHED, 0);
+        }
+
+        if ((p = dt_find_property(dt_find_node("/emu68/cma@0"), "reg"))) {
+            uint32_t *reg = p->op_value;
+            kprintf("[BOOT] CMA memory: %p-%p (%d MiB)\n", 
+                reg[0],
+                reg[0] + reg[1] - 1, 
+                reg[1] >> 20);
+            mmu_map(reg[0], reg[0], reg[1], MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_UNCACHED, 0);
         }
 
         uint32_t m68k_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "m68k-jit-size", 0, FALSE) << 20;
         uint32_t ppc_jit_size = dt_get_property_value_u32(dt_find_node("/emu68"), "ppc-jit-size", 0, FALSE) << 20;
 
-        m68k_jit_virt_base = (void*)0xffffffe000000000ULL;
-        mmu_map((uintptr_t)m68k_jit_phys_base, (uintptr_t)m68k_jit_virt_base, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
-        mmu_map((uintptr_t)m68k_jit_phys_base, (uintptr_t)m68k_jit_virt_base | 0x0000001000000000ULL, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+        globals.m68k_jit_virt_base = (void*)0xffffffe000000000ULL;
+        mmu_map((uintptr_t)globals.m68k_jit_phys_base, (uintptr_t)globals.m68k_jit_virt_base, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+        mmu_map((uintptr_t)globals.m68k_jit_phys_base, (uintptr_t)globals.m68k_jit_virt_base | 0x0000001000000000ULL, m68k_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
 
-        jit_tlsf = tlsf_init_with_memory((void*)m68k_jit_virt_base, m68k_jit_size);
+        jit_tlsf = tlsf_init_with_memory((void*)globals.m68k_jit_virt_base, m68k_jit_size);
 
         /* If PPC was enabled, create proper MMU map here */
-        if (dt_find_property(dt_find_node("/emu68"), "ppc-enable"))
+        if (dt_find_property(dt_find_node("/emu68"), "enable-ppc"))
         {
-            ppc_jit_virt_base = (void*)0xffffffe200000000ULL;
-            mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
-            mmu_map((uintptr_t)ppc_jit_phys_base, (uintptr_t)ppc_jit_virt_base | 0x0000001000000000ULL, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
+            globals.ppc_jit_virt_base = (void*)0xffffffe200000000ULL;
+            mmu_map((uintptr_t)globals.ppc_jit_phys_base, (uintptr_t)globals.ppc_jit_virt_base, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ATTR_CACHED, 0);
+            mmu_map((uintptr_t)globals.ppc_jit_phys_base, (uintptr_t)globals.ppc_jit_virt_base | 0x0000001000000000ULL, ppc_jit_size, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_READ_ONLY | MMU_ATTR_CACHED, 0);
         }
 
         /* If user requests scsi.device to be disabled, do it now */
         if (dt_find_property(dt_find_node("/emu68"), "disable-scsi"))
         {
-            disable_scsi = 1;
+            globals.scsi_disable = true;
         }
 
         /* Check if PAL/NTSC overrides are set */
         of_node_t *emu = dt_find_node("/emu68");
         if (dt_find_property(emu, "beamcon0-pal-clear")) {
-            beamcon0_pal_clear = 1;
+            globals.beamcon0_pal_clear = true;
         }
         else if (dt_find_property(emu, "beamcon0-pal-set")) {
-            beamcon0_pal_set = 1;
+            globals.beamcon0_pal_set = true;
         }
 
         kprintf("[BOOT] Local memory pools:\n");
         kprintf("[BOOT]    SYS:        %p - %p (size: %5d KiB)\n", &__bootstrap_end, kernel_top_virt - 1, pool_size / 1024);
-        kprintf("[BOOT]    JIT (m68k): %p - %p (size: %5d KiB)\n", m68k_jit_virt_base,
-                    m68k_jit_virt_base + m68k_jit_size - 1, m68k_jit_size / 1024);
-        if (ppc_jit_virt_base) {
-            kprintf("[BOOT]    JIT (ppc):  %p - %p (size: %5d KiB)\n", ppc_jit_virt_base,
-                    ppc_jit_virt_base + ppc_jit_size - 1, ppc_jit_size / 1024);
+        kprintf("[BOOT]    JIT (m68k): %p - %p (size: %5d KiB)\n", globals.m68k_jit_virt_base,
+                    globals.m68k_jit_virt_base + m68k_jit_size - 1, m68k_jit_size / 1024);
+        if (globals.ppc_jit_virt_base) {
+            kprintf("[BOOT]    JIT (ppc):  %p - %p (size: %5d KiB)\n", globals.ppc_jit_virt_base,
+                    globals.ppc_jit_virt_base + ppc_jit_size - 1, ppc_jit_size / 1024);
         }
 
         kprintf("[BOOT] Moving kernel from %p to %p\n", (void*)kernel_old_loc, (void*)kernel_new_loc);
         kprintf("[BOOT] Top of RAM (32bit): %08x\n", top_of_ram);
 
         /*
-            Copy the kernel memory block from origin to new destination, use the top of
-            the kernel space which is a 1:1 map of first 4GB region, uncached
-        */
-        arm_flush_cache((uintptr_t)_boot & 0xffffff8000000000, KERNEL_SYS_PAGES << 21);
+            Copy the kernel memory block from origin to new destination through the
+            cached 1:1 map of physical memory at the top of the kernel space. Both
+            mappings are cacheable, so no D-cache flush is needed beforehand.
 
-        /*
             We use routine in assembler here, because we will move both kernel code *and* stack.
             Playing with C code without knowledge what will happen to the stack after move is ready
             can result in funny Heisenbugs...
@@ -1454,29 +1200,6 @@ void boot(void *dtree)
         __asm__ volatile("mrs %0, TTBR0_EL1; mrs %1, TTBR1_EL1":"=r"(TTBR0), "=r"(TTBR1));
 
         kprintf("[BOOT] MMU tables at %p and %p\n", TTBR0, TTBR1);
-
-        const uint32_t tlb_flusher[] = {
-            LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd5033b9f),       // dsb   ish
-            LE32(0xd508831f),       // tlbi  vmalle1is
-            LE32(0xd5033f9f),       // dsb   sy
-            LE32(0xd5033fdf),       // isb
-            LE32(0xd508831f),       // tlbi  vmalle1is
-            LE32(0xd5033f9f),       // dsb   sy
-            LE32(0xd5033fdf),       // isb
-            LE32(0xd65f03c0)        // ret
-        };
-
-        void *addr = tlsf_malloc_aligned(jit_tlsf, 4*10, 4096);
-        void (*flusher)() = (void (*)())((uintptr_t)addr | 0x1000000000);
-        DuffCopy(addr, tlb_flusher, 10);
-        arm_flush_cache((uintptr_t)addr, 4*10);
-        arm_icache_invalidate((uintptr_t)flusher, 4*10);
-        flusher();
-        tlsf_free(jit_tlsf, addr);
-
-        kprintf("[BOOT] TLB invalidated\n");
     }
 
     extern void (*__init_start)();
@@ -1538,39 +1261,6 @@ void boot(void *dtree)
     kprintf("[BOOT] PMCR=%08x\n", tmp);
     tmp = 0x80000000; // Enable cycle counter
     __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
-
-    if (debug_cnt)
-    {
-        uint64_t tmp;
-        kprintf("[BOOT] Performance counting requested\n");
-        
-        __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
-        kprintf("[BOOT] Number of counters implemented: %d\n", (tmp >> 11) & 31);
-
-        kprintf("[BOOT] Enabling performance counters\n");
-        tmp |= 3;
-        __asm__ volatile("msr PMCR_EL0, %0; isb"::"r"(tmp));
-
-        __asm__ volatile("mrs %0, PMCR_EL0":"=r"(tmp));
-        kprintf("[BOOT] PMCR=%08x\n", tmp);
-
-        __asm__ volatile("mrs %0, PMCEID0_EL0":"=r"(tmp));
-        kprintf("[BOOT] PMCEID0=%08x\n", tmp);
-
-        tmp = 0x00000000;
-        __asm__ volatile("msr PMEVTYPER0_EL0, %0; isb"::"r"(tmp));
-        __asm__ volatile("msr PMEVTYPER2_EL0, %0; isb"::"r"(tmp));
-        __asm__ volatile("msr PMEVTYPER1_EL0, %0; isb"::"r"(tmp));
-        __asm__ volatile("msr PMEVTYPER3_EL0, %0; isb"::"r"(tmp));
-        __asm__ volatile("msr PMINTENSET_EL1, %0; isb"::"r"(5));
-
-        __asm__ volatile("mrs %0, PMCNTENSET_EL0; isb":"=r"(tmp));
-        tmp |= 15;
-        __asm__ volatile("msr PMCNTENSET_EL0, %0; isb"::"r"(tmp));
-
-        __asm__ volatile("mrs %0, PMCNTENSET_EL0":"=r"(tmp));
-        kprintf("[BOOT] PMCNTENSET=%08x\n", tmp);
-    }
 
     platform_post_init();
 
@@ -1879,13 +1569,12 @@ void boot(void *dtree)
         of_property_t * prop = dt_find_property(n, "status");
         if (prop && strcmp(prop->op_value, "okay") == 0)
         {
-            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
+            uint32_t size = dt_get_property_value_u32(n, "size", 256, 0) * 1024;
             uint32_t iter = dt_get_property_value_u32(n, "iterations", 1, 0);
             kprintf("[BOOT] Calling buptest with size %d and iterations %d\n", size, iter);
             ps_buptest(size, iter);
         }
     }
-    
 
     n = dt_find_node("/emu68/diag/membench");
     if (n != NULL)
@@ -1894,10 +1583,9 @@ void boot(void *dtree)
         if (prop && strcmp(prop->op_value, "okay") == 0)
         {
             uint32_t size = dt_get_property_value_u32(n, "size", 256, 0);
-            kprintf("[BOOT] Calling membench with size %d\n", size);
-            ps_memtest(size / 1024);
+            kprintf("[BOOT] Calling membench with size %d\n", size * 1024);
+            ps_memtest(size);
         }
-
     }
 
     /* If fast_page_zero is enabled, map first 4K to ROM directly (Overlay active) */
@@ -1913,97 +1601,8 @@ void boot(void *dtree)
 }
 
 
-void M68K_LoadContext(struct M68KState *ctx)
-{
-    __asm__ volatile("mov "CTX_POINTER_ASM", %0\n"::"r"(ctx));
-
-    __asm__ volatile("mov "REG_USP_ASM", %w0"::"r"(ctx->USP));
-    __asm__ volatile("mov "REG_MSP_ASM", %w0"::"r"(ctx->MSP));
-    __asm__ volatile("mov "REG_ISP_ASM", %w0"::"r"(ctx->ISP));
-    __asm__ volatile("mov "CTX_INSN_COUNT_ASM", %0"::"r"(ctx->INSN_COUNT));
-    __asm__ volatile("mov "REG_CACR_ASM", %w0"::"r"(ctx->CACR));
-    __asm__ volatile("mov "REG_FPSR_ASM", %w0"::"r"(ctx->FPSR));
-    __asm__ volatile("mov "REG_FPIAR_ASM", %w0"::"r"(ctx->FPIAR));
-    __asm__ volatile("mov "REG_FPCR_ASM", %w0"::"r"(ctx->FPCR));
-
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
-
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
-    __asm__ volatile("ldp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
-
-    __asm__ volatile("ldr w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
-
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
-    __asm__ volatile("ldr d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
-
-    __asm__ volatile("ldrh w1, %0; rbit w2, w1; bfxil w1, w2, 30, 2; mov "REG_SR_ASM", w1"::"m"(ctx->SR):"x1","x2");
-    if (ctx->SR & SR_S)
-    {
-        if (ctx->SR & SR_M)
-            __asm__ volatile("mov w%0, "REG_MSP_ASM::"i"(REG_A7));
-        else
-            __asm__ volatile("mov w%0, "REG_ISP_ASM::"i"(REG_A7));
-    }
-    else
-        __asm__ volatile("mov w%0, "REG_USP_ASM::"i"(REG_A7));
-}
-
-void M68K_SaveContext(struct M68KState *ctx)
-{
-    __asm__ volatile("mov w1, "REG_CACR_ASM"; str w1, %0"::"m"(ctx->CACR):"x1");
-    __asm__ volatile("mov x1, "CTX_INSN_COUNT_ASM"; str x1, %0"::"m"(ctx->INSN_COUNT):"x1");
-    
-    __asm__ volatile("mov w1, "REG_FPSR_ASM"; str w1, %0"::"m"(ctx->FPSR):"x1");
-    __asm__ volatile("mov w1, "REG_FPIAR_ASM"; str w1, %0"::"m"(ctx->FPIAR):"x1");
-    __asm__ volatile("umov w1, "REG_FPCR_ASM"; strh w1, %0"::"m"(ctx->FPCR):"x1");
-    
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D0),"i"(REG_D1),"m"(ctx->D[0].u32));
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D2),"i"(REG_D3),"m"(ctx->D[2].u32));
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D4),"i"(REG_D5),"m"(ctx->D[4].u32));
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_D6),"i"(REG_D7),"m"(ctx->D[6].u32));
-
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A0),"i"(REG_A1),"m"(ctx->A[0].u32));
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A2),"i"(REG_A3),"m"(ctx->A[2].u32));
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A4),"i"(REG_A5),"m"(ctx->A[4].u32));
-    __asm__ volatile("stp w%0, w%1, %2"::"i"(REG_A6),"i"(REG_A7),"m"(ctx->A[6].u32));
-
-    __asm__ volatile("str w%0, %1"::"i"(REG_PC),"m"(ctx->PC));
-
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP0),"m"(ctx->FP[0]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP1),"m"(ctx->FP[1]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP2),"m"(ctx->FP[2]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP3),"m"(ctx->FP[3]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP4),"m"(ctx->FP[4]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP5),"m"(ctx->FP[5]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP6),"m"(ctx->FP[6]));
-    __asm__ volatile("str d%0, %1"::"i"(REG_FP7),"m"(ctx->FP[7]));
-
-    __asm__ volatile("umov w1, "REG_SR_ASM"; rbit w2, w1; bfxil w1, w2, 30, 2; strh w1, %0"::"m"(ctx->SR):"x1","x2");
-    if (ctx->SR & SR_S)
-    {
-        if (ctx->SR & SR_M)
-            __asm__ volatile("mov "REG_MSP_ASM", w%0"::"i"(REG_A7));
-        else
-            __asm__ volatile("mov "REG_ISP_ASM", w%0"::"i"(REG_A7));
-    }
-    else
-        __asm__ volatile("mov "REG_USP_ASM", w%0"::"i"(REG_A7));
-    
-    __asm__ volatile("mov w1, "REG_USP_ASM"; str w1, %0"::"m"(ctx->USP):"x1");
-    __asm__ volatile("mov w1, "REG_MSP_ASM"; str w1, %0"::"m"(ctx->MSP):"x1");
-    __asm__ volatile("mov w1, "REG_ISP_ASM"; str w1, %0"::"m"(ctx->ISP):"x1");
-}
+void M68K_LoadContext(struct M68KState *ctx);
+void M68K_SaveContext(struct M68KState *ctx);
 
 void M68K_PrintContext(struct M68KState *m68k)
 {
@@ -2082,51 +1681,17 @@ void M68K_PrintContext(struct M68KState *m68k)
     kprintf("\n[JIT] ");
 
     kprintf("    FPSR=0x%08x    FPIAR=0x%08x   FPCR=0x%04x\n", BE32(m68k->FPSR), BE32(m68k->FPIAR), BE32(m68k->FPCR));
+
+    kprintf("[JIT]     INSN_COUNT = 0x%016lx\n", m68k->INSN_COUNT);
+    kprintf("[JIT]     JITCTRL = %08x   JITCTRL2 = %08x\n", m68k->JIT_CONTROL, m68k->JIT_CONTROL2);
 }
-/*
-uint16_t *framebuffer __attribute__((weak)) = NULL;
-uint32_t pitch  __attribute__((weak))= 0;
-uint32_t fb_width  __attribute__((weak))= 0;
-uint32_t fb_height  __attribute__((weak))= 0;
-*/
+
 extern uint16_t *framebuffer;
 extern uint32_t pitch;
 extern uint32_t fb_width;
 extern uint32_t fb_height;
 
 void ExecutionLoop(struct M68KState *ctx);
-
-void  __attribute__((used)) stub_FindUnit()
-{
-    __asm__ volatile(
-"       .align  8                           \n"
-"FindUnit:                                  \n"
-"       adrp    x4, ICache                  \n"
-"       add     x4, x4, :lo12:ICache        \n"
-"       and     x0, x%[reg_pc], 0x1fffe0    \n" // Hash is (address >> 5) & 0xffff !!!!
-"       ldr     x0, [x4, x0]                \n"
-"       b       1f                          \n"
-"3:                                         \n" // 2 -> 5
-"       cmp     w5, w%[reg_pc]              \n"
-"       b.eq    2f                          \n"
-"       mov     x0, x4                      \n"
-"1:     ldr     x4, [x0]                    \n"
-"       ldr     x5, [x0, #32]               \n"
-"       cbnz    x4, 3b                      \n"
-"       mov     x0, #0                      \n"
-"4:     ret                                 \n"
-"2:     ldp     x6, x4, [x0, #16]           \n"
-"       ldr     x5, [x4, #8]                \n"
-"       cbz     x5, 4b                      \n"
-"       stp     x4, x5, [x0, #16]           \n"
-"       add     x7, x0, #0x10               \n" // 4 -> 7
-"       str     x7, [x5]                    \n"
-"       stp     x6, x7, [x4]                \n"
-"       str     x4, [x6, #8]                \n"
-"       ret                                 \n"
-
-::[reg_pc]"i"(REG_PC));
-}
 
 #ifdef PISTORM_ANY_MODEL
 extern volatile unsigned char bus_lock;
@@ -2176,15 +1741,7 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     __m68k.JIT_UNIT_COUNT = 0;
     __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
-    __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
-    __m68k.JIT_CONTROL |= (emu68_icnt & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
-    __m68k.JIT_CONTROL |= (emu68_irng & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
-    __m68k.JIT_CONTROL2 = chip_slowdown ? JC2F_CHIP_SLOWDOWN : 0;
-    __m68k.JIT_CONTROL2 |= dbf_slowdown ? JC2F_DBF_SLOWDOWN : 0;
-    __m68k.JIT_CONTROL2 |= (emu68_ccrd  << JC2B_CCR_SCAN_DEPTH); 
-    __m68k.JIT_CONTROL2 |= ((cs_dist - 1) << JC2B_CHIP_SLOWDOWN_RATIO);
-    __m68k.JIT_CONTROL2 |= blitwait ? JC2F_BLITWAIT : 0;
 #else
     __m68k.D[0].u32 = BE32((uint32_t)pitch);
     __m68k.D[1].u32 = BE32((uint32_t)fb_width);
@@ -2201,44 +1758,90 @@ void M68K_StartEmu(void *addr, void *fdt)
     __m68k.JIT_CACHE_FREE = tlsf_get_free_size(jit_tlsf);
     __m68k.JIT_UNIT_COUNT = 0;
     __m68k.JIT_SOFTFLUSH_THRESH = EMU68_WEAK_CFLUSH_LIMIT;
-    __m68k.JIT_CONTROL = EMU68_WEAK_CFLUSH ? JCCF_SOFT : 0;
-    __m68k.JIT_CONTROL |= (emu68_icnt & JCCB_INSN_DEPTH_MASK) << JCCB_INSN_DEPTH;
-    __m68k.JIT_CONTROL |= (emu68_irng & JCCB_INLINE_RANGE_MASK) << JCCB_INLINE_RANGE;
     __m68k.JIT_CONTROL |= (EMU68_MAX_LOOP_COUNT & JCCB_LOOP_COUNT_MASK) << JCCB_LOOP_COUNT;
-    __m68k.JIT_CONTROL2 = (emu68_ccrd << JC2B_CCR_SCAN_DEPTH);
     *(uint32_t *)(intptr_t)(BE32(__m68k.ISP.u32)) = 0;
 #endif
-    of_node_t *node = dt_find_node("/chosen");
+
+    of_node_t *node = NULL;
+
+#ifdef PISTORM_ANY_MODEL    
+    node = dt_find_node("/emu68");
     if (node)
     {
-        of_property_t * prop = dt_find_property(node, "bootargs");
-        if (prop)
-        {
-            if (strstr(prop->op_value, "enable_cache"))
-                __m68k.CACR = BE32(0x80008000);
+        if (dt_find_property(node, "enable-c0-slowram")) {
+            mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        }
+        if (dt_find_property(node, "enable-c8-slowram")) {
+            mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        }
+        if (dt_find_property(node, "enable-d0-slowram")) {
+            mmu_map(0xD00000, 0xD00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
+        }
+        if (dt_find_property(node, "move-slow-to-chip")) {
+            globals.move_slow_to_chip = true;
+        }
+        if (dt_find_property(node, "swap-df0-with-df1")) {
+            globals.swap_df0_with_dfx = 1;
+        }
+        if (dt_find_property(node, "swap-df0-with-df2")) {
+            globals.swap_df0_with_dfx = 2;
+        }
+        if (dt_find_property(node, "swap-df0-with-df3")) {
+            globals.swap_df0_with_dfx = 3;
+        }
 
-#ifdef PISTORM_ANY_MODEL
-            if (strstr(prop->op_value, "enable_c0_slow"))
-                mmu_map(0xC00000, 0xC00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-            if (strstr(prop->op_value, "enable_c8_slow"))
-                mmu_map(0xC80000, 0xC80000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-            if (strstr(prop->op_value, "enable_d0_slow"))
-                mmu_map(0xd00000, 0xd00000, 524288, MMU_ACCESS | MMU_ISHARE | MMU_ALLOW_EL0 | MMU_ATTR_CACHED, 0);
-
-            extern uint32_t swap_df0_with_dfx;
-            extern uint32_t move_slow_to_chip;
-
-            if (strstr(prop->op_value, "swap_df0_with_df1"))
-                swap_df0_with_dfx = 1;
-            if (strstr(prop->op_value, "swap_df0_with_df2"))
-                swap_df0_with_dfx = 2;
-            if (strstr(prop->op_value, "swap_df0_with_df3"))
-                swap_df0_with_dfx = 3;
-
-            if (strstr(prop->op_value, "move_slow_to_chip"))
-                move_slow_to_chip = 1;
+    }
 #endif
-        }       
+
+    // Enable debug and disassemble if requested through overlay
+    if (dt_find_property(dt_find_node("/emu68/diag"), "enable-debug")) {
+        globals.debug = true;
+    }
+
+    if (dt_find_property(dt_find_node("/emu68/diag"), "enable-disassemble")) {
+        globals.disasm = true;
+    }
+
+
+    /* Enable interpreter on start if requested through overlay */
+    node = dt_find_node("/emu68/defaults");
+    if (node)
+    {
+        if (dt_find_property(node, "enable-interpreter")) {
+            __m68k.JIT_CONTROL |= JCCF_INTERPRETER;
+        }
+        if (dt_find_property(node, "enable-soft-cache-flush")) {
+            __m68k.JIT_CONTROL |= JCCF_SOFT;
+        }
+        if (dt_find_property(node, "insn-count")) {
+            uint32_t val = dt_get_property_value_u32(node, "insn-count", 0, 0);
+            __m68k.JIT_CONTROL = (__m68k.JIT_CONTROL & ~(JCCB_INSN_DEPTH_MASK << JCCB_INSN_DEPTH))
+                               | (val << JCCB_INSN_DEPTH);
+        }
+        if (dt_find_property(node, "branch-inline-distance")) {
+            uint32_t val = dt_get_property_value_u32(node, "branch-inline-distance", 0, 0);
+            __m68k.JIT_CONTROL = (__m68k.JIT_CONTROL & ~(JCCB_INLINE_RANGE_MASK << JCCB_INLINE_RANGE))
+                               | (val << JCCB_INLINE_RANGE);
+        }
+        if (dt_find_property(node, "chip-slowdown")) {
+            __m68k.JIT_CONTROL2 |= JC2F_CHIP_SLOWDOWN;
+        }
+        if (dt_find_property(node, "dbf-slowdown")) {
+            __m68k.JIT_CONTROL2 |= JC2F_DBF_SLOWDOWN;
+        }
+        if (dt_find_property(node, "blitter-wait")) {
+            __m68k.JIT_CONTROL2 |= JC2F_BLITWAIT;
+        }
+        if (dt_find_property(node, "ccr-scan-depth")) {
+            uint32_t val = dt_get_property_value_u32(node, "ccr-scan-depth", 0, 0);
+            __m68k.JIT_CONTROL2 = (__m68k.JIT_CONTROL2 & ~(JC2_CCR_SCAN_MASK << JC2B_CCR_SCAN_DEPTH))
+                               | (val << JC2B_CCR_SCAN_DEPTH);
+        }
+        if (dt_find_property(node, "chip-slowdown-distance")) { 
+            uint32_t val = dt_get_property_value_u32(node, "chip-slowdown-distance", 0, 0);
+            __m68k.JIT_CONTROL2 = (__m68k.JIT_CONTROL2 & ~(JC2_CHIP_SLOWDOWN_RATIO_MASK << JC2B_CHIP_SLOWDOWN_RATIO))
+                               | (val << JC2B_CHIP_SLOWDOWN_RATIO);
+        }
     }
 
     kprintf("[JIT]\n");
@@ -2247,6 +1850,8 @@ void M68K_StartEmu(void *addr, void *fdt)
     kprintf("[JIT] Let it go...\n");
 
     clear_entire_dcache();
+
+    mmu_print_stats();
 
 __asm__ volatile(
 "       dsb     ish                 \n"
@@ -2306,18 +1911,4 @@ __asm__ volatile(
 
     kprintf("[JIT] Number of m68k instructions executed (rough): %lld\n", __m68k.INSN_COUNT);
     kprintf("[JIT] Number of ARM cpu cycles consumed: %lld\n", cnt2 - cnt1);
-
-    if (debug_cnt & 1)
-    {
-        uint64_t tmp;
-        __asm__ volatile("mrs %0, PMEVCNTR0_EL0":"=r"(tmp));
-        kprintf("[JIT] Number of m68k instructions executed: %lld\n", tmp);
-    }
-    if (debug_cnt & 2)
-    {
-        uint64_t tmp;
-        __asm__ volatile("mrs %0, PMEVCNTR2_EL0":"=r"(tmp));
-        kprintf("[JIT] Number of m68k JIT blocks executed: %lld\n", tmp);
-    }
-        //kprintf("[BOOT] reg 0xf3000034 = %08x\n", LE32(*(volatile uint32_t *)0xf3000034));
 }

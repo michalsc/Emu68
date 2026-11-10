@@ -1,5 +1,6 @@
 /*
     Copyright © 2019 Michal Schulz <michal.schulz@gmx.de>
+    Copyright © Emu68 contributors, see AUTHORS
     https://github.com/michalsc
 
     This Source Code Form is subject to the terms of the
@@ -17,12 +18,106 @@
 #include "md5.h"
 #include "lists.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* M68k "native" types as used in AmigaOS */
+typedef int32_t     LONG;
+typedef int16_t     WORD;
+typedef int8_t      BYTE;
+typedef uint32_t    ULONG;
+typedef uint16_t    UWORD;
+typedef uint8_t     UBYTE;
+
 struct M68KLocalState
 {
     void *          mls_M68kPtr;
     uint32_t        mls_ARMOffset;
     uint8_t         mls_RegMap[16];
     int32_t         mls_PCRel;
+};
+
+
+struct M68KState
+{
+    /* Integer part */
+
+    union {
+        uint8_t u8[4];
+        int8_t s8[4];
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
+    } D[8];
+    union {
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
+    } A[8];
+    union {
+        uint16_t u16[2];
+        int16_t s16[2];
+        uint32_t u32;
+        int32_t s32;
+    } MSP, ISP, USP;
+
+    uint32_t PC;
+    uint16_t SR;
+    uint32_t VBR;
+    uint32_t CACR;
+
+    /* FPU Part */
+    uint32_t FPSR;
+    uint32_t FPIAR;
+    uint16_t FPCR;
+    union {
+		uint8_t B;
+		uint16_t W;
+		uint32_t L;
+	    float S;
+		double d;
+		uint64_t u64;
+		uint32_t u32[2];
+    } FP[8];   // Double precision! Extended is "emulated" in load/store only
+
+    /* More control registers.. */
+    uint8_t  SFC;
+    uint8_t  DFC;
+    uint16_t TCR;
+    uint32_t URP;
+    uint32_t SRP;
+    uint32_t MMUSR;
+    uint32_t ITT0;
+    uint32_t ITT1;
+    uint32_t DTT0;
+    uint32_t DTT1;
+
+    /* Async IRQ part */
+    volatile union {
+        struct {
+            uint8_t ARM;
+            uint8_t ARM_err;
+            uint8_t IPL;
+            uint8_t RESET;
+            uint8_t PPC;
+        } INTF;
+        uint64_t INT64;
+    } __attribute__((aligned(8)));
+    uint64_t INSN_COUNT;
+    uint64_t IDLE_TIME;
+
+    uint32_t JIT_CACHE_MISS;
+    uint32_t JIT_UNIT_COUNT;
+    uint32_t JIT_CACHE_TOTAL;
+    uint32_t JIT_CACHE_FREE;
+    uint32_t JIT_SOFTFLUSH_THRESH;
+    uint32_t JIT_CONTROL;
+    uint32_t JIT_CONTROL2;
+
+    volatile uint8_t * PPC_EE_FLAG;
 };
 
 struct M68KTranslationUnit
@@ -104,89 +199,11 @@ struct TranslatorContext {
     };
 };
 
-struct M68KState
-{
-    /* Integer part */
-
-    union {
-        uint8_t u8[4];
-        int8_t s8[4];
-        uint16_t u16[2];
-        int16_t s16[2];
-        uint32_t u32;
-        int32_t s32;
-    } D[8];
-    union {
-        uint16_t u16[2];
-        int16_t s16[2];
-        uint32_t u32;
-        int32_t s32;
-    } A[8];
-    union {
-        uint16_t u16[2];
-        int16_t s16[2];
-        uint32_t u32;
-        int32_t s32;
-    } USP, MSP, ISP;
-
-    uint32_t PC;
-    uint16_t SR;
-    uint32_t VBR;
-    uint32_t CACR;
-
-    /* FPU Part */
-    uint32_t FPSR;
-    uint32_t FPIAR;
-    uint16_t FPCR;
-    union {
-		uint8_t B;
-		uint16_t W;
-		uint32_t L;
-	    float S;
-		double d;
-		uint64_t u64;
-		uint32_t u32[2];
-    } FP[8];   // Double precision! Extended is "emulated" in load/store only
-
-    /* More control registers.. */
-    uint8_t  SFC;
-    uint8_t  DFC;
-    uint16_t TCR;
-    uint32_t URP;
-    uint32_t SRP;
-    uint32_t MMUSR;
-    uint32_t ITT0;
-    uint32_t ITT1;
-    uint32_t DTT0;
-    uint32_t DTT1;
-
-    /* Async IRQ part */
-    union {
-        struct {
-            uint8_t ARM;
-            uint8_t ARM_err;
-            uint8_t IPL;
-            uint8_t RESET;
-            uint8_t PPC;
-        } INTF;
-        uint64_t INT64;
-    } __attribute__((aligned(8)));
-    uint64_t INSN_COUNT;
-
-    uint32_t JIT_CACHE_MISS;
-    uint32_t JIT_UNIT_COUNT;
-    uint32_t JIT_CACHE_TOTAL;
-    uint32_t JIT_CACHE_FREE;
-    uint32_t JIT_SOFTFLUSH_THRESH;
-    uint32_t JIT_CONTROL;
-    uint32_t JIT_CONTROL2;
-
-    volatile uint8_t * PPC_EE_FLAG;
-};
 
 #define JCCB_SOFT               0
-#define JCCF_SOFT               0x00000001
-#define JCCB_SOFT_LIMIT         1
+#define JCCF_SOFT               (1 << JCCB_SOFT)
+#define JCCB_INTERPRETER        1
+#define JCCF_INTERPRETER        (1 << JCCB_INTERPRETER)
 #define JCCB_INSN_DEPTH         24
 #define JCCB_INSN_DEPTH_MASK    0xff
 #define JCCB_INLINE_RANGE       8
@@ -294,6 +311,24 @@ struct M68KState
 #define SRB_T0   14
 #define SRB_T1   15
 
+// EA calculations
+#define M68K_EA_DA 0x8000
+#define M68K_EA_REG 0x7000
+#define M68K_EA_WL 0x0800
+#define M68K_EA_SCALE 0x0600
+#define M68K_EA_FULL 0x0100
+#define M68K_EA_OFF8 0x00FF
+
+#define M68K_EA_BS 0x0080
+#define M68K_EA_IS 0x0040
+#define M68K_EA_BD_SIZE 0x0030
+#define M68K_EA_IIS 0x0007
+
+#define M68K_EA_BD_SIZE_ILLEGAL 0x0000
+#define M68K_EA_BD_SIZE_NULL 0x0010
+#define M68K_EA_BD_SIZE_WORD 0x0020
+#define M68K_EA_BD_SIZE_LONG 0x0030
+
 //FPCR
 #define FPCR_RND	0x00000030
 #define FPCR_PREC	0x000000c0
@@ -364,6 +399,11 @@ struct M68KState
 #define FPSRB_Z     26
 #define FPSRB_I     25
 #define FPSRB_NAN   24
+
+#define FPSRF_N     (1 << FPSRB_N)
+#define FPSRF_Z     (1 << FPSRB_Z)
+#define FPSRF_I     (1 << FPSRB_I)
+#define FPSRF_NAN   (1 << FPSRB_NAN)
 
 // Set in host flags when NZCV aarch64 are synced with FPU flags
 #define FP_FLAGS    0x80
@@ -452,7 +492,6 @@ struct M68KState
 #define VECTOR_OPERAND_ERROR        0xD0
 #define VECTOR_OVERFLOW             0xD4
 #define VECTOR_SIGNALING_NAN        0xD8
-
 
 #define REG_PC    18
 
@@ -554,6 +593,62 @@ struct M68KState
 #define CTX_INSN_COUNT  CTX_INSN_COUNT_VN,CTX_INSN_COUNT_SIZE,CTX_INSN_COUNT_POS
 #define CTX_LAST_PC     CTX_LAST_PC_VN,CTX_LAST_PC_SIZE,CTX_LAST_PC_POS
 
+/* FPU constants */
+enum {
+    C_PI = 0,
+    C_PI_2,
+    C_PI_4,
+    C_1_PI,
+    C_2_PI,
+    C_2_SQRTPI,
+    C_1_2PI,
+    C_SQRT2,
+    C_SQRT1_2,
+    C_0_5,
+    C_1_5,
+    C_LOG10_2 = 0x0b,
+    C_E,
+    C_LOG2E,
+    C_LOG10E,
+    C_ZERO,
+    C_SIN_COEFF = 0x10,  /* 21-poly for sine approximation - error margin within double precision */
+    C_COS_COEFF = 0x20,  /* 20-poly for cosine approximation -error margin within double precision */
+
+    C_SIN_COEFF_SINGLE = 0x1a,
+    C_COS_COEFF_SINGLE = 0x2a,
+
+    C_LN2 = 0x30,
+    C_LN10,
+    C_10P0,
+    C_10P1,
+    C_10P2,
+    C_10P4,
+    C_10P8,
+    C_10P16,
+    C_10P32,
+    C_10P64,
+    C_10P128,
+    C_10P256,
+    C_10P512,
+    C_10P1024,
+    C_10P2048,
+    C_10P4096,
+
+    C_TWO54,
+    C_LN2HI,
+    C_LN2LO,
+    C_LG1,
+    C_LG2,
+    C_LG3,
+    C_LG4,
+    C_LG5,
+    C_LG6,
+    C_LG7
+};
+
+/* FPU constants are stored here */
+extern double const FPUConstants[128];
+
 void EMIT_GetOffsetPC(struct TranslatorContext *ctx, int8_t *offset);
 void EMIT_AdvancePC(struct TranslatorContext *ctx, uint8_t offset);
 void EMIT_FlushPC(struct TranslatorContext *ctx);
@@ -617,29 +712,58 @@ int M68K_GetLineFLength(uint16_t *insn_stream);
 uint8_t SR_GetEALength(uint16_t *insn_stream, uint8_t ea, uint8_t imm_size);
 
 typedef uint32_t (*EMIT_Function)(struct TranslatorContext *ctx, uint16_t opcode);
+typedef void (*INTERPRET_Function)(uint32_t opcode);
+typedef bool (*INTERPRET_FPU_Function)(uint32_t opcode, uint32_t opcode2);
 
 struct OpcodeDef {
-    EMIT_Function   od_Emit;
-    void *          od_Interpret;   // Not used yet.
-    uint16_t        od_SRNeeds;
-    uint16_t        od_SRSets;
-    uint8_t         od_BaseLength;
-    uint8_t         od_HasEA;
-    uint8_t         od_OpSize;
+    EMIT_Function       od_Emit;
+    INTERPRET_Function  od_Interpret;   // Not used yet.
+    uint16_t            od_SRNeeds;
+    uint16_t            od_SRSets;
+    uint8_t             od_BaseLength;
+    uint8_t             od_HasEA;
+    uint8_t             od_OpSize;
 };
 
 struct FPUOpcodeDef {
-    EMIT_Function   od_Emit;
-    void *          od_Interpret;   // Not used yet.
-    uint32_t        od_FPSRNeeds;
-    uint32_t        od_FPSRSets;
-    uint8_t         od_BaseLength;
-    uint8_t         od_HasEA;
-    uint8_t         od_OpSize;
+    EMIT_Function       od_Emit;
+    INTERPRET_Function  od_Interpret;   // Not used yet.
+    uint32_t            od_FPSRNeeds;
+    uint32_t            od_FPSRSets;
+    uint8_t             od_BaseLength;
+    uint8_t             od_HasEA;
+    uint8_t             od_OpSize;
 };
+
+#ifdef __cplusplus
+
+enum class ExceptionFrameFormat {
+    FORMAT_0 = 0x0000,
+    FORMAT_1 = 0x1000,
+    FORMAT_2 = 0x2000,
+    FORMAT_3 = 0x3000,
+    FORMAT_4 = 0x4000
+};
+
+#endif
+
+/* Swap V and C flags, used when storing SR/CCR to memory or loading from there */
+[[gnu::always_inline]] inline uint32_t swapVC(uint32_t src)
+{
+    uint32_t retval;
+    uint32_t tmp;
+
+    asm volatile("rbit %w0, %w1":"=r"(tmp):"r"(src));
+    retval = (src & ~3) | ((tmp >> 30) & 3);
+
+    return retval;
+}
 
 void EMIT_LoadImmediate(struct TranslatorContext *ctx, uint8_t rd, uint32_t immed);
 void EMIT_InjectPrintContext(struct TranslatorContext *ctx);
+#ifdef __cplusplus
+#define restrict __restrict__
+#endif
 void EMIT_InjectDebugStringV(struct TranslatorContext *ctx, const char * restrict format, va_list args);
 void EMIT_InjectDebugString(struct TranslatorContext *ctx, const char * restrict format, ...);
 
@@ -663,13 +787,17 @@ uint8_t M68K_GetCC(uint32_t **ptr);
 uint8_t M68K_ModifyCC(uint32_t **ptr);
 void M68K_FlushCC(uint32_t **ptr);
 
-void LRU_InsertBlock(struct M68KTranslationUnit *unit);
+//void LRU_InsertBlock(struct M68KTranslationUnit *unit);
 void LRU_InvalidateAll();
 void LRU_InvalidateByM68kAddress(uint32_t addr);
 void LRU_InvalidateByARMAddress(uint32_t *addr);
-uint32_t *LRU_FindBlock(uint32_t address);
+//uint32_t *LRU_FindBlock(uint32_t address);
 void LRU_MarkForVerify(uint32_t *addr);
 
 extern uint8_t host_flags;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _M68K_H */

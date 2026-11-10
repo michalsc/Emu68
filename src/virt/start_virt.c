@@ -22,9 +22,6 @@
 #include "EmuFeatures.h"
 #include "RegisterAllocator.h"
 
-extern uint64_t mmu_user_L1[512];
-extern uint64_t mmu_user_L2[4*512];
-
 void platform_init()
 {
     /*

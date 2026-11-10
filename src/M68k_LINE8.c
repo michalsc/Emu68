@@ -12,6 +12,7 @@
 #include "M68k.h"
 #include "RegisterAllocator.h"
 #include "cache.h"
+#include "globals.h"
 
 #define EMIT_DIVU_reg EMIT_MUL_DIV
 #define EMIT_DIVU_mem EMIT_MUL_DIV
@@ -316,7 +317,6 @@ uint32_t EMIT_OR_reg(struct TranslatorContext *ctx, uint16_t opcode)
     return 1;
 }
 
-// BROKEN!!!!
 uint32_t EMIT_SBCD_reg(struct TranslatorContext *ctx, uint16_t opcode)
 {
     uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
@@ -330,8 +330,6 @@ uint32_t EMIT_SBCD_reg(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t tmp_d = RA_AllocARMRegister(ctx);
     uint8_t tmp_n = RA_AllocARMRegister(ctx);
     uint8_t cc = RA_ModifyCC(ctx);
-
-kprintf("[ERROR] SBCD is not yet fixed!!!\n");
 
     EMIT(ctx, 
     /* Extract dest into further temp register (used to check overflow and flags) */
@@ -441,8 +439,6 @@ uint32_t EMIT_SBCD_mem(struct TranslatorContext *ctx, uint16_t opcode)
     uint8_t tmp_n = RA_AllocARMRegister(ctx);
     uint8_t src = RA_AllocARMRegister(ctx);
     uint8_t cc = RA_ModifyCC(ctx);
-
-kprintf("[ERROR] SBCD mem is not yet fixed!\n");
 
     uint8_t an_src = RA_MapM68kRegister(ctx, 8 + (opcode & 7));
     uint8_t an_dest = RA_MapM68kRegister(ctx, 8 + ((opcode >> 9) & 7));
@@ -599,8 +595,7 @@ uint32_t EMIT_line8(struct TranslatorContext *ctx)
     {
         EMIT_FlushPC(ctx);
         
-        extern int debug_not_implemented;
-        if (debug_not_implemented)
+        if (globals.debug_not_implemented)
         {
             EMIT_InjectDebugString(ctx, "[JIT] opcode %04x at %08x not implemented\n", opcode, ctx->tc_M68kCodePtr - 1);
             EMIT(ctx, 

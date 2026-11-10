@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68 {
+                pistorm: pistorm {
+                    // two-slot
+                    // one-slot
+                };
+            };
+        };
+    };
+
+    __overrides__ {
+        one_slot = <&pistorm>,"one-slot?";
+        two_slot = <&pistorm>,"two-slot?";
+    };
+};

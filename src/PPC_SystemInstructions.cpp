@@ -634,12 +634,48 @@ int twi(PPCTranslatorContext *tc, uint32_t opcode)
     return 1;
 }
 
+int wait(PPCTranslatorContext *tc, uint32_t opcode)
+{
+    /* Sanity check: reserved bits 6-8, 11-20 and 31 must be zero */
+    if (opcode & 0x039ff801) return -1;
+
+    uint8_t wc = (opcode >> 21) & 3;
+
+    switch (wc) {
+        case 0: {
+            GPR ctx = tc->getCTX();
+            GPR base = GPR::allocate();
+            GPR tmp = GPR::allocate();
+            tc->emit({
+                add64_immed(base, ctx, __builtin_offsetof(PPCState, INT64)),
+                ldxr64(base, tmp),
+                cbnz(tmp, 3),
+                wfe(),
+                b(-3)
+            });
+            tc->advancePC(4);
+            tc->flushPC();
+            tc->emitStop();
+            break; 
+        }
+        case 1: /* waitrsv: wait until the reservation (exclusive monitor) is lost */
+            tc->emit(wfe());
+            break;
+        default:
+            return -1;
+    }
+
+    tc->advancePC(4);
+
+    return 1;
+}
+
 int eieio(PPCTranslatorContext *tc, uint32_t opcode)
 {
     /* Sanity check */
     if (opcode & 0x03fff800) return -1;
 
-    tc->emit( dmb_sy());
+    tc->emit(dmb_sy());
 
     tc->advancePC(4);
 
@@ -728,10 +764,10 @@ int sync(PPCTranslatorContext *tc, uint32_t opcode)
 
     switch(op) {
         case 0:
-            tc->emit(isb());
+            tc->emit(dmb_sy());
             break;
         case 1:
-            tc->emit(dmb_sy());
+            tc->emit(dmb_ish());
             break;
         default:
             return -1;
@@ -747,8 +783,8 @@ int dcbst(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
 
@@ -756,7 +792,7 @@ int dcbst(PPCTranslatorContext *tc, uint32_t opcode)
         base = GPR(reg_rb.get());
     } else {
         GPR reg_ra = tc->mapGPRForRead(ra);
-        GPR base = GPR::allocate();
+        base = GPR::allocate();
         tc->emit(add_reg(base, reg_ra, reg_rb, LSL, 0));
     }
 
@@ -776,8 +812,8 @@ int dcbtst(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -802,8 +838,8 @@ int dcbt(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -828,8 +864,8 @@ int dcbf(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -858,24 +894,27 @@ int dcbz(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
-    GPR base;
+    GPR base = GPR::allocate();
 
     if (ra == 0) {
-        base = GPR(reg_rb.get());
+        GPR reg = GPR(reg_rb.get());
+        tc->emit(bic_immed(base, reg, 5, 0));
     } else {
         GPR reg_ra = tc->mapGPRForRead(ra);
         base = GPR::allocate();
-        tc->emit(add_reg(base, reg_ra, reg_rb, LSL, 0));
+        tc->emit({
+            add_reg(base, reg_ra, reg_rb, LSL, 0),
+            bic_immed(base, base, 5, 0)
+        });
     }
 
     tc->emit({
-        dsb_sy(),
-        dc_zva(base),
-        dsb_sy()
+        stp64(base, XZR, XZR, 0),
+        stp64(base, XZR, XZR, 16)
     });
 
     tc->advancePC(4);
@@ -888,8 +927,8 @@ int dcba(PPCTranslatorContext *tc, uint32_t opcode)
     /* Sanity check */
     if (opcode & 0x03e00001) return -1;
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
 
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
@@ -918,14 +957,11 @@ int dcbi(PPCTranslatorContext *tc, uint32_t opcode)
 
     SupervisorCheck sc(tc);
 
-    uint8_t ra = (opcode >> 21) & 31;
-    uint8_t rb = (opcode >> 16) & 31;
+    uint8_t ra = (opcode >> 16) & 31;
+    uint8_t rb = (opcode >> 11) & 31;
     
     GPR reg_rb = tc->mapGPRForRead(rb);
     GPR base;
-
-    GPR ctx = tc->getCTX();
-    GPR tmp = GPR::allocate();
 
     if (ra == 0) {
         base = GPR(reg_rb.get());
@@ -965,8 +1001,8 @@ int sc(PPCTranslatorContext *tc, uint32_t opcode)
         str_offset(ctx, tmp, __builtin_offsetof(PPCState, SRR1)),
         str_offset(ctx, REG_PC, __builtin_offsetof(PPCState, SRR0)),
         
-        /* Set supervisor mode in MSR */
-        bic_immed(tmp, tmp, 1, 18),
+        /* Set supervisor mode in MSR, clear EE to disable interrupts */
+        bic_immed(tmp, tmp, 2, 18),
 
         /* Load new program counter */
         mov_immed_u16(REG_PC, 0xc00, 0),

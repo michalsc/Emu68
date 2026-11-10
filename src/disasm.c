@@ -14,6 +14,8 @@
 
 extern void *tlsf;
 
+#if defined(EMU68_ENABLE_DISASM) || defined(PISTORM_CLASSIC)
+
 void *my_malloc(size_t size)
 {
     return tlsf_malloc(tlsf, size);
@@ -66,7 +68,9 @@ int my_vsnprintf(char *str, size_t size, const char *format, va_list ap)
 
     return p.written;
 }
+#endif
 
+#if defined(EMU68_ENABLE_DISASM)
 void disasm_init()
 {
     cs_opt_mem setup;
@@ -92,7 +96,7 @@ void disasm_open()
 {
     cs_err err;
     err = cs_open(CS_ARCH_M68K, CS_MODE_BIG_ENDIAN | CS_MODE_M68K_040, &h_m68k);
-    err = cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &h_arm);
+    err = cs_open(CS_ARCH_AARCH64, CS_MODE_ARM, &h_arm);
     err = cs_open(CS_ARCH_PPC, CS_MODE_32 | CS_MODE_BIG_ENDIAN, &h_ppc);
 
     (void)err;
@@ -241,6 +245,22 @@ void disasm_print_arm_only(uint32_t *arm_addr)
         cs_free(insn_arm, count_arm);
 }
 
+void disasm_print_m68k_only(uint16_t *m68k_addr)
+{
+    cs_insn *insn_m68k;
+    size_t count_m68k = 0;
+
+    count_m68k = cs_disasm(h_m68k, (const uint8_t *)m68k_addr, 20, (uintptr_t)m68k_addr, 1, &insn_m68k);
+
+    for (size_t i=0; i < count_m68k; i++)
+    {
+        kprintf("[JIT] %08x: %7s %s\n", insn_m68k[i].address, insn_m68k[i].mnemonic, insn_m68k[i].op_str);
+    }
+
+    if (count_m68k)
+        cs_free(insn_m68k, count_m68k);
+}
+
 void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start)
 {
     cs_insn *insn_ppc;
@@ -275,3 +295,5 @@ void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr
     if (count_arm)
         cs_free(insn_arm, count_arm);
 }
+
+#endif

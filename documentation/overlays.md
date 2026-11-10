@@ -75,6 +75,7 @@ Main overlay controlling behavior of Emu68 with following parameters:
 | Parameter             | Description                                                                     |
 | --------------------- | ------------------------------------------------------------------------------- |
 | ``no_fpu``            | Disables the FPU entirely. Every FPU instruction will throw an exception        |
+| ``interpreter``       | Enable interpreter which activates when instruction cache is disabled           |
 | ``vbr_move``          | Forces 68040.library to move VBR to FAST memory                                 |
 | ``m68k_jit_size=num`` | The integer ``num`` determines size of the M68k JIT cache in megabytes          |
 | ``ppc_enable``        | Activates PPC JIT translator running in parallel on another AArch64 CPU core    |
@@ -93,12 +94,12 @@ This overlay controls several diagnostic features of Emu68 with following parame
 
 | Parameter                 | Description                                                                                    |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
-| ``buptesst``              | Enables simplistic bus test of the pistorm                                                     |
+| ``buptest``               | Enables simplistic bus test of the pistorm                                                     |
 | ``bupiter=num``           | The integer ``num`` determines number of bus test loops to run                                 |
-| ``bupsize=num``           | The integer ``num`` determines the number of bytes to test, starting from address 0            |
+| ``bupsize=num``           | The integer ``num`` determines the number of kilobytes to test, starting from address 0        |
 | ``membench``              | Enables small memory benchmark of the pistorm                                                  |
 | ``membase=num``           | The integer ``num`` determines the base address where benchmark should work                    |
-| ``memsize=num``           | The integer ``num`` determines the block size in bytes where benchmarks shall run              |
+| ``memsize=num``           | The integer ``num`` determines the block size in kilobytes where benchmarks shall run          |
 | ``debug_not_implemented`` | When enabled, unimplemented instructions will be also reported over the debug interface        |
 | ``debug``                 | Enables debug output of JIT translator. Use with care as it will generate really a lot of data |
 | ``disassemble``           | Enables side-by-side debug output of M68k/PPC and translated AArch64 code                      |

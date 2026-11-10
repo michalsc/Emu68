@@ -1,0 +1,23 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            emu68: emu68 {
+                // enable-c0-slowram
+                // enable-c8-slowram
+                // enable-d0-slowram
+                // move-slow-to-chip
+            };
+        };
+    };
+
+    __overrides__ {
+        enable_c0 = <&emu68>,"enable-c0-slowram?";
+        enable_c8 = <&emu68>,"enable-c8-slowram?";
+        enable_d0 = <&emu68>,"enable-d0-slowram?";
+        slow_to_chip = <&emu68>,"move-slow-to-chip?";
+    };
+};

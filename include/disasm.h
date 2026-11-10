@@ -1,3 +1,12 @@
+/*
+    Copyright © 2020 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #ifndef _DISASM_H
 #define _DISASM_H
 
@@ -14,6 +23,7 @@ void disasm_print(uint16_t *m68k_addr, uint16_t m68k_count, uint32_t *arm_addr, 
 void disasm_print_ppc(uint32_t *ppc_addr, uint32_t ppc_count, uint32_t *arm_addr, size_t arm_size, uint32_t *arm_start);
 void disasm_print_ppc_only(uint32_t *ppc_addr);
 void disasm_print_arm_only(uint32_t *arm_addr);
+void disasm_print_m68k_only(uint16_t *m68k_addr);
 
 #ifdef __cplusplus
 }

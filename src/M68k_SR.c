@@ -197,6 +197,11 @@ int M68K_GetLineFLength(uint16_t *insn_stream)
     {
         length = 3;
     }
+    /* Private data cache range op (CINV/CPUSH, SCOPE == 00): two words */
+    else if ((opcode & 0xff00) == 0xf400 && (opcode & 0x0018) == 0 && (opcode & 0x00c0) == 0x40)
+    {
+        length = 2;
+    }
     /* CINV */
     else if ((opcode & 0xff20) == 0xf400)
     {

@@ -1,0 +1,67 @@
+/*
+    Copyright © 2019-2026 Michal Schulz <michal.schulz@gmx.de>
+    https://github.com/michalsc
+
+    This Source Code Form is subject to the terms of the
+    Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
+    with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
+#include <cstdint>
+#include <arm_neon.h>
+#include <array>
+
+#include <emu68/m68k/interpreter>
+
+#include "RegisterMapping.h"
+
+namespace Emu68::M68k::Interpreter::Line7 {
+
+template<uint8_t Dn>
+void MOVEQ(uint32_t opcode)
+{
+    uint32_t sr = SR & 0xfff0;
+    LONG value = (BYTE)(opcode & 0xff);
+    setD<Dn, LONG>(value);
+    if (value == 0) {
+        sr |= SR_Z;
+    } else if (value < 0) {
+        sr |= SR_N;
+    }
+    SR = sr;
+    advancePC(2);
+}
+
+template <class Type, template<uint8_t, class> class Op, class DispatchF, class ImmF>
+constexpr void fillRegImm(std::array<INTERPRET_Function, 4096>& table, int base)
+{
+    auto fillOne = [&]<std::size_t I>() {
+        constexpr unsigned dispatchV = I / ImmF::size;
+        constexpr unsigned immV      = I % ImmF::size;  // unused for dispatch, just widens the loop
+
+        if constexpr (DispatchF::valid(dispatchV)) {
+            int idx = base + (dispatchV << DispatchF::bitOffset) + (immV << ImmF::bitOffset);
+            table[idx] = Op<DispatchF::arg(dispatchV), Type>::value;
+        }
+    };
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (fillOne.template operator()<Is>(), ...);
+    }(std::make_index_sequence<DispatchF::size * ImmF::size>{});
+}
+
+template<uint8_t Dn, class Type>
+struct  MOVEQ_Op { static constexpr auto value = MOVEQ<Dn>; };
+
+static constexpr std::array<INTERPRET_Function, 4096> buildInsnTable()
+{
+    std::array<INTERPRET_Function, 4096> table{};
+    for (auto& e : table) e = ILLEGAL;
+
+    fillRegImm<BYTE, MOVEQ_Op, RegField<9,3>, ImmField<0,8>>(table, 0x000);
+
+    return table;
+}
+
+constexpr auto InsnTable __attribute__((used,aligned(4096),section(".int.jumptable.7"))) = buildInsnTable();
+
+} // Emu68::M68k::Interpreter::Line7

@@ -98,3 +98,8 @@ void setup_serial()
 
     serial_up = 1;
 }
+
+bool is_serial_up()
+{
+    return serial_up;
+}
