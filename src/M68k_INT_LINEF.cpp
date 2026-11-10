@@ -1190,7 +1190,7 @@ void CPUSH(uint32_t opcode)
  *                 m68k NOP (a bare dsb sy). A zero-length range emits
  *                 nothing at all, so it never acts as a barrier.
  *
- * CINV is a sharp primitive: we are at EL1 with HCR_EL2.VM == 0, so 
+ * CINV is a sharp primitive: we are at EL1 with stage 2 MMU (hypervisor) off, so 
  * dc ivac genuinely discards. The loop maintains whole lines, so the caller
  * must own every line the range touches — a partial end line loses whatever
  * a neighbour had dirtied there. Callers that cannot promise that must clean

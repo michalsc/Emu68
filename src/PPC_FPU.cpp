@@ -86,6 +86,10 @@ static void writeResult(PPCTranslatorContext *tc, uint8_t reg_rd, uint8_t result
 {
 #if PPC_NAN_PROPAGATION
     fixNaN(tc, result, reg_ra, reg_rb, reg_rc);
+#else
+    (void)reg_ra;
+    (void)reg_rb;
+    (void)reg_rc;
 #endif
 
     if (single) {
