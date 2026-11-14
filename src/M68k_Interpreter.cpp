@@ -275,6 +275,11 @@ extern "C" void M68K_RaiseTraceException()
     raiseException(VECTOR_TRACE, ExceptionFrameFormat::FORMAT_0, 0, 0);
 }
 
+extern "C" void M68K_RaiseUnalignedPCException()
+{
+    raiseException(VECTOR_ADDRESS_ERROR, ExceptionFrameFormat::FORMAT_2, getCTX()->PC, 0);
+}
+
 void ILLEGAL(uint32_t opcode)
 {
     if (opcode != 0x4afc && globals.debug_not_implemented != 0) {

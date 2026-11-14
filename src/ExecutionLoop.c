@@ -24,6 +24,8 @@ register uint64_t (*ARMCode)() __asm__("x12");
 extern uint32_t EPOCH;
 
 extern void M68K_RaiseTraceException(void);
+extern void M68K_RaiseUnalignedPCException();
+
 
 #if 0
 static inline uint32_t getLastPC()
@@ -533,6 +535,14 @@ void InterpreterLoop()
             return;
         }
 #endif
+        /*
+            Attempting to execute code at odd address throws exception.
+        */
+        if (unlikely((PC & 1) != 0)) {
+            M68K_RaiseUnalignedPCException();
+            continue;
+        }
+
         /* 
             Small "improved" version of code below, saves register shuffling 
             done by gcc which does not handle the global register variables well
@@ -583,6 +593,14 @@ void TraceInterpreterLoop()
         }
 #endif
         globals.trace_branch_flag = false;
+
+        /*
+            Attempting to execute code at odd address throws exception.
+        */
+        if (unlikely((PC & 1) != 0)) {
+            M68K_RaiseUnalignedPCException();
+            continue;
+        }
 
         uint32_t opcode;
         void (*code)(uint32_t);

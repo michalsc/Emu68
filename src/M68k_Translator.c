@@ -138,35 +138,42 @@ extern struct M68KState *__m68k_state;
 
 static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
 {
-    uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)ctx->tc_M68kCodePtr);
-    uint8_t group = opcode >> 12;
+    if (unlikely((uintptr_t)ctx->tc_CodePtr & 1)) {
+        EMIT_FlushPC(ctx);
+        EMIT_Exception(ctx, VECTOR_ADDRESS_ERROR, 2, (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr));
+        EMIT(ctx, INSN_TO_LE(0xffffffff));
+        return 1;
+    } else {
+        uint16_t opcode = cache_read_16(ICACHE, (uint32_t)(uintptr_t)ctx->tc_M68kCodePtr);
+        uint8_t group = opcode >> 12;
 
-    host_flags = 0;
-    if (globals.debug > 2)
-    {
-        EMIT(ctx,
-            hint(0),
-            mov_immed_u16(31, opcode, 0),
-            movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr) >> 16, 1),
-            movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr), 0)
-        );
-    }
-    if (globals.debug > 1)
-        EMIT(ctx, hint(1));
-
-    if ((__m68k_state->JIT_CONTROL2 & JC2F_CHIP_SLOWDOWN) && (uintptr_t)ctx->tc_M68kCodePtr < 0x200000)
-    {
-        static uint32_t counter;
-        const uint32_t repeat_every = 1 + ((__m68k_state->JIT_CONTROL2 >> JC2B_CHIP_SLOWDOWN_RATIO) & JC2_CHIP_SLOWDOWN_RATIO_MASK);
-        if (counter++ % repeat_every == 0)
+        host_flags = 0;
+        if (globals.debug > 2)
         {
-            int8_t off = 0;
-            EMIT_GetOffsetPC(ctx, &off);
-            EMIT(ctx, ldurh_offset(REG_PC, 0, off));
+            EMIT(ctx,
+                hint(0),
+                mov_immed_u16(31, opcode, 0),
+                movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr) >> 16, 1),
+                movk_immed_u16(31, ((uintptr_t)ctx->tc_M68kCodePtr), 0)
+            );
         }
-    }
+        if (globals.debug > 1)
+            EMIT(ctx, hint(1));
 
-    return line_array[group](ctx);
+        if ((__m68k_state->JIT_CONTROL2 & JC2F_CHIP_SLOWDOWN) && (uintptr_t)ctx->tc_M68kCodePtr < 0x200000)
+        {
+            static uint32_t counter;
+            const uint32_t repeat_every = 1 + ((__m68k_state->JIT_CONTROL2 >> JC2B_CHIP_SLOWDOWN_RATIO) & JC2_CHIP_SLOWDOWN_RATIO_MASK);
+            if (counter++ % repeat_every == 0)
+            {
+                int8_t off = 0;
+                EMIT_GetOffsetPC(ctx, &off);
+                EMIT(ctx, ldurh_offset(REG_PC, 0, off));
+            }
+        }
+
+        return line_array[group](ctx);
+    }
 }
 
 void __clear_cache(void *begin, void *end)
