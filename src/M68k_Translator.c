@@ -138,7 +138,7 @@ extern struct M68KState *__m68k_state;
 
 static inline uint32_t EmitINSN(struct TranslatorContext *ctx)
 {
-    if (unlikely((uintptr_t)ctx->tc_CodePtr & 1)) {
+    if (unlikely((uintptr_t)ctx->tc_M68kCodePtr & 1)) {
         EMIT_FlushPC(ctx);
         EMIT_Exception(ctx, VECTOR_ADDRESS_ERROR, 2, (uint32_t)(uintptr_t)(ctx->tc_M68kCodePtr));
         EMIT(ctx, INSN_TO_LE(0xffffffff));
