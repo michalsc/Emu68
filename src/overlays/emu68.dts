@@ -42,8 +42,6 @@
         no_fpu = <&emu68>,"disable-fpu?";
         vbr_move = <&emu68>,"move-vbr?";
         z3_disable = <&emu68>,"disable-zorro?";
-        fast_page_zero = <&emu68>,"fast-page-zero?";
-        FP0 = <&emu68>,"fast-page-zero?";
 
         ICNT = <&defs>,"insn-count:0";
         CCRD = <&defs>,"ccr-scan-depth:0";
