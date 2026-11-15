@@ -856,10 +856,9 @@ uint32_t EMIT_ORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         /* Check what has changed */
         eor_reg(changed, changed, cc, LSL, 0),
 
-        /* If trace bits changed, break JIT loop */
-        tbz(changed, SRB_T0, 3),
-        tbz(changed, SRB_T1, 2),
-        mov_reg(12, WZR),
+        /* If trace bits changed, break JIT loop by clearing x12 register */
+        ands_immed(31, changed, 2, 32 - SRB_T0),
+        csel64(12, 12, 31, A64_CC_EQ),
 
         /* Skip switching ISP/MSP if not changed */
         tbz(changed, SRB_M, 7),
@@ -1301,10 +1300,9 @@ uint32_t EMIT_ANDI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         /* Check what has changed */
         eor_reg(changed, orig, cc, LSL, 0),
 
-        /* If trace bits changed, break JIT loop */
-        tbz(changed, SRB_T0, 3),
-        tbz(changed, SRB_T1, 2),
-        mov_reg(12, WZR),
+        /* If trace bits changed, break JIT loop by clearing x12 register */
+        ands_immed(31, changed, 2, 32 - SRB_T0),
+        csel64(12, 12, 31, A64_CC_EQ),
 
         /* If neither S nor M changed, go further */
         ands_immed(31, changed, 2, 32 - SRB_M),
@@ -1676,10 +1674,9 @@ uint32_t EMIT_EORI_TO_SR(struct TranslatorContext *ctx, uint16_t opcode)
         mov_reg(orig, cc),
         eor_reg(cc, cc, immed, LSL, 0),
 
-        /* If trace bits changed, break JIT loop */
-        tbz(immed, SRB_T0, 3),
-        tbz(immed, SRB_T1, 2),
-        mov_reg(12, WZR),
+        /* If trace bits changed, break JIT loop by clearing x12 register */
+        ands_immed(31, immed, 2, 32 - SRB_T0),
+        csel64(12, 12, 31, A64_CC_EQ),
 
         /* If neither S nor M changed, go further */
         ands_immed(31, immed, 2, 32 - SRB_M),
