@@ -6732,8 +6732,11 @@ uint32_t EMIT_lineE(struct TranslatorContext *ctx)
         cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[0]) == (0x4840 | (opcode & 7)) &&
         (cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]) & 0xfeff) == (opcode & 0xfeff))
     {
-        uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr - 1);
+        uint8_t update_mask = M68K_GetSRMask(ctx->tc_M68kCodePtr + 1);
         uint8_t reg = RA_MapM68kRegister(ctx, opcode & 7);
+        uint16_t third_opcode = cache_read_16(ICACHE, (uintptr_t)&ctx->tc_M68kCodePtr[1]);
+        bool is_ror = (third_opcode & 0x100) == 0;
+
         RA_SetDirtyM68kRegister(ctx, opcode & 7);
 
         EMIT(ctx, rev(reg, reg));
@@ -6744,36 +6747,34 @@ uint32_t EMIT_lineE(struct TranslatorContext *ctx)
         if (update_mask)
         {
             uint8_t cc = RA_ModifyCC(ctx);
-            uint8_t tmp = RA_AllocARMRegister(ctx);
-            EMIT(ctx, cmn_reg(31, reg, LSL, 0));
             uint8_t alt_flags = update_mask;
             if ((alt_flags & 3) != 0 && (alt_flags & 3) < 3)
                 alt_flags ^= 3;
-            EMIT(ctx, 
-                mov_immed_u16(tmp, alt_flags, 0),
-                bic_reg(cc, cc, tmp, LSL, 0)
-            );
+
+            EMIT_ClearFlags(ctx, cc, alt_flags);
+
+            if (update_mask & SR_NZ) {
+                EMIT(ctx, cmn_reg(31, reg, LSL, 16));
+            }
 
             if (update_mask & SR_Z) {
-                EMIT(ctx, 
-                    b_cc(A64_CC_EQ ^ 1, 2),
-                    orr_immed(cc, cc, 1, (32 - SRB_Z) & 31)
-                );
+                EMIT_SetFlagsConditional(ctx, cc, SR_Z, A64_CC_EQ);
             }
-            if (update_mask & SR_N) {
-                EMIT(ctx, 
-                    b_cc(A64_CC_MI ^ 1, 2),
-                    orr_immed(cc, cc, 1, (32 - SRB_N) & 31)
-                );
+            if (is_ror && (update_mask & SR_NC) == SR_NC) {
+                EMIT_SetFlagsConditional(ctx, cc, SR_NCalt, A64_CC_MI);
+            } else {
+                if (update_mask & SR_N) {
+                    EMIT_SetFlagsConditional(ctx, cc, SR_N, A64_CC_MI);
+                }
+                if (update_mask & SR_C) {
+                    uint8_t tmp = RA_AllocARMRegister(ctx);
+                    EMIT(ctx,
+                        ubfx(tmp, reg, is_ror ? 15 : 0, 1),
+                        bfi(cc, tmp, SRB_Calt, 1)
+                    );
+                    RA_FreeARMRegister(ctx, tmp);
+                }
             }
-            if (update_mask & (SR_C | SR_X)) {
-                EMIT(ctx, 
-                    b_cc(A64_CC_CS ^ 1, 3),
-                    mov_immed_u16(tmp, SR_Calt | SR_X, 0),
-                    orr_reg(cc, cc, tmp, LSL, 0)
-                );
-            }
-            RA_FreeARMRegister(ctx, tmp);
         }
 
         return 3;
