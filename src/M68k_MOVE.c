@@ -461,9 +461,15 @@ uint32_t EMIT_move(struct TranslatorContext *ctx)
                     break;
                 case 2:
                     immediate_value = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr);
+                    if (sign_ext) {
+                        immediate_value = (int32_t)(int16_t)immediate_value;
+                    }
                     break;
                 case 1:
                     immediate_value = cache_read_16(ICACHE, (uintptr_t)ctx->tc_M68kCodePtr) & 0xff;
+                    if (sign_ext) {
+                        immediate_value = (int32_t)(int8_t)immediate_value;
+                    }
                     break;
             }
         }
