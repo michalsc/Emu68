@@ -235,6 +235,7 @@ uint32_t EMIT_DIVS_W(struct TranslatorContext *ctx, uint16_t opcode)
             This is a point of no return. Issue division by zero exception here
         */
         EMIT(ctx, add_immed(REG_PC, REG_PC, 2 * (ext_words + 1)));
+        EMIT_ClearFlags(ctx, RA_ModifyCC(ctx), SR_Calt);
 
         EMIT_Exception(ctx, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(ctx->tc_M68kCodePtr - 1));
 
@@ -347,7 +348,8 @@ uint32_t EMIT_DIVU_W(struct TranslatorContext *ctx, uint16_t opcode)
             This is a point of no return. Issue division by zero exception here
         */
         EMIT(ctx, add_immed(REG_PC, REG_PC, 2 * (ext_words + 1)));
-
+        EMIT_ClearFlags(ctx, RA_ModifyCC(ctx), SR_Calt);
+        
         EMIT_Exception(ctx, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(ctx->tc_M68kCodePtr - 1));
 
         RA_StoreDirtyFPURegs(ctx);
@@ -472,7 +474,8 @@ uint32_t EMIT_DIVUS_L(struct TranslatorContext *ctx, uint16_t opcode)
             This is a point of no return. Issue division by zero exception here
         */
         EMIT(ctx, add_immed(REG_PC, REG_PC, 2 * (ext_words + 1)));
-
+        EMIT_ClearFlags(ctx, RA_ModifyCC(ctx), SR_Calt);
+        
         EMIT_Exception(ctx, VECTOR_DIVIDE_BY_ZERO, 2, (uint32_t)(intptr_t)(ctx->tc_M68kCodePtr - 1));
 
         RA_StoreDirtyFPURegs(ctx);

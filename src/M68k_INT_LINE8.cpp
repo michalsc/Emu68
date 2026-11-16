@@ -30,6 +30,7 @@ void DIVS_W(uint32_t)
     src = loadFromEA<Mode, Reg, int16_t>();
 
     if (src == 0) {
+        SR &= ~SR_Calt;
         raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         int32_t dval = getD<Dn, int32_t>();
@@ -74,6 +75,7 @@ void DIVU_W(uint32_t)
     src = loadFromEA<Mode, Reg, uint16_t>();
 
     if (src == 0) {
+        SR &= ~SR_Calt;
         raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         uint32_t dval = getD<Dn, uint32_t>();

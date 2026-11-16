@@ -571,6 +571,7 @@ void DIVU_L(uint32_t)
     uint32_t _src = loadFromEA<Mode, Reg, uint32_t>();
 
     if (_src == 0) {
+        SR &= ~SR_Calt;
         raiseException(VECTOR_DIVIDE_BY_ZERO, ExceptionFrameFormat::FORMAT_2, orig_PC, 0);
     } else {
         /* DIVS */
