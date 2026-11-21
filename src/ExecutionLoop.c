@@ -23,8 +23,8 @@
 register uint64_t (*ARMCode)() __asm__("x12");
 extern uint32_t EPOCH;
 
-extern void M68K_RaiseTraceException(void);
-extern void M68K_RaiseUnalignedPCException();
+extern void M68K_RaiseTraceException(uint32_t address);
+extern void M68K_RaiseUnalignedPCException(void);
 
 
 #if 0
@@ -603,6 +603,7 @@ void TraceInterpreterLoop()
         }
 
         uint32_t opcode;
+        uint32_t insn_address = PC;
         void (*code)(uint32_t);
         asm volatile(
             "ldrh	%w0, [%2]\n\t"
@@ -627,10 +628,10 @@ void TraceInterpreterLoop()
         {
             uint32_t tbits = getSR() & (SR_T0 | SR_T1);
             if (tbits == SR_T1) {
-                M68K_RaiseTraceException();
+                M68K_RaiseTraceException(insn_address);
                 traceTaken = true;
             } else if (tbits == SR_T0 && globals.trace_branch_flag) {
-                M68K_RaiseTraceException();
+                M68K_RaiseTraceException(insn_address);
                 traceTaken = true;
             }
         }

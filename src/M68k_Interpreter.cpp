@@ -270,9 +270,9 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     PC = *(uint32_t*)(uintptr_t)vbr;
 }
 
-extern "C" void M68K_RaiseTraceException()
+extern "C" void M68K_RaiseTraceException(uint32_t address)
 {
-    raiseException(VECTOR_TRACE, ExceptionFrameFormat::FORMAT_0, 0, 0);
+    raiseException(VECTOR_TRACE, ExceptionFrameFormat::FORMAT_2, address, 0);
 }
 
 extern "C" void M68K_RaiseUnalignedPCException()
