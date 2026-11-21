@@ -413,5 +413,12 @@ if(ENABLE_DISASM)
     target_link_libraries(Emu68.elf capstone_static)
 endif()
 
+# Before generating the version.h file, check if the patch version is empty and set it to 0 if it is
+if("${CMAKE_PROJECT_VERSION_PATCH}" STREQUAL "")
+    set(EMU68_VERSION_PATCH 0)
+else()
+    set(EMU68_VERSION_PATCH ${CMAKE_PROJECT_VERSION_PATCH})
+endif()
+
 configure_file(include/version.h.in include/version.h @ONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/.git/index)
