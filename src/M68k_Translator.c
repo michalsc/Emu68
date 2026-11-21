@@ -815,7 +815,7 @@ struct M68KTranslationUnit *M68K_VerifyUnit(struct M68KTranslationUnit *unit)
         */
         uint32_t fp = 0;
 
-        if (unit->mt_M68kHigh - unit->mt_M68kLow > 8) {
+        if (unit->mt_M68kHigh - unit->mt_M68kAddress > 8) {
             fp = cache_read_32(ICACHE, unit->mt_M68kAddress) ^ cache_read_32(ICACHE, unit->mt_M68kAddress + 4);
         } else {
             fp = unit->mt_Fingerprint;
