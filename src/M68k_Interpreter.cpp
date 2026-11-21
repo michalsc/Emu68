@@ -212,7 +212,7 @@ void raiseException(uint32_t exception, ExceptionFrameFormat format, uint32_t ea
     uint32_t stack_frame_size = 0;
 
     #if 1
-    if (exception != VECTOR_PRIVILEGE_VIOLATION) {
+    if (exception != VECTOR_PRIVILEGE_VIOLATION && exception != VECTOR_TRACE) {
         bug("[INT] raiseException(%x, %d, %08x, %08x) called from %p\n", exception, format, ea, pc, __builtin_return_address(0));
 
         M68K_SaveContext(getCTX());
