@@ -553,25 +553,45 @@ uint32_t EMIT_DIVUS_L(struct TranslatorContext *ctx, uint16_t opcode)
         RA_FreeARMRegister(ctx, tmp2);
         RA_FreeARMRegister(ctx, result);
     }
+    else if (sig)
+    {
+        /* Signed 32/32: -2^31 / -1 overflows. Divide in 64 bits, keep Dq and Dr if the quotient needs more than
+           32 bits (V is set below, from the same comparison) */
+        uint8_t dvd = RA_AllocARMRegister(ctx);
+        uint8_t dvs = RA_AllocARMRegister(ctx);
+        uint8_t quot = RA_AllocARMRegister(ctx);
+        uint8_t tmp = RA_AllocARMRegister(ctx);
+
+        EMIT(ctx,
+            sxtw64(dvd, reg_dq),
+            sxtw64(dvs, reg_q),
+            sdiv64(quot, dvd, dvs),
+            sxtw64(tmp, quot),
+            cmp64_reg(tmp, quot, LSL, 0)
+        );
+        tmp_ptr = ctx->tc_CodePtr++;
+        if (reg_dr != reg_dq)
+            EMIT(ctx, msub(reg_dr, reg_dq, quot, reg_q));   /* remainder first: it reads the dividend in Dq */
+        EMIT(ctx, mov_reg(reg_dq, quot));
+        *tmp_ptr = b_cc(A64_CC_NE, ctx->tc_CodePtr - tmp_ptr);
+
+        RA_FreeARMRegister(ctx, dvd);
+        RA_FreeARMRegister(ctx, dvs);
+        RA_FreeARMRegister(ctx, quot);
+        RA_FreeARMRegister(ctx, tmp);
+    }
     else
     {
         if (reg_dr == reg_dq)
         {
-            if (sig)
-                EMIT(ctx, sdiv(reg_dq, reg_dq, reg_q));
-            else
-                EMIT(ctx, udiv(reg_dq, reg_dq, reg_q));
+            EMIT(ctx, udiv(reg_dq, reg_dq, reg_q));
         }
         else
         {
             uint8_t tmp = RA_AllocARMRegister(ctx);
 
-            if (sig)
-                EMIT(ctx, sdiv(tmp, reg_dq, reg_q));
-            else
-                EMIT(ctx, udiv(tmp, reg_dq, reg_q));
-
             EMIT(ctx, 
+                udiv(tmp, reg_dq, reg_q),
                 msub(reg_dr, reg_dq, tmp, reg_q),
                 mov_reg(reg_dq, tmp)
             );
@@ -593,7 +613,7 @@ uint32_t EMIT_DIVUS_L(struct TranslatorContext *ctx, uint16_t opcode)
         uint8_t cc = RA_ModifyCC(ctx);
         if (update_mask & SR_VC) {
             EMIT_ClearFlags(ctx, cc, SR_Valt | SR_Calt);
-            if (div64) {
+            if (div64 || sig) {
                 EMIT_SetFlagsConditional(ctx, cc, SR_Valt, ARM_CC_NE);
             }
         }
