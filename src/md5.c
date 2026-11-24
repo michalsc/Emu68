@@ -113,75 +113,68 @@ struct MD5 CalcMD5(void *_start, void *_end)
 
 #define CRC_DIRECT_BASE 0x01000000UL
 
-static inline uint32_t crc_b(uint32_t c, uint32_t v) { __asm__("crc32b %w0, %w0, %w1" : "+r"(c) : "r"(v)); return c; }
-static inline uint32_t crc_h(uint32_t c, uint32_t v) { __asm__("crc32h %w0, %w0, %w1" : "+r"(c) : "r"(v)); return c; }
-static inline uint32_t crc_w(uint32_t c, uint32_t v) { __asm__("crc32w %w0, %w0, %w1" : "+r"(c) : "r"(v)); return c; }
-static inline uint32_t crc_x(uint32_t c, uint64_t v) { __asm__("crc32x %w0, %w0, %x1" : "+r"(c) : "r"(v)); return c; }
+static inline uint32_t crc_b(uint32_t c, uint8_t  v) { __asm__("crc32b %w0, %w0, %w1" : "+r"(c) : "r"((uint32_t)v)); return c; }
+static inline uint32_t crc_h(uint32_t c, uint16_t v) { v = __builtin_bswap16(v); __asm__("crc32h %w0, %w0, %w1" : "+r"(c) : "r"((uint32_t)v)); return c; }
+static inline uint32_t crc_w(uint32_t c, uint32_t v) { v = __builtin_bswap32(v); __asm__("crc32w %w0, %w0, %w1" : "+r"(c) : "r"(v)); return c; }
+static inline uint32_t crc_x(uint32_t c, uint64_t v) { v = __builtin_bswap64(v); __asm__("crc32x %w0, %w0, %x1" : "+r"(c) : "r"(v)); return c; }
 
 __attribute__((noinline))
-uint32_t CalcCRC32_Cached(void *_start, void *_end)
+uint32_t CalcCRC32_Cached(uintptr_t s, uintptr_t e)
 {
-    uintptr_t s = (uintptr_t)_start;
-    uintptr_t e = (uintptr_t)_end;
-    uint32_t a = 0xffffffff;
-    uint32_t b = 0x5a5a5a5a;    /* different seed breaks v1/v2 symmetry */
+    uint32_t c = 0xffffffff;
 
     /* Head: climb to 16-byte alignment */
-    if ((s & 1) && e - s >= 1) { a = crc_b(a, cache_read_8 (ICACHE, s)); s += 1; }
-    if ((s & 2) && e - s >= 2) { a = crc_h(a, cache_read_16(ICACHE, s)); s += 2; }
-    if ((s & 4) && e - s >= 4) { a = crc_w(a, cache_read_32(ICACHE, s)); s += 4; }
-    if ((s & 8) && e - s >= 8) { a = crc_x(a, cache_read_64(ICACHE, s)); s += 8; }
+    if ((s & 1) && e - s >= 1) { c = crc_b(c, cache_read_8 (ICACHE, s)); s += 1; }
+    if ((s & 2) && e - s >= 2) { c = crc_h(c, cache_read_16(ICACHE, s)); s += 2; }
+    if ((s & 4) && e - s >= 4) { c = crc_w(c, cache_read_32(ICACHE, s)); s += 4; }
+    if ((s & 8) && e - s >= 8) { c = crc_x(c, cache_read_64(ICACHE, s)); s += 8; }
 
     /* Body: aligned 16-byte blocks, two independent chains */
     while (e - s >= 16) {
-        a = crc_x(a, cache_read_64(ICACHE, s));
-        b = crc_x(b, cache_read_64(ICACHE, s + 8));
+        c = crc_x(c, cache_read_64(ICACHE, s));
+        c = crc_x(c, cache_read_64(ICACHE, s + 8));
         s += 16;
     }
 
     /* Tail: descending sizes keep alignment */
-    if (e - s >= 8) { a = crc_x(a, cache_read_64(ICACHE, s)); s += 8; }
-    if (e - s >= 4) { a = crc_w(a, cache_read_32(ICACHE, s)); s += 4; }
-    if (e - s >= 2) { a = crc_h(a, cache_read_16(ICACHE, s)); s += 2; }
-    if (e - s >= 1) { a = crc_b(a, cache_read_8 (ICACHE, s)); }
+    if (e - s >= 8) { c = crc_x(c, cache_read_64(ICACHE, s)); s += 8; }
+    if (e - s >= 4) { c = crc_w(c, cache_read_32(ICACHE, s)); s += 4; }
+    if (e - s >= 2) { c = crc_h(c, cache_read_16(ICACHE, s)); s += 2; }
+    if (e - s >= 1) { c = crc_b(c, cache_read_8 (ICACHE, s)); }
 
-    return crc_w(a, b);
+    return c;
 }
 
 uint32_t CalcCRC32(void *_start, void *_end)
 {
     uintptr_t s = (uintptr_t)_start;
     uintptr_t e = (uintptr_t)_end;
-    uint32_t a = 0xffffffff;
-    uint32_t b = 0x5a5a5a5a;    /* different seed breaks v1/v2 symmetry */
+    uint32_t c = 0xffffffff;
 
     if (e <= s)
-        return a;
+        return c;
+    if (s < CRC_DIRECT_BASE)
+        return CalcCRC32_Cached(s, e);
 
-    if (s < CRC_DIRECT_BASE) {
-        return CalcCRC32_Cached(_start, _end);
-    };
+    if (s & 1)                 { c = crc_b(c, *(const uint8_t  *)s); s += 1; }
+    if ((s & 2) && e - s >= 2) { c = crc_h(c, *(const uint16_t *)s); s += 2; }
+    if ((s & 4) && e - s >= 4) { c = crc_w(c, *(const uint32_t *)s); s += 4; }
+    if ((s & 8) && e - s >= 8) { c = crc_x(c, *(const uint64_t *)s); s += 8; }
 
-    /* Head: climb to 16-byte alignment */
-    if (s & 1)                 { a = crc_b(a, *(const uint8_t  *)s); s += 1; }
-    if ((s & 2) && e - s >= 2) { a = crc_h(a, *(const uint16_t *)s); s += 2; }
-    if ((s & 4) && e - s >= 4) { a = crc_w(a, *(const uint32_t *)s); s += 4; }
-    if ((s & 8) && e - s >= 8) { a = crc_x(a, *(const uint64_t *)s); s += 8; }
-    
     uintptr_t body_end = s + ((e - s) & ~(uintptr_t)15);
     while (s != body_end) {
         uint64_t v1, v2;
         __asm__ volatile("ldp %0, %1, [%2], #16"
                          : "=r"(v1), "=r"(v2), "+r"(s)
                          : "m"(*(const uint8_t (*)[16])s));
-        a = crc_x(a, v1);
-        b = crc_x(b, v2);
+        c = crc_x(c, v1);
+        c = crc_x(c, v2);
     }
 
-    if (e - s >= 8) { a = crc_x(a, *(const uint64_t *)s); s += 8; }
-    if (e - s >= 4) { a = crc_w(a, *(const uint32_t *)s); s += 4; }
-    if (e - s >= 2) { a = crc_h(a, *(const uint16_t *)s); s += 2; }
-    if (e - s >= 1) { a = crc_b(a, *(const uint8_t  *)s); }
+    if (e - s >= 8) { c = crc_x(c, *(const uint64_t *)s); s += 8; }
+    if (e - s >= 4) { c = crc_w(c, *(const uint32_t *)s); s += 4; }
+    if (e - s >= 2) { c = crc_h(c, *(const uint16_t *)s); s += 2; }
+    if (e - s >= 1) { c = crc_b(c, *(const uint8_t  *)s); }
 
-    return crc_w(a, b);
+    return c;
 }
