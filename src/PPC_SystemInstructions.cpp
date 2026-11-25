@@ -730,8 +730,8 @@ int icbi(PPCTranslatorContext *tc, uint32_t opcode)
         b_cc(A64_CC_NE, -2),
 
         /* Upper base bits are still valid, update lower ones */
-        movk_immed_u16(base, (uint16_t)(uintptr_t)cache.allocLoc(), 0),
-        movk_immed_u16(base, (uint16_t)((uintptr_t)cache.allocLoc() >> 16), 1),
+        movk64_immed_u16(base, (uint16_t)(uintptr_t)cache.allocLoc(), 0),
+        movk64_immed_u16(base, (uint16_t)((uintptr_t)cache.allocLoc() >> 16), 1),
 
         /* Load counter, we clear 4 items with one stp */
         mov_immed_u16(cnt, EMU68_LRU_SET_COUNT / 4, 0),
