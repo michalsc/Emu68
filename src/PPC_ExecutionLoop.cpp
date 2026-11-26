@@ -36,7 +36,7 @@ LRUCache __used__ cache __attribute__((aligned(64)));
 
 __attribute__((aligned(4096))) uint8_t ppc_tmp_stack[65536];
 __attribute__((aligned(4096))) 
-#include "ppc_rom.h"
+#include "boards/ppc_rom.h"
 
 Emu68::List<PPCTranslationUnit> ICache[EMU68_HASHSIZE] __attribute__((aligned(256)));
 Emu68::List<TranslationUnitLRU> LRU;
